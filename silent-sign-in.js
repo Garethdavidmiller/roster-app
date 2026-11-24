@@ -18,7 +18,7 @@
  * real harms. First, the actionable "enter your password" state waits behind a round trip that can
  * only fail. Second — and the reason this is a flag rather than a tidy-up — Firebase's abuse
  * protection throttles by IP as well as by account, and the whole station sits behind ONE corporate
- * NAT address (the same fact `calendar-viewer-auth.js` sizes its throttles against): enough doomed
+ * NAT address (the same fact the retired staff PIN's throttles were sized against): enough doomed
  * attempts from enough migrated members' devices and the throttle starts rejecting CORRECT typed
  * passwords with `auth/too-many-requests`, which reads to staff as "the app keeps asking and won't
  * take my password".

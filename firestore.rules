@@ -1,54 +1,38 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
 //
-// ── SWEEP v20.12: the Calendar stops being public, and the `calendarViewer` audit ───────────────
+// ── SWEEP: THE STAFF PIN'S CAPABILITY IS GONE (the server release of its retirement, Nov 2026) ───
 //
-// `overrides` read was `allow read;` — no auth of any kind — and is now a real member (a `name`
-// claim then; a bound member, `isMember()`, since v24.23) OR the `calendarViewer` capability (the shared staff PIN, minted server-side by the
-// unlockCalendarViewer function). Anonymous is DENIED, which is the substance of the change: the
-// Calendar used to sign every visitor in anonymously, so `request.auth != null` here would have
-// re-admitted precisely the people it closes out.
+// From v20.12 until this release the shared staff PIN minted a second kind of identity: the
+// `calendarViewer` capability, one claim on one shared account, signed in with a custom token by the
+// unlockCalendarViewer function. It could READ overrides and the three documents, and WRITE the two
+// telemetry collections (clientErrors, analytics), because a station PC was a real reader. The PIN
+// was retired from the app on 23 Nov 2026 (DECISIONS.md → "The staff PIN retired"); this release
+// deletes the endpoint, and with it this file's `isCalendarViewer()` and every grant it made. A
+// token still carrying the claim — a PIN session left open on a device until the owner deletes the
+// `calendar-viewer` account — now meets the rules exactly as an anonymous one does: no `name`,
+// `member` or `admin`, so it is refused everywhere. Its throttle store, `viewerAttempts`, lost its
+// match block: no rule matches it, so every client is refused by default, and the owner purges it.
 //
-// A new authenticated identity means every `request.auth != null` in this file had to be re-read,
-// because each one silently widened. The audit, in full — do this again if another capability is
-// ever added, and do not skip a collection because it "obviously" does not matter:
-//
-//   COLLECTION          VIEWER GETS            WHY THAT IS RIGHT
-//   overrides           READ only              the point of the feature; writes need name/admin/manager
-//   huddles             READ                   member, admin or PIN viewer (v23.18 — was open until the
-//                                              owner closed the three documents behind the PIN or a password)
-//   circulars           READ                   same rule as huddles (v23.18)
-//   newsletters         READ                   same rule as huddles (v23.18)
-//   linkDesigns         nothing                needs a bound member (`isMember()`) or admin — the viewer
-//                                              is neither
-//   linkTargetSets      nothing                same read as linkDesigns; write per-creator (v21.04)
-//   staffContact        nothing                owner (`memberName()`) or admin
-//   passwordStatus      nothing                owner (`memberName()`) or admin
-//   resetRequests       nothing                admin read, server-only write
-//   clientErrors        WRITE only             deliberate: an office PC hitting a bug should still be
-//                                              able to report it. Read/update stay admin-only, so the
-//                                              viewer can post an error and never read one.
-//   analytics           WRITE only             deliberate: usage from shared PCs is real usage. The
-//                                              writes are counters, carry no identity, and read is
-//                                              admin-only. (Anonymous sessions lost it at v24.56.)
-//   pushSubscriptions   nothing (TIGHTENED)    every office PC shares one uid, so a subscription
-//                                              written under it is owned by fifty people — see the block
-//   viewerAttempts      nothing (NEW)          the throttle store; server-only in both directions
-//   errorLogNotice      nothing                the admin's Error Log notification record (v26.04);
-//                                              server-only in both directions, the admin included
-//   alUploads           nothing                the annual leave uploader's log (v26.11): admin
-//                                              read and write; it names colleagues against leave days
+// THE AUDIT THAT CAME WITH IT (v20.12) STILL STANDS AS A METHOD: a new authenticated identity
+// means every `request.auth != null` in this file has to be re-read, because each one silently
+// widens. Anonymous is DENIED throughout — the Calendar used to sign every visitor in anonymously,
+// so `request.auth != null` on a read would re-admit precisely the people the rule closes out. Do
+// the audit again, collection by collection, if another capability is ever added.
 //
 // Sweep v20.56: `overtimeWindows` added (Overtime Availability). Reviewer read, no client writes,
-// one posture for the whole tree — the viewer and every ordinary member get nothing, which is why
-// it needed no new line in the audit table above beyond this one. Two things are deliberately NOT
+// one posture for the whole tree — every ordinary member gets nothing. Two things are deliberately NOT
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept 16 Nov 2026 (on v26.22, the review fixes): no rule changed in effect. `isLinksWriter`,
+// Last swept 24 Nov 2026 (on v26.60, for the staff PIN's server release): reads of overrides, huddles, circulars and
+// newsletters, and writes of clientErrors, analytics and pushSubscriptions, lost the viewer; the
+// pushSubscriptions blocks lost the bare-claim denial with it (the viewer is no longer a known
+// identity, so nothing it carries can reach that clause); `viewerAttempts` lost its block. Nothing
+// a member or the admin can do changed.
+// Prior sweep 16 Nov 2026 (on v26.22, the review fixes): no rule changed in effect. `isLinksWriter`,
 // written out identically in linkDesigns and linkTargetSets, is defined ONCE at the top of the file;
-// both blocks call it as before. The PIN lockout record the admin's alert keeps is a document in
-// `viewerAttempts` (`_lockout-record`), so the closed rule there covers it and the audit table stands.
+// both blocks call it as before.
 // The changelog banner below lost a version label that read like a second "last updated".
 // Prior sweep 15 Nov 2026 (v26.15, the leave sheet's Save writes its mark): no rule changed. The
 // comments on `uploadId` and `writesMarked` were re-read and now say the Save writes both.
@@ -199,8 +183,8 @@ service cloud.firestore {
     // from their name (auth-identity.js `nameToEmail`: "G. Miller" → g.miller@myb-roster.local),
     // and Firebase will not let two accounts hold one email. So a `name` is believed only when the
     // session signed in with a password AND its email is the one that name derives to — which only
-    // the real member's account can be. Anonymous, custom-token (PIN) and self-renamed sessions all
-    // fail it. `memberEmailFor` is the rules copy of `nameToEmail`, character for character, and
+    // the real member's account can be. Anonymous, custom-token (the retired PIN's) and self-renamed
+    // sessions all fail it. `memberEmailFor` is the rules copy of `nameToEmail`, character for character, and
     // the whole-roster test in `firestore.rules.test.mjs` pins the two together over every name on
     // the roster (and `member-identity.test.mjs` does the same for the server's copy): a
     // mismatch here LOCKS THAT MEMBER OUT, which is the direction this must fail in.
@@ -243,27 +227,15 @@ service cloud.firestore {
       return isMember() ? request.auth.token.name : null;
     }
 
-    // ── WHEN THE `calendarViewer` CLAIM MAY BE BELIEVED (Sep 2026 review) ──────────────────────
-    // The claim lives on the ONE shared `calendar-viewer` account, and a PIN session signs in to it
-    // with a CUSTOM token. Any PIN holder can link an email/password to that account; a later
-    // password sign-in would then carry the claim indefinitely, and a PIN rotation — the admin's
-    // only lever — would not end it. So the claim counts only on the custom-token session the
-    // unlock function mints. The server repairs a linked account on the next unlock too
-    // (`unlockCalendarViewer`); this is the half that holds meanwhile. Every GRANT on the viewer
-    // reads this; the pushSubscriptions DENIALS keep the bare claim, which is the stricter reading.
-    function isCalendarViewer() {
-      return request.auth != null
-        && request.auth.token.get('calendarViewer', false) == true
-        && request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'custom';
-    }
-
     // ── A REAL IDENTITY, for the write-only telemetry and device collections (v24.56) ─────────
     // These three used to ask only `request.auth != null`, which is true of an ANONYMOUS token —
     // and the anonymous provider is still enabled on the project, so anybody holding the public web
     // API key can mint one. Nothing in the app has signed in anonymously since v24.34, so asking for
-    // a member, the admin, or (where the Calendar writes) the PIN viewer costs no real client a write.
+    // a member or the admin costs no real client a write. The retired staff PIN's viewer was the
+    // third identity here until its server release (Nov 2026): a token still carrying its claim has
+    // no `name`, `member` or `admin`, so it is refused like an anonymous one.
     function isKnownIdentity() {
-      return isMember() || request.auth.token.get('admin', false) == true || isCalendarViewer();
+      return isMember() || request.auth.token.get('admin', false) == true;
     }
 
     // ── WHO MAY WRITE THE LINKS WORKSPACE: the `linksDesigner` claim, or admin (who outranks) ──────
@@ -335,13 +307,13 @@ service cloud.firestore {
       // note this replaced defended that as "the URL is not publicly advertised", which is not a
       // control — it is the absence of one.
       //
-      // TWO identities qualify, and the second is the reason this could finally be closed:
-      //   · a real MYB member — `isMember()`: a password sign-in at the member's own address, with the
-      //     `member` claim setupRosterAuth stamps (AUTH_AND_SESSIONS 19);
-      //   · the shared staff Calendar viewer — `calendarViewer`, minted by the unlockCalendarViewer
-      //     Cloud Function in exchange for the staff PIN. Staff open the roster on shared office
-      //     PCs for a thirty-second look, and requiring a full member sign-in for that would have
-      //     made this change cost more usability than it bought security.
+      // ONE identity qualifies: a real MYB member — `isMember()`: a password sign-in at the member's
+      // own address, with the `member` claim setupRosterAuth stamps (AUTH_AND_SESSIONS 19) — or the
+      // admin. From v20.12 the shared staff PIN's `calendarViewer` capability was a second, and it is
+      // what let this close at all: staff opened the roster on shared office PCs for a thirty-second
+      // look. The PIN was retired on 23 Nov 2026 (somebody with no roster of their own has an Other
+      // Staff login, which is a member here), and its server release took the viewer out of this
+      // rule: a token still carrying the claim is refused like an anonymous one.
       //
       // ANONYMOUS IS DENIED, and that is the whole point: the Calendar used to sign every visitor
       // in anonymously, so `request.auth != null` here would have re-admitted exactly the people
@@ -384,8 +356,7 @@ service cloud.firestore {
       // permission failure. firestore.rules.test.mjs runs that exact read for each saving identity.
       allow read: if request.auth != null && (
         isMember() ||
-        request.auth.token.admin == true ||
-        isCalendarViewer()
+        request.auth.token.admin == true
       );
       allow create, update: if
         request.auth != null &&
@@ -587,19 +558,19 @@ service cloud.firestore {
     match /huddles/{date} {
       // ── READ REQUIRES ACCESS (v23.18 — was `allow read;` from v10.76; owner decision 7 Sep 2026:
       // the Huddle, the Circular and the Newsletter are not visible without the staff PIN or a
-      // password). The same three doors as `overrides`: a bound member (`isMember()`), `admin`, or the
-      // shared `calendarViewer` capability the PIN mints. The reason it was open — a notification
-      // tap on a fresh visit carried no session — is answered on the client since v23.17: the tap
-      // is HELD behind the PIN card and finished by the PIN (calendar-doc-access.js). The client
-      // shipped FIRST, so no device relies on this read being open by the time it closes; and the
-      // client refuses the read at source, which this rule cannot do for the local cache.
+      // password). The same doors as `overrides`: a bound member (`isMember()`) or `admin` — the
+      // retired staff PIN's `calendarViewer` capability was a third until its server release (Nov
+      // 2026). The reason it was open — a notification tap on a fresh visit carried no session — is
+      // answered on the client since v23.17: the tap is HELD behind the sign-in card and finished by
+      // the sign-in (calendar-doc-access.js). The client shipped FIRST, so no device relied on this
+      // read being open by the time it closed; and the client refuses the read at source, which this
+      // rule cannot do for the local cache.
       // A DOCX Huddle's converted TEXT lives in this document (`htmlContent`), so this rule is what
       // closes the words as well as the link. The FILE behind `storageUrl` is a bearer URL and is
       // NOT protected here — ARCHITECTURE.md EXC-007.
       allow read: if request.auth != null && (
         isMember() ||
-        request.auth.token.admin == true ||
-        isCalendarViewer()
+        request.auth.token.admin == true
       );
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
       // Browser writes (manual admin upload in operations.html) require admin claim.
@@ -878,16 +849,17 @@ service cloud.firestore {
     }
 
     match /clientErrors/{docId} {
-      // Written by error-reporter.js once a member, the admin or the PIN viewer is signed in
-      // (`isKnownIdentity`, v24.56 — an anonymous token was enough until then).
+      // Written by error-reporter.js once a member or the admin is signed in (`isKnownIdentity`,
+      // v24.56 — an anonymous token was enough until then; the retired PIN's viewer until its
+      // server release, Nov 2026).
       // Read, update (resolve), and delete restricted to admins. Also read on the server, every
       // fifteen minutes, by the admin's Error Log notification (functions/error-log-notify.js,
       // v26.04) through the Admin SDK, which bypasses these rules — for counts only.
       // Every string field is type- and size-checked so a modified client cannot
       // submit oversized values in any of them (caps mirror the client-side caps
-      // in error-reporter.js). memberName is NOT bound to a token claim on purpose:
-      // the PIN viewer has no name claim, and we still want its uncaught errors
-      // captured rather than silently rejected.
+      // in error-reporter.js). memberName is NOT bound to a token claim: a report is
+      // diagnostics, not an act on anybody's record, and binding it would refuse the
+      // report a page makes while its member's identity is still settling.
       allow create: if
         request.auth != null && isKnownIdentity() &&
         request.resource.data.keys().hasOnly([
@@ -920,12 +892,11 @@ service cloud.firestore {
       // ── READ REQUIRES ACCESS (v23.18) — same rule and same reasoning as `huddles` above; the
       // read was open from v13.58 because the Calendar had no session. The stored URL is still a
       // BEARER download URL: anyone who already holds one can fetch the file (EXC-007). This rule
-      // stops new readers DISCOVERING one without the PIN or a password.
+      // stops new readers DISCOVERING one without a sign-in.
       // Only admin may write; hasOnly (not hasAll) prevents extra fields.
       allow read: if request.auth != null && (
         isMember() ||
-        request.auth.token.admin == true ||
-        isCalendarViewer()
+        request.auth.token.admin == true
       );
       allow create, update: if
         request.auth != null &&
@@ -956,8 +927,7 @@ service cloud.firestore {
       // ── READ REQUIRES ACCESS (v23.18) — same rule as circulars above.
       allow read: if request.auth != null && (
         isMember() ||
-        request.auth.token.admin == true ||
-        isCalendarViewer()
+        request.auth.token.admin == true
       );
       allow create, update: if
         request.auth != null &&
@@ -994,9 +964,9 @@ service cloud.firestore {
       // BEFORE the password changes, so a token whose sign-in is older than that stamp is one the reset
       // meant to end. `auth_time` is that sign-in — the one the token descends from, kept across renewals.
       // Allowed as before when there is nothing to compare: not a bound member (`memberName()` null — an
-      // admin-only token, or the PIN viewer the clause below refuses anyway), no passwordStatus record, or
-      // no `resetAt` in it. Each is guarded (`exists`, `.get(…, null)`, `.get('auth_time', 0)`): reading
-      // an absent value bare is an ERROR, which denies the whole chain (the viewer clause below says why).
+      // admin-only token), no passwordStatus record, or no `resetAt` in it. Each is guarded (`exists`,
+      // `.get(…, null)`, `.get('auth_time', 0)`): reading an absent value bare is an ERROR, which
+      // denies the whole chain (the create/update clause below says why).
       // WITHIN THE SAME SECOND: `auth_time` counts whole seconds and `resetAt` is finer, so a sign-in made
       // in the reset's own second reads as made before it and is refused — the safe direction. A sign-in
       // a second or more after the reset is always allowed, and one before it never is. It could only be
@@ -1022,22 +992,17 @@ service cloud.firestore {
       allow read: if false;
       allow create, update: if
         request.auth != null && isKnownIdentity() &&
-        // NOT the shared Calendar viewer (v20.12). Every office PC that unlocks with the staff PIN
-        // signs in as the SAME uid, so a subscription written under it would be `owner`ed by an
-        // identity fifty people share — any of them could then delete any other's, and the
-        // subscription itself would sit on a shared machine pushing one person's Huddle to the mess
-        // room with nobody able to turn it off. The client already declines to offer this in viewer
-        // mode (calendar-notif-prompt.js); this is the half that does not depend on the client being right.
-        // It reads the BARE claim, not `isCalendarViewer()`: any token carrying it is refused here,
-        // however it signed in — the stricter of the two readings (see `isCalendarViewer` above).
-        // The `in` guard is NOT optional. Reading an ABSENT custom claim is an evaluation ERROR in
-        // Rules ("Property calendarViewer is undefined on object"), and inside an `&&` chain an
-        // error denies the whole clause — so a bare `token.calendarViewer != true` broke every
-        // ordinary subscription write, member and anonymous alike. An error is harmless inside an `||`
-        // chain (it loses to a true branch) or wherever it denies exactly what `false` would deny —
-        // which is why the bare `token.admin == true` reads in this file can use the shorter form,
-        // and this NEGATED one cannot. Caught by the emulator suite, invisible to static checks.
-        (!('calendarViewer' in request.auth.token) || request.auth.token.calendarViewer != true) &&
+        // NOT the retired staff PIN's shared viewer. From v20.12 until the PIN's server release (Nov
+        // 2026) a clause here refused any token carrying `calendarViewer`, because every office PC
+        // that unlocked with the PIN signed in as the SAME uid, and a subscription it wrote would be
+        // `owner`ed by fifty people. The viewer is no longer a known identity, so `isKnownIdentity()`
+        // refuses it before anything else is read, and the clause went with it.
+        // A LESSON IT LEFT, for any NEGATED claim check written here again: reading an ABSENT custom
+        // claim is an evaluation ERROR in Rules, and inside an `&&` chain an error denies the whole
+        // clause — so a bare `token.someClaim != true` refuses every ordinary write. Guard it with
+        // `!('someClaim' in request.auth.token) || …`. An error is harmless inside an `||` chain, or
+        // wherever it denies exactly what `false` would deny, which is why the bare
+        // `token.admin == true` reads in this file can use the shorter form.
         // Not from a sign-in older than the member's last reset (`signedInSinceLastReset`, above).
         signedInSinceLastReset() &&
         // hasOnly prevents injecting extra fields (e.g. memberName, metadata). `owner` is
@@ -1090,20 +1055,13 @@ service cloud.firestore {
       // an error, the delete was refused, and `releaseDevicePush` (notif.js) took the refusal for
       // "not the owner" and dropped the subscription. Same shape as the overrides delete (v25.07).
       allow delete: if request.auth != null && isKnownIdentity() &&
-        // Same `in` guard as create/update above, for the same reason.
-        (!('calendarViewer' in request.auth.token) || request.auth.token.calendarViewer != true) &&
         (resource == null || !('owner' in resource.data) || resource.data.owner == request.auth.uid);
     }
 
-    // ── viewerAttempts — the staff-PIN throttle store (v20.12) ─────────────────────────────────
-    // Written ONLY by the unlockCalendarViewer Cloud Function through the Admin SDK, which bypasses
-    // these rules entirely. Closed to every client in both directions, and BOTH halves matter:
-    // a client that could READ it would learn how close a source is to being blocked (which is how
-    // an automated traversal would pace itself under the limit), and one that could WRITE it could
-    // clear its own failure count between guesses, which would remove the limit altogether.
-    match /viewerAttempts/{sourceKey} {
-      allow read, write: if false;
-    }
+    // `viewerAttempts`, the retired staff PIN's throttle store, had a block here closed to every
+    // client in both directions (v20.12). Its only writer, unlockCalendarViewer, went in the PIN's
+    // server release, and no rule matching a collection refuses every client — so the block went
+    // too, and the owner purges what is left (OPERATIONS_REFERENCE.md → "The staff PIN (retired)").
 
     // ── errorLogNotice — the admin's Error Log notification record (v26.04) ────────────────────
     // One document, `state`: up to which Error Log entry the admin has been told, and when a notice
@@ -1130,7 +1088,7 @@ service cloud.firestore {
     //     before v26.15 has no marked records, and is judged by `savedAt`).
     //
     // ADMIN ONLY, both ways. A log names colleagues against their leave days, and only the admin's
-    // own page writes one. A manager, a member and the PIN viewer get nothing.
+    // own page writes one. A manager and a member get nothing.
     //
     // CREATE: every field present and nothing else, at the server's clock, with `savedBy` the
     // writer's own bound name, so a log cannot say somebody else made it. Two things a rule CANNOT
@@ -1233,8 +1191,8 @@ service cloud.firestore {
     //
     // The recursive wildcard covers participants/, submissions/ and submissions/*/revisions/ — one
     // posture for the whole tree, which is correct here precisely because no sub-path has a
-    // different reader. `calendarViewer` gets nothing: it holds no `name`, `admin` or `manager`
-    // claim, so it fails this rule the same way an anonymous session does.
+    // different reader. A leftover staff-PIN token gets nothing: it holds no `name`, `admin` or
+    // `manager` claim, so it fails this rule the same way an anonymous session does.
     match /overtimeWindows/{weekEnding}/{document=**} {
       allow read: if request.auth != null && (
         request.auth.token.admin == true ||
@@ -1249,8 +1207,8 @@ service cloud.firestore {
       // account counts live in analytics/activeAccounts ({ months{}, daily{} }). Uniqueness
       // is deduped client-side (usage-reporter.js) so the server only ever sees "+1".
       // Read is admin-only. Any KNOWN identity may increment (`isKnownIdentity`, v24.56) — a
-      // member, the admin, or the shared staff-PIN viewer, because usage from a station PC is real
-      // usage — so writes are not gated on a name claim; an anonymous token is refused. The SHAPE is
+      // member or the admin (the retired staff-PIN viewer until its server release, Nov 2026) —
+      // so writes are not gated on a name claim; an anonymous token is refused. The SHAPE is
       // validated: pv_ and perf_ docs are pinned to an id of the present month (or one either side)
       // with month == the id suffix; the counts a pv_ write adds or changes must be known page and
       // open ids, each an int; activeAccounts and origins are pinned to their ids with map fields.
@@ -1263,7 +1221,7 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.token.admin == true;
       // ── A COUNTER MONTH IS THE PRESENT ONE, OR ONE EITHER SIDE (10 Nov 2026) ─────────────────
       // `pv_` and `perf_` ids were pinned to a YYYY-MM SHAPE but not to the present, so any member
-      // or PIN session could create a document for any month a YYYY-MM can name, and no client can
+      // could create a document for any month a YYYY-MM can name, and no client can
       // delete one (`allow delete: if false` below). The client names the month by its OWN clock
       // (`monthKey`, usage-stats.js), up to an hour ahead of the server's UTC in London summer time,
       // so one month either side stays open; that also covers a device clock a little out, and a

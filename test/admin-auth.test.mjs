@@ -26,7 +26,7 @@
  * server-side, and this file is about the read that was added beside it — the button is pressed
  * here only for the re-audit it runs afterwards.
  */
-import { test, describe, mock, beforeEach, afterEach } from 'node:test';
+import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
@@ -49,9 +49,9 @@ function makeEl(tag = 'div', id = '') {
         get innerHTML() { return this.textContent; },
         append(...kids) { for (const k of kids) if (k && typeof k === 'object') k._parent = this; this.children.push(...kids); },
         appendChild(k) { k._parent = this; this.children.push(k); return k; },
-        /** Out of its parent, as the PIN's line is taken down before it is drawn again. */
+        /** Out of its parent. */
         remove() { if (this._parent) this._parent.children = this._parent.children.filter((/** @type {any} */ c) => c !== this); },
-        /** A single-class selector, which is all the card asks (`.auth-gap-line--pin`). @param {string} sel */
+        /** A single-class selector — all a card here asks. @param {string} sel */
         querySelector(sel) { const cls = sel.replace(/^\./, ''); return this.find((/** @type {any} */ c) => String(c.className).split(/\s+/).includes(cls)); },
         insertAdjacentHTML(_pos, html) { this.children.push(String(html)); },
         setAttribute(k, v) { this.attrs[k] = String(v); },
@@ -190,7 +190,7 @@ describe('a false all-clear — the failure this card exists to prevent', () => 
         // The mirror image, and the reason the two cannot share a code path: a known-clean roster
         // must report so, or an item raised on an earlier load could never be cleared.
         const { reported, gaps } = await wire(CLEAN);
-        assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: null }]);
+        assert.deepEqual(reported, [{ setUp: 0, leavers: 0 }]);
         assert.match(gaps.textContent, /Everyone on the roster has a login/);
     });
 
@@ -215,7 +215,7 @@ describe('a false all-clear — the failure this card exists to prevent', () => 
 describe('and the gaps themselves reach both the card and the strip', () => {
     test('the two groups are reported separately, never as one total', async () => {
         const { reported } = await wire(GAPPY);
-        assert.deepEqual(reported, [{ setUp: 2, leavers: 1, pinLockout: null }]);
+        assert.deepEqual(reported, [{ setUp: 2, leavers: 1 }]);
     });
 
     test('the block NAMES people — a count alone cannot be acted on', async () => {
@@ -244,7 +244,7 @@ describe('and the gaps themselves reach both the card and the strip', () => {
         const { gaps, reported } = await wire({ setUp: [], leavers: ['B. Khalil'] });
         assert.ok(!/not set up/.test(gaps.textContent));
         assert.match(gaps.textContent, /can still sign in/);
-        assert.deepEqual(reported, [{ setUp: 0, leavers: 1, pinLockout: null }]);
+        assert.deepEqual(reported, [{ setUp: 0, leavers: 1 }]);
     });
 
     test('one of each is singular, two is plural', async () => {
@@ -273,7 +273,7 @@ describe('the members Set up accounts will reset are named, before it is pressed
         assert.match(gaps.textContent, /B\. Khalil \(account disabled\)/);
         assert.deepEqual(remedies(gaps), ['Press Set up accounts below.',
             'It will reset the passwords of S. Silva and B. Khalil to their surnames and sign them out — tell them afterwards.']);
-        assert.deepEqual(reported, [{ setUp: 3, leavers: 0, pinLockout: null }], 'the strip counts every gap, reset or not');
+        assert.deepEqual(reported, [{ setUp: 3, leavers: 0 }], 'the strip counts every gap, reset or not');
     });
 
     test('one member is told in the singular', async () => {
@@ -319,7 +319,7 @@ describe('the gaps Set up accounts cannot mend say so, with their own remedy', (
             'B. Toth: the address is linked to the shared staff PIN account, which Set up accounts will not take over. With the staff PIN retired nothing in the app clears it: delete the staff PIN account in the Firebase console (the retirement’s last step), then press Set up accounts.',
             'S. Silva and A. Hared: the account at that address is claimed for another member, so Set up accounts will not adopt it. Check it in the Firebase console.',
         ]);
-        assert.deepEqual(reported, [{ setUp: 3, leavers: 0, pinLockout: null }], 'still counted: each is a member who cannot sign in properly');
+        assert.deepEqual(reported, [{ setUp: 3, leavers: 0 }], 'still counted: each is a member who cannot sign in properly');
     });
 
     test('beside a gap the press DOES mend, the press is offered first', async () => {
@@ -412,7 +412,7 @@ describe('a check that cannot answer takes back what an earlier one told the str
     /** Answer the load with GAPPY, then press Set up accounts with the re-audit answering `after`. */
     async function runThenReaudit(/** @type {any} */ after) {
         const w = await wire(GAPPY);
-        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1, pinLockout: null }], 'premise: the load answered');
+        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }], 'premise: the load answered');
         assert.equal(w.withdrawals.length, 0, 'premise: an answer withdraws nothing');
         _setupReply = { created: [], skipped: [] };
         _next = after;
@@ -432,14 +432,14 @@ describe('a check that cannot answer takes back what an earlier one told the str
             assert.match(w.gaps.textContent, /Couldn’t check/);
             assert.equal(w.withdrawals.length, 1,
                 'the strip would go on stating two leavers beside a card that says it cannot tell');
-            assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1, pinLockout: null }], 'and nothing is reported in their place');
+            assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }], 'and nothing is reported in their place');
         });
     }
 
     test('a re-audit that answers reports its counts, and withdraws nothing', async () => {
         const w = await runThenReaudit(CLEAN);
         assert.equal(w.withdrawals.length, 0);
-        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1, pinLockout: null }, { setUp: 0, leavers: 0, pinLockout: null }]);
+        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }, { setUp: 0, leavers: 0 }]);
     });
 
     test('a Retry that fails again withdraws again', async () => {
@@ -488,62 +488,37 @@ test('a page without the block still initialises', async () => {
     for (let i = 0; i < 6; i++) await Promise.resolve();
 });
 
-// ── THE STAFF PIN SHUT FOR EVERYONE, ON THE SAME ANSWER (owner, Nov 2026) ───────────────────────
-// The audit's answer carries `pinLockout` (getAccountSetupGaps). The wiring: an object draws a line on
-// the card and reports the count; `null` draws none and reports 0; ABSENT — an older server, or a
-// record it could not read — draws none and reports `null`, which the strip turns into a WITHDRAW.
-describe('the staff PIN lockout rides on the audit, and unknown is never "none"', () => {
-    // The clock is the test's: a block on the card sets the card's next drawing for when it ends.
-    const NOW = Date.UTC(2026, 10, 16, 14, 10);        // 14:10 London (GMT)
-    beforeEach(() => { mock.timers.enable({ apis: ['setTimeout', 'Date'], now: NOW }); });
-    afterEach(() => { mock.timers.reset(); });
-    const running = { active: true, blockedUntil: NOW + 10 * 60_000, lastBlockedAt: NOW - 5 * 60_000, blocks: 1 };
-
-    test('a block running now: a line on the card, a count for the strip', async () => {
-        const { gaps, reported } = await wire({ ...CLEAN, pinLockout: running });
-        assert.match(gaps.textContent, /The staff PIN is blocked for everyone until \d{2}:\d{2}/);
-        assert.match(gaps.textContent, /nobody needs it — members sign in with their own password/);
+// ── THE RETIRED STAFF PIN IS NOT ON THE CARD (its server release, Nov 2026) ─────────────────────
+// The audit's answer carried `pinLockout` (getAccountSetupGaps), and the card drew a line from it and
+// reported a third count. Both went with the PIN's endpoint. The page and the Functions deploy in
+// parallel, so a server from before the release can still send the field for minutes: the card must
+// draw nothing from it and report the two counts it has.
+describe('the retired staff PIN lockout is not on the card', () => {
+    test('an answer still carrying the field draws no PIN line and reports only the two counts', async () => {
+        const NOW = Date.now();
+        const { gaps, reported } = await wire({ ...CLEAN,
+            pinLockout: { active: true, blockedUntil: NOW + 10 * 60_000, lastBlockedAt: NOW - 5 * 60_000, blocks: 1 } });
+        assert.doesNotMatch(gaps.textContent, /staff PIN/);
         assert.match(gaps.textContent, /Everyone on the roster has a login/, 'the audit\'s own answer still shows');
-        assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: 1 }]);
-    });
-
-    test('none: no line, and a zero the strip can clear an old item with', async () => {
-        const { gaps, reported } = await wire({ ...CLEAN, pinLockout: null });
-        assert.doesNotMatch(gaps.textContent, /staff PIN/);
-        assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: 0 }]);
-    });
-
-    test('absent (an older server): no line, and UNKNOWN to the strip — never a zero', async () => {
-        const { gaps, reported } = await wire(CLEAN);
-        assert.doesNotMatch(gaps.textContent, /staff PIN/);
-        assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: null }]);
+        assert.deepEqual(reported, [{ setUp: 0, leavers: 0 }]);
     });
 });
 
-// ── ASKED AGAIN, AND JUDGED BY THE CLOCK (whole-app check, 17 Nov 2026) ─────────────────────────
-// The audit ran once, at load, and its PIN line was judged once, as the answer came. So the admin's
-// "Staff PIN — blocked station-wide" push, tapped with Operations already open, landed on a card with no
-// block on it; and a line drawn during a block went on saying "blocked until 14:20" at 15:00. The card
-// now hands the page a `refresh` (operations-app.js calls it on that tap and on a return to the tab),
-// the answer asked LAST is the one drawn, and the PIN's line is drawn again whenever its words change.
-describe('the audit is asked again on demand, and its PIN line is judged by the clock', () => {
-    const MIN = 60_000;
-    const NOW = Date.UTC(2026, 10, 16, 14, 10);        // 14:10 London (GMT)
-    beforeEach(() => { mock.timers.enable({ apis: ['setTimeout', 'Date'], now: NOW }); });
-    afterEach(() => { mock.timers.reset(); });
-    const running = () => ({ active: true, blockedUntil: Date.now() + 10 * MIN, lastBlockedAt: Date.now() - 5 * MIN, blocks: 1 });
-    /** The PIN's lines in the block — one at most, however often it is drawn. @param {any} gaps */
-    const pinLines = (gaps) => gaps.children.filter((/** @type {any} */ e) => typeof e !== 'string' && /auth-gap-line--pin/.test(e.className));
-
-    test('refresh asks again, and draws the newer answer — the PIN push on a page already open', async () => {
-        const { gaps, reported, card } = await wire({ ...CLEAN, pinLockout: null });
-        assert.doesNotMatch(gaps.textContent, /staff PIN/, 'premise: no block when the page loaded');
-        _next = { ...CLEAN, pinLockout: running() };       // the block begins; its push is tapped
+// ── ASKED AGAIN (whole-app check, 17 Nov 2026) ──────────────────────────────────────────────────
+// The audit ran once, at load. So a push tapped with Operations already open landed on a card drawn from
+// an answer before it (the push was the retired staff PIN's lockout notice). The card now hands the page
+// a `refresh` (operations-app.js calls it on a deep link and on a return to the tab), and the answer
+// asked LAST is the one drawn.
+describe('the audit is asked again on demand', () => {
+    test('refresh asks again, and draws the newer answer — a deep link on a page already open', async () => {
+        const { gaps, reported, card } = await wire(CLEAN);
+        assert.doesNotMatch(gaps.textContent, /B\. Toth/, 'premise: no gap when the page loaded');
+        _next = GAPPY;
         await card.refresh();
         await drain();
         assert.equal(_calls, 2, 'the tap asked the server again');
-        assert.match(gaps.textContent, /The staff PIN is blocked for everyone until 14:20/);
-        assert.deepEqual(reported.at(-1), { setUp: 0, leavers: 0, pinLockout: 1 });
+        assert.match(gaps.textContent, /B\. Toth/);
+        assert.deepEqual(reported.at(-1), { setUp: 2, leavers: 1 });
     });
 
     test('the answer asked LAST is the one drawn, whichever lands last', async () => {
@@ -559,32 +534,16 @@ describe('the audit is asked again on demand, and its PIN line is judged by the 
         await earlier;
         await drain();
         assert.match(gaps.textContent, /B\. Toth/, 'an answer from before was painted over the one after');
-        assert.deepEqual(reported.at(-1), { setUp: 2, leavers: 1, pinLockout: null });
+        assert.deepEqual(reported.at(-1), { setUp: 2, leavers: 1 });
         assert.equal(reported.length, 2, 'and the stale answer reported nothing to the strip');
     });
 
-    test('a block that ends while the page is open is drawn again as ended, then taken down when its day is over', async () => {
-        const { gaps, reported } = await wire({ ...CLEAN, pinLockout: running() });
-        assert.match(gaps.textContent, /The staff PIN is blocked for everyone until 14:20/);
-        mock.timers.tick(10 * MIN + 1000);                // 14:20 has passed
-        assert.doesNotMatch(gaps.textContent, /is blocked for everyone/, 'the line still said "blocked until 14:20" after 14:20');
-        assert.match(gaps.textContent, /The staff PIN was blocked for everyone from 14:05 to 14:20/);
-        assert.equal(pinLines(gaps).length, 1, 'drawn again, not drawn twice');
-        assert.deepEqual(reported.at(-1), { setUp: 0, leavers: 0, pinLockout: 1 }, 'still counted for its day');
-        mock.timers.tick(24 * 60 * MIN);                   // past midnight, and a day after it began
-        assert.doesNotMatch(gaps.textContent, /staff PIN/, 'a day after it began, the line goes');
-        assert.equal(pinLines(gaps).length, 0);
-        assert.deepEqual(reported.at(-1), { setUp: 0, leavers: 0, pinLockout: 0 }, 'and the strip\'s item with it');
-    });
-
-    test('a check that cannot answer stops the drawing — nothing is reported after the withdraw', async () => {
-        const { reported, withdrawals, card } = await wire({ ...CLEAN, pinLockout: running() });
+    test('a check that cannot answer withdraws what the last one reported, and reports nothing', async () => {
+        const { reported, withdrawals, card } = await wire(GAPPY);
         _next = new Error('offline');
         await card.refresh();
         await drain();
         assert.equal(withdrawals.length, 1);
-        const before = reported.length;
-        mock.timers.tick(30 * MIN);
-        assert.equal(reported.length, before, 'a drawing after the withdraw reported counts nobody knows any more');
+        assert.equal(reported.length, 1, 'the failed check reported counts nobody knows any more');
     });
 });

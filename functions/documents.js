@@ -342,8 +342,8 @@ const sendTimetableReminder = onSchedule(
 // ============================================================================
 /**
  * Every fifteen minutes: when new entries have reached the Error Log, tell the ADMIN's devices, at most
- * once an hour. A schedule rather than a trigger on each entry, because every signed-in member and the
- * staff-PIN viewer can write an entry; the reasons, the audience and the record are ./error-log-notify.js,
+ * once an hour. A schedule rather than a trigger on each entry, because every signed-in member can write
+ * an entry; the reasons, the audience and the record are ./error-log-notify.js,
  * and the rules ./error-log-notice.js. One instance at a time, so two checks never overlap.
  */
 const sendErrorLogNotification = onSchedule(

@@ -130,7 +130,6 @@ roster-app/
 ├── operations-usage.js     ← the Usage card: page and document opens, active accounts, the exact sign-in figures
 ├── operations-speed.js     ← the App Speed card; the rules every figure keeps: its header
 ├── operations-attention.js ← the "Needs attention" strip on operations.html: an index of exceptional card states that runs no reads and owns no navigation. Tested by operations-attention.test.mjs and e2e/operations.spec.js
-├── operations-pin-lockout.js ← the retired staff PIN shut for everyone at the endpoint (until the server release), shown on Operations from the audit's answer; absent is unknown, never "none". Tested by operations-pin-lockout.test.mjs and admin-auth.test.mjs
 ├── operations-reset.js     ← what Account status's Reset asks (incl. the lost-phone box) and every sentence about its answer. Pure; tested by operations-reset.test.mjs and e2e/operations.spec.js
 ├── operations-doc-links.js ← the Document links card (Check, then Replace) and the words of every outcome; the work is functions/doc-link-rotation.js. Tested by operations-doc-links.test.mjs and e2e/operations.spec.js
 ├── operations-al-sheet.js ← the Annual leave sheet card: a leave file in, each member's records read whole, every difference drawn as text; nothing kept. Driven by e2e/operations.spec.js
@@ -381,7 +380,6 @@ roster-app/
 │   ├── links-compare-analysis.test.mjs ← compare analysis on two real proposal sheets. Part of test:hygiene
 │   ├── links-grid-input.test.mjs ← the grid's keyboard rule and a mouse stroke's bookkeeping. Part of test:hygiene
 │   ├── operations-attention.test.mjs ← the strip's pure decision, against claiming too little or too much. Part of test:hygiene
-│   ├── operations-pin-lockout.test.mjs ← the PIN lockout as Operations reads and words it; unknown is never zero. Part of test:hygiene
 │   ├── operations-doc-links.test.mjs ← what Document links says and sends. Part of test:hygiene
 │   ├── operations-reset.test.mjs ← every sentence Account status's Reset says, held to what the answer reports. Part of test:hygiene
 │   ├── guide-search.test.mjs ← the pure search rules: laundered doubt, an unfindable answer, a doubled one. Part of test:hygiene
@@ -564,8 +562,7 @@ roster-app/
 │   ├── documents-endpoints.test.mjs ← the document domain's handlers executed: no double push, no silent non-push. Runs in test:functions
 │   ├── push-transport.test.mjs ← the two push senders: **too wide is a leak, miscounted is a lie**. Runs in test:functions
 │   ├── error-log-notify.test.mjs ← the Error Log notification's sender executed: the admin's devices only, once an hour. Runs in test:functions
-│   ├── pin-lockout.test.mjs ← the station-wide PIN block's record and notice executed. Runs in test:functions
-│   ├── index-endpoints.test.mjs ← the composition root's two handlers executed: `parseRosterPDF`'s admin guard and the staff-PIN exchange. Runs in test:functions
+│   ├── index-endpoints.test.mjs ← the composition root's handler executed: `parseRosterPDF`'s admin guard, its request and its answer. Runs in test:functions
 │   ├── overtime-endpoints.test.mjs ← the Overtime endpoints executed against fakes. Runs in test:functions
 │   ├── page-visibility-parity.test.mjs ← **`hidden` must actually hide** (an author `display:` out-specifies it). Part of test:hygiene
 │   ├── pre-commit-parity.test.mjs ← the pre-commit hook can READ what it checks. Part of test:hygiene
@@ -606,8 +603,7 @@ roster-app/
 │   ├── calendar-access-core.test.mjs ← the Calendar access decision as states the app can really be in. Part of test:hygiene
 │   ├── calendar-access.test.mjs ← the gate's decision, cards, grant and loss, asserting ORDER; a leftover viewer session is never granted (--experimental-test-module-mocks)
 │   ├── calendar-access-gate.test.mjs ← **no access, no override data** — the cache never consults the rules (--experimental-test-module-mocks)
-│   ├── calendar-viewer-auth.test.mjs ← the server-side rules of the retired staff PIN at every boundary (until the server release). Part of test:hygiene
-│   ├── calendar-viewer-parity.test.mjs ← the PIN feature's static contracts: one viewer uid and claim everywhere, and the PIN never in the repository. Part of test:hygiene
+│   ├── calendar-viewer-parity.test.mjs ← the retired PIN's static contracts: one viewer uid and claim across the boundary, no grant in the rules, no exchange or secret on the server, and the PIN never in the repository. Part of test:hygiene
 │   ├── calendar-notices.test.mjs ← who a Calendar notice is addressed to, and whether it asks (--experimental-test-module-mocks)
 │   ├── install-route.test.mjs ← the install notice's route through the real `installRoute()`
 │   ├── calendar-doc-viewer.test.mjs ← the Circular/Newsletter in-app viewer (--experimental-test-module-mocks)
@@ -702,14 +698,14 @@ roster-app/
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
 ├── generate-sri.mjs        ← dev utility: patches the Mammoth CDN SRI hash in huddle.js
 └── functions/
-    ├── index.js                  ← the COMPOSITION ROOT of the Cloud Functions: shared infrastructure, `parseRosterPDF`, `unlockCalendarViewer`, and re-exports of the domain endpoints. **The exports ARE the deploy surface**; `functions-surface.test.mjs` pins them
+    ├── index.js                  ← the COMPOSITION ROOT of the Cloud Functions: shared infrastructure, `parseRosterPDF`, and re-exports of the domain endpoints. **The exports ARE the deploy surface** (the deploy runs `--force`, so a dropped export is a deleted function); `functions-surface.test.mjs` pins them
     ├── documents.js               ← the DOCUMENT-AND-NOTIFICATION domain: the Huddle ingest, `getDocumentUrl`, `rotateDocumentLinks`, the create triggers and the schedules; a factory, so index.js keeps the shared literals
     ├── pay-reminder.js            ← WHO the pay reminder reaches (CEA and CES members), as a targeted send that fails closed; documents.js decides WHEN
     ├── error-log-notify.js        ← the admin's Error Log notification, SENT to the admin's own devices only. Tested by error-log-notify.test.mjs
     ├── error-log-notice.js        ← the RULES of that notification, no I/O; the words are counts only. Tested by error-log-notice.test.mjs
     ├── huddle-ingest.js           ← the Power Automate Huddle upload: checks, the Storage write, new-arrival vs re-send, and whether to announce. Tested by documents-endpoints.test.mjs
     ├── huddle-retention.js        ← how long a Daily Huddle is kept and what its clean-up may delete. Tested through documents-endpoints.test.mjs
-    ├── auth-endpoints.js          ← the ACCOUNT-AND-CREDENTIAL domain: setupRosterAuth, resetMemberPassword and the account reads; why unlockCalendarViewer stays in index.js: its header
+    ├── auth-endpoints.js          ← the ACCOUNT-AND-CREDENTIAL domain: setupRosterAuth, resetMemberPassword and the account reads
     ├── account-reads.js           ← the account domain's two admin READS, built by auth-endpoints.js. Tested by auth-endpoints.test.mjs
     ├── account-lifecycle.js       ← the pure rules at the edges of an account's life (Set up accounts, the admin reset). Tested by account-lifecycle.test.mjs and auth-endpoints.test.mjs
     ├── reset-request.js           ← `requestPasswordReset`, the public doorbell a locked-out member rings: records a request, pushes to the admin's devices only. Tested by auth-endpoints.test.mjs
@@ -730,8 +726,7 @@ roster-app/
     ├── doc-link-rotation.js       ← a new key for the permanent link of every stored document file, so old copies stop opening it (ARCHITECTURE.md EXC-007). Its header
     ├── london-clock.js            ← an ISO date and the instant it names in London. **Requires nothing**, which keeps overtime-core.test.mjs in the every-branch lane
     ├── overtime-core.js           ← every RULE Overtime Availability has, with no I/O. **The deadline hours are the highest-risk thing in the feature.** Design: OVERTIME_AVAILABILITY.md
-    ├── calendar-viewer-auth.js    ← the PURE server-side rules and throttles of the retired staff PIN, deleted in the server release; it never learns, stores, logs or returns a PIN. Sizing: its header
-    ├── pin-lockout.js             ← the retired PIN's throttle store upkeep and the station-wide block's notice, deleted in the server release; never changes the 401. Tested by pin-lockout.test.mjs
+    ├── retired-viewer-account.js  ← the retired staff PIN's shared account, recognised so Set up accounts, the leaver sweep, a reset and the notices never adopt it; deleted in the cleanup release. Its header
     ├── roster-members.json       ← generated from roster-data.js — do NOT hand-edit; `npm run generate:roster-members`. The server-owned name and role lists. CI-locked by sw-asset-check.test.mjs
     └── package.json
 ```

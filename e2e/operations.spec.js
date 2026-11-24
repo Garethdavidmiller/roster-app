@@ -3994,32 +3994,10 @@ test('operations: account gaps reach the card BY NAME and the strip by group', a
     await expect(gaps).toContainText('Tick the leavers box below');
 });
 
-// THE STAFF PIN SHUT FOR EVERYONE (owner, Nov 2026). It rides on the same account check: an object while
-// a block runs (or began in the last day) puts an item on the strip and a line on the card it opens; an
-// answer WITHOUT the field — an older server, or a record the server could not read — must show neither,
-// and above all must not read as "the PIN is fine". The rules are operations-pin-lockout.test.mjs's.
-test('operations: a staff PIN blocked for everyone reaches the strip and Staff Login Accounts', async ({ page }) => {
-    await seedSession(page);
-    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
-    await page.route(GAPS_URL, route => route.fulfill({
-        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
-        body: JSON.stringify({ setUp: [], leavers: [], pinLockout: {
-            active: true, blockedUntil: Date.now() + 10 * 60_000, lastBlockedAt: Date.now() - 5 * 60_000, blocks: 2 } }),
-    }));
-    await page.goto('/operations.html');
-    const strip = page.locator('#attentionStrip');
-    await expect(strip.getByRole('link', { name: 'Staff PIN blocked: 2 times in the last day' })).toBeVisible();
-    await strip.locator('a[href="#login-accounts"]').first().click();
-    await expect(page.locator('#authSetupBody')).toHaveClass(/open/);
-    const line = page.locator('#authSetupGaps .auth-gap-line--pin');
-    await expect(line).toContainText(/The staff PIN is blocked for everyone until \d{2}:\d{2}/);
-    await expect(line).toContainText('nobody needs it — members sign in with their own password');
-    await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
-});
-
-// ASKED AGAIN WHEN THE PUSH LANDS (whole-app check, 17 Nov 2026). The audit was read once, at load, so the
-// "Staff PIN — blocked station-wide" push, tapped with Operations already open, opened Staff Login Accounts on
-// an answer from before the block: no line, no strip item. The tap and a return to the tab now ask again.
+// ASKED AGAIN WHEN A DEEP LINK LANDS (whole-app check, 17 Nov 2026). The audit was read once, at load, so a
+// push tapped with Operations already open opened Staff Login Accounts on an answer from before it. The tap
+// and a return to the tab now ask again. (The push that found this was the retired staff PIN's lockout
+// notice, deleted in the PIN's server release; the re-read is kept for the tab return and the strip.)
 /** Operations with the account audit answering whatever `answer()` says at the time. @param {import('@playwright/test').Page} page @param {() => any} answer */
 async function openWithAudit(page, answer) {
     await seedSession(page);
@@ -4030,42 +4008,43 @@ async function openWithAudit(page, answer) {
     await page.goto('/operations.html');
     await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
 }
-const RUNNING_BLOCK = () => ({ active: true, blockedUntil: Date.now() + 10 * 60_000, lastBlockedAt: Date.now() - 60_000, blocks: 1 });
 
-test('operations: the staff-PIN push on an OPEN page asks the audit again, and the block is on the card it opens', async ({ page }) => {
-    let answer = { setUp: [], leavers: [], pinLockout: null };
+test('operations: a deep link to Staff Login Accounts on an OPEN page asks the audit again', async ({ page }) => {
+    let answer = /** @type {any} */ ({ setUp: [], leavers: [] });
     await openWithAudit(page, () => answer);
-    await expect(page.locator('#authSetupGaps .auth-gap-line--pin')).toHaveCount(0);
-    answer = { setUp: [], leavers: [], pinLockout: RUNNING_BLOCK() };     // the block begins; its push is tapped
+    answer = { setUp: [], leavers: ['Z. Example'] };     // a leaver appears; a link to the card is tapped
     await page.evaluate(() => { location.hash = '#login-accounts'; });
     await expect(page.locator('#authSetupBody')).toHaveClass(/open/);
-    await expect(page.locator('#authSetupGaps .auth-gap-line--pin')).toContainText(/The staff PIN is blocked for everyone until \d{2}:\d{2}/);
-    await expect(page.locator('#attentionStrip').getByRole('link', { name: 'Staff PIN blocked: 1 time in the last day' })).toBeVisible();
+    await expect(page.locator('#authSetupGaps')).toContainText('Z. Example');
+    await expect(page.locator('#attentionStrip').getByRole('link', { name: 'Leavers still active: 1' })).toBeVisible();
     await expect.poll(() => page.evaluate(() => location.hash), 'followed, then taken off the address').toBe('');
 });
 
 test('operations: a return to the tab asks the account audit again', async ({ page }) => {
     let answer = /** @type {any} */ ({ setUp: [], leavers: [] });
     await openWithAudit(page, () => answer);
-    answer = { setUp: [], leavers: ['Z. Example'], pinLockout: RUNNING_BLOCK() };
+    answer = { setUp: [], leavers: ['Z. Example'] };
     await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-    const strip = page.locator('#attentionStrip');
-    await expect(strip.getByRole('link', { name: 'Leavers still active: 1' })).toBeVisible();
-    await expect(strip.getByRole('link', { name: 'Staff PIN blocked: 1 time in the last day' })).toBeVisible();
+    await expect(page.locator('#attentionStrip').getByRole('link', { name: 'Leavers still active: 1' })).toBeVisible();
 });
 
-test('operations: an account check that says nothing about the PIN shows nothing about it', async ({ page }) => {
+// THE RETIRED STAFF PIN IS NOT ON THE PAGE (its server release, Nov 2026). Its station-wide block rode on
+// this answer as `pinLockout`, and Operations drew an item and a line from it. The page and the Functions
+// deploy in parallel, so for minutes a server from before the release can still send the field: the page
+// must show nothing about the PIN whatever the answer carries.
+test('operations: an account check that still carries the retired PIN lockout shows nothing about it', async ({ page }) => {
     await seedSession(page);
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
     await page.route(GAPS_URL, route => route.fulfill({
         status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
-        body: JSON.stringify({ setUp: [], leavers: ['Z. Example'] }),
+        body: JSON.stringify({ setUp: [], leavers: ['Z. Example'], pinLockout: {
+            active: true, blockedUntil: Date.now() + 10 * 60_000, lastBlockedAt: Date.now() - 5 * 60_000, blocks: 2 } }),
     }));
     await page.goto('/operations.html');
     const strip = page.locator('#attentionStrip');
     await expect(strip.getByRole('link', { name: 'Leavers still active: 1' })).toBeVisible();
     await expect(strip.locator('text=Staff PIN')).toHaveCount(0);
-    await expect(page.locator('#authSetupGaps .auth-gap-line--pin')).toHaveCount(0);
+    await expect(page.locator('#authSetupGaps')).not.toContainText('staff PIN');
 });
 
 // WHAT PRESSING WILL DO, SAID BEFORE IT IS PRESSED (sign-in audit E6, 13 Nov 2026). Set up accounts takes back an account

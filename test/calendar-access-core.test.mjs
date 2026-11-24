@@ -118,9 +118,10 @@ describe('decideAccess', () => {
 });
 
 describe('the constants are the contract', () => {
-    test('the viewer uid and claim are exactly what the server and the rules use', () => {
-        // These three strings appear in firestore.rules and functions/calendar-viewer-auth.js, on
-        // the other side of boundaries this repo cannot cross without a build step.
+    test('the viewer uid and claim are exactly what the server recognises', () => {
+        // These two strings appear in functions/retired-viewer-account.js, on the other side of a
+        // boundary this repo cannot cross without a build step (firestore.rules read the claim too,
+        // until the staff PIN's server release).
         // calendar-viewer-parity.test.mjs is what actually pins them together; this states them.
         assert.equal(CALENDAR_VIEWER_UID, 'calendar-viewer');
         assert.equal(CALENDAR_VIEWER_CLAIM, 'calendarViewer');

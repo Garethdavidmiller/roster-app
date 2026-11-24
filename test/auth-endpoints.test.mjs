@@ -1485,7 +1485,9 @@ describe('setupRosterAuth and the admin reset refuse an account whose claims nam
 // Any PIN holder can link an email/password to the shared `calendar-viewer` account. Linking a
 // not-yet-provisioned member's DERIVED email made this endpoint's email-already-exists path find
 // the viewer, see a claim (so no take-back), and stamp the member's claims onto the account every
-// PIN session signs in to.
+// PIN session signs in to. The PIN is retired and its endpoint deleted (Nov 2026), but the account
+// stays until the owner deletes it, and a session left open on it can still link an email — so the
+// refusal stays, and now names the remedy that is left: deleting the account.
 describe('setupRosterAuth never adopts the shared Calendar PIN account', () => {
     const viewerAtMemberEmail = () => ({ uid: 'calendar-viewer', email: emailFor(MEMBER), disabled: false,
         customClaims: { calendarViewer: true } });
@@ -1494,7 +1496,7 @@ describe('setupRosterAuth never adopts the shared Calendar PIN account', () => {
         const { eps, authOps } = build({ existingUsers: [viewerAtMemberEmail()] });
         const out = await call(eps.setupRosterAuth, asAdmin({}));
         assert.equal(out.code, 200);
-        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (`) && /Calendar PIN/.test(f)), out.body.failed.join(' | '));
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (`) && /retired staff PIN account/.test(f)), out.body.failed.join(' | '));
         assert.deepEqual(authOps.filter((o) => o.uid === 'calendar-viewer'), [], 'the viewer account was touched');
         assert.ok(!out.body.skipped.includes(MEMBER) && !out.body.reclaimed.includes(MEMBER));
     });
@@ -1503,7 +1505,7 @@ describe('setupRosterAuth never adopts the shared Calendar PIN account', () => {
         const { eps, authOps } = build({ existingUsers: [viewerAtMemberEmail()] });
         const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
         assert.equal(out.code, 409);
-        assert.match(out.body.error, /Calendar PIN/);
+        assert.match(out.body.error, /retired staff PIN account/);
         assert.deepEqual(authOps.filter((o) => o.uid === 'calendar-viewer'), [], 'the viewer account was touched');
     });
 
@@ -1810,7 +1812,7 @@ describe('setupRosterAuth disables only the leavers the admin previewed', () => 
 // `disabled` — and every broadcast reached it again, because the sweep's filter skips a disabled
 // account and no later run looked. Every confirmed run now releases those records too.
 describe('setupRosterAuth releases the push records of leavers already disabled', () => {
-    const { CALENDAR_VIEWER_UID } = require('./functions/calendar-viewer-auth.js');
+    const { CALENDAR_VIEWER_UID } = require('./functions/retired-viewer-account.js');
     const gone = { uid: 'uid_gone', email: 'x.gone@myb-roster.local', displayName: 'X. Gone', disabled: true,
         customClaims: { name: 'X. Gone', member: 'X. Gone' } };
     const confirmed = () => asAdmin({ removeOrphans: true, confirmOrphanRemoval: true });
@@ -2044,7 +2046,7 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
         const { eps } = build({ existingUsers: fullyProvisioned() });
         const out = await call(eps.getAccountSetupGaps, getReq());
         assert.equal(out.code, 200);
-        assert.deepEqual(out.body, { setUp: [], leavers: [], pinLockout: null });
+        assert.deepEqual(out.body, { setUp: [], leavers: [] });
     });
 
     test('a member with no account comes back BY NAME', async () => {
@@ -2128,59 +2130,22 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
         });
     });
 
-    // ── THE STAFF PIN'S STATION-WIDE BLOCK, ON THE SAME ANSWER (owner, Nov 2026) ─────────────────
-    // Three states, and the client tells them apart: an object (a block running or begun in the last
-    // day), null (none), and ABSENT (the record could not be read). A read failure must cost only the
-    // field — never the audit — and must never come back as null, which would read as "the door is fine".
-    describe('and it says whether the staff PIN is blocked for everyone', () => {
-        const NOW = Date.now();
-        const MIN = 60_000;
-        const record = (o, door) => ({ viewerAttempts: { '_lockout-record': o, ...(door ? { '_all-sources': door } : {}) } });
-        // The all-sources row as a block leaves it: the door itself (owner, 18 Nov 2026 — it, not the
-        // record, says whether a block is still running).
-        const shutUntil = (t) => ({ failures: 200, windowStart: NOW - 3 * MIN, blockedUntil: t });
-
-        test('a block running now comes back as times and a count — and nothing else', async () => {
-            const { eps } = build({ existingUsers: fullyProvisioned(),
-                seed: record({ blocks: [NOW - 2 * MIN], blockedUntil: NOW + 13 * MIN, alertedAt: NOW - 2 * MIN }, shutUntil(NOW + 13 * MIN)) });
-            const out = await call(eps.getAccountSetupGaps, getReq());
-            assert.equal(out.code, 200);
-            assert.deepEqual(out.body.pinLockout, { active: true, blockedUntil: NOW + 13 * MIN, lastBlockedAt: NOW - 2 * MIN, blocks: 1 });
-            assert.deepEqual(Object.keys(out.body.pinLockout).sort(), ['active', 'blockedUntil', 'blocks', 'lastBlockedAt'],
-                'no alert stamp, no source, no address');
-        });
-
-        test('a block the door has since let go of is not running — whatever end the record was given', async () => {
-            // A right PIN's refund lifted it after it was recorded; the row says open (here: gone).
-            const { eps } = build({ existingUsers: fullyProvisioned(),
-                seed: record({ blocks: [NOW - 2 * MIN], blockedUntil: NOW + 13 * MIN, alertedAt: NOW - 2 * MIN }) });
-            const out = await call(eps.getAccountSetupGaps, getReq());
-            assert.deepEqual(out.body.pinLockout, { active: false, blockedUntil: NOW - 2 * MIN, lastBlockedAt: NOW - 2 * MIN, blocks: 1 });
-        });
-
-        test('one that ended an hour ago is still news; one from yesterday is not', async () => {
-            const recent = build({ existingUsers: fullyProvisioned(),
-                seed: record({ blocks: [NOW - 75 * MIN], blockedUntil: NOW - 60 * MIN }) });
-            const body = (await call(recent.eps.getAccountSetupGaps, getReq())).body;
-            assert.equal(body.pinLockout.active, false);
-            assert.equal(body.pinLockout.blocks, 1);
-            const old = build({ existingUsers: fullyProvisioned(),
-                seed: record({ blocks: [NOW - 25 * 60 * MIN], blockedUntil: NOW - 24.5 * 60 * MIN }) });
-            assert.equal((await call(old.eps.getAccountSetupGaps, getReq())).body.pinLockout, null);
-        });
-
-        test('a record that cannot be read leaves the field ABSENT — and the audit still answers', async () => {
-            const victim = rosterCfg.processMembers.find((n) => !SETS.adminSet.has(n));
-            const { eps, db } = build({ existingUsers: fullyProvisioned().filter((u) => u.displayName !== victim) });
-            const plain = db.collection.bind(db);
-            db.collection = (name) => (name === 'viewerAttempts'
-                ? { doc: () => ({ get: async () => { throw Object.assign(new Error('unavailable'), { code: 14 }); } }) }
-                : plain(name));
-            const out = await call(eps.getAccountSetupGaps, getReq());
-            assert.equal(out.code, 200);
-            assert.equal('pinLockout' in out.body, false, 'unknown is not "no block"');
-            assert.deepEqual(out.body.setUp, [{ name: victim, why: 'no-account' }]);
-        });
+    // ── THE RETIRED STAFF PIN'S BLOCK IS NO LONGER ON THE ANSWER (its server release, Nov 2026) ───
+    // For a few days the answer carried `pinLockout`, read from the PIN throttle's `viewerAttempts`
+    // store. The endpoint it reported on is gone, so the field went too — and the store is not read,
+    // because the owner purges it. An Operations page from before then reads the absent field as
+    // UNKNOWN and shows nothing, which is the right answer now.
+    test('the answer carries no PIN lockout, and the PIN throttle store is never read', async () => {
+        const victim = rosterCfg.processMembers.find((n) => !SETS.adminSet.has(n));
+        const { eps, db } = build({ existingUsers: fullyProvisioned().filter((u) => u.displayName !== victim) });
+        const plain = db.collection.bind(db);
+        /** @type {string[]} */ const asked = [];
+        db.collection = (name) => { asked.push(name); return plain(name); };
+        const out = await call(eps.getAccountSetupGaps, getReq());
+        assert.equal(out.code, 200);
+        assert.equal('pinLockout' in out.body, false, 'the retired PIN lockout is back on the answer');
+        assert.ok(!asked.includes('viewerAttempts'), 'the audit read the retired PIN throttle store');
+        assert.deepEqual(out.body.setUp, [{ name: victim, why: 'no-account' }], 'guard the guard: the audit still answers');
     });
 
     test('“we could not tell” survives the trip as a refusal, not as “no gaps”', async () => {

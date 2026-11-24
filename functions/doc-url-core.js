@@ -26,9 +26,11 @@
  *
  * 1. WHO. `mayReceiveDocumentUrl` is a MIRROR of `firestore.rules` for `huddles`, `circulars` and
  *    `newsletters`: the BOUND member (`memberNameFromClaims` — a `name` on its own password account,
- *    carrying the server's `member` claim), `admin`, or the shared `calendarViewer` capability the
- *    staff PIN mints. It must never be more permissive than the rule — if it were, this endpoint
- *    would become a way to read a document the rules refuse, which is the opposite of its purpose.
+ *    carrying the server's `member` claim) or `admin`. The retired staff PIN's `calendarViewer`
+ *    capability was a third door until its server release (Nov 2026), and it went from here in the
+ *    same change as from the rules: a token still carrying the claim is refused. This must never be
+ *    more permissive than the rule — if it were, this endpoint would become a way to read a document
+ *    the rules refuse, which is the opposite of its purpose.
  *    `doc-url-core.test.mjs` pins the two together by reading `firestore.rules` itself, because two
  *    copies of an access rule that drift are exactly how this repo has been bitten before.
  *
@@ -74,12 +76,14 @@ const SIGNED_URL_TTL_MS = 15 * 60 * 1000;
 /**
  * Is this caller allowed a URL at all?
  *
- * MIRRORS `firestore.rules` for the three document collections. Three doors, and `request.auth !=
- * null` is implied here by having a decoded token at all.
+ * MIRRORS `firestore.rules` for the three document collections. Two doors, and `request.auth !=
+ * null` is implied here by having a decoded token at all. NOT the retired staff PIN's
+ * `calendarViewer` claim, on any sign-in method: a leftover PIN session is refused here exactly as
+ * the rules refuse it.
  *
  * Fails closed on anything that is not exactly what it expects: a missing token, a null, a string
- * where an object belongs. `admin` and `calendarViewer` are compared with `=== true` rather than
- * truthiness, matching the rules' `== true`, so a claim of `"yes"` or `1` grants nothing.
+ * where an object belongs. `admin` is compared with `=== true` rather than truthiness, matching the
+ * rules' `== true`, so a claim of `"yes"` or `1` grants nothing.
  *
  * @param {any} claims decoded ID-token claims
  * @returns {boolean}
@@ -90,10 +94,6 @@ function mayReceiveDocumentUrl(claims) {
     // `name` string is a self-set display name as often as it is a member. member-identity.js.
     if (memberNameFromClaims(claims)) return true;
     if (claims.admin === true) return true;
-    // The PIN door only on the custom-token session the unlock mints, as `isCalendarViewer()` in the
-    // rules: the claim sits on ONE shared account, and a password a PIN holder linked to it must not
-    // carry the claim past a PIN rotation.
-    if (claims.calendarViewer === true && claims.firebase?.sign_in_provider === 'custom') return true;
     return false;
 }
 

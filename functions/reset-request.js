@@ -52,8 +52,9 @@ function buildResetRequestEndpoint({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_
 /**
  * requestPasswordReset — a locked-out member asks the admin to reset their password.
  *
- * ONE OF THE APP'S TWO PUBLIC UNAUTHENTICATED ENDPOINTS (the other is `unlockCalendarViewer`, the
- * staff-PIN exchange), and deliberately so. A member who has forgotten their password cannot sign
+ * THE APP'S ONLY PUBLIC UNAUTHENTICATED ENDPOINT (the other, `unlockCalendarViewer`, the retired
+ * staff-PIN exchange, went in the PIN's server release, Nov 2026), and deliberately so. A member who
+ * has forgotten their password cannot sign
  * in, so they have no Firebase identity — and nothing in the app signs in anonymously (the Calendar
  * stopped at v20.12, and the last path that could was retired at v24.34). So a direct Firestore
  * write is impossible for exactly the person who needs this. The alternatives were to establish a new

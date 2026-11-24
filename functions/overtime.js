@@ -58,7 +58,7 @@ const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { memberNameFromClaims } = require('./member-identity');
 const { bearerToken } = require('./request-helpers');
-const { isViewerAccount } = require('./calendar-viewer-auth');
+const { isViewerAccount } = require('./retired-viewer-account');
 
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
 const WINDOWS = 'overtimeWindows';

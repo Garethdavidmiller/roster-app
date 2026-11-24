@@ -347,7 +347,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // which is worse than the failure it was trying to recover from.
       //
       // So: give it a short moment, then read regardless. Override reads require an identity (since
-      // v20.12 — a member's claim, `admin`, or the PIN's `calendarViewer`), so a read that goes
+      // v20.12 — a member's claim or `admin`; the PIN's `calendarViewer` until its server release), so a read that goes
       // without one fails RETRYABLY into the error chip, which is the recoverable outcome. (Phase 1 deliberately does NOT do this — there the right answer is
       // never to wait at all. Bounded-wait is right here precisely because a user is watching.)
       /** @type {ReturnType<typeof setTimeout>|undefined} */ let authWait;

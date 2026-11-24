@@ -17,7 +17,7 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 const require = createRequire(REPO_ROOT_URL);
 const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids, sweepAgainstPreview } =
     require('./functions/account-lifecycle.js');
-const { CALENDAR_VIEWER_UID } = require('./functions/calendar-viewer-auth.js');
+const { CALENDAR_VIEWER_UID } = require('./functions/retired-viewer-account.js');
 const { computeOrphanLabels } = require('./functions/roster-parse-helpers.js');
 
 // ── A PASSWORD WRITE THAT THROWS (audit E1) ─────────────────────────────────────────────────────

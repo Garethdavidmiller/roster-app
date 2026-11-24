@@ -17,13 +17,15 @@
  * Every `allow` condition in firestore.rules and storage.rules, and every rules `function` body, that
  * tests for a bare session must ALSO REQUIRE a claim or an identity: on EVERY path through its `||`s,
  * in at least one of its `&&`s. The words that count:
- *   · the identity helpers — `isMember()`, `isKnownIdentity()`, `isCalendarViewer()` — and any helper
+ *   · the identity helpers — `isMember()`, `isKnownIdentity()` — and any helper
  *     the rules define, each judged BY ITS OWN BODY, so a helper that is only `request.auth != null`
  *     cannot launder the rule that calls it, and weakening `isMember()` fails here too;
  *   · `memberName()` compared with something, or with `!= null` — a value, not a test, so it is the one
  *     word taken on trust, and its body is pinned below (null unless `isMember()`);
  *   · a claim compared EQUAL to true — `token.admin`, `token.manager`, `token.linksDesigner`,
- *     `token.calendarViewer`, directly or through `token.get(…)` — or the server-set `member` claim;
+ *     directly or through `token.get(…)` — or the server-set `member` claim. NOT `calendarViewer`
+ *     since the retired staff PIN's server release (Nov 2026): that claim grants nothing any more,
+ *     and a token still carrying it is a stranger's, so a rule that asks only for it is flagged;
  *   · an explicit `false`.
  * A NEGATION counts for nothing: `!isMember()` and `token.admin != true` are true of a stranger.
  * And no rule may be unconditional or `if true`, the same hole without the session.
@@ -149,7 +151,7 @@ function returned(body) {
     return body.slice(from, walk(body, from, (c, _i, depth) => depth === 0 && c === ';')).trim();
 }
 
-const CLAIMS = '(?:admin|manager|linksDesigner|calendarViewer)';
+const CLAIMS = '(?:admin|manager|linksDesigner)';
 /** The words that require a claim or an identity in one comparison, positively. */
 const VOCABULARY = [
     new RegExp(`request\\.auth\\.token\\.${CLAIMS}\\s*==\\s*true\\b`),
@@ -269,6 +271,9 @@ describe('guard the guard', () => {
             "request.auth != null && 'admin' in request.auth.token",
             'request.auth != null && memberName() != resource.data.memberName',
             "request.auth != null && resource.data.note.matches('a||b') ",
+            // The retired staff PIN's claim (its server release, Nov 2026): a leftover session's token
+            // still carries it, and it is a stranger's.
+            "request.auth != null && request.auth.token.get('calendarViewer', false) == true",
         ];
         for (const c of strangers) assert.ok(flagged(c), `a stranger's session passes: ${c}`);
         assert.ok(flagged('signedIn()', 'function signedIn() { return request.auth != null; }'),
@@ -283,7 +288,7 @@ describe('guard the guard', () => {
     test('and passes each way the real rules ask', () => {
         const members = [
             'request.auth != null && request.auth.token.admin == true',
-            "request.auth != null && request.auth.token.get('calendarViewer', false) == true",
+            "request.auth != null && request.auth.token.get('linksDesigner', false) == true",
             'request.auth != null && (isMember() || request.auth.token.manager == true)',
             'request.auth != null && memberName() == resource.data.memberName',
             'request.auth != null && ((resource == null && memberName() != null) || request.auth.token.admin == true)',
@@ -304,7 +309,7 @@ describe('guard the guard', () => {
         assert.ok(asking.length >= 30, `only ${asking.length} rules test for a session — the reading is wrong`);
         assert.ok(fs.allows.some(a => a.path === '/databases/{database}/documents/overrides/{docId}' && a.methods === 'read'),
             'the overrides read rule was not found under its own path');
-        for (const name of ['isMember', 'isCalendarViewer', 'isKnownIdentity', 'memberName']) {
+        for (const name of ['isMember', 'isKnownIdentity', 'memberName']) {
             assert.ok(fs.functions.has(name), `the identity helper ${name} was not read`);
         }
     });

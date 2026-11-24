@@ -1,31 +1,22 @@
 /**
- * index-endpoints.test.mjs — the two handlers that stayed in `functions/index.js`, EXECUTED.
+ * index-endpoints.test.mjs — the handler that stayed in `functions/index.js`, EXECUTED.
  * Run with: npm run test:functions   (needs firebase-admin/firebase-functions from functions/node_modules)
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *
  * A repo-wide mutation sweep found the two endpoints the v20.55 domain split deliberately left in
- * the composition root — `parseRosterPDF` and `unlockCalendarViewer` — to be the only handlers in
- * the estate with NO executing test at all. Six separate mutations survived both `npm test` and
- * `npm run test:functions`:
+ * the composition root — `parseRosterPDF` and the staff PIN's `unlockCalendarViewer` — to be the
+ * only handlers in the estate with NO executing test at all. The one that matters here survived both
+ * `npm test` and `npm run test:functions`:
  *
  *   · `parseRosterPDF`'s admin check reduced to `if (false)`. Every holder of a valid ID token for
- *     this project — every signed-in member, and the shared PIN station token — could then POST any
- *     PDF, spend the ANTHROPIC_API_KEY on it, and read the model's account of it back.
- *   · `unlockCalendarViewer`'s two FAIL-CLOSED catches (rule 5) each continuing instead of
- *     answering 503, so a guess that could not be counted is answered anyway.
- *   · its all-sources ceiling (v20.35) deleted, leaving only the per-source bucket a forged
- *     forwarding header can multiply at will.
- *   · `createCustomToken(uid, viewerClaims())` reduced to `createCustomToken(uid)` — the claimless
- *     token that signs in perfectly and then has every override read denied.
- *   · its missing-or-malformed-secret guard reduced to `if (false)`, turning a deployment fault
- *     into a flat "PIN not recognised" for the whole station.
+ *     this project — every signed-in member — could then POST any PDF, spend the ANTHROPIC_API_KEY
+ *     on it, and read the model's account of it back.
  *
- * This is the shape CLAUDE.md names as the repo's blind spot: `functions/calendar-viewer-auth.js`
- * is exemplary and every probe against it was caught, because the rules are right. What nothing
- * asked was whether the handler CALLS them, in the right order, and acts on the answers. And the
- * standing lesson is this very endpoint — the v20.50 outage, signed off on a GET→405 and a wrong
- * PIN→401, neither of which reaches `createCustomToken`, so the minting path had never once run.
+ * The PIN exchange's own blocks (its fail-closed throttle, its two ceilings, the claim it minted)
+ * went with it in the PIN's server release (Nov 2026; DECISIONS.md → "The staff PIN retired"). The
+ * lesson they taught stays: a rule can be exemplary and the handler still not CALL it, in the right
+ * order, and act on the answer — which only running the handler shows.
  *
  * ── HOW ─────────────────────────────────────────────────────────────────────────────────────────
  *
@@ -33,7 +24,7 @@
  * at load. So the fakes go into `require.cache` BEFORE it is required, and `getAuth`/`getFirestore`
  * resolve a per-test world through a mutable binding — the module is loaded once and every test
  * swaps the world underneath it. Everything between the HTTP boundary and the SDK is real code:
- * the CORS wrapper, the auth ladder, the throttle round trip, the transaction, the mint.
+ * the CORS wrapper, the auth ladder, the request reader, the model call and the answer.
  *
  * Every fake RECORDS. "Refused with 403" and "spent the API key and then returned 403" are the same
  * status line, and only the recording tells them apart.
@@ -58,9 +49,6 @@ const require = createRequire(REPO_ROOT_URL);
 // it; the module's top level only DEFINES endpoints, so requiring it touches no network.
 process.env.FUNCTIONS_EMULATOR = 'true';
 process.env.ANTHROPIC_API_KEY  = 'test-key-never-used';
-
-const VIEWER = require('./functions/calendar-viewer-auth.js');
-const { CALENDAR_VIEWER_UID, GLOBAL_SOURCE_KEY, sourceKeyFor } = VIEWER;
 
 // ── The fake world ──────────────────────────────────────────────────────────────────────────────
 
@@ -181,80 +169,20 @@ import { rosterPage, buildPdf, DATES, ROSTER_FIXTURE } from '../test-fixtures/ro
 const index = require('./functions/index.js');
 
 /**
- * The `viewerAttempts` collection, recording every read and write.
- *
- * `writes` is what makes rule 3 testable at all — "only FAILURES touch the throttle store" is a
- * statement about what did NOT happen, and a fake that merely applied the writes could not answer
- * it. The three `fail` seams are the failure modes the handler's two fail-closed catches exist for;
- * none of them is reachable by ordering real calls differently.
+ * No Firestore at all. `parseRosterPDF` reads and writes none — the admin approves, then the browser
+ * writes — so any collection it reached for would be a change worth failing on. (The retention purge
+ * block at the end stands up a database of its own.)
  */
-function makeAttempts({ seed = {}, failRead = false, failTx = false, failSweep = false } = {}) {
-    const store = new Map(Object.entries(seed));
-    const reads = [];
-    const writes = [];
-    const deletes = [];
-    /** Transactions run one at a time, as Firestore's serialisable transactions behave to the caller:
-     *  without this, concurrent requests would interleave inside "one" transaction and a test of the
-     *  concurrent-guess race could not tell a fixed handler from a broken one. */
-    let txChain = Promise.resolve();
-    const boom = (code) => Object.assign(new Error('firestore unavailable'), { code });
-    const snap = (id) => ({
-        id,
-        exists: store.has(id),
-        data: () => store.get(id),
-        ref: { id },
-    });
-    const docRef = (id) => ({
-        id,
-        get: async () => {
-            reads.push(id);
-            if (failRead) throw boom('unavailable');
-            return snap(id);
-        },
-    });
-    const db = {
-        collection(name) {
-            assert.equal(name, 'viewerAttempts', 'the PIN handler touches exactly one collection');
-            return {
-                doc: docRef,
-                limit: (n) => ({
-                    get: async () => {
-                        if (failSweep) throw boom('deadline-exceeded');
-                        return { docs: [...store.keys()].slice(0, n).map(snap) };
-                    },
-                }),
-            };
-        },
-        async runTransaction(fn) {
-            if (failTx) throw boom('aborted');
-            const run = txChain.then(() => fn({
-                get: async (ref) => {
-                    reads.push(`tx:${ref.id}`);
-                    if (failRead) throw boom('unavailable');
-                    return snap(ref.id);
-                },
-                set: (ref, data) => { writes.push({ id: ref.id, data }); store.set(ref.id, data); },
-                delete: (ref) => { writes.push({ id: ref.id, data: null }); store.delete(ref.id); },
-            }));
-            txChain = run.catch(() => {});
-            return run;
-        },
-        batch() {
-            const pending = [];
-            return {
-                delete: (ref) => pending.push(ref.id),
-                commit: async () => {
-                    if (failSweep) throw boom('aborted');
-                    for (const id of pending) { deletes.push(id); store.delete(id); }
-                },
-            };
-        },
+function makeDb() {
+    return {
+        collection(name) { assert.fail(`parseRosterPDF reached for Firestore (${name}) — it reads and writes none`); },
+        runTransaction() { assert.fail('parseRosterPDF ran a Firestore transaction — it reads and writes none'); },
+        batch() { assert.fail('parseRosterPDF batched a Firestore write — it reads and writes none'); },
     };
-    return { db, store, reads, writes, deletes };
 }
 
-/** Every Auth call the handlers make, in order — plus the seams each one can fail at. */
-function makeAuth({ token = { admin: true, name: 'G. Miller' }, viewerExists = false, authFail = {} } = {}) {
+/** Every Auth call the handler makes, in order. */
+function makeAuth({ token = { admin: true, name: 'G. Miller' } } = {}) {
     const ops = [];
     const auth = {
         verifyIdToken: async (bearer, checkRevoked) => {
@@ -262,57 +190,21 @@ function makeAuth({ token = { admin: true, name: 'G. Miller' }, viewerExists = f
             if (!token) throw new Error('token verification failed');
             return token;
         },
-        getUser: async (uid) => {
-            ops.push({ op: 'getUser', uid });
-            // `viewerExists` may be the RECORD itself, for the cases where a PIN holder changed it.
-            if (viewerExists) return typeof viewerExists === 'object' ? { uid, ...viewerExists } : { uid };
-            throw Object.assign(new Error('no such user'), { code: 'auth/user-not-found' });
-        },
-        // `authFail.deleteUser` / `.createUser` are Firebase error CODES — the races a concurrent
-        // unlock produces (the other request deleted, or recreated, the account first).
-        deleteUser: async (uid) => { ops.push({ op: 'deleteUser', uid }); if (authFail.deleteUser) throw Object.assign(new Error('x'), { code: authFail.deleteUser }); },
-        createUser: async (props) => { ops.push({ op: 'createUser', props }); if (authFail.createUser) throw Object.assign(new Error('x'), { code: authFail.createUser }); return { uid: props.uid }; },
-        updateUser: async (uid, props) => { ops.push({ op: 'updateUser', uid, props }); if (authFail.updateUser) throw new Error(authFail.updateUser); return { uid }; },
-        setCustomUserClaims: async (uid, claims) => {
-            ops.push({ op: 'setCustomUserClaims', uid, claims });
-            if (authFail.setCustomUserClaims) throw new Error(authFail.setCustomUserClaims);
-        },
-        // The station-wide block's notice asks for the admin's account (pin-lockout.js). None is found
-        // here, so nothing is sent: what the handler does with a notice is pin-lockout.test.mjs's.
-        getUserByEmail: async (email) => {
-            ops.push({ op: 'getUserByEmail', email });
-            throw Object.assign(new Error('no such user'), { code: 'auth/user-not-found' });
-        },
-        createCustomToken: async (uid, claims) => {
-            // `claims` is recorded EXACTLY as passed — `undefined` included, because that is the
-            // whole of mutation 4: `createCustomToken(uid)` mints a perfectly valid token with no
-            // capability in it, and every override read the client then issues is denied.
-            ops.push({ op: 'createCustomToken', uid, claims });
-            if (authFail.createCustomToken) throw new Error(authFail.createCustomToken);
-            return 'custom-token-value';
-        },
     };
     return { auth, ops };
 }
 
-/** Stand up one world. Everything either handler can reach comes from here. */
+/** Stand up one world. Everything the handler can reach comes from here. */
 function build(opts = {}) {
-    const attempts = makeAttempts(opts);
     const { auth, ops } = makeAuth(opts);
-    W = { auth, db: attempts.db };
+    W = { auth, db: makeDb() };
     AI.calls.length = 0;
     AI.reply = opts.aiReply ?? AI_REPLY;
     AI.throws = opts.aiThrows ?? null;
     AI.content = opts.aiContent ?? null;
     AI.stopReason = opts.aiStopReason ?? null;
     AI.wire = null;
-    if ('pin' in opts) {
-        if (opts.pin === undefined) delete process.env.CALENDAR_VIEWER_PIN;
-        else process.env.CALENDAR_VIEWER_PIN = opts.pin;
-    } else {
-        process.env.CALENDAR_VIEWER_PIN = FIXTURE_PIN;
-    }
-    return { ...attempts, auth, ops };
+    return { auth, ops };
 }
 
 /**
@@ -392,30 +284,7 @@ const rosterRequest = ({ auth = 'Bearer tok' } = {}) => withHelpers({
 
 const modelCalls = () => AI.calls.filter((c) => c.kind === 'create');
 
-// ── unlockCalendarViewer fixtures ───────────────────────────────────────────────────────────────
-
-// INVENTED VALUES, and named so on purpose. The live PIN is not in this repository and must not
-// become discoverable from it — `calendar-viewer-parity.test.mjs` Contract B bans a test file
-// holding anything that reads as a verifier, because that is the file class the real one once
-// reached. These two exist only to be equal and unequal to whatever `build()` puts in the env.
-const FIXTURE_PIN = '4821';
-const WRONG_PIN   = '1357';
-const STATION_IP  = '203.0.113.9';
-const STATION_KEY = sourceKeyFor(STATION_IP);
-const HOUR        = 60 * 60 * 1000;
-
-/** A bucket that is blocked for the next hour — the shape `recordFailure` writes when it trips. */
-const blockedBucket = () => ({
-    failures: 30, windowStart: Date.now() - 1000, blockedUntil: Date.now() + HOUR,
-});
-
-const pinRequest = (pin, { ip = STATION_IP, method = 'POST' } = {}) => withHelpers({
-    method,
-    headers: { origin: 'https://myb-roster.web.app', 'x-forwarded-for': ip },
-    body: pin === undefined ? {} : { pin },
-});
-
-const minted = (ops) => ops.find((o) => o.op === 'createCustomToken');
+const HOUR = 60 * 60 * 1000;
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // parseRosterPDF — the cost is somebody else's API key, and the model's reading of their document
@@ -451,10 +320,10 @@ describe('parseRosterPDF: only an admin may spend the AI key', () => {
             'and nothing else happened either');
     });
 
-    test('the shared Calendar PIN token is refused too', async () => {
-        // The one that is handed out for four digits at a shared station PC, to anybody who asks.
-        // It is a capability with exactly one entry in it, and this endpoint is not that entry.
-        build({ token: { calendarViewer: true, uid: CALENDAR_VIEWER_UID } });
+    test('a leftover staff-PIN token is refused too', async () => {
+        // The retired PIN's shared session: one claim, `calendarViewer`, which grants nothing since
+        // the PIN's server release — and never granted this. A device may hold one until the account goes.
+        build({ token: { calendarViewer: true, uid: 'calendar-viewer' } });
         const out = await call(index.parseRosterPDF, rosterRequest());
 
         assert.equal(out.code, 403);
@@ -677,17 +546,9 @@ describe('parseRosterPDF through the real SDK: what crosses the wire (v25.35)', 
 
 describe('one copy of the request plumbing — the drifted copies\' answers, corrected (functions-core-8)', () => {
     // The body reader and the admin gate were written out five times each and the copies drifted:
-    // a right PIN posted as a Buffer was charged as a wrong one, and parseRosterPDF alone refused a
-    // lower-case "bearer". request-helpers.js is now the one copy; these run it through the handlers.
-    test('a right PIN in a Buffer body unlocks — it is not read as a wrong guess', async () => {
-        const { ops } = build();
-        const req = withHelpers({ method: 'POST', headers: { origin: 'https://myb-roster.web.app', 'x-forwarded-for': STATION_IP },
-            body: Buffer.from(JSON.stringify({ pin: FIXTURE_PIN })) });
-        const out = await call(index.unlockCalendarViewer, req);
-        assert.equal(out.code, 200, `answered ${out.code}: ${JSON.stringify(out.body)}`);
-        assert.ok(minted(ops), 'no token was minted for the right PIN');
-    });
-
+    // parseRosterPDF alone refused a lower-case "bearer" (and the retired PIN exchange charged a right
+    // PIN posted as a Buffer as a wrong one). request-helpers.js is now the one copy; this runs it
+    // through the handler.
     test('parseRosterPDF takes the bearer scheme in any case, as every other admin gate does', async () => {
         build();
         const out = await call(index.parseRosterPDF, rosterRequest({ auth: 'bearer tok' }));
@@ -746,505 +607,6 @@ describe('parseRosterPDF: a model that never answers gets the handler\'s answer,
         assert.match(out.body.error, /did not answer in time/);
     });
 });
-
-// ════════════════════════════════════════════════════════════════════════════════════════════════
-// unlockCalendarViewer — the cost is the whole roster, against a secret with 10,000 values in it
-// ════════════════════════════════════════════════════════════════════════════════════════════════
-
-describe('an UNCOUNTED guess is never answered (rule 5)', () => {
-    // Both of these failed OPEN until an external review at v20.45, on the argument that refusing
-    // access while Firestore struggles locks the station out. The argument that won is that the
-    // roster lives in the same Firestore — so the availability being protected did not exist —
-    // while the throttle is the only thing between 10,000 guesses and the whole roster.
-    //
-    // Each is a bare `catch` around a return, which is the easiest thing in this file to delete by
-    // accident and the hardest to notice: the endpoint goes on working perfectly.
-
-    test('a throttle store that cannot be READ refuses, even for the right PIN', async () => {
-        const { ops, writes } = build({ failRead: true });
-        // (The read is inside the charging transaction since the Sep 2026 review, so this is the
-        // transaction failing on its read — the answer must not change.)
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 503, 'a PIN that cannot be rate-limited is not compared');
-        assert.equal(minted(ops), undefined, 'and no token is handed out on a path it could not verify');
-        assert.deepEqual(writes, [], 'nothing was recorded either — the store is the thing that is down');
-    });
-
-    test('a failure that cannot be RECORDED refuses too, rather than answering 401', async () => {
-        // The subtle one. 401 here is correct about the PIN and catastrophic as a policy: a caller
-        // who can induce write failures guesses for ever without spending a single unit of the
-        // budget the transaction exists to charge.
-        const { writes } = build({ failTx: true });
-        const out = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
-
-        assert.equal(out.code, 503);
-        assert.notEqual(out.code, 401, 'the guess went uncounted, so it does not get an answer');
-        assert.deepEqual(writes, [], 'and by definition nothing was charged');
-    });
-
-    test('503 tells the caller nothing about whether the PIN was right', async () => {
-        // Rule 2, applied to the failure path: the two 503s must be indistinguishable, or the
-        // outage becomes an oracle.
-        build({ failTx: true });
-        const wrong = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
-        build({ failRead: true });
-        const right = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(wrong.code, 503);
-        assert.equal(right.code, 503);
-        assert.deepEqual(wrong.body, right.body, 'one message, whichever stage fell over');
-    });
-
-    test('a failed SWEEP, by contrast, changes nothing', async () => {
-        // The opposite direction, and the reason the two catches are not interchangeable: the
-        // opportunistic cleanup is best-effort housekeeping the member has already earned an
-        // answer past. Turning it into a 503 would make a full collection look like an outage.
-        const { writes } = build({ failSweep: true });
-        const out = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
-
-        assert.equal(out.code, 401, 'the answer the attempt earned');
-        assert.equal(writes.length, 2, 'and the failure was still charged to both buckets');
-    });
-});
-
-describe('both ceilings hold, and the all-sources one is the backstop', () => {
-    // The per-source key is derived from a forwarding header. It is derived from the END of it,
-    // because a caller can only PREPEND — but the whole per-source scheme still rests on
-    // attribution being right, and v20.35 added a ceiling that does not.
-
-    test('a blocked source is refused before its guess is compared', async () => {
-        const { ops } = build({ seed: { [STATION_KEY]: blockedBucket() } });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 429);
-        assert.ok(Number(out.headers['Retry-After']) > 0, 'and told when to come back');
-        assert.equal(minted(ops), undefined, 'a blocked source gets no token even with the right PIN');
-    });
-
-    test('the ALL-SOURCES ceiling blocks a source whose own bucket is spotless', async () => {
-        // The whole point of the second bucket. Delete the one line that consults it and this is
-        // the only case in the file that changes: a caller manufacturing a fresh source identity
-        // per request has an unbounded supply of clean per-source buckets, and nothing else here
-        // would notice.
-        const { ops, store } = build({ seed: { [GLOBAL_SOURCE_KEY]: blockedBucket() } });
-        assert.equal(store.has(STATION_KEY), false, 'this source has never failed');
-
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 429, 'the ceiling is a ceiling, not an average');
-        assert.equal(minted(ops), undefined);
-    });
-
-    test('a wrong PIN charges BOTH buckets in one transaction', async () => {
-        // Either `tx.set` could be dropped and the endpoint would keep working; the per-source one
-        // going would disarm the limit staff actually meet, the global one going would disarm the
-        // backstop silently and for ever, since nothing normal ever reaches it.
-        const { writes } = build();
-        const out = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
-
-        assert.equal(out.code, 401);
-        assert.deepEqual(writes.map((w) => w.id).sort(), [STATION_KEY, GLOBAL_SOURCE_KEY].sort());
-        for (const w of writes) assert.equal(w.data.failures, 1, 'each bucket counted the one attempt');
-    });
-
-    test('a correct PIN leaves NOTHING behind (rule 3) — charged first, then refunded', async () => {
-        // Since the Sep 2026 review every attempt is charged BEFORE the compare, so a right PIN is
-        // charged too — and refunded. A refund to zero DELETES the row: the collection can still
-        // never be read as a record of who opened the roster and when.
-        const { writes, deletes, store } = build();
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 200);
-        assert.deepEqual(writes.filter((w) => w.data).map((w) => w.id).sort(), [STATION_KEY, GLOBAL_SOURCE_KEY].sort(),
-            'the attempt was charged before it was compared');
-        assert.equal(store.has(STATION_KEY), false, 'and refunded: no row dates the unlock');
-        assert.equal(store.has(GLOBAL_SOURCE_KEY), false);
-        assert.deepEqual(deletes, [], 'no sweep on the success path');
-    });
-
-    test('a correct PIN refunds only its OWN charge — earlier failures stay counted', async () => {
-        const { store } = build({ seed: { [STATION_KEY]: { failures: 5, windowStart: Date.now() - 1000, blockedUntil: 0 } } });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.equal(out.code, 200);
-        assert.equal(store.get(STATION_KEY).failures, 5);
-    });
-
-    test('a correct PIN whose charge reached the limit does not leave the station blocked', async () => {
-        const { store } = build({ seed: { [STATION_KEY]: { failures: 29, windowStart: Date.now() - 1000, blockedUntil: 0 } } });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.equal(out.code, 200, 'the attempt that reaches the limit is still compared');
-        assert.equal(store.get(STATION_KEY).failures, 29);
-        assert.equal(store.get(STATION_KEY).blockedUntil, 0, 'the block its own charge tripped is lifted with the refund');
-    });
-
-    test('CONCURRENT guesses cannot all be compared before any is counted (Sep 2026 review)', async () => {
-        // One guess left in the window. Five requests arrive together. The old handler read the
-        // bucket with a plain get before comparing and charged afterwards, so all five read "not
-        // blocked" and all five had their guess compared — the limit bounded the rate of CHARGING,
-        // not the number of guesses. Charged inside the transaction that checks, only one gets in.
-        build({ seed: { [STATION_KEY]: { failures: 29, windowStart: Date.now() - 1000, blockedUntil: 0 } } });
-        const outs = await Promise.all(Array.from({ length: 5 }, () => call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))));
-        const codes = outs.map((o) => o.code).sort();
-        assert.deepEqual(codes, [401, 429, 429, 429, 429], `five concurrent guesses were answered ${codes}`);
-    });
-});
-
-// ── THE STATION-WIDE BLOCK IS RECORDED, AND THE ADMIN ASKED FOR (owner, Nov 2026) ───────────────
-// The wiring, through the real handler: only the wrong PIN whose charge TRIPPED the all-sources
-// ceiling writes the lockout record and looks for the admin — never a right PIN (its charge, block
-// and all, is refunded), never an ordinary failure, never the sweep's victim — and the answer is the
-// same 401 either way. What the notice says and who gets it: pin-lockout.test.mjs.
-describe('the wrong PIN that shuts the door for everyone is recorded, and the admin looked for', () => {
-    const { LOCKOUT_RECORD_KEY, GLOBAL_THROTTLE } = VIEWER;
-    const nearlyFull = () => ({ failures: GLOBAL_THROTTLE.maxFailures - 1, windowStart: Date.now() - 1000, blockedUntil: 0 });
-    const askedForAdmin = (ops) => ops.some((o) => o.op === 'getUserByEmail');
-
-    test('the failure that trips the ceiling: the same 401, a record of the block, the admin asked for', async () => {
-        const before = Date.now();
-        const { store, ops } = build({ seed: { [GLOBAL_SOURCE_KEY]: nearlyFull() } });
-        const out = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
-
-        assert.equal(out.code, 401, 'a guesser learns nothing from tripping it');
-        assert.deepEqual(out.body, { error: 'PIN not recognised' });
-        assert.ok(store.get(GLOBAL_SOURCE_KEY).blockedUntil > before, 'premise: this attempt tripped the ceiling');
-        const rec = store.get(LOCKOUT_RECORD_KEY);
-        assert.ok(rec, 'the block is recorded');
-        assert.equal(rec.blocks.length, 1);
-        assert.equal(rec.blockedUntil, store.get(GLOBAL_SOURCE_KEY).blockedUntil);
-        assert.ok(rec.alertedAt >= before, 'and a notice was due');
-        assert.ok(!JSON.stringify(rec).includes(STATION_KEY), 'the record never names the source');
-        assert.ok(askedForAdmin(ops), 'the admin\'s account was looked for');
-        assert.equal(minted(ops), undefined);
-    });
-
-    test('a RIGHT PIN whose charge reached the ceiling records nothing and tells nobody', async () => {
-        const { store, ops } = build({ seed: { [GLOBAL_SOURCE_KEY]: nearlyFull() } });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.equal(out.code, 200);
-        assert.equal(store.has(LOCKOUT_RECORD_KEY), false);
-        assert.equal(askedForAdmin(ops), false);
-    });
-
-    test('a right PIN and a wrong one together at the edge: the refund reopens the door, and no block is recorded or told', async () => {
-        // Two short of the ceiling. The right PIN is charged (one short), the wrong one reaches it and
-        // trips the block, and the right PIN's refund — which runs beside its mint, while the wrong one
-        // is still sweeping — takes the block back with its charge. Only 199 were wrong, and the door
-        // is open: a record and a notice would describe a block nobody meets.
-        const { store, ops } = build({ seed: { [GLOBAL_SOURCE_KEY]: { ...nearlyFull(), failures: GLOBAL_THROTTLE.maxFailures - 2 } } });
-        const [right, wrong] = await Promise.all([
-            call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN)),
-            call(index.unlockCalendarViewer, pinRequest(WRONG_PIN)),
-        ]);
-        assert.deepEqual([right.code, wrong.code], [200, 401]);
-        assert.deepEqual([store.get(GLOBAL_SOURCE_KEY).failures, store.get(GLOBAL_SOURCE_KEY).blockedUntil],
-            [GLOBAL_THROTTLE.maxFailures - 1, 0], 'premise: the wrong PIN\'s charge stays, the block it tripped went with the refund');
-        assert.equal(store.has(LOCKOUT_RECORD_KEY), false, 'a block nobody meets was recorded');
-        assert.equal(askedForAdmin(ops), false, 'the admin was looked for, about a block that had gone');
-    });
-
-    test('an ordinary wrong PIN records nothing and tells nobody', async () => {
-        const { store, ops } = build();
-        assert.equal((await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))).code, 401);
-        assert.equal(store.has(LOCKOUT_RECORD_KEY), false);
-        assert.equal(askedForAdmin(ops), false);
-    });
-
-    test('a second trip inside the day is recorded but asks for nobody', async () => {
-        const { store, ops } = build({ seed: {
-            [GLOBAL_SOURCE_KEY]: nearlyFull(),
-            [LOCKOUT_RECORD_KEY]: { blocks: [Date.now() - 2 * HOUR], blockedUntil: Date.now() - HOUR, alertedAt: Date.now() - 2 * HOUR },
-        } });
-        assert.equal((await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))).code, 401);
-        assert.equal(store.get(LOCKOUT_RECORD_KEY).blocks.length, 2);
-        assert.equal(askedForAdmin(ops), false, 'at most one notice a day');
-    });
-
-    test('the sweep never takes the lockout record, however old', async () => {
-        const stale = { failures: 1, windowStart: Date.now() - 48 * HOUR, blockedUntil: 0 };
-        const { deletes, store } = build({ seed: {
-            [sourceKeyFor('198.51.100.7')]: stale,
-            [LOCKOUT_RECORD_KEY]: { blocks: [Date.now() - 48 * HOUR], blockedUntil: Date.now() - 47 * HOUR, alertedAt: Date.now() - 48 * HOUR },
-        } });
-        assert.equal((await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))).code, 401);
-        assert.deepEqual(deletes, [sourceKeyFor('198.51.100.7')], 'the stale throttle row went, and only it');
-        assert.ok(store.has(LOCKOUT_RECORD_KEY));
-    });
-
-    test('a record that cannot be written still answers the same 401', async () => {
-        const { db, ops } = build({ seed: { [GLOBAL_SOURCE_KEY]: nearlyFull() } });
-        const plain = db.runTransaction.bind(db);
-        let n = 0;
-        db.runTransaction = (fn) => (++n === 2 ? Promise.reject(Object.assign(new Error('x'), { code: 'unavailable' })) : plain(fn));
-        const out = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
-        assert.equal(out.code, 401);
-        assert.deepEqual(out.body, { error: 'PIN not recognised' });
-        assert.equal(askedForAdmin(ops), false, 'no record, no notice');
-    });
-});
-
-describe('the token is the entire product, and a claimless one is indistinguishable', () => {
-    // v20.50 is the standing lesson and it lived exactly here: the endpoint was signed off on a
-    // GET→405 and a wrong PIN→401, and neither reaches this code. A token minted without its
-    // claim signs in perfectly, and then every override read is denied — so the symptom is an
-    // unlocked Calendar with no shifts on it and nothing in the console to say why.
-
-    test('a correct PIN mints a token CARRYING the viewer claim', async () => {
-        const { ops } = build();
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 200);
-        assert.equal(out.body.token, 'custom-token-value');
-        const mint = minted(ops);
-        assert.equal(mint.uid, CALENDAR_VIEWER_UID);
-        assert.deepEqual(mint.claims, { calendarViewer: true },
-            'the claims are baked into the custom token — there is no retry net on the first read');
-    });
-
-    test('and the claim set carries none of the privileged ones, by name', async () => {
-        const { ops } = build();
-        await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        const mint = minted(ops);
-
-        for (const forbidden of ['name', 'admin', 'manager', 'linksDesigner']) {
-            assert.equal(forbidden in mint.claims, false, `the viewer token must not carry ${forbidden}`);
-        }
-        assert.deepEqual(Object.keys(mint.claims), ['calendarViewer'], 'exactly one capability');
-    });
-
-    test('the account\'s claims are RE-APPLIED on every unlock, not trusted from history', async () => {
-        // `setCustomUserClaims` replaces the whole set, so this is what guarantees the shared
-        // account cannot accumulate a claim by any route and keep it.
-        const { ops } = build({ viewerExists: true });
-        await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        const applied = ops.find((o) => o.op === 'setCustomUserClaims');
-        assert.deepEqual(applied, { op: 'setCustomUserClaims', uid: CALENDAR_VIEWER_UID, claims: { calendarViewer: true } });
-        assert.deepEqual(ops.filter((o) => o.op === 'createUser'), [], 'an existing account is not recreated');
-    });
-
-    test('a viewer account somebody LINKED a way in to is rebuilt from nothing (Sep 2026 review)', async () => {
-        // Any PIN holder can link an email/password to the shared account from their own session.
-        // A password sign-in on it would otherwise carry the viewer claim past every PIN rotation.
-        for (const tampered of [
-            { email: 'someone@myb-roster.local', providerData: [{ providerId: 'password' }] },
-            { phoneNumber: '+447700900123', providerData: [] },
-            { disabled: true, providerData: [] },
-        ]) {
-            const { ops } = build({ viewerExists: tampered });
-            const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-            assert.equal(out.code, 200, JSON.stringify(tampered));
-            const i = (op) => ops.findIndex((o) => o.op === op);
-            assert.ok(i('deleteUser') > -1, `not rebuilt: ${JSON.stringify(tampered)}`);
-            assert.ok(i('createUser') > i('deleteUser'), 'recreated after the delete');
-            assert.ok(i('createCustomToken') > i('createUser'), 'and only then is a token minted');
-            assert.deepEqual(ops.find((o) => o.op === 'createUser').props, { uid: CALENDAR_VIEWER_UID, disabled: false });
-        }
-    });
-
-    test('a rebuild that RACES a concurrent unlock still unlocks (Sep 2026 re-review)', async () => {
-        // Two right PINs arriving together both see the tampered account: one deletes and recreates
-        // it, and the other's delete finds nothing (user-not-found) or its create finds it already
-        // back (uid-already-exists). Either way the account is what the rebuild wanted, so the second
-        // member must not be told "Could not unlock" for a race they could not see.
-        for (const authFail of [{ deleteUser: 'auth/user-not-found' }, { createUser: 'auth/uid-already-exists' }]) {
-            const { ops } = build({ viewerExists: { disabled: true, providerData: [] }, authFail });
-            const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-            assert.equal(out.code, 200, `a concurrent rebuild refused the unlock: ${JSON.stringify(authFail)}`);
-            assert.ok(minted(ops), 'no token minted');
-        }
-        // A create that races the FIRST-ever unlock (no account yet) is the same case.
-        const { ops } = build({ viewerExists: false, authFail: { createUser: 'auth/uid-already-exists' } });
-        assert.equal((await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN))).code, 200);
-        assert.ok(minted(ops), 'no token minted');
-    });
-
-    test('any OTHER rebuild failure still fails closed', async () => {
-        for (const authFail of [{ deleteUser: 'auth/internal-error' }, { createUser: 'auth/internal-error' }]) {
-            const { ops } = build({ viewerExists: { disabled: true, providerData: [] }, authFail });
-            const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-            assert.equal(out.code, 500, JSON.stringify(authFail));
-            assert.equal(minted(ops), undefined);
-        }
-    });
-
-    test('an untouched viewer account is NOT rebuilt', async () => {
-        const { ops } = build({ viewerExists: { providerData: [], disabled: false } });
-        await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.deepEqual(ops.filter((o) => o.op === 'deleteUser' || o.op === 'createUser'), []);
-    });
-
-    test('a claims stamp that fails still refuses — only the name clear is best-effort', async () => {
-        const { ops } = build({ viewerExists: true, authFail: { setCustomUserClaims: 'boom' } });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.equal(out.code, 500);
-        assert.equal(minted(ops), undefined);
-    });
-
-    test('a missing viewer account is created on the spot, with no email and no password', async () => {
-        // It is a capability, not a person — and an emailless account is invisible to the two
-        // places that enumerate staff, which is why neither the orphan sweep nor the sign-in
-        // statistics ever see it.
-        const { ops } = build({ viewerExists: false });
-        await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        const made = ops.find((o) => o.op === 'createUser');
-        assert.equal(made.props.uid, CALENDAR_VIEWER_UID);
-        assert.equal('email' in made.props, false);
-        assert.equal('password' in made.props, false);
-        // …and NO display name (v24.23): Firebase copies it into every token's `name`, which is the
-        // field member rules key on. The old label made every PIN session look like a named member.
-        assert.equal('displayName' in made.props, false, 'the viewer account must not be created with a display name');
-    });
-
-    test('every unlock CLEARS the shared account\'s display name (v24.23)', async () => {
-        // A PIN holder can rename this shared account from their own session; before v24.23 that
-        // name reached every later PIN token. Clearing it on each unlock means one holder's choice
-        // cannot outlive their own session.
-        const { ops } = build({ viewerExists: true });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.equal(out.code, 200);
-        const cleared = ops.find((o) => o.op === 'updateUser');
-        assert.ok(cleared, 'the unlock did not touch the account\'s profile');
-        assert.equal(cleared.uid, CALENDAR_VIEWER_UID);
-        assert.deepEqual(cleared.props, { displayName: null });
-    });
-
-    test('a failed display-name clear does NOT refuse a right PIN (v24.26)', async () => {
-        // The rules stopped believing this field at v24.23, so it is housekeeping. Inside the 500 it
-        // turned a transient Admin SDK error into a locked-out Calendar for somebody with the PIN.
-        const { ops } = build({ viewerExists: true, authFail: { updateUser: 'transient' } });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.equal(out.code, 200);
-        assert.ok(out.body.token, 'the unlock still hands out its token');
-        assert.ok(ops.some((o) => o.op === 'updateUser'), 'the clear was still attempted');
-    });
-
-    test('a mint that fails hands out nothing (rule 4)', async () => {
-        const { ops } = build({ authFail: { createCustomToken: 'IAM not configured' } });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 500);
-        assert.equal(out.body.token, undefined);
-        assert.ok(minted(ops), 'it was attempted — this is the failure path, not the refusal one');
-    });
-});
-
-describe('a deployment fault is not a wrong PIN', () => {
-    // v20.39, audit §31. A secret set to five digits by a slipped keystroke can never match a
-    // four-digit entry, so without this guard every member at the station is told their PIN is
-    // wrong — the one symptom that leads nowhere near the cause, and the one that would have the
-    // whole shift hunting for a code that cannot work.
-
-    test('an unconfigured secret is a 503, and charges nobody', async () => {
-        const { writes, ops } = build({ pin: '' });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 503);
-        assert.notEqual(out.code, 401);
-        assert.equal(minted(ops), undefined);
-        assert.deepEqual(writes, [], 'our own misconfiguration must not spend the station\'s budget');
-    });
-
-    test('a MALFORMED secret is a 503 as well — the gap the audit found', async () => {
-        // Five digits. Every entry at the station is four, so every one of them would be answered
-        // "PIN not recognised" by a handler that only checked for emptiness.
-        const { writes } = build({ pin: '12345' });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 503);
-        assert.deepEqual(writes, []);
-    });
-
-    test('a non-numeric secret is malformed too', async () => {
-        const { writes } = build({ pin: 'abcd' });
-        const out = await call(index.unlockCalendarViewer, pinRequest('abcd'));
-
-        assert.equal(out.code, 503, 'even an entry that MATCHES it must not be let through');
-        assert.deepEqual(writes, []);
-    });
-
-    test('a secret of nothing but whitespace is unconfigured, not a PIN', async () => {
-        const { writes } = build({ pin: '   ' });
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-
-        assert.equal(out.code, 503);
-        assert.deepEqual(writes, []);
-    });
-});
-
-describe('the endpoint tells a guesser nothing (rules 1 and 2)', () => {
-    test('wrong SHAPE and wrong VALUE are the same answer', async () => {
-        // Or the endpoint becomes an oracle for the PIN's length, which is four of the ten
-        // thousand combinations' worth of work done for free.
-        build();
-        const badShape = await call(index.unlockCalendarViewer, pinRequest('7'));
-        build();
-        const badValue = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
-        build();
-        const notAPin  = await call(index.unlockCalendarViewer, pinRequest(undefined));
-
-        assert.equal(badShape.code, 401);
-        assert.equal(badValue.code, 401);
-        assert.equal(notAPin.code, 401);
-        assert.deepEqual(badShape.body, badValue.body);
-        assert.deepEqual(badValue.body, notAPin.body);
-    });
-
-    test('no response ever echoes the submitted PIN', async () => {
-        build();
-        const rejected = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
-        assert.equal(JSON.stringify(rejected.body).includes(WRONG_PIN), false);
-
-        build();
-        const accepted = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.equal(JSON.stringify(accepted.body).includes(FIXTURE_PIN), false);
-        assert.deepEqual(Object.keys(accepted.body), ['token'],
-            'and the success body is the minimum the client needs — no claims echo, no uid');
-    });
-
-    test('the response carrying a credential is never cached', async () => {
-        build();
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
-        assert.equal(out.headers['Cache-Control'], 'no-store');
-    });
-
-    test('a correct unlock is logged with no source — the hashed key of an address is the address (review, Nov 2026)', async () => {
-        // The key is a short unsalted hash, so anyone holding the log can try addresses until one
-        // matches: a line per correct unlock was a list of who used the app, from where — the record
-        // the throttle store deletes a refunded charge to avoid keeping.
-        build();
-        /** @type {string[]} */
-        const lines = [];
-        const real = console.log;
-        console.log = (...a) => { lines.push(a.join(' ')); };
-        let out;
-        try { out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN)); } finally { console.log = real; }
-        assert.equal(out.code, 200, 'premise: the PIN was right');
-        assert.ok(lines.some(l => l.includes('[unlockCalendarViewer] unlocked')), 'the outcome is still logged');
-        assert.equal(lines.some(l => l.includes(STATION_KEY)), false, 'a correct unlock logged its source');
-    });
-
-    test('a GET (the PIN card\'s warm-up) gets a quiet 204 without touching the throttle store', async () => {
-        // 204, not 405 (sign-in check, 11 Nov 2026): the warm-up is the app's own request, and a 405
-        // put a red line in the console of every PIN card — the health check reads red as broken.
-        const { reads, writes } = build();
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN, { method: 'GET' }));
-
-        assert.equal(out.code, 204);
-        assert.deepEqual(reads, []);
-        assert.deepEqual(writes, []);
-    });
-
-    test('any other method is still refused with a 405, and touches nothing', async () => {
-        const { reads, writes } = build();
-        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN, { method: 'PUT' }));
-        assert.equal(out.code, 405);
-        assert.deepEqual(reads, []);
-        assert.deepEqual(writes, []);
-    });
-});
-
 
 // ── THE PDF PATH: a pick goes where its question goes (whole-app review, Nov 2026) ─────────────
 //
@@ -1793,12 +1155,12 @@ describe('parseRosterPDF: a left-shifted row is repaired or sent to review, neve
 //
 // `cors: ADMIN_FUNCTION_ORIGINS` is defence in depth — each endpoint's own token and claim checks
 // are the real control — but it is the line that stops another site's page reading these answers in
-// a signed-in member's browser, and nothing tested it: `cors: true` on the public reset request or on
-// the PIN exchange, or a foreign origin added to the allowlist, left all five Functions suites green.
+// a signed-in member's browser, and nothing tested it: `cors: true` on the public reset request (or on
+// the retired PIN exchange), or a foreign origin added to the allowlist, left all five Functions suites green.
 // These go through the REAL `onRequest` wrapper loaded above, whose CORS middleware runs before any
 // product code, so a preflight shows exactly what the deployed endpoint would grant.
 describe('CORS: only the app\'s own origins are granted', () => {
-    const BROWSER_CALLED = ['parseRosterPDF', 'unlockCalendarViewer', 'getDocumentUrl', 'setupRosterAuth',
+    const BROWSER_CALLED = ['parseRosterPDF', 'getDocumentUrl', 'setupRosterAuth',
         'resetMemberPassword', 'requestPasswordReset', 'getSignInStats', 'getAccountSetupGaps', 'rotateDocumentLinks'];
     const APP_ORIGINS = ['https://garethdavidmiller.github.io', 'https://myb-roster.web.app', 'https://myb-roster.firebaseapp.com'];
     const preflight = (origin) => withHelpers({

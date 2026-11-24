@@ -110,7 +110,7 @@ gone, and that no card outgrows its cap.
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers | `ls.js` |
 | Cross-file localStorage key constants | `storage-keys.js` |
-| Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts and the PIN (`functions/auth-endpoints.js` with `functions/account-lifecycle.js`, the reset-request doorbell `functions/reset-request.js`, and the PIN's `functions/calendar-viewer-auth.js`); push (`functions/push.js`, and what every payload looks like, `functions/push-notices.js`); the pay reminder's audience (`functions/pay-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
+| Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts (`functions/auth-endpoints.js` with `functions/account-lifecycle.js`, the reset-request doorbell `functions/reset-request.js`, and the retired PIN's shared account, `functions/retired-viewer-account.js`); push (`functions/push.js`, and what every payload looks like, `functions/push-notices.js`); the pay reminder's audience (`functions/pay-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, every guide) | `guide-back.js` |
@@ -996,10 +996,6 @@ Cross-guide search in the drawer's Reference zone: a member knows a term, not wh
 The "Needs attention" strip at the top of `operations.html`: an index of exceptional card states, fed by the cards that own the data (`operations-app.js`, `operations-errors.js`). Its three refusals — no reads, absent when clean, no navigation of its own — and the one "couldn’t check" exception are its header; `ATTENTION_CATALOGUE` is the one declaration of what can need attention, and `attentionBadge` the one spelling of a count. Pure half tested by `operations-attention.test.mjs`; the wiring by `e2e/operations.spec.js`.
 - **Exports:** `ATTENTION_CATALOGUE` · `attentionBadge` · `buildAttentionItems` · `reportLoginAccounts` · `withdrawLoginAccounts` · `createAttentionStrip`
 
-### `operations-pin-lockout.js`
-The retired staff PIN's station-wide block at the still-deployed endpoint, on Operations (owner, Nov 2026; deleted in the server release): a line on Staff Login Accounts and the strip's `pinLockout` item, while a block runs or one began in the last day. It runs no read — the fact rides on the audit's answer — and says times and counts only; its three states, and why an absent answer is unknown, are its header. Wired by `admin-auth.js`, which redraws the line when `lockoutChangesAt` says. Tested by `operations-pin-lockout.test.mjs` and `admin-auth.test.mjs`.
-- **Exports:** `readLockout` · `lockoutWords` · `lockoutChangesAt` · `renderLockoutLine` · `lockoutCount`
-
 ### `operations-doc-links.js`
 The Document links card on `operations.html` (owner, 12 Nov 2026 — `ARCHITECTURE.md` EXC-007): Check asks `rotateDocumentLinks` for a preview, Replace runs it behind a confirm, and every answer is reported honestly — done, not run, or not known. The server does the work (`functions/doc-link-rotation.js`); `docLinksRequestInFlight` holds an update's reload while an answer is awaited. The three outcomes, the older server's missing counts and the dead-link wording are its header. Wording and request tested by `operations-doc-links.test.mjs`, the wiring by `e2e/operations.spec.js`.
 - **Exports:** `ROTATE_LINKS_URL` · `docLinksRequestInFlight` · `requestLinkRotation` · `describePreview` · `describeResult` · `checkFailure` · `runFailure` · `initDocLinksCard`
@@ -1129,7 +1125,7 @@ Re-authenticating with, and changing, the signed-in member's OWN password — th
 - **Exports:** `buildPasswordClient` · `SAVE_TIMEOUT_MS` · `withTimeout` · `settleOrTimeout` · `runPasswordSave`
 
 ### `account-calls.js`
-The browser's side of three ACCOUNT endpoints — the admin's Reset, the provisioning audit (which also carries the staff PIN lockout) and the locked-out member's reset request. A factory with `auth` injected, so it makes no import cycle; `firebase-client.js` builds it once and re-exports the three. Its one rule: a deadline above each endpoint's own, and a WRITE that times out says it may still have happened. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
+The browser's side of three ACCOUNT endpoints — the admin's Reset, the provisioning audit and the locked-out member's reset request. A factory with `auth` injected, so it makes no import cycle; `firebase-client.js` builds it once and re-exports the three. Its one rule: a deadline above each endpoint's own, and a WRITE that times out says it may still have happened. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
 - **Exports:** `RESET_NOT_SENT` · `buildAccountCalls`
 
 ### `documents-client.js`
@@ -1181,11 +1177,11 @@ A member's GRADE ON A DAY: `role` is the grade now, and `roleHistory` dates the 
 - **Exports:** `roleOn` · `rolesInRange`
 
 ### `functions/index.js`
-The COMPOSITION ROOT of the Cloud Functions: its exports are the deploy surface, pinned by `functions-surface.test.mjs`. It holds the shared infrastructure every domain builder is handed — the secrets, `VAPID_PUBLIC_KEY` (which must match `notif.js`), `STAFF_SITE_URL`, `ADMIN_FUNCTION_ORIGINS`, the size caps — and keeps two endpoints of its own: `parseRosterPDF` (contract `.claude/rules/roster-import.md`) and `unlockCalendarViewer` (its rules are `functions/calendar-viewer-auth.js`). Both are executed by `index-endpoints.test.mjs`.
-- **Exports:** `parseRosterPDF` · `unlockCalendarViewer` · and every endpoint `buildDocumentEndpoints`, `buildAuthEndpoints` returns
+The COMPOSITION ROOT of the Cloud Functions: its exports are the deploy surface, pinned by `functions-surface.test.mjs`. It holds the shared infrastructure every domain builder is handed — the secrets, `VAPID_PUBLIC_KEY` (which must match `notif.js`), `STAFF_SITE_URL`, `ADMIN_FUNCTION_ORIGINS`, the size caps — and keeps one endpoint of its own: `parseRosterPDF` (contract `.claude/rules/roster-import.md`), executed by `index-endpoints.test.mjs`. The retired staff PIN's `unlockCalendarViewer` was the second until the PIN's server release; the deploy runs `--force`, so dropping an export deletes the function.
+- **Exports:** `parseRosterPDF` · and every endpoint `buildDocumentEndpoints`, `buildAuthEndpoints` returns
 
 ### `index-endpoints.test.mjs`
-Drives the two handlers `functions/index.js` keeps — `parseRosterPDF` and `unlockCalendarViewer` — for real, so the wiring is tested and not only the rules (CLAUDE.md → "The rule tested, the wiring not"). The fakes enter `require.cache` before `index.js` is required, every fake records, and the blocks are organised by what a wrong answer costs; its header names the mutations it was checked against. Runs in `npm run test:functions`.
+Drives the handler `functions/index.js` keeps — `parseRosterPDF` — for real, so the wiring is tested and not only the rules (CLAUDE.md → "The rule tested, the wiring not"). The fakes enter `require.cache` before `index.js` is required, every fake records, and the blocks are organised by what a wrong answer costs; its header names the mutations it was checked against. Runs in `npm run test:functions`.
 
 ### `functions/documents.js`
 The document-and-notification domain, built by `buildDocumentEndpoints` from the infrastructure `index.js` hands it: `getDocumentUrl` (the short-lived document url — the caller names a kind, never a path), `rotateDocumentLinks`, `ingestHuddle` (built from `huddle-ingest.js`), the three document-arrival triggers, and the scheduled pay, timetable and Error Log notices. `HUDDLE_PUSH_PAUSED` lives here. Every notice follows `.claude/rules/notifications.md`; tested by `documents-endpoints.test.mjs`.
@@ -1216,11 +1212,11 @@ The account-and-credential domain, built by `buildAuthEndpoints`: `setupRosterAu
 - **Exports:** `buildAuthEndpoints`
 
 ### `functions/account-reads.js`
-The account domain's two admin READS, which change nothing: `getSignInStats` (four integers, no identity) and `getAccountSetupGaps` (NAMES, grouped by remedy, and the staff PIN's lockout). Also `listAllUsers`, the one account-list loop the leaver sweep shares. Built by `buildAuthEndpoints`; the judgements are `summariseSignIns` and `summariseAccountGaps`. Tested through the handlers by `auth-endpoints.test.mjs`.
+The account domain's two admin READS, which change nothing: `getSignInStats` (four integers, no identity) and `getAccountSetupGaps` (NAMES, grouped by remedy). Also `listAllUsers`, the one account-list loop the leaver sweep shares. Built by `buildAuthEndpoints`; the judgements are `summariseSignIns` and `summariseAccountGaps`. Tested through the handlers by `auth-endpoints.test.mjs`.
 - **Exports:** `buildAccountReadEndpoints` · `listAllUsers`
 
 ### `functions/admin-recipients.js`
-WHO a notice for the admin may reach — one rule for the reset-request doorbell, the Error Log notice and the PIN lockout notice: each admin name's own account, enabled and carrying the `admin` claim, and nobody in its place. Tested through its three senders (`auth-endpoints.test.mjs`, `error-log-notify.test.mjs`, `pin-lockout.test.mjs`).
+WHO a notice for the admin may reach — one rule for the reset-request doorbell and the Error Log notice: each admin name's own account, enabled and carrying the `admin` claim, and nobody in its place. Tested through its two senders (`auth-endpoints.test.mjs`, `error-log-notify.test.mjs`).
 - **Exports:** `enabledAdminUids`
 
 ### `functions/account-lifecycle.js`
@@ -1228,16 +1224,12 @@ The pure rules Set up accounts and the admin reset apply at the edges of an acco
 - **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids` · `sweepAgainstPreview`
 
 ### `functions/reset-request.js`
-`requestPasswordReset`, the public doorbell a locked-out member rings — one of the two unauthenticated endpoints: it records the request, never resets anything, and tells the admin's devices only. Built by `buildAuthEndpoints`, which hands in the kill switch. The header says how the abuse surface is bounded; the throttle, the coalescing window and the notice's words are `roster-parse-helpers.js`'s. Tested through the real handler by `auth-endpoints.test.mjs`.
+`requestPasswordReset`, the public doorbell a locked-out member rings — the one unauthenticated endpoint: it records the request, never resets anything, and tells the admin's devices only. Built by `buildAuthEndpoints`, which hands in the kill switch. The header says how the abuse surface is bounded; the throttle, the coalescing window and the notice's words are `roster-parse-helpers.js`'s. Tested through the real handler by `auth-endpoints.test.mjs`.
 - **Exports:** `buildResetRequestEndpoint`
 
-### `functions/calendar-viewer-auth.js`
-The PURE server rules behind the retired staff Calendar PIN (deleted in the server release), kept apart from `req`/`res` so they can be tested: the PIN compare, the throttle (read `DEFAULT_THROTTLE`'s comment before changing a number), charging an attempt before its compare, the guards on the shared viewer account, and the station-wide lockout record. The PIN is never learnt, stored, logged or returned. Tested by `calendar-viewer-auth.test.mjs`; the uid and claim agreement across the browser, CommonJS and `firestore.rules` is `calendar-viewer-parity.test.mjs`.
-- **Exports:** `CALENDAR_VIEWER_UID` · `PIN_LENGTH` · `DEFAULT_THROTTLE` · `GLOBAL_SOURCE_KEY` · `GLOBAL_THROTTLE` · `isValidPinShape` · `pinMatches` · `sourceKeyFor` · `clientIpOf` · `throttleDecision` · `recordFailure` · `reserveAttempt` · `refundAttempt` · `isThrottleStateStale` · `viewerClaims` · `viewerAccountTamper` · `isViewerAccount` · `LOCKOUT_RECORD_KEY` · `LOCKOUT_ALERT_GAP_MS` · `LOCKOUT_RECENT_MS` · `noteGlobalBlock` · `lockoutSummary` · `lockoutNoticeWords`
-
-### `functions/pin-lockout.js`
-The staff-PIN throttle store's upkeep after a wrong PIN, and telling the admin when the station-wide block trips: the time-boxed sweep, the lockout record (`viewerAttempts/_lockout-record`) and the once-a-day notice. Best-effort throughout — nothing here may change the 401. Every rule it asks is `calendar-viewer-auth.js`'s. Tested by `pin-lockout.test.mjs` and, through the handler, `index-endpoints.test.mjs`.
-- **Exports:** `LOCKOUT_NOTICE_BUDGET_MS` · `SWEEP_BUDGET_MS` · `sweepExpiredThrottleRows` · `buildPinLockoutNotifier` · `noteStationBlock` · `readPinLockout`
+### `functions/retired-viewer-account.js`
+The retired staff PIN's shared account (uid `calendar-viewer`), recognised by uid or claim so that Set up accounts, the leaver sweep, a reset, the audit and the targeted notices never adopt, reset, disable or address it. It outlives the PIN's endpoint because the account does, until the owner deletes it; delete it in the cleanup release. The uid agreement with the client is `calendar-viewer-parity.test.mjs`.
+- **Exports:** `CALENDAR_VIEWER_UID` · `isViewerAccount`
 
 ### `functions/push.js`
 The web-push TRANSPORT: how a payload reaches a phone, never what it says or when (`buildPushPayload` in `push-notices.js`; `.claude/rules/notifications.md`). The two senders — `fanOutPush` to every device, and `sendTargetedPush`, which fails closed — each feature's TTL, the dead-subscription clean-up, and `releasePushForOwner`. Tested by `push-transport.test.mjs`.

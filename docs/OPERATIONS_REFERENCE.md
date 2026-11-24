@@ -194,8 +194,8 @@ Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` is invalid.
 ### Firestore Security Rules — `huddles` collection
 
 Access posture: **read requires access, write admin-only** — a read needs a bound member identity
-or the admin claim (and, until the server release, the retired staff PIN's `calendarViewer` claim —
-"The staff PIN (retired)", below). The live rule in `firestore.rules` is the
+or the admin claim (the retired staff PIN's `calendarViewer` claim was a third, until its server
+release — "The staff PIN (retired)", below). The live rule in `firestore.rules` is the
 authority — it also shape-validates browser writes: `hasOnly` field allowlist, bounded `YYYY-MM-DD`
 date, `fileType in ['pdf','docx']`, typed `uploadedAt`/`uploadedBy`, a 250,000-char `htmlContent` cap,
 and a separate admin-only delete rule. Don't quote the rule here — it drifts; read the file.
@@ -450,7 +450,7 @@ before relying on this summary:
 
 | Operation | Requirement |
 |-----------|-------------|
-| Reads | Require access, as the Huddle does: a bound member identity or the admin claim (the retired `calendarViewer` claim until the server release). The client refuses at source behind a sign-in (`calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL — used only when the path it signed matches the document on screen — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
+| Reads | Require access, as the Huddle does: a bound member identity or the admin claim (the retired `calendarViewer` claim, too, until the server release). The client refuses at source behind a sign-in (`calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL — used only when the path it signed matches the document on screen — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
 | Writes | `request.auth.token.admin == true` (admin claim only) |
 | Storage create/update | Rules enforce PDF or Word (.docx) MIME type + ≤20 MB per file |
 | Storage delete | Admin-only; MIME/size checks omitted (no `request.resource` on delete) |
@@ -532,7 +532,7 @@ function log — counts only.
 
 The one flow that starts with **no identity at all**: a member who has forgotten a self-set password
 has no Firebase session, so they cannot write anything — which is why this runs through a public
-unauthenticated endpoint (the only one once the server release deletes `unlockCalendarViewer`) rather than a client write. The
+unauthenticated endpoint (the only one, since the staff PIN's server release deleted `unlockCalendarViewer`) rather than a client write. The
 design and its accepted risks are `PASSWORD_DESIGN.md` §12–§14.
 
 1. **Member** taps "Can't get in?" on the login overlay — **always available there**, under the Sign
@@ -1175,31 +1175,39 @@ the admin if they have no login). Nothing else needs doing on the phone.
 - **Forgotten password** — "Can't get in?" on the sign-in card ("Locked-out member → reset request
   queue", above).
 
-### Until the server release
+### Between the client and the server release (history)
 
-The client release took the PIN off every screen; the server side stays deployed for now. So, until
-the server release ships:
+The client release took the PIN off every screen and left the server side deployed. Until the server
+release shipped, `unlockCalendarViewer` and the `CALENDAR_VIEWER_PIN` secret were live and the rules
+accepted the `calendarViewer` claim, so somebody holding the PIN could still read the roster by
+calling the endpoint directly; the Operations **"Staff PIN blocked"** item could still appear; and
+the secret could not be destroyed, because every Functions deploy resolved it while the endpoint
+was deployed. None of that holds any more.
 
-- `unlockCalendarViewer` and the `CALENDAR_VIEWER_PIN` secret are still live, and the rules still
-  accept the `calendarViewer` claim. Only an app that has not yet updated still offers the PIN box,
-  and a session it opens is signed out on the next load of the new app. Somebody holding the PIN can
-  still read the roster by calling the endpoint directly, so the server release should not wait long
-  (RECOVERY_RUNBOOK.md → "The staff PIN (retired)").
-- The Operations **"Staff PIN blocked"** item can still appear (with its push to the admin's own
-  devices) if the endpoint is hammered. Nothing to do: it clears itself, and no member needs the PIN.
-  It is deleted in the server release.
-- **Do not rotate the PIN.** Nothing reads it.
-- **Do not destroy the secret yet.** While `unlockCalendarViewer` is deployed, every Functions deploy
-  resolves `CALENDAR_VIEWER_PIN` and fails the WHOLE deploy if it has no version. If it is gone by
-  mistake, set a new value interactively — `firebase functions:secrets:set CALENDAR_VIEWER_PIN
-  --project myb-roster`, typed at the prompt, never committed — and run the Functions deploy again.
+### The server release — what it removed
+
+The rules no longer accept the `calendarViewer` claim anywhere (`isCalendarViewer` is gone, and
+`viewerAttempts` has no rule of its own, so every client is refused it); the `unlockCalendarViewer`
+function, its throttle and lockout notice (`functions/calendar-viewer-auth.js`,
+`functions/pin-lockout.js`), the `CALENDAR_VIEWER_PIN` binding and the viewer door in
+`getDocumentUrl` are deleted; and the Operations PIN-lockout card and its "Staff PIN blocked" item
+are gone. A token still carrying the claim — a PIN session left open on some device — is refused
+everywhere, exactly as an anonymous one is.
+
+**The function is deleted by the deploy itself.** The Functions workflow runs `firebase deploy
+--only functions --force`, and `--force` deletes a deployed function that index.js no longer
+exports (the way Overtime's paused endpoints went). Nothing needs deleting by hand; to confirm
+afterwards, `firebase functions:list --project myb-roster` no longer lists `unlockCalendarViewer`.
+
+What the server release KEEPS, on purpose, until the cleanup release: `functions/retired-viewer-account.js`,
+so Set up accounts, the leaver sweep, a reset and the notices never adopt the shared account while it
+exists (a session left open on it can still link an email to it), and the client's teardown of a
+leftover PIN session.
 
 ### After the server release — the manual steps
 
-The server release deletes `isCalendarViewer` from the rules, the `unlockCalendarViewer` function,
-`functions/pin-lockout.js`, the secret's binding, the viewer door in `getDocumentUrl` and the
-Operations PIN-lockout card. Once **Deploy Firebase Functions** and **Deploy Firestore/Storage rules**
-have both finished, in this order:
+These are the owner's. Once **Deploy Firebase Functions** and **Deploy Firestore/Storage rules** have
+both finished for the server release, in this order:
 
 1. **Delete the `calendar-viewer` account** — Firebase console → Authentication → Users → the account
    with uid `calendar-viewer` → Delete. Any session still open on it ends at its next token refresh.
@@ -1216,7 +1224,8 @@ have both finished, in this order:
    needs it (RECOVERY_RUNBOOK.md project facts). The PIN exchange was its first user, not its only one.
 
 Then the **cleanup release** removes the client's transition code (the sign-out of a leftover PIN
-session) — it waits for step 1, because until the account is gone a session on it can still exist.
+session) and the server's `functions/retired-viewer-account.js` — it waits for step 1, because until
+the account is gone a session on it can still exist.
 
 **Never write the PIN's value anywhere** — not in a doc, a commit, a ticket or a test. It was never in
 the repository, and the record of its retirement does not need it.

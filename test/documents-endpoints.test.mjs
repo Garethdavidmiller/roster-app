@@ -288,7 +288,7 @@ function build({ seed = {}, objects = [], keys = {}, maxFileBytes = 20 * 1024 * 
     // verifies a revoked token perfectly by signature and refuses it only when the caller passes
     // `checkRevoked = true`; this fake used to ignore the argument and model revocation as a throw
     // that happened either way, so dropping `true` from the handler left every test green — and a
-    // disabled member, or a viewer whose PIN was rotated, could have gone on minting document links
+    // disabled member, or (while the staff PIN lived) a viewer whose PIN was rotated, could have gone on minting document links
     // for the rest of the token's hour.
     let tokenRevoked = false;
     stub(authPath, { getAuth: () => ({
@@ -1209,7 +1209,7 @@ describe('getDocumentUrl — the door, and that it is exactly the rules\' door',
     test('a token that still verifies by signature but has been REVOKED is refused (checkRevoked)', async () => {
         // The handler's own header calls this load-bearing: Firebase does not check revocation unless
         // asked. Every door is tried, because each is a different way a token reaches the signer.
-        for (const claims of [MEMBER_GM, { admin: true }, { calendarViewer: true, firebase: { sign_in_provider: 'custom' } }]) {
+        for (const claims of [MEMBER_GM, { admin: true }]) {
             const w = build({ seed: PUBLISHED });
             w.setClaims(claims);
             w.setRevoked(true);
@@ -1220,9 +1220,21 @@ describe('getDocumentUrl — the door, and that it is exactly the rules\' door',
 
     test('a token with NO door is 403, and still nothing is signed', async () => {
         const w = build({ seed: PUBLISHED });
-        w.setClaims({ uid: 'x' });               // authenticated, but no name / admin / calendarViewer
+        w.setClaims({ uid: 'x' });               // authenticated, but no bound name and no admin
         assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 403);
         assert.deepEqual(w.signed, [], 'a caller the rules would refuse got a URL');
+    });
+
+    test('a leftover staff-PIN session is NO door any more — on its own custom token or any other sign-in', async () => {
+        // It was the third door until the PIN's server release (Nov 2026), on its custom-token session
+        // only. The rules took it away in the same release; this is the mirror. A device may hold such
+        // a session until the owner deletes the account, so its token is the one most likely to come.
+        for (const provider of ['custom', 'password', 'anonymous', undefined]) {
+            const w = build({ seed: PUBLISHED });
+            w.setClaims({ uid: 'calendar-viewer', calendarViewer: true, ...(provider ? { firebase: { sign_in_provider: provider } } : {}) });
+            assert.equal((await askForUrl(w.eps, { kind: 'huddle' })).code, 403, `a ${provider} viewer session got a URL`);
+            assert.deepEqual(w.signed, [], 'a leftover PIN session reached the signer');
+        }
     });
 
     test('a `name` that is not the member\'s own account is NO door (v24.23)', async () => {
@@ -1241,8 +1253,8 @@ describe('getDocumentUrl — the door, and that it is exactly the rules\' door',
         }
     });
 
-    test('each of the three doors is admitted', async () => {
-        for (const claims of [MEMBER_GM, { admin: true }, { calendarViewer: true, firebase: { sign_in_provider: 'custom' } }]) {
+    test('each of the two doors is admitted', async () => {
+        for (const claims of [MEMBER_GM, { admin: true }]) {
             const w = build({ seed: PUBLISHED });
             w.setClaims(claims);
             const out = await askForUrl(w.eps, { kind: 'huddle' });
@@ -1510,7 +1522,7 @@ const ROTATABLE = () => ({
 const keyIn = (/** @type {string} */ url) => new URL(url).searchParams.get('token');
 
 describe('rotateDocumentLinks — the admin door, and a preview unless asked', () => {
-    test('no token, a revoked admin, a member, a manager and a PIN viewer are refused — and nothing is written', async () => {
+    test('no token, a revoked admin, a member, a manager and a leftover PIN session are refused — and nothing is written', async () => {
         const doors = [
             [null, false, 401], [{ admin: true }, true, 401],
             [MEMBER_GM, false, 403], [{ ...MEMBER_GM, manager: true }, false, 403],

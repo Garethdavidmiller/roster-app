@@ -411,7 +411,7 @@ answer exactly this question, and the Operations Usage card reads it ("Which add
 Two things this app already has:
 
 1. **Custom-token minting is proven in production.** `unlockCalendarViewer` (the retired staff PIN's
-   exchange, until the server release deletes it) does `createCustomToken` → `signInWithCustomToken`,
+   exchange, deleted in its server release) did `createCustomToken` → `signInWithCustomToken`,
    and its rollout established the standing IAM prerequisite
    (`iam.serviceAccountTokenCreator` on the runtime service account, on itself) — **already granted**.
    A passkey sign-in is the same shape: verify the assertion, then mint. The unglamorous half of this
@@ -550,7 +550,7 @@ password, and on success sets the credential and revokes existing sessions.
 
 The app has had two public unauthenticated endpoints. `requestPasswordReset` is safe because it is
 *deliberately incapable* of changing anything — it records a request. `unlockCalendarViewer` (the
-retired staff PIN's, deleted in the server release) minted a credential, a read-only one, behind a
+retired staff PIN's, deleted in its server release) minted a credential, a read-only one, behind a
 per-source and a global throttle. This one would set a password. It deserves the treatment
 `unlockCalendarViewer` got, and for the same reasons.
 
@@ -568,7 +568,7 @@ per-source and a global throttle. This one would set a password. It deserves the
 - **Never logged, never returned twice, never in analytics or the error log.** The `CALENDAR_VIEWER_PIN`
   rule, unchanged: a secret that reaches telemetry has been published.
 - **Compared timing-safely** — the retired staff PIN's exchange (`functions/calendar-viewer-auth.js`,
-  deleted in the server release) held that discipline.
+  deleted in its server release; git history keeps it) held that discipline.
 
 #### Storage — `recoveryCodes/{memberName}`
 
@@ -695,8 +695,8 @@ an Other Staff login (v26.59, `DECISIONS.md` → "An 'Other staff' login"), so a
 of their own signs in individually and sees what the PIN showed, plus their own Settings; then the
 PIN's retirement (`DECISIONS.md` → "The staff PIN retired"). A shared station PC now signs in by name
 like any device — colleagues sign in to Windows individually, so each has their own browser storage
-there (`DECISIONS.md` → "Shared office PCs are not treated as a shared-browser risk"). The PIN still
-works at the server until the server release (`ARCHITECTURE.md` → EXC-009). The table and argument
+there (`DECISIONS.md` → "Shared office PCs are not treated as a shared-browser risk"). Since the PIN's
+server release it opens nothing at the server either (`ARCHITECTURE.md` → EXC-009 for what is left). The table and argument
 below are the decision as it stood, kept because `AUTH_PLAN.md` and L7 cite them:
 
 | | Shared station PC | Personal device |
@@ -961,7 +961,7 @@ human in the loop authenticates the reset *action*; this is a doorbell, not a re
 | Name ∈ server-owned `activeMembers` | Rejects junk, AND makes the name safe for the admin card to render (it came from our list, never the request body). |
 | **No free text stored** | An unauthenticated endpoint writing caller-controlled strings into an admin UI is an injection surface for no benefit. |
 | `shouldRecordResetRequest` throttle | Repeat taps must not inflate the `count` the admin reads, nor generate repeat notifications. Pure + unit-tested; fails OPEN on a junk timestamp (never block someone from asking). |
-| `maxInstances: 3` | Caps the cost of a flood (`unlockCalendarViewer`, until the server release deletes it, is the only other function that sets one). App Check (Track D) is the eventual real control. |
+| `maxInstances: 3` | Caps the cost of a flood (the retired `unlockCalendarViewer` set one too, until its server release deleted it). App Check (Track D) is the eventual real control. |
 | No enumeration | Same answer for any roster name whether provisioned or not — and the roster is already public in the login dropdown, so nothing new is revealed. |
 
 **`provisioned` earns its place.** The login overlay deliberately cannot distinguish "forgotten password"

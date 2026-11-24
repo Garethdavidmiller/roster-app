@@ -64,11 +64,8 @@ const NOTIFICATION_FEATURES = {
     // log since the last notice. The words are functions/error-log-notice.js's, never composed at the
     // call; the sender is functions/error-log-notify.js.
     errorLog:   { emoji: '🐛', tag: 'error-log' },
-    // Admin-only (Nov 2026) — the staff PIN's station-wide block was tripped (functions/pin-lockout.js),
-    // at most once a day. 🔢 is the item's own emoji on the Operations "Needs attention" strip, where
-    // the tap lands (#login-accounts). The words are calendar-viewer-auth.js's `lockoutNoticeWords`:
-    // a count and a time, never the PIN and never an address.
-    pinLockout: { emoji: '🔢', tag: 'pin-lockout' },
+    // (`pinLockout`, 🔢 'pin-lockout' — the retired staff PIN's station-wide block, told to the admin —
+    // went with the PIN's endpoint in its server release, Nov 2026.)
 };
 
 /**

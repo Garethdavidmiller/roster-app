@@ -240,20 +240,6 @@ in `client-errors.js`), so the Operations strip leaves them out. The admin's Err
 announces them, counted apart from errors (OPERATIONS_REFERENCE.md → "The Error Log notification").
 Read the entries from iPhones before choosing a fix.
 
-## Until the server release, anybody can hold the retired staff PIN shut — and nobody needs it
-
-`unlockCalendarViewer` throttles failed PINs twice — per source, and under an all-sources ceiling
-with a fixed key (`DEFAULT_THROTTLE` and `GLOBAL_THROTTLE` in `functions/calendar-viewer-auth.js`,
-which carries the arithmetic). The ceiling is what stops a distributed guess at a four-digit PIN, and
-it is also the weakness: a stranger sending wrong PINs from enough addresses keeps it reached, and
-while it is reached **every member of staff is refused the PIN**, correct or not. Nothing leaks; the
-Calendar is simply closed to anyone not signed in by name, and the block clears itself. Raising or
-removing the ceiling makes guessing cheaper. **Owner decision (Nov 2026): keep the limit, and tell the
-admin** — a push to the admin's own devices at most once a day, and a "Staff PIN blocked" item in
-Operations. **Since the PIN was retired (23 Nov 2026) a block costs nobody anything**: no screen asks
-for the PIN, so the alert can be ignored. The endpoint, the throttle and the alert are all deleted in
-the server release, and this section with them (OPERATIONS_REFERENCE.md → "The staff PIN (retired)").
-
 ## The iPhone status bar is solid — and was changed without a device to test on
 
 Every page sets `apple-mobile-web-app-status-bar-style` to `black` (`page-contract-parity.test.mjs`
@@ -703,7 +689,7 @@ Check territory, or inherent platform behaviour, not bugs to patch:
   platform's, and the app stops depending on it only by not using it.
 - **Analytics dynamic-map value integrity.** `analytics/activeAccounts`, `analytics/origins` and
   `analytics/perf_<month>` hold maps whose keys and values Firestore rules cannot iterate or
-  type-check, so an authenticated session (a named member, or the retired PIN viewer until the server release) could write forged
+  type-check, so an authenticated session (a named member) could write forged
   counts. The rules validate SHAPE and block key-removal (the destructive wipe), the `pv_` counts are
   int-checked, and the App Speed card reads a value only when it is a whole number under a million
   (`perf-stats.js`); the usage readers take a non-number as zero. A forged but PLAUSIBLE count is
@@ -809,22 +795,14 @@ ten minutes. Closing it fully means sending the push from a Firestore trigger, s
 ### Settings outside the code that nobody has checked from here (sign-in audit, 13 Nov 2026)
 
 The sign-in audit could read the code and the rules, not the Firebase console or the live network.
-These things it depends on are therefore assumed, not known (the first and last matter only until the
-server release deletes the retired staff PIN's endpoint and account):
+These things it depends on are therefore assumed, not known. (Two more were the retired staff PIN's —
+whether a holder could delete or re-link the shared viewer account, and which forwarded address its
+lockout counted by — and both ended with its server release, Nov 2026: the endpoint is gone, and the
+server refuses to adopt the account whatever is linked to it until the owner deletes it.)
 
-- **Who may change or delete their own account.** Every staff-PIN holder signs in to ONE shared
-  viewer account. If users may delete their own account, or link an email to it, one PIN holder can
-  end every station's PIN at its next token refresh. Nothing is exposed — the next unlock rebuilds
-  the account (`viewerAccountTamper`, AUTH_AND_SESSIONS 20) — and since the PIN was retired (23 Nov
-  2026) no screen uses that account, so ending it costs nobody anything. Firebase console → Authentication → Settings → User actions.
 - **Email enumeration protection.** With it off, Firebase's own sign-in API can say which roster
   addresses have accounts. The addresses are derivable from the public roster, so this tells an
-  outsider little, but it is a free signal. Same page.
-- **The address the PIN lockout counts by.** `unlockCalendarViewer` counts failures per source by the
-  LAST `x-forwarded-for` entry, which a caller cannot forge. If the hosting puts its own address
-  last, every caller shares one failure budget (`maxFailures`, `calendar-viewer-auth.js`) — a cheaper form of "anybody can hold the retired staff
-  PIN shut" (above), not a way past the PIN. Reading one real request's headers in the function's logs
-  would settle it.
+  outsider little, but it is a free signal. Firebase console → Authentication → Settings.
 
 ### A lost-phone reset still leaves one narrow gap: the surname (sign-in audit, 13 Nov 2026)
 
@@ -864,8 +842,8 @@ action**:
   hiccup and writes start failing silently with no visible error in the app. The allowlist must be
   kept in sync forever.
 - It gates *which clients* connect, not what an authenticated client may read, so it adds nothing to
-  the `overrides` read boundary, which has required a claim since 26 Aug 2026 — a member identity, or the retired PIN's
-  `calendarViewer` until the server release (`firestore.rules`).
+  the `overrides` read boundary, which has required a claim since 26 Aug 2026 — a member identity or the admin (`firestore.rules`;
+  the retired PIN's `calendarViewer` too, until its server release).
 - Payoff for this threat model (unadvertised app, small known team) is low: it blocks scripted bulk
   reads/writes from outside our pages, which is a real but low-probability attack here. The Aug 2026
   external review recommended it for the telemetry and reset-request paths — the same

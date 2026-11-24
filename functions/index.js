@@ -2,23 +2,25 @@
  * functions/index.js — the COMPOSITION ROOT of the MYB Roster Cloud Functions.
  *
  * Its exports are the deploy surface: Firebase discovers functions from them, and
- * functions-surface.test.mjs pins every name. Two endpoints are defined here:
+ * functions-surface.test.mjs pins every name. One endpoint is defined here:
  *
  * parseRosterPDF       — the admin's weekly roster PDF → each person's shifts for that week, for
  *                        review. Does NOT write to Firestore: the admin approves, then the browser writes.
- * unlockCalendarViewer — the staff Calendar PIN → a custom token carrying `calendarViewer` only.
- *                        calendar-viewer-parity.test.mjs pins its handler source, the secret binding
- *                        and the no-log rule to THIS file; the rules it applies are calendar-viewer-auth.js.
  *
- * Both are EXECUTED by index-endpoints.test.mjs; functions-surface.test.mjs proves only that they
- * exist. parseRosterPDF's PDF-path prompt is written inline below, and roster-prompt-parity.test.mjs
+ * A second, unlockCalendarViewer — the retired staff PIN's exchange for a custom token — lived here
+ * until the PIN's server release (Nov 2026; DECISIONS.md → "The staff PIN retired"). Its deletion
+ * is a deletion from the deploy surface: the Functions deploy runs `--force`, which deletes a
+ * deployed function that is no longer exported.
+ *
+ * It is EXECUTED by index-endpoints.test.mjs; functions-surface.test.mjs proves only that it
+ * exists. parseRosterPDF's PDF-path prompt is written inline below, and roster-prompt-parity.test.mjs
  * reads it from this file. The import's contract is .claude/rules/roster-import.md.
  *
  * Every other endpoint (ingestHuddle and the document triggers, the account endpoints, Overtime)
  * comes from a domain builder — documents.js, auth-endpoints.js, overtime.js — given the shared
  * infrastructure defined here, so no domain owns a second copy of a guarded literal.
  *
- * Secrets (Secret Manager): HUDDLE_SECRET, ANTHROPIC_API_KEY, VAPID_PRIVATE_KEY, CALENDAR_VIEWER_PIN.
+ * Secrets (Secret Manager): HUDDLE_SECRET, ANTHROPIC_API_KEY, VAPID_PRIVATE_KEY.
  *
  * Deploy:
  *   Push any change to functions/ on main — GitHub Actions deploys automatically.
@@ -27,13 +29,11 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret }  = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
-const { getAuth }       = require('firebase-admin/auth');
-const { getFirestore }  = require('firebase-admin/firestore');
 // M8: @anthropic-ai/sdk, mammoth and web-push are LAZY-required inside the one function that
 // each needs (parseRosterPDF / ingestHuddle DOCX branch / the push fan-out helpers) rather than
 // at module load, so a cold start of a function that doesn't use them (e.g. setupRosterAuth) does
 // not pay their load cost. Node caches the module after first require, so warm calls are free.
-// Only what THIS file still uses (parseRosterPDF + unlockCalendarViewer); the document and
+// Only what THIS file still uses (parseRosterPDF); the document and
 // account domains import their own helper subsets in ./documents.js and ./auth-endpoints.js.
 const {
     buildWeekDates,
@@ -50,21 +50,7 @@ const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeom
 const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, reviewRestReadsOfEmptyCells, DAY_LABELS: CELL_DAY_LABELS,
     MODEL_REQUEST, DECLINED_ERROR, repeatedMembers } = require('./roster-prompt');
 const { checkSheetWeek } = require('./roster-week-heading');
-const {
-    CALENDAR_VIEWER_UID,
-    isValidPinShape,
-    pinMatches,
-    sourceKeyFor,
-    clientIpOf,
-    reserveAttempt,
-    refundAttempt,
-    GLOBAL_SOURCE_KEY,
-    GLOBAL_THROTTLE,
-    viewerClaims,
-    viewerAccountTamper,
-} = require('./calendar-viewer-auth');
-const { requireAdmin, readJsonBody, readRawBody: readCappedBody } = require('./request-helpers');
-const { sweepExpiredThrottleRows, buildPinLockoutNotifier, noteStationBlock } = require('./pin-lockout');
+const { requireAdmin, readRawBody: readCappedBody } = require('./request-helpers');
 const { londonIsoDate }          = require('./london-clock');
 const { buildDocumentEndpoints } = require('./documents');
 const { buildAuthEndpoints }     = require('./auth-endpoints');
@@ -77,10 +63,8 @@ initializeApp();
 const HUDDLE_SECRET      = defineSecret('HUDDLE_SECRET');
 const ANTHROPIC_API_KEY  = defineSecret('ANTHROPIC_API_KEY');
 const VAPID_PRIVATE_KEY  = defineSecret('VAPID_PRIVATE_KEY');
-// The shared staff Calendar PIN. Set INTERACTIVELY, never in source:
-//   firebase functions:secrets:set CALENDAR_VIEWER_PIN
-// Rotating it needs no client release — see OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN".
-const CALENDAR_VIEWER_PIN = defineSecret('CALENDAR_VIEWER_PIN');
+// CALENDAR_VIEWER_PIN, the retired staff PIN, is bound nowhere since the PIN's server release (Nov
+// 2026): the owner destroys the secret (OPERATIONS_REFERENCE.md → "The staff PIN (retired)").
 
 
 // VAPID public key — safe to expose, matches the private key stored in Secret Manager.
@@ -99,9 +83,9 @@ const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FR
 const STAFF_SITE_URL = 'https://myb-roster.web.app';
 
 // The browser origins this app is served from — the CORS allowlist of EVERY endpoint a browser calls
-// (the admin endpoints, the document links, the two public doors, Overtime), not only the admin ones
-// it was first written for. Each endpoint's own check is the real control (an ID token and claim, or
-// the PIN and its throttle); this is defence-in-depth against an arbitrary origin trying a call.
+// (the admin endpoints, the document links, the public reset-request doorbell, Overtime), not only the
+// admin ones it was first written for. Each endpoint's own check is the real control (an ID token and
+// claim, or the doorbell's own limits); this is defence-in-depth against an arbitrary origin trying a call.
 // Add any new hosting domain here, with the API key's referrer allowlist (CLAUDE.md → Project identity).
 const ADMIN_FUNCTION_ORIGINS = [
     'https://garethdavidmiller.github.io',
@@ -771,8 +755,7 @@ columnScan: one key per column header; every staff member appears in every colum
 // The ACCOUNT-AND-CREDENTIAL domain — setupRosterAuth, resetMemberPassword,
 // requestPasswordReset, getSignInStats and getAccountSetupGaps — lives in ./auth-endpoints.js, built here
 // with the shared infrastructure (same composition-root reasoning as the documents
-// domain above). unlockCalendarViewer deliberately stays below in THIS file — see the
-// note in auth-endpoints.js.
+// domain above).
 Object.assign(exports, buildAuthEndpoints({
     VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, ADMIN_FUNCTION_ORIGINS,
 }));
@@ -821,241 +804,3 @@ const overtime = buildOvertimeEndpoints({
 });
 Object.assign(exports, rosterMembers.overtimeEnabled === false ? { purgeExpiredOvertimeWindows: overtime.purgeExpiredOvertimeWindows } : overtime);
 
-
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
-// unlockCalendarViewer — the staff Calendar PIN exchange
-// ═══════════════════════════════════════════════════════════════════════════════════════════════
-/**
- * Trade the shared staff PIN for a short-lived Firebase custom token that carries ONE capability:
- * `calendarViewer: true`, which `firestore.rules` reads to allow override READS and nothing else.
- *
- * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
- *
- * Staff at Marylebone open the roster on shared office PCs for a thirty-second look. Signing into a
- * corporate Windows account gives them a fresh browser every time, so requiring the full MYB
- * member sign-in for that would put a name, a grade and a password in front of a glance. Meanwhile
- * the Calendar's override data — annual leave, absence, shift changes — was readable by anyone who
- * knew the URL, because the old rule was `allow read;` with no auth at all.
- *
- * This endpoint is what lets both of those be fixed at once: a low-friction staff barrier that is
- * nevertheless a real server-side check, so `overrides` can stop being world-readable.
- *
- * ── WHAT IT IS NOT ──────────────────────────────────────────────────────────────────────────────
- *
- * **It is not individual authentication and must never be described as such.** One code, shared by
- * the whole station, held by everyone who has ever worked there. It cannot attribute an action, it
- * cannot be revoked for one person, and it will leak eventually. That is an accepted, deliberate
- * trade for the one thing it does buy — the roster is no longer public to anybody with the URL —
- * and it is why the token it mints carries no `name`, no `admin`, no `manager`, no `linksDesigner`,
- * and no write capability of any kind. Anything privileged still goes through a real member login.
- *
- * ── THE FIVE THINGS THIS HANDLER MUST KEEP DOING ────────────────────────────────────────────────
- *
- * 1. **Never log, echo or store the submitted PIN.** Not in an error, not in a warning, not in a
- *    response body. The log lines below record the OUTCOME, and a refusal its hashed source;
- *    a correct unlock names no source at all.
- * 2. **Never return a different response for "wrong shape" and "wrong value".** Both are 401 with
- *    one message, so the endpoint cannot be used to learn the PIN's length.
- * 3. **Only FAILURES stay in the throttle store.** Every attempt is charged BEFORE its compare (so
- *    concurrent guesses cannot all be compared ahead of their charges) and a correct PIN is refunded
- *    after it; a refund to zero deletes the row, so the collection can never be read as a record of
- *    who used the app. (Until the Sep 2026 review a correct PIN wrote nothing at all — and N guesses
- *    arriving together were all compared before any was counted.)
- * 4. **Fail closed.** Any error that is not a rejected PIN returns 5xx WITHOUT a token. There is no
- *    branch here that hands out a token on a path it could not fully verify.
- * 5. **The throttle store failing is a 503, not a free pass (v20.45).** Both the read before the
- *    comparison and the failure record after it used to fail OPEN, on the argument that refusing
- *    access when Firestore struggles locks the station out. An external review disagreed, and its
- *    argument wins on the facts of THIS app: the roster data itself lives in the same Firestore, so
- *    while the throttle store is unreachable a viewer token could not load a single override anyway
- *    — the availability being protected did not exist. Meanwhile the cost was real: the throttle is
- *    the only thing standing between 10,000 guesses and the roster, and "the limiter is down, so
- *    stop limiting" is the one policy an attacker would choose. An uncounted guess must not be
- *    answered.
- */
-// Built once: the admin's notice when the station-wide block trips. The admin NAMES come from the
-// server-owned roster, never a request (./admin-recipients.js decides which of their accounts are told).
-const notifyAdminOfPinLockout = buildPinLockoutNotifier({
-    VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, adminNames: rosterMembers.roles && rosterMembers.roles.admin,
-});
-exports.unlockCalendarViewer = onRequest(
-    {
-        region: 'europe-west2',
-        timeoutSeconds: 20,
-        // The app's own hosting origins. The constant is named for its first users (the admin
-        // functions) but its CONTENT is "the origins this app is served from", which is exactly the
-        // set that may call this — including the GitHub Pages mirror, which is still a live staff
-        // install route. CORS is defence-in-depth only: the real control is the PIN plus the
-        // throttle, both of which a non-browser caller faces identically.
-        cors: ADMIN_FUNCTION_ORIGINS,
-        // A modest cap. This endpoint should see a handful of calls a day; a low ceiling puts a
-        // second, infrastructure-level brake on a flood that the per-source throttle would let
-        // through by arriving from many sources at once.
-        maxInstances: 5,
-        // The PIN, and the push key the station-wide block's notice to the admin is signed with
-        // (./pin-lockout.js). The notice is a courtesy: a key that will not load costs it, never the door.
-        secrets: [CALENDAR_VIEWER_PIN, VAPID_PRIVATE_KEY],
-    },
-    async (req, res) => {
-        // Never cached anywhere — the response carries a credential.
-        res.set('Cache-Control', 'no-store');
-
-        if (req.method !== 'POST') return req.method === 'GET' ? res.status(204).end() : res.status(405).json({ error: 'Method not allowed' });
-
-        const now       = Date.now();
-        const sourceKey = sourceKeyFor(clientIpOf(req));
-        const throttleRef = getFirestore().collection('viewerAttempts').doc(sourceKey);
-        // The ALL-SOURCES ceiling (v20.35). Every per-source control depends on attributing the
-        // request correctly, and that attribution rests on a forwarding header whose exact shape
-        // depends on the deployment — so it is checked and recorded ALONGSIDE the per-source bucket,
-        // never instead of it. This one is keyed on a constant, so no header can mint a fresh
-        // allowance. See GLOBAL_SOURCE_KEY in calendar-viewer-auth.js.
-        const globalRef = getFirestore().collection('viewerAttempts').doc(GLOBAL_SOURCE_KEY);
-
-        // Trimmed here as well as inside `pinMatches`, so the two agree on what "configured" means:
-        // a secret of nothing but whitespace is a DEPLOYMENT fault (503 below), not a wrong PIN.
-        const expected = (CALENDAR_VIEWER_PIN.value() || '').trim();
-        // MISSING **AND MALFORMED** ARE BOTH DEPLOYMENT FAULTS (v20.39, audit §31). Emptiness was
-        // already caught; shape was not, and the gap is worse than it sounds. A secret set to five
-        // digits by a slipped keystroke can never match a four-digit entry, so every member at the
-        // station is told their PIN is wrong — the one symptom that leads nowhere near the actual
-        // cause, and the one that would have the whole shift hunting for a code that cannot work.
-        // The shape check is `isValidPinShape`, the same rule the client's entry is held to, so the
-        // two cannot drift into disagreeing about what a PIN is.
-        // Checked BEFORE the throttle charges anything: our own misconfiguration must not spend the
-        // station's budget, or a bad deploy would turn into "too many attempts" on top.
-        if (!expected || !isValidPinShape(expected)) {
-            // 503, never 401. The log names the fault; it never contains the value.
-            console.error(`[unlockCalendarViewer] CALENDAR_VIEWER_PIN is ${expected ? 'malformed' : 'not configured'}`);
-            return res.status(503).json({ error: 'Calendar access is not configured' });
-        }
-
-        // ── Throttle: check AND charge, in ONE transaction, BEFORE the comparison ───────────────
-        // A blocked source must not get its guess compared at all (the block would still leak a bit
-        // per request through timing), and the charge is made HERE rather than after a wrong answer:
-        // a plain read before the compare let N concurrent requests all read "not blocked" and all
-        // be compared before any was counted (Sep 2026 review). Inside the transaction the Nth sees
-        // the N-1 charges before it. `reserveAttempt` owns the rule; a right PIN is refunded below.
-        let reserved;
-        try {
-            reserved = await getFirestore().runTransaction(async tx => {
-                // Firestore requires every read in a transaction before any write.
-                const [snap, gSnap] = await Promise.all([tx.get(throttleRef), tx.get(globalRef)]);
-                const r = reserveAttempt(snap.exists ? snap.data() : null, gSnap.exists ? gSnap.data() : null, now);
-                if (!r.blocked) { tx.set(throttleRef, r.source); tx.set(globalRef, r.global); }
-                return r;
-            });
-        } catch (e) {
-            // FAIL CLOSED (rule 5 — v20.45; this failed OPEN until an external review called it). A
-            // PIN that cannot be counted must not be compared: the client shows its recoverable "try
-            // again shortly" state, and 503 tells nobody whether the PIN was right. Nothing is lost
-            // that the outage had not already taken — the overrides live in this same Firestore.
-            console.error('[unlockCalendarViewer] throttle transaction failed — refusing:', e && e.code);
-            return res.status(503).json({ error: 'Calendar access is temporarily unavailable' });
-        }
-        if (reserved.blocked) {
-            // Readable only by a caller that is not a browser (it is not CORS-exposed): it tells a script
-            // when the block lifts, a number calendar-access-core.js keeps off the page. The ceilings hold either way.
-            res.set('Retry-After', String(reserved.blocked.retryAfterSec));
-            console.warn('[unlockCalendarViewer] throttled', sourceKey);
-            return res.status(429).json({ error: 'Too many attempts' });
-        }
-
-        // ── Read the candidate ──────────────────────────────────────────────────────────────────
-        // readJsonBody: a right PIN in a Buffer body was charged as a wrong one (functions-core-8).
-        const body = readJsonBody(req);
-        const supplied = typeof body.pin === 'string' ? body.pin : null;
-
-        // ONE branch for "wrong shape" and "wrong value" — see rule 2 in the header.
-        const ok = isValidPinShape(supplied) && pinMatches(supplied, expected);
-        if (!ok) {
-            // Already charged, above. Opportunistic sweep of everything that has aged out (v20.15 —
-            // ./pin-lockout.js, best-effort: a sweep that fails never affects the answer).
-            await sweepExpiredThrottleRows(now);
-            // THIS wrong PIN tripped the station-wide block (the charge above reached GLOBAL_THROTTLE):
-            // record it, and tell the admin at most once a day (owner, Nov 2026 — calendar-viewer-auth.js
-            // header). Only on the failure path: a right PIN's charge is refunded, block and all.
-            if (reserved.global && reserved.global.blockedUntil > 0) {
-                await noteStationBlock({ now, blockedUntil: reserved.global.blockedUntil, notify: notifyAdminOfPinLockout });
-            }
-            console.warn('[unlockCalendarViewer] rejected', sourceKey);
-            return res.status(401).json({ error: 'PIN not recognised' });
-        }
-
-        // The PIN was right, so take back the charge made above — in PARALLEL with the mint, and
-        // awaited before answering. Best-effort: a refund that fails leaves one attempt counted,
-        // which is the safe direction.
-        const refunded = getFirestore().runTransaction(async tx => {
-            const [snap, gSnap] = await Promise.all([tx.get(throttleRef), tx.get(globalRef)]);
-            for (const [ref, sn, mine, cfg] of [[throttleRef, snap, reserved.source], [globalRef, gSnap, reserved.global, GLOBAL_THROTTLE]]) {
-                const next = refundAttempt(sn.exists ? sn.data() : null, mine, cfg);
-                if (next === null) tx.delete(ref); else if (next) tx.set(ref, next);
-            }
-        }).catch(e => console.warn('[unlockCalendarViewer] refund failed (one attempt stays counted)', e && e.code));
-
-        // ── Mint the viewer token ───────────────────────────────────────────────────────────────
-        try {
-            // Make sure the dedicated account exists, and is still a bare capability. Created with NO
-            // email and NO password: it is a capability, not a person, and an emailless account is
-            // invisible to the two places that enumerate staff — `computeOrphanLabels` and
-            // `getSignInStats`. REBUILT when a PIN holder has linked a way in to it (an email, a
-            // password, a phone), or it has been disabled: each linked credential outlives a PIN
-            // rotation, and a roster-domain email puts the account in front of Set up accounts and
-            // the leaver sweep (Sep 2026 review; `viewerAccountTamper`). NO display name (v24.23):
-            // Firebase copies it into every token's `name`, the field member rules key on.
-            let viewer = null;
-            try {
-                viewer = await getAuth().getUser(CALENDAR_VIEWER_UID);
-            } catch (e) {
-                if (!e || e.code !== 'auth/user-not-found') throw e;
-            }
-            const tamper = viewerAccountTamper(viewer);
-            // A concurrent unlock can get there first — its delete leaves ours `user-not-found`, its
-            // create leaves ours `uid-already-exists`. Both are the state wanted, so neither refuses.
-            const orRaced = (/** @type {string} */ code) => (/** @type {any} */ e) => { if (!e || e.code !== code) throw e; };
-            if (tamper) {
-                await getAuth().deleteUser(CALENDAR_VIEWER_UID).catch(orRaced('auth/user-not-found'));
-                console.warn('[unlockCalendarViewer] the shared viewer account', tamper, '— rebuilt from nothing');
-                viewer = null;
-            }
-            if (!viewer) {
-                await getAuth().createUser({ uid: CALENDAR_VIEWER_UID, disabled: false }).catch(orRaced('auth/uid-already-exists'));
-                console.log('[unlockCalendarViewer] created the viewer account');
-            }
-
-            // Re-apply the claims on EVERY successful unlock. `setCustomUserClaims` REPLACES the
-            // whole set, so this is what guarantees the account cannot accumulate a claim by any
-            // route and keep it. …and CLEAR any display name (v24.23): a PIN holder can rename this
-            // shared account, and a shared identity should not carry anything one holder chose.
-            // The two are independent, so they run together; the clear is BEST-EFFORT (v24.26) —
-            // the rules no longer believe the field, so its failure must not refuse a right PIN.
-            await Promise.all([
-                getAuth().setCustomUserClaims(CALENDAR_VIEWER_UID, viewerClaims()),
-                getAuth().updateUser(CALENDAR_VIEWER_UID, { displayName: null }).catch(nameErr =>
-                    console.warn('[unlockCalendarViewer] display-name clear failed (unlock continues)', nameErr && nameErr.code)),
-            ]);
-
-            // The claims are ALSO baked into the custom token. Without this the client would hold a
-            // token minted before the claims took effect and its first override read would be denied
-            // — the same stale-claim class `writeWithClaimRetry` exists for on the member paths,
-            // except here there is no retry net because the very first read is the one that matters.
-            const token = await getAuth().createCustomToken(CALENDAR_VIEWER_UID, viewerClaims());
-            await refunded;
-
-            // The OUTCOME only (rule 1). A right PIN is somebody using the app, which the throttle
-            // store deletes rather than keeps, so its line names no source: the key is a short
-            // unsalted hash of an address, and a hash of an address is recovered by trying addresses.
-            console.log('[unlockCalendarViewer] unlocked');
-            // The MINIMUM the client needs. No claims echo, no uid, no expiry hint — the client
-            // verifies what it got from the ID token it receives after signing in, which is the only
-            // copy that means anything.
-            return res.json({ token });
-        } catch (e) {
-            // Fail CLOSED (rule 4). The PIN was right, but we could not complete the exchange, so
-            // the client gets no token and shows its recoverable "try again" state.
-            console.error('[unlockCalendarViewer] token mint failed', e && e.code, e && e.message);
-            await refunded;
-            return res.status(500).json({ error: 'Could not unlock the Calendar' });
-        }
-    }
-);

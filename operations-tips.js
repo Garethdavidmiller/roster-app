@@ -84,14 +84,13 @@ export const CARD_TIPS = {
         title: 'Staff Login Accounts',
         sections: [{ items: [
             { icon: '🔐', html: 'Creates an app login for every active staff member so the app knows who is saving changes.' },
-            // The check list above the button (admin-auth.js) and the staff PIN's block line (operations-pin-lockout.js).
+            // The check list above the button (admin-auth.js).
             { icon: '🔎', html: 'The card checks first. <strong>“members are not set up”</strong> names anyone with no login or the wrong permissions; <strong>“leavers can still sign in”</strong> names anyone who has left and still has a working account. <strong>✓ Everyone on the roster has a login</strong> means there is nothing to do.' },
             { icon: '✅', html: 'Safe to run any time for everyone already set up — a working account keeps its password, and a new joiner gets an account with their surname as the password.' },
             { icon: '🔁', html: 'It <strong>resets</strong> two kinds of account to the surname default and signs them out: one with <strong>no permissions</strong> (registered outside the app) and one that is <strong>disabled</strong>. The card names them before you press, and the result names them again — tell them their password is their surname.' },
             // The server reads the DEPLOYED roster-members.json, so a press before the starter's release is live creates nothing.
             { icon: '👤', html: 'Run this when someone <strong>joins</strong> — once the app update that adds them to the roster has gone live. Before that there is no account for it to create.' },
             { icon: '🚪', html: 'Tick <strong>“Disable accounts for anyone no longer on the roster”</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in.' },
-            { icon: '🔢', html: 'If the <strong>staff PIN</strong> has been blocked for everyone after too many wrong entries, a line here says when. Nothing to do: it reopens by itself. The staff PIN is retired, so nobody needs it — members sign in with their own password — and there is no need to change it. The next server release removes it.' },
         ]}],
     },
     'document-links': {

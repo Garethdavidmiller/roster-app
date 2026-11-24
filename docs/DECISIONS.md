@@ -1420,23 +1420,26 @@ tightens a read rule — RECOVERY_RUNBOOK.md → "Tightening a read rule — the
    transition code that tears a live PIN session down safely (AUTH_AND_SESSIONS.md 8 — the viewer
    check, the sign-out before persistence is restored, the viewer branch of `authReady`) and the
    Operations PIN-lockout card, because the endpoint it reports on is still deployed.
-2. **Server**, once the client has soaked. The rules drop `isCalendarViewer`; `unlockCalendarViewer`,
+2. **Server**, once the client has soaked. **Shipped.** The rules drop `isCalendarViewer` (and the
+   `viewerAttempts` block); `unlockCalendarViewer`, `functions/calendar-viewer-auth.js`,
    `functions/pin-lockout.js`, the `CALENDAR_VIEWER_PIN` binding, the viewer door in `getDocumentUrl`
-   and the Operations PIN-lockout card are deleted. **The signed-in lane goes in the same commit**: it
-   still gives the emulator a PIN (`scripts/signed-in.mjs` stops at start-up if the functions no longer
-   declare `CALENDAR_VIEWER_PIN`, and passes `E2E_VIEWER_PIN`), and its leftover-PIN-session journey
-   (`e2e/signed-in.spec.js`) mints that session through the real `unlockCalendarViewer`. Delete the
-   check and the variable, and move the journey's premise to a viewer token the emulator mints itself
-   rather than delete it: the teardown it proves stays until release 3. Then the manual steps — delete the
-   `calendar-viewer` account, destroy the secret, purge `viewerAttempts`, consider switching off
-   Anonymous sign-in, and KEEP the token-creator grant (`getDocumentUrl` needs it):
-   OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
-3. **Cleanup**, once the account is deleted: the transition code goes, because no PIN session can
-   exist any more.
+   and the Operations PIN-lockout card are deleted. The Functions deploy runs `--force`, so leaving
+   the export is what deletes the function. **The signed-in lane went in the same release**:
+   `scripts/signed-in.mjs` no longer requires `CALENDAR_VIEWER_PIN` or passes `E2E_VIEWER_PIN`, and the
+   leftover-PIN-session journey (`e2e/signed-in.spec.js`) now mints its session as the endpoint did,
+   through the Auth emulator (`leftoverPinToken`, `e2e/signed-in-setup.mjs`) — kept, not deleted, because
+   the teardown it proves stays until release 3. **Kept on purpose:** the server's refusal to adopt the
+   shared account (`functions/retired-viewer-account.js`), because the account outlives the
+   endpoint until step 1 below, and a session left open on it can still link an email to it. Then
+   the manual steps — delete the `calendar-viewer` account, destroy the secret, purge
+   `viewerAttempts`, consider switching off Anonymous sign-in, and KEEP the token-creator grant
+   (`getDocumentUrl` needs it): OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
+3. **Cleanup**, once the account is deleted: the transition code goes, and the server's account
+   guard with it, because no PIN session can exist any more.
 
-**Between releases 1 and 2 the PIN still works at the endpoint** — a person holding it can read the
-roster by calling it directly — so release 2 should not wait long. Rotating the PIN in that window is
-not worth doing; shipping release 2 is.
+**Between releases 1 and 2 the PIN still worked at the endpoint** — a person holding it could read the
+roster by calling it directly — so release 2 was not to wait long. Rotating the PIN in that window was
+not worth doing; shipping release 2 was.
 
 **Not chosen:** keeping the PIN on Trains alone (its timetable is public — the reason it was admitted on
 22 Oct 2026). A station PC that signs in by name reaches Trains the same way, and one shared code kept

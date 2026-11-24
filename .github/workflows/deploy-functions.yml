@@ -127,8 +127,8 @@ jobs:
       # green and break every staff login at the next account re-provision.
       # THE WHOLE ROOT SUITE, NOT TWO PICKED FILES (Oct 2026 production review). This workflow is the
       # only one a functions-only push runs — deploy-hosting has `paths-ignore: functions/**` — and
-      # several root suites test functions/ code directly (overtime-core, calendar-viewer-auth,
-      # london-clock, member-identity, doc-url-core, the parity suites). Two hand-picked files here
+      # several root suites test functions/ code directly (overtime-core, london-clock,
+      # member-identity, doc-url-core, the parity suites). Two hand-picked files here
       # left them unrun on exactly the push that changes what they test. `npm test` subsumes both.
       - name: Run the root suites (includes surname parity and the roster-members sync)
         run: npm test
@@ -231,6 +231,12 @@ jobs:
           workload_identity_provider: 'projects/532910998075/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'github-deploy@myb-roster.iam.gserviceaccount.com'
 
+      # `--force` is what lets a release DELETE a function: run without a terminal, `firebase deploy`
+      # refuses when a deployed function is missing from index.js's exports, and `--force` deletes it
+      # instead (it also answers the CLI's other prompts). So a removal ships by leaving the export —
+      # Overtime's pause (OVERTIME_AVAILABILITY.md) and the retired staff PIN's `unlockCalendarViewer`
+      # both went that way — and an export dropped by MISTAKE is deleted from production just as
+      # surely; functions-surface.test.mjs, run in `check` above, is what stands in front of that.
       - name: Deploy to Firebase
         run: |
           set +e

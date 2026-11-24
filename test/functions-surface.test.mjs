@@ -48,7 +48,8 @@ const DEPLOY_SURFACE = [
     'requestPasswordReset',
     'getSignInStats',
     'getAccountSetupGaps',
-    'unlockCalendarViewer',
+    // NOT 'unlockCalendarViewer' — the retired staff PIN's exchange, deleted in the PIN's server release
+    // (Nov 2026). The Functions deploy runs `--force`, so leaving the list deletes it from production.
     // Overtime Availability (v20.56). Two of these fail SILENTLY if they are ever lost in a
     // refactor, which is why they are called out rather than just listed:
     // getOvertimeManagerOverview is the ONLY thing that shows a week nobody created, so its
