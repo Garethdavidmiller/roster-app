@@ -845,14 +845,22 @@ printed from there; the canonical address, where the install notice already send
 phone's own viewer is available everywhere without a library; or PDF.js proving too heavy for the
 oldest phones staff carry.
 
-**The viewer stays on PDF.js 4.10.38 while the roster reader moves to 6.5.438 (v25.91).** The two
-used to be one version, held by a test. They part because PDF.js 6's legacy build targets Safari 18,
-and the app supports iOS 16.4 (above): moving the viewer would stop it opening a file on any iPhone
-before iOS 18. The server cannot stay behind instead, because only 6.5.438 bounds the hang a malformed
-PDF function causes, and the server reads PDFs from outside the app, while this viewer opens only the
-app's own. `dependency-pin-parity.test.mjs` now holds the viewer to its own declared version, and
-says how to move it. **What would rejoin them:** the iOS floor reaching 18, or the viewer moving to
-the newest PDF.js whose legacy build still reaches the floor.
+**The viewer is on PDF.js 5.7.284 while the roster reader is on 6.5.438 (v25.91; the viewer moved
+up from 4.10.38 on 24 Nov 2026, owner decision).** The two used to be one version, held by a test.
+They part because PDF.js 6's legacy build targets Safari 18 (from 6.0.227; `ENV_TARGETS` in pdf.js's
+`gulpfile.mjs`), and the app supports iOS 16.4 (above): moving the viewer to 6 would stop it opening a
+file on older iPhones. Measured, not assumed: 6.5.438's legacy build calls `Promise.withResolvers`
+(Safari 17.4) and no longer carries a stand-in for it, so iOS 16.4 to 17.3 would fail outright, and
+whatever else it stopped converting is untested on those versions. 5.7.284 is the newest release whose
+legacy build still targets Safari 16.4, and it still carries that stand-in, so the viewer took it. It
+still has the Type 4 hang 6.5.438 bounds (functions/roster-geometry.js header), which is acceptable here
+for the reason below. The server cannot stay behind instead, because only 6.5.438 bounds that hang, and
+the server reads PDFs from outside the app, while this viewer opens only the app's own. From 5.x PDF.js
+decodes some images with WebAssembly, which the CSP does not allow; the viewer asks for none
+(`useWasm: false`) and loads PDF.js's plain-JavaScript JPEG 2000 and JBIG2 decoders from the build's
+`wasm/` folder instead, so the CSP did not widen (pdf-viewer.js's header). `dependency-pin-parity.test.mjs`
+holds the viewer to its own declared version, and says how to move it. **What would rejoin them:** the
+iOS floor reaching 18.
 
 ## The Calendar's state: one home per question, in four steps — and what was left on purpose (owner, 10–11 Nov 2026)
 

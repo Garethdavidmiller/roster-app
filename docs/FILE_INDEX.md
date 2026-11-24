@@ -304,7 +304,7 @@ roster-app/
 ├── guide-shell.css         ← shared chrome for every guide page, including the Inter @font-face and `--font-sans`
 ├── guide-doc.css           ← shared styles for the two document-style guides (staff-guide.html, paycalc-guide.html)
 ├── staff-guide.css / paycalc-guide.css / fip-guide.css ← page-specific guide CSS
-├── purify.es.mjs           ← self-hosted DOMPurify v3.4.17. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
+├── purify.es.mjs           ← self-hosted DOMPurify v3.4.18. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
 ├── pdfjs/                  ← PDF.js, the legacy build, vendored for pdf-viewer.js in a folder named for its version; an upgrade is a NEW folder. dependency-pin-parity.test.mjs has the steps
 ├── service-worker.js       ← the single service worker for all pages; the cache name includes `APP_VERSION`
 ├── manifest.json           ← PWA manifest for all pages

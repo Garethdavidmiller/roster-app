@@ -133,8 +133,8 @@ describe("WebKit's IndexedDB teardown: Firebase Auth's poll is dropped, a failin
     // Calendar's offline-first paint depends on, was dropped as Auth's harmless noise. An unhandled
     // rejection names no file of its own; only its stack says which script threw, so these drive the
     // real listener with the stack an iPhone sends (Safari's `fn@url:line:col` on every frame).
-    const AUTH = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
-    const FIRESTORE = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
+    const AUTH = 'https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js';
+    const FIRESTORE = 'https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js';
     /** @param {string} message @param {string} url @param {string[]} fns */
     const thrownIn = (message, url, fns) => {
         const e = new Error(message);

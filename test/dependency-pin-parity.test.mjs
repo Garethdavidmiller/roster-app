@@ -121,17 +121,21 @@ describe('pdfjs-dist — the copy the PDF viewer loads is the version it declare
     // The in-app PDF viewer (pdf-viewer.js, v25.67) loads PDF.js from pdfjs/<version>/ — the legacy build, VENDORED, so no
     // package manager sees it. Until v25.91 it was the roster reader's version as well. It is NOT now, on purpose: PDF.js 6's
     // legacy build targets Safari 18, and the app supports iOS 16.4 (DECISIONS.md → "The oldest iOS supported is 16.4"),
-    // so the viewer stays on a version whose legacy build reaches 16.4, while the server reads rosters with the first
-    // version that bounds the Type 4 hang (functions/roster-geometry.js header). The viewer opens only the app's own PDFs.
+    // so the viewer stays on a version whose legacy build reaches 16.4 — 5.7.284, the newest that does (owner, 24 Nov 2026) —
+    // while the server reads rosters with the first version that bounds the Type 4 hang (functions/roster-geometry.js
+    // header). The viewer opens only the app's own PDFs.
     // VIEWER is that decision, written once. Change it only by RE-VENDORING INTO A NEW FOLDER: `npm pack pdfjs-dist@<ver>`,
-    // copy legacy/build/pdf.min.mjs and pdf.worker.min.mjs, with the package's LICENSE, into pdfjs/<ver>/ — never over the
-    // old files — then point PDFJS_DIR in pdf-viewer.js at it, set VIEWER, delete the old folder, check that version's legacy
-    // build still targets the app's oldest iOS, and run the viewer's e2e (e2e/newlink.spec.js) in both engines. Why a new
+    // copy legacy/build/pdf.min.mjs and pdf.worker.min.mjs, with the package's LICENSE, into pdfjs/<ver>/, and
+    // wasm/jbig2_nowasm_fallback.js and wasm/openjpeg_nowasm_fallback.js, with their four LICENSE_* files, into
+    // pdfjs/<ver>/wasm/ — never over the old files — then point PDFJS_DIR in pdf-viewer.js at it, set VIEWER, delete the
+    // old folder, check that version's legacy build still targets the app's oldest iOS (`ENV_TARGETS` in pdf.js's
+    // gulpfile.mjs at that tag, and that the build still carries the stand-ins it needs), and run the viewer's e2e
+    // (e2e/newlink.spec.js) in both engines. Why a new
     // folder: the service worker keeps these files by ADDRESS, from any version's cache, and fetches a miss through the
     // HTTP cache, so new bytes under an old name can reach a phone as a new library beside an old worker (pdf-viewer.js's
     // header). Its two files must agree with EACH OTHER — PDF.js refuses a worker of another version outright, so a library
     // updated alone opens no file at all.
-    const VIEWER = '4.10.38';
+    const VIEWER = '5.7.284';
     const DIR = `./pdfjs/${VIEWER}/`;
     const found = (/** @type {string} */ f, /** @type {RegExp} */ re) => [...new Set([...read(f).matchAll(re)].map(m => m[1]))];
 
@@ -162,6 +166,24 @@ describe('pdfjs-dist — the copy the PDF viewer loads is the version it declare
 
     test('the build carries its licence', () => {
         assert.match(read(`${DIR}LICENSE`), /Apache License/, `${DIR}LICENSE is missing or is not PDF.js's Apache licence`);
+    });
+
+    test('the viewer asks for no WebAssembly, and names the folder holding the JavaScript decoders that replace it', () => {
+        // The CSP has no 'wasm-unsafe-eval' (on purpose), so PDF.js's WebAssembly decoders would be refused. With
+        // `useWasm: false` it imports the JavaScript JPEG 2000 and JBIG2 decoders from `wasmUrl` instead; without that
+        // folder a scanned sheet opens with its images missing (pdf-viewer.js's header, 3).
+        const src = read('./pdf-viewer.js');
+        assert.match(src, /getDocument\(\{[^}]*\buseWasm: false\b/, 'pdf-viewer.js no longer passes useWasm: false to getDocument');
+        assert.match(src, /getDocument\(\{[^}]*\bwasmUrl: DECODERS_URL\b/, 'pdf-viewer.js no longer passes the decoders\' folder as wasmUrl');
+        assert.match(src, /const DECODERS_URL = new URL\(`\$\{PDFJS_DIR\}wasm\/`, import\.meta\.url\)\.href;/,
+            'DECODERS_URL is not the wasm/ folder of PDFJS_DIR, with the trailing slash PDF.js requires');
+        assert.doesNotMatch(src, /getDocument\(\{[^}]*isEvalSupported/,'isEvalSupported is ignored by PDF.js 5.7; passing it implies a protection that is not there');
+        for (const [file, name] of [['jbig2_nowasm_fallback.js', 'JBig2'], ['openjpeg_nowasm_fallback.js', 'OpenJPEG']]) {
+            assert.match(read(`${DIR}wasm/${file}`), new RegExp(`export default ${name}\\b`), `${DIR}wasm/${file} is missing or not the ${name} decoder`);
+        }
+        for (const lic of ['LICENSE_JBIG2', 'LICENSE_PDFJS_JBIG2', 'LICENSE_OPENJPEG', 'LICENSE_PDFJS_OPENJPEG']) {
+            assert.ok(read(`${DIR}wasm/${lic}`).length > 0, `${DIR}wasm/${lic} is missing — the decoders carry their own licences`);
+        }
     });
 
     test('the viewer\'s header names the version it loads, and says why it is not the server\'s', () => {
@@ -206,8 +228,8 @@ describe('DOMPurify — the vendored sanitiser is the release it says it is', ()
     // pass over the bundle or a stray edit left every suite green (whole-app check, 10 November 2026).
     // Upgrading is the recipe in generate-sri.mjs's header; it ends by recording both values here.
     const PURIFY = {
-        version: '3.4.17',
-        sha256: '9b8d820485aca9a2a048c1f0837837e20f75f00cf45f5aca6261d4f24dc82abf',
+        version: '3.4.18',
+        sha256: '3257c96178288c9cc4afc6692a6a36535c4c5da7c869cef6f4f3d9c3cd020f7d',
     };
     const src = read('./purify.es.mjs');
     const v = PURIFY.version.replace(/\./g, '\\.');

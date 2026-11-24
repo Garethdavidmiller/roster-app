@@ -81,7 +81,7 @@ async function matchNewestManagedCache(request, opts) {
 // on budget Androids). Served cache-first from a dedicated SDK-versioned cache — NOT the app cache,
 // so an app bump never refetches the SDK — swept only when the SDK version changes. Bumping the SDK
 // in firebase-client.js requires bumping THIS constant too; sw-asset-check.test.mjs enforces it.
-const FIREBASE_SDK_VERSION = '13.1.0';
+const FIREBASE_SDK_VERSION = '13.2.0';
 const SDK_CACHE_NAME = `myb-roster-sdk-v${FIREBASE_SDK_VERSION}`;
 const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/`;
 const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js']
