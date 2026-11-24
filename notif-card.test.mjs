@@ -241,6 +241,29 @@ describe('a permission question that never settles does not hold the button', ()
         assert.equal(els.notifEnableBtn.disabled, false);
         assert.equal(els.notifStatusMsg.textContent, STILL_ASKING_LINE);
     });
+    test('a tap on the returned button waits on the enable in flight — it never starts a second', async () => {
+        /** @type {() => void} */ let release = () => {};
+        env.enableHold = new Promise(r => { release = () => r(); });
+        await openCard({ askLimitMs: 20 });
+        const first = els.notifEnableBtn.click();
+        await new Promise(r => setTimeout(r, 40));
+        await settle();
+        assert.equal(els.notifEnableBtn.disabled, false, 'premise: the button is back past the ask limit');
+        const second = els.notifEnableBtn.click();
+        assert.equal(env.enables, 1, 'a second tap asked for permission again, alongside the first');
+        assert.equal(els.notifEnableBtn.textContent, 'Enabling…');
+        release();
+        await Promise.all([first, second]);
+        await settle();
+        assert.equal(env.subscribes, 1, 'one subscribe and save');
+        assert.deepEqual(lastReport(), ['ok', '✓ On', undefined]);
+        await els.notifDisableBtn.click();
+        await settle();
+        env.enableHold = null;
+        await els.notifEnableBtn.click();
+        await settle();
+        assert.equal(env.enables, 2, 'once it has finished, the next tap enables afresh');
+    });
     test('once permission is answered the subscribe is not cut short — its own limits apply', async () => {
         /** @type {() => void} */ let release = () => {};
         env.enableHold = new Promise(r => { release = () => r(); });
