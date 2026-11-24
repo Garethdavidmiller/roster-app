@@ -10,8 +10,9 @@
     · the grade, CEA;
     · the Pay Calculator section that says it works for them, as it does for a CEA.
   For a new starter, use welcome-email.html and make its choices there; for a
-  CES or a Dispatcher, welcome-email-ces.html or welcome-email-dispatcher.html.
-  A change to the wording belongs in ALL FOUR files: welcome-email-parity.test.mjs
+  CES, a Dispatcher or an Other Staff login, welcome-email-ces.html,
+  welcome-email-dispatcher.html or welcome-email-other-staff.html.
+  A change to the wording belongs in ALL FIVE files: welcome-email-parity.test.mjs
   builds this one from welcome-email.html and fails until they agree.
 
   Copy this whole file into the email body as HTML. Every comment block is an HTML
@@ -21,13 +22,17 @@
   ── FILL IN ──────────────────────────────────────────────────────────────────
     {{FIRST_NAME}}   what they are actually called. ASK — several people on the
                      roster go by something other than their roster name.
-    {{ROSTER_NAME}}  how the app lists them: an initial and a surname, as on the
-                     published roster. This is what the sign-in list shows.
+    {{ROSTER_NAME}}  how the app lists them: an initial and a surname, e.g.
+                     "I. Melikian". This is what the sign-in list shows; somebody
+                     looking for "Alex" will not find themselves.
     {{PASSWORD}}     their surname, all lowercase, letters only. It is derived by
                      `normaliseSurname` in auth-identity.js — if you are unsure,
                      run that rather than guessing (hyphens and apostrophes go).
 
   ── BEFORE YOU SEND ──────────────────────────────────────────────────────────
+    · Their login must EXIST: Operations → Set up accounts, after the functions
+      deploy. An email arriving before that is an email telling somebody to try a
+      password that does not work.
     · The surname is only their FIRST password. Somebody who has already signed
       in and changed it will not get in with it, so check with them first if
       that may be so.
@@ -85,6 +90,7 @@
     <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">1. What it does</div>
     <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
   </td></tr>
+
   <tr><td style="padding:16px 30px 26px 30px;">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
       <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
@@ -113,7 +119,7 @@
   <tr><td style="padding:16px 30px 26px 30px;">
     <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
       You can just use the link in a browser. But adding it to your home screen gives you an app icon,
-      opens it full screen, and means your roster still shows when you have no signal.
+      opens it full screen, and means the roster still shows when you have no signal.
     </p>
     <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
       <strong style="color:#001e3c;">Android</strong> &mdash; open the link above in <strong>Chrome</strong>,
@@ -142,7 +148,7 @@
   <tr><td style="padding:16px 30px 26px 30px;">
     <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
       When you open the app it asks you to sign in straight away &mdash; there is no separate login page.
-      You need to be signed in to record annual leave or an absence, or to use the Pay Calculator.
+      The roster, the Huddle and the circulars all show once you have signed in, and there is no other way in.
     </p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="padding-bottom:4px;">
       <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">1.</td>
@@ -151,7 +157,7 @@
       <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">2.</td>
           <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:8px;">
             <strong style="color:#001e3c;">Your name</strong> &mdash; the list only fills in once you have picked a grade.
-            You are on it as <strong>{{ROSTER_NAME}}</strong>, since it follows the published roster.</td></tr>
+            You are on it as <strong>{{ROSTER_NAME}}</strong> &mdash; an initial and your surname.</td></tr>
       <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">3.</td>
           <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:16px;">
             <strong style="color:#001e3c;">Password</strong> &mdash; below. Then tap <strong>Sign in &rarr;</strong>.</td></tr>

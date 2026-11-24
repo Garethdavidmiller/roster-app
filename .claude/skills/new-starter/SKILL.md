@@ -86,14 +86,17 @@ reached the server — read it once that deploy has finished, never before. If t
 | a CEA already working at Marylebone | `welcome-email-cea.html` | it works for them |
 | a CES (a supervisor) already working at Marylebone | `welcome-email-ces.html` | it works for them |
 | a Dispatcher already working at Marylebone | `welcome-email-dispatcher.html` | it does not work for them yet |
-| a new starter, any grade | `welcome-email.html`, making its two choices | the one for their grade |
+| an Other Staff login (no roster of their own) | `welcome-email-other-staff.html` | nothing: there is no section 4, the calculator is not in their menu |
+| a new starter, any grade | `welcome-email.html`, making its three choices | the one for their grade |
 
-The three ready-made copies are `welcome-email.html` with its choices already made: the
-existing-staff opening, their grade, and the Pay Calculator section for that grade. Only the first
+The four ready-made copies are `welcome-email.html` with its choices already made: the
+existing-staff opening (Other Staff's own, for theirs), their grade, What it does, and the Pay
+Calculator section for that grade. Only the first
 name, roster name and surname password are left to fill. They exist so that everybody in a
 grade is sent the same email: the CEA's is the one sent to a CEA on 7 Nov 2026 (owner, 8 Nov 2026:
 "so a consistent version can be used for CEAs"), and the supervisor's and the Dispatcher's follow it
-(owner, 11 Nov 2026). **A change to the wording belongs in all four files**:
+(owner, 11 Nov 2026), and the Other Staff copy since the staff PIN those colleagues used was retired
+(owner, 24 Nov 2026). **A change to the wording belongs in all five files**:
 `welcome-email-parity.test.mjs` builds each copy from `welcome-email.html` and fails until they
 agree. It also fails the Dispatcher's copy on the day the calculator gains Dispatcher rates, because
 that copy tells them to ignore it.

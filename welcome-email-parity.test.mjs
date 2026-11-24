@@ -4,14 +4,15 @@
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *
- * `.claude/skills/new-starter/` holds the welcome email four times. `welcome-email.html` is the
- * general template: a `{{GRADE}}` slot and two either/or blocks (the opening, and the Pay Calculator
- * section). The other three are ready-made copies with those choices already made, one for each
- * grade a colleague signs in under, so that everybody in a grade is sent the same email (owner:
- * the CEA's 8 Nov 2026, the supervisor's and the Dispatcher's 11 Nov 2026).
+ * `.claude/skills/new-starter/` holds the welcome email five times. `welcome-email.html` is the
+ * general template: a `{{GRADE}}` slot and three either/or blocks (the opening, What it does, and the
+ * Pay Calculator section). The other four are ready-made copies with those choices already made, one
+ * for each grade a colleague signs in under, so that everybody in a grade is sent the same email
+ * (owner: the CEA's 8 Nov 2026, the supervisor's and the Dispatcher's 11 Nov 2026, Other Staff's
+ * 24 Nov 2026, when the staff PIN those colleagues used gave way to a login of their own).
  *
  * The copies are only worth having if they ARE the same email. A correction made in one file and
- * not the other three is a colleague told something the rest were not, and four hand-kept copies
+ * not the others is a colleague told something the rest were not, and five hand-kept copies
  * of 200 lines drift. So each ready-made copy is BUILT here from the general template, by making
  * its choices, and compared with the file as its reader sees it: comments dropped (the reader never
  * sees them, and each copy's header is its own) and runs of spacing collapsed. Anything else that
@@ -25,11 +26,20 @@
  * Dispatcher copy, which is the point: that email would otherwise go on telling Dispatchers to
  * ignore a calculator that now works for them.
  *
+ * ── OTHER STAFF HAVE NO ROSTER OF THEIR OWN ─────────────────────────────────────────────────────
+ *
+ * An Other Staff login (`isOtherStaff`, roster-data.js) sees everyone's roster, read-only, and nothing
+ * of a member's own: no leave to record, no Pay Calculator in its menu (auth-policy.js → `otherStaff`).
+ * So its copy takes the OTHER STAFF opening and What it does, drops section 4 whole, and is pinned
+ * below never to say "your roster", offer to record leave or name the calculator.
+ *
  * ── NO STAFF PIN ────────────────────────────────────────────────────────────────────────────────
  *
  * Section 5, "The staff PIN", and its `{{STAFF_PIN}}` box went with the PIN (owner, 23 Nov 2026):
  * only a member's own sign-in opens the app. So no file may carry that box, its placeholder or the
- * words that sent a reader to it, and the placeholder test below no longer expects it. A failure
+ * words that sent a reader to it, and the placeholder test below no longer expects it. Nor the line
+ * that sign-in was needed only "to record annual leave or an absence, or to use the Pay Calculator":
+ * true while the PIN showed the roster to anybody, and now a reader's reason to think they need not. A failure
  * here never prints a four-digit run (`masked`), as when the box held one.
  *
  * ── IT FITS A PHONE ─────────────────────────────────────────────────────────────────────────────
@@ -45,7 +55,7 @@
  *
  * ── WHAT IT CANNOT SEE ──────────────────────────────────────────────────────────────────────────
  *
- * Whether the wording is RIGHT, only that the four copies agree. The header comments, which differ
+ * Whether the wording is RIGHT, only that the five copies agree. The header comments, which differ
  * by design. How a real mail app draws any of it.
  */
 import { test, describe } from 'node:test';
@@ -64,7 +74,11 @@ const COPIES = /** @type {const} */ ({
     'welcome-email-cea.html':        'CEA',
     'welcome-email-ces.html':        'CES',
     'welcome-email-dispatcher.html': 'Dispatcher',
+    'welcome-email-other-staff.html': 'Other Staff',
 });
+
+/** The grade whose login has no roster of its own (roster-member-data.js → `otherStaff`). */
+const OTHER_STAFF = 'Other Staff';
 
 /** What the reader sees: comments out, spacing collapsed. Tags and inline styles stay, because the
  *  copies must LOOK the same as well as say the same. */
@@ -88,19 +102,35 @@ function replaceOnce(html, re, by, what) {
 }
 
 /**
- * The general template with one grade's choices made, as the three copies make them: the opening
- * for somebody already working at Marylebone, the grade, and the Pay Calculator section the app
- * says that grade gets.
+ * The general template with one grade's choices made, as the four copies make them: the opening
+ * for somebody already working at Marylebone, the grade, What it does, and the Pay Calculator section
+ * the app says that grade gets — none at all for Other Staff, whose menu has no calculator.
  * @param {string} grade
  */
 function choose(grade) {
     let html = read(GENERAL);
+    const other = grade === OTHER_STAFF;
     // The opening: the new starter's paragraph goes (everything from its marker to the next one's),
-    // and the existing-staff one, written inside a comment, comes out of it.
+    // and the chosen one, written inside a comment, comes out of it; the third goes whole.
     html = replaceOnce(html, /<!-- OPENING A — NEW STARTER -->[\s\S]*?(?=<!-- OPENING B — EXISTING STAFF)/, '',
         'OPENING A (new starter) block');
-    html = replaceOnce(html, /<!-- OPENING B — EXISTING STAFF\s*([\s\S]*?)\s*-->/, '$1',
+    html = replaceOnce(html, /<!-- OPENING B — EXISTING STAFF\s*([\s\S]*?)\s*-->/, other ? '' : '$1',
         'OPENING B (existing staff) block');
+    html = replaceOnce(html, /<!-- OPENING C — OTHER STAFF[^\n]*\s*([\s\S]*?)\s*-->/, other ? '$1' : '',
+        'OPENING C (Other Staff) block');
+    // What it does: a member's own roster (A, written live), or the station's (B, inside a comment).
+    if (other) {
+        html = replaceOnce(html, /<!-- WHAT IT DOES A — WITH A ROSTER[\s\S]*?(?=<!-- WHAT IT DOES B — OTHER STAFF)/, '',
+            'WHAT IT DOES A (with a roster) block');
+        html = replaceOnce(html, /<!-- WHAT IT DOES B — OTHER STAFF[^\n]*\s*([\s\S]*?)\s*-->/, '$1',
+            'WHAT IT DOES B (Other Staff) block');
+        // Section 4, heading and both variants: the Pay Calculator is not in their menu.
+        html = replaceOnce(html, /<!-- ── 4\. PAY CALCULATOR[\s\S]*?(?=<!-- ── SIGN OFF)/, '',
+            'section 4 (the Pay Calculator), heading to sign-off');
+        return html.replaceAll('{{GRADE}}', grade);
+    }
+    html = replaceOnce(html, /<!-- WHAT IT DOES B — OTHER STAFF[\s\S]*?-->/, '',
+        'WHAT IT DOES B (Other Staff) block');
     if (gradeForRole(grade)) {
         html = replaceOnce(html, /<!-- VARIANT B — DISPATCHER[\s\S]*?-->/, '',
             'Pay Calculator VARIANT B (it will not work for you) block');
@@ -154,6 +184,7 @@ test('the Pay Calculator section follows the app: the copy for a grade without r
     // The wording is the general template's own: VARIANT A's first sentence, and VARIANT B's.
     for (const [file, grade] of Object.entries(COPIES)) {
         const text = visible(read(file));
+        if (grade === OTHER_STAFF) continue;   // no section at all: the next test
         const works = text.includes('so it works for you');
         const doesNot = text.includes('The Pay Calculator will not work for you yet.');
         assert.ok(works !== doesNot, `${file} should carry exactly one of the two Pay Calculator sections`);
@@ -163,6 +194,20 @@ test('the Pay Calculator section follows the app: the copy for a grade without r
     }
 });
 
+test('the Other Staff copy promises nothing a login without a roster cannot do', () => {
+    // A guard on choose() as much as on the copy: the comparison above cannot pass by building the
+    // wrong thing. These are the general template's own words for the things such a login lacks.
+    const file = Object.keys(COPIES).find(f => COPIES[/** @type {keyof typeof COPIES} */ (f)] === OTHER_STAFF);
+    assert.ok(file, 'there should be an Other Staff copy');
+    const text = visible(read(/** @type {string} */ (file)));
+    for (const [what, re] of /** @type {const} */ ([
+        ['"your roster"', /your roster/i],
+        ['recording leave or an absence', /Record annual leave/],
+        ['the Pay Calculator', /Pay Calculator/],
+    ])) assert.doesNotMatch(text, re, `${file} offers ${what}, which an Other Staff login does not have`);
+    assert.match(text, /The station&rsquo;s roster/, `${file} should say what it does show: the station's roster`);
+});
+
 test('no file carries the staff PIN — its section, its box, its placeholder or its link (retired 23 Nov 2026)', () => {
     for (const file of [GENERAL, ...Object.keys(COPIES)]) {
         const seen = visible(read(file));
@@ -170,6 +215,7 @@ test('no file carries the staff PIN — its section, its box, its placeholder or
             ['the PIN section or box', /staff PIN/i],
             ['the PIN placeholder', /\{\{STAFF_PIN\}\}/],
             ['the PIN link', /Use the staff PIN instead/i],
+            ['the PIN-era sign-in line', /signed in to record annual leave/i],
         ])) {
             // Never print what matched: masked, as when the box could hold the digits.
             const m = seen.match(re);
@@ -180,7 +226,7 @@ test('no file carries the staff PIN — its section, its box, its placeholder or
 /** The narrowest phone still in use. Nothing in the email may be fixed wider than this. */
 const PHONE = 320;
 
-test('the card fits a phone, and classic Outlook still gets 600px, in all four files', () => {
+test('the card fits a phone, and classic Outlook still gets 600px, in all five files', () => {
     for (const file of [GENERAL, ...Object.keys(COPIES)]) {
         const raw = read(file);
         const seen = visible(raw);   // what every mail app but classic Outlook reads

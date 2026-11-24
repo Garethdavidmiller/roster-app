@@ -750,6 +750,8 @@ and turn on notifications. No Admin, Pay Calculator, Overtime, Links or New link
    The account is a plain member login, password their surname, as for everyone else.
 4. They sign in from the Calendar, choosing **Other Staff** in the grade list (it appears once the
    first row exists). Operations → Account status lists them, with an "Other Staff" filter.
+5. To tell them it exists, send `.claude/skills/new-starter/welcome-email-other-staff.html` (the
+   new-starter skill → Step 7). It never says "your roster" and has no Pay Calculator section.
 
 Leaving: remove the row (Removing a staff member, below — the managers' exception applies).
 
