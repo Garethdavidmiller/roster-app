@@ -42,7 +42,7 @@
  * dot-file and dot-directory, so `.claude` and `.github` are off the mirror too. Everything else in
  * the tree is still served there, `docs/` and the test files included, and if Pages is ever set back
  * to building from the branch, the dot-directories return with it. That is the standing limitation
- * already recorded for the payslip fixture (AUTH_ARCHITECTURE.md → PAYSLIP_ACTUALS) — which is why
+ * already recorded for the payslip fixture (.claude/rules/paycalc.md → Example payslips) — which is why
  * that file left the repository altogether at v23.71 rather than relying on this list:
  * the exclusion list expresses a decision for Firebase Hosting and cannot express it for the
  * mirror. It goes when the mirror does.

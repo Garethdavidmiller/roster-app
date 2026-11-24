@@ -202,12 +202,13 @@ describe('Track E parity — each plan agrees with itself', () => {
 
 // ── THE CREDENTIAL LIFECYCLE PROGRAMME (v22.38) ────────────────────────────────────────────────
 //
-// `CREDENTIAL_LIFECYCLE.md` is a third document on the same subject, added for the reason the other
-// two exist separately: it owns ORDER, which neither of them did. That makes three files that can
-// disagree, so the same structural discipline applies — and one of its sections needs more than
-// discipline.
+// `CREDENTIAL_LIFECYCLE.md` was a third document on the same subject, added for the reason the other
+// two exist separately: it owns ORDER, which neither of them did. Since 24 Nov 2026 its content is
+// `PASSWORD_DESIGN.md` → "The credential lifecycle — the C5/C6 programme" (its §N is that section's
+// LN), and the file is a pointer that still carries the pinned lines read below. The same structural
+// discipline applies — and one of its sections needs more than discipline.
 //
-// **§7 records a decision that has NOT been taken.** It sets out a second route to retiring the
+// **§7 (now L7) records a decision that has NOT been taken.** It sets out a second route to retiring the
 // surname: once one-time recovery codes exist, the remaining surname credentials could be replaced
 // server-side, which answers the CREDENTIAL question without touching the READ question that Track
 // E owns. That is a materially different plan from the one in the canonical status table, and the
