@@ -579,7 +579,8 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
             'the docs step must start from browsers=true, so every path it does not finish runs the browsers');
         assert.match(script, /if \[ "\$EVENT" = "pull_request" \]/,
             'only a pull request may skip the browsers: a push of documentation starts no run at all (paths-ignore)');
-        assert.match(script, /grep -v -E '\\\.md\$'/, 'the docs step must find every changed file that is not a .md');
+        assert.match(script, /grep -v -E '\\\.md\$\|\^test\/\[\^\/\]\+\\\.test\\\.mjs\$'/,
+            'the docs step must find every changed file that is not a .md or a unit test in test/ — and nothing wider');
         assert.match(script, /"\$count" -lt 3000/,
             'the files endpoint stops at 3,000 files, so a PR at that ceiling may hide a file that is not documentation');
         assert.match(script, /\|\| true\)/, 'grep finding nothing exits 1, which would end the step under bash -e');
@@ -602,6 +603,25 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
         assert.deepEqual(missing, [],
             `browser tests read ${missing.join(', ')}, which E2E_MD_READS in the guard does not list: a PR changing only `
             + 'that document would skip the very tests that read it.');
+    });
+
+    test('no browser test reads a file under test/, so a unit-test-only change may skip them (24 Nov 2026)', () => {
+        // The guard counts test/*.test.mjs with the documentation. That is safe only while no browser
+        // spec, its config or a helper it imports reads a file in test/: such a read would make a unit
+        // test a browser-test input, and a PR changing only it would skip the very test that reads it.
+        /** @param {string} dir @returns {string[]} */
+        const specs = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+            d.isDirectory() ? specs(join(dir, d.name)) : /\.(?:m?js)$/.test(d.name) ? [join(dir, d.name)] : []);
+        const files = [...specs('e2e'), ...readdirSync('.').filter(f => /^playwright.*\.mjs$/.test(f))];
+        assert.ok(files.length > 10, 'the scan found almost no browser specs — it is checking nothing');
+        const offenders = [];
+        for (const f of files) {
+            const src = readFileSync(f, 'utf8').split('\n').filter(l => !/^\s*(?:\/\/|\*)/.test(l)).join('\n');
+            if (/['"`](?:\.\.?\/)*test\/[\w.-]+['"`]/.test(src)) offenders.push(f);
+        }
+        assert.deepEqual(offenders, [],
+            'these browser-test files read something in test/, so a PR changing only that file would skip them. '
+            + 'Move what they read into test-fixtures/, or narrow the guard.');
     });
 
     test('the guard is cheap enough to sit on the critical path', () => {

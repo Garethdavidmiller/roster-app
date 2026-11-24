@@ -77,6 +77,13 @@ jobs:
   # documentation's own tests (doc-parity and friends) live. It fails open like `skip`: an API
   # error, an empty list, or a PR at the files endpoint's 3,000-file ceiling answers `true`, and
   # the browser jobs ask `!= 'false'`, so a guard that died runs them.
+  #
+  # AND UNIT TESTS COUNT WITH THE DOCUMENTATION (24 Nov 2026). Since the unit suites moved into
+  # test/ (#1840) a file there is one no page loads and no browser test reads (workflow-hygiene.test.mjs
+  # holds the second half), so a PR of documentation and unit tests alone — this morning's docs
+  # review, which re-pointed two parity tests, ran every browser job — stands aside too. The unit
+  # tests themselves run in `unit` and `nodeps`, which never stand aside. Only `test/*.test.mjs`:
+  # test-fixtures/ is read by the browser specs and stays a reason to run them.
   guard:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -100,14 +107,14 @@ jobs:
           if [ "$EVENT" = "pull_request" ] && [ -n "$PR" ]; then
             if files=$(gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" --jq '.[].filename' 2>/dev/null) && [ -n "$files" ]; then
               count=$(printf '%s\n' "$files" | wc -l)
-              other=$(printf '%s\n' "$files" | grep -v -E '\.md$' || true)
+              other=$(printf '%s\n' "$files" | grep -v -E '\.md$|^test/[^/]+\.test\.mjs$' || true)
               read=""
               for f in $E2E_MD_READS; do
                 if printf '%s\n' "$files" | grep -qxF "$f"; then read="$read $f"; fi
               done
               echo "the PR changes $count file(s)"
               if [ "$count" -lt 3000 ] && [ -z "$other" ] && [ -z "$read" ]; then
-                echo "every one is documentation no browser test reads — the browser jobs stand aside"
+                echo "every one is documentation or a unit test no browser test reads — the browser jobs stand aside"
                 browsers=false
               fi
             else
