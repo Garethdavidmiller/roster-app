@@ -247,25 +247,47 @@ describe('a failed deploy is announced, whenever it fails', () => {
         assert.match(action, /^ {8}RESULT: \$\{\{ inputs\.result \}\}[ \t]*$/m, 'the action must read how the deploy ended');
     });
 
-    test('the mirror waits until GitHub lists its upload before deploy-pages looks for it', () => {
-        // 24 Nov 2026: deploy-pages listed the run's artifacts 0.3 seconds after the upload, found
-        // none, twice running, and the mirror kept the previous release. A re-run cannot recover (it
-        // finds both attempts' uploads and refuses), so the wait has to be in the job.
+    test('the mirror asks deploy-pages a second time, in the same job, when the first try fails', () => {
+        // 24 Nov 2026: deploy-pages reads the artifact service's own list of this run's uploads, which
+        // can trail the upload by seconds. It came back empty three times, once a second after the
+        // REST list had named the upload, so a wait on the REST list proved nothing. A re-run of the
+        // job cannot recover (it finds both attempts' uploads and refuses), so the retry is in the job.
         const src = readFileSync(join(WF_DIR, 'deploy-mirror.yml'), 'utf8');
         const from = src.search(/^ {2}deploy:[ \t]*$/m);
         const rest = src.slice(from + 1);
         const job = rest.slice(0, rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m));
+        const step = (name) => {
+            const at = job.indexOf(`- name: ${name}\n`);
+            assert.ok(at > -1, `no step is named "${name}"`);
+            const next = job.slice(at + 1).search(/^ {6}- (name|uses):/m);
+            return { at, body: next < 0 ? job.slice(at) : job.slice(at, at + 1 + next) };
+        };
         const upload = job.indexOf('uses: actions/upload-pages-artifact@');
-        const wait = job.indexOf('name: Wait until GitHub lists the upload');
-        const deploy = job.indexOf('uses: actions/deploy-pages@');
-        assert.ok(upload > -1 && deploy > -1, 'the mirror deploy job uploads and deploys');
-        assert.ok(wait > upload && wait < deploy,
-            'the wait must sit between the upload and deploy-pages, or deploy-pages can look before GitHub lists the upload');
-        const step = stepScript(src, 'Wait until GitHub lists the upload');
-        assert.match(step, /actions\/runs\/\$GITHUB_RUN_ID\/artifacts\?name=github-pages/,
-            'the wait must read the list deploy-pages reads: this run\'s artifacts, by the name it looks for');
-        assert.match(step, /exit 1/, 'a wait that gives up must fail by name, not hand an empty list to deploy-pages');
-        assert.match(job, /^ {6}actions: read\b/m, 'listing a run\'s artifacts needs actions: read');
+        const first = step('Deploy to GitHub Pages');
+        const pause = step('Pause before asking deploy-pages again');
+        const second = step('Deploy to GitHub Pages, second try');
+        const verify = step('Verify the mirror serves this release');
+        assert.ok(upload > -1 && upload < first.at && first.at < pause.at && pause.at < second.at && second.at < verify.at,
+            'the order must be: upload, first try, pause, second try, then the check that the mirror serves the release');
+        assert.match(first.body, /^ {8}id: deploy-first$/m);
+        assert.match(first.body, /^ {8}continue-on-error: true$/m,
+            'a failed first try must not end the job, or the second try never runs');
+        for (const s of [pause, second]) {
+            assert.match(s.body, /^ {8}if: steps\.deploy-first\.outcome == 'failure'$/m,
+                'the pause and the second try run only when the first try failed');
+        }
+        assert.match(pause.body, /sleep [1-9]\d/, 'the second try must come after a pause long enough for the list to catch up');
+        assert.match(second.body, /^ {8}id: deploy-second$/m);
+        assert.doesNotMatch(second.body, /continue-on-error/, 'a failed second try must fail the job, so the reporter tells the owner');
+        const pins = [...job.matchAll(/uses: actions\/deploy-pages@([0-9a-f]{40})/g)].map(m => m[1]);
+        assert.equal(pins.length, 2, 'exactly two deploy-pages steps');
+        assert.equal(pins[0], pins[1], 'both tries must run the same pinned deploy-pages');
+        assert.doesNotMatch(verify.body, /^ {8}if:/m,
+            'the mirror check must run whenever a try succeeded, and be skipped when both failed');
+        assert.match(job, /url: \$\{\{ steps\.deploy-first\.outputs\.page_url \|\| steps\.deploy-second\.outputs\.page_url \}\}/,
+            'the environment must name the page whichever try published it');
+        assert.doesNotMatch(job, /actions\/runs\/\$GITHUB_RUN_ID\/artifacts/,
+            'do not bring back a wait on the REST list: it is not the list deploy-pages reads');
     });
 
     test('a post-deploy read cannot hang until the job runs out of time', () => {
@@ -579,7 +601,8 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
             'the docs step must start from browsers=true, so every path it does not finish runs the browsers');
         assert.match(script, /if \[ "\$EVENT" = "pull_request" \]/,
             'only a pull request may skip the browsers: a push of documentation starts no run at all (paths-ignore)');
-        assert.match(script, /grep -v -E '\\\.md\$'/, 'the docs step must find every changed file that is not a .md');
+        assert.match(script, /grep -v -E '\\\.md\$\|\^test\/\[\^\/\]\+\\\.test\\\.mjs\$'/,
+            'the docs step must find every changed file that is not a .md or a unit test in test/ — and nothing wider');
         assert.match(script, /"\$count" -lt 3000/,
             'the files endpoint stops at 3,000 files, so a PR at that ceiling may hide a file that is not documentation');
         assert.match(script, /\|\| true\)/, 'grep finding nothing exits 1, which would end the step under bash -e');
@@ -602,6 +625,25 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
         assert.deepEqual(missing, [],
             `browser tests read ${missing.join(', ')}, which E2E_MD_READS in the guard does not list: a PR changing only `
             + 'that document would skip the very tests that read it.');
+    });
+
+    test('no browser test reads a file under test/, so a unit-test-only change may skip them (24 Nov 2026)', () => {
+        // The guard counts test/*.test.mjs with the documentation. That is safe only while no browser
+        // spec, its config or a helper it imports reads a file in test/: such a read would make a unit
+        // test a browser-test input, and a PR changing only it would skip the very test that reads it.
+        /** @param {string} dir @returns {string[]} */
+        const specs = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+            d.isDirectory() ? specs(join(dir, d.name)) : /\.(?:m?js)$/.test(d.name) ? [join(dir, d.name)] : []);
+        const files = [...specs('e2e'), ...readdirSync('.').filter(f => /^playwright.*\.mjs$/.test(f))];
+        assert.ok(files.length > 10, 'the scan found almost no browser specs — it is checking nothing');
+        const offenders = [];
+        for (const f of files) {
+            const src = readFileSync(f, 'utf8').split('\n').filter(l => !/^\s*(?:\/\/|\*)/.test(l)).join('\n');
+            if (/['"`](?:\.\.?\/)*test\/[\w.-]+['"`]/.test(src)) offenders.push(f);
+        }
+        assert.deepEqual(offenders, [],
+            'these browser-test files read something in test/, so a PR changing only that file would skip them. '
+            + 'Move what they read into test-fixtures/, or narrow the guard.');
     });
 
     test('the guard is cheap enough to sit on the critical path', () => {

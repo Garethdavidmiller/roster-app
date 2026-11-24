@@ -171,12 +171,11 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      actions: read     # listing this run's artifacts, to wait for the upload (below)
       pages: write
       id-token: write   # deploy-pages proves the run to the Pages service with an OIDC token
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy-first.outputs.page_url || steps.deploy-second.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -217,27 +216,32 @@ jobs:
         with:
           path: _site/
 
-      # deploy-pages finds the upload by LISTING this run's artifacts, and that list catches up a
-      # moment after the upload finishes. On 24 Nov 2026 it asked 0.3 seconds after the upload and
-      # found nothing, twice running ("No artifacts named github-pages"), so the mirror kept serving
-      # the previous release. Re-running the job cannot recover: the second attempt finds the first
-      # attempt's upload as well as its own and refuses both. So wait here, on the same list
-      # deploy-pages reads, until it names the upload.
-      - name: Wait until GitHub lists the upload
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -uo pipefail
-          for i in $(seq 1 30); do
-            n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=github-pages" --jq '.total_count' 2>/dev/null || echo 0)
-            if [ "${n:-0}" -ge 1 ]; then echo "Listed after $i check(s)."; exit 0; fi
-            sleep 2
-          done
-          echo "::error::GitHub had not listed the github-pages upload after a minute, so deploy-pages would not find it."
-          exit 1
-
+      # ── deploy-pages IS ASKED TWICE, IN THIS JOB (24 Nov 2026) ─────────────────────────────────────
+      #
+      # deploy-pages finds the upload by asking the Actions artifact service for this run's artifacts
+      # — the service's OWN list (`ListArtifacts`, through @actions/artifact), not the REST API's —
+      # and that list can trail the upload by a few seconds. On 24 Nov 2026 it came back empty three
+      # times ("No artifacts named github-pages") and the mirror kept the previous release. The third
+      # time came a second AFTER a step here had seen the REST list name the upload, so waiting on the
+      # REST list proved nothing, and a run step cannot read the service's list itself.
+      #
+      # So when the first try fails, pause and ask again in the same job and the same attempt. A
+      # lookup that finds nothing has created no deployment, and a deployment that fails later is
+      # cancelled by deploy-pages itself, so a second try cannot publish twice. Re-running the JOB
+      # cannot recover instead: its second attempt finds the first attempt's upload as well as its
+      # own, and refuses both ("Multiple artifacts named github-pages").
       - name: Deploy to GitHub Pages
-        id: deployment
+        id: deploy-first
+        continue-on-error: true
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      - name: Pause before asking deploy-pages again
+        if: steps.deploy-first.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to GitHub Pages, second try
+        id: deploy-second
+        if: steps.deploy-first.outcome == 'failure'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
       # The same proof the Hosting deploy asks of its own origin: the LIVE mirror serves the version
