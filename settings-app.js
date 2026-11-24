@@ -28,6 +28,7 @@ import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 import { inventoryOf, inventorySummary } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
 import { pcPrefix, setPaycalcNamespace } from './paycalc-migrations.js';
+import { payslipsShownTo } from './paycalc-periods.js';
 import { lsKeys } from './ls.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -356,6 +357,9 @@ export function init() {
         // when this device holds some, and this card's inventory is the one count of them.
         let holdsPayFigures = false;
         wireCard('pay-data', () => {
+            const me = teamMembers.find(m => m.name === currentUser) ?? null, shown = payCalculatorPrices(me, { periods: payslipsShownTo(me) });
+            document.getElementById('payDataCard')?.toggleAttribute('hidden', !shown);   // the Pay page's own rule; its label follows (settings.css)
+            if (!shown) return reportSetting('pay-data', 'n/a');
             _cardHandles['pay-data'] = initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
             holdsPayFigures = initPayDataCard();
         });
