@@ -1425,13 +1425,22 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         expect(errors).toEqual([]);
     });
 
-    test('Admin and Operations send them to the Calendar; the Pay Calculator says why it is not for them', async ({ page }) => {
+    // Admin SAYS why it is not for them, as the Pay Calculator does (owner, 24 Nov 2026): it used to send them back to
+    // the Calendar with nothing said, and the Calendar's 📝 Admin button and "Record leave" both land there.
+    test('Admin and the Pay Calculator each say why they are not for them; Operations goes to Admin', async ({ page }) => {
         await withOtherStaff(page, NAME);
         await seedSession(page, NAME);
-        await page.goto('/admin.html');
-        await expect(page).toHaveURL(/\/(index\.html)?(#.*)?$/);
+        await page.goto('/admin.html#book-annual-leave');
+        await expect(page.locator('#adminRoleCard')).toBeVisible();
+        await expect(page.locator('#adminRoleCard .role-card-title')).toHaveText('Admin is for staff on the roster');
+        await expect(page.locator('#adminRoleCard .role-card-why')).toContainText('ask your manager');
+        await expect(page).toHaveURL(/admin\.html/);
+        for (const hidden of ['.member-context-bar', '#change-shift', '#book-annual-leave', '#record-sick-days', '#overridesCard']) {
+            await expect(page.locator(hidden), `${hidden} shows behind the card`).toBeHidden();
+        }
+        await expect(page.locator('#navMenuBtn'), 'the drawer is the way out').toBeVisible();
         await page.goto('/operations.html');
-        await expect(page).toHaveURL(/\/(index\.html)?(#.*)?$/);
+        await expect(page.locator('#adminRoleCard')).toBeVisible();
         await page.goto('/paycalc.html');
         await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
     });

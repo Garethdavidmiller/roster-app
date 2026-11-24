@@ -153,7 +153,7 @@ export const CARD_TIPS = {
             { heading: 'What it shows', items: [
                 { icon: '📧', html: 'Each person’s <strong>work email</strong> — the address if they’ve added one, or “No work email” if not. It is for <strong>account recovery</strong>. Self-service recovery isn’t available yet, so nothing uses it today.' },
                 { icon: '🔑', html: 'Their <strong>password</strong> — either <strong>✓ Own</strong> (they’ve set their own in ☰ → Settings → Password) or <strong>Default</strong> (still on the guessable surname default).' },
-                { icon: '🔒', html: 'Each person can only see their <strong>own</strong> email; as admin you see everyone’s. Use the <strong>All grades / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
+                { icon: '🔒', html: 'Each person can only see their <strong>own</strong> email; as admin you see everyone’s. Use the <strong>grade filter</strong> to track each grade.' },
             ]},
             { heading: 'Work email', items: [
                 // Settings is open to ANY named user — `auth-policy.js` gates it on `requireNamed`
@@ -177,8 +177,8 @@ export const CARD_TIPS = {
         sections: [
             { heading: 'What it shows', items: [
                 { icon: '👥', html: '<strong>Roster in use</strong> — how many <strong>member-and-device pairs</strong> opened the app this calendar month (with last month’s full figure beside it) and on any of the last 30 days. Simply opening the app counts.' },
-                { icon: '🧮', html: 'It is not a headcount of people, which is why it is not labelled “accounts”. One person on a phone <em>and</em> a laptop counts <strong>twice</strong>; on a shared device it follows <strong>whichever member is selected</strong>, who need not be the person holding it. For the exact count of distinct accounts, see the block below.' },
-                { icon: '🚫', html: 'Never counted: <strong>your own visits while signed in as admin</strong>, a brand-new device before anybody has picked a member on it, and the <strong>reload the app does by itself</strong> after an update.' },
+                { icon: '🧮', html: 'It is not a headcount of people, which is why it is not labelled “accounts”. One person on a phone <em>and</em> a laptop counts <strong>twice</strong>; on a shared device, <strong>each member who signs in on it</strong> counts. For the exact count of distinct accounts, see the block below.' },
+                { icon: '🚫', html: 'Never counted: <strong>your own visits while signed in as admin</strong>, a device nobody has signed in on yet, and the <strong>reload the app does by itself</strong> after an update.' },
                 { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened, and how many times each document and guide has been opened. <strong>This month / Last month</strong> switches the window.' },
             ]},
             { heading: 'Which address staff are on', items: [
@@ -188,7 +188,7 @@ export const CARD_TIPS = {
             { heading: 'Sign-ins vs opens', items: [
                 { icon: '\u{1F511}', html: '<strong>Accounts that have signed in</strong> is the exact unique count, from the app’s sign-in records. It counts <strong>sign-ins, not opens</strong> — a session lasts up to 60 days, so someone can sign in once and use the app daily for two months without ever appearing here again.' },
                 { icon: '\u{1F423}', html: '<strong>Never signed in</strong> is the actionable one: accounts set up that have never been used.' },
-                { icon: '\u{1F50D}', html: 'The <strong>gap</strong> between the two blocks is readable: roughly the staff who use the roster but have <strong>never held an account session</strong>. They can’t be reached by anything that happens at sign-in — a password prompt, for one.' },
+                { icon: '\u{1F50D}', html: 'The <strong>gap</strong> between the two blocks is readable: mostly staff still on a session that began <strong>more than 30 days ago</strong>, who open the app without signing in again. Anything that happens only at sign-in — a password prompt, for one — has not reached them yet.' },
             ]},
             { heading: 'Privacy', items: [
                 { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it counts <em>how many</em> accounts and visits, never <em>which</em> account did what. No names, no per-person history is stored.' },

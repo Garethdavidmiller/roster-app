@@ -29,14 +29,26 @@ const esc = escapeHtml;
  *        booked (`projectAlBooking`) — the reason a save that charged nothing still wrote a day
  * @param {string} [shift] what the booking did to each year, when a Spare week over New Year moved a day
  *        between them (`yearShiftWords`) — said after the rest, as the preview says it
+ * @param {string[]} [lieu] the days written that take a day in lieu back (`lieuLost`) — counted, and named
  */
-function recordedWords(n, m, held, free = 0, capFreed = 0, shift = '') {
-    const said = recordedCore(n, m, held, free, capFreed);
+function recordedWords(n, m, held, free = 0, capFreed = 0, shift = '', lieu = []) {
+    const said = recordedCore(n, m, held, free, capFreed, lieu);
     return shift ? `${said} — ${shift}` : said;
 }
 
-/** `recordedWords` without the years. @param {number} n @param {string} m @param {number} held @param {number} free @param {number} capFreed */
-function recordedCore(n, m, held, free, capFreed) {
+/** `recordedWords` without the years. @param {number} n @param {string} m @param {number} held @param {number} free
+ *  @param {number} capFreed @param {string[]} [lieu] the days written that take a day in lieu back (`lieuLost`) */
+function recordedCore(n, m, held, free, capFreed, lieu = []) {
+    // A DAY IN LIEU TAKEN BACK IS A DAY RECORDED (whole-app review, 24 Nov 2026). Leave over a worked Boxing Day
+    // costs this year nothing and next year its day in lieu, and "Recorded 0 days of Annual Leave" said no day was
+    // written. Those days are counted, and the receipt says what they cost, in the preview's own words.
+    const goes = lieu.length ? ` — ${lieuGoesWords(lieu)}` : '';
+    if (lieu.length) {
+        const fresh = n - held + lieu.length;
+        return `Recorded ${fresh} ${held ? 'new ' : ''}day${fresh !== 1 ? 's' : ''} of Annual Leave for ${m}`
+            + (held || free ? ` (${[held ? `${held} already booked` : '', free ? `${free} day${free > 1 ? 's' : ''} at no cost` : ''].filter(Boolean).join(', ')})` : '')
+            + goes;
+    }
     // Days recorded at no cost are named as the preview names them (21 Nov 2026): "Recorded 6 days"
     // over a Spare week the preview had called "4 days (+ 2 days recorded at no cost)" contradicted it.
     const noCost = free > 0 ? `${free} day${free > 1 ? 's' : ''} at no cost` : '';
@@ -255,8 +267,8 @@ export function initALSection({
             : null,
         renderReady,
         // A day that already held leave is written again but is not a new day (renderReady says why).
-        successFeedback: (n, m, held = 0, free = 0, capFreed = 0, shift = '') => `✓ ${recordedWords(n, m, held, free, capFreed, shift)}`,
-        successToast:    (n, m, held = 0, free = 0, capFreed = 0, shift = '') => recordedWords(n, m, held, free, capFreed, shift),
+        successFeedback: (n, m, held = 0, free = 0, capFreed = 0, shift = '', lieu = []) => `✓ ${recordedWords(n, m, held, free, capFreed, shift, lieu)}`,
+        successToast:    (n, m, held = 0, free = 0, capFreed = 0, shift = '', lieu = []) => recordedWords(n, m, held, free, capFreed, shift, lieu),
         getCurrentUser, showInChangeAShift, showSuccess,
         beforePreview: () => hideALConfirm?.(),
         // ASK ABOUT REST DAYS IN THE RANGE, AND REFUSE TO SAVE UNTIL EACH IS ANSWERED (v23.75).

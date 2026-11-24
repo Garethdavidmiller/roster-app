@@ -3114,8 +3114,8 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         // renders empty. Adding an active participant here later would turn a real assertion into
         // a strict-mode error about something unrelated to what this test is checking.
         const notAsked = page.locator('.ot-day-panel--muted')
-            .filter({ hasText: 'Not being asked' });
-        await expect(notAsked).toContainText('Not being asked');
+            .filter({ hasText: 'No longer asked' });
+        await expect(notAsked).toContainText('No longer asked');
         await expect(notAsked).toContainText('H. Croft');
 
         // Confirming is not decoration on this control, so the click must reach a dialog first.

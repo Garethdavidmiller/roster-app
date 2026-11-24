@@ -323,7 +323,10 @@ export function buildRangePicker(prefix, opts = {}) {
             if (Math.abs(dy) >= Math.abs(dx)) { swListening = false; return; } // vertical — let browser scroll
             // Horizontal intent confirmed — build carousel
             swWidth = Math.ceil(clip.getBoundingClientRect().width);
-            grid.setPointerCapture(e.pointerId);   // on `grid`, never `clip`: a capture target's events don't reach its children
+            // On `grid`, never `clip`: a capture target's events don't reach its children. It THROWS when the
+            // pointer has already gone (whole-app review, 24 Nov 2026), and left the swipe listening with no
+            // panels built — so it abandons, as the week swipe does (admin-week-swipe.js).
+            try { grid.setPointerCapture(e.pointerId); } catch { swListening = false; return; }
             grid.style.transition = 'none';
             grid.style.willChange = 'transform';
             // No neighbour past a bound: there is no month there to swipe to.

@@ -3038,7 +3038,7 @@ test('paycalc: a Dispatcher is told the calculator does not cover their pay, and
     await expect(page.locator('.pc-side')).toBeHidden();
     // ...and it is a refusal with a way out, not a dead end — the sign-in card's own.
     await expect(page.locator('#navMenuBtn')).toBeVisible();
-    await expect(card.locator('a.login-back')).toHaveAttribute('href', './');
+    await expect(card.locator('a.role-card-back')).toHaveAttribute('href', './');
     expect(errors, 'Uncaught JS exceptions on the unsupported-role gate').toHaveLength(0);
 });
 
@@ -3176,13 +3176,13 @@ test('paycalc: on a short laptop window the refusal card ends on screen, its way
     const door = await padding('#loginCard');
     await seedSession(page, 'D. Minto');
     await page.goto('/paycalc.html');
-    const back = page.locator('#unsupportedGradeBanner a.login-back');
+    const back = page.locator('#unsupportedGradeBanner a.role-card-back');
     await expect(back).toBeVisible();
     expect(await padding('#unsupportedGradeBanner'), 'the refusal and the sign-in card are one door: one padding').toEqual(door);
     const bottom = await back.evaluate(el => Math.round(el.getBoundingClientRect().bottom));
     expect(bottom, `the way back ends ${bottom - 593}px under the fold of a 1280×593 window`).toBeLessThanOrEqual(593);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await expect(page.locator('#unsupportedGradeBanner .pc-role-icon'), 'a tall window keeps the emoji').toBeVisible();
+    await expect(page.locator('#unsupportedGradeBanner .role-card-icon'), 'a tall window keeps the emoji').toBeVisible();
 });
 
 // From 768px the Earlier and Later buttons share the select's row, and centred beside it they were 36px

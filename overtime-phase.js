@@ -158,9 +158,6 @@ export function phaseTone(phase) {
  * where they stand, where dropping the line would leave them thinking they had never missed
  * anything. Neither line is a countdown, and neither names a document (see phaseCopy).
  *
- * @param {string} phase
- * @param {number} initialDeadlineAt
- * @param {number} finalDeadlineAt
  * ── A DATE NEEDS A NAME BESIDE IT, NOT A SENTENCE AROUND IT (v23.83) ────────────────────────────
  *
  * Reported from a phone: "this section is not good at all. Where is the clarity." The card head was

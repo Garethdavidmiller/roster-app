@@ -77,7 +77,13 @@ export function formatClockInput(raw) {
  */
 export function finaliseClockInput(raw) {
     const d = String(raw ?? '').replace(/[^0-9]/g, '').slice(0, 4);
-    if (d.length === 3 && +d.slice(0, 2) > 23) return `0${d[0]}:${d.slice(1)}`;
+    // ANY three digits left in the box are a dropped zero when that reads as a time (owner, 24 Nov 2026): "130"
+    // was left as "13:0" and refused at Save, though it can only mean 01:30 — and a keyboard that types a colon
+    // makes it common ("1:30" is the digits 130). A reading that is no time ("199", 01:99) is left as typed.
+    if (d.length === 3) {
+        const dropped = `0${d[0]}:${d.slice(1)}`;
+        if (isClockTime(dropped)) return dropped;
+    }
     return formatClockInput(raw);
 }
 

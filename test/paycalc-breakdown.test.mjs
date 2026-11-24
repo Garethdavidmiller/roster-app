@@ -381,13 +381,16 @@ test('buildBreakdownRows: SL stopped-deducting note (v18.41) — active plan onl
     // The OBSERVABLE fact, never "repaid in full" (v19.27): the Student Loans Company routinely
     // moves the last chunk to direct debit, so a loan can stop being deducted while still owed. The
     // summary row and the Settings label said so already; this row still claimed the opposite.
-    const LINE = 'Student Loan — not deducted from this payslip onwards';
-    const paidOff = buildBreakdownRows({ ...BD_BASE, slPaidOff: true, plan: 'plan1' });
-    assert.ok(paidOff.includes(LINE));
+    // It names the payslip the deductions STOPPED on, as the summary row does (whole-app review, 24 Nov 2026):
+    // "from this payslip onwards" was said on every later payslip too, each claiming to be the first.
+    const LINE = 'Student Loan — not deducted from your 20 Nov 2026 payslip onwards';
+    const paidOff = buildBreakdownRows({ ...BD_BASE, slPaidOff: true, paidOffDay: '20 Nov 2026', plan: 'plan1' });
+    assert.ok(paidOff.includes(LINE), paidOff);
+    assert.ok(!/from this payslip onwards/.test(paidOff), 'a later payslip claimed to be the first without a deduction');
     assert.ok(!/repaid/i.test(paidOff), 'the breakdown never claims the loan was repaid');
-    assert.ok(!buildBreakdownRows({ ...BD_BASE, slPaidOff: true, plan: 'none' }).includes(LINE),
+    assert.ok(!buildBreakdownRows({ ...BD_BASE, slPaidOff: true, paidOffDay: '20 Nov 2026', plan: 'none' }).includes(LINE),
         'paid-off with no active loan → no note');
-    const both = buildBreakdownRows({ ...BD_BASE, slPaidOff: true, slSkip: true, plan: 'plan1' });
+    const both = buildBreakdownRows({ ...BD_BASE, slPaidOff: true, paidOffDay: '20 Nov 2026', slSkip: true, plan: 'plan1' });
     assert.ok(both.includes(LINE) && !both.includes('not deducted this period'),
         'the cutover outranks the one-off skip — one note, not two');
     assert.ok(!buildBreakdownRows({ ...BD_BASE, plan: 'plan1' }).includes(LINE),

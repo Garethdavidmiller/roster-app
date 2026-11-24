@@ -1405,3 +1405,31 @@ describe('Q. the Spare line follows the grade held on the booked days', () => {
         assert.ok(html.includes('A Spare week uses at most 4 days of annual leave, so they use 4 days.'), html);
     });
 });
+
+// Q. A DAY IN LIEU TAKEN BACK IS A DAY RECORDED (whole-app review, 24 Nov 2026). The REAL AL card, an INVENTED member
+// due at work on Boxing Day 2026 with Rest Day Working saved there: leave over it costs 2026 nothing and 2027 its day in
+// lieu, and the preview says so — but the receipt said "Recorded 0 days of Annual Leave", as if nothing were written.
+describe('Q. leave over a worked Boxing Day: the receipt counts the day and says the day in lieu goes', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    const BOX = '2026-12-26';
+    const QB = inventedCea(m => !isRestShift(getPatternShift(m, new Date(2026, 11, 26))) && getPatternShift(m, new Date(2026, 11, 26)) !== 'SPARE');
+    onRosterForEachTest(QB);
+
+    test('the receipt is "Recorded 1 day", naming Boxing Day and its day in lieu — never "Recorded 0 days"', async () => {
+        const rdw = { id: 'q-box', memberName: QB.name, date: BOX, type: 'rdw', value: '06:00-14:00', source: 'manual', createdAt: { seconds: 1_790_000_000 } };
+        _allOv = [rdw]; _ovMap = new Map([[BOX, rdw]]);
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ ({ alMember: memberSelect(QB.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
+        el('alFrom').value = BOX; el('alTo').value = BOX;
+        for (const fn of el('alTo')._on.change ?? []) fn();
+        assert.match(el('alPreview').innerHTML, /day in lieu for working it goes/, 'premise: the preview says the day in lieu goes');
+        _record = async () => ({ workingCount: 1, sundayCount: 0 });
+        await save();
+        assert.equal(_writes.length, 1, 'premise: the booking was saved');
+        const said = el('alFeedback').textContent;
+        assert.doesNotMatch(said, /Recorded 0 days/, said);
+        assert.ok(said.includes(`Recorded 1 day of Annual Leave for ${QB.name} — Boxing Day recorded as leave, so the day in lieu for working it goes`), said);
+    });
+});

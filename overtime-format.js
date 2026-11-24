@@ -510,12 +510,12 @@ export function submitFailureCopy(code, dayLabel) {
         case 'no-session': return 'Your sign-in has expired. Reload the page and sign in again.';
         // Server-side refusals: the request ARRIVED, so connection advice would be a false lead.
         case 'write-failed': return 'The server couldn\'t save just now. Try again in a moment.';
-        // NOT a fault and NOT retryable, so it must not read like either (v21.20). The member is no
-        // longer being asked for this week — somebody decided that, and telling them to "try again"
-        // would send them round a loop the server will refuse every time.
+        // NOT a fault and NOT retryable, so it must not read like either (v21.20): somebody decided they are no longer
+        // asked this week, and "try again" would send them round a loop the server refuses every time.
         case 'withdrawn':    return 'You\'re no longer being asked about this week. Speak to your manager if that\'s wrong.';
         case 'not-a-participant': return 'This week isn\'t open to you. Speak to your manager if that\'s wrong.';
-        default:           return `Couldn't save (${code}). Try again in a moment.`;
+        case 'no-window':  return 'This week is no longer open, so nothing was saved.';   // gone: "try again" loops (24 Nov 2026)
+        default:           return `Couldn't save. Try again in a moment — if it keeps happening, tell the admin (code: ${code}).`;
     }
 }
 

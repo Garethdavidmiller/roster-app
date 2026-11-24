@@ -108,7 +108,7 @@ export const CARD_TIPS = {
                     { icon: '📁', html: '<strong>Previous weeks</strong> lists the weeks that have already run and are still kept — around 13 weeks — so you can look back at what was available when a decision was made.' },
                     // Added with the feature (v20.95). Without it the only way to discover the
                     // control is to notice a small button on a row you are trying to scroll past.
-                    { icon: '🚪', html: '<strong>Stop asking</strong>, beside a name in <em>Who is being asked</em>, is for somebody who has left. They come out of that week’s counts, stop seeing it on their own page, and a <strong>Not being asked</strong> note names them at the bottom. Their form is kept.' },
+                    { icon: '🚪', html: '<strong>Stop asking</strong>, beside a name in <em>Who is being asked</em>, is for somebody who has left. They come out of that week’s counts, stop seeing it on their own page, and a <strong>No longer asked</strong> note names them at the bottom. Their form is kept.' },
                     // NOT "always undone" (overtime-ui-2): a press made before the first deadline can
                     // be undone only until it, however long the week then stays open.
                     { icon: '↩️', html: '<strong>Ask again</strong> puts them back. It is offered while the <strong>first deadline is still ahead</strong>, and after it only for somebody stopped <em>since</em> that deadline. So a press made before the first deadline can be undone until that deadline, and one made after it until the week closes. Somebody stood down before the cut-off is not put back into a deadline they were never asked about — they join again from the next week.' },

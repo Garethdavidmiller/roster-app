@@ -52,12 +52,14 @@ function extractFn(src, name) {
 
 /**
  * Build a fake `document` exposing only what `pageIsUsable` reads.
- * @param {{ lock?: boolean, snapshot?: boolean, skeleton?: boolean, banner?: 'visible'|'hidden'|'absent', display?: 'filled'|'empty'|'absent' }} state
+ * @param {{ lock?: boolean|string, snapshot?: boolean, skeleton?: boolean, banner?: 'visible'|'hidden'|'absent', display?: 'filled'|'empty'|'absent' }} state
  */
 function fakeDocument({ lock = false, snapshot = false, skeleton = false, banner = 'absent', display = 'absent' } = {}) {
     /** @type {Record<string, any>} */
     const byId = {};
-    if (lock) byId.calendarLock = { id: 'calendarLock' };
+    // A lock card is `section.cal-lock` in the slot, whatever its id (`lock` names one; true is the sign-in card's).
+    const lockCard = lock ? { id: typeof lock === 'string' ? lock : 'calendarLock', tagName: 'SECTION', className: 'cal-lock' } : null;
+    if (lockCard) byId[lockCard.id] = lockCard;
     // The lock slot holds ONE card at a time (calendar-lock-slot.js): the stored roster or the boot
     // skeleton, by their real ids.
     if (snapshot) byId.calendarSnapshot = { id: 'calendarSnapshot' };
@@ -68,7 +70,10 @@ function fakeDocument({ lock = false, snapshot = false, skeleton = false, banner
     if (display !== 'absent') {
         byId.calendarDisplay = { firstElementChild: display === 'filled' ? { tag: 'div' } : null };
     }
-    return { getElementById: (/** @type {string} */ id) => byId[id] || null };
+    return {
+        getElementById: (/** @type {string} */ id) => byId[id] || null,
+        querySelector: (/** @type {string} */ sel) => (sel === 'section.cal-lock' ? lockCard : null),
+    };
 }
 
 /** The real source, evaluated with an injected `document`. @param {any} document */
@@ -145,6 +150,7 @@ function launch({ hidden = false, page = 'stuck', store = new Map() } = {}) {
             }
             return null;
         },
+        querySelector: () => null,
         createElement: el,
         addEventListener(/** @type {string} */ t, /** @type {Function} */ f) { if (t === 'visibilitychange') onVis.push(f); },
         removeEventListener(/** @type {string} */ t, /** @type {Function} */ f) { if (t === 'visibilitychange') onVis = onVis.filter(x => x !== f); },
@@ -197,6 +203,9 @@ describe('pageIsUsable — what counts as a working page', () => {
         // Both v20.12's PIN card and v20.79's member sign-in card carry this id. Neither is a happy
         // outcome, and both are a page the member can act on: reloading over them would be wrong.
         assert.equal(usableWith(fakeDocument({ lock: true })), true);
+        // …and the card saying the sign-in form could not load, whose id is its own (whole-app review, 24 Nov 2026):
+        // an id list missed it, so a working card was reloaded and then covered by the recovery panel.
+        assert.equal(usableWith(fakeDocument({ lock: 'calendarSignInUnavailable' })), true, 'the sign-in-unavailable card');
     });
 
     test("the member's own stored roster is usable — it is their shifts, labelled", () => {

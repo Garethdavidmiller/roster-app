@@ -1414,6 +1414,9 @@ export function init() {
         const status = document.getElementById('linksSaveStatus');
         if (!design || savingHere()) return;
         // A design gets its name at its FIRST save (header rule 3), asked before "Saving…": a cancel is not a failure.
+        /** The name an unsaved design had before this press named it — a proposal's own, or none — so a first save
+         *  that fails can put it back. `undefined` while this press named nothing. @type {string|undefined} */
+        let nameBefore;
         if (!activeDesignId) {
             const name = (await promptDialog({
                 title: 'Name this design',
@@ -1423,6 +1426,7 @@ export function init() {
             }))?.trim();
             if (!name) return;
             if (_designNameRejected(name)) return;
+            nameBefore = design.name ?? '';
             design.name = name;
         }
         // WHAT THIS SAVE IS FOR, fixed before the first await: the page moves on while it is in flight, and a result
@@ -1601,6 +1605,11 @@ export function init() {
             console.error('[Links] Save failed:', err);
             if (here()) {
                 dirty = true;
+                // A FIRST SAVE THAT FAILED MADE NOTHING, SO IT NAMED NOTHING (header rule 3; whole-app review, 24 Nov
+                // 2026). The name was put on the working copy before the write; left there, the masthead showed it over
+                // a design that was never saved, and the next Save offered a different one. The queued-then-refused
+                // path takes it off the same way (`_createRefused`).
+                if (nameBefore !== undefined && !activeDesignId && design === dsn) { design.name = nameBefore; header?.render(_headerState()); }
                 // Signed out mid-save: an online transaction may or may not have landed, so say check, and keep it unsaved.
                 if (status) { status.textContent = unconfirmedWriteLine(err, 'this save', 'the design') ?? 'Save failed — try again'; status.className = 'links-save-status err'; }
             }

@@ -92,6 +92,16 @@ test('a reset whose admin sign-in could not be renewed was never sent: Retry, an
     } finally { globalThis.fetch = realFetch; }
 });
 
+// …and the same with no admin signed in here at all (whole-app review, 24 Nov 2026): it was a plain error, a bare Retry.
+test('a reset with no admin signed in on this device was never sent either: the same reason, not a bare Retry', async () => {
+    const { resetMemberPassword } = buildAccountCalls({ auth: { currentUser: null } });
+    const err = await resetMemberPassword(NAME).then(() => null, (/** @type {any} */ e) => e);
+    assert.ok(err, 'premise: the call failed');
+    const { retry, note } = resetFailure(NAME, err);
+    assert.equal(retry, true);
+    assert.equal(note?.title, 'The reset wasn’t sent', 'a bare Retry gave the admin no reason');
+});
+
 test('a 5xx with no sentence, or a network failure, is a bare Retry with nothing to say', () => {
     for (const err of [
         answered(500, '<html><body>Internal error</body></html>'),

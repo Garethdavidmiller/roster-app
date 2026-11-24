@@ -5682,6 +5682,28 @@ test('links: a first save the server refuses on sync made nothing — the next S
     await expect(page.locator('.dialog-overlay'), 'no "This design was deleted" question').toHaveCount(0);
 });
 
+// …and a FIRST SAVE REFUSED ONLINE named nothing either (whole-app review, 24 Nov 2026). The typed name was put on the
+// working copy before the write, and the failure left it there: the masthead showed a name over a design never saved.
+test('links: a first save refused online leaves the working copy as it was named before — never the name it tried', async ({ page }) => {
+    await openWindowDesign(page);
+    await openDesignPicker(page);
+    await proposalOptions(page).first().click();
+    await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
+    const before = (await activeDesignName(page).textContent() ?? '').trim();
+    await page.locator('#winMonSatEnd').fill('23:25');   // an edit, so it is a working copy to save
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failSetCode = 'permission-denied'; });
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Name this design');
+    await dialog.locator('.dialog-input').fill('Never saved');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveStatus')).toHaveClass(/\berr\b/);
+    await expect(activeDesignName(page), 'the name of a save that made nothing').toHaveText(before);
+    await expect(page.locator('#designStatusLong'), 'still the proposal\'s unsaved copy').toHaveText('Unsaved changes — save a copy to keep them');
+    await expect(page.locator('#winMonSatEnd'), 'the work is still on screen').toHaveValue('23:25');
+});
+
 // …and a Save pressed while that refusal is still on its way. Its transaction waits for this browser's own queued
 // writes (store rule 5), so it reads the server only after the refusal, and finds no document: that is the design
 // never made, already said, and not a delete to report over it.

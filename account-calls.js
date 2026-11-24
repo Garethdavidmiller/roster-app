@@ -39,7 +39,9 @@ export function buildAccountCalls({ auth }) {
      */
     async function resetMemberPassword(memberName, { lostDevice = false } = {}) {
         const user = auth.currentUser;
-        if (!user) throw new Error('Not signed in');
+        // NOTHING HAS BEEN SENT YET, and with no admin signed in nothing can be (whole-app review, 24 Nov 2026): marked as
+        // the renewal failure below is, the row says nothing changed rather than a bare "Retry".
+        if (!user) throw Object.assign(new Error('No admin is signed in here, so the reset was not sent'), { code: RESET_NOT_SENT });
         // NOTHING HAS BEEN SENT YET (18 Nov 2026). A renewal that fails here meant the request never left this device,
         // and it reached the page as an unmarked error: a bare "Retry" with no reason. Marked, it says nothing changed.
         let token;

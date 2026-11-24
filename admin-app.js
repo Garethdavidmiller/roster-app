@@ -1198,8 +1198,15 @@ export function init() {
     // login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague to record it for.
     const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
     if (_access.decision === 'forbidden') {
-        // Off to the Calendar, as Operations sends a non-admin here: a page with nothing on it for them.
-        window.location.replace('./');
+        // NOT FOR THIS LOGIN (owner, 24 Nov 2026): the page says why, as the Pay Calculator's role card does,
+        // instead of sending them back to the Calendar with nothing said — its 📝 Admin button and "Record
+        // leave" both land here. The card replaces the page (admin.css → `body.role-unsupported`), and the
+        // drawer and About are wired as on every page, so it is a refusal with a way out, not a dead end.
+        document.body.classList.add('auth-ready', 'role-unsupported');
+        document.getElementById('adminRoleCard')?.classList.remove('hidden');
+        wireNavPanel();
+        markPageReady();
+        sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); });
         return;
     }
     if (_access.decision === 'login') {

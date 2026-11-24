@@ -1068,6 +1068,16 @@ describe('what a failed submit says', () => {
         assert.notEqual(notAsked, submitFailureCopy('withdrawn', null));
     });
 
+    // A WEEK THAT HAS GONE (whole-app review, 24 Nov 2026). `no-window` fell to the default — "Couldn't save
+    // (no-window). Try again in a moment" — a loop with no exit. Any other code says who to tell, the code kept at the end.
+    test('a week that is no longer open is said so, never "try again"; an unknown code says who to tell', () => {
+        const gone = submitFailureCopy('no-window', null);
+        assert.doesNotMatch(gone, /try again/i);
+        assert.doesNotMatch(gone, /no-window/);
+        assert.match(gone, /no longer open/);
+        assert.match(submitFailureCopy('http-429', null), /tell the admin \(code: http-429\)\.$/);
+    });
+
     // The form's own two closed lines (overtime-form.js) said "speak to a Manager" as well — a role,
     // where the convention sends a work matter to the reader's own manager (whole-app check, 17 Nov 2026).
     test('the closed form sends the member to their own manager, as the refusals do', () => {

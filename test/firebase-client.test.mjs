@@ -405,7 +405,8 @@ describe('admin endpoints are called with a FORCE-REFRESHED token', () => {
             assert.equal(fetches[0].init.headers.Authorization, 'Bearer fresh-admin-token');
         });
         test(`${c.name}: signed out, nothing is sent`, async () => {
-            await assert.rejects(c.run(), /Not signed in/);
+            // A Reset's says it was never sent (operations-reset.js turns that into a reason, not a bare Retry).
+            await assert.rejects(c.run(), c.name === 'resetMemberPassword' ? /not sent/ : /Not signed in/);
             assert.equal(fetches.length, 0);
         });
         test(`${c.name}: a refusal from the server is an error, never a result`, async () => {
@@ -436,10 +437,11 @@ describe('admin endpoints are called with a FORCE-REFRESHED token', () => {
 // that the factory reads the handle it is given, at call time, rather than one of its own.
 describe('account-calls.js — built with the auth it is handed', () => {
     test('an auth with nobody signed in sends nothing, whichever caller', async () => {
-        const { buildAccountCalls } = await import('../account-calls.js');
+        const { buildAccountCalls, RESET_NOT_SENT } = await import('../account-calls.js');
         const calls = buildAccountCalls({ auth: { currentUser: null } });
         await assert.rejects(calls.getAccountSetupGaps(), /Not signed in/);
-        await assert.rejects(calls.resetMemberPassword(MEMBER), /Not signed in/);
+        // A Reset says it was never sent, as a failed renewal does (whole-app review, 24 Nov 2026), not a bare error.
+        await assert.rejects(calls.resetMemberPassword(MEMBER), (/** @type {any} */ e) => e.code === RESET_NOT_SENT && /not sent/.test(e.message));
         assert.equal(fetches.length, 0);
         assert.deepEqual(Object.keys(calls).sort(), ['getAccountSetupGaps', 'requestPasswordReset', 'resetMemberPassword']);
     });

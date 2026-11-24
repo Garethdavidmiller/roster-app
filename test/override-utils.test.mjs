@@ -522,7 +522,14 @@ describe('isOverrideDisplaySuppressed', () => {
         assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, '09:00-17:00', true), true);
     });
     it('does NOT suppress Other-family on a weekday', () => {
-        assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, 'RD', false), false);
+        assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, 'RD', false, false), false);
+    });
+    // …but on 25 or 26 December it is hidden, as a Spare there is (owner, 24 Nov 2026): the days cannot be Other days,
+    // so a record from before Save refused one shows the day as it would be without it.
+    it('suppresses Other-family on Christmas Day or Boxing Day, whatever the weekday', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, '09:00-17:00', false, true), true);
+        assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, 'RD', false, true), true);
+        assert.equal(isOverrideDisplaySuppressed({ type: 'rdw' }, 'RD', false, true), false, 'Rest Day Working on Boxing Day still shows');
     });
 
     // An absence on a SWAPPED-IN working day is a real absence (review A3). The swap is recorded

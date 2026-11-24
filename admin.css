@@ -31,6 +31,11 @@
         .app-header { max-width: var(--content-max-width); margin: 0 auto 4px; }
         body:not(.auth-ready) .app-header { display: none; }
         body.auth-ready .container { display: grid; }
+        /* AN OTHER STAFF LOGIN (24 Nov 2026): the refusal card alone (admin.html → #adminRoleCard; its look is
+           shared.css's `.role-card`, which the Pay Calculator's wears). `:not(#…)` carries an id, so this outranks
+           every rule that places the bars and columns, with no !important. */
+        body.role-unsupported .container > :not(#adminRoleCard) { display: none; }
+        #adminRoleCard { grid-column: 1 / -1; }
         /* Column wrappers — flex-column stacks at mobile, grid items at desktop; the container's gap. */
         .col-main, .col-side { display: flex; flex-direction: column; gap: 12px; }
 
@@ -1160,15 +1165,22 @@
             font-size: var(--type-small);
             font-weight: 700;
             padding: 10px 20px;
-            /* --radius-pill, not a 24px literal (v18.87): the toast is ~36px tall, so a 24px
-               radius already clamps to a full pill — this is the same pixels with the right name. */
-            border-radius: var(--radius-pill);
+            /* IT WRAPS (whole-app review, 24 Nov 2026). It carries the range card's whole receipt — "Recorded 5 days of
+               Annual Leave for <name> (+ 1 day recorded at no cost)" — and a period delete's, and on one line, centred,
+               a phone cut both ends off: the ✓ and the name. So it may take two lines, inside the screen's gutters, as
+               a rounded box rather than a pill, which a second line turns into a lozenge — the slow-save notice's
+               corner, its neighbour at the foot of the screen (shared.css). */
+            width: max-content;
+            max-width: calc(100vw - 32px);
+            box-sizing: border-box;
+            text-align: center;
+            text-wrap: balance;
+            border-radius: var(--radius-md);
             box-shadow: var(--shadow-3);
             z-index: 7500;
             opacity: 0;
             pointer-events: none;
             transition: opacity var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
-            white-space: nowrap;
         }
         #saveToast.visible {
             opacity: 1;
@@ -2262,7 +2274,7 @@
                place (matches operations.css / settings.css). To print your shifts, use
                the Calendar page. (v18.71 — was a full week-grid print layout.) */
             html, body { background: white !important; }
-            /* #unsavedBanner / #stagedBar / #saveToast are body-level siblings of .container
+            /* #unsavedBanner / #stagedBar / #saveToast / #alConfirmBar are body-level siblings of .container
                (fixed-position action bars shown when edits are pending), so .container's hide
                below does NOT reach them — list them explicitly or they print over the notice
                (regression fix: the pre-v18.71 print CSS hid all three). */
@@ -2271,6 +2283,7 @@
             #unsavedBanner,
             #stagedBar,
             #saveToast,
+            #alConfirmBar,
             #loginOverlay,
             .lb-overlay,
             .nav-panel,

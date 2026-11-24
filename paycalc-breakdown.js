@@ -218,7 +218,7 @@ function _netNote({ _bpThisPeriod, _hppForPeriod, _bpIsEstimate, _hppIsEstimate 
  *   gBasicSat:number, bhCapped:number, gBankHol:number, bhOtHrs:number, gBhOt:number,
  *   oHrs:number, gOvertime:number, rHrs:number, gRdw:number, sHrs:number, r150:number,
  *   gSunday:number, bHrs:number, r300:number, gBoxing:number, peer:number, gPeer:number,
- *   LONDON:number, otherAdj:number, slSkip:boolean, slPaidOff?:boolean, plan:string,
+ *   LONDON:number, otherAdj:number, slSkip:boolean, slPaidOff?:boolean, paidOffDay?:string, plan:string,
  *   pgLoan:boolean, usingCumulative:boolean, _bpThisPeriod:number, _bpIsEstimate:boolean,
  *   _hppForPeriod:number, _hppIsEstimate:boolean, ytdFrom?:string
  * }} d
@@ -228,7 +228,7 @@ export function buildBreakdownRows(d) {
     const {
         nonBhNorm, rate, gBasicNorm, satCapped, r125, gBasicSat, bhCapped, gBankHol,
         bhOtHrs, gBhOt, oHrs, gOvertime, rHrs, gRdw, sHrs, r150, gSunday, bHrs, r300, gBoxing,
-        peer, gPeer, LONDON, otherAdj, slSkip, slPaidOff = false, plan, pgLoan, usingCumulative,
+        peer, gPeer, LONDON, otherAdj, slSkip, slPaidOff = false, paidOffDay = '', plan, pgLoan, usingCumulative,
         _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate, ytdFrom = '',
     } = d;
     const fh = fmtHrsMins;
@@ -264,8 +264,10 @@ export function buildBreakdownRows(d) {
     // The stopped-deducting cutover outranks the one-off skip (mirrors the summary-row precedence).
     // Worded as the observable fact, never "repaid in full" (v19.27): a loan moved to direct debit
     // stops being deducted while still owed.
+    // It names the payslip the deductions STOPPED on, as the summary row does (whole-app review, 24 Nov 2026):
+    // "from this payslip onwards" was said on every payslip after that one too, each claiming to be the first.
     if (slPaidOff && (plan !== 'none' || pgLoan))
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan — not deducted from this payslip onwards</span><span class="b-val"></span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan — not deducted from your ${paidOffDay ? `${paidOffDay} payslip` : 'chosen payslip'} onwards</span><span class="b-val"></span></div>`;
     else if (slSkip && (plan !== 'none' || pgLoan))
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
     if (usingCumulative)

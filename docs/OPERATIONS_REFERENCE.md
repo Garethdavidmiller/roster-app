@@ -739,7 +739,9 @@ branch build needs, so it stays either way.
 For somebody who needs the roster but has none of their own and no manager rights (owner, 23 Nov 2026).
 They sign in under their own name and see what the retired staff PIN showed — everyone's roster, read-only;
 Trains; the Huddle, Circular and Newsletter — plus their own Settings, so they can change their password
-and turn on notifications. No Admin, Pay Calculator, Overtime, Links or New link.
+and turn on notifications. No Admin, Pay Calculator, Overtime, Links or New link: their drawer hides those
+pills, and Admin and the Pay Calculator each show a card saying why if one is opened another way — the Calendar's
+📝 Admin and 💷 Pay buttons, its "Record leave" link, or a typed address (owner, 24 Nov 2026).
 
 1. **One row** in `teamMembers` (`roster-member-data.js`), in the shape at the foot of the array:
    `{ name: 'A. Surname', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true }`.
