@@ -84,11 +84,18 @@ mock.module('../ls.js', {
     namedExports: {
         lsGet: (/** @type {string} */ k) => { _reads.push(k); return _store[k] ?? null; },
         lsSet: (/** @type {string} */ k, /** @type {string} */ v) => { _writes.push([k, v]); _store[k] = v; },
+        // Storage that keeps a flag (block 15 turns it off): with none, no notice is wired at all.
+        lsAvailable: () => _storageWorks,
     },
 });
+/** Whether storage keeps what is written — false is Safari with every cookie blocked, or a full quota. */
+let _storageWorks = true;
+/** Every record `reviseArchivedNotice` was handed, on this wiring. @type {any[]} */
+let _revised = [];
 mock.module('../notice-archive.js', {
     namedExports: {
         archiveNotice: (/** @type {any} */ n) => { _archived.push(n); },
+        reviseArchivedNotice: (/** @type {any} */ n) => { _revised.push(n); },
         isNoticeExpired: (/** @type {string} */ day, /** @type {number} */ days) => typeof _expired === 'function' ? _expired(day, days) : _expired,
     },
 });
@@ -158,7 +165,9 @@ let _n = 0;
  *  and a locked page carry none, which is what each of those really holds. */
 async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = /** @type {typeof _expired} */ (OCTOBER_OVER_BY_THE_CLOCK),
                       session = accessType === 'named' ? { name: 'G. Miller' } : null,
-                      route = /** @type {typeof _route} */ ({ how: 'menu', mirror: false }) } = {}) {
+                      route = /** @type {typeof _route} */ ({ how: 'menu', mirror: false }), storageWorks = true } = {}) {
+    _storageWorks = storageWorks;
+    _revised = [];
     _present = new Set(present);
     _accessType = accessType;
     _session = session;
@@ -350,7 +359,7 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
         assert.equal(NOTICES.length >= 1, true, `found ${NOTICES.length} notices`);
         assert.deepEqual(NOTICES.filter(n => !n.audience), [], 'every notice declares an audience');
         // A notice whose gate call the pattern cannot read would silently drop out of every row.
-        assert.equal(NOTICES.length, (SOURCE.match(/const NOTICE_ID\s*=/g) ?? []).length,
+        assert.equal(NOTICES.length, (SOURCE.match(/const DONE_KEY\s*=/g) ?? []).length,
             'every notice the module declares is in the matrix');
     });
 
@@ -454,7 +463,7 @@ describe('3 · one notice silencing another', () => {
     // silently, and only on the devices that had dismissed it. The IIFE is the scope those returns
     // need, and it is checkable with any number of notices, including the next one added.
     test('each notice is its own IIFE, so a `return` cannot leave initCalendarNotices', () => {
-        const ids   = SOURCE.match(/const NOTICE_ID\s*=/g) ?? [];
+        const ids   = SOURCE.match(/const DONE_KEY\s*=/g) ?? [];
         const iifes = SOURCE.match(/\(function \(\) \{/g) ?? [];
         assert.equal(ids.length > 0, true, 'the fixture must not pass by finding no notices');
         assert.equal(iifes.length, ids.length,
@@ -512,7 +521,7 @@ describe('4 · a notice added later skipping the check', () => {
     // The module header promises this, and the promise is about code nobody has written yet — so it
     // is kept over the source. Both contracts are teeth: each fires on the shape the defect takes.
     test('every notice routes through _openWhenAudienceAllows', async () => {
-        const notices = SOURCE.match(/const NOTICE_ID\s*=/g) ?? [];
+        const notices = SOURCE.match(/const DONE_KEY\s*=/g) ?? [];
         const gated   = SOURCE.match(/_openWhenAudienceAllows\(/g) ?? [];
         assert.equal(notices.length > 0, true, 'the fixture must not pass by finding no notices');
         assert.equal(gated.length, notices.length + 1, 'one call per notice, plus the declaration');
@@ -660,20 +669,20 @@ describe('5 · the install notice: a phone browser, third in line, and the right
 
     /** @type {Array<[NonNullable<typeof _route>, string[], string]>} */
     const ROUTES = [
-        [{ how: 'prompt', mirror: false }, ['installNoticeActions', 'installNoticeInstall'],
+        [{ how: 'prompt', mirror: false }, ['installNoticeActions', 'installNoticeInstall', 'installNoticePayLead'],
             'Chromium has handed over its offer: one tap, and no "already installed" line, since it offers only where it is not'],
-        [{ how: 'menu', mirror: false }, ['installNoticeHave', 'installNoticeMenu'],
+        [{ how: 'menu', mirror: false }, ['installNoticeHave', 'installNoticeMenu', 'installNoticePayLead'],
             'any other phone browser: its own menu'],
         // Two more lines since the iPhone audit (7 Nov 2026): an email or chat app cannot add it, and the
         // Home Screen app's storage is its own. Android shares one storage, so its routes carry neither.
         // "Already on your home screen?" is folded into the iPhone's own line (22 Nov 2026), so the card fits an SE.
-        [{ how: 'ios', mirror: false }, ['installNoticeIos', 'installNoticePayIos', 'installNoticeSafari'],
+        [{ how: 'ios', mirror: false }, ['installNoticeIos', 'installNoticePayIos', 'installNoticePayLead', 'installNoticeSafari'],
             'an iPhone or iPad: Share, then Add to Home Screen — and what does not come with it'],
         // The mirror gets no steps of its own: the main address shows them once the member is there,
         // and with them the card ran past a phone's screen and hid its one button.
-        [{ how: 'ios', mirror: true }, ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay'],
+        [{ how: 'ios', mirror: true }, ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay', 'installNoticePayLead'],
             'the mirror on an iPhone: the main address, and the pay figures that stay behind'],
-        [{ how: 'menu', mirror: true }, ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay'],
+        [{ how: 'menu', mirror: true }, ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay', 'installNoticePayLead'],
             'the mirror on Android: the same — never the menu, which would install the mirror'],
     ];
     for (const [route, lines, what] of ROUTES) {
@@ -684,6 +693,32 @@ describe('5 · the install notice: a phone browser, third in line, and the right
             assert.deepEqual(showing(), [...lines].sort());
         });
     }
+
+    // NO PAY WORDS FOR SOMEBODY THE PAY PAGE DOES NOT PRICE (App Notices review, 24 Nov 2026). The install notice told an
+    // Other Staff login, and a Dispatcher, about "the pay figures you save" and Move Your Pay Data — a page they cannot use.
+    // Asked of the Pay page's own function, for the first such member on the roster; on every route, on screen and in
+    // App Notices alike.
+    const NOT_PRICED = /** @type {string} */ (teamMembers.find(m => !m.hidden && !payCalcFor({ name: m.name }))?.name);
+    for (const route of /** @type {Array<NonNullable<typeof _route>>} */ ([{ how: 'ios', mirror: false }, { how: 'menu', mirror: true }, { how: 'prompt', mirror: false }])) {
+        test(`no Pay Calculator words for a member the Pay page does not price — ${route.how}${route.mirror ? ' on the mirror' : ''}`, async () => {
+            assert.ok(NOT_PRICED, 'precondition: the roster has somebody the Pay page does not price');
+            await wire({ ...SHOWN, route, session: { name: NOT_PRICED } });
+            await settleAccess();
+            opened()._cfg.onOpen();
+            assert.deepEqual(showing().filter(id => /Pay/.test(id)), [], 'no line about pay figures');
+            const filed = _archived.find(n => n.id === 'install-app-2026');
+            assert.ok(filed, 'archived on open');
+            assert.doesNotMatch(filed.body, /pay|Pay Calculator/i, `App Notices keeps no pay words either: "${filed.body}"`);
+        });
+    }
+    test('a member the Pay page prices keeps them, in App Notices too', async () => {
+        await wire({ ...SHOWN, route: { how: 'ios', mirror: false } });
+        await settleAccess();
+        opened()._cfg.onOpen();
+        const filed = _archived.find(n => n.id === 'install-app-2026');
+        assert.match(filed.body, /pay figures you save/);
+        assert.match(filed.body, /Move Your Pay Data/);
+    });
 
     test('the route is read as it OPENS — an offer that arrives after the gate still gets its one tap', async () => {
         await wire(SHOWN);                                    // a phone browser with no offer yet
@@ -707,7 +742,7 @@ describe('5 · the install notice: a phone browser, third in line, and the right
         _route = null;
         mock.timers.tick(1600);
         opened()._cfg.onOpen();
-        assert.deepEqual(showing(), ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay']);
+        assert.deepEqual(showing(), ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay', 'installNoticePayLead']);
     });
 
     test('the one-tap button spends the offer FIRST, then answers the notice and retires the strip', async () => {
@@ -922,12 +957,15 @@ describe('8 · the timetable notice: from 16 November behind the install and New
         const text = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
         const label = block.match(/aria-label="([^"]+)"/)?.[1] ?? '';
         const title = text(block.match(/class="lightbox-app-name">([\s\S]*?)<\/div>/)?.[1] ?? '');
-        const archived = IIFE.match(/title: '([^']+)'/)?.[1] ?? '';
+        // The App Notices record is the module's TIMETABLE_SOON_RECORD, which outlives the run by months.
+        const archived = /const TIMETABLE_SOON_RECORD = \{[\s\S]*?title: '([^']+)'/.exec(SOURCE)?.[1] ?? '';
         assert.ok(block.length > 200, 'guard: the notice markup was found');
         for (const [where, words] of [['the dialog name', label], ['the title', title], ['the App Notices record', archived]]) {
             assert.match(words, /Sunday 13 December/, `${where} must name the date: "${words}"`);
         }
-        assert.equal(archived, title, 'the App Notices record keeps the title the member was shown');
+        // TENSE-NEUTRAL, unlike the card (App Notices review, 24 Nov 2026): App Notices lists it for 180 days, and
+        // "starts on Sunday 13 December" is false from that Sunday on.
+        assert.doesNotMatch(archived, /\bstarts\b/, 'the App Notices record must stay true after the 13th');
         assert.doesNotMatch(text(block), /this weekend/i, 'on any day but its last six "this weekend" is the wrong one');
         assert.doesNotMatch(text(block), /\b(?:on|this|next) Sunday\b(?! 13 December)/i, 'a Sunday with no date reads as today on a Sunday');
     });
@@ -963,8 +1001,8 @@ describe('8 · the timetable notice: from 16 November behind the install and New
         const HTML = readFileSync(new URL('./index.html', here), 'utf8');
         const at = HTML.indexOf(`id="${SOON.overlay}"`);
         const block = HTML.slice(at, HTML.indexOf('<!-- One-time notice', at));
-        assert.match(IIFE, /const NOTICE_DATE\s*=\s*'16 Nov 2026'/);
-        assert.match(block, /<div class="notice-date">Posted 16 Nov 2026<\/div>/);
+        assert.match(SOURCE, /const TIMETABLE_SOON_RECORD = \{\s*id: 'timetable-soon-2026', section: 'Trains', date: '16 Nov 2026',/);
+        assert.match(block, /<div class="notice-date">Posted 16 November 2026<\/div>/, 'the card writes the month in full; the record keeps the expiry key');
         const { NAV_PAGES } = await import('../nav-destinations.js');
         const trainsPill = NAV_PAGES.find(p => p.id === 'trains');
         assert.ok(trainsPill, 'the drawer still has a Trains pill');
@@ -1154,7 +1192,7 @@ describe('10 · every section a notice archives under has its colour in App Noti
     const ARCHIVERS = readdirSync(here).filter(f => f.endsWith('.js') && f !== 'notice-archive.js')
         .filter(f => /\barchiveNotice\(/.test(readFileSync(new URL(`./${f}`, here), 'utf8')));
     const sections = new Set(ARCHIVERS.flatMap(f =>
-        [...readFileSync(new URL(`./${f}`, here), 'utf8').matchAll(/archiveNotice\(\{[^}]*?section:\s*'([^']+)'/gs)].map(m => m[1])));
+        [...readFileSync(new URL(`./${f}`, here), 'utf8').matchAll(/(?:archiveNotice\(\{|_RECORD = \{)[^}]*?section:\s*'([^']+)'/gs)].map(m => m[1])));
     const css = readFileSync(new URL('./shared.css', here), 'utf8');
     test('the scan is reading real sections, from the files that archive', () => {
         for (const f of ['calendar-notices.js', 'paycalc-lightboxes.js', 'links-app.js']) assert.ok(ARCHIVERS.includes(f), `${f} archives a notice: ${ARCHIVERS}`);
@@ -1456,5 +1494,43 @@ describe('13 · every notice\'s link replaces the notice\'s history entry rather
     }
     test('no notice wires its link by hand', () => {
         assert.doesNotMatch(SOURCE, /NoticeGo'\)\?\.addEventListener\(/, 'a hand-wired link is left to the browser, which stacks the page on the notice');
+    });
+});
+
+describe('14 · where storage will not keep a flag, no notice opens — and archived words are corrected (App Notices review, 24 Nov 2026)', () => {
+    // A storage that fails every write silently (Safari with every cookie blocked, a full quota) never kept a done flag,
+    // so each "one-time" notice opened on every load. And App Notices lists a record for 180 days, longer than some of
+    // their words stay true: the records are corrected on every load, whether or not the notice is still offered.
+    test('no storage: nothing is wired, opened or written', async () => {
+        mock.timers.setTime(LIVE_DAY);
+        await wire({ accessType: 'named', storageWorks: false });
+        await settleAccess();
+        assert.deepEqual(_openedViaHelper, [], 'not one notice opened');
+        assert.deepEqual(_writes, [], 'and nothing written');
+    });
+    test('the control: with storage, the same device gets its notice', async () => {
+        mock.timers.setTime(LIVE_DAY);
+        await wire({ accessType: 'named' });
+        await settleAccess();
+        assert.ok(_openedViaHelper.length > 0, 'a notice opened');
+    });
+    test('every load corrects the two records whose words went out of date — with or without storage', async () => {
+        for (const storageWorks of [true, false]) {
+            await wire({ accessType: 'named', storageWorks, store: { myb_notice_timetable_soon_2026_done: '1', myb_notice_newlink_2026_done: '1' } });
+            assert.deepEqual(_revised.map(r => r.id).sort(), ['newlink-2026', 'timetable-soon-2026']);
+            for (const r of _revised) {
+                assert.doesNotMatch(r.title + r.body, /\bstarts on Sunday|Nothing is decided/, `${r.id} still says what will stop being true`);
+            }
+        }
+    });
+    test('the record a notice files is the record it corrects', async () => {
+        mock.timers.setTime(LIVE_DAY);
+        await wire({ accessType: 'named', present: ['timetableSoonNoticeLb'], store: { myb_notice_install_app_2026_done: '1', myb_notice_newlink_2026_done: '1' } });
+        await settleAccess();
+        const lb = /** @type {any} */ (_openedViaHelper.find(l => l._cfg.overlay.id === 'timetableSoonNoticeLb'));
+        assert.ok(lb, 'premise: the timetable notice opened');
+        lb._cfg.onOpen();
+        const filed = _archived.find(n => n.id === 'timetable-soon-2026');
+        assert.deepEqual(filed, _revised.find(n => n.id === 'timetable-soon-2026'));
     });
 });

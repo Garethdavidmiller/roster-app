@@ -36,8 +36,8 @@
  * minutes to cash up; it read 22:00 until then). Short Run's two Saturday office lates moved to 14:30-22:30 and its two
  * Saturday floor lates gave the half hour back (14:00-22:30 became 14:00-22:00), so the rows below moved with it and
  * Saturday's 6,900 minutes, and the contract, are unchanged. LATER THE SAME DAY (the owner's "Yes" to the variant measured
- * in docs/links-26/README.md) one floor late went back to 22:30 and the other to today's Saturday 13:30-21:00: two
- * 14:00-22:00 became one 14:00-22:30 and one 13:30-21:00, the same sixteen hours, so the office's 14:30-22:30 is the one
+ * in docs/links-26/HISTORY.md → "The Saturday floor late back to 22:30") one floor late went back to 22:30 and the
+ * other to today's Saturday 13:30-21:00: two 14:00-22:00 became one 14:00-22:30 and one 13:30-21:00, the same sixteen hours, so the office's 14:30-22:30 is the one
  * new time on Short Run's Saturday and the table still has fifteen times.
  *
  * What it meets, from RULES.md: at least four on at the open and three at the close every day;

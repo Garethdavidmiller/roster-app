@@ -13,12 +13,12 @@
  *   and its words are `decimalHoursText`, paycalc-inputs.js, which is pure and unit-tested).
  */
 
-import { createLightbox, initCardCollapse, openNoticeIfClear, followLinkOutOf } from './overlay.js';
+import { createLightbox, initCardCollapse, openNoticeIfClear, followLinkOutOf, openCardNamedByHash } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { archiveNotice, isNoticeExpired } from './notice-archive.js';
-import { lsGet, lsSet } from './ls.js';
+import { lsGet, lsSet, lsAvailable } from './ls.js';
 import { decimalHoursText } from './paycalc-inputs.js';
 import { NOTICE_YTD_KEY, NOTICE_HPP_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
          readPayslipActuals, writePayslipActuals, clearPayslipActuals, isActualsDev } from './paycalc-migrations.js';
@@ -27,6 +27,14 @@ import { premiumStillToEstimate } from './paycalc-hpp.js';
 import { TAX_YEARS } from './paycalc-calc.js';
 
 import { setStatus } from './status-text.js';
+
+/**
+ * The Year to Date notice's posting date, and so its end: it is offered for 90 days from it. A
+ * module constant because the premium notice behind it asks the same question — see `showHppNotice`.
+ */
+const YTD_NOTICE_DATE = '28 Aug 2026';
+/** How long the Year to Date notice is offered, in days from `YTD_NOTICE_DATE`. */
+const YTD_NOTICE_DAYS = 90;
 /**
  * The page chrome every Pay Calculator view needs, the refusal card's included: the About panel
  * (lifecycle, SW status, bug link and print button are the shared about-lightbox.js) and the header
@@ -101,16 +109,11 @@ export function initPaycalcLightboxes() {
   // has actually entered YTD figures for the current tax year, which is a different mechanism from
   // the one-time notice pattern and wants deciding on its own.
   const showYtdNotice = (function () {
-    const NOTICE_DATE = '28 Aug 2026';
+    const NOTICE_DATE = YTD_NOTICE_DATE;
     const noop = () => {};
-    if (isNoticeExpired(NOTICE_DATE, 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return noop; }
+    if (isNoticeExpired(NOTICE_DATE, YTD_NOTICE_DAYS) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return noop; }
     if (lsGet(NOTICE_YTD_KEY)) return noop;
-    // Arriving from the Calendar's Year to Date notice (`#payslipCard`, v24.86) is this notice
-    // already delivered: the member has just read the same instruction and the card it names is open
-    // in front of them. Opened over that card, it would cover the two boxes it asks them to fill —
-    // so it counts as seen, and a later visit does not tell them a second time.
-    if (window.location.hash === '#payslipCard') { lsSet(NOTICE_YTD_KEY, '1'); return noop; }
-    if (window.location.hash) return noop;   // a link opened another card — never cover it (21 Nov 2026)
+    if (window.location.hash) return noop;   // a link opened a card — never cover it (21 Nov 2026)
     if (_ownerPending) return noop;   // data-ownership prompt takes priority this load
 
     const lb = document.getElementById('noticeYtdLightbox');
@@ -126,7 +129,9 @@ export function initPaycalcLightboxes() {
           title:   'Enter your Year to Date figures',
           section: 'Pay',
           date:    NOTICE_DATE,
-          body:    'Open the 📊 Year to Date Figures card and copy your Taxable Pay and Tax Paid from the Year to Date box on your most recent payslip, for accurate tax estimates.',
+          body:    'On the Pay page (☰\u00a0then 💷\u00a0Pay), open 📊\u00a0Year to Date Figures and copy the Taxable Pay and '
+                 + 'Tax Paid from the Year to Date box on your latest payslip, for accurate tax estimates. Check the tax code '
+                 + 'in ⚙️\u00a0Your Settings is the one at the top of the same payslip.',
         });
         lsSet(NOTICE_YTD_KEY, '1');
       },
@@ -146,7 +151,11 @@ export function initPaycalcLightboxes() {
   // payslip that figure is printed on: the LAST of 2025/26, whose Year to Date box holds the whole year.
   //
   //  · It waits for the Year to Date notice, reading that one's flag as it is WIRED, so it never comes
-  //    on the load the other is answered (the Calendar's FOLLOWS rule). That notice ends by ~26 Nov.
+  //    on the load the other is answered (the Calendar's FOLLOWS rule) — OR FOR THAT NOTICE'S END, at
+  //    23:00 on 25 November 2026 (90 days counted across the October clock change). Its flag alone was
+  //    the trap the Calendar fixed on 16 November (`FOLLOWED_ENDS`, calendar-notices.js): only the
+  //    Year to Date notice's own code sets the flag on a device that never saw it, so once that code is
+  //    deleted a new phone or a wiped browser would wait for ever and never get this notice.
   //  · It is for a member with a 2025/26 payslip and no figure of their own for its premium yet
   //    (`premiumStillToEstimate`). A 'none' or a 'done' keeps it shut WITHOUT flagging it: the flag
   //    is the DEVICE's, so flagging it for one member would take it from the next one signed in here.
@@ -166,7 +175,8 @@ export function initPaycalcLightboxes() {
     if (Date.now() < STARTS.getTime()) return noop;
     if (isNoticeExpired(LAST_DAY, 1) && !lsGet(NOTICE_HPP_KEY)) { lsSet(NOTICE_HPP_KEY, '1'); return noop; }
     if (lsGet(NOTICE_HPP_KEY)) return noop;
-    if (!lsGet(NOTICE_YTD_KEY)) return noop;   // second in line: the Year to Date notice is still to come
+    // Second in line: the Year to Date notice is still to come — unless its run has ended.
+    if (!lsGet(NOTICE_YTD_KEY) && !isNoticeExpired(YTD_NOTICE_DATE, YTD_NOTICE_DAYS)) return noop;
     if (window.location.hash) return noop;     // a link opened a card — never cover it
     if (_ownerPending) return noop;            // the data-ownership prompt goes first, this load
     const ty = TAX_YEARS.find(t => t.label === TAX_YEAR);
@@ -189,17 +199,33 @@ export function initPaycalcLightboxes() {
           section: 'Pay',
           date:    NOTICE_DATE,
           body:    'This January’s Holiday Pay Premium is for the 2025/26 tax year. '
-                 + 'Your 13\u00a0March\u00a02026 payslip gives a rough figure: copy its Year to Date Taxable Pay into '
-                 + '📊\u00a0Year to Date Figures, then choose the rough estimate in 🏖️\u00a0Holiday Pay Premium.',   // no name or date breaks
+                 + 'Your 13\u00a0March\u00a02026 payslip gives a rough figure: on the Pay page (☰\u00a0then 💷\u00a0Pay), '
+                 + 'choose that payslip, copy its Year to Date Taxable Pay into 📊\u00a0Year to Date Figures, then choose '
+                 + 'the rough estimate in 🏖️\u00a0Holiday Pay Premium.',   // no name or date breaks
         });
       },
       onClose: markDone,
     });
     // The link leaves for the payslip by REPLACING the notice's history entry (`followLinkOutOf`, overlay.js),
     // or Back from that payslip lands on the notice's entry, which nothing answers once the page reloads.
-    document.getElementById('noticeHppGo')?.addEventListener('click', e => {
+    //
+    // ALREADY ON THAT PAYSLIP, the link only names a card (App Notices review, 24 Nov 2026). From the
+    // Calendar's pay jump the address is `?payday=2026-03-13` already, so the link differs by its
+    // `#payslipCard` alone: `followLinkOutOf` leaves that to the browser, which does not reload, the
+    // notice's Back entry closed it, and the member was left where they were with an extra dead step
+    // in Back. So here the notice closes as it always does, and once that has LANDED (its history echo
+    // included) the address takes the fragment in place and the card is opened as a load would open it.
+    document.getElementById('noticeHppGo')?.addEventListener('click', ev => {
+      const e = /** @type {MouseEvent} */ (ev);
       markDone();
-      followLinkOutOf(notice, /** @type {MouseEvent} */ (e));
+      if (followLinkOutOf(notice, e)) return;
+      if (e.defaultPrevented || (e.button ?? 0) !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;   // a new tab
+      const href = /** @type {HTMLAnchorElement} */ (ev.currentTarget).href;
+      e.preventDefault();
+      notice.close().then(() => {
+        history.replaceState(history.state, '', href);
+        openCardNamedByHash('payslipCard', 'payslipCardBody', 'payslipCardToggle');
+      });
     });
     document.getElementById('noticeHppLater')?.addEventListener('click', () => notice.close());
     return () => openNoticeIfClear(notice);
@@ -208,7 +234,9 @@ export function initPaycalcLightboxes() {
   // ONE opener for the page's notices, in their order. At most one is due on any load: the premium
   // notice reads the Year to Date notice's flag as it is wired, so it is never due on a load that
   // one opens — and were both somehow due, `openNoticeIfClear` would leave the second unflagged.
-  const showPayNotice = () => { showYtdNotice(); showHppNotice(); };
+  // NONE where storage will not keep the flag (App Notices review, 24 Nov 2026): every write fails
+  // silently there, so a one-time notice opened on every load (calendar-notices.js says the same).
+  const showPayNotice = () => { if (!lsAvailable()) return; showYtdNotice(); showHppNotice(); };
 
   // ── DECIMAL HOURS CONVERTER ─────────────────────────────────────────────────
   (function () {

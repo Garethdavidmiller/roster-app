@@ -929,13 +929,21 @@ test('paycalc: the data-ownership prompt opens for legacy data, and alone', asyn
     // for a control's edge. A canvas reads each computed colour back as RGB, whatever its notation.
     const edges = await page.evaluate(() => {
         const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
-        const rgb = (/** @type {string} */ c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+        // Painted OVER a ground (the sheet), so a see-through colour reads as it is seen, not as its pure hue.
+        const rgb = (/** @type {string} */ c, ground = 'black') => { ctx.fillStyle = ground; ctx.fillRect(0, 0, 1, 1); ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3); };
         const lum = (/** @type {number[]} */ c) => c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
             .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
-        const fill = (/** @type {string} */ id) => lum(rgb(getComputedStyle(/** @type {Element} */ (document.getElementById(id))).backgroundColor));
-        const sheet = fill('dataOwnerContent');
+        const sheetColour = getComputedStyle(/** @type {Element} */ (document.getElementById('dataOwnerContent'))).backgroundColor;
+        const sheet = lum(rgb(sheetColour));
+        // A button's EDGE: its fill — or, where the fill lets the sheet through (the outlined secondary, 24 Nov 2026),
+        // its border, painted over the sheet.
+        const edge = (/** @type {string} */ id) => {
+            const cs = getComputedStyle(/** @type {Element} */ (document.getElementById(id)));
+            const seeThrough = /^rgba\(.*,\s*0\)$|^transparent$/.test(cs.backgroundColor);
+            return lum(rgb(seeThrough && parseFloat(cs.borderTopWidth) >= 1 ? cs.borderTopColor : cs.backgroundColor, sheetColour));
+        };
         return ['dataOwnerMine', 'dataOwnerFresh'].map(id => {
-            const [hi, lo] = [fill(id), sheet].sort((a, b) => b - a);
+            const [hi, lo] = [edge(id), sheet].sort((a, b) => b - a);
             return { id, ratio: Math.round((hi + 0.05) / (lo + 0.05) * 100) / 100 };
         });
     });
@@ -1096,6 +1104,54 @@ test('paycalc: one Back from the payslip the premium notice opened leaves the no
         'Back landed on the notice\'s own entry, whose next Back nothing answers').toBeNull();
     await page.goBack();
     await expect(page, 'one more Back leaves Pay').toHaveURL(/\/railcard-guide\.html$/);
+    expect(errors).toHaveLength(0);
+});
+
+// ALREADY ON THAT PAYSLIP, THE LINK STILL LANDS (App Notices review, 24 Nov 2026). From the Calendar's pay jump the
+// address is ?payday=2026-03-13 already, so the link differs by its #payslipCard alone: the browser does not reload,
+// and the notice used to vanish leaving the card shut and a dead step in Back. Now it closes and opens the card here.
+test('paycalc: the premium notice\'s link, already on that payslip, opens its card here and adds no step to Back', async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY, HPP_MEMBER, { myb_pc_ytd_notice_2_shown: '1' });
+    await page.goto('/railcard-guide.html');                   // where the member came from
+    await page.goto('/paycalc.html?payday=2026-03-13');        // the Calendar's pay jump to that payday
+    await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__samePage = true; });
+    await page.locator('#noticeHppGo').click();
+    await expect(page).toHaveURL(/\/paycalc\.html\?payday=2026-03-13#payslipCard$/);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__samePage), 'no reload: the same page').toBe(true);
+    await expect(page.locator('.lb-overlay.visible')).toHaveCount(0);
+    await expect(page.locator('#periodSelect')).toHaveValue('49');
+    await expect(page.locator('#payslipCardBody')).toHaveClass(/open/);
+    await expect(page.locator('#payslipCard')).toBeInViewport();
+    expect(await hppFlag(page), 'its link answered it').toBe('1');
+    await page.goBack();
+    await expect(page, 'one Back leaves Pay: the notice left no step behind').toHaveURL(/\/railcard-guide\.html$/);
+    expect(errors).toHaveLength(0);
+});
+
+// IT STILL COMES ONCE THE YEAR TO DATE NOTICE'S CODE IS GONE (App Notices review, 24 Nov 2026). It used to wait for that
+// notice's flag alone, which only that notice's own code sets on a device that never saw it — so deleting that code at
+// the monthly cleanup would leave every new phone waiting for ever. Served here WITHOUT that notice's expiry branch, as
+// a device meets the page once the code is removed: past the Year to Date notice's end, with no flag, it still arrives.
+test('paycalc: the premium notice still comes once the Year to Date notice\'s code is gone', async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = collectFatalErrors(page);
+    const branch = "if (isNoticeExpired(NOTICE_DATE, YTD_NOTICE_DAYS) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return noop; }";
+    let removed = false;
+    await page.route('**/paycalc-lightboxes.js', async route => {
+        const res = await route.fetch();
+        const body = await res.text();
+        removed = body.includes(branch);
+        await route.fulfill({ response: res, body: body.replace(branch, 'if (isNoticeExpired(NOTICE_DATE, YTD_NOTICE_DAYS)) return noop;') });
+    });
+    await payMemberWithNoNoticeAnswered(page, new Date('2026-11-27T09:00:00Z'));   // the Year to Date notice ended at 23:00 on 25 Nov
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible();
+    expect(removed, 'premise: the served file had the branch, and it was taken out').toBe(true);
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_ytd_notice_2_shown')), 'nothing set the Year to Date flag').toBeNull();
     expect(errors).toHaveLength(0);
 });
 
@@ -1356,7 +1412,7 @@ test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ p
 // (to ~26 Nov), so it does not silently retire and leave this proving nothing.
 const YTD_NOTICE_DAY = new Date('2026-10-22T09:00:00Z');
 
-test('paycalc: the Calendar\'s Year to Date link lands on that card OPEN, and the Pay notice stays out of its way', async ({ page }) => {
+test('paycalc: the Year to Date card\'s deep link lands on that card OPEN, and the Pay notice stays out of its way', async ({ page }) => {
     // Phone width for the same reason as the backup card's deep link above: on one column the card
     // sits far down a page that keeps growing after load, which is what the correction is for.
     await page.setViewportSize({ width: 390, height: 844 });
@@ -1365,7 +1421,7 @@ test('paycalc: the Calendar\'s Year to Date link lands on that card OPEN, and th
     await page.addInitScript(() => {
         localStorage.setItem('myb_pc_ns_migrated', '1');
         // The Pay page's own Year to Date notice, UNSEEN — on a clean device it opens (the test
-        // above proves it). Arriving by this link must count as having been told.
+        // above proves it). Arriving by this link must keep it off the card the link opened.
         localStorage.removeItem('myb_pc_ytd_notice_2_shown');
     });
     await page.goto('/paycalc.html#payslipCard');
@@ -1378,10 +1434,15 @@ test('paycalc: the Calendar\'s Year to Date link lands on that card OPEN, and th
     const vh = page.viewportSize().height;
     expect(box.y, `card landed at y=${Math.round(box.y)} of ${vh}`).toBeLessThan(vh / 3);
 
-    // Flagged seen without ever having opened over the two boxes it asks the member to fill.
-    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_pc_ytd_notice_2_shown'))).toBe('1');
+    // Never opened over the two boxes it asks the member to fill — and NOT flagged seen (App Notices
+    // review, 24 Nov 2026): the Calendar notice that made this link a delivery of the same message was
+    // retired, so a link that opened a card is any other link now, and the notice waits for a load
+    // without one.
     await page.waitForTimeout(1500);
     await expect(page.locator('#noticeYtdLightbox.visible')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_ytd_notice_2_shown'))).toBeNull();
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#noticeYtdLightbox.visible'), 'a load with no link gets it').toBeVisible();
 });
 
 test('paycalc: a long confirm dialog keeps its own buttons on screen', async ({ page }) => {

@@ -1017,7 +1017,7 @@ test('keyboard focus is visible on the navy surfaces the shared code draws', asy
     await page.clock.setFixedTime(new Date('2026-12-07T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify([
-        { id: 'timetable-2026', title: 'A new timetable starts on 13 December', section: 'Trains', date: '21 Oct 2026', body: 'Some trains leave Marylebone at different times.', archivedAt: '2026-10-21T09:00:00.000Z' },
+        { id: 'timetable-2026', title: 'A new timetable starts on 13 December', section: 'Trains', date: '21 Oct 2026', body: 'Some trains leave Marylebone at different times.', archivedAt: new Date().toISOString() },   // stamped now: a fixed date ages out of the 180-day archive and the list comes up empty (App Notices review)
     ])));
 
     // The sub-page header logo — Back to calendar, on the navy header beside the burger.
@@ -1081,7 +1081,7 @@ test('App Notices: a long archive is reached and scrolled from the keyboard, wit
     await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify(
         Array.from({ length: 14 }, (_, i) => ({ id: `probe-${i}`, section: 'Pay', title: `Notice ${i + 1}`, date: '21 Oct 2026',
             body: 'A body long enough to take two lines in the panel, as a real notice does.',
-            archivedAt: '2026-10-21T09:00:00.000Z' })))));
+            archivedAt: new Date().toISOString() })))));   // stamped now: a fixed date ages out of the 180-day archive and the list comes up empty (App Notices review)
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('#navMenuBtn').click();
@@ -1123,14 +1123,15 @@ test('App Notices: an empty archive shows its message, with no empty list left i
     const m = await page.evaluate(() => {
         const list = /** @type {HTMLElement} */ (document.getElementById('navNoticesList'));
         const panel = /** @type {HTMLElement} */ (document.getElementById('navNoticesContent'));
-        const heading = /** @type {HTMLElement} */ (panel.querySelector(':scope > .nav-cs-title'));
+        // The line above the message is the panel's intro (what it is for, 24 Nov 2026), under the heading.
+        const heading = /** @type {HTMLElement} */ (panel.querySelector(':scope > .nav-notices-intro'));
         const message = /** @type {HTMLElement} */ (document.getElementById('navNoticesEmpty'));
         return { hidden: list.hidden, boxes: list.getClientRects().length, gap: parseFloat(getComputedStyle(panel).rowGap),
                  under: message.offsetTop - (heading.offsetTop + heading.offsetHeight) };
     });
     expect(m.hidden, 'premise: nav-panel.js hides the list of an empty archive').toBe(true);
     expect(m.boxes, 'the hidden list is still laid out').toBe(0);
-    expect(Math.round(m.under), 'the message sits one gap under the heading, not two').toBe(m.gap);
+    expect(Math.round(m.under), 'the message sits one gap under the intro, not two').toBe(m.gap);
     await expect(page.getByRole('group', { name: /Notices shown on this device/ }),
         'an empty group is still offered to a screen reader').toHaveCount(0);
 });
@@ -1154,6 +1155,32 @@ test('App Notices: an archive with a notice in it lists it', async ({ page }) =>
     await expect(page.locator('#navNoticesList .notices-item-title')).toHaveText('A notice you have read');
     await expect(page.locator('#navNoticesList'), 'the list is drawn').toBeVisible();
     await expect(page.locator('#navNoticesEmpty'), 'no "nothing here" beside a notice').toBeHidden();
+});
+
+// WHAT A RECORD HOLDS IS SHOWN AS TEXT, NEVER RUN AS MARKUP, AND ITS DATE IS WRITTEN IN FULL (App Notices review, 24 Nov
+// 2026). The archive is this device's storage, which any script on the origin can write: the drawer sets every field
+// with textContent, and a refactor to innerHTML would run a stored <img onerror>. The date is stored short because it is
+// the notice's expiry key; the reader sees the month in full, as everywhere else in the app.
+test('App Notices: a stored record is shown as text, never run, and its date in full', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify([{
+        id: 'e2e-markup', section: '<b>Pay</b>', date: '16 Nov 2026',
+        title: '<img src=x onerror="window.__ran=1">A title', body: '<script>window.__ran=1</script>Its words.',
+        archivedAt: new Date().toISOString(),
+    }])));
+    await page.goto('/settings.html');
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await page.locator('.nav-panel-link--notices').click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    await expect(page.locator('#navNoticesList .notices-item-title')).toHaveText('<img src=x onerror="window.__ran=1">A title');
+    await expect(page.locator('#navNoticesList .notices-item-body')).toHaveText('<script>window.__ran=1</script>Its words.');
+    await expect(page.locator('#navNoticesList img, #navNoticesList script, #navNoticesList b')).toHaveCount(0);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__ran ?? null)).toBeNull();
+    await expect(page.locator('#navNoticesList .notices-item-date')).toHaveText('16 November 2026');
+    await expect(page.locator('.nav-notices-intro'), 'the panel says what it is for, and whose list it is').toContainText('on this phone or computer');
 });
 
 // A TIPS TITLE STAYS CLEAR OF ITS ✕ (whole-app review, Nov 2026). The picker sheet's head reserves room for its ✕ and

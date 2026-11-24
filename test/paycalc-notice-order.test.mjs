@@ -119,7 +119,7 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
         // `openNoticeIfClear` would leave the second unflagged if both were due, so the ORDER here is
         // which one a member sees first. Swapped, the premium notice could jump the queue on a load
         // where its own Year to Date check were ever loosened.
-        assert.match(LIGHTBOXES, /const showPayNotice = \(\) => \{ showYtdNotice\(\); showHppNotice\(\); \};/,
+        assert.match(LIGHTBOXES, /const showPayNotice = \(\) => \{ if \(!lsAvailable\(\)\) return; showYtdNotice\(\); showHppNotice\(\); \};/,
             'showPayNotice must call the Year to Date opener, then the premium one');
     });
 
@@ -127,8 +127,16 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
         // Read once at wiring, before the lightbox exists, so it can never be due on the load the
         // Year to Date notice is answered — the Calendar's FOLLOWS rule. A check at OPEN time would
         // see the flag that notice's close had just set, and open the second straight after it.
-        const follows = HPP_IIFE.indexOf('if (!lsGet(NOTICE_YTD_KEY)) return noop;');
-        assert.ok(follows > -1, 'the premium notice must wait for NOTICE_YTD_KEY');
+        // …OR for that notice's END (App Notices review, 24 Nov 2026): its flag alone waits for ever once
+        // the Year to Date notice's code is deleted, on a device that never saw it. The browser half of
+        // this — the code removed, the premium notice still arriving — is e2e/paycalc.spec.js → "still
+        // comes once the Year to Date notice's code is gone".
+        const follows = HPP_IIFE.indexOf('if (!lsGet(NOTICE_YTD_KEY) && !isNoticeExpired(YTD_NOTICE_DATE, YTD_NOTICE_DAYS)) return noop;');
+        assert.ok(follows > -1, 'the premium notice must wait for NOTICE_YTD_KEY, or for that notice\'s own end');
+        assert.match(LIGHTBOXES, /const NOTICE_DATE = YTD_NOTICE_DATE;/,
+            'and that end must be the one the Year to Date notice itself expires on');
+        assert.match(LIGHTBOXES, /isNoticeExpired\(NOTICE_DATE, YTD_NOTICE_DAYS\)/,
+            'with the same number of days');
         assert.ok(follows < HPP_IIFE.indexOf('createLightbox('), 'and decide it before the lightbox is built');
         assert.ok(!/=>\s*\{?[^}]*NOTICE_YTD_KEY/.test(HPP_IIFE.slice(HPP_IIFE.indexOf('createLightbox('))),
             'never re-read at open time');
@@ -158,7 +166,7 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
         assert.match(HPP_IIFE,
             /if \(isNoticeExpired\(LAST_DAY, 1\) && !lsGet\(NOTICE_HPP_KEY\)\) \{ lsSet\(NOTICE_HPP_KEY, '1'\); return noop; \}/,
             'offered the whole of its last day, and flagged unseen from the next midnight');
-        assert.match(HPP_MARKUP, /<div class="notice-date">Posted 16 Nov 2026<\/div>/,
+        assert.match(HPP_MARKUP, /<div class="notice-date">Posted 16 November 2026<\/div>/,
             'the markup posts it the day the code does');
     });
 
@@ -168,7 +176,9 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
         assert.match(HPP_IIFE, /onClose: markDone,/);
         // …and the link leaves by REPLACING the notice's history entry (overlay.js `followLinkOutOf`),
         // flagged first, for the click the browser follows itself (a new tab, a link to this page).
-        assert.match(HPP_IIFE, /getElementById\('noticeHppGo'\)\?\.addEventListener\('click', e => \{\s*markDone\(\);\s*followLinkOutOf\(notice, /);
+        // Already on that payslip (the Calendar's pay jump), the link only names a card: it closes the
+        // notice and opens the card in place — e2e/paycalc.spec.js → "already on that payslip".
+        assert.match(HPP_IIFE, /getElementById\('noticeHppGo'\)\?\.addEventListener\('click', ev => \{\s*const e = [^;]+;\s*markDone\(\);\s*if \(followLinkOutOf\(notice, e\)\) return;/);
         assert.match(HPP_IIFE, /getElementById\('noticeHppLater'\)\?\.addEventListener\('click', \(\) => notice\.close\(\)\)/);
         assert.match(HPP_IIFE, /onOpen: \(\) => \{\s*archiveNotice\(\{\s*id:\s*'hpp_2526',/,
             'archived to App Notices as it opens, under its id');

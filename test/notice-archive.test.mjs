@@ -23,7 +23,7 @@ g.localStorage = {
     removeItem: (/** @type {string} */ k) => { store.delete(k); },
 };
 
-const { readArchivedNotices, archiveNotice, isNoticeExpired } = await import('../notice-archive.js');
+const { readArchivedNotices, archiveNotice, isNoticeExpired, noticeDateInFull, reviseArchivedNotice } = await import('../notice-archive.js');
 
 const NOTICES_KEY = KEY;
 const DAY = 86_400_000;
@@ -254,5 +254,63 @@ describe('archiveNotice', () => {
         store.set(NOTICES_KEY, JSON.stringify(many));
         archiveNotice(NEW);
         assert.equal(readArchive().length, 50);
+    });
+});
+
+describe('a posting date shown in full, and a record corrected in place (App Notices review, 24 Nov 2026)', () => {
+    beforeEach(() => { store.clear(); storageThrows = false; });
+
+    test('the month is written in full for the reader, and only for the reader', () => {
+        assert.equal(noticeDateInFull('22 Oct 2026'), '22 October 2026');
+        assert.equal(noticeDateInFull('9 Nov 2026'), '9 November 2026');
+        assert.equal(noticeDateInFull('1 Sep 2026'), '1 September 2026');
+        // Anything it cannot read comes back as given — never "Invalid Date", never blank.
+        assert.equal(noticeDateInFull('16 November 2026'), '16 November 2026');
+        assert.equal(noticeDateInFull(''), '');
+    });
+    test('…because the stored form is the expiry key, and a month in full is never read as one', () => {
+        // The trap that keeps the stored date short: respelt, the notice would never end.
+        assert.equal(isNoticeExpired('16 November 2026', 1), false, 'a full month never expires — so it must never be stored');
+        assert.equal(isNoticeExpired('16 Nov 2020', 1), true);
+    });
+    test('a record already archived takes the corrected words, and keeps its place and its age', () => {
+        const at = '2026-11-20T09:00:00.000Z';
+        store.set(KEY, JSON.stringify([
+            { id: 'a', title: 'A', section: 'G', date: '1 Nov 2026', body: 'a', archivedAt: at },
+            { id: 'tt', title: 'Old title', section: 'Trains', date: '16 Nov 2026', body: 'starts on Sunday', archivedAt: at },
+        ]));
+        reviseArchivedNotice({ id: 'tt', date: '16 Nov 2026', title: 'New title', body: 'runs from Sunday' });
+        const after = readArchive();
+        assert.deepEqual(after.map(n => n.id), ['a', 'tt'], 'same place');
+        assert.equal(after[1].title, 'New title');
+        assert.equal(after[1].body, 'runs from Sunday');
+        assert.equal(after[1].archivedAt, at, 'same age: it is not a new showing');
+        assert.equal(after[0].body, 'a', 'nothing else touched');
+    });
+    test('another date under the same id is a different run, and is left alone', () => {
+        store.set(KEY, JSON.stringify([{ id: 'tt', title: 'T', section: 'G', date: '1 Oct 2026', body: 'old run', archivedAt: new Date().toISOString() }]));
+        reviseArchivedNotice({ id: 'tt', date: '16 Nov 2026', title: 'X', body: 'Y' });
+        assert.equal(readArchive()[0].body, 'old run');
+    });
+    test('a device that never archived it gets nothing, and one already correct is not written', () => {
+        reviseArchivedNotice({ id: 'tt', date: '16 Nov 2026', title: 'X', body: 'Y' });
+        assert.equal(store.has(KEY), false, 'no archive was invented');
+        const json = JSON.stringify([{ id: 'tt', title: 'X', section: 'G', date: '16 Nov 2026', body: 'Y', archivedAt: '2026-11-20T09:00:00.000Z' }]);
+        store.set(KEY, json);
+        let writes = 0;
+        const set = g.localStorage.setItem;
+        g.localStorage.setItem = (/** @type {string} */ k, /** @type {string} */ v) => { writes++; set(k, v); };
+        try { reviseArchivedNotice({ id: 'tt', date: '16 Nov 2026', title: 'X', body: 'Y' }); }
+        finally { g.localStorage.setItem = set; }
+        assert.equal(writes, 0);
+    });
+    test('storage that throws, or holds nonsense, never makes it throw', () => {
+        store.set(KEY, '{not json');
+        assert.doesNotThrow(() => reviseArchivedNotice({ id: 'tt', date: '16 Nov 2026', title: 'X', body: 'Y' }));
+        store.set(KEY, JSON.stringify([null, 3, { id: 'tt', date: '16 Nov 2026', title: 'T', body: 'B' }]));
+        reviseArchivedNotice({ id: 'tt', date: '16 Nov 2026', title: 'X', body: 'Y' });
+        assert.equal(readArchive()[2].body, 'Y', 'a null or bare member beside it does not stop the correction');
+        storageThrows = true;
+        assert.doesNotThrow(() => reviseArchivedNotice({ id: 'tt', date: '16 Nov 2026', title: 'X', body: 'Y' }));
     });
 });

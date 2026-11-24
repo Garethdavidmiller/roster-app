@@ -32,7 +32,7 @@ import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
-import { lsGet, lsSet } from './ls.js';
+import { lsGet, lsSet, lsAvailable } from './ls.js';
 import {
     DAYS,
     ROTATING_LINES,
@@ -1843,7 +1843,8 @@ export function init() {
             setTimeout(() => welcome.open(), 500);
         });
 
-        if (lsGet(WELCOME_KEY)) return;
+        // Not where storage will not keep the flag: it would open on every load (calendar-notices.js says why).
+        if (lsGet(WELCOME_KEY) || !lsAvailable()) return;
         // Never stacked on another overlay: deferred, it is unopened AND unflagged, and gets its turn on the next load.
         openNoticeIfClear(welcome);
     })();
