@@ -308,7 +308,7 @@ The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), wh
 
 ### `login-overlay.js`
 The one sign-in card for every protected page, a modal by default and mounted inline as the Calendar's front door; no page redirects elsewhere to authenticate. It owns the card, the wrong-password lockout, the reset-request button and the staff-PIN-ended notice; per-page access stays with each coordinator. Bound by `.claude/rules/sessions.md`. Tested by `login-overlay.test.mjs`, `e2e/auth.spec.js` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `sayStaffPinEndedIn` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
+- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `sayStaffPinEndedIn` · `SIGN_IN_SLOW_LINE` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
 
 ### `sw-register.js`
 Service-worker registration and the update lifecycle for every app page: the first-install guard, the hourly check, and the reload paths each page chooses — none of which reloads while a write no page started is on its way. Bound by `.claude/rules/pwa.md`. Tested by `sw-register.test.mjs`.

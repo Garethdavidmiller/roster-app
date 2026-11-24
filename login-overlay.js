@@ -55,6 +55,9 @@ import { markLoginStart, clearLoginStart, markAwaitingInput } from './perf-repor
 import { setStatus, speakAfterMount } from './status-text.js';
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
+/** What the card says once a sign-in has been out for 8 seconds (owner's wording, 24 Nov 2026): slow, not
+ *  failed — the attempt runs on to its answer or to `SIGN_IN_GIVE_UP_MS` (login-core.js). */
+export const SIGN_IN_SLOW_LINE = 'Sign-in is taking longer than usual…';
 const GRADE_ORDER = CONFIG.GRADE_ORDER;   // single source (roster-data CONFIG) — shared with admin-app's selector
 const GRADE_KEY   = 'myb_login_grade';
 /** Canonical label for the reset-request control — restored after every send, success or failure.
@@ -669,8 +672,8 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         _statusTimers.push(setTimeout(() => setLoginStatus('Still checking — almost there…'), 1500));
         _statusTimers.push(setTimeout(() => setLoginStatus('Still working — this can happen after an app update or on weak signal.'), 4000));
         // 8 SECONDS IS "LONGER THAN USUAL", NOT A FAILURE (external review, 23 Nov 2026): the attempt goes on
-        // to an answer, or to `SIGN_IN_GIVE_UP_MS` (login-core.js), and the card says to leave it open.
-        _statusTimers.push(setTimeout(() => setLoginStatus('Sign-in is taking longer than usual. Keep this open — it will finish when the signal allows.'), AUTH_RESTORE_TIMEOUT_MS));
+        // to an answer, or to `SIGN_IN_GIVE_UP_MS` (login-core.js). The owner's wording (24 Nov 2026).
+        _statusTimers.push(setTimeout(() => setLoginStatus(SIGN_IN_SLOW_LINE), AUTH_RESTORE_TIMEOUT_MS));
     }
     function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setLoginStatus(''); }
 

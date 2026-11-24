@@ -661,7 +661,7 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         await turns();
         mock.timers.tick(8000);
         await turns();
-        assert.match(card.status.textContent, /taking longer than usual/, 'the card says it is slow');
+        assert.equal(card.status.textContent, 'Sign-in is taking longer than usual…', 'the card says it is slow, in the owner\'s words');
         assert.equal(card.error.classList.contains('visible'), false, 'and says nothing has failed');
         assert.equal(card.submit.textContent, 'Signing in…', 'the attempt is still the card’s');
         release();
