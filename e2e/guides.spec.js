@@ -1852,12 +1852,17 @@ test('fip: the country search placeholder fits a 390px phone whole', async ({ pa
         const cs = getComputedStyle(input);
         const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
         ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const box = /** @type {HTMLElement} */ (input.parentElement);
         return {
             text: ctx.measureText(input.placeholder).width,
             room: input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+            // What the field's room is made of, so a failure says which part moved (a browser's own layout change,
+            // Chromium 158): its boxes, its padding and sizing, and the row it sits in.
+            why: `offsetWidth ${input.offsetWidth} · clientWidth ${input.clientWidth} · width ${cs.width} · padding ${cs.paddingLeft}/${cs.paddingRight} `
+               + `· box-sizing ${cs.boxSizing} · font ${cs.fontSize} ${cs.fontFamily.split(',')[0]} · parent ${box.clientWidth} (${getComputedStyle(box).display})`,
         };
     });
-    expect(fit.text, `placeholder is ${fit.text}px in a ${fit.room}px field`).toBeLessThanOrEqual(fit.room);
+    expect(fit.text, `placeholder is ${fit.text}px in a ${fit.room}px field — ${fit.why}`).toBeLessThanOrEqual(fit.room);
 });
 
 // Side by side at 390 each "What you get" card was 174px wide — ~22 characters of 12px text a line.

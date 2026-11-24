@@ -4283,7 +4283,15 @@ test('admin: on a phone the bulk-bar pills share the chips\' left edge, and so d
     await page.locator('.week-panel .day-row .day-cb').first().check();
     const rowPills = page.locator('.week-panel .day-row.selected .col-pills').first();
     await expect(rowPills).toBeVisible();
-    await expect(rowPills, 'the per-row pills are left-aligned on a phone, as the bulk bar\'s are').toHaveCSS('justify-content', 'flex-start');
+    // The GEOMETRY as well as the declaration: the first pill starts where the row's content starts.
+    const row = await rowPills.evaluate(el => {
+        const cs = getComputedStyle(el);
+        const first = /** @type {Element} */ (el.querySelector('.type-pill-btn')).getBoundingClientRect();
+        const before = getComputedStyle(el, '::before');
+        return { justify: cs.justifyContent, display: cs.display, wrap: cs.flexWrap, left: Math.round(el.getBoundingClientRect().left + parseFloat(cs.paddingLeft)),
+                 pill: Math.round(first.left), label: `${before.content} ${before.width} margin ${before.marginRight}` };
+    });
+    expect(row.justify, `the per-row pills are left-aligned on a phone, as the bulk bar's are — ${JSON.stringify(row)}`).toBe('flex-start');
 });
 
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
