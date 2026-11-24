@@ -35,17 +35,17 @@ import {
   hasBoxingDay, hasBankHoliday,
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
-  setEarliestVisiblePeriod, computeEarliestVisiblePNum, isTaxYearVisible, visiblePeriods,
+  setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
   _setSelectPeriod, ytdSourceAfterRetype, payslipMayBeInHand, ytdUpdateFrom,
-  appendPayslipOptions,
+  appendPayslipOptions, YTD_SRC_EARLY, payslipsShownTo,
 } from './paycalc-periods.js';
+import { payCalculatorPrices } from './pay-audience.js';
 import {
   getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
   applyPensionOptOutUI, wirePensionControls, periodDefaultPension, settingsSummary, unpricedLineFor,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
   saveSettings, confirmSettings, loadSettings, periodRate, wireSettingsCard,
 } from './paycalc-settings.js';
-import { payCalculatorPrices } from './pay-audience.js';
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
   fillCategoryFromRoster, fillFromRoster, refreshFromCalendarInBackground,
@@ -173,8 +173,7 @@ export function init() {
     // this check — so the calculator ran on CEA rates and `setPaycalcNamespace(undefined)` opened the
     // bare `myb_pc_` namespace, i.e. the shared legacy keys of everyone on the device.
     const _roleMember = getLoggedMember();
-    const _floor = computeEarliestVisiblePNum(_roleMember);
-    if (!payCalculatorPrices(_roleMember, { periods: getPeriods().filter(/** @param {any} p */ p => p.num >= _floor) })) {
+    if (!payCalculatorPrices(_roleMember, { periods: payslipsShownTo(_roleMember) })) {
       // No calculator follows, so nothing will read the sign-in timer: drop it, or the next page
       // opened within two minutes would count this visit as its sign-in time (App Speed review).
       clearLoginStart();
@@ -1221,6 +1220,8 @@ export function init() {
     // "Again" is figures already in the boxes when the edit began (_ytdOver — the two boxes are one
     // edit), and never a source picked in the select this visit (_ytdKeep): typed into empty boxes, or
     // after a pick, the figures come from the payslip the member chose, and moving it lost that choice.
+    // Figures held under YTD_SRC_EARLY (entered before any payslip of the year was in hand) are a
+    // first entry again when typed (refreshYtdSrc's `typed`); a load never files them.
     let _ytdOver = false; const _ytdKeep = new Set();
     const _ytdFigureInput = () => {
       saveSettings();
@@ -1229,7 +1230,7 @@ export function init() {
       const _raw = lsGet(ytdSrcKey(_ty2));
       const _moved = _ytdOver && !_ytdKeep.has(_ty2.label) ? ytdSourceAfterRetype(_raw, { p: _p2, ty: _ty2 }) : null;
       if (_moved != null) lsSet(ytdSrcKey(_ty2), String(_moved));
-      if (_moved != null || !_raw) refreshYtdSrc(_ty2);
+      if (_moved != null || !_raw || _raw === YTD_SRC_EARLY) refreshYtdSrc(_ty2, { typed: true });
       calculate();
     };
     for (const id of ['ytdPay', 'ytdTax']) {
@@ -1336,8 +1337,10 @@ export function init() {
       };
       // SOFT enforcement (AUTH_ARCHITECTURE.md Phase 7): the calculator keeps its data on the device
       // and writes no isolated data, so a degraded or anonymous session must NEVER block it — being
-      // `soft`, requirePage('paycalc') returns only 'allow' or 'soft-allow', and 'soft-allow' (the
-      // member's own session unconfirmed) is only logged. ensureNamedSession feeds the auth store.
+      // `soft`, requirePage('paycalc') returns 'allow' or 'soft-allow', and 'soft-allow' (the
+      // member's own session unconfirmed) is only logged. Its one 'forbidden', an Other Staff login,
+      // never reaches here: payCalculatorPrices asks the same policy, and the role card is shown
+      // above. ensureNamedSession feeds the auth store.
       if (name) _paycalcAuthSettled = ensureNamedSession(name)
           .then(() => { if (requirePage(getAuthSnapshot(), 'paycalc').decision === 'soft-allow') console.warn('[Auth] paycalc running without a named session — error reporting may not record.'); })
           .catch(() => {/* reporter still starts below */})

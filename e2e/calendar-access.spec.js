@@ -1314,6 +1314,41 @@ test('the forced set-password step runs after a front-door sign-in, with no relo
     expect(await stillThisPage(page), 'the step ran on a reload, not in place').toBe(true);
 });
 
+// …AND WHEN THE ANSWER LANDS AFTER THE APP HAS ENDED THE ATTEMPT (review, 24 Nov 2026). On the come-back
+// card, a sign-in the app gave up on at 30 seconds can still land; Firebase tells the late-identity watcher
+// first, which grants at once — nothing is in flight any more — before the card's own late path writes
+// anything. The marker is written as the attempt starts (login-overlay.js), so the first grant finds it.
+// The card's own attempt never answers here (`hangSignIn`): only the watcher can open the page.
+test('the forced set-password step runs when a typed sign-in the app ended lands late on the come-back card', async ({ page }) => {
+    test.setTimeout(60_000);
+    await forcePasswordSet(page);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
+    await page.goto('/index.html');
+    const signIn = page.locator('#calLockSubmit');
+    await expect(signIn).toBeEnabled({ timeout: 20_000 });
+    await signIn.click();
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    await page.locator('#loginPassword').fill('miller');
+    await page.clock.install();   // the 30-second give-up is the card's own timer, set at the press
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.failSignIn = false; e.hangSignIn = true; });
+    await page.locator('#loginSubmit').click();
+    await page.clock.runFor(31_000);
+    await page.clock.resume();
+    await expect(page.locator('#loginError'), 'premise: the app ended the attempt and said so').toHaveText(/^Couldn’t complete sign-in/);
+    await expect(page.locator('#pwForceOverlay')).toHaveCount(0);
+    // The answer lands: Firebase announces the member — their own account, so it carries their email —
+    // to every listener.
+    await page.evaluate(() => {
+        const e = /** @type {any} */ (window).__E2E;
+        e.hangSignIn = false;
+        e.authUserEmail = 'g.miller@myb-roster.local';
+        e.restoreAuth();
+    });
+    await expect(page.locator('#pwForceOverlay'), 'the late sign-in opened the Calendar without the set-password step').toBeVisible({ timeout: 20_000 });
+});
+
 // THE CLAIM SWEEP RUNS ON A CALENDAR BOOT TOO. `refreshClaimsIfStale` lived only inside
 // `ensureNamedSession`, which the Calendar's named boot never calls — so a device whose token predated
 // a claim change carried it into the override read and met the rules as "access has expired".

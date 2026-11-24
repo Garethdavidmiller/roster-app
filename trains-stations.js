@@ -32,6 +32,11 @@
  * left Banbury ten minutes sooner read "No change" — to the one person it mattered to, a missed
  * train. Journey minutes are measured between the two ends either way, and need the train's stops.
  *
+ * ── WHICH TRAIN IS WHICH, SEEN FROM HERE ────────────────────────────────────────────────────────
+ * A train is its SLOT, paired at Marylebone (trains-change.js); a card re-pairs only on the books' evidence —
+ * pairs crossing where the passenger gets on (`uncross`), one slot's two weekday versions on two routes
+ * (`foldVariantsAt`) — and time alone never makes two trains one.
+ *
  * ── ONE REAL DAY ────────────────────────────────────────────────────────────────────────────────
  *
  * Every COUNT is of one real day — a weekday's is a Tuesday's — and where the weekdays disagree a
@@ -39,7 +44,7 @@
  * card's sentence says, and the words its figures are written in: trains-verdict.js.
  */
 
-import { serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, routeKey, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
+import { serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, foldVariantsAt, restatePair, routeKey, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
 import { STATION_ORDER } from './trains-data.js';
 import { REAL_DAY, WEEKDAYS, aRealDay, runsOn, onWeekday, weekdayGroups, weekdayWords, daysCode } from './trains-weekdays.js';
 import { verdictFor } from './trains-verdict.js';
@@ -316,7 +321,8 @@ function dayScope(nowRows, decRows, crs, dir) {
  * start calling here: 'passes' — it still runs, it no longer stops here; 'calls' — it ran, and now
  * stops here. "Will stop running" ("No longer runs" from the change) and "New train" are kept for
  * trains that really go or come. Where two of the line's pairs cross at this station, their December
- * partners are swapped first (`uncross`, below): read at the station, a pairing never crosses.
+ * partners are swapped first (`uncross`, below): read at the station, a pairing never crosses; and one
+ * slot's two weekday versions on two routes share December's train here (`foldVariantsAt`).
  *
  * Coming back, each time is the train's departure from `crs` and a retiming is measured there — see
  * the header for why.
@@ -348,6 +354,7 @@ export function stationTrains(nowRows, decRows, crs, dir, routes = compareRoutes
         if (calls(n) || calls(d)) pairs.push({ t: { ...t }, n, d });
     }
     uncross(pairs, crs, dir);
+    foldVariantsAt(pairs, decRows, calls, (r) => serviceMinutes(boardingTime(r, crs, dir)));
     /** @type {StationTrain[]} */
     const out = [];
     for (const { t, n, d } of pairs) {
@@ -453,14 +460,7 @@ function uncross(pairs, crs, dir) {
         [p.d, q.d] = [q.d, p.d];
         swapped.add(p).add(q);
     }
-    for (const p of swapped) {
-        const n = /** @type {TrainRow} */ (p.n), d = /** @type {TrainRow} */ (p.d);
-        const { other: _other, side: _side, ...t } = p.t;
-        const shift = serviceMinutes(d[0]) - serviceMinutes(n[0]);
-        p.t = routeKey(n) === routeKey(d)
-            ? { ...t, dec: d[0], decTo: d[1], shift, kind: n[1] !== d[1] ? 'terminus' : shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier' }
-            : { ...t, dec: d[0], decTo: d[1], shift, kind: 'rerouted', side: 'old', other: { station: d[1], via: d[2], time: d[0] } };
-    }
+    for (const p of swapped) restatePair(p);
 }
 
 /**

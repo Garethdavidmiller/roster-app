@@ -8,6 +8,7 @@
  *   · it read once, so a member who allowed notifications in the phone's settings came back to
  *     "Blocked" until a reload — the visibility, back/forward-cache and Permissions API re-reads;
  *   · Enable did not wait for the session, so the record was saved with no owner — or not at all;
+ *     and then it waited BEFORE asking, outside the tap that iPhone Safari needs the ask inside;
  *   · Chrome's quiet prompt can leave `requestPermission()` unsettled for ever, and the button sat on
  *     "Enabling…" with it;
  *   · Settings never re-registered the device, so "✓ On" could have no record behind it;
@@ -24,7 +25,7 @@ import assert from 'node:assert/strict';
 const env = {
     supported: true, ios: false, standalone: false, mirror: false, offByChoice: false,
     /** what both reads answer @type {string} */ state: 'off-default',
-    peeks: 0, gets: 0, enables: 0, disables: 0,
+    peeks: 0, gets: 0, enables: 0, subscribes: 0, disables: 0,
     /** when set, enableNotifications waits on this before answering @type {Promise<void>|null} */ enableHold: null,
     /** when true, enableNotifications never settles (Chrome's quiet prompt) */ enableHangs: false,
 };
@@ -37,9 +38,13 @@ mock.module('../notif.js', { namedExports: {
     notifOffByChoice: () => env.offByChoice,
     peekNotifState: async () => { env.peeks++; return env.state; },
     getNotifState: async () => { env.gets++; return env.state; },
-    enableNotifications: async () => {
+    // Like the real one: the permission request (counted in `enables`) is made before anything is
+    // awaited, and `beforeSubscribe` is awaited only after it, before the subscribe (`subscribes`).
+    enableNotifications: async (/** @type {{ beforeSubscribe?: () => Promise<unknown> }} */ { beforeSubscribe } = {}) => {
         env.enables++;
         if (env.enableHangs) await new Promise(() => {});
+        if (beforeSubscribe) await beforeSubscribe();
+        env.subscribes++;
         if (env.enableHold) await env.enableHold;
         env.state = 'on'; env.offByChoice = false;
         return announce('on');
@@ -116,7 +121,7 @@ const shown = (/** @type {any} */ b) => b.style.display === 'block';
 /** @type {any[]} */ let kinds;
 beforeEach(() => {
     Object.assign(env, { supported: true, ios: false, standalone: false, mirror: false, offByChoice: false, state: 'off-default',
-        peeks: 0, gets: 0, enables: 0, disables: 0, enableHold: null, enableHangs: false });
+        peeks: 0, gets: 0, enables: 0, subscribes: 0, disables: 0, enableHold: null, enableHangs: false });
     kinds = installDom();
 });
 
@@ -204,17 +209,21 @@ describe('the session', () => {
         await openCard({ sessionReady: Promise.resolve(false) });
         assert.equal(env.gets, 0);
     });
-    test('Enable waits for the session before it subscribes', async () => {
+    test('Enable asks for permission inside the tap, and waits for the session before it subscribes', async () => {
         /** @type {(v: boolean) => void} */ let ready = () => {};
         await openCard({ sessionReady: new Promise(r => { ready = r; }) });
         const click = els.notifEnableBtn.click();
+        // Read with nothing awaited since the tap: iPhone Safari honours a permission request only
+        // while the tap's activation lasts, so one made after an await may show no prompt (v26.53).
+        assert.equal(env.enables, 1, 'the permission request waited for something — it must run in the tap itself');
         await settle();
-        assert.equal(env.enables, 0, 'subscribed before the session was ready');
+        assert.equal(env.subscribes, 0, 'subscribed before the session was ready');
         assert.equal(els.notifEnableBtn.textContent, 'Enabling…');
         ready(true);
         await click;
         await settle();
-        assert.equal(env.enables, 1);
+        assert.equal(env.enables, 1, 'asked once');
+        assert.equal(env.subscribes, 1);
         assert.deepEqual(lastReport(), ['ok', '✓ On', undefined]);
     });
 });
@@ -231,6 +240,29 @@ describe('a permission question that never settles does not hold the button', ()
         assert.equal(els.notifEnableBtn.textContent, 'Enable notifications');
         assert.equal(els.notifEnableBtn.disabled, false);
         assert.equal(els.notifStatusMsg.textContent, STILL_ASKING_LINE);
+    });
+    test('a tap on the returned button waits on the enable in flight — it never starts a second', async () => {
+        /** @type {() => void} */ let release = () => {};
+        env.enableHold = new Promise(r => { release = () => r(); });
+        await openCard({ askLimitMs: 20 });
+        const first = els.notifEnableBtn.click();
+        await new Promise(r => setTimeout(r, 40));
+        await settle();
+        assert.equal(els.notifEnableBtn.disabled, false, 'premise: the button is back past the ask limit');
+        const second = els.notifEnableBtn.click();
+        assert.equal(env.enables, 1, 'a second tap asked for permission again, alongside the first');
+        assert.equal(els.notifEnableBtn.textContent, 'Enabling…');
+        release();
+        await Promise.all([first, second]);
+        await settle();
+        assert.equal(env.subscribes, 1, 'one subscribe and save');
+        assert.deepEqual(lastReport(), ['ok', '✓ On', undefined]);
+        await els.notifDisableBtn.click();
+        await settle();
+        env.enableHold = null;
+        await els.notifEnableBtn.click();
+        await settle();
+        assert.equal(env.enables, 2, 'once it has finished, the next tap enables afresh');
     });
     test('once permission is answered the subscribe is not cut short — its own limits apply', async () => {
         /** @type {() => void} */ let release = () => {};

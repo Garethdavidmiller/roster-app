@@ -14,7 +14,8 @@
  *
  * Call once per page from the coordinator, at the same point initErrorReporter() is
  * called (after the Firebase Auth session is being established) so the writes satisfy
- * the analytics rule, which needs a member, the admin or the PIN viewer (`isKnownIdentity`, v24.56).
+ * the analytics rule, which needs a member or the admin (`isKnownIdentity`, v24.56 — it still accepts
+ * the retired staff PIN's viewer too, until the server release removes that claim from the rules).
  *
  * ── ONE IDENTITY ARGUMENT, AND ANONYMOUS VISITS COUNT (v19.95) ─────────────────────
  *
@@ -49,10 +50,10 @@
  * ── ONLY A SIGNED-IN ADMIN IS LEFT OUT (v25.00, Usage card review) ──────────────────
  *
  * The admin exclusion used to key on the same single identity, so on a device where nobody
- * is signed in it keyed on the SELECTED member. The station PC opens the roster on the staff
- * PIN with whichever row was picked last, and the default selection is an admin — so every
- * staff open there could be dropped, while the admin's own PIN opens counted whenever another
- * row was selected. A selection says whose roster is on screen, not who is looking at it.
+ * is signed in it keyed on the SELECTED member. The station PC opened the roster on the staff
+ * PIN (retired 23 Nov 2026) with whichever row was picked last, and the default selection is an
+ * admin — so every staff open there could be dropped, while the admin's own PIN opens counted
+ * whenever another row was selected. A selection says whose roster is on screen, not who is looking at it.
  * The identity is therefore two arguments again, with one job each: `signedIn` is the only
  * one trusted to exclude, and `selected` is only ever a dedup key. An admin SELECTION still
  * records the page view — somebody opened the page — but no member-device and no address,

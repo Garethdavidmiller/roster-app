@@ -188,7 +188,8 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
 }
 
 /**
- * The over-allowance question a DELETE owes — Saved Changes' ✕ and Delete selected (review, Nov 2026).
+ * The over-allowance question a DELETE owes — Saved Changes' ✕ and Delete selected (review, Nov 2026), and the
+ * Recorded dates lists' ✕ (`deletePeriodOverrides`, admin-app.js; external review of v26.58).
  * Deleting a worked Boxing Day, or a Dispatcher's worked bank holiday, takes back the day in lieu its
  * work earned; the week grid asked before that left somebody over, and the list did not. This is the
  * planner's own delete-only path (`planAlWeekSave` with nothing to save), so the two cannot disagree,

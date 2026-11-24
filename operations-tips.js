@@ -91,7 +91,7 @@ export const CARD_TIPS = {
             // The server reads the DEPLOYED roster-members.json, so a press before the starter's release is live creates nothing.
             { icon: '👤', html: 'Run this when someone <strong>joins</strong> — once the app update that adds them to the roster has gone live. Before that there is no account for it to create.' },
             { icon: '🚪', html: 'Tick <strong>“Disable accounts for anyone no longer on the roster”</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in.' },
-            { icon: '🔢', html: 'If the <strong>staff PIN</strong> has been blocked for everyone after too many wrong entries, a line here says when. It reopens by itself, and members can still sign in with their password. If it keeps happening, somebody may be guessing — consider changing the PIN.' },
+            { icon: '🔢', html: 'If the <strong>staff PIN</strong> has been blocked for everyone after too many wrong entries, a line here says when. Nothing to do: it reopens by itself. The staff PIN is retired, so nobody needs it — members sign in with their own password — and there is no need to change it. The next server release removes it.' },
         ]}],
     },
     'document-links': {

@@ -336,6 +336,9 @@ body {
    top margin collapses through them into the summary's / card's larger one, and nothing moves there. */
 .col-main > .settings-section-label:first-child,
 .col-side > .settings-section-label:first-child { margin-top: 0; }
+/* A label over nothing says nothing: the Pay Calculator Data card is hidden for anyone the Pay page refuses
+   (settings-app.js, 24 Nov 2026), and "Your data" goes with it. */
+.settings-section-label:has(+ .card[hidden]) { display: none; }
 
 /* The work-email domain, shown beside the field rather than appended in silence. */
 /* The ROW carries the field's bottom margin, not the input (polish pass). With the margin on the

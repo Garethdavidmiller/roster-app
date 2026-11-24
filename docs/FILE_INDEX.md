@@ -73,7 +73,7 @@ roster-app/
 ├── about-lightbox.js       ← the shared About panel, plus `wireHeaderLogo` — the only wiring of a sub-page's header logo. Used by every app page
 ├── tips-lightbox.js        ← the shared per-card Tips panel
 ├── login-overlay.js        ← the shared in-place sign-in overlay for every page that signs in, as a modal or inline (the Calendar's front door). Its header
-├── login-core.js           ← the sign-in card's DOM-free rules, including the 30-second typed sign-in deadline (`SIGN_IN_GIVE_UP_MS`); login-overlay.js re-exports them. Tested by login-overlay.test.mjs
+├── login-core.js           ← the sign-in card's DOM-free rules, including the 30-second typed sign-in deadline (`SIGN_IN_GIVE_UP_MS`) and the set-password marker's hold; login-overlay.js re-exports them. Tested by login-overlay.test.mjs
 ├── password-force.js ← the MANDATORY "set your own password" overlay (PASSWORD_DESIGN.md Phase 2). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs
 ├── session.js              ← shared auth/session: re-establishing the Firebase session, the pre-warm, the local session, and the named-vs-anonymous identity signals
 ├── staff-pin-ended.js      ← whether arriving on this page signed out a leftover session of the retired staff PIN, and the one sentence that says so; transition plumbing. Its header. Tested by session.test.mjs and login-overlay.test.mjs

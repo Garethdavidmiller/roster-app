@@ -52,7 +52,7 @@ function el(value = '') {
 
 const { ytdHasFigures, refreshYtdSrc, updateYtdNote } = await import('../paycalc-ytd-card.js');
 const { ytdSrcKey } = await import('../paycalc-migrations.js');
-const { getPeriods, CONFIG } = await import('../paycalc-periods.js');
+const { getPeriods, CONFIG, YTD_SRC_EARLY } = await import('../paycalc-periods.js');
 const TY26 = /** @type {any} */ (CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27'));
 const P = (/** @type {number} */ n) => /** @type {any} */ (getPeriods().find((/** @type {any} */ p) => p.num === n));
 
@@ -100,6 +100,19 @@ describe('the source anchor: a stamp worked out is a stamp recorded', () => {
         refreshYtdSrc(TY26);
         const stored = _ls.get(ytdSrcKey(TY26));
         assert.ok(stored && Number(stored) >= 48 + TY26.first, `a payslip of the year is recorded (${stored})`);
+    });
+    // Figures entered before any payslip of the year could be in hand (24 Nov 2026): a LOAD must never
+    // file them against the first payslip that can be — that read last year's totals as April's — but
+    // the member typing figures in now is a first entry again.
+    test('figures held as from no payslip of the year: a load leaves them so, typing files them afresh', () => {
+        els.ytdSrcSelect = el();
+        els.ytdPay.value = '42000';
+        _ls.set(ytdSrcKey(TY26), YTD_SRC_EARLY);
+        refreshYtdSrc(TY26);
+        assert.equal(_ls.get(ytdSrcKey(TY26)), YTD_SRC_EARLY, 'a load files nothing');
+        refreshYtdSrc(TY26, { typed: true });
+        const stored = _ls.get(ytdSrcKey(TY26));
+        assert.ok(stored && Number(stored) >= 48 + TY26.first, `typed in now, they are a first entry (${stored})`);
     });
     test('without the card on the page, nothing is touched', () => {
         els.ytdPay.value = '21000';

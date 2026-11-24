@@ -445,7 +445,11 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
             // BACK, ON A TAB THAT CANNOT RELOAD BY ITSELF (`lateReloadAllowed` → 'no-memory'): the card is
             // drawn again saying so, with Try again in place of "Back to roster" — a reload the colleague
             // asks for. Never under a sign-in in flight, which reloads into the page itself when it lands.
-            if (back) { if (document.querySelector('#loginSubmit')?.hasAttribute('disabled')) return; dismissLoginOverlay(); }
+            // "In flight" is the card's busy Back link, which it marks for exactly the round trip
+            // (login-overlay.js; the Calendar asks the same, `signInInFlight`) — NOT a disabled button:
+            // the 30-second wrong-password lock disables it too, and this notice and its Try again were
+            // dropped on a member who had merely mistyped three times (review, 24 Nov 2026).
+            if (back) { if (document.querySelector('#loginOverlay .login-back--busy')) return; dismissLoginOverlay(); }
             initLoginOverlay({ pageLabel, about, presetName: member,
                 notice: back ? LATE_IDENTITY_NOTICE : signedOut ? SIGNED_OUT_NOTICE : '', onSuccess: () => window.location.reload(),
                 alternative: back ? { label: 'Try again', hint: 'Opens the page again, now your sign-in is back.', onSelect: () => window.location.reload() } : null });
@@ -468,6 +472,10 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
     // answers, the SDK gives up its own lookup after ~30s and emits the stored user anyway — so the
     // identity "lands late" on EVERY load, and an uncapped reload was a loop with the sign-in
     // flashing inside it. After the one reload the overlay stays, and it can still sign them in.
+    // The reload can land in the middle of a sign-in typed on that card — Firebase announces the user
+    // before the attempt answers. The forced set-password step's marker is already written by then: the
+    // card writes it as the attempt starts (login-overlay.js → `holdPasswordMarker`), so the reloaded page
+    // still asks a member on the surname default to choose their own (review, 24 Nov 2026).
     const holdForLateIdentity = () => {
         showSignIn(false);
         const email = nameToEmail(member);

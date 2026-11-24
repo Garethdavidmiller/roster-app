@@ -42,6 +42,8 @@
  * ordering here counts minutes from 03:00 (`serviceMinutes`).
  */
 
+import { WEEKDAYS, runsOn } from './trains-weekdays.js';
+
 /** The largest retiming still reported as "the same train, moved". See the header. */
 export const MAX_SHIFT_MIN = 20;
 
@@ -190,6 +192,9 @@ export function alignTimes(nowRows, decRows, maxShift = MAX_SHIFT_MIN) {
     return out.sort((x, y) => at(x) - at(y));
 }
 
+/** A weekday exception and the one its partner carries (`foldWeekdayVariants`). */
+const OPPOSITE_DAYS = /** @type {Readonly<Record<string, string>>} */ (Object.freeze({ MFO: 'MFX', MFX: 'MFO' }));
+
 /**
  * The current timetable runs a few weekday trains at two times — one on Mondays and Fridays, one
  * Tuesday to Thursday. December has one train. Alignment pairs one of the two and leaves the other
@@ -201,15 +206,73 @@ export function alignTimes(nowRows, decRows, maxShift = MAX_SHIFT_MIN) {
  * @returns {PairedTrain[]}
  */
 export function foldWeekdayVariants(trains) {
-    const OPPOSITE = /** @type {Record<string, string>} */ ({ MFO: 'MFX', MFX: 'MFO' });
     return trains.map((t) => {
-        if (t.kind !== 'gone' || !OPPOSITE[t.days] || !t.now) return t;
-        const partner = trains.find(p => p.days === OPPOSITE[t.days] && p.now && p.dec
+        if (t.kind !== 'gone' || !OPPOSITE_DAYS[t.days] || !t.now) return t;
+        const partner = trains.find(p => p.days === OPPOSITE_DAYS[t.days] && p.now && p.dec
             && Math.abs(serviceMinutes(/** @type {string} */ (p.dec)) - serviceMinutes(/** @type {string} */ (t.now))) <= MAX_SHIFT_MIN);
         if (!partner) return t;
         const shift = serviceMinutes(/** @type {string} */ (partner.dec)) - serviceMinutes(t.now);
         return { ...t, dec: partner.dec, decTo: partner.decTo, shift, kind: shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier' };
     });
+}
+
+/**
+ * @typedef {{ t: PairedTrain, n: TrainRow|undefined, d: TrainRow|undefined }} StationPair
+ *   one of the line's pairs read at a station (trains-stations.js, `stationTrains`): the pairing and its two rows
+ */
+
+/**
+ * A pair whose December partner was chosen at a station (trains-stations.js, `uncross`; `foldVariantsAt`), said
+ * as what it now is: the same route — kept, or a new end — or a train that now comes from or goes to somewhere
+ * else (`rerouted`, seen from today's side).
+ * @param {StationPair} p  changed in place
+ */
+export function restatePair(p) {
+    const n = /** @type {TrainRow} */ (p.n), d = /** @type {TrainRow} */ (p.d);
+    const { other: _other, side: _side, ...t } = p.t;
+    const shift = serviceMinutes(d[0]) - serviceMinutes(n[0]);
+    p.t = routeKey(n) === routeKey(d)
+        ? { ...t, dec: d[0], decTo: d[1], shift, kind: n[1] !== d[1] ? 'terminus' : shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier' }
+        : { ...t, dec: d[0], decTo: d[1], shift, kind: 'rerouted', side: 'old', other: { station: d[1], via: d[2], time: d[0] } };
+}
+
+/**
+ * ONE SLOT'S TWO WEEKDAY VERSIONS, ON TWO ROUTES — `foldWeekdayVariants` read at a station. Nothing in either book
+ * names a train across the change (the header: a train is its SLOT), and the one thing the books say that ties two
+ * rows into one slot is the weekday exception: a Mondays-and-Fridays train and a not-Mondays-and-Fridays one at
+ * about the same time are its two versions. `foldWeekdayVariants` reads that within a route; at a station the two
+ * can be on DIFFERENT routes. Coming back from Princes Risborough at 07:21, Tuesday to Thursday's train starts there
+ * (the 08:07 into Marylebone) and Monday and Friday's is the Oxford train (the 08:03), at the same stops and
+ * minutes. December's 07:13 from there runs every weekday, and a Monday's card said the 07:21 "Will no longer stop
+ * here" and listed the 07:13 as "New train" — one train lost and one added, two in the tally — where Tuesday to
+ * Thursday read "8 mins earlier" (review of v26.60, Nov 2026).
+ *
+ * So a train that stops calling here (no December partner here), carrying MFO or MFX, takes a December train that
+ * calls here when THAT train is paired with the opposite version — which calls here too, so the two are one slot
+ * HERE — and with nothing on this one's days, within MAX_SHIFT_MIN where the passenger gets on, on the same
+ * Aylesbury route ("the route is part of where a train goes"), the nearest first. Time alone is never the
+ * evidence. It is then said as a re-paired train is (`restatePair`): "8 mins earlier, will start here". The line's
+ * own pairing, which the time lookup reads at Marylebone, is unchanged.
+ * @param {StationPair[]} pairs  changed in place
+ * @param {TrainRow[]} decRows
+ * @param {(row: TrainRow|undefined) => boolean} here  whether a row calls at the station
+ * @param {(row: TrainRow) => number} at  a row's service minutes where the passenger gets on there
+ */
+export function foldVariantsAt(pairs, decRows, here, at) {
+    const via = (/** @type {TrainRow} */ r) => LINES[routeKey(r)]?.via ?? r[2];
+    const weekdays = (/** @type {string} */ days) => WEEKDAYS.filter(w => runsOn(days, w));
+    for (const p of pairs) {
+        const n = p.n, opposite = OPPOSITE_DAYS[p.t.days];
+        if (!n || !opposite || !here(n) || here(p.d)) continue;
+        const best = decRows.filter((d) => {
+            if (!here(d) || via(d) !== via(n) || Math.abs(at(d) - at(n)) > MAX_SHIFT_MIN) return false;
+            const by = pairs.filter(q => q.d === d);
+            return by.some(q => here(q.n) && q.t.days === opposite) && !by.some(q => weekdays(p.t.days).some(w => runsOn(q.t.days, w)));
+        }).sort((a, b) => Math.abs(at(a) - at(n)) - Math.abs(at(b) - at(n)))[0];
+        if (!best) continue;
+        p.d = best;
+        restatePair(p);
+    }
 }
 
 /** @param {TrainRow[]} rows */

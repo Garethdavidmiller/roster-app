@@ -130,6 +130,19 @@ export function computeEarliestVisiblePNum(member) {
   return Math.max(floor, 48 + joinTy.first);
 }
 
+/**
+ * The payslips the Pay page can show `member` — from their earliest visible period to the grid's
+ * last: the span `payCalculatorPrices` (pay-audience.js) is asked over by the page's own gate and by
+ * Settings' Pay Calculator Data card (24 Nov 2026), so the card shows for exactly the members the
+ * page admits. Pure: it reads no stored state.
+ * @param {any} member - teamMembers entry (or null)
+ * @returns {any[]}
+ */
+export function payslipsShownTo(member) {
+  const floor = computeEarliestVisiblePNum(member);
+  return getPeriods().filter((/** @type {any} */ p) => p.num >= floor);
+}
+
 /** Store the current member's earliest visible period — and the first payslip they were employed
  *  for, which the Year to Date rules below keep to (a payslip from before somebody started has no
  *  figures of theirs on it). Call once from init before building selects. */
@@ -490,12 +503,13 @@ export function ytdAutoSource(ty, now = new Date()) {
  * before sources were recorded are anchored to the app's old standing assumption (`ytdAutoSource`),
  * so a maintained member's next estimate does not move. A recorded '0' is the member deliberately
  * un-anchoring them (the blank placeholder) and is never re-stamped — or the next period change would
- * quietly re-engage the cumulative method on figures they had detached. Nothing is recorded when that
- * payslip is from before the member started — a joiner's first payslip has no earlier one of theirs.
+ * quietly re-engage the cumulative method on figures they had detached. When that payslip cannot be in
+ * the member's hand — not yet issued, or from before they started — the figures came from no payslip
+ * of theirs in this year, and `YTD_SRC_EARLY` says so (below).
  * @param {string|null} raw  what storage holds @param {boolean} hasFigures
  * @param {{ first:number, last:number }} ty @param {Date} [now]
  * @param {number} [firstPNum] the member's first payslip — `setEarliestVisiblePeriod` records it
- * @returns {number|null}
+ * @returns {number|string|null} a period number, `YTD_SRC_EARLY`, or null
  */
 export function ytdSourceToStamp(raw, hasFigures, ty, now = new Date(), firstPNum = _firstEmployed()) {
   if (raw != null || !hasFigures) return null;
@@ -505,9 +519,24 @@ export function ytdSourceToStamp(raw, hasFigures, ty, now = new Date(), firstPNu
   // offered by the picker either, so the card showed its placeholder while storage held a source.
   // Last year's whole-year totals typed in March were then read as April's, and May's payslip was
   // charged the year's tax again (£2,967.84 where £435.00 was right). The same rule as the picker.
+  // …AND THE FIGURES ARE NEVER FILED LATER EITHER (24 Nov 2026). Recording nothing only put the stamp
+  // off: the first load after that payslip's cut-off found figures with no source and filed them
+  // against it, so last year's totals were read as April's after all. A K code, exempt from the
+  // under-the-code check, then charged May's payslip about £1,650 where £770.40 was right; any other
+  // code was told the figures were "from your 10 Apr payslip". So the marker is recorded instead.
   const srcP = getPeriods().find((/** @type {any} */ x) => x.num === src);
-  return srcP && ytdSourceOffered(srcP, ty, now, firstPNum) ? src : null;
+  return srcP && ytdSourceOffered(srcP, ty, now, firstPNum) ? src : YTD_SRC_EARLY;
 }
+
+/**
+ * The source recorded for Year to Date figures entered while no payslip of the member's in that tax
+ * year could be in hand (`ytdSourceToStamp`) — last year's totals typed in March, or a joiner's
+ * figures from before their first payslip. It names no payslip: every reader that parses a source
+ * reads it as none, so the figures are used on no payslip and the card asks which payslip they came
+ * from. It is not '0' (the member's own "not from a payslip"), because figures TYPED in again are a
+ * first entry again (`refreshYtdSrc`'s `typed`), while the load-time stamp never files them.
+ */
+export const YTD_SRC_EARLY = 'early';
 
 /**
  * The source to MOVE `ty`'s Year to Date figures to as the member types them in again, or null to

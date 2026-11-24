@@ -1414,7 +1414,12 @@ tightens a read rule — RECOVERY_RUNBOOK.md → "Tightening a read rule — the
    Operations PIN-lockout card, because the endpoint it reports on is still deployed.
 2. **Server**, once the client has soaked. The rules drop `isCalendarViewer`; `unlockCalendarViewer`,
    `functions/pin-lockout.js`, the `CALENDAR_VIEWER_PIN` binding, the viewer door in `getDocumentUrl`
-   and the Operations PIN-lockout card are deleted. Then the manual steps — delete the
+   and the Operations PIN-lockout card are deleted. **The signed-in lane goes in the same commit**: it
+   still gives the emulator a PIN (`scripts/signed-in.mjs` stops at start-up if the functions no longer
+   declare `CALENDAR_VIEWER_PIN`, and passes `E2E_VIEWER_PIN`), and its leftover-PIN-session journey
+   (`e2e/signed-in.spec.js`) mints that session through the real `unlockCalendarViewer`. Delete the
+   check and the variable, and move the journey's premise to a viewer token the emulator mints itself
+   rather than delete it: the teardown it proves stays until release 3. Then the manual steps — delete the
    `calendar-viewer` account, destroy the secret, purge `viewerAttempts`, consider switching off
    Anonymous sign-in, and KEEP the token-creator grant (`getDocumentUrl` needs it):
    OPERATIONS_REFERENCE.md → "The staff PIN (retired)".

@@ -65,10 +65,12 @@ import { costsWithoutSpareCap, spareUnderneath, rosteredSpareDay, spareWeekDays,
  * @param {number} totalDays  how many days the booking covers, so a one-day booking can say
  *                            "This is…" rather than "1 of these days is…", which has no "these"
  *                            to be one of
- * @param {number} [charged]  how many of the booking's Spare-WEEK days it actually charges, on balance —
+ * @param {number} [charged]  how many of the booking's NEW Spare-week days it actually charges, on balance —
  *                            fewer when a Spare week reaches its four (`projectAlBooking`); omitted, all
- * @param {{ days: number, weeks?: number }|null} [week] the booking's days in a Spare week as ROSTERED,
- *                            assigned ones included (`spareWeekDaysOf`), and how many weeks they span —
+ * @param {{ days: number, weeks?: number, held?: number }|null} [week] the booking's days in a Spare week as
+ *                            ROSTERED, assigned ones included (`spareWeekDaysOf`), with any Spare turn saved
+ *                            on a working day, and how many weeks they span; `held`, how many of them
+ *                            already hold leave, which the booking does not charge again — the rest are
  *                            what `charged` is a share of. Omitted, the week is the Spare days alone.
  * @returns {string} plain text, no markup — the caller decides how to wrap it
  */
@@ -76,28 +78,41 @@ export function spareShiftNote(spareCount, totalDays, charged = spareCount, week
     const spare = Number.isFinite(spareCount) && spareCount > 0 ? spareCount : 0;
     const inWeek = week && Number.isFinite(week.days) ? Math.max(week.days, spare) : spare;
     if (inWeek < 1) return '';
+    // DAYS ALREADY BOOKED ARE NOT CHARGED AGAIN (external review of v26.58). The headline counts them apart
+    // ("No days (+ 4 already booked …)"), so the note's figure is the NEW days' — it said "they use 2 days" of a
+    // whole week, which was neither the week's 4 nor the booking's none.
+    const held = week && Number.isFinite(week.held) && Number(week.held) > 0 ? Math.min(Number(week.held), inWeek) : 0;
+    const fresh = inWeek - held;
 
     const MEANING = 'on standby, with the shift not yet assigned';
+    const several = (week?.weeks ?? 1) > 1;
+    // What the day IS: a Spare day while its shift is unassigned; otherwise only a day OF a Spare week,
+    // whose shift the roster has since given — still one of the week's four (owner, 22 Nov 2026).
+    const one = totalDays === 1;
+    const subject = spare === 1 ? `${one ? 'This is a Spare day' : '1 of these days is a Spare day'} — ${MEANING}.`
+        : spare > 1 ? `${spare} of these days are Spare days — ${MEANING}.`
+        : inWeek === 1 ? `${one ? 'This day is' : '1 of these days is'} in a Spare week, with its shift since assigned.`
+        : `${inWeek} of these days are in ${several ? 'Spare weeks' : 'a Spare week'}, with their shifts since assigned.`;
+    // Every one of them already booked: the booking charges none of them again, and "It still uses 1 day"
+    // under a headline of "No days" read as a contradiction.
+    if (held && !fresh) {
+        if (spare < 1) return '';
+        return `📋 ${subject} ${held === 1 ? 'It is' : 'They are'} already booked, so booking ${held === 1 ? 'it' : 'them'} again uses no more annual leave.`;
+    }
     // A SPARE WEEK USES AT MOST FOUR (owner, 21 Nov 2026): when the booking's Spare-week days are more
     // than its weeks charge, the note says the cap and the true figure — never "each still uses 1".
-    if (Number.isFinite(charged) && charged < inWeek) {
+    if (Number.isFinite(charged) && charged < fresh) {
         const cap = `A Spare week uses at most ${SPARE_WEEK_MAX_DAYS} days of annual leave`;
-        const several = (week?.weeks ?? 1) > 1;
-        // What the day IS: a Spare day while its shift is unassigned; otherwise only a day OF a Spare week,
-        // whose shift the roster has since given — still one of the week's four (owner, 22 Nov 2026).
-        const one = totalDays === 1;
-        const subject = spare === 1 ? `${one ? 'This is a Spare day' : '1 of these days is a Spare day'} — ${MEANING}.`
-            : spare > 1 ? `${spare} of these days are Spare days — ${MEANING}.`
-            : inWeek === 1 ? `${one ? 'This day is' : '1 of these days is'} in a Spare week, with its shift since assigned.`
-            : `${inWeek} of these days are in ${several ? 'Spare weeks' : 'a Spare week'}, with their shifts since assigned.`;
         if (inWeek === 1) return `📋 ${subject} ${cap}, and this week's ${SPARE_WEEK_MAX_DAYS} are already booked, so it uses none.`;
         const uses = charged === 0 ? 'none' : `${charged} day${charged === 1 ? '' : 's'}`;
-        // Fewer than four of them and still not all charged: the rest of the week's four were booked
-        // earlier, and the note says so — a lower figure with no reason reads like a mistake.
-        const why = inWeek <= SPARE_WEEK_MAX_DAYS ? `, counting the days already booked ${several ? 'in those weeks' : 'that week'}` : '';
-        // "They" while the days counted are the days named; with assigned days among them, the count is named.
-        const who = spare === 0 || spare === inWeek ? 'they' : `the ${inWeek} days booked in ${several ? 'those weeks' : 'that week'}`;
-        return `📋 ${subject} ${cap}${why}, so ${who} use ${uses}.`;
+        // Fewer than four of them and still not all charged, or some already booked: the rest of the week's
+        // four were booked earlier, and the note says so — a lower figure with no reason reads like a mistake.
+        const why = held || inWeek <= SPARE_WEEK_MAX_DAYS ? `, counting the days already booked ${several ? 'in those weeks' : 'that week'}` : '';
+        // "They" while the days counted are the days named; with assigned days among them, the count is named;
+        // with days already booked among them, the figure is the NEW days', and the note names those.
+        const who = held ? (fresh === 1 ? 'the new day uses' : `the ${fresh} new days use`)
+            : spare === 0 || spare === inWeek ? 'they use' : `the ${inWeek} days booked in ${several ? 'those weeks' : 'that week'} use`;
+        return `📋 ${subject} ${cap}${why}, so ${who} ${uses}.`;
     }
     if (spare < 1) return '';
     // The cost sentence is the point of the note and is never omitted or softened: it is the

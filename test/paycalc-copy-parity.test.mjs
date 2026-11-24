@@ -195,6 +195,15 @@ describe('a row or a card says what it is for, and only that', () => {
         assert.equal(box[2], row, 'the placeholder names a different payslip line');
     });
 
+    test('the guide says Year to Date figures that do not fit the code are refused in BOTH directions', () => {
+        // computeTax refuses a Tax Paid more than £2 OVER or UNDER what the code takes (owner, 21 Nov 2026;
+        // paycalc.md invariant 18). The guide still said "more tax paid … they are not used", so a member
+        // whose figures fell short read that they would be used (review, 24 Nov 2026).
+        const section = text(guide.slice(guide.indexOf('id="pg-year-to-date-figures"'), guide.indexOf('<strong>This tax year so far.</strong>')));
+        assert.ok(section.length > 0, 'the guide\'s Year to Date section is missing');
+        assert.match(section, /\bmore\b[^.]*\bor less\b[^.]*not used/i, 'the guide no longer names both directions of the fit check');
+    });
+
     test('the guide promises only the conversion the converter makes (paycalc-3-10)', () => {
         // The card has ONE input, a decimal from the payslip, and answers in hours and minutes. The
         // guide said it converted "and back", so a member typed 7:30 to get a decimal — and read "7 hrs".

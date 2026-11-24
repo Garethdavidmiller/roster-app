@@ -83,8 +83,9 @@ function sayWhatItBrings() {
 /**
  * @param {{ authReady: Promise<any>, getAccessType: () => string }} deps
  *   `authReady` — the Calendar's AUTH promise (persistence configured, session resolved), not its
- *   access promise; `getAccessType` — 'named' | 'viewer' | 'none', read when each promise
- *   settles rather than at init, because access is decided asynchronously.
+ *   access promise; `getAccessType` — 'named' | 'none' ('viewer' went with the staff PIN, retired
+ *   23 Nov 2026), read when each promise settles rather than at init, because access is decided
+ *   asynchronously.
  */
 export function initNotifPrompt({ authReady, getAccessType }) {
     // Guard support FIRST. notifSupported() folds in the `'Notification' in window` check and the

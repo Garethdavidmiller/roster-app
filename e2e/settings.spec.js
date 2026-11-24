@@ -4,7 +4,7 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect, forcePasswordSet } from './fixtures.js';
+import { test, expect, forcePasswordSet, withOtherStaff } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay, isTouchProject } from './helpers.js';
 import { teamMembers } from '../roster-data.js';
 
@@ -1271,6 +1271,31 @@ test('settings (signed in): the Pay Calculator Data pointer card renders and lin
     await page.locator('#payDataChevron').click();
     await expect(card.locator('a[href*="paycalc.html#payTransferCard"]')).toBeVisible();
 });
+
+// The card is for the members the Pay page admits (review, 24 Nov 2026): an Other Staff login was shown it, and its
+// "Move your pay data" link, beside a drawer with no Pay pill and a page that refuses them. It asks the page's own
+// rule (pay-audience.js over `payslipsShownTo`), so a Dispatcher, whom the page also refuses, loses it too. The
+// people are INVENTED or chosen by shape, never named.
+const DISPATCHER = teamMembers.find(m => m.role === 'Dispatcher' && !m.roleHistory && !m.hidden)?.name;
+for (const { who, arrange } of [
+    { who: 'an Other Staff login', arrange: (/** @type {any} */ page) => withOtherStaff(page, 'Q. Example').then(() => seedSession(page, 'Q. Example')) },
+    { who: 'an Other Staff login moved there from CEA', arrange: (/** @type {any} */ page) =>
+        withOtherStaff(page, 'Q. Example', "roleHistory: [{ role: 'CEA', until: new Date(2026, 9, 1) }]").then(() => seedSession(page, 'Q. Example')) },
+    { who: 'a Dispatcher', arrange: (/** @type {any} */ page) => seedSession(page, DISPATCHER) },
+]) {
+    test(`settings: ${who} is not shown the Pay Calculator Data card`, async ({ page }) => {
+        expect(DISPATCHER, 'premise: a Dispatcher with no earlier grade is on the roster').toBeTruthy();
+        const errors = collectFatalErrors(page);
+        await arrange(page);
+        await page.goto('/settings.html');
+        await expect(page.locator('#navMenuBtn')).toBeVisible();
+        await expect(page.locator('#settingsSummary'), 'the page reported every card').not.toHaveAttribute('data-tone', 'checking');
+        await expect(page.locator('#payDataCard')).toBeHidden();
+        await expect(page.locator('#payDataLabel'), 'nor its section label, over nothing').toBeHidden();
+        await expect(page.locator('#installStepPay')).toBeHidden();
+        expect(errors).toEqual([]);
+    });
+}
 
 // ── THE DESKTOP AUDIT (7 Nov 2026) ──────────────────────────────────────────────────────────────
 

@@ -84,9 +84,13 @@ export async function setLeaveYear({ memberName, date, leaveYear, changedBy }) {
     // same transaction, a colleague's move of any of them changes a record this save read, so the second save is
     // re-run, finds it changed, and is refused with the same line as a change to the day itself.
     const january = `${date.slice(0, 4)}-01-`;
+    // EACH SIBLING'S FIXED ID TOO (external review of v26.58). A colleague's move of an IMPORTED day deletes the
+    // import and writes the day at its fixed id (`idsReplacedBy`): a record gone is no difference to the check, so
+    // read only at the import's id, that move went unseen. The fixed id is read as this page holds it (usually
+    // nothing), so the moved day written there is a change; a sibling already at its fixed id is one id, read once.
     const siblings = [...buildMemberDateMap(memberName).values()]
         .filter(o => o && o.type === 'annual_leave' && String(o.date).startsWith(january) && o.date !== date && o.id)
-        .map(o => o.id);
+        .flatMap(o => [o.id, manualOverrideId(memberName, o.date)]);
     /** @type {any} */
     let fields = null;
     /** The day as THIS move leaves it: this editor's annual leave in the chosen year, whatever it replaced gone.

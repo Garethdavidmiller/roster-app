@@ -85,6 +85,17 @@ const _keepLatest = (key) => (doc) => {
     return doc;
 };
 
+/** The saved-copy pill, in the Huddle viewer's words and class. @returns {HTMLElement} */
+function _savedCopyNote() {
+    const note = document.createElement('div');
+    note.className = 'calendar-stale-note';
+    const words = document.createElement('span');
+    words.setAttribute('role', 'status');
+    words.textContent = 'Saved copy — couldn’t check for changes';
+    note.appendChild(words);
+    return note;
+}
+
 /**
  * `p`, or `ms` from now, whichever comes first. The losing timer is CLEARED once `p` settles (test
  * audit, 7 Nov 2026): left armed, every open kept a 2s timer, and every page load an 8s one, alive for
@@ -301,6 +312,12 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                     showMessage(unopenableText(d), 'doc-viewer-empty'); return;
                 }
                 showMessage('', 'doc-viewer-loading');   // the button speaks for itself, and takes focus
+                // A COPY THIS DEVICE COULD NOT CHECK IS LABELLED (v26.60 review, D-L1). Offline, the read
+                // answers from this device's cache, and an older issue it holds came back as "the latest"
+                // with nothing to say so — a "Latest Retail Circular" notification tapped on a weak signal
+                // opened last week's. The Huddle viewer and the month grid say it in these words and this
+                // pill (`_savedCopyNote`, calendar-huddle-viewer.js; CALENDAR_DATA.md 18).
+                if (doc.fromCache) bodyEl.appendChild(_savedCopyNote());
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'doc-open-btn';

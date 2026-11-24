@@ -56,6 +56,11 @@ let _huddleFromCache = false;
 /** Set when a waiting tap's deadline passed with no word from the server; cleared by the server's next
  *  answer. While set, a cached Huddle is shown at once, labelled a saved copy — see `_mustWaitForServer`. */
 let _serverWaitExpired = false;
+/** Whether the current subscription has been ATTACHED — the server asked. Its deadline is armed before
+ *  the wait for a session, and a deadline that passed in that wait proves nothing about the server: it
+ *  used to set `_serverWaitExpired`, so the first cached answer then opened at once, labelled a saved
+ *  copy, before the server had been asked at all (v26.60 review, D-L2). */
+let _serverAsked = false;
 /** The file a Huddle record names. Its STORAGE PATH, never its url: Operations → Document links →
  *  Replace gives the same file a new url, and that is not a new Huddle (whole-app review, 22 Nov 2026).
  *  The url stands in only for a record with no path. @param {any} h */
@@ -618,7 +623,10 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         if (_deadline) clearTimeout(_deadline);
         _deadline = setTimeout(() => {
             _deadline = null;
-            _serverWaitExpired = true;   // a tap waited, and the server said nothing — until it does
+            // A tap waited, and the server said nothing — until it does. Only once it was ASKED: a
+            // deadline that passed while the subscription still waited for a session leaves the next
+            // cached answer to wait for the server in its turn, on a deadline of its own.
+            if (_serverAsked) _serverWaitExpired = true;
             // Only this device's cache has answered, and the tap was held for the server: show what it
             // holds now, labelled a saved copy (`_savedCopyNote`), in place of whatever the wait showed.
             if (_huddleState === 'ready' && _huddleData && _huddleFromCache) {
@@ -723,6 +731,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     async function startHuddleSubscription() {
         const _gen = ++_subGen;
         if (_unsubHuddle) { _unsubHuddle(); _unsubHuddle = null; }
+        _serverAsked = false;
         // REFUSED AT SOURCE while the gate is shut (v23.17): no query is issued, cached or live. The
         // `onChange(true)` below is what starts it when access arrives. A lock that lands DURING the
         // wait is caught by the generation guard, because the lock branch below advances it (v24.56 —
@@ -742,6 +751,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         // visibilitychange re-subscribe from stacking two listeners when two calls await concurrently.
         await authReady;
         if (_gen !== _subGen) return;
+        _serverAsked = true;
         _unsubHuddle = subscribeToLatestHuddle(
             /** @param {any} huddle @param {boolean} [fromCache] */ (huddle, fromCache) => {
                 if (!docAccess.has()) return;   // a snapshot that outlived a lock delivers nothing
@@ -809,7 +819,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         ++_bodySeq;  // …and a render still waiting on the sanitiser must not draw after this
         if (_unsubHuddle) { _unsubHuddle(); _unsubHuddle = null; }
         _huddleData = null; _huddleFromCache = false; _sanitisedHtml = null; _sanitisedFile = null;
-        _serverWaitExpired = false; _savedNote = null;   // the next grant's tap waits for its own answer
+        _serverWaitExpired = false; _serverAsked = false; _savedNote = null;   // the next grant's tap waits for its own answer
         _huddleState = 'locked';
         _clearDeadline();
         if (showing) {
