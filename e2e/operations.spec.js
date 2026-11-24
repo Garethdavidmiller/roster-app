@@ -1315,7 +1315,7 @@ test('operations account status: a reset that lands keeps focus on that row\'s R
 });
 
 // WCAG 2.5.3 again: each file input's name must hold the words of the label that stands for it on
-// screen ("Choose file", "Choose PDF", "Choose leave file"). They were "Choose huddle PDF or Word
+// screen ("Choose file" on the four upload cards, "Choose leave file"). They were "Choose huddle PDF or Word
 // document" and the like, so "click Choose file" reached nothing. axe does not test inputs for this,
 // so it is measured here.
 test('operations: every file input\'s name begins with the words of its visible label', async ({ page }) => {

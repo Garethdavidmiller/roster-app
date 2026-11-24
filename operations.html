@@ -226,7 +226,7 @@
         <div class="card-header card-header-toggle" id="rosterUploadToggleHeader">
             <div>
                 <h2><span aria-hidden="true">🗓️</span> Weekly Roster</h2>
-                <span class="hint">Upload the PDF roster — we'll find what's changed and ask you to confirm</span>
+                <span class="hint">PDF only — you'll see what's changed and confirm it before it's saved</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload">?</button>
@@ -238,15 +238,20 @@
 
                 <!-- Step 1: Upload controls -->
                 <div id="rosterUploadForm">
-                    <div class="huddle-row">
+                    <!-- The week and its file button are a row of their own, the same row as the Huddle's, inside
+                         the card's row: so they wrap TOGETHER — one line beside the menu where all three fit,
+                         the line under it on a phone — and never split with the button alone (operations.css). -->
+                    <div class="huddle-row roster-upload-row">
                         <select id="rosterType" class="roster-type-select" aria-label="Roster type">
                             <option value="cea">CEA / Bilingual</option>
                             <option value="ces">CES</option>
                             <option value="dispatcher">Dispatchers</option>
                         </select>
-                        <input type="date" id="rosterWeekEnding" aria-label="Week ending (always a Saturday)">
-                        <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
-                        <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose PDF — the weekly roster">
+                        <div class="huddle-row">
+                            <input type="date" id="rosterWeekEnding" aria-label="Week ending (always a Saturday)">
+                            <label for="rosterFileInput" class="huddle-file-label">Choose file</label>
+                            <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose file — the weekly roster, PDF">
+                        </div>
                     </div>
                     <p id="rosterFileName" class="huddle-filename" aria-live="polite"></p>
                     <button type="button" id="rosterParseBtn" class="huddle-upload-btn" disabled>Read roster</button>
