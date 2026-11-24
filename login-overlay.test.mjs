@@ -553,10 +553,12 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         fakeAuth.currentUser = null; store.clear(); triggers.clear();
     });
 
-    /** Mount a fresh inline card and hand back its controls. @param {string} [presetName] @param {(name: string) => void} [onSuccess] */
-    function mount(presetName = '', onSuccess = () => {}) {
+    /** Mount a fresh inline card and hand back its controls. @param {string} [presetName] @param {(name: string) => void} [onSuccess]
+     *  @param {string} [pageLabel] */
+    function mount(presetName = '', onSuccess = () => {}, pageLabel = 'Settings') {
         /** @type {Map<string, any>} */ const els = new Map();
-        const absent = new Set(['#loginAbout', '.login-about-link', '#loginFootnote', '#loginNotice', '#loginAlternative', '#loginAlternativeHint']);
+        // The notice line is in EVERY card since the staff PIN was retired (23 Nov 2026): the inline one too.
+        const absent = new Set(['#loginAbout', '.login-about-link', '#loginFootnote', '#loginAlternative', '#loginAlternativeHint']);
         const overlay = new FakeEl('loginOverlay');
         /** @type {any} */ (overlay).querySelector = (/** @type {string} */ sel) => {
             if (absent.has(sel)) return null;
@@ -572,9 +574,10 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         };
         /** @type {any} */ (globalThis).window = {};
         /** @type {any} */ (globalThis).Option = class { constructor(/** @type {string} */ text, /** @type {string} */ value) { this.textContent = text; this.value = value; } };
-        initLoginOverlay({ pageLabel: 'Settings', onSuccess, host: /** @type {any} */ ({ appendChild() {} }), presetName });
+        initLoginOverlay({ pageLabel, onSuccess, host: /** @type {any} */ ({ appendChild() {} }), presetName });
         const $ = (/** @type {string} */ sel) => /** @type {any} */ (overlay).querySelector(sel);
         return {
+            notice: $('#loginNotice'), html: () => /** @type {any} */ (overlay).innerHTML,
             grade: $('#loginGrade'), name: $('#loginName'), password: $('#loginPassword'), submit: $('#loginSubmit'),
             error: $('#loginError'), reset: $('#loginResetRequest'), status: $('#loginStatus'),
             gradeTrigger: () => triggers.get('loginGradeTrigger'), nameTrigger: () => triggers.get('loginNameTrigger'),
@@ -594,23 +597,49 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
     }
 
     // ── A GRADE NOBODY HOLDS IS NOT OFFERED (owner, 23 Nov 2026) ───────────────────────────────────────
-    // "Other staff" is in CONFIG.GRADE_ORDER before anybody holds it; offered, it led to an empty name list.
-    test('the grade picker offers only grades somebody holds — Other staff appears with its first login', () => {
+    // "Other Staff" is in CONFIG.GRADE_ORDER before anybody holds it; offered, it led to an empty name list.
+    test('the grade picker offers only grades somebody holds — Other Staff appears with its first login', () => {
         const offered = () => mount().grade.options.map((/** @type {any} */ o) => o.value).filter(Boolean);
         assert.deepEqual(offered(), CONFIG.GRADE_ORDER.filter((/** @type {string} */ g) => getMembersForGrade(g).length > 0));
-        // Take the real Other staff rows out for the length of the test, so the empty grade is tested
+        // Take the real Other Staff rows out for the length of the test, so the empty grade is tested
         // whoever holds it today, then put back an invented one.
-        const real = teamMembers.filter(m => m.role === 'Other staff');
+        const real = teamMembers.filter(m => m.role === 'Other Staff');
         for (const m of real) teamMembers.splice(teamMembers.indexOf(m), 1);
-        const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true };
+        const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true };
         try {
-            assert.ok(!offered().includes('Other staff'), 'a grade nobody holds is not offered');
+            assert.ok(!offered().includes('Other Staff'), 'a grade nobody holds is not offered');
             teamMembers.push(/** @type {any} */ (row));
-            assert.ok(offered().includes('Other staff'), 'an invented Other staff login brings the grade into the picker');
+            assert.ok(offered().includes('Other Staff'), 'an invented Other Staff login brings the grade into the picker');
         } finally {
             if (teamMembers.includes(/** @type {any} */ (row))) teamMembers.splice(teamMembers.indexOf(/** @type {any} */ (row)), 1);
             teamMembers.push(...real);
         }
+    });
+
+    // ── THE RETIRED STAFF PIN, SAID ONCE ON THE CALENDAR'S OWN CARD (owner, 23 Nov 2026) ─────────────────
+    // A browser still holding a PIN session is signed out by the Calendar's teardown, and its INLINE sign-in
+    // card — the front door — says why in one line. Until the retirement only the modal card on another page
+    // listened, because the Calendar kept the PIN. Driven by the REAL teardown, as the modal case is above.
+    test('the Calendar\'s inline card says the staff PIN is retired, once the teardown has signed one out', async () => {
+        const { STAFF_PIN_ENDED_NOTICE, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
+        forgetStaffPinEnded();
+        try {
+            const card = mount('', () => {}, 'Calendar');
+            assert.ok(card.html().includes('id="loginNotice"'), 'the inline card has no notice line for the words to go in');
+            assert.ok(!card.html().includes('loginAlternative'), 'the front door offers another way in');
+            fakeAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
+            await reconcileExpiredIdentity();                       // the Calendar's boot ends the leftover PIN session
+            assert.equal(fakeAuth.currentUser, null, 'premise: the teardown signed the PIN out');
+            await turns();
+            mock.timers.tick(0);                                    // the words wait for the card to be drawn (speakAfterMount)
+            assert.equal(card.notice.textContent, STAFF_PIN_ENDED_NOTICE, 'the card did not say the PIN is retired');
+            assert.match(STAFF_PIN_ENDED_NOTICE, /^The staff PIN has been retired\. Sign in with your own name — if you don’t have a login yet, ask the admin\.$/);
+            // …and a card on a device that never held the PIN says nothing of it.
+            forgetStaffPinEnded();
+            const plain = mount('', () => {}, 'Calendar');
+            await turns(); mock.timers.tick(0);
+            assert.equal(plain.notice.textContent, '', 'a card told somebody who never used the PIN that it is retired');
+        } finally { forgetStaffPinEnded(); }
     });
 
     // ── A SLOW ANSWER IS NOT A FAILURE (external review, 23 Nov 2026) ─────────────────────────────────
@@ -632,7 +661,7 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         await turns();
         mock.timers.tick(8000);
         await turns();
-        assert.match(card.status.textContent, /taking longer than usual/, 'the card says it is slow');
+        assert.equal(card.status.textContent, 'Sign-in is taking longer than usual…', 'the card says it is slow, in the owner\'s words');
         assert.equal(card.error.classList.contains('visible'), false, 'and says nothing has failed');
         assert.equal(card.submit.textContent, 'Signing in…', 'the attempt is still the card’s');
         release();

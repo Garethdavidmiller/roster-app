@@ -12,7 +12,7 @@ once step 2's functions deploy has finished.
 ## Step 1 — `roster-member-data.js` (always required; re-exported by `roster-data.js`)
 
 - [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role` — plus any optional fields that apply (`hidden`, `managerOnly`, `otherStaff`, `permanentShift`, `bilingualContract`, `noProRate`, `rosterChanges`; see `.claude/rules/roster-data.md`)
-  - **Somebody with no roster and no manager rights** (an "Other staff" login, owner 23 Nov 2026): one row in the shape at the foot of `teamMembers` — `role: 'Other staff', hidden: true, otherStaff: true` — and nothing else on this list but the regenerate, the deploy and Set up accounts. OPERATIONS_REFERENCE.md → "Adding an Other staff login".
+  - **Somebody with no roster and no manager rights** (an "Other Staff" login, owner 23 Nov 2026): one row in the shape at the foot of `teamMembers` — `role: 'Other Staff', hidden: true, otherStaff: true` — and nothing else on this list but the regenerate, the deploy and Set up accounts. OPERATIONS_REFERENCE.md → "Adding an Other Staff login".
 - [ ] **Run `npm test`: a new name must not share a login with anybody already in `teamMembers`, leavers (`hidden`) included.** The login is made from the name (`nameToEmail`, `auth-identity.js`): the first part's letters, a full stop, then the rest of the name with everything but the letters a–z dropped, all in lower case — so "A. Mc Donald" and "A. McDonald" are ONE login. `auth-identity.test.mjs` refuses a clash ("X and Y would share the login …"), and the pay calculator's namespace test usually fails beside it on the same clash. Missed, Set up accounts would refuse to hand the other member's account over, and the new starter would be left with no login, listed as failed ("… holds an account claimed for …").
   - Change the NEW starter's roster name (more of the first name), never the existing member's: their Firestore records are filed under it.
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
@@ -86,14 +86,17 @@ reached the server — read it once that deploy has finished, never before. If t
 | a CEA already working at Marylebone | `welcome-email-cea.html` | it works for them |
 | a CES (a supervisor) already working at Marylebone | `welcome-email-ces.html` | it works for them |
 | a Dispatcher already working at Marylebone | `welcome-email-dispatcher.html` | it does not work for them yet |
-| a new starter, any grade | `welcome-email.html`, making its two choices | the one for their grade |
+| an Other Staff login (no roster of their own) | `welcome-email-other-staff.html` | nothing: there is no section 4, the calculator is not in their menu |
+| a new starter, any grade | `welcome-email.html`, making its three choices | the one for their grade |
 
-The three ready-made copies are `welcome-email.html` with its choices already made: the
-existing-staff opening, their grade, and the Pay Calculator section for that grade. Only the first
-name, roster name, surname password and PIN are left to fill. They exist so that everybody in a
+The four ready-made copies are `welcome-email.html` with its choices already made: the
+existing-staff opening (Other Staff's own, for theirs), their grade, What it does, and the Pay
+Calculator section for that grade. Only the first
+name, roster name and surname password are left to fill. They exist so that everybody in a
 grade is sent the same email: the CEA's is the one sent to a CEA on 7 Nov 2026 (owner, 8 Nov 2026:
 "so a consistent version can be used for CEAs"), and the supervisor's and the Dispatcher's follow it
-(owner, 11 Nov 2026). **A change to the wording belongs in all four files**:
+(owner, 11 Nov 2026), and the Other Staff copy since the staff PIN those colleagues used was retired
+(owner, 24 Nov 2026). **A change to the wording belongs in all five files**:
 `welcome-email-parity.test.mjs` builds each copy from `welcome-email.html` and fails until they
 agree. It also fails the Dispatcher's copy on the day the calculator gains Dispatcher rates, because
 that copy tells them to ignore it.
@@ -102,8 +105,8 @@ Nothing in the app introduces itself. A new starter is provisioned, appears on e
 has no idea any of it is there; the only thing that closes that gap is somebody telling them.
 
 Copy the file into the email body as HTML and work through the checklist in its opening comment.
-The general template carries the placeholders (preferred name, roster name, grade, surname password,
-PIN) and two either/or blocks — a new-starter vs existing-staff opening, and a Pay Calculator
+The general template carries the placeholders (preferred name, roster name, grade, surname password)
+and two either/or blocks — a new-starter vs existing-staff opening, and a Pay Calculator
 section that differs by grade. **That second one is the one that goes out wrong**: the calculator is
 built on the CEA and CES hourly rates, so the positive version promises a Dispatcher something that
 cannot work.
@@ -115,12 +118,6 @@ Two things to get right before sending:
 - **Ask what they are called**, and put the roster name in as well. The sign-in list shows the
   published-roster form (an initial and a surname), so somebody looking for their first name does not
   find themselves.
-
-⚠️ **The real PIN is never written into these files.** It lives only in the `CALENDAR_VIEWER_PIN`
-secret. **Only the PIN box is checked**: `welcome-email-parity.test.mjs` fails if, in any of the four
-files, it holds anything but `{{STAFF_PIN}}`. No test can look for the digits themselves (a test that
-knew them would be the leak), so the PIN typed anywhere else would not be caught. Fill
-`{{STAFF_PIN}}` in the mail client.
 
 **That's everything** — calendar display, team view, override eligibility, roster-assist pre-fill, and all subsequent pay periods are automatic.
 

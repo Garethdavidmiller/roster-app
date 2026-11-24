@@ -3,7 +3,7 @@
  * calendar-lock-slot.js — the ONE place on the Calendar page where a card can stand in for the grid.
  *
  * Owns: the element currently occupying the space the Calendar will fill (a sign-in card, the
- *   staff-PIN card, a member's own sign-in card, the boot skeleton, or the member's stored roster
+ *   member's own come-back card, the front door's can't-load fallback, the boot skeleton, or the member's stored roster
  *   painted by calendar-app.js), the mount/unmount of it, and
  *   the skeleton's delay timer.
  *   It also owns the other half of that exchange: hiding and showing the workspace the card stands
@@ -15,7 +15,7 @@
  * ── WHY A SLOT, AND NOT FOUR CARDS THAT EACH FIND THE CONTAINER ─────────────────────────────────
  *
  * Every card here is an ALTERNATIVE for the same place, and the invariant that matters is that at
- * most one of them exists at a time: the PIN → member direction is exactly what a re-lock followed by
+ * most one of them exists at a time: the sign-in → member direction is exactly what a re-lock followed by
  * a fresh decision produces, and a second card stacked under the first is a page with two sign-in
  * forms on it. With three cards that rule lived in three copies of the same twelve lines — find the
  * host, tear the previous panel down, build a section, remember it — and the fourth card (the

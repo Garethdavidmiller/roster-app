@@ -215,7 +215,7 @@ test('every root TEST file is listed in CLAUDE.md', () => {
 // The same rule for the BROWSER suite, which contract 1 above cannot see: it walks the repo root,
 // and every Playwright spec lives in `e2e/`. So an e2e spec could exist, run on every branch, and
 // be absent from the routing table with nothing to say so — which is exactly what happened to
-// `calendar-pin.spec.js`. It shipped 35 tests covering the staff PIN (the app's one access
+// `calendar-pin.spec.js` (now `calendar-access.spec.js`). It shipped 35 tests covering the staff PIN (the app's one access
 // boundary that a rendered page can check: no roster data in a locked DOM, the splash coming down
 // on the locked path, a viewer refused by the protected pages) and was the ONLY spec of eleven
 // missing from CLAUDE.md's tree. Found by inventory, not by review, which is the argument for

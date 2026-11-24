@@ -25,8 +25,7 @@ on. axe cannot tell: it checks that a live region exists, not that anybody heard
   `.visible`, and both pages write the message before the class goes on (`showError` in
   `login-overlay.js`, `setError` in `password-force.js`). On an iPhone and on an Android phone, type
   a wrong password and confirm that "Password not recognised…" is read out. If it is not, keep the box
-  rendered and change only its text. The Calendar PIN card already shows its box first and writes
-  second, and its `say` in `calendar-lock-cards.js` explains why.
+  rendered and change only its text: box first, words second.
 - **Admin's and Operations' status lines.** `.feedback`, `.list-feedback`, `.huddle-filename` and
   `#authSetupResult` are live regions held at `display: none` until a class shows them. Listen for
   one of each: a Change a Shift save, a deletion from Saved Changes, a chosen upload file and the

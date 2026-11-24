@@ -48,8 +48,8 @@ keeping if an unrun check looks different from a passed one.
       `CONFIG.NEWLINK_PREVIEW`) — and Overtime, which is paused and should show its paused note
       rather than a form.
 - [ ] **A deep link works from a cold tab** — `/admin.html`, `/paycalc.html` — not just the root.
-- [ ] **The Calendar PIN card** accepts the code and the roster appears. Then close Chrome entirely
-      (swipe it away from Recents), reopen, and confirm it asks again.
+- [ ] **No PIN anywhere** (retired 23 Nov 2026): a fresh tab's Calendar shows only the sign-in card,
+      with no way to enter a code; `#staff-pin` on the address does nothing.
 - [ ] **Sign in as a member** and confirm the roster shows *that member's* shifts. After picking the
       name, the password field sits above the keyboard, not behind it.
 - [ ] **Thumbs, not a mouse:** swipe the Calendar month and the Admin week from the middle of the
@@ -68,9 +68,8 @@ keeping if an unrun check looks different from a passed one.
       open a new one, which is a separate path in the service worker. If nothing arrives while Chrome
       is closed, look at the phone's battery setting for Chrome before calling it a defect — some
       makes stop a closed app receiving anything.
-- [ ] **The install strip** on the Calendar appears for a member signed in by name (never under the
-      staff PIN — a PIN unlock is a station, not a person) and its button opens Chrome's own install
-      dialog.
+- [ ] **The install strip** on the Calendar appears for a member signed in by name, and its button
+      opens Chrome's own install dialog.
 - [ ] **Unsaved Admin edits:** stage a change, then About → *View staff roster* — it asks first.
       Stage one again, press Back and return — the page offers to restore it.
 - [ ] **Sign out, then Back.** Signed in, open Admin, go to the Calendar from the drawer and sign
@@ -108,7 +107,7 @@ below a tab check. **Reinstall if the manifest changed this release**: a change 
 
 ## C · Samsung Internet — the same engine, a different browser
 
-- [ ] **Every page loads past the splash**, and sign-in and the PIN card work as in A.
+- [ ] **Every page loads past the splash**, and sign-in works as in A.
 - [ ] **Dark mode ON** in Samsung Internet's own settings (where it lives varies by version). Every
       page tells the browser it is light-only — `<meta name="color-scheme" content="only light">`,
       and the same in its CSS — which Chrome's own darkening honours. Confirm Samsung does: the

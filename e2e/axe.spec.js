@@ -13,21 +13,26 @@
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
 import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES, isTouchProject } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, seedCalendarMember, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES, isTouchProject } from './helpers.js';
 import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 import { alSheetFixture } from './al-sheet-fixture.js';
 import { SAVE_WORDS } from '../al-leave-words.js';
 
-// ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
-// Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
-// simply loads index.html now gets the unlock card and none of the roster. Every test in this file
-// is about what the Calendar DOES once it is open, not about the gate, so each page starts with a
-// viewer session already in place — the state an unlocked shared office PC is in, and the closest
-// match to what these tests were implicitly written against (roster on screen, `getSession()` null).
-// The gate itself is covered end-to-end in calendar-pin.spec.js.
-// A test that also seeds a member session still gets the member: the stub ranks them that way,
-// exactly as `decideAccess` does.
-test.beforeEach(async ({ page }) => { await seedViewerAccess(page); });
+// ── Calendar access ─────────────────────────────────────────────────────────────────────────────
+// The Calendar opens only for a signed-in member (the staff PIN, which opened it too from v20.12, was
+// retired on 23 Nov 2026), so a spec that simply loads index.html gets the sign-in card and none of
+// the roster. Every scan here but the gate's own is about what a page shows once it is open, so each
+// page starts signed in as a member with no calendar picked (`seedCalendarMember`). A test that seeds
+// another session after it wins; a scan of the FRONT DOOR undoes it (`signedOut`, below). The gate's
+// behaviour is calendar-access.spec.js.
+test.beforeEach(async ({ page }) => { await seedCalendarMember(page); });
+
+/** Undo the default member for a scan of the front door: no session, no identity. Register it after the
+ *  beforeEach's seed (later init scripts run last). @param {import('@playwright/test').Page} page */
+const signedOut = (page) => page.addInitScript(() => {
+    localStorage.removeItem('myb_admin_session');
+    window.__E2E = Object.assign(window.__E2E || {}, { authUser: false });
+});
 
 // ── A one-time notice is suppressed by default, and scanned deliberately instead ────────────────
 // A notice opens on the Calendar 1,500ms after load, on a fade transition, and every scan of `/`
@@ -246,7 +251,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         }
     });
 
-    // The LOCKED Calendar (v20.12). The one state a visitor with no session and no PIN ever sees,
+    // The LOCKED Calendar (v20.12). The one state a visitor with no session ever sees,
     // and it would be invisible to every other scan in this file — they all establish access first.
     // It is also the app's front door for anyone who has never used it, which is exactly the
     // audience least able to work around an accessibility fault.
@@ -254,52 +259,23 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // The first thing a browser holding nothing sees. The same form as the five sub-pages'
         // modal, but mounted in the page with no dialog role, so the drawer and the page around it
         // are in the tree beside it — a different scan from the modal's.
-        await page.addInitScript(() => {
-            try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
-        });
+        await signedOut(page);
         await page.goto('/');
         await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });
 
-    test('calendar — staff PIN unlock card', async ({ page }) => {
-        await page.addInitScript(() => {
-            try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
-        });
-        await page.goto('/');
-        await openPinCard(page);
-        await expect(page.locator('#calLockPin')).toBeVisible();
-        const v = await scan(page);
-        expect(v.length, report(v)).toBe(0);
-    });
-
-    test('calendar — unlock card showing an ERROR', async ({ page }) => {
-        // The error message is the one piece of this card that is announced rather than read, and it
-        // arrives after the page has settled — so a scan of the resting state cannot see it. Colour
-        // contrast on the error text is checked here and nowhere else.
-        await page.addInitScript(() => {
-            try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
-        });
-        await stubPinExchange(page, { status: 401 });
-        await page.goto('/');
-        await enterPin(page, '0000');
-        await expect(page.locator('#calLockMsg')).toContainText(/not recognised/i);
-        const v = await scan(page);
-        expect(v.length, report(v)).toBe(0);
-    });
-
     test('calendar — the MEMBER sign-in card (v20.79)', async ({ page }) => {
         // The other card a locked Calendar can show: a member whose Firebase identity is gone gets
-        // their own sign-in rather than a shared code. Different markup (no field, two buttons, a
-        // live message region), so the PIN scans above say nothing about it.
+        // their own sign-in. Different markup (no field, one button, a live message region), so the
+        // front door's scan above says nothing about it.
         await seedSession(page, 'G. Miller');
         await page.addInitScript(() => {
-            try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
-            window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true });
+            window.__E2E = Object.assign(window.__E2E || {}, { authUser: false, failSignIn: true });
         });
         await page.goto('/');
-        await expect(page.locator('#calLockPinInstead')).toBeVisible();
+        await expect(page.locator('#calLockWho')).toContainText('G. Miller');
         await expect(page.locator('#calLockSubmit')).toBeEnabled({ timeout: 20_000 });
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
@@ -977,6 +953,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     test('login overlay (forced, signed out)', async ({ page }) => {
         // settings.html shows the shared in-place sign-in overlay when no session exists — the
         // first thing an unauthenticated staff member meets, previously unscanned by the gate.
+        await signedOut(page);
         await page.goto('/settings.html');
         await expect(page.locator('#loginOverlay')).toBeVisible();
         const v = await scan(page);
@@ -1165,7 +1142,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // `.notice-lb-content` shell, same rgba-white text over the same glass — and the one badge no
         // other notice wears, the neutral General chip with no section colour. Three consequences:
         //   · Its audience is `'members'`, so this needs a NAMED identity (a session AND a restored
-        //     Firebase user) rather than the file's viewer seed.
+        //     Firebase user) — the file's default, re-seeded here with the calendar picked.
         //   · It is offered only on a touch screen, so the desktop project has nothing to open. The
         //     timetable and Year to Date notices below are scanned on both.
         //   · It runs 90 days from its 22 Oct 2026 posting, so the clock is pinned inside that life.
@@ -1253,9 +1230,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     for (const [name, ios] of /** @type {Array<[string, boolean]>} */ ([['button', false], ['instructions', true]])) {
         test(`install strip, ${name} variant (calendar)`, async ({ page }) => {
             await page.setViewportSize({ width: 390, height: 800 });   // mobile-only by design
-            // A NAMED session, not the file's default viewer: the strip refuses a PIN-unlocked
-            // station by design, so scanning it there would scan nothing and pass. The seed ranks
-            // above `seedViewerAccess` in the stub exactly as `decideAccess` does.
+            // A NAMED session with its calendar picked — the strip is offered to a member on their
+            // own phone, so the scan must reach the state it is drawn in.
             await seedMemberSession(page);
             if (ios) await page.addInitScript(() => {
                 Object.defineProperty(navigator, 'userAgent', { get: () =>

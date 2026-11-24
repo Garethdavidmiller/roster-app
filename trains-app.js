@@ -17,9 +17,9 @@
  * `trains-data.js` is served to anyone, like every module. Narrowing it again is one line in
  * `auth-policy.js` and one flag in `nav-panel.js`, which page-contract-parity requires to move together.
  *
- * And the station PIN (owner, 22 Oct 2026), whose staff are the ones customers ask: the policy's
- * `staffPin` flag has the page ask `holdsStaffPin` before offering a sign-in, and every other
- * protected page still signs the PIN out on arrival (session.js → `reconcileExpiredIdentity`).
+ * The station PIN read it too from 22 Oct 2026 until the PIN was retired (owner, 23 Nov 2026): a leftover
+ * PIN session is now signed out here on arrival, as on every protected page (session.js →
+ * `reconcileExpiredIdentity`), and the sign-in card says why (staff-pin-ended.js).
  *
  * ── TEACH THE CHANGE, NOT THE TIMETABLE ────────────────────────────────────────────────────────
  *
@@ -61,10 +61,9 @@ import { CONFIG } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, holdsStaffPin, signOutStaffPin, staffPinIsCurrent } from './session.js';
+import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
-import { requirePage, navGatesFor, admitsStaffPin } from './auth-policy.js';
-import { PIN_FIRST_HASH } from './calendar-access-core.js';
+import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -113,12 +112,18 @@ export function init() {
     // initialising here, and a role-gated page must not treat "pending" as "allowed".
     const access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'trains');
     if (access.decision === 'login') {
-        // No member — but the station PIN reads this page too, so ask for it BEFORE offering a
-        // sign-in: a station PC is not shown one, and keeps the PIN it unlocked the Calendar with. The
-        // policy decides whether to ask at all, so dropping its flag also signs the PIN out here again.
-        const pin = admitsStaffPin('trains') ? holdsStaffPin(undefined, () => start(null)) : reconcileExpiredIdentity().then(() => false);
-        pin.then((held) => { if (held) { start(null); return; } document.body.classList.add('auth-ready'); initLoginOverlay({
-            pageLabel: 'Trains', about: SIGN_IN_ABOUT,   // the way in for the station PIN, which opens this page too (trains-render.js)
+        // No member: the sign-in. The teardown runs FIRST — it is what signs out a leftover session of the
+        // retired staff PIN (owner, 23 Nov 2026) — but for no longer than the Calendar gives it
+        // (`ACCESS_DECISION_BUDGET_MS`, calendar-access.js). It begins by awaiting `authReady`, which never
+        // settles when the auth store is wedged (an iPhone's stuck IndexedDB), and an unbounded wait here
+        // left the placeholder up for good with no way to sign in (72-hour check, 24 Nov 2026). Past the
+        // budget the card goes up and the teardown runs on: the card hears the retired-PIN line whenever
+        // it lands (`onStaffPinEnded`, staff-pin-ended.js), as the Calendar's does.
+        Promise.race([
+            reconcileExpiredIdentity().catch(() => {}),
+            new Promise(resolve => setTimeout(resolve, ACCESS_DECISION_BUDGET_MS)),
+        ]).then(() => { document.body.classList.add('auth-ready'); initLoginOverlay({
+            pageLabel: 'Trains', about: SIGN_IN_ABOUT,
             // No session here: reload into a fresh sign-in. Belt and braces — a session that failed to
             // save never reaches onSuccess (`runNamedSignIn` refuses with kind 'storage' first, and
             // Private Browsing has not refused storage since iOS 11), so only a session lost in between
@@ -139,31 +144,28 @@ export function init() {
 }
 
 /**
- * The page, for a member — or, with `member` null, for the station PIN, which is nobody: no session
- * to establish or guard, no password to force, and the drawer's Lock where a member has Sign out.
- * @param {string|null} member
+ * The page, for a member. (With `member` null it was the station PIN's, which is nobody, until the PIN
+ * was retired on 23 Nov 2026: a member is the only reader now.)
+ * @param {string} member
  */
 function start(member) {
     document.body.classList.add('auth-ready');   // the cards show; the boot placeholder goes (trains.html)
     dismissLoginOverlay();
-    if (member) {
-        const established = ensureNamedSession(member);
-        resolveSession(established);
-        // The card a lost session gets says what the card at load says — the station PIN's way in too.
-        guardNamedSession({ page: 'trains', pageLabel: 'Trains', member, established, about: SIGN_IN_ABOUT });
-    }
-    const isAdmin = !!member && CONFIG.ADMIN_NAMES.includes(member);
+    const established = ensureNamedSession(member);
+    resolveSession(established);
+    // The card a lost session gets says what the card at load says.
+    guardNamedSession({ page: 'trains', pageLabel: 'Trains', member, established, about: SIGN_IN_ABOUT });
+    const isAdmin = CONFIG.ADMIN_NAMES.includes(member);
     /** @type {any} */ let openAboutLightbox = null;
     initNavPanel({
-        authReady: member ? sessionReady : Promise.resolve(),
-        // The drawer's documents as the Calendar gates them: the member's own session, or the PIN while it is still this browser's.
-        canReadDocuments: member ? () => getSession()?.name === member : staffPinIsCurrent,
+        authReady: sessionReady,
+        // The drawer's documents as the Calendar gates them: the member's own session.
+        canReadDocuments: () => getSession()?.name === member,
         currentPage: 'trains',
         memberName: member,
-        ...navGatesFor(member),   // the pill gates (auth-policy.js); all false for the staff PIN
+        ...navGatesFor(member),   // the pill gates (auth-policy.js)
         onLogoClick: () => openAboutLightbox?.(),
-        onSignOut: member ? () => signOutAndLeave({ to: './' }) : null,
-        onLockCalendar: member ? null : { isViewer: () => true, lock: lockStaffPin },
+        onSignOut: () => signOutAndLeave({ to: './' }),
     });
     openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — Trains', getUserName: () => member })?.open ?? null;
     wireHeaderLogo();
@@ -208,35 +210,21 @@ function start(member) {
     render(state);
     markPageReady();
     // A page left open overnight still turns the countdown — and, on the day, every label with it.
-    // A tab left open overnight (the station PC's, since the PIN reads this page) comes back on TODAY's
+    // A tab left open overnight (a station PC's, say) comes back on TODAY's
     // kind of day unless somebody chose one; the labels and the phase re-read too (`render`).
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(state); });
     // …and one that is never hidden is asked each minute (the header's "On and after the change").
     setInterval(() => { if (document.visibilityState === 'visible') turnIfNewDay(state); }, 60_000);
 
-    if (member) {
-        sessionReady.then(() => {
-            initErrorReporter();
-            recordUsage('trains', member);
-            recordPageLatency('trains', member);
-        });
-        // Called now, with the session as its barrier: a sign-in's one-shot marker is spent as the page opens,
-        // never only once the session is confirmed (password-force.js, "consume BEFORE any await"). It fails open by
-        // itself; the `.catch` only keeps an unexpected rejection from going unhandled.
-        initPasswordForce(member, { ready: sessionReady }).catch(() => {});
-        return;
-    }
-    // The station PIN is already the current Firebase user (holdsStaffPin read it), and the rules take
-    // these writes from it — so there is nothing to wait for, and no member to name in them.
-    initErrorReporter();
-    recordUsage('trains', null);
-    recordPageLatency('trains', null);
-}
-
-/** The drawer's Lock for the station PIN: sign it out, then the Calendar's PIN card, as `lockCalendar` does. */
-async function lockStaffPin() {
-    await signOutStaffPin();
-    window.location.replace('./' + PIN_FIRST_HASH);
+    sessionReady.then(() => {
+        initErrorReporter();
+        recordUsage('trains', member);
+        recordPageLatency('trains', member);
+    });
+    // Called now, with the session as its barrier: a sign-in's one-shot marker is spent as the page opens,
+    // never only once the session is confirmed (password-force.js, "consume BEFORE any await"). It fails open by
+    // itself; the `.catch` only keeps an unexpected rejection from going unhandled.
+    initPasswordForce(member, { ready: sessionReady }).catch(() => {});
 }
 
 // ── Renders ─────────────────────────────────────────────────────────────────────────────────────

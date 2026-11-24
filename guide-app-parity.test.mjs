@@ -11,16 +11,13 @@
 // and fails, naming the line to update, when the two disagree. A fact said in two places drifts;
 // this is the pattern that keeps the second place honest (a parity test).
 //
-//  1. THE STAFF PIN. auth-policy.js → PAGE_POLICIES says which pages the PIN opens (`staffPin`).
-//     The guide's PIN paragraph ([data-staff-pin]) and the Calendar card's hint must name each of
-//     them in the sentence that says what the PIN opens, and must not name a page that is open to
-//     everyone anyway: listing it reads as "you need the PIN for this". The paragraph must also name,
-//     where it says what the PIN does NOT open, every page in every member's menu that asks for a
-//     sign-in — the three a PIN visitor will meet and be turned away from.
+//  1. THE STAFF PIN IS RETIRED (owner, 23 Nov 2026). It used to be a list the guide restated (the pages
+//     the PIN opened, from `staffPin` in auth-policy.js). Now the guide, and the Calendar's sign-in card,
+//     must not offer it at all: a reader who is told about a PIN goes looking for a box that is not there.
 //  2. THE MENU. nav-destinations.js → NAV_PAGES: every page pill shown to every member (no `…Only` gate) is
 //     named in the guide's "Pages" tile ([data-menu-pages]), and no gated one is — those are the
-//     tile's "any others you have access to". Both directions, for the PIN lists too: a page that
-//     stops being everyone's, or that the PIN stops opening, fails as surely as one added.
+//     tile's "any others you have access to". Both directions: a page that stops being everyone's
+//     fails as surely as one added.
 //  3. THE ADMIN TYPE BUTTONS. admin-shift-types.js → PILL_TYPES and each type's `pill` label: the
 //     Shift Types table, the Change a Shift step and the Apply to Several Days step name the buttons
 //     by their own labels, in their own order (the bulk bar has no Other — admin.md says why).
@@ -65,78 +62,43 @@ function marked(/** @type {string} */ attr) {
     return text(m[2]);
 }
 
-/** What a sentence says the PIN opens: from "opens" to the end of that sentence. */
-const opensClause = (/** @type {string} */ t) => t.match(/\bopens\b([^.]*)\./)?.[1] ?? '';
-/** What it says the PIN does not open: from "doesn't open" / "does not open" to the sentence end. */
-const notOpenClause = (/** @type {string} */ t) => t.match(/\b(?:doesn’t|doesn't|does not) open\b([^.]*)\./)?.[1] ?? '';
-
-/** How a reader names each page in prose. A page the PIN starts to open must be added here. */
-const READER_WORD = Object.freeze({
-    calendar: 'roster',     // the guide and the card say "the roster"
-    trains: 'Trains',
-    guides: 'guides',
-});
-
 /** The page pills, from the drawer's own list (nav-destinations.js): { id, name, gated }. */
 function navPages() {
     return NAV_PAGES.map(p => {
         // The label is the emoji, a space, then the name: "💷 Pay", "🔁 New link".
         const name = p.label.slice(p.label.indexOf(' ') + 1).trim();
         assert.ok(name, `a NAV_PAGES label with no name after its emoji: "${p.label}"`);
-        // GATED means a ROLE opens it. `otherStaffHidden` is not one: it takes Admin and Pay from the Other staff
+        // GATED means a ROLE opens it. `otherStaffHidden` is not one: it takes Admin and Pay from the Other Staff
         // grade (owner, 23 Nov 2026), and the Staff Guide is written for colleagues with a roster, who keep both.
         return { id: p.id, name, gated: Object.keys(PILL_GATES).some(f => f !== 'otherStaffHidden' && /** @type {any} */ (p)[f]) };
     });
 }
 
-const PIN_PAGES = Object.keys(PAGE_POLICIES).filter(p => PAGE_POLICIES[p].staffPin === true);
-const PUBLIC_PAGES = Object.keys(PAGE_POLICIES).filter(p => !PAGE_POLICIES[p].requireNamed && !PAGE_POLICIES[p].staffPin);
+const PUBLIC_PAGES = Object.keys(PAGE_POLICIES).filter(p => !PAGE_POLICIES[p].requireNamed);
 
 test('the anchors this test reads are where it thinks they are', () => {
-    assert.ok(PIN_PAGES.length >= 2, `PAGE_POLICIES lists ${PIN_PAGES.length} PIN pages — re-anchor this test`);
     assert.ok(PUBLIC_PAGES.includes('guides'), 'the guides are no longer a public page — re-read this test');
     assert.ok(navPages().length >= 5, 'NAV_PAGES holds fewer than five pills — re-read this test');
 });
 
-test('1. the Staff Guide names every page the staff PIN opens, and no page that is open to all', () => {
-    const opens = opensClause(marked('data-staff-pin'));
-    assert.ok(opens, 'the PIN paragraph no longer says what the PIN "opens" — re-anchor this test');
-    for (const page of PIN_PAGES) {
-        const word = READER_WORD[/** @type {keyof typeof READER_WORD} */ (page)];
-        assert.ok(word, `the staff PIN now opens '${page}' (auth-policy.js) — add how a reader names it to READER_WORD here, and say it in staff-guide.html's PIN paragraph and on the Calendar's sign-in card`);
-        assert.ok(opens.includes(word), `the staff PIN opens '${page}', but the Staff Guide's PIN paragraph does not say so ("${word}" is missing from: "${opens.trim()}")`);
+test('1. the Staff Guide no longer offers the staff PIN, nor the way to it (retired, 23 Nov 2026)', () => {
+    // Visible text only: an HTML comment may tell the history.
+    const shown = text(GUIDE.replace(/<!--[\s\S]*?-->/g, ''));
+    for (const words of ['staff PIN', 'Use the staff PIN instead', 'End staff PIN']) {
+        assert.ok(!shown.includes(words), `the Staff Guide still says "${words}" — there is no PIN to offer any more`);
     }
-    for (const [page, word] of Object.entries(READER_WORD).filter(([pg]) => !PIN_PAGES.includes(pg))) {
-        assert.ok(!opens.includes(word), PUBLIC_PAGES.includes(page)
-            ? `the Staff Guide says the PIN opens "${word}", which is open to everyone without it`
-            : `the Staff Guide says the PIN opens "${word}", but auth-policy.js no longer lets the PIN open '${page}'`);
-    }
+    assert.ok(!/\bdata-staff-pin\b/.test(GUIDE), 'the guide still carries the PIN paragraph\'s anchor');
+    // …and it still tells a reader with no login what to do instead: ask the admin (an account matter).
+    assert.match(shown, /No login yet\? Ask the admin/, 'the guide no longer tells somebody with no login to ask the admin');
 });
 
-test('1. the Staff Guide says which pages in every member\'s menu the staff PIN does not open', () => {
-    const notOpen = notOpenClause(marked('data-staff-pin'));
-    assert.ok(notOpen, 'the PIN paragraph no longer says what the PIN "doesn\'t open" — the visitor turned away by Admin or Pay is who it is for');
-    const askSignIn = navPages().filter(p => !p.gated && PAGE_POLICIES[/** @type {keyof typeof PAGE_POLICIES} */ (p.id)]?.requireNamed && !PAGE_POLICIES[/** @type {keyof typeof PAGE_POLICIES} */ (p.id)]?.staffPin);
-    assert.ok(askSignIn.length >= 3, `only ${askSignIn.length} sign-in pages found in the menu — re-anchor this test`);
-    for (const p of askSignIn) {
-        assert.ok(notOpen.includes(p.name), `"${p.name}" asks a PIN visitor to sign in, but the Staff Guide's PIN paragraph does not name it among the pages the PIN doesn't open ("${notOpen.trim()}")`);
-    }
-});
-
-test('1. the Calendar\'s sign-in card names every page the staff PIN opens, and no page that is open to all', () => {
-    // Two wordings, one per state of the Newsletter's menu button (item 4): each is held to the PIN's pages.
-    const m = read('calendar-lock-cards.js').match(/alternative:\s*\{[\s\S]*?hint:\s*newsletterInMenu\(\)\s*\?\s*'([^']+)'\s*:\s*'([^']+)'/);
-    assert.ok(m, 'the PIN hint on the Calendar\'s sign-in card was not found in calendar-lock-cards.js — re-anchor this test');
-    for (const hint of [m[1], m[2]]) {
-        const opens = opensClause(hint);
-        for (const page of PIN_PAGES) {
-            const word = READER_WORD[/** @type {keyof typeof READER_WORD} */ (page)];
-            assert.ok(word && opens.includes(word), `the staff PIN opens '${page}', but the Calendar card's hint does not say so: "${hint}"`);
-        }
-        for (const [page, word] of Object.entries(READER_WORD).filter(([pg]) => !PIN_PAGES.includes(pg))) {
-            assert.ok(!opens.includes(word), `the Calendar card says the PIN opens "${word}", which the PIN does not open ('${page}'): "${hint}"`);
-        }
-    }
+test('1. the Calendar\'s sign-in card offers no alternative way in', () => {
+    // The card's `alternative` was "Use the staff PIN instead", with a hint naming the PIN's pages.
+    const src = read('calendar-lock-cards.js');
+    const at = src.indexOf('initLoginOverlay({\n        pageLabel: \'Calendar\'');
+    assert.ok(at > -1, 'the Calendar\'s sign-in card was not found — re-anchor this test');
+    const front = src.slice(at, src.indexOf('});', at));
+    assert.ok(!/alternative\s*:/.test(front), `the front door offers an alternative way in again:\n${front}`);
 });
 
 test('2. the Staff Guide\'s menu names every page every member sees', () => {

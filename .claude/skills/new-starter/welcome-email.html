@@ -9,37 +9,43 @@
   ── FILL IN ──────────────────────────────────────────────────────────────────
     {{FIRST_NAME}}   what they are actually called. ASK — several people on the
                      roster go by something other than their roster name.
-    {{ROSTER_NAME}}  how the app lists them, e.g. "I. Melikian". This is what the
-                     sign-in dropdown shows, and it follows the published roster.
-                     Somebody looking for "Alex" will not find themselves.
-    {{GRADE}}        CEA · CES · Dispatcher — the grade they pick when signing in.
+    {{ROSTER_NAME}}  how the app lists them: an initial and a surname, e.g.
+                     "P. Ashdown". This is what the sign-in list shows; somebody
+                     looking for "Alex" will not find themselves.
+    {{GRADE}}        CEA · CES · Dispatcher · Other Staff — the grade they pick
+                     when signing in (CONFIG.GRADE_ORDER).
     {{PASSWORD}}     their surname, all lowercase, letters only. It is derived by
                      `normaliseSurname` in auth-identity.js — if you are unsure,
                      run that rather than guessing (hyphens and apostrophes go).
-    {{STAFF_PIN}}    the four digits. ⚠️ NEVER COMMIT THE REAL PIN. It lives only
-                     in the CALENDAR_VIEWER_PIN secret. welcome-email-parity.test.mjs
-                     fails if the PIN box holds anything but this placeholder, but
-                     no test can look for the digits themselves, so the PIN written
-                     anywhere else in this file would not be caught.
-                     Fill it in the mail client, not in this file.
 
   ── CHOOSE ───────────────────────────────────────────────────────────────────
     For somebody ALREADY working at Marylebone these choices are made for you:
-    send welcome-email-cea.html, welcome-email-ces.html or
-    welcome-email-dispatcher.html, by their grade. Choose here for a new starter.
-    · Opening paragraph — NEW STARTER or EXISTING STAFF. Keep one.
-    · Section 4, the Pay Calculator — CEA/CES or DISPATCHER. Keep one.
+    send welcome-email-cea.html, welcome-email-ces.html,
+    welcome-email-dispatcher.html or welcome-email-other-staff.html, by their
+    grade. Choose here for a new starter.
+    · Opening paragraph — NEW STARTER, EXISTING STAFF or OTHER STAFF. Keep one.
+    · Section 1, What it does — WITH A ROSTER, or OTHER STAFF. Keep one.
+    · Section 4, the Pay Calculator — CEA/CES or DISPATCHER. Keep one, or for
+      Other Staff delete the whole section, heading included: the Pay
+      Calculator is not in their menu.
       This is the section that most often goes out wrong: the calculator is built
       around the CEA and CES hourly rates, so for a Dispatcher it cannot work yet.
+    An "Other Staff" login (owner, 23 Nov 2026) has no roster of its own and no
+    manager rights: it sees everyone's roster, read-only, the Huddle and the
+    circulars, Trains and its own Settings. So its email never says "your roster"
+    or offers to record leave.
 
   ── BEFORE YOU SEND ──────────────────────────────────────────────────────────
     · Their login must EXIST: Operations → Set up accounts, after the functions
       deploy. An email arriving before that is an email telling somebody to try a
       password that does not work.
+    · The surname is only their FIRST password. Somebody who has already signed
+      in and changed it will not get in with it, so check with them first if
+      that may be so.
     · Search the body for "{{" — nothing should be left.
 
   ── DESIGN RULES, IF YOU EDIT THIS ───────────────────────────────────────────
-    · Change the wording in all four files. The three ready-made copies are this
+    · Change the wording in all five files. The four ready-made copies are this
       file with its choices made, and welcome-email-parity.test.mjs fails until
       they agree.
     · Brand navy #001e3c, gold #f5c800. From .claude/rules/css-tokens.md; do not
@@ -47,17 +53,15 @@
     · Inter-first sans throughout, NEVER monospace. Inter is the app's only
       typeface, and a monospace block falls back to Courier New in most mail
       clients, which looks foreign to everything else.
-    · The password block carries the GOLD accent, the PIN block is MUTED GREY.
-      That is load-bearing, not decoration: the email's whole point in section 5
-      is that one is yours and one is shared, and drawing them identically argues
-      against the sentence.
+    · The password block carries the GOLD accent: it is theirs. (Its muted grey
+      twin, the staff PIN, went with the PIN, 23 Nov 2026.)
     · Tables and inline styles only — Outlook ignores <style> blocks.
     · The card is FLUID: width:100% with max-width:600px, so it fills a phone and
       stops at 600px anywhere else. Classic Outlook on Windows ignores max-width,
       so the [if mso] wrapper around the card gives it 600px there. Never fix
       anything wider than a phone: a fixed 600px card made phone mail apps shrink
       the whole email, taking its text to about 10px (owner, 11 Nov 2026). The
-      password and PIN boxes may wrap, because a long surname is one word.
+      password box may wrap, because a long surname is one word.
     · Calm and factual. No exclamation marks. "Absent", never "sick".
 ════════════════════════════════════════════════════════════════════════════════
 -->
@@ -80,7 +84,7 @@
   <tr><td style="padding:30px 30px 4px 30px;">
     <p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#1c2b3a;">Hi {{FIRST_NAME}},</p>
 
-    <!-- ══ OPENING — KEEP ONE, DELETE THE OTHER ═══════════════════════════ -->
+    <!-- ══ OPENING — KEEP ONE, DELETE THE OTHERS ══════════════════════════ -->
 
     <!-- OPENING A — NEW STARTER -->
     <p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#1c2b3a;">
@@ -93,6 +97,14 @@
     <p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#1c2b3a;">
       There is a roster app for Marylebone that I do not think you have come across. It shows your
       shifts, your rest days and your annual leave, and it is where the Daily Huddle and the
+      circulars live.
+    </p>
+    -->
+
+    <!-- OPENING C — OTHER STAFF (no roster of their own)
+    <p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#1c2b3a;">
+      There is a roster app for Marylebone that I do not think you have come across. It shows the
+      station&rsquo;s roster &mdash; who is on, and when &mdash; and it is where the Daily Huddle and the
       circulars live.
     </p>
     -->
@@ -121,6 +133,9 @@
     <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">1. What it does</div>
     <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
   </td></tr>
+  <!-- ══ WHAT IT DOES — KEEP ONE, DELETE THE OTHER ══════════════════════ -->
+
+  <!-- WHAT IT DOES A — WITH A ROSTER OF THEIR OWN -->
   <tr><td style="padding:16px 30px 26px 30px;">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
       <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
@@ -141,6 +156,25 @@
     </table>
   </td></tr>
 
+  <!-- WHAT IT DOES B — OTHER STAFF (no roster of their own, read-only)
+  <tr><td style="padding:16px 30px 26px 30px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+      <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:9px;">
+            <strong style="color:#001e3c;">The station&rsquo;s roster</strong> &mdash; everyone&rsquo;s shifts, rest days and annual leave,
+            month by month. Pick a name to see theirs, tap a day for the detail.</td></tr>
+      <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:9px;">
+            <strong style="color:#001e3c;">Team Week View</strong> &mdash; who is on, day by day.</td></tr>
+      <tr><td width="16" valign="top" style="font-size:16px;line-height:1.65;color:#f5c800;">&bull;</td>
+          <td style="font-size:15px;line-height:1.65;color:#1c2b3a;">
+            The <strong style="color:#001e3c;">Daily Huddle</strong>, <strong style="color:#001e3c;">Weekly Retail Circular</strong> and
+            <strong style="color:#001e3c;">Marylebone Newsletter</strong> (for six weeks after each issue). All under the
+            &#9776; menu, top left.</td></tr>
+    </table>
+  </td></tr>
+  -->
+
   <!-- ── 2. PUT IT ON YOUR PHONE ──────────────────────────────── -->
   <tr><td style="padding:0 30px;">
     <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">2. Put it on your phone</div>
@@ -149,7 +183,7 @@
   <tr><td style="padding:16px 30px 26px 30px;">
     <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
       You can just use the link in a browser. But adding it to your home screen gives you an app icon,
-      opens it full screen, and means your roster still shows when you have no signal.
+      opens it full screen, and means the roster still shows when you have no signal.
     </p>
     <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
       <strong style="color:#001e3c;">Android</strong> &mdash; open the link above in <strong>Chrome</strong>,
@@ -178,7 +212,7 @@
   <tr><td style="padding:16px 30px 26px 30px;">
     <p style="margin:0 0 14px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
       When you open the app it asks you to sign in straight away &mdash; there is no separate login page.
-      You need to be signed in to record annual leave or an absence, or to use the Pay Calculator.
+      The roster, the Huddle and the circulars all show once you have signed in, and there is no other way in.
     </p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="padding-bottom:4px;">
       <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">1.</td>
@@ -187,13 +221,13 @@
       <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">2.</td>
           <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:8px;">
             <strong style="color:#001e3c;">Your name</strong> &mdash; the list only fills in once you have picked a grade.
-            You are on it as <strong>{{ROSTER_NAME}}</strong>, since it follows the published roster.</td></tr>
+            You are on it as <strong>{{ROSTER_NAME}}</strong> &mdash; an initial and your surname.</td></tr>
       <tr><td width="26" valign="top" style="font-size:15px;line-height:1.65;color:#001e3c;font-weight:700;">3.</td>
           <td style="font-size:15px;line-height:1.65;color:#1c2b3a;padding-bottom:16px;">
             <strong style="color:#001e3c;">Password</strong> &mdash; below. Then tap <strong>Sign in &rarr;</strong>.</td></tr>
     </table>
 
-    <!-- password block — GOLD accent: this one is THEIRS. Do not restyle to match the PIN. -->
+    <!-- password block — GOLD accent: this one is THEIRS. -->
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7f9fb;border:1px solid #dfe6ee;border-left:4px solid #f5c800;border-radius:0 8px 8px 0;">
       <tr><td align="center" style="padding:18px 20px 20px 20px;">
         <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">Your first password</div>
@@ -233,7 +267,9 @@
 
   <!-- ══ PAY CALCULATOR — KEEP ONE, DELETE THE OTHER ════════════════════════
        The calculator is built around the CEA and CES hourly rates. Sending
-       VARIANT A to a Dispatcher promises something that cannot work for them. -->
+       VARIANT A to a Dispatcher promises something that cannot work for them.
+       For OTHER STAFF delete the whole of section 4, from its heading to here and
+       both variants: the Pay Calculator is not in their menu. -->
 
   <!-- VARIANT A — CEA and CES -->
   <tr><td style="padding:16px 30px 26px 30px;">
@@ -264,40 +300,6 @@
     </table>
   </td></tr>
   -->
-
-  <!-- ── 5. THE STAFF PIN ─────────────────────────────────────── -->
-  <tr><td style="padding:0 30px;">
-    <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">5. The staff PIN &mdash; different thing entirely</div>
-    <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
-  </td></tr>
-  <tr><td style="padding:16px 30px 26px 30px;">
-    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
-      The password above is <strong style="color:#001e3c;">yours</strong>. The PIN is
-      <strong style="color:#001e3c;">one code shared by everyone at Marylebone</strong> &mdash; it is not
-      personal to you and it does not sign you in as anybody.
-    </p>
-
-    <!-- PIN block — deliberately MUTED, never gold: this one is SHARED. -->
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef1f5;border:1px solid #dfe6ee;border-radius:8px;">
-      <tr><td align="center" style="padding:18px 20px 20px 20px;">
-        <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">The staff PIN</div>
-        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#3d4b5a;letter-spacing:10px;text-indent:10px;overflow-wrap:anywhere;word-break:break-word;">{{STAFF_PIN}}</div>
-        <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:10px;">Keep it to Marylebone staff</div>
-      </td></tr>
-    </table>
-
-    <p style="margin:16px 0 12px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
-      <strong style="color:#001e3c;">When you will see it</strong> &mdash; under the sign-in box there is a
-      <strong>Use the staff PIN instead</strong> link. It is there for the shared office PC, and for anyone
-      who needs the Huddle and the guides without having a login of their own.
-    </p>
-    <p style="margin:0;font-size:15px;line-height:1.65;color:#1c2b3a;">
-      <strong style="color:#001e3c;">When you will not</strong> &mdash; once you have signed in on your own
-      phone you will not be asked for anything again for up to 60 days. The PIN shows the roster, but not
-      as you &mdash; no leave balance, no recording leave, no Pay Calculator or Settings &mdash; so for you
-      it is the slower way round.
-    </p>
-  </td></tr>
 
   <!-- ── SIGN OFF ─────────────────────────────────────────────── -->
   <tr><td style="padding:6px 30px 26px 30px;border-top:1px solid #e6ebf1;">

@@ -61,14 +61,31 @@ export function monthCells(year, month, weekStart = 1) {
  * THE MONTH IN FULL, FROM THE SHARED COMPOSER (owner, 22 Nov 2026: a date with its year is written in
  * full, everywhere). This built "Fri 17 Jul 2026" from its own copy of the tables, so an upload card
  * read "Tue 10 Nov 2026" in the field above a receipt reading "10 November 2026". `formatWeekdayDate`
- * with the year is the one spelling (date-format.js). The longest, "Wed 30 September 2026", is about
- * 200px at 14px: the Operations rows let the field take a line of its own where it does not fit beside
- * its button, rather than run under it (operations.css → `.huddle-row`).
+ * with the year is the one spelling (date-format.js). It is the default, though no page asks for it
+ * today: every date field this module draws shares its line with a button on Operations, and those take
+ * `shortLabel` below. A field given a line of its own should take this one.
  * @param {string} iso YYYY-MM-DD
  * @returns {string}
  */
 function formatLabel(iso) {
     return formatWeekdayDate(parseISODate(iso), true);
+}
+
+/**
+ * "Tue 24 Nov 2026" — the SHORT trigger words, for a field that must share its line (owner, 24 Nov 2026).
+ *
+ * Every date field on Operations shares its line with a file button ("Choose file" on the Huddle,
+ * Circular and Newsletter cards, "Choose PDF" on the Weekly Roster's). With the month in full the pair
+ * no longer fitted on a phone, so each card stacked its controls one per line, which the owner asked to
+ * reverse. So those fields take this separately named short form, as date-format.js asks of a surface
+ * that cannot fit the full month; `initDatePickers` still writes it in full unless asked. The spoken name uses the same short words, never the full month: WCAG 2.5.3
+ * ("Label in Name") asks that the name contain what the button shows, for voice control.
+ * @param {string} iso YYYY-MM-DD
+ * @returns {string}
+ */
+function shortLabel(iso) {
+    const d = parseISODate(iso);
+    return `${formatWeekdayDate(d)} ${d.getFullYear()}`;
 }
 
 /** The one overlay every field on a page shares. Built on first use, never at import.
@@ -341,10 +358,12 @@ function _ensurePicker() {
  * Progressively enhance each `<input type="date">` named in `inputIds`: hide it as the value
  * holder and put a styled trigger in its place. See the module header for the contract. Call once,
  * after the owning cards have set their default values, so the first trigger label is right;
- * missing ids are skipped silently.
+ * missing ids are skipped silently. `shortMonth` writes the trigger, and its spoken name, as
+ * "Tue 24 Nov 2026" (`shortLabel`).
  * @param {string[]} inputIds
+ * @param {{ shortMonth?: boolean }} [opts]
  */
-export function initDatePickers(inputIds) {
+export function initDatePickers(inputIds, { shortMonth = false } = {}) {
     if (!Array.isArray(inputIds) || !inputIds.length) return;
     if (!_ensurePicker()) return;
 
@@ -361,9 +380,12 @@ export function initDatePickers(inputIds) {
         /** Reflect the input's CURRENT value — and whether it may be changed — into the trigger. */
         const _sync = () => {
             const v = input.value;
-            trigger.textContent = v ? formatLabel(v) : 'Choose date';
+            const words = v ? (shortMonth ? shortLabel(v) : formatLabel(v)) : '';
+            trigger.textContent = words || 'Choose date';
             trigger.classList.toggle('date-trigger--empty', !v);
-            trigger.setAttribute('aria-label', `${label}: ${v ? formatLabel(v) : 'no date chosen'}. Change.`);
+            // The spoken name carries the SAME words as the button ("Label in Name", WCAG 2.5.3): a
+            // voice-control user says what they see, so a short trigger is not given a long name.
+            trigger.setAttribute('aria-label', `${label}: ${words || 'no date chosen'}. Change.`);
             trigger.disabled = input.disabled;
         };
 

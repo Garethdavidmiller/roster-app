@@ -80,8 +80,8 @@
 </header>
 
 <!-- Boot placeholder (v24.96). The main is `display:none` until `body.auth-ready`: a visitor with no
-     local session waits for the auth boot (up to 6.5 s, holdsStaffPin) before the PIN is kept or a
-     sign-in is offered, and until v24.96 saw empty card shells meanwhile. The header stays; this
+     local session waits for the auth boot's teardown before a sign-in is offered, and until v24.96 saw
+     empty card shells meanwhile. The header stays; this
      sits where the cards will. Removed by CSS the moment `auth-ready` lands, as on Admin. -->
 <div id="bootPlaceholder" class="boot-placeholder" role="status">
     <span class="boot-spinner" aria-hidden="true"></span>
@@ -206,7 +206,7 @@
                 </div>
             </div>
         <!-- JUMP TO A STATION (v24.94). A desktop's right column held the lookup and nothing under it, and
-             the station PIN reads this page, so the station PC is a desktop reader: the busiest stations
+             a station PC is a desktop reader: the busiest stations
              here answer a barrier question in one click. trains.css shows it from 1024px only — on a phone
              the Stations tab is one tap away, and a second copy of its chips would push the list down. -->
         <div class="card" id="trJumpCard">

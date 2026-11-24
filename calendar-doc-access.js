@@ -3,7 +3,7 @@
  * calendar-doc-access.js — MAY THIS CALENDAR READ THE DOCUMENTS? (v23.17, owner decision 7 Sep 2026)
  *
  * The Daily Huddle, the Weekly Retail Circular and the Marylebone Newsletter are not to be visible
- * to anyone without the staff PIN or a password. `firestore.rules` is what enforces that on the
+ * to anyone without a password (the staff PIN, which opened them too, is retired — 23 Nov 2026). `firestore.rules` is what enforces that on the
  * server; this module is what makes the CLIENT honour it, and it exists for the same reason
  * `calendar-overrides.js` has a gate of its own: **rules are evaluated on the server, so a read that
  * the local Firestore cache can answer never consults them.** A browser that opened the Huddle
@@ -15,10 +15,10 @@
  *
  * ── WHEN IT OPENS, AND WHEN IT DOES NOT ─────────────────────────────────────────────────────────
  *
- *   · It opens on a FULL access grant — `named` or `viewer`. (A third, anonymous `open` grant
+ *   · It opens on a FULL access grant — `named`, the only one now (`viewer` went with the PIN). (An anonymous `open` grant
  *     existed while the staff PIN could be switched off; that switch was retired v24.34.)
- *   · It closes when access is LOST mid-session (a permission-denied override read, an expired
- *     viewer session). A deliberate "End staff PIN" reloads the page, so the default applies.
+ *   · It closes when access is LOST mid-session (a permission-denied override read, an expired session).
+ *     (A deliberate "End staff PIN" reloaded the page; it went with the PIN.)
  *
  * Those are the moments the roster reads open and close too, and that is by construction: THIS
  * MODULE KEEPS NO ANSWER OF ITS OWN, AND CANNOT CHANGE THE ONE THERE IS. `hasDocumentAccess` asks
@@ -31,7 +31,7 @@
  *
  * The overrides gate is a boolean the fetch paths consult. This one has to START things: the Huddle
  * viewer's live subscription must attach when access arrives (a notification tap that landed on the
- * PIN card must open the Huddle once the PIN is entered — the deep link has to SURVIVE the unlock,
+ * sign-in card must open the Huddle once the member signs in — the deep link has to SURVIVE the grant,
  * AUTH_PLAN.md §5), and a Circular tap made while locked must complete when the reader signs in.
  * Neither can poll a flag; both are told.
  *

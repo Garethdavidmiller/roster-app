@@ -151,7 +151,9 @@ export function init() {
 
     // Brand-styled date pickers over the four upload date fields. AFTER the card inits above,
     // which set each field's default value (today / next Saturday) that the trigger label reads.
-    initDatePickers(['huddleDate', 'circularDate', 'newsletterDate', 'rosterWeekEnding']);
+    // Every Operations date shares its line with a file button, so all four take the short month (owner,
+    // 24 Nov 2026 — date-picker.js → `shortLabel`): with it in full each card stacked its controls.
+    initDatePickers(['huddleDate', 'circularDate', 'newsletterDate', 'rosterWeekEnding'], { shortMonth: true });
 
     // ...and the app's own dropdown over the roster-type select, missed by the sweep that did the
     // other six pages. It is disabled during a parse (fires no event — hence the observer).
@@ -275,7 +277,7 @@ export function init() {
         if (!contentEl) return;
         const content = /** @type {HTMLElement} */ (contentEl);
         // Eligible = everybody who can sign in, grade by grade (`signInMembers`): the roster, the managers and
-        // Other staff, who are off the calendar but login-capable; no leavers. Everyone listed has Settings too,
+        // Other Staff, who are off the calendar but login-capable; no leavers. Everyone listed has Settings too,
         // so this card is a convenience for them, not the only route.
         const eligible = signInMembers();
         /** @type {Map<string, string>} name → work email */

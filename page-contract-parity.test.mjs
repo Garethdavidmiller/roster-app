@@ -40,7 +40,7 @@ const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.ur
 // (service worker, auth policy, nav, rules, reports, guide back-arrow), which cannot read the list
 // because the app has no build step.
 import { APP_PAGES as APP_PAGE_ENTRIES, GUIDE_PAGES, REDIRECT_PAGES, servedFiles, cardPageFiles, appPage } from './scripts/app-pages.mjs';
-import { admitsStaffPin, PAGE_POLICIES } from './auth-policy.js';
+import { PAGE_POLICIES } from './auth-policy.js';
 import { NAV_PAGES, PILL_GATES } from './nav-destinations.js';
 
 const GUIDES = new Set(GUIDE_PAGES.map(p => p.file));
@@ -527,26 +527,39 @@ test('every app page has a nav pill, so the drawer is a complete map', () => {
     assert.deepEqual(missing, [], 'page ids with no NAV_PAGES entry (nav-destinations.js)');
 });
 
-test('the station PIN is asked for where the policy admits it, and nowhere else (v24.84)', () => {
-    // `staffPin` in auth-policy.js is the one answer to "where may the station PIN go?", and a
-    // coordinator agrees with it in BOTH directions or the answer is a story. Asking where it is not
-    // admitted keeps the PIN on a page that may show member data, and that page still shows its own
-    // sign-in, so nothing on screen changes; admitting it without asking signs the PIN out on arrival,
-    // which is the bug the flag was added to fix. The Calendar is the one page whose PIN gate is its
-    // own module (calendar-access.js), not a coordinator asking. And no coordinator may keep the PIN
-    // by hand: `preserveCalendarViewer` goes through `holdsStaffPin`, behind the policy.
+test('no page asks for the staff PIN or keeps a PIN viewer — it is retired (owner, 23 Nov 2026)', () => {
+    // Until the retirement `staffPin` in auth-policy.js said where the station PIN might go, and the
+    // Calendar and Trains kept it (`holdsStaffPin`, `preserveCalendarViewer`). Every coordinator, and the
+    // Calendar's gate, now signs a leftover PIN session out on arrival: none may ask to keep one.
     /** @type {string[]} */ const problems = [];
     for (const page of APP_PAGES) {
         const file = coordinatorFor(page);
-        const id = pageIdOf(page);
         const code = codeOnly(read(`./${file}`));
-        const asks = callSites(code, 'holdsStaffPin').length > 0;
-        if (/\bpreserveCalendarViewer\b/.test(code)) problems.push(`${file} keeps the PIN by hand — ask holdsStaffPin, behind the policy`);
-        if (asks && !admitsStaffPin(id)) problems.push(`${file} asks for the PIN, but auth-policy.js does not admit it on '${id}'`);
-        if (asks && !callSites(code, 'admitsStaffPin').length) problems.push(`${file} asks for the PIN without consulting the policy`);
-        if (!asks && admitsStaffPin(id) && id !== 'calendar') problems.push(`${file}: the policy admits the PIN on '${id}', but the page never asks — it signs the PIN out`);
+        for (const word of ['holdsStaffPin', 'staffPinIsCurrent', 'signOutStaffPin', 'admitsStaffPin', 'preserveCalendarViewer']) {
+            if (new RegExp(`\\b${word}\\b`).test(code)) problems.push(`${file} still uses ${word}`);
+        }
     }
+    const gate = codeOnly(read('./calendar-access.js'));
+    if (/\bpreserveCalendarViewer\b/.test(gate)) problems.push('calendar-access.js keeps a PIN viewer');
     assert.deepEqual(problems, []);
+    assert.deepEqual(Object.keys(PAGE_POLICIES).filter(p => 'staffPin' in PAGE_POLICIES[p]), [], 'a policy admits the PIN again');
+});
+
+// ── TRAINS SIGNS A LEFTOVER PIN SESSION OUT BEFORE ITS SIGN-IN (owner, 23 Nov 2026) ──────────────────────
+// Until the retirement a browser with no member was asked `holdsStaffPin` here and kept a PIN session. Now
+// the signed-out branch runs the bare teardown, WAITS for it, and only then offers the sign-in — whose card
+// says the PIN is retired once the teardown has signed one out. The signed-in branch calls it too, so a
+// count of calls alone cannot see this one go.
+test('Trains: the signed-out branch tears a leftover PIN session down, then offers the sign-in', () => {
+    const code = codeOf('trains-app.js');
+    const at = code.indexOf("access.decision === 'login'");
+    assert.ok(at > -1, 'trains-app.js no longer has its signed-out branch where this test looks');
+    const branch = code.slice(at, code.indexOf("access.decision === 'forbidden'", at));
+    const teardown = branch.search(/\breconcileExpiredIdentity\(\)/);
+    const card = branch.indexOf('initLoginOverlay(');
+    assert.ok(teardown > -1, 'a signed-out visitor to Trains is offered a sign-in with a PIN session still live');
+    assert.ok(card > teardown && /\.then\(/.test(branch.slice(teardown, card)), 'the sign-in is offered before the teardown has finished');
+    assert.doesNotMatch(branch, /holdsStaffPin|preserveCalendarViewer|start\(null\)/, 'Trains keeps the staff PIN again');
 });
 
 test('a role-gated pill is gated from EVERY coordinator, not just its own page', () => {
@@ -704,14 +717,14 @@ test("a pill's GATE and the page policy's ROLE agree — in both directions", ()
         'these pills are hidden from people the page would ADMIT, so the feature is reachable only '
         + 'by typing its URL: ' + hidden.join(', '));
 
-    // The same two ways round for the "Other staff" grade (owner, 23 Nov 2026): a pill hidden from them
+    // The same two ways round for the "Other Staff" grade (owner, 23 Nov 2026): a pill hidden from them
     // (`otherStaffHidden`) is exactly a page whose policy does not admit them (`otherStaff`), among the pills
     // every member is otherwise offered.
     const ungated = NAV_PAGES.filter(p => !gateFlags.some(f => /** @type {any} */ (p)[f]));
     const hiddenFromThem  = ungated.filter(p => /** @type {any} */ (p).otherStaffHidden).map(p => p.id);
     const refusedThem     = ungated.filter(p => !PAGE_POLICIES[p.id]?.otherStaff).map(p => p.id);
     assert.deepEqual(hiddenFromThem, refusedThem,
-        'an Other staff login must be shown exactly the pages its policy admits: hidden ' + hiddenFromThem.join(', ')
+        'an Other Staff login must be shown exactly the pages its policy admits: hidden ' + hiddenFromThem.join(', ')
         + '; refused ' + refusedThem.join(', '));
 });
 
@@ -1157,10 +1170,10 @@ test('Operations: an update waits for the Annual leave sheet card; a notificatio
 // Each box is display:none while empty, which takes it out of the accessibility tree, and a region only
 // announces changes made while it is in the tree. "Show the box, then write" was pinned here as the cure,
 // but both happen in one task, before the tree is next updated — the order changed nothing. The region
-// is the box's always-rendered parent (calendar-lock-cards.js → `say` has the reasoning).
+// is the box's always-rendered parent (the reasoning was beside the PIN card's `say`, retired 23 Nov 2026).
 test('every sign-in message box that hides while empty sits inside a live region, and is not one itself', () => {
     const boxes = [['login-overlay.js', 'loginError'], ['login-overlay.js', 'loginStatus'], ['login-overlay.js', 'loginResetStatus'],
-        ['password-force.js', 'pwfError'], ['calendar-lock-cards.js', 'calLockMsg']];
+        ['password-force.js', 'pwfError']];   // (the PIN card's #calLockMsg went with the PIN, 23 Nov 2026)
     for (const [file, id] of boxes) {
         const m = codeOf(file).match(new RegExp(`<div ([^>]*)><div ([^>]*\\bid="${id}"[^>]*)></div></div>`));
         assert.ok(m, `${file}: #${id} is not the only child of a wrapper — nothing is in the tree to hear it appear`);
@@ -1171,18 +1184,16 @@ test('every sign-in message box that hides while empty sits inside a live region
 
 // ── EVERY PAGE TIDIES AN EXPIRED SIGN-IN AWAY AS IT STARTS (sign-in check, 11 Nov 2026) ─────────────
 // A Firebase identity whose 60-day local session has ended must not stay live on a page reached by a
-// deep link. Each coordinator asks `reconcileExpiredIdentity` as it starts — with its DEFAULT, which signs
-// the staff PIN out too (AUTH_AND_SESSIONS 24) — except the Calendar's access gate, which admits the PIN
-// and asks it to keep a viewer. Deleting the call from Settings or Operations left every suite green.
-test('every page asks reconcileExpiredIdentity as it starts, and only the Calendar keeps a PIN viewer', () => {
+// deep link. Each coordinator asks `reconcileExpiredIdentity` as it starts — with its DEFAULT, which signs a
+// leftover session of the retired staff PIN out too — and so does the Calendar's access gate, which kept a
+// viewer until the PIN was retired (owner, 23 Nov 2026). Deleting the call from Settings or Operations left
+// every suite green; an argument on the Calendar or Trains would keep a PIN viewer there again.
+test('every page asks reconcileExpiredIdentity as it starts, with no argument — the Calendar and Trains included', () => {
     for (const p of APP_PAGE_ENTRIES) {
         const file = p.id === 'calendar' ? 'calendar-access.js' : p.coordinator;
         const args = [...codeOf(file).matchAll(/\breconcileExpiredIdentity\(([^)]*)\)/g)].map(m => m[1].trim());
         assert.ok(args.length > 0, `${file}: never asks reconcileExpiredIdentity — an expired identity stays live there`);
-        if (p.id === 'calendar') {
-            assert.ok(args.every(a => /preserveCalendarViewer:\s*true/.test(a)), `${file}: the Calendar must keep a PIN viewer (${args})`);
-        } else {
-            assert.deepEqual(args.filter(Boolean), [], `${file}: only the Calendar may ask to keep a PIN viewer (Trains asks holdsStaffPin first)`);
-        }
+        // No page may ask to keep anything: the teardown's default is what signs a leftover PIN viewer out.
+        assert.deepEqual(args.filter(Boolean), [], `${file}: reconcileExpiredIdentity was asked to keep something (${args}) — the staff PIN is retired`);
     }
 });

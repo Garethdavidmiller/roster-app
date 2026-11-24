@@ -147,10 +147,10 @@ function mountDrawer(/** @type {any} */ opts) {
     return els.get('navSignOutBtn');
 }
 
-// ── The Admin and Pay pills without gates: kept for nobody signed in and the PIN ──────────────────────────────
+// ── The Admin and Pay pills without gates: kept for nobody signed in ──────────────────────────────
 // `isNotOtherStaff` is the one gate `initNavPanel` defaults to TRUE (owner, 23 Nov 2026): a page that passes no
-// gates — the PIN, or nobody signed in — must keep Admin and Pay, and only an Other staff login loses them.
-describe('the Other staff gate defaults to keeping Admin and Pay', () => {
+// gates — nobody signed in — must keep Admin and Pay, and only an Other Staff login loses them.
+describe('the Other Staff gate defaults to keeping Admin and Pay', () => {
     /** The drawer markup a mount injects. @param {any} opts */
     function injected(opts) {
         /** @type {any[]} */ const made = [];
@@ -170,7 +170,19 @@ describe('the Other staff gate defaults to keeping Admin and Pay', () => {
         const html = injected({});
         assert.ok(html.includes('./admin.html') && html.includes('./paycalc.html'), 'the drawer was built with both pills');
     });
-    test('an Other staff login (isNotOtherStaff false): neither is drawn, Settings still is', () => {
+    // END STAFF PIN IS GONE (owner, 23 Nov 2026): a drawer with nobody signed in draws no footer at all —
+    // no Lock button, no "Staff PIN access" — and the option an old caller passed for one is not read.
+    test('nobody signed in: no footer, and no staff-PIN button, whatever an old caller passes', () => {
+        const html = injected({ memberName: null, onSignOut: null, onLockCalendar: { isViewer: () => true, lock: async () => {} } });
+        assert.ok(html.includes('./admin.html'), 'premise: the drawer was built');
+        assert.ok(!html.includes('navLockCalendarBtn') && !/staff PIN/i.test(html), 'the End staff PIN button came back');
+        assert.ok(!html.includes('nav-panel-footer'), 'a footer was drawn for nobody');
+    });
+    test('a member: the footer, with Sign out', () => {
+        const html = injected({ memberName: 'Q. Example', onSignOut: () => {} });
+        assert.ok(html.includes('nav-panel-footer') && html.includes('navSignOutBtn'));
+    });
+    test('an Other Staff login (isNotOtherStaff false): neither is drawn, Settings still is', () => {
         const html = injected({ memberName: 'Q. Example', isNotOtherStaff: false });
         assert.ok(!html.includes('./admin.html') && !html.includes('./paycalc.html'));
         assert.ok(html.includes('./settings.html'));
@@ -713,62 +725,9 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
     });
 });
 
-// ── END STAFF PIN — the staff PIN's way out (calendar-pin e2e drives the journey) ─────────────────────
-// (`onLockCalendar` and `#navLockCalendarBtn` keep the name the button had before it read "End staff PIN".)
-// Two halves no unit test held: a `lock()` that REJECTS leaves the drawer open with a retry on the button,
-// because the drawer is the only surface left to report the failure on; and `isViewer` throwing fails
-// CLOSED — the button stays hidden, since "End staff PIN" shown to a member offers an action that does
-// nothing to their session. Asserted on behaviour; the button's words are not the subject here.
-describe('End staff PIN: a failed lock keeps the drawer, and an unanswerable viewer question hides the button', () => {
-    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
-    afterEach(() => mock.timers.reset());
-    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
-
-    test('a lock that rejects keeps the drawer open and re-arms the button with a retry line, which reverts', async () => {
-        const { $ } = mountLive({ onSignOut: null, onLockCalendar: { isViewer: () => true, lock: async () => { throw new Error('viewer survived sign-out'); } } });
-        const lock = /** @type {any} */ ($('navLockCalendarBtn'));
-        lock.textContent = 'End staff PIN';   // as `_inject` draws it (it read "Lock Calendar" until 21 Nov 2026)
-        /** @type {any} */ ($('navMenuBtn')).fire('click');
-        assert.equal(lock.hasAttribute('hidden'), false, 'premise: a PIN viewer sees the button');
-        lock.fire('click');
-        assert.equal(lock.disabled, true, 'held while the lock is tried');
-        await flush();
-        assert.equal($('navPanel').classList.contains('open'), true, 'the drawer stays open: it is the only surface left to report on');
-        assert.equal(lock.disabled, false, 'and the button can be pressed again');
-        assert.notEqual(lock.textContent, 'End staff PIN', 'the button says the lock failed');
-        mock.timers.tick(6000);
-        assert.equal(lock.textContent, 'End staff PIN', 'the retry line gives way to the label');
-    });
-
-    test('a lock that succeeds without navigating closes the drawer', async () => {
-        let locked = 0;
-        const { $ } = mountLive({ onSignOut: null, onLockCalendar: { isViewer: () => true, lock: async () => { locked++; } } });
-        /** @type {any} */ ($('navMenuBtn')).fire('click');
-        /** @type {any} */ ($('navLockCalendarBtn')).fire('click');
-        await flush();
-        assert.equal(locked, 1);
-        assert.equal($('navPanel').classList.contains('open'), false, 'a confirmed lock closes the drawer');
-    });
-
-    test('an isViewer that throws keeps the button hidden, and names no viewer in the footer', () => {
-        const { $ } = mountLive({ onSignOut: null, memberName: null, onLockCalendar: { isViewer: () => { throw new Error('access not resolved'); }, lock: async () => {} } });
-        const lock = /** @type {any} */ ($('navLockCalendarBtn'));
-        lock.setAttribute('hidden', '');   // as `_inject` draws it
-        /** @type {any} */ ($('navMenuBtn')).fire('click');
-        assert.equal(lock.hasAttribute('hidden'), true, 'fail closed: a member must never be offered a lock that does nothing to their session');
-        assert.equal($('navPanelMember').textContent, '', 'and the footer does not call this browser a PIN viewer');
-    });
-
-    test('control: an isViewer that answers yes reveals the button and names the mode', () => {
-        const { $ } = mountLive({ onSignOut: null, memberName: null, onLockCalendar: { isViewer: () => true, lock: async () => {} } });
-        const lock = /** @type {any} */ ($('navLockCalendarBtn'));
-        lock.setAttribute('hidden', '');
-        /** @type {any} */ ($('navMenuBtn')).fire('click');
-        assert.equal(lock.hasAttribute('hidden'), false);
-        assert.notEqual($('navPanelMember').textContent, '', 'the footer names the PIN mode');
-    });
-});
-
+// ── END STAFF PIN IS GONE (owner, 23 Nov 2026) ────────────────────────────────────────────────────────
+// The staff PIN's way out of the drawer went with the PIN. A drawer with no member draws no footer at
+// all — no Lock button, no "Staff PIN access" — and the option that drew one is not read.
 // ── A REFRESH NEVER PAINTS OVER A TAP — IN FLIGHT, OR AFTER ITS ANSWER (24-hour check, 22 Nov 2026) ───────
 // The drawer closed and reopened during a slow toggle started a refresh numbered ABOVE the tap's, whose read
 // began before the toggle settled and answered after it: the old 🔕 was painted over the tap's 🔔 — the
@@ -921,7 +880,7 @@ describe('the drawer\'s documents: a named session, or the page\'s own gate', ()
         const got = await tapCircular({ memberName: null, onSignOut: null });
         assert.equal(got.reads, 0, 'a drawer wired for nobody read the documents — offline, the cache answers without a rule');
         assert.equal(got.tabs, 0);
-        assert.match(got.said, /Sign in, or enter the staff PIN/);
+        assert.match(got.said, /^Sign in to read the Weekly Retail Circular\.$/);
     });
 
     test('no gate and a member signed in: the read goes ahead, as on every named page', async () => {
@@ -933,7 +892,7 @@ describe('the drawer\'s documents: a named session, or the page\'s own gate', ()
     test('a page\'s own gate decides, in both directions, whoever the drawer was wired for', async () => {
         assert.equal((await tapCircular({ canReadDocuments: () => false })).reads, 0);
         assert.equal((await tapCircular({ memberName: null, onSignOut: null, canReadDocuments: () => true })).reads, 1,
-            'a PIN viewer on Trains, nobody by name, must still reach the documents its gate admits');
+            'a page whose own gate admits the reader must reach the documents, whoever the drawer was wired for');
     });
 
     test('Pay and Trains pass a gate of their own at every drawer they wire', async () => {
@@ -1004,11 +963,11 @@ describe('the Newsletter the drawer opens is kept for the ☰ menu', () => {
     });
 });
 
-describe('a refusal from the server names the staff PIN\'s place only off the Calendar', () => {
+describe('a refusal from the server asks for a sign-in, and never for a PIN, on every page', () => {
     beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
     afterEach(() => { mock.timers.reset(); latestCircular = async () => null; });
     const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
-    for (const [pathname, onCal] of /** @type {const} */ ([['/', true], ['/index.html', true], ['/trains.html', false]])) {
+    for (const pathname of ['/', '/index.html', '/trains.html']) {
         test(`on ${pathname}`, async () => {
             const { $ } = mountLive();
             /** @type {any} */ (global.window).location = { pathname };
@@ -1021,8 +980,8 @@ describe('a refusal from the server names the staff PIN\'s place only off the Ca
             await flush();
             const said = $('navComingSoonBody').textContent;
             assert.match(said, /may have ended/, 'premise: an access refusal');
-            if (onCal) assert.doesNotMatch(said, /on the Calendar/, 'the Calendar told its reader to go to the Calendar');
-            else assert.match(said, /enter the staff PIN on the Calendar/);
+            assert.match(said, /Sign in again/);
+            assert.doesNotMatch(said, /PIN|on the Calendar/, 'the drawer sent its reader to the retired staff PIN');
         });
     }
 });

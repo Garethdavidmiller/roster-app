@@ -44,8 +44,6 @@ function hooks() {
             authReady: Promise.resolve(),
             onLogoClick: () => used.push('about'),
             onSignOut: () => used.push('signOut'),
-            isViewer: () => false,
-            lock: () => { used.push('lock'); },
             canReadDocuments: () => true,
         },
     };
@@ -54,7 +52,7 @@ function hooks() {
 beforeEach(() => { calls = []; session = null; });
 
 describe('calendarDrawerOptions — the drawer a session gets', () => {
-    test('nobody signed in (locked, or the staff PIN): no name, no Sign out, no admin pills', () => {
+    test('nobody signed in: no name, no Sign out, no admin pills — and no staff-PIN button', () => {
         const { deps } = hooks();
         const o = drawer.calendarDrawerOptions(null, deps);
         assert.equal(o?.memberName, null);
@@ -62,7 +60,7 @@ describe('calendarDrawerOptions — the drawer a session gets', () => {
         assert.equal(o?.isAdmin, false);
         assert.equal(o?.isLinksDesigner, false);
         assert.equal(o?.currentPage, 'calendar');
-        assert.equal(o?.onLockCalendar?.isViewer, deps.isViewer, 'the PIN\'s End staff PIN is offered either way, read at open');
+        assert.equal('onLockCalendar' in (o ?? {}), false, '"End staff PIN" went with the PIN (23 Nov 2026)');
     });
 
     test('a member: their name, and a Sign out that runs the page\'s own sign-out', () => {
@@ -88,7 +86,7 @@ describe('calendarDrawerOptions — the drawer a session gets', () => {
         assert.equal(o?.authReady, deps.authReady);
         assert.equal(o?.onLogoClick, deps.onLogoClick);
         assert.equal(o?.canReadDocuments, deps.canReadDocuments);
-        assert.equal(o?.onLockCalendar?.lock, deps.lock);
+
     });
 });
 

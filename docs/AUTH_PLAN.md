@@ -24,7 +24,9 @@ that reads uniformly confident invites someone to start at the wrong end:
 
 **Status: the read closure is IN FORCE since 26 Aug 2026; INDIVIDUAL authentication is still
 undecided.** `overrides` reads require a verified member (`isMember()`: password sign-in, derived
-email, server-set `member` claim), `admin`, or the shared staff-PIN `calendarViewer` capability. See E2
+email, server-set `member` claim) or `admin`; the shared staff-PIN `calendarViewer` capability that also
+opened them was **retired on 23 Nov 2026** (owner — DECISIONS.md → "The staff PIN retired"; the rules
+still accept the claim until the server release). See E2
 below, which records how the staff PIN superseded the phase as designed and what it does NOT close — in
 particular that a device which unlocked earlier still holds what it cached, because rules are
 evaluated server-side and a local cache hit never reaches one. **E0 shipped v19.00** (search engines
@@ -32,9 +34,10 @@ excluded) and **E1 shipped v19.01** (the cache-first, auth-aware client preparat
 the two phases needing no decision. **The first real security boundary was E2's job, and the staff PIN
 did it instead** — see E2 below. Nothing beyond that is committed. The most likely trigger is external:
 if the app becomes, or is assessed as, official Chiltern infrastructure, IT may require each person to
-authenticate rather than a station to share a code. The owner has since set a direction for the PIN
-itself — phase it out, starting with named "Other staff" logins (23 Nov 2026); where that stands is
-SECURITY_RELEASE_PLAN.md's Track E row, not restated here.
+authenticate rather than a station to share a code. **That happened without a mandate:** on 23 Nov 2026
+the owner retired the PIN, so every reader of the Calendar now signs in by name — an Other Staff login
+for somebody with no roster of their own. E3, E4 and E5 as designed (the soft posture, offline grace,
+named-only rules everywhere) are still not built; the E3 note below says how this differs.
 
 ---
 
@@ -45,7 +48,7 @@ only one of them is enforcement.
 
 | Layer | Can it go behind auth? | Where the work is |
 |---|---|---|
-| **Data** — Firestore reads | **Yes, server-enforced.** The only real control. | the staff PIN (in E2's place) / E5 (rules) + E1 (client prep) |
+| **Data** — Firestore reads | **Yes, server-enforced.** The only real control. | the staff PIN (in E2's place; retired 23 Nov 2026 — a named sign-in since) / E5 (rules) + E1 (client prep) |
 | **Files** — Storage documents | **Not by any rules change.** Direct Storage reads are admin-only; everyone else opens a document by its stored bearer URL or a short-lived signed URL (`getDocumentUrl`), neither of which the rules see. | E6 (delivery-model change) |
 | **Shell** — HTML/CSS/JS | **No.** Static files on public hosting. A client gate is UX, never security. | E3 (UX only) |
 
@@ -63,8 +66,8 @@ Two consequences follow, and both are easy to get wrong:
 ## 2. What is actually exposed today
 
 Open reads (`allow read;` in `firestore.rules`): **none.** Every read rule asks for a claim — a bound
-member, `admin`, the staff-PIN `calendarViewer` capability, or something narrower — never for a bare
-session. The bearer-URL exposure in §5 is unchanged by that.
+member, `admin`, the retired staff-PIN `calendarViewer` capability (until the server release), or
+something narrower — never for a bare session. The bearer-URL exposure in §5 is unchanged by that.
 
 - **`overrides`** carries `memberName` + `date` + `type` + `value` — AL, absence and shift changes for
   every member — and was readable by anyone with the URL until 26 Aug 2026. (The app never stores a
@@ -82,7 +85,7 @@ session. The bearer-URL exposure in §5 is unchanged by that.
   (owner, 4 Sep 2026 — external review). The shell is public *by construction* (§1), and
   `roster-data.js` is part of the shell.
 
-  With no session, no PIN and no token, anyone can read **every named member with their roster type
+  With no session and no token, anyone can read **every named member with their roster type
   and cycle position, plus join dates, pro-rated leave entitlements, scheduled roster moves and which
   members hold a bilingual contract, where a member carries them**, and `roster-cycle-data.js`, the
   patterns those numbers index into. Together they let a stranger compute any named member's shift for
@@ -94,7 +97,7 @@ session. The bearer-URL exposure in §5 is unchanged by that.
 
   Two things follow, and the second is the one that matters:
 
-  - **The PIN protects the CHANGES to the roster, not the roster.** `overrides` was closed so an
+  - **The read closure protects the CHANGES to the roster, not the roster.** `overrides` was closed so an
     outsider could not read who was off and when; the base shift underneath every unchanged day is
     public. Anyone describing the Calendar as "behind a code" should know which half that sentence
     covers.
@@ -111,8 +114,9 @@ that and is not intended to.
 
 **Be honest about the bar.** The Firebase project config ships in the client JS, so anyone can create
 an anonymous session against the project — which is why no rule may accept one, and why a rule that
-asked only for *a* session (Level 1, E2 as designed) would have been no barrier. The PIN raises the bar
-to "must hold the station code". Only a named rule (Level 2) means "must be staff".
+asked only for *a* session (Level 1, E2 as designed) would have been no barrier. The PIN raised the bar
+to "must hold the station code"; since it was retired (23 Nov 2026) the Calendar asks for a named
+sign-in, and once the server release removes the viewer claim the read rule means "must be staff".
 
 ---
 
@@ -208,7 +212,7 @@ had part of its work done here.
   auth wait (started on invocation, not on attach) so time-to-error is unchanged. Gating the attach
   also matters for denied reads: an `onSnapshot` that hits `permission-denied` is **terminated**, not
   retried, and only recovers on the next `visibilitychange` — useless to someone staring at a
-  notification tap. (Since the documents moved behind the PIN, the viewers also wait on
+  notification tap. (Since the documents moved behind the access gate, the viewers also wait on
   `calendar-doc-access.js` — `CALENDAR_DATA.md` 15.)
 - **Doc viewer** — awaits auth inside `openDoc()` before the fetch; the existing loading state covers it.
 - **nav-panel** — `authReady` is in the `initNavPanel({…})` options bag (default `Promise.resolve()`),
@@ -248,6 +252,10 @@ Why this is not merely E2 with extra steps:
 - **It does not close E3/E4/E5.** Those are about the app *shell* and about *individual* identity;
   the PIN is neither.
 
+**The PIN was retired on 23 Nov 2026** (owner). The read now needs a named sign-in; the shared credential
+this section describes stays in the rules only until the server release deletes it (DECISIONS.md →
+"The staff PIN retired").
+
 ### ⟨ DECISION GATE ⟩ — is Level 1 enough? — **ANSWERED v20.12, for the READ only**
 Binary, and it decides whether this is a day or several weeks.
 
@@ -256,19 +264,21 @@ Binary, and it decides whether this is a day or several weeks.
 - **A motivated outsider** willing to script an anonymous sign-in → no longer relevant to the read:
   anonymous is denied. What remains is a person who has been *told the code*, which is a different
   and much narrower threat, and one no rule can address.
-- **What is still open, and must not be quietly counted as closed:** the PIN is *shared*, so nothing
-  about it attributes an action to a person, revokes access for one person, or survives the code
-  becoming widely known. If a future requirement is "each individual authenticates" — the likeliest
-  form of a Chiltern IT mandate — that is E3/E4/E5, and none of it has been built.
+- **What stayed open, and was not quietly counted as closed:** the PIN was *shared*, so nothing
+  about it attributed an action to a person, revoked access for one person, or survived the code
+  becoming widely known. Retiring it (23 Nov 2026) closed that by removing the shared code; E3/E4/E5
+  as designed — the likeliest shape of a Chiltern IT mandate — are still not built.
 
 Everything past this gate touches the app's front door, opened many times a day.
 
 ### E3 — named calendar, soft posture
 
 > **Not E3, and worth saying so:** the Calendar's front door leads with the member SIGN-IN card and
-> offers the staff PIN one tap behind it (owner decision, 7 Sep 2026). That is the ORDER of two cards,
-> not a requirement: nothing is asked of anyone that was not asked before, no policy flips to
-> `requireNamed`, and the PIN still grants exactly what it did. E3 remains dormant.
+> offered the staff PIN one tap behind it (owner decision, 7 Sep 2026). Since the PIN was retired
+> (23 Nov 2026) only a named sign-in opens the Calendar — the gate decides it (`decideAccess`), and
+> `PAGE_POLICIES.calendar` still does not set `requireNamed`. That is E3's front door reached by
+> removing the shared code, without E3's soft posture or the measurement in §6; E3 as designed
+> remains dormant.
 
 Flip `PAGE_POLICIES.calendar` to `{ requireNamed: true }` in `auth-policy.js` (genuinely one line — the
 policy layer is clean) and wire the shared `login-overlay.js`. Start in a **soft** posture and
@@ -368,7 +378,8 @@ an inherited one.
 device that was already signed in — the device-theft threat model, not outsider-with-URL.
 
 > **The front door is closed today, so read the next paragraph as the reasoning for E3, not as
-> today.** The Calendar does not start without a member session or the staff PIN; a member's own stored
+> today.** The Calendar does not start without a member session (the staff PIN that also opened it was
+> retired on 23 Nov 2026); a member's own stored
 > roster is shown before the grant but deleted when their session expires (CALENDAR_DATA.md invariant
 > 17); and the document reads are behind the same gate.
 
@@ -472,13 +483,13 @@ press.
 ### E6 vs the notifications — DECIDED 7 Sep 2026, and BUILT
 
 *Owner decision, 7 Sep 2026: the Huddle, the Weekly Retail Circular and the Marylebone Newsletter must
-not be visible without the PIN or a password.* What was built is exactly the two things a gate needed:
+not be visible without the PIN or a password.* (The PIN was retired on 23 Nov 2026: a sign-in now.) What was built is exactly the two things a gate needed:
 the viewers moved behind the access gate (`calendar-doc-access.js`, opened on the full grant only,
 refusing the read at source so the local cache cannot answer it), and the deep link survives the
 unlock (a tap made while locked is HELD and finished when access arrives — the viewers keep their intent
 in memory, because `initHuddleViewer` and `initDocViewer` strip their own hash synchronously). The
 judgement call was taken as "accept the friction and state it": a notification still arrives, and a
-locked device's tap lands on the PIN card with the Huddle one PIN away. The client shipped before the
+locked device's tap lands on the sign-in card with the Huddle one sign-in away. The client shipped before the
 rules (a tightening ships client-first, the reverse of a schema expansion).
 
 **The notification itself cannot break.** `fanOutPush` builds the payload server-side with the Admin
@@ -602,17 +613,17 @@ change).
 - **Do not** verify any of this from an installed phone. Always a **fresh private window with a cold
   cache** — the installed PWA launches from the service-worker cache and will happily hide a broken live
   site (CLAUDE.md → "Deployment health check").
-- **E3 is now the owner's stated direction, not a reversal** — since 23 Nov 2026 the plan is to phase
-  the PIN out (`PASSWORD_DESIGN.md` → credential lifecycle L4; first step, the "Other staff" login,
-  v26.59). Retiring the PIN is still its own later change, made only once everybody who uses it has
-  a login of their own — record that step when it happens, do not make it silently.
+- **Starting E3 consciously REVERSES a recorded decision** — `PASSWORD_DESIGN.md` → credential lifecycle L4, keep both
+  kinds of Calendar access (the staff PIN for the shared station PC). Record the reversal when it
+  happens — do not make it silently. **Retiring the PIN (23 Nov 2026) was that reversal**, and it is
+  recorded there and in DECISIONS.md.
 
 ---
 
 ## 9. Verification checklist (per phase)
 
 - [ ] Fresh **private window**, cold cache — not an installed PWA.
-- [ ] Notification tap on a cold start opens the Huddle (E1/E5 and the PIN all touch this path).
+- [ ] Notification tap on a cold start opens the Huddle (E1/E5 and the sign-in card all touch this path).
 - [ ] Drawer → Circular and Newsletter still open in one tap.
 - [ ] Aeroplane mode with a valid session: cached roster renders (E4).
 - [ ] Aeroplane mode with an expired session: grace mode, not a login wall (E4).

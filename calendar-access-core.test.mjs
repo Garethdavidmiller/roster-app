@@ -18,9 +18,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    CALENDAR_VIEWER_UID, CALENDAR_VIEWER_CLAIM, PIN_LENGTH,
-    isViewerUser, decideAccess, normalisePin, isCompletePin,
-    classifyUnlockFailure, attemptBackoffMs, noticeAudienceAllows,
+    CALENDAR_VIEWER_UID, CALENDAR_VIEWER_CLAIM,
+    isViewerUser, decideAccess, noticeAudienceAllows,
     personalActionsAllowed,
 } from './calendar-access-core.js';
 
@@ -29,16 +28,15 @@ const anon    = { uid: 'anon-1', isAnonymous: true };
 const viewer  = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
 const session = { name: 'G. Miller' };
 
-describe('isViewerUser — the predicate that decides what may be PRESERVED', () => {
+describe('isViewerUser — recognising a leftover session of the retired staff PIN', () => {
     test('recognises the dedicated viewer uid', () => {
         assert.equal(isViewerUser(viewer), true);
     });
 
     test('an ANONYMOUS user carrying the viewer uid is not the viewer', () => {
-        // Belt-and-braces: an anonymous sign-in can never be given this uid. But this predicate is
-        // what `reconcileExpiredIdentity({ preserveCalendarViewer: true })` consults to decide
-        // whether to LEAVE an identity in place, so a version of it that could ever say yes to an
-        // unverified identity would turn that preservation into a bypass.
+        // Belt-and-braces: an anonymous sign-in can never be given this uid. The predicate now decides
+        // how a leftover identity is torn down (without releasing this browser's push record) and that
+        // `decideAccess` refuses it by uid, so a yes for an unverified identity is still wrong.
         assert.equal(isViewerUser({ uid: CALENDAR_VIEWER_UID, isAnonymous: true }), false);
     });
 
@@ -64,19 +62,12 @@ describe('decideAccess', () => {
         assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
     });
 
-    test('a member\'s held session over the viewer\'s token is `none` — their own card, never the PIN (audit F1)', () => {
+    test('a member\'s held session over a leftover viewer token is `none` — their own card (audit F1)', () => {
         // NOT `named`: the session says who SHOULD be here, the token is who the reads would run as
-        // (AUTH_AND_SESSIONS 17), and answering `named` would label the page as that member while every
-        // read went out under an identity with no `name` claim (invariant 7).
-        // NOT `viewer` either, which this asserted until the sign-in audit (Nov 2026): a member whose
-        // identity failed to restore, in a tab that also held a PIN session, was granted the PIN. They
-        // read the station's Calendar rather than their own, and a later loss of access showed them the
-        // PIN card — a member sent to the staff PIN (CALENDAR_DATA.md 11). `none` puts up their own card.
+        // (AUTH_AND_SESSIONS 17), and the viewer has no email, so only the uid refusal in rule 1 stops
+        // it. Their own card goes up, and their sign-in sheds the viewer (viewer-shed.js).
         assert.equal(decideAccess({ session, firebaseUser: viewer }), 'none',
-            'a member\'s held session over the shared viewer\'s token granted the staff PIN');
-        // ...the viewer alone is still the viewer, and with the member's own identity restored, the
-        // same session is the member:
-        assert.equal(decideAccess({ session: null, firebaseUser: viewer }), 'viewer');
+            'a member\'s held session over the shared viewer\'s token must not be granted');
         assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
     });
 
@@ -93,8 +84,19 @@ describe('decideAccess', () => {
         assert.equal(decideAccess({ session: null, firebaseUser: member }), 'none');
     });
 
-    test('a restored viewer with no session → viewer', () => {
-        assert.equal(decideAccess({ session: null, firebaseUser: viewer }), 'viewer');
+    test('a restored viewer with no session → none: the staff PIN is retired (owner, 23 Nov 2026)', () => {
+        // It was `viewer` until the PIN was retired. Now a leftover viewer session opens nothing, even
+        // before the boot's teardown (`reconcileExpiredIdentity`) has signed it out.
+        assert.equal(decideAccess({ session: null, firebaseUser: viewer }), 'none');
+    });
+
+    test('no input can produce any answer but `named` or `none`', () => {
+        const sessions = [null, session, { name: '' }];
+        const users = [null, member, anon, viewer, { uid: 'x', isAnonymous: false, email: 'someone@example.invalid' }];
+        for (const s of sessions) for (const u of users) {
+            assert.ok(['named', 'none'].includes(decideAccess({ session: s, firebaseUser: u })),
+                `${JSON.stringify(s)} / ${JSON.stringify(u)}`);
+        }
     });
 
     test('ANONYMOUS GRANTS NOTHING — the whole point of the change', () => {
@@ -115,134 +117,6 @@ describe('decideAccess', () => {
     });
 });
 
-describe('PIN input shaping — never a comparison', () => {
-    test('strips everything that is not a digit', () => {
-        assert.equal(normalisePin('1a2b3c4d'), '1234');
-        assert.equal(normalisePin(' 12 34 '), '1234');
-        assert.equal(normalisePin('--12'), '12');
-    });
-
-    test('never exceeds the PIN length, however much is pasted', () => {
-        assert.equal(normalisePin('1234567890').length, PIN_LENGTH);
-    });
-
-    test('non-strings are empty, never a thrown error on a keystroke', () => {
-        assert.equal(normalisePin(null), '');
-        assert.equal(normalisePin(undefined), '');
-        assert.equal(normalisePin(/** @type {any} */ (1234)), '');
-    });
-
-    test('isCompletePin is a LENGTH check and cannot be a value check', () => {
-        assert.equal(isCompletePin('0000'), true);
-        assert.equal(isCompletePin('9999'), true);
-        assert.equal(isCompletePin('123'), false);
-        assert.equal(isCompletePin('12345'), false);
-        assert.equal(isCompletePin('12a4'), false);
-        assert.equal(isCompletePin(/** @type {any} */ (null)), false);
-    });
-});
-
-describe('classifyUnlockFailure — the words a member reads', () => {
-    test('OFFLINE beats any status', () => {
-        // A genuinely offline browser can still surface a synthesised response. Reporting "PIN not
-        // recognised" there is a lie that costs somebody three more attempts at a code that works.
-        const f = classifyUnlockFailure({ status: 401, offline: true });
-        assert.equal(f.kind, 'offline');
-        assert.match(f.message, /online/i);
-        // Not "online ONCE": every unlock asks the server, so a one-time step is the wrong promise.
-        assert.doesNotMatch(f.message, /\bonce\b/i, `"${f.message}" reads as a one-time step`);
-    });
-
-    test('401 and 403 are the same rejection, and say to try again', () => {
-        for (const status of [401, 403]) {
-            const f = classifyUnlockFailure({ status });
-            assert.equal(f.kind, 'rejected');
-            assert.match(f.message, /not recognised/i);
-        }
-    });
-
-    test('429 says the PIN is paused, offers the sign-in, and reveals NO limit internals', () => {
-        const f = classifyUnlockFailure({ status: 429 });
-        assert.equal(f.kind, 'throttled');
-        // Why it stopped, and the way in that is not behind the limit: the server's window can pause
-        // the PIN for somebody who typed nothing wrong, and a member's own password still works.
-        assert.match(f.message, /paused after too many wrong entries/);
-        assert.match(f.message, /or sign in instead/);
-        // No count, no window, no threshold — those are the numbers an automated traversal would
-        // use to pace itself just under the limit.
-        assert.equal(/\d/.test(f.message), false, `leaked a number: ${f.message}`);
-    });
-
-    test('a sign-in failure AFTER a correct PIN never says the PIN was wrong', () => {
-        // The member typed the right code. Sending them to look for a different one is how a
-        // transient auth blip turns into "the PIN has changed and nobody told us".
-        const f = classifyUnlockFailure({ code: 'auth/invalid-custom-token' });
-        assert.equal(f.kind, 'auth');
-        assert.doesNotMatch(f.message, /not recognised/i);
-    });
-
-    test('a failure on the app\'s side says who to tell when it repeats — the server\'s, and a sign-in after a correct PIN', () => {
-        for (const c of [{ status: 500 }, { status: 503 }, { code: 'missing-claim' }, { code: 'auth/network-request-failed' }]) {
-            assert.equal(classifyUnlockFailure(c).message,
-                'Calendar couldn’t be unlocked. Try again shortly — if it keeps happening, tell the admin.', JSON.stringify(c));
-        }
-    });
-
-    test('no status at all is a transport failure, not a rejection', () => {
-        const f = classifyUnlockFailure({ status: null });
-        assert.equal(f.kind, 'network');
-        assert.match(f.message, /connection/i);
-        assert.doesNotMatch(f.message, /admin/, 'a dropped connection is not the admin\'s to fix');
-    });
-
-    test('there is no `retryable` flag: every failure is retried by pressing the button again, so nothing read it', () => {
-        const cases = [{ offline: true }, { status: 429 }, { status: 401 }, { status: 500 },
-                       { status: null }, { code: 'x' }, {}];
-        for (const c of cases) assert.deepEqual(Object.keys(classifyUnlockFailure(c)).sort(), ['kind', 'message'], JSON.stringify(c));
-    });
-
-    test('the words use the curly apostrophe, never the straight one', () => {
-        const cases = [{ offline: true }, { status: 429 }, { status: 401 }, { status: 500 }, { status: null }, { code: 'x' }];
-        for (const c of cases) assert.doesNotMatch(classifyUnlockFailure(c).message, /'/, JSON.stringify(c));
-    });
-
-    test('no branch ever echoes a PIN — there is nowhere for one to enter', () => {
-        // The signature takes a status and a code and nothing else, which is the structural
-        // guarantee. This asserts the messages carry no digits either, so a future edit cannot
-        // start interpolating "you typed 1234" into one.
-        const all = [{ offline: true }, { status: 429 }, { status: 401 }, { status: 500 },
-                     { status: null }, { code: 'x' }].map(c => classifyUnlockFailure(c).message);
-        for (const m of all) assert.equal(/\d/.test(m), false, `message contains a digit: ${m}`);
-    });
-});
-
-describe('attemptBackoffMs — a UX brake, not a security control', () => {
-    test('the first two failures are not delayed at all', () => {
-        // A mistyped PIN is the common case and must not feel punitive.
-        assert.equal(attemptBackoffMs(0), 0);
-        assert.equal(attemptBackoffMs(1), 0);
-        assert.equal(attemptBackoffMs(2), 0);
-    });
-
-    test('it grows from the third failure', () => {
-        assert.equal(attemptBackoffMs(3), 2000);
-        assert.equal(attemptBackoffMs(4), 4000);
-        assert.equal(attemptBackoffMs(5), 8000);
-    });
-
-    test('it is CAPPED — an uncapped client delay only punishes the honest', () => {
-        assert.equal(attemptBackoffMs(50), 20000);
-        assert.equal(attemptBackoffMs(500), 20000);
-    });
-
-    test('junk input never produces NaN or a negative wait', () => {
-        for (const v of [-5, NaN, Infinity, /** @type {any} */ ('x'), /** @type {any} */ (null)]) {
-            const ms = attemptBackoffMs(v);
-            assert.ok(Number.isFinite(ms) && ms >= 0, `bad backoff for ${String(v)}: ${ms}`);
-        }
-    });
-});
-
 describe('the constants are the contract', () => {
     test('the viewer uid and claim are exactly what the server and the rules use', () => {
         // These three strings appear in firestore.rules and functions/calendar-viewer-auth.js, on
@@ -250,7 +124,13 @@ describe('the constants are the contract', () => {
         // calendar-viewer-parity.test.mjs is what actually pins them together; this states them.
         assert.equal(CALENDAR_VIEWER_UID, 'calendar-viewer');
         assert.equal(CALENDAR_VIEWER_CLAIM, 'calendarViewer');
-        assert.equal(PIN_LENGTH, 4);
+    });
+
+    test('no PIN helper is left in the client (the staff PIN is retired, 23 Nov 2026)', async () => {
+        const core = await import('./calendar-access-core.js');
+        for (const gone of ['PIN_LENGTH', 'PIN_FIRST_HASH', 'normalisePin', 'isCompletePin', 'classifyUnlockFailure', 'attemptBackoffMs']) {
+            assert.equal(gone in core, false, `${gone} came back`);
+        }
     });
 
     test('the claim is NOT one of the member claims', () => {
@@ -262,46 +142,32 @@ describe('the constants are the contract', () => {
     });
 });
 
-// ── WHO A NOTICE IS ADDRESSED TO (v21.81) ────────────────────────────────────────────────────────
+// ── WHO A NOTICE IS ADDRESSED TO (v21.81; members only since the PIN was retired, 23 Nov 2026) ──────
 //
 // Reported by the owner the day the PIN went live: the Calendar's one-time notices were opening on
-// the station PC, because they waited only for `calendarAccessReady` — the moment access is
-// GRANTED, which says nothing about whose it is. One of the two asks the reader to go and check
-// their own payslips are entered correctly, on a machine that is deliberately unattributable.
-//
-// The two failure directions are not symmetrical, which is why the default is the narrow one:
-// showing a members-only notice on a shared screen is a fact stated to nobody, while hiding an
-// 'everyone' notice takes away the only route the app has to the members who never sign in.
+// the station PC, because they waited only for `calendarAccessReady`. Each notice has declared an
+// audience since. The two that existed for the PIN — 'signed-out' and 'everyone' — went with it (no
+// live notice used either), so the rule is members-only, and refuses anything else.
 describe('which devices a notice is addressed to', () => {
     test('a members-only notice reaches a signed-in member and nobody else', () => {
         assert.equal(noticeAudienceAllows('members', 'named'), true);
-        assert.equal(noticeAudienceAllows('members', 'viewer'), false, 'the station PC — the reported case');
         assert.equal(noticeAudienceAllows('members', 'none'), false);
+        assert.equal(noticeAudienceAllows('members', 'viewer'), false, 'an access type that no longer exists');
     });
 
-    test("an 'everyone' notice reaches the PIN unlock too — that is what it is for", () => {
-        // `pw-own-2026` asks the members who never sign in to sign in, and since v20.12 those
-        // members reach the Calendar through the PIN. Answering false here would hide it from its
-        // entire audience while leaving every test about it passing.
-        assert.equal(noticeAudienceAllows('everyone', 'viewer'), true);
-        assert.equal(noticeAudienceAllows('everyone', 'named'), true);
+    test("the retired audiences, 'signed-out' and 'everyone', reach nobody", () => {
+        for (const audience of ['signed-out', 'everyone']) {
+            for (const type of ['named', 'none', 'viewer']) {
+                assert.equal(noticeAudienceAllows(audience, type), false, `${audience} / ${type}`);
+            }
+        }
     });
 
-    test("'signed-out' reaches the PIN station and NOT a signed-in member", () => {
-        // The audience for a notice ABOUT signing in. Its two halves are equally load-bearing: a
-        // member who has already signed in must not be told to, and the check re-runs on every
-        // load — so such a notice stops of its own accord the moment they do, with no done-flag
-        // and no retirement write anywhere else in the app to keep in step.
-        assert.equal(noticeAudienceAllows('signed-out', 'viewer'), true);
-        assert.equal(noticeAudienceAllows('signed-out', 'none'), true);
-        assert.equal(noticeAudienceAllows('signed-out', 'named'), false, 'they have already done the thing it asks');
-    });
-
-    test('an audience nobody recognises is treated as members-only', () => {
+    test('an audience nobody recognises reaches nobody, a signed-in member included', () => {
         // Fails towards the direction whose cost is visible: a notice that does not appear gets
-        // noticed, station pay copy on a shared screen does not.
-        for (const audience of ['member', 'Everyone', 'staff', '', undefined, null]) {
-            assert.equal(noticeAudienceAllows(/** @type {any} */ (audience), 'viewer'), false);
+        // noticed in testing.
+        for (const audience of ['member', 'Members', 'staff', '', undefined, null]) {
+            assert.equal(noticeAudienceAllows(/** @type {any} */ (audience), 'named'), false, String(audience));
         }
     });
 });
@@ -312,8 +178,6 @@ describe('personalActionsAllowed — a button that says "yours" must mean it', (
     //   · OFFERING TOO MUCH is the reported defect and the quiet one. Nothing errors: the member
     //     taps "Leave dates" on a colleague's annual-leave day and arrives at a correct, complete
     //     list of their OWN leave, which they then have to work out is not what they asked for.
-    //     On a PIN-unlocked station PC it is worse — the panel offers a personal route from a
-    //     screen that belongs to nobody.
     //   · OFFERING TOO LITTLE costs a signed-in member on their own calendar one tap through the
     //     nav drawer. Real, and an order of magnitude cheaper, which is why every ambiguous input
     //     below is asserted to refuse.
@@ -334,17 +198,15 @@ describe('personalActionsAllowed — a button that says "yours" must mean it', (
         }
     });
 
-    test('VIEWER mode refuses even with a live session name — the state that is reachable', () => {
-        // THE CASE AN IDENTITY-ONLY RULE GETS WRONG, and it is not defensive. `decideAccess` needs
-        // a restored FIREBASE USER as well as a session, so an identity that fails to restore (on an
-        // iPhone, a failed IndexedDB read) leaves a valid 60-day local session that falls through to
-        // `viewer` the moment a PIN token is restored — name still in localStorage, PIN on screen.
-        // Checking only the name would light both buttons on exactly the shared machine this keeps
-        // them off.
-        assert.equal(personalActionsAllowed({ ...OWN, accessType: 'viewer' }), false,
-            'a stale local name must not survive into viewer mode');
-        assert.equal(personalActionsAllowed({ accessType: 'viewer', sessionName: null, shownMember: 'G. Miller' }),
-            false, 'and the ordinary PIN case, with no session at all');
+    test('anything but a NAMED grant refuses, even with a live session name', () => {
+        // THE CASE AN IDENTITY-ONLY RULE GETS WRONG. A name can still be in localStorage on a page that
+        // was not granted to it (an identity that failed to restore leaves a valid 60-day session), so
+        // the name alone must not light either button. It was `viewer` mode this refused until the
+        // staff PIN was retired; asking for `named` refuses that and every other state.
+        for (const type of ['none', 'viewer', '', undefined]) {
+            assert.equal(personalActionsAllowed({ ...OWN, accessType: /** @type {any} */ (type) }), false,
+                `${String(type)}: a stale local name must not count as a grant`);
+        }
     });
 
     test('no name, a blank name and a missing member all refuse', () => {

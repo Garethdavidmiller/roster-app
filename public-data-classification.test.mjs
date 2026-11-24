@@ -52,7 +52,7 @@ const { teamMembers, CONFIG } = rosterData;
  */
 const PUBLIC_MEMBER_FIELDS = /** @type {const} */ ({
     name:          'The display name, in the form staff already use on a printed roster.',
-    role:          'CEA / CES / Dispatcher / Management / Other staff — the grade, which the roster prints.',
+    role:          'CEA / CES / Dispatcher / Management / Other Staff — the grade, which the roster prints.',
     rosterType:    'Which shift pattern they follow. The patterns themselves are public too.',
     currentWeek:   'Where in that pattern they sit. Meaningless without the pattern, and both are public.',
     hidden:        'A display flag — leavers and management rows the picker does not offer.',

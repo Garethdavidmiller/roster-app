@@ -317,7 +317,9 @@ const CAPS = {
     // 970 → 960 in Nov 2026 (review fixes), an EXTRACT at 970 of 970: the viewer → member hand-over's
     // ordering, `shedCalendarViewer`, left whole for viewer-shed.js (session.js re-exports it), 970
     // measured lines down to 909 with the reset refusal's own error code added.
-    'session.js':               960,
+    // 960 → 900 on 23 Nov 2026, a LOWER: the staff PIN left the client (owner) — `holdsStaffPin`, the late-viewer
+    // watcher, `signOutStaffPin` and the teardown's preserve flag went, 852 measured lines.
+    'session.js':               900,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four
@@ -614,7 +616,9 @@ const CAPS = {
     // comes down with the code, less ten lines kept as room for a fix, because a file at its cap fails on
     // a one-line comment (this file's header) and the gate's next fix should not have to extract first.
     // 730 → 700 (16 Nov 2026): comments that had become a changelog cut to their reasons, 720 lines down to 640.
-    'calendar-access.js':      700,
+    // 700 → 500 on 23 Nov 2026, a LOWER: the staff PIN left the client (owner) — the unlock exchange, the Lock,
+    // the late viewer grant and the PIN-first boot went, 700 lines of cap over 465 measured. 465, plus the room.
+    'calendar-access.js':      500,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;

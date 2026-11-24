@@ -62,14 +62,14 @@ import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
 /**
  * Admin's sign-in card (login-overlay.js → `about`; owner, 11 Nov 2026): Pay's arrangement, with Pay's
- * PIN clause word for word — a station reaches both pages from one menu and the PIN opens neither
- * (AUTH_AND_SESSIONS 18, 24). The footnote is that station's way out: a sign-in here stays until undone.
+ * own-name clause word for word (its staff-PIN half went with the PIN, 23 Nov 2026).
+ * The footnote is a shared screen's way out: a sign-in here stays until undone.
  * @type {Readonly<{ lines: readonly string[], footnote: string }>}
  */
 const ADMIN_SIGN_IN_ABOUT = Object.freeze({
     lines: Object.freeze([
         'Record your annual leave, absences and shift changes, so they show on the Calendar.',
-        "It keeps them under your own name, so you sign in as yourself — the staff PIN doesn’t open it.",
+        'It keeps them under your own name, so you sign in as yourself.',
     ]),
     footnote: 'On a shared screen, sign out from the menu when you finish.',
 });
@@ -1179,7 +1179,7 @@ export function init() {
     // Admin does not print: printing shows a "use the Calendar" notice (admin.css @media print).
 
     // Page access (auth-policy.js): "any named user" — the admin/manager split gates ACTIONS
-    // (applyPermissions), not the page. 'login' iff no local session; 'forbidden' only for an "Other staff"
+    // (applyPermissions), not the page. 'login' iff no local session; 'forbidden' only for an "Other Staff"
     // login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague to record it for.
     const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
     if (_access.decision === 'forbidden') {

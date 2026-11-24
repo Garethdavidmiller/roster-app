@@ -30,7 +30,7 @@
 import { CONFIG, teamMembers, isOtherStaff } from './roster-data.js';
 
 /** @typedef {import('./auth-state-core.js').AuthState} AuthState */
-/** @typedef {{ requireNamed?: boolean, soft?: boolean, role?: string[]|null, staffPin?: boolean, otherStaff?: boolean }} PagePolicy */
+/** @typedef {{ requireNamed?: boolean, soft?: boolean, role?: string[]|null, otherStaff?: boolean }} PagePolicy */
 /** @typedef {{ decision: 'allow'|'soft-allow'|'login'|'forbidden'|'pending', reason: string }} AuthDecision */
 
 /** The possible decisions (for callers/tests to reference). */
@@ -44,26 +44,25 @@ export const DECISIONS = Object.freeze(['allow', 'soft-allow', 'login', 'forbidd
  *  - admin / settings: ANY named user (staff get self-service; the admin/manager split gates
  *    ACTIONS, not page access) → role null.
  *  - paycalc: any identity, SOFT (a local-first calculator — never blocked).
- *  - calendar: no named session required — a member's sign-in or the staff PIN opens it
- *    (calendar-access.js); an anonymous session grants nothing. guides: no auth.
+ *  - calendar: no named session required at the PAGE level — the Calendar's own gate
+ *    (calendar-access.js) decides, and only a member's sign-in opens it; an anonymous session grants
+ *    nothing. guides: no auth.
  *
- * `staffPin: true` — the shared staff PIN may read this page as well (v24.84). Not a value of
- * `named` and not a role: the PIN is a capability with no member behind it (calendar-access.js →
- * "What the viewer is"), so `requirePageAuth` never sees it. A page that sets it ASKS for the PIN
- * itself, through `holdsStaffPin` (session.js), and every page that does not signs the PIN out on
- * arrival — `reconcileExpiredIdentity`'s default — so it can never stand in for a member there.
+ * There is no `staffPin` flag any more: the shared staff PIN is retired (owner, 23 Nov 2026), and no page
+ * admits it. Every page — the Calendar and Trains included — signs a leftover PIN session out on arrival
+ * (session.js → `reconcileExpiredIdentity`), so it can never stand in for a member anywhere.
  *
- * `otherStaff: true` — an "Other staff" login may open this page (owner, 23 Nov 2026). That grade is somebody
- * with no roster and no manager or admin rights who signs in under their own name and is shown what the staff
- * PIN shows, plus their own Settings: so the pages marked are exactly the PIN's (`staffPin`) and Settings. Every
+ * `otherStaff: true` — an "Other Staff" login may open this page (owner, 23 Nov 2026). That grade is somebody
+ * with no roster and no manager or admin rights who signs in under their own name and is shown the Calendar,
+ * Trains and their own Settings — what the staff PIN used to show, plus Settings. Every
  * other NAMED page refuses them (`requirePageAuth`), the Pay Calculator included. The pill gate that hides the
  * rest from their drawer is `isNotOtherStaff` (`navGatesFor`), and nav-gates.test.mjs holds the two to one answer.
  * It is UX like the rest of this module: they hold a plain member login, so the rules treat them as a member
- * with no roster — which can read the roster, as the PIN can, and write nothing of anybody else's.
+ * with no roster — which can read the roster, and write nothing of anybody else's.
  * @type {Record<string, PagePolicy>}
  */
 export const PAGE_POLICIES = Object.freeze({
-    calendar:   { requireNamed: false, staffPin: true, otherStaff: true },
+    calendar:   { requireNamed: false, otherStaff: true },
     guides:     { requireNamed: false },
     paycalc:    { requireNamed: true,  soft: true,  role: null },
     settings:   { requireNamed: true,  role: null, otherStaff: true },
@@ -79,29 +78,17 @@ export const PAGE_POLICIES = Object.freeze({
     // named-user page, because participation — not a role — decides what is shown.
     overtime:   { requireNamed: true,  role: ['admin', 'manager', 'overtimeBeta'] },
     // Trains: every named member's since v24.81 (owner, 20 Oct 2026) — an admin preview from v24.71.
-    // Public data, so the sign-in is the app's ordinary front door rather than a protection — and the
-    // station PIN reads it too since v24.84 (owner, 22 Oct 2026: "the station pin staff should be able
-    // to view the trains page"), because the people asked about the timetable are at the station.
-    trains:     { requireNamed: true,  role: null, staffPin: true, otherStaff: true },
+    // Public data, so the sign-in is the app's ordinary front door rather than a protection. (The station
+    // PIN read it too from v24.84 until the PIN was retired, 23 Nov 2026.)
+    trains:     { requireNamed: true,  role: null, otherStaff: true },
     // The new link (v25.06; the December link until v25.10): a preview of the admin's and the named previewers' until v25.60
     // (CONFIG.NEWLINK_PREVIEW: S. Silva, its contact, since v25.33). OPEN since v25.60 (owner, 9 Nov 2026: "send the new
     // links section live for everyone with a cea contract and the managers"): `newlinkAudience` — every colleague on a
     // normal CEA contract, and the managers. newlink-config.js → PHASE says 'open' — or 'decided', which follows
-    // CHOSEN — with it, and newlink-config.test.mjs fails if the two part. Never `staffPin` (owner, 2 Nov 2026:
+    // CHOSEN — with it, and newlink-config.test.mjs fails if the two part. Signed-in only (owner, 2 Nov 2026:
     // "No, signed-in only").
     newlink:    { requireNamed: true,  role: ['admin', 'newlinkPreview', 'newlinkAudience'] },
 });
-
-/**
- * May the shared staff PIN read this page? (v24.84) Read from `PAGE_POLICIES`, so the table above is
- * the one answer to "where may the station PIN go?" — and `page-contract-parity.test.mjs` holds every
- * coordinator that asks for the PIN to a page whose policy says yes.
- * @param {string} page
- * @returns {boolean}
- */
-export function admitsStaffPin(page) {
-    return PAGE_POLICIES[page]?.staffPin === true;
-}
 
 /** @returns {AuthDecision} */
 function decide(/** @type {AuthDecision['decision']} */ decision, /** @type {string} */ reason) {
@@ -125,11 +112,11 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
     //    data; this is page access only.
     if (!p.requireNamed) return decide('allow', 'public page');
 
-    // 1b. An "Other staff" login opens only the pages marked for it (`otherStaff` above): the staff PIN's and
+    // 1b. An "Other Staff" login opens only the pages marked for it (`otherStaff` above): the Calendar, Trains and
     //     Settings. Asked BEFORE the soft rule, so the Pay Calculator refuses them too — it never prices a grade
     //     it has no rates for, and its own role card says so on the page (paycalc-role-card.js).
     if (status === 'named' && /** @type {any} */ (roles).otherStaff && !p.otherStaff) {
-        return decide('forbidden', 'named Other staff — not a page for that grade');
+        return decide('forbidden', 'named Other Staff — not a page for that grade');
     }
 
     // 2. Soft page (paycalc) — a local-first tool that must NEVER be blocked by the IDENTITY'S STATE. Named →
@@ -177,7 +164,7 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
 export function rolesFor(member) {
     const m = member || null;
     return {
-        // Not a claim: the "Other staff" grade (owner, 23 Nov 2026) — a login with no roster and no rights beyond a
+        // Not a claim: the "Other Staff" grade (owner, 23 Nov 2026) — a login with no roster and no rights beyond a
         // member's, read from the member's own row (roster-member-data.js → `otherStaff`). It TAKES pages away
         // rather than granting them: `requirePageAuth` refuses such a login every page not marked `otherStaff`.
         otherStaff: !!m && teamMembers.some(t => t.name === m && isOtherStaff(t)),
@@ -275,7 +262,7 @@ export function canOpenNewlink(member) {
  * the four by hand in four styles, which is how one page once passed `canOpenOvertime: !!member` and
  * drew the paused Overtime pill for every member. One answer, here, beside the page policy it must
  * agree with — `nav-gates.test.mjs` holds the pills it draws to what `requirePage` admits, for every
- * member and both directions. `null` (signed out, or the staff PIN) gets every gate false. UX only.
+ * member and both directions. `null` (signed out) gets every gate false but `isNotOtherStaff`. UX only.
  * @param {string|null|undefined} member
  * @returns {{ isAdmin: boolean, isLinksDesigner: boolean, canOpenOvertime: boolean, canOpenNewlink: boolean, isNotOtherStaff: boolean }}
  */
@@ -286,8 +273,8 @@ export function navGatesFor(member) {
         isLinksDesigner: r.designer,
         canOpenOvertime: canOpenOvertime(member),
         canOpenNewlink:  canOpenNewlink(member),
-        // TRUE for nobody signed in and for the staff PIN, deliberately: their drawer keeps every ungated pill
-        // (nav-gates.test.mjs says why). Only an Other staff login loses Admin and Pay (`otherStaffHidden`).
+        // TRUE for nobody signed in, deliberately: their drawer keeps every ungated pill
+        // (nav-gates.test.mjs says why). Only an Other Staff login loses Admin and Pay (`otherStaffHidden`).
         isNotOtherStaff: !r.otherStaff,
     };
 }

@@ -5,7 +5,7 @@
  * Run with: node scripts/run-tests.mjs calendar-snapshot.test.mjs
  *
  * The page-level behaviour (painted at once, labelled, never for the PIN, written by a live read) is
- * pinned in e2e/calendar-pin.spec.js; this file covers the refusals one by one, because each is a
+ * pinned in e2e/calendar-access.spec.js; this file covers the refusals one by one, because each is a
  * way a member's shifts could be shown to somebody else or shown after they should have gone.
  */
 import { test, describe, beforeEach } from 'node:test';

@@ -363,8 +363,8 @@ async function initPageSpeedCard() {
         const p = document.createElement('p');
         p.className = 'speed-note speed-note--transition';
         p.innerHTML = before >= 0.95
-            ? `<strong>Timed the older way.</strong> Until ${TIMING_CHANGED} the app also counted loads nobody was watching, and time spent typing a password or the staff PIN. Later figures leave both out, so they will read faster for that reason alone.`
-            : `<strong>Two ways of timing ${windowLabel}.</strong> Since ${TIMING_CHANGED} the app leaves out loads nobody was watching and time spent typing a password or the staff PIN. ${Math.round(before * 100)}% of these opens were timed the older way, which counted both, so the figures read slower than the app now is.`;
+            ? `<strong>Timed the older way.</strong> Until ${TIMING_CHANGED} the app also counted loads nobody was watching, and time spent signing in. Later figures leave both out, so they will read faster for that reason alone.`
+            : `<strong>Two ways of timing ${windowLabel}.</strong> Since ${TIMING_CHANGED} the app leaves out loads nobody was watching and time spent signing in. ${Math.round(before * 100)}% of these opens were timed the older way, which counted both, so the figures read slower than the app now is.`;
         return p;
     };
 
@@ -443,7 +443,7 @@ async function initPageSpeedCard() {
             }
             // Only beside a figure it explains: with no "Usable" opens there is no smaller total.
             if (w.ready.total) {
-                body.appendChild(noteLine('“Usable” leaves out pages that do not report it, and opens where somebody had to sign in or type the staff PIN first, so its total is smaller than the two above.'));
+                body.appendChild(noteLine('“Usable” leaves out pages that do not report it, and opens where somebody had to sign in first, so its total is smaller than the two above.'));
             }
             if (w.fcp.total || w.pages.total || w.ready.total) {
                 body.appendChild(byPageRows(w.fcp.byPage, w.pages.byPage, w.ready.byPage, w.month));

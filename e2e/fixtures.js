@@ -610,14 +610,14 @@ const _e2eAuth = (code, establishes) => (_auth, email, password) => {
 // needs one, so without it a password change under the stub could never succeed; and session.js treats a
 // user whose email is the member's own as that member's account, which is why it is not on by default.
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
-// ONE object per signed-in viewer, as the real SDK keeps one User instance: auth.currentUser is a
-// stored field, and onAuthStateChanged hands out that same instance. A fresh object on every read made
-// every comparison by identity false, so two checks the sign-in fixes added (v25.77) never passed
-// under the stub: the expired-identity teardown stood down for EVERY viewer (session.js, the user
-// changed while the release ran) and a late-restored viewer was never granted (calendar-access.js).
-// Found 11 Nov 2026 by the first spec that watches a protected page shed the PIN. A new sign-in
-// makes a new instance, as the SDK does, and signOut drops it. The MEMBER object below is still
-// built fresh on every read: nothing compares a member by identity yet.
+// ONE object per LEFTOVER staff-PIN viewer, as the real SDK keeps one User instance: auth.currentUser is
+// a stored field, and onAuthStateChanged hands out that same instance. The staff PIN was retired on
+// 23 Nov 2026, so nothing here signs a viewer IN any more — a spec seeds the session a browser may
+// still hold from before (helpers.js → seedLegacyViewerSession), and the app's teardown must sign it
+// out. One instance matters for that teardown: it stands down if the user changed while it ran
+// (session.js), and a fresh object on every read made every comparison by identity false. signOut
+// drops it. The MEMBER object below is still built fresh on every read: nothing compares a member by
+// identity yet.
 // NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
 let _viewerInstance = null;
 const _viewerUser = () => _viewerInstance || (_viewerInstance = _newViewerUser());
@@ -626,7 +626,7 @@ const _newViewerUser = () => ({
     isAnonymous: false,
     getIdTokenResult: () => Promise.resolve({
         token: 'e2e-viewer-token',
-        claims: (globalThis.__E2E || {}).viewerClaimMissing ? {} : { calendarViewer: true },
+        claims: { calendarViewer: true },
     }),
 });
 // ---- the auth RESTORE clock ----
@@ -636,7 +636,7 @@ const _newViewerUser = () => ({
 // Why this exists at all: the stub hands every caller a user SYNCHRONOUSLY, so none of the app's
 // restore budgets had ever been exercised by a test — not calendar-access.js's 6s bound, not
 // session.js's 8s AUTH_RESTORE_TIMEOUT_MS. A member whose restore lands after those bounds was
-// reported as locked out and shown the staff PIN, and no test could see it because the stub could
+// reported as locked out, and no test could see it because the stub could
 // not be slow. It is what made the v20.79 late-restore grant provable.
 //
 // The instant is ABSOLUTE and PAGE-LOAD-RELATIVE, computed once here. Restarting the delay per
@@ -648,13 +648,9 @@ const _restored = () => Date.now() >= _restoreDue;
 const _currentUser = () => {
     const e2e = globalThis.__E2E || {};
     if (!_restored()) return null;
-    // The viewer flag lives in sessionStorage, not only on __E2E. That is not a convenience — it is
-    // what makes the stub MODEL the thing under test: the real viewer runs on browserSessionPersistence,
-    // so it must survive a reload and die with the browser context. A flag on window would be lost on
-    // reload, and the "stays unlocked across a reload" spec would fail against correct code.
-    // A MEMBER outranks the viewer, mirroring decideAccess's own precedence. A spec that seeds both
-    // (the common case once seedViewerAccess is a blanket beforeEach) must get the member, or every
-    // signed-in assertion would silently be testing viewer mode instead.
+    // The leftover viewer lives in sessionStorage, as the real one did (browserSessionPersistence):
+    // it survives a reload until the app's teardown signs it out, and signOut below removes it.
+    // A MEMBER outranks it, so a spec that seeds both gets the member.
     // getIdToken as well as getIdTokenResult (v20.12). The admin Cloud-Function callers are split
     // between the two — operations' roster upload uses getIdToken(), the sign-in stats card uses
     // getIdTokenResult() — and a stub with only one of them fails whichever path it does not cover
@@ -669,12 +665,18 @@ const _currentUser = () => {
     if (e2e.viewerUser || stored) return _viewerUser();
     return null;
 };
-export const getAuth = () => ({ get currentUser() { return _currentUser(); } });
+// WEDGED-START SEAM (v26.60): window.__E2E.authStartHangs makes authStateReady never answer, as it can on
+// an iPhone whose IndexedDB is stuck. With a long authRestoreDelayMs, the boot's own 8s wait gives up and
+// then waits on this, so authReady never settles: a page must still show the person a way in.
+export const getAuth = () => ({
+    get currentUser() { return _currentUser(); },
+    authStateReady: () => ((globalThis.__E2E || {}).authStartHangs ? new Promise(() => {}) : Promise.resolve()),
+});
 // firebase-client.js initialises Auth WITHOUT the popup/redirect resolver (Oct 2026); same instance shape.
 export const initializeAuth = getAuth;
 // Emits the CURRENT user, not a hardcoded null (v20.12). calendar-access.js resolves the first
 // emission to decide access, so a stub that always said null would report every seeded member and
-// every restored viewer as locked out — and the whole PIN suite would pass for the wrong reason.
+// every restored session as signed out — and the teardown specs would pass for the wrong reason.
 // REVOKE SEAM (v24.37): window.__E2E.revokeAuth() signs the member out the way a refused token
 // refresh does in production, and tells every listener still subscribed. The initial emission below
 // is unchanged; a listener only hears the revocation while it is live.
@@ -718,21 +720,6 @@ export const signOut = () => {
     return Promise.resolve();
 };
 export const setPersistence = () => Promise.resolve();
-// Staff Calendar PIN (v20.12). Signing in with a custom token flips a flag that getAuth reads back,
-// so a spec can drive the REAL unlock path — fetch is stubbed separately per spec, because the
-// exchange is an ordinary HTTPS call to a Cloud Function and Playwright can intercept it directly.
-// window.__E2E.viewerClaimMissing makes the token sign in WITHOUT its claim: the one failure that
-// looks completely successful and then has every override read denied.
-// NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
-export const signInWithCustomToken = (_auth, token) => {
-    const e2e = globalThis.__E2E || (globalThis.__E2E = {});
-    if (e2e.failCustomToken) return Promise.reject(Object.assign(new Error('e2e'), { code: 'auth/invalid-custom-token' }));
-    e2e.viewerUser = true;
-    e2e.lastCustomToken = token;
-    _viewerInstance = _newViewerUser();   // a new sign-in, a new User — and the one currentUser now reads
-    try { sessionStorage.setItem('__e2e_viewer', '1'); } catch (_) { /* private mode */ }
-    return Promise.resolve({ user: _viewerInstance });
-};
 export const indexedDBLocalPersistence = marker('idb');
 export const browserLocalPersistence = marker('local');
 export const browserSessionPersistence = marker('session');
@@ -820,13 +807,6 @@ export async function routeAppPage(page) {
     await page.route('https://www.gstatic.com/firebasejs/**', route =>
         route.fulfill({ contentType: 'text/javascript', body: FIREBASE_STUB }));
 
-    // The lock card fires a fire-and-forget warm-up GET at the real exchange URL the moment it
-    // shows (v20.45). This suite is hermetic — nothing may leave the test machine — so it is
-    // aborted by default. Specs that stub the exchange register their route AFTER this one and
-    // Playwright consults routes newest-first, so stubPinExchange wins where it is used; the
-    // abort is caught by the pre-warm's own `.catch` and changes nothing it does.
-    await page.route('**/unlockCalendarViewer', route => route.abort('failed'));
-
     // The silent re-sign-in asks about the last admin reset BEFORE it signs in, over the two REST
     // APIs (Oct 2026 — `probeResetAtMs` in firebase-client.js). Hermetic default: the sign-in is
     // accepted and the account has never been reset, which is what every spec before this assumed.
@@ -895,20 +875,20 @@ export async function withLinksDesigners(page, names) {
 }
 
 /**
- * Add one INVENTED "Other staff" login to the served roster for this page (owner, 23 Nov 2026). Call BEFORE page.goto().
+ * Add one INVENTED "Other Staff" login to the served roster for this page (owner, 23 Nov 2026). Call BEFORE page.goto().
  * @param {import('@playwright/test').Page} page
  * @param {string} name
  */
 export async function withOtherStaff(page, name) {
-    // An INVENTED "Other staff" login (owner, 23 Nov 2026), served in the real roster module: the row goes in just
+    // An INVENTED "Other Staff" login (owner, 23 Nov 2026), served in the real roster module: the row goes in just
     // before the array's end, after the comment that documents its shape, so the app reads it exactly as it would a
     // real one. BEFORE page.goto(), for the same reason as the CONFIG overrides above.
     if (page.url() !== 'about:blank') throw new Error('withOtherStaff: call it BEFORE page.goto()');
-    const row = `    { name: ${JSON.stringify(name)}, currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true },`;
+    const row = `    { name: ${JSON.stringify(name)}, currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },`;
     await page.route('**/roster-member-data.js', async route => {
         const body = await (await route.fetch()).text();
         const anchor = 'Operations → Set up accounts.\n];';
-        if (!body.includes(anchor)) throw new Error('withOtherStaff: the Other staff anchor in roster-member-data.js has moved — re-anchor it');
+        if (!body.includes(anchor)) throw new Error('withOtherStaff: the Other Staff anchor in roster-member-data.js has moved — re-anchor it');
         await route.fulfill({ contentType: 'text/javascript', body: body.replace(anchor, `Operations → Set up accounts.\n${row}\n];`) });
     });
 }

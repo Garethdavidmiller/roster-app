@@ -8,18 +8,19 @@
  * visible in the Operations page Error Log card without needing DevTools access.
  *
  * Call initErrorReporter() once per page after the Firebase Auth session is
- * established — the Firestore write requires a member, the admin or the PIN viewer (v24.56).
+ * established — the Firestore write requires a member or the admin (v24.56; the staff PIN's viewer
+ * could too, until the PIN was retired from the client, 23 Nov 2026).
  *
- * ── THE FOUR CANONICAL CALL SITES (v13.78; the fourth since v24.84) ──────────────────────────
+ * ── THE THREE CANONICAL CALL SITES (v13.78) ─────────────────────────────────────────────────────
  *
  * NEVER call this bare. Without an auth context every write is silently rejected by the rules, so
  * the error log looks HEALTHY because it is broken — which is the one failure mode a reporter must
- * not have. There are four shapes, and they differ because the pages establish identity
+ * not have. There are three shapes, and they differ because the pages establish identity
  * differently:
  *
  *   1. `calendar-app.js` — the page that may have no named user at all. It waits on
  *      `calendarAuthReady` (calendar-access.js), which resolves only once access is GRANTED to a
- *      named member or the PIN's viewer, both of which already hold a real Firebase identity:
+ *      named member, who already holds a real Firebase identity:
  *
  *          calendarAuthReady.finally(() => { initErrorReporter(); … })
  *
@@ -29,17 +30,15 @@
  *      decision runs `reconcileExpiredIdentity()` first, so a valid named identity is PRESERVED
  *      rather than raced or replaced.
  *   2. **Authenticated pages that expose `sessionReady`** — `admin-app.js`, `settings-app.js`,
- *      `operations-app.js`, `links-app.js`, `overtime-app.js`, `trains-app.js` (a member),
+ *      `operations-app.js`, `links-app.js`, `overtime-app.js`, `trains-app.js`,
  *      `newlink-app.js`: `sessionReady.then(() => initErrorReporter())`.
  *   3. `paycalc-app.js`, which has no `sessionReady`:
  *      `ensureNamedSession(name).catch(() => {}).finally(afterAuth)`, where `afterAuth` runs this
  *      alongside `recordUsage`/`recordPageLatency`. The no-member `else` branch calls `afterAuth()`
  *      directly.
- *   4. **Trains' station-PIN branch** (v24.84), the one with no member: it calls this directly,
- *      because `holdsStaffPin` has already read the viewer as the current user — there is no
- *      session to wait for.
  *
- * `AUTH_AND_SESSIONS.md` invariant 13 states the rule; this is where the shapes live.
+ * (A fourth, Trains' station-PIN branch, called it directly once `holdsStaffPin` had read the viewer;
+ * it went with the PIN.) `AUTH_AND_SESSIONS.md` invariant 13 states the rule; this is where the shapes live.
  */
 
 import { APP_VERSION } from './roster-data.js';

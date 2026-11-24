@@ -13,8 +13,9 @@
  * stores, so restoring member persistence with the viewer still signed in would carry it into IndexedDB
  * (proven both ways in a real browser by experiments/viewer-persistence-proof/).
  *
- * Owns: `shedCalendarViewer`. Does NOT own: when a viewer is kept (`reconcileExpiredIdentity`,
- * session.js), or the viewer's own persistence at unlock (`setViewerPersistence`, firebase-client.js).
+ * Owns: `shedCalendarViewer`. Does NOT own: tearing a leftover viewer down on a page load (`reconcileExpiredIdentity`,
+ * session.js). TRANSITION plumbing since the staff PIN was retired (23 Nov 2026): no client mints a viewer any
+ * more, but a browser can still hold one from before, so this stays until the cleanup release deletes the account.
  */
 
 import { auth, signOut as firebaseSignOut, restoreMemberPersistence, letViewerWritesGo } from './firebase-client.js';

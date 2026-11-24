@@ -1338,16 +1338,16 @@ test('getMembersForGrade(Management) returns every CONFIG.MANAGER_NAMES manager 
 
 // THE "OTHER STAFF" GRADE (owner, 23 Nov 2026): a login with no roster, picked by its own flag as managers are by
 // theirs — so it is not lost to the `hidden` it carries. The person is INVENTED and lives only for the test.
-test('Other staff: their own sign-in group, in everybody who can sign in, and in the server\'s list', async () => {
-    const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true };
-    const before = getMembersForGrade('Other staff').map(m => m.name);
+test('Other Staff: their own sign-in group, in everybody who can sign in, and in the server\'s list', async () => {
+    const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true };
+    const before = getMembersForGrade('Other Staff').map(m => m.name);
     assert.ok(!before.includes('Q. Example'), 'premise: the invented name is not a real login');
-    assert.deepEqual(before, teamMembers.filter(m => m.role === 'Other staff').map(m => m.name),
-        'every real Other staff row is in the group, and nothing else is');
+    assert.deepEqual(before, teamMembers.filter(m => m.role === 'Other Staff').map(m => m.name),
+        'every real Other Staff row is in the group, and nothing else is');
     teamMembers.push(/** @type {any} */ (row));
     try {
         assert.ok(isOtherStaff(row) && !isOtherStaff({ ...row, otherStaff: 'yes' }), 'the flag must be exactly true');
-        assert.deepEqual(getMembersForGrade('Other staff').map(m => m.name), [...before, 'Q. Example']);
+        assert.deepEqual(getMembersForGrade('Other Staff').map(m => m.name), [...before, 'Q. Example']);
         for (const g of ['CEA', 'CES', 'Dispatcher', 'Management']) {
             assert.ok(!getMembersForGrade(g).includes(/** @type {any} */ (row)), `not also listed under ${g}`);
         }
@@ -1717,7 +1717,7 @@ const ROSTER_CYCLE_LENGTHS = {
     dispatcher: CONFIG.DISPATCHER_ROSTER_WEEKS,
 };
 const VALID_ROSTER_TYPES = new Set(Object.keys(ROSTER_CYCLE_LENGTHS));
-const VALID_ROLES        = new Set(['CEA', 'CES', 'Dispatcher', 'Management', 'Other staff']);
+const VALID_ROLES        = new Set(['CEA', 'CES', 'Dispatcher', 'Management', 'Other Staff']);
 
 test('every teamMember has a valid rosterType', () => {
     const bad = teamMembers.filter(m => !VALID_ROSTER_TYPES.has(m.rosterType));

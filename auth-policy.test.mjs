@@ -5,7 +5,7 @@
  */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { requirePageAuth, requirePage, rolesFor, isOvertimeReviewer, canOpenOvertime, overtimeEnabled, admitsStaffPin,
+import { requirePageAuth, requirePage, rolesFor, isOvertimeReviewer, canOpenOvertime, overtimeEnabled,
     PAGE_POLICIES, DECISIONS } from './auth-policy.js';
 import { CONFIG } from './roster-data.js';
 
@@ -328,31 +328,28 @@ describe('Overtime paused (owner, Nov 2026) — closed to everyone, the admin in
     });
 });
 
-describe('the station PIN — which pages it may read (v24.84)', () => {
-    // The PIN is a capability, not a person, so it is a flag beside the policy rather than a value of
-    // `named`: requirePageAuth never sees it. Trains joined the Calendar on 22 Oct 2026 (owner). A
-    // flag that crept onto a page with member data would let the station PC keep its PIN there —
-    // the page would still show its sign-in, so only this list can see it happen.
-    test('the Calendar and Trains, and nothing else', () => {
-        const admitted = Object.keys(PAGE_POLICIES).filter(admitsStaffPin);
-        assert.deepEqual(admitted.sort(), ['calendar', 'trains']);
-        assert.equal(admitsStaffPin('no-such-page'), false, 'an unknown page admits nothing');
+describe('the staff PIN is retired (owner, 23 Nov 2026) — no page admits it', () => {
+    // It was a flag beside the policy (`staffPin`, v24.84) that had a page keep a station PC's PIN
+    // session. Every page now signs one out on arrival, so the flag must not come back on any page.
+    test('no policy carries the old `staffPin` flag, and the module no longer answers for it', async () => {
+        assert.deepEqual(Object.keys(PAGE_POLICIES).filter(p => 'staffPin' in PAGE_POLICIES[p]), []);
+        const policy = await import('./auth-policy.js');
+        assert.equal('admitsStaffPin' in policy, false, 'admitsStaffPin is gone with the PIN');
     });
-    test('admitting the PIN changes nothing about who counts as a member there', () => {
-        assert.equal(requirePage({ status: 'signedOut', member: null }, 'trains').decision, 'login',
-            'Trains still asks a signed-out browser to sign in — the PIN is asked for separately, first');
+    test('Trains asks a signed-out browser to sign in, and only that', () => {
+        assert.equal(requirePage({ status: 'signedOut', member: null }, 'trains').decision, 'login');
     });
 });
 
 // ── THE "OTHER STAFF" GRADE (owner, 23 Nov 2026) ────────────────────────────────────────────────────────────
-// A login with no roster and no rights beyond a member's, shown what the staff PIN shows plus their own Settings.
+// A login with no roster and no rights beyond a member's, shown the Calendar, Trains and their own Settings.
 // The person here is INVENTED and lives only for the test (tests use invented people only).
-describe('the Other staff grade — the PIN\'s pages and Settings, nothing else', () => {
+describe('the Other Staff grade — the Calendar, Trains and Settings, nothing else', () => {
     const OTHER = 'Q. Example';
     /** @type {any[]} */ let members;
     before(async () => {
         ({ teamMembers: members } = await import('./roster-data.js'));
-        members.push({ name: OTHER, currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true });
+        members.push({ name: OTHER, currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true });
     });
     after(() => { const i = members.findIndex(m => m.name === OTHER); if (i !== -1) members.splice(i, 1); });
 
@@ -360,18 +357,18 @@ describe('the Other staff grade — the PIN\'s pages and Settings, nothing else'
         assert.equal(rolesFor(OTHER).otherStaff, true);
         assert.deepEqual({ ...rolesFor(OTHER), otherStaff: false }, rolesFor(PLAIN), 'no role besides the grade');
         assert.equal(rolesFor(PLAIN).otherStaff, false);
-        assert.equal(rolesFor(MANAGER).otherStaff, false, 'a manager is not Other staff');
+        assert.equal(rolesFor(MANAGER).otherStaff, false, 'a manager is not Other Staff');
     });
 
-    test('the pages: exactly the PIN\'s and Settings admit them; every other named page refuses', () => {
+    test('the pages: exactly the Calendar, Trains and Settings admit them; every other named page refuses', () => {
         for (const page of Object.keys(PAGE_POLICIES)) {
             const d = requirePage(snap('named', OTHER), page).decision;
             const theirs = PAGE_POLICIES[page].otherStaff === true || !PAGE_POLICIES[page].requireNamed;
             assert.equal(d, theirs ? 'allow' : 'forbidden', `${page}: ${d}`);
         }
         assert.deepEqual(Object.keys(PAGE_POLICIES).filter(p => PAGE_POLICIES[p].otherStaff).sort(),
-            [...Object.keys(PAGE_POLICIES).filter(p => PAGE_POLICIES[p].staffPin), 'settings'].sort(),
-            'the grade is the staff PIN\'s pages plus Settings — owner, 23 Nov 2026');
+            ['calendar', 'settings', 'trains'],
+            'the grade is the Calendar, Trains and Settings — owner, 23 Nov 2026');
     });
 
     test('the Pay Calculator refuses them though it is soft — and still never blocks anybody else', () => {

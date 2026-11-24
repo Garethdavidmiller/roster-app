@@ -25,8 +25,8 @@
  * Every colleague on a normal CEA contract and the managers, since `PHASE` became 'open' (v25.60, owner, 9 Nov 2026), with
  * the admin and the named previewers (CONFIG.NEWLINK_PREVIEW, v25.33), who had it alone while it was a preview (auth-policy.js
  * `newlink`, nav-destinations.js `newlinkAudienceOnly`, both read through `canOpenNewlink`). The sign-in is the
- * app's ordinary front door rather than a protection — the proposals are public files — and the station PIN never reads
- * this page (owner: "No, signed-in only"), so it signs out on arrival like every page that does not ask for it.
+ * app's ordinary front door rather than a protection — the proposals are public files — and the retired station PIN never read
+ * this page (owner: "No, signed-in only"); a leftover PIN session signs out on arrival, as on every page.
  *
  * ── AND WHO IT IS NOT FOR IS TOLD, NOT SENT AWAY (sign-in audit B1, 13 Nov 2026) ────────────────────────────────
  *
@@ -81,8 +81,8 @@ const ABOUT = Object.freeze({
 export function init() {
     reloadIfRestoredForSomeoneElse();
     registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Trains: a signed-out view must still take an update
-    // Tear down a lingering privileged Firebase identity whose local session has expired — and the station PIN, which
-    // this page does not admit (reconcileExpiredIdentity's default).
+    // Tear down a lingering privileged Firebase identity whose local session has expired — and a leftover session of the
+    // retired staff PIN (reconcileExpiredIdentity's default).
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
     const currentUser = getSession()?.name ?? null;
 

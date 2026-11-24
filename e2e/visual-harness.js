@@ -21,8 +21,8 @@
  *     timer-driven init;
  *   · Firebase is stubbed by `fixtures.js`, so every read is empty;
  *   · a fixed member is seeded, with a restorable Firebase identity as well as a local session —
- *     since v20.12 `decideAccess` needs BOTH, and a session alone captures the staff-PIN card
- *     instead of the roster on every calendar surface;
+ *     since v20.12 `decideAccess` needs BOTH, and a session alone captures the member's sign-in
+ *     card instead of the roster on every calendar surface;
  *   · every one-time overlay is pre-dismissed, so no lightbox floats over the capture;
  *   · and the settle waits on the page rather than on a clock — visible, network idle, fonts
  *     loaded, two frames painted.
@@ -73,7 +73,7 @@ export async function prep(page, size) {
     await seedMember(page, 'G. Miller');
     // The Calendar needs a restorable Firebase identity as well as a local session since v20.12 —
     // `decideAccess` requires BOTH, so a baseline seeded with only the session would capture the
-    // staff-PIN card on every calendar surface instead of the roster.
+    // member's sign-in card on every calendar surface instead of the roster.
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authUser: true }); });
     await dismissOneTimeOverlays(page);
 }

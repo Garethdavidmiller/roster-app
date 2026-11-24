@@ -213,7 +213,7 @@
        4.5:1 AA floor (v20.14) — under by a quarter of a point, which is invisible to a human
        reviewer and is why it survived from the login overlay's first release. It had never been
        scanned: axe sees a settled page, and `.login-error` only appears AFTER a failed sign-in, so
-       no gate in the suite had ever put it in front of one. The Calendar's staff-PIN card is the
+       no gate in the suite had ever put it in front of one. The Calendar's staff-PIN card (retired) was the
        first surface with an axe scan of its error state, and it found this on the shared recipe. */
     --error-text:   color-mix(in oklch, var(--error-red) 82%, black);
 
@@ -3001,12 +3001,10 @@ button.nav-panel-link--notices {
     min-width: 0;
 }
 
-/* `.nav-panel-signout` and `.nav-panel-footer` set a display, which beats the `hidden` attribute's UA
-   rule. Without these, End staff PIN (rendered hidden, revealed for a PIN viewer) showed to every
-   signed-in member as an action that does nothing, and a locked visitor's footer showed as an empty
-   bar with a blank name. No `!important`: at (0,2,0) each already outranks the (0,1,0) rule that sets
-   its display, and no other rule names either class. */
-.nav-panel-lock[hidden] { display: none; }
+/* `.nav-panel-footer` sets a display, which beats the `hidden` attribute's UA rule, so a footer drawn
+   `hidden` would still show — as an empty bar with a blank name. No `!important`: at (0,2,0) it already
+   outranks the (0,1,0) rule that sets its display. (Its twin for "End staff PIN" went with the PIN,
+   23 Nov 2026; no footer is drawn hidden today, and this keeps `hidden` honest if one ever is.) */
 .nav-panel-footer[hidden] { display: none; }
 
 .nav-panel-signout {
@@ -3101,7 +3099,7 @@ button.nav-panel-link--notices {
 
 /* Overlay, not a card — --radius-xl with the other compact dialogs.
 
-   `.cal-lock-card` (the Calendar's staff-PIN panel) JOINS this recipe rather than carrying a
+   `.cal-lock-card` (the Calendar's lock-slot cards) JOINS this recipe rather than carrying a
    parallel one: it is the same moment — "not available to you yet; do this one thing" — and written
    separately it drifted on every axis at once (as `#pwForceContent` joined before it).
    `.pc-role-card` (the Pay Calculator's refusal) joins for the same reason: it sits on the same page
@@ -3123,12 +3121,12 @@ button.nav-panel-link--notices {
     text-align: center;
     box-shadow: var(--shadow-3);
     /* State the type base rather than inherit it (v20.49). These cards are ONE family and look
-       it, but two are appended to a sub-page `body` (14px, --text-dark) while the PIN card
-       lives in index.html, whose base is 16px and PURE BLACK — a colour this app uses for text
-       nowhere. Every element inside sets its own size, so the only thing this moves is the PIN
-       card: MEASURED at 1px, because the masthead `<img>` is INLINE and the baseline gap beneath
+       it, but two are appended to a sub-page `body` (14px, --text-dark) while the Calendar's cards
+       live in index.html, whose base is 16px and PURE BLACK — a colour this app uses for text
+       nowhere. Every element inside sets its own size, so the only thing this moves is the Calendar's
+       cards: MEASURED at 1px, because the masthead `<img>` is INLINE and the baseline gap beneath
        an inline image follows the PARENT's font metrics. That 1px is the change working — it is
-       the other two cards' spacing, which the PIN card now shares. */
+       the other two cards' spacing, which the Calendar's cards now share. */
     font-size: var(--type-body);
     color: var(--text-dark);
 }
@@ -3269,16 +3267,6 @@ button.nav-panel-link--notices {
     #loginSubmit:hover, #pwfSave:hover, #calLockSubmit:hover { background: var(--primary-blue-dark); }
 }
 #loginSubmit:active, #pwfSave:active, #calLockSubmit:active { transform: scale(var(--press-scale)); }
-/* Scoped to the PIN button, deliberately. It is the only one of the three that is disabled at REST
-   (until four digits are entered) rather than only mid-submit, so it is the only one that needs a
-   resting disabled look. Giving `#loginSubmit` the same treatment would restyle a screen staff use
-   daily for a state it barely occupies. */
-#calLockSubmit:disabled {
-    background: var(--field-bg-disabled);
-    color: var(--text-light);
-    cursor: default;
-    transform: none;
-}
 /* The "— Select grade first —" state:
      · `white` is the FOCUS ceiling in the three-surface model, so a DISABLED control wearing it reads
        as the most active field; `--field-bg-disabled` is what every disabled field uses.
@@ -3300,11 +3288,13 @@ button.nav-panel-link--notices {
     transition: color var(--dur-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
+/* [hidden] must beat the inline-block above: the Calendar's own front door hides its link (login-overlay.js). */
+.login-back[hidden] { display: none; }
 /* While a sign-in is genuinely in flight the Back link is inert — leaving mid-submit is the
    "half signed-in" escape route the v14.75 login fix closed (JS preventDefault is the real guard;
    this just makes the disabled state visible). */
 .login-back--busy { opacity: 0.4; pointer-events: none; cursor: default; }
-/* As a BUTTON — the OTHER WAY IN, on the Calendar's cards ("Use the staff PIN instead", "Sign in
+/* As a BUTTON — the OTHER WAY IN, on the Calendar's cards (the come-back form's "← Back"; once "Use the staff PIN instead" and "Sign in
    instead"): the link's place under the primary action, with the button chrome removed, the 44px
    touch target a bare text link would not have, and a heavier, underlined treatment than the
    sub-pages' "← Back to roster" — because on the front door this is a route a visiting colleague

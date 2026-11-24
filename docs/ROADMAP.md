@@ -1,6 +1,6 @@
 # Marylebone Roster — Product Roadmap
 
-*Last updated: November 2026 — v26.50 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.60 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -149,21 +149,22 @@ failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster d
 shipped, including the wiring defects found on the way: `ROADMAP_HISTORY.md`.
 
 ### Track E — the authentication decision
-**Status:** Planned — phase the staff PIN out (owner, 23 Nov 2026); individual authentication on the Calendar (E3) is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
+**Status:** Planned — the server and cleanup releases of the staff PIN's retirement (owner, 23 Nov 2026); E3 as designed is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
 
-**There is a direction now: the staff PIN is to be phased out.** The first step, an "Other staff" named
-login that sees what the PIN shows, has shipped; retiring the PIN itself is a separate change, made only
-once everybody who uses it has a login of their own, so nobody is locked out on the day (DECISIONS.md →
-"An 'Other staff' login"). Where that stands, and which phases have shipped, is the Track E row of
-`SECURITY_RELEASE_PLAN.md`'s canonical table — not restated here.
+**The staff PIN is retired** (owner, 23 Nov 2026): everyone signs in under their own name, and
+somebody with no roster of their own gets an Other Staff login. It comes out in three releases —
+client, server, cleanup (DECISIONS.md → "The staff PIN retired"). Where that stands, and which phases
+have shipped, is the Track E row of `SECURITY_RELEASE_PLAN.md`'s canonical table — not restated here.
 
-The decision still open is the bar for individual authentication (E3). Take it with the E3 measurement
+What is still open is E3 as designed — its soft posture and the rules beyond it (`AUTH_PLAN.md` → E3),
+since the retirement reached E3's front door without them. Take it with the E3 measurement
 criteria **pre-registered** — AUTH_PLAN §6 requires the thresholds to be written down before telemetry
 starts, precisely so they cannot be chosen after seeing the numbers.
 
-This gates more than itself: **C5 cannot complete without it**, because a member who only ever opens
-the roster with the staff PIN never signs in and is therefore never compelled to set a password —
-which is also why retiring the PIN would move C5.
+This gated more than itself: **C5 could not complete without it**, because a member who only ever
+opened the roster with the staff PIN never signed in and was never compelled to set a password. The
+PIN was retired on 23 Nov 2026, so every reader now signs in; what that does to C5's gate is part of
+the open decision in `PASSWORD_DESIGN.md` → credential lifecycle L7.
 
 ### Calendar start — how often we deploy (OWNER DECISION, not a code change)
 **Status:** Blocked on an owner decision — an external review's recommendation, not yet adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree
@@ -222,8 +223,8 @@ month ahead, because "must be done by March" reliably becomes "started in March"
 **Status:** Idea (each part) · **Owner:** Gareth · **Trigger:** each part names its own, below ·
 **Blocker:** the open questions at the end · **Review:** before 13 Dec 2026, and again in January
 
-`trains.html` is every member's (owner, 20 Oct 2026; DECISIONS.md), and the station PIN reads it
-too: station-first, with ranked changes in a colleague's words, a card per station, the basic hour
+`trains.html` is every member's (owner, 20 Oct 2026; DECISIONS.md), an Other Staff login's included:
+station-first, with ranked changes in a colleague's words, a card per station, the basic hour
 as a stopping-pattern grid, and both timetables from Chiltern's published books, every stop
 included. The ideas below were proposed with the preview (7 Oct 2026) and deliberately not built
 yet; those since built are in ROADMAP_HISTORY.md → "Trains page — preview items shipped". They are
@@ -256,8 +257,7 @@ chooses (the trigger, the page opening to staff, was met on 20 Oct 2026).
   to the top (from about 20:00) with a countdown to each last train, the after-midnight ones labelled "tonight, just after midnight".
 - **Your shift** — for a signed-in member the Calendar already knows today's shift, so: "You're on
   15:45–23:55. Busiest spell 17:00–18:59. Last trains you'll see: …". No other tool can say this.
-  It needs a sign-in: it is a member's own roster, and the station PIN is nobody (DECISIONS.md;
-  AUTH_AND_SESSIONS.md invariant 24).
+  It needs a member with a roster of their own — an Other Staff login has none.
 - **Busy times strip** — a 24-hour bar shaded by trains per hour with a "now" marker, reusing the
   departure curve the Links work already holds (`links-demand.js`).
 - **Platform view for the next hour** — which train sits where, and which are joined. Needs the
@@ -600,7 +600,7 @@ reached** — a 2026 implementation preference must not become a 2028 architectu
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
 ### Split the three largest page controllers — each when it is next changed
-**Status:** Conditional — the first seam is out of two of the three: `paycalc-app.js`'s pricing (`pricePayslip`, `paycalc-calc.js`, v26.42) and `admin-app.js`'s week-grid Save (`collectWeekRows`, `admin-week-collect.js`, v26.44); `links-app.js` has had none · **Trigger:** the next change to that page's rules (a wiring-only edit, like v26.16's to `paycalc-app.js` or v26.19's to `admin-app.js`, is not one) · **Owner:** the developer · **Review:** at that change, not before
+**Status:** Conditional — the first seam is out of two of the three: `paycalc-app.js`'s pricing (`pricePayslip`, `paycalc-calc.js`, v26.42) and `admin-app.js`'s week-grid Save (`collectWeekRows`, `admin-week-collect.js`, v26.44); `links-app.js` was split in v26.50 (Progress, below) · **Trigger:** the next change to that page's rules (a wiring-only edit, like v26.16's to `paycalc-app.js` or v26.19's to `admin-app.js`, is not one) · **Owner:** the developer · **Review:** at that change, not before
 
 **Why:** an external review (10 Nov 2026) named `links-app.js`, `admin-app.js` and `paycalc-app.js`
 (2,657, 1,729 and 1,597 lines when it measured them) as the files where one edit is hardest to

@@ -19,7 +19,7 @@ import { PHASE, CHOSEN, CLOSES, STARTS, TIMETABLE_STARTS, CONTACT, CONTACT_ROLE,
 import { CHANGE_DATE } from './trains-data.js';
 import { closesWords, startsWords, designName } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
-import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink, rolesFor } from './auth-policy.js';
+import { PAGE_POLICIES, requirePage, canOpenNewlink, rolesFor } from './auth-policy.js';
 import { teamMembers, CONFIG } from './roster-data.js';
 import { NAV_PAGES } from './nav-destinations.js';
 
@@ -29,7 +29,7 @@ test('the page is open — the switch, the policy and the pill agree', () => {
     assert.equal(PHASE, CHOSEN === null ? 'open' : 'decided', 'open since v25.60 (owner, 9 Nov 2026), decided once CHOSEN names the design');
     assert.equal(PAGE_POLICIES.newlink.role.includes('newlinkAudience'), PHASE !== 'preview', 'the switch and the gate have parted');
     assert.deepEqual(PAGE_POLICIES.newlink.role, ['admin', 'newlinkPreview', 'newlinkAudience']);
-    assert.equal(admitsStaffPin('newlink'), false, 'never the station PIN (owner, 2 Nov 2026: "No, signed-in only")');
+    assert.equal(PAGE_POLICIES.newlink.requireNamed, true, 'signed-in only (owner, 2 Nov 2026: "No, signed-in only")');
     assert.equal(NAV_PAGES.find(p => p.id === 'newlink')?.newlinkAudienceOnly, true, 'the pill has its own gate, read through canOpenNewlink');
 
     // The decision itself, through the REAL lists and the real roster (requirePage reads both), not roles made up for the

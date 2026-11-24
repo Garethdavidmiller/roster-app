@@ -26,10 +26,10 @@
  * on every page and the drawer doubles as a map rather than a list of exits.
  * colorClass is the page's own colour, Admin's navy with gold text (css-tokens.md → "A page is one
  * colour and one emoji"); `label` is its emoji and name, which its header and About badges repeat.
- * `otherStaffHidden` — not drawn for an "Other staff" login (owner, 23 Nov 2026), who is shown the staff PIN's pages
- * and Settings; drawn for everyone else, signed out and the PIN included. auth-policy.js refuses the same pages. Its
- * gate, `isNotOtherStaff`, is the one `initNavPanel` defaults to TRUE: a page that passes no gates (signed out, or the
- * PIN) keeps Admin and Pay as it always has, and every page that knows its member spreads `navGatesFor`.
+ * `otherStaffHidden` — not drawn for an "Other Staff" login (owner, 23 Nov 2026), who is shown the Calendar, Trains
+ * and Settings; drawn for everyone else, signed out included. auth-policy.js refuses the same pages. Its
+ * gate, `isNotOtherStaff`, is the one `initNavPanel` defaults to TRUE: a page that passes no gates (signed out) keeps
+ * Admin and Pay as it always has, and every page that knows its member spreads `navGatesFor`.
  * @type {ReadonlyArray<{ id: string, label: string, url: string, colorClass: string, adminOnly?: boolean, linksDesignerOnly?: boolean, overtimeAudienceOnly?: boolean, newlinkAudienceOnly?: boolean, otherStaffHidden?: boolean }>}
  */
 export const NAV_PAGES = Object.freeze([

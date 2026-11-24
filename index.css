@@ -3343,9 +3343,11 @@
         .tv-pending { line-height: 1.5; }
         .tv-retry { margin-top: 10px; display: block; margin-inline: auto; }
 
-        /* ── Staff PIN access card (built on the login panel recipe) ─────────────────────────────
+        /* ── The lock slot's cards (built on the login panel recipe) ─────────────────────────────
            The PANEL itself lives in shared.css, joined to `#loginCard`/`#pwForceContent` — same
            moment, same shape, one recipe. Everything here is the small set of genuine DELTAS.
+           (The staff PIN's own card, its field and its neutral message tint went with the PIN,
+           23 Nov 2026.)
 
            Shown INSTEAD of the calendar workspace, never over it: while this is on screen the
            calendar has not been built, so there is nothing underneath to obscure. It is a card in
@@ -3357,37 +3359,6 @@
             /* Toward the top of the space the calendar would fill, not vertically centred: centring
                on a tall desktop viewport pushes it below the fold on a short laptop. */
             padding: 8px 0 48px;
-        }
-
-        /* ONE field, not four PIN cells. Four cells look sharper and cost real robustness: per-cell
-           focus juggling, they fight paste and autofill, and screen readers announce four unlabelled
-           boxes. A single field styled AS a PIN reads the same and behaves like the input it is.
-           Everything not listed here comes from the shared login field.
-           THE ID, NOT THE CLASS: that shared skin is `.login-field input:not([type="checkbox"])
-           :not([type="radio"])`, (0,3,1), which beats `.cal-lock-pin` (0,1,0) on size, padding and colour. */
-        #calLockPin {
-            /* --type-xl (24px) against the shared 16px. A PIN is four characters read at a glance,
-               and it is comfortably over the iOS focus-zoom floor either way (css-tokens.md → the
-               16px rule). Through the token, not a literal: a repeated raw size is how the scale
-               stopped meaning anything (type-scale-parity.test.mjs). */
-            font-size: var(--type-xl);
-            font-weight: 700;
-            /* Tracking wide enough that four masked dots read as four separate characters. The run
-               ends in one letter-space nobody sees, which pulls the dots half of it left of centre;
-               the extra 0.5em on the left puts them back, in the field's own em so it stays exact
-               when a phone scales the text. */
-            letter-spacing: 0.5em;
-            padding: 10px 10px 10px calc(10px + 0.5em);
-            text-align: center;
-            color: var(--primary-blue);
-        }
-
-        /* The message channel wears `.login-error` — the app's soft-red box. A NON-error message
-           (the in-flight "Checking the PIN…") is the same box in a neutral navy tint rather than a
-           second element: one live region, and no red on a screen where nothing has gone wrong. */
-        .cal-lock-msg--info {
-            color: var(--text-mid);
-            background: var(--bg-faint);
         }
 
         /* ── The boot skeleton ────────────────────────────────────────────────────────────────
@@ -3511,7 +3482,7 @@
            `.win-editor[hidden]` hit on the links page. These six are the Calendar workspace, hidden by
            `calendar-access.js` before the access decision and on a re-lock — after which the workspace is
            built (only the grid is emptied, calendar-app.js) and this is the only layer
-           (e2e/calendar-pin.spec.js → "a re-lock takes the offer strips…").
+           (e2e/calendar-access.spec.js → "a re-lock takes the offer strips…").
            `!important`: three of them (#installPrompt, #notifPrompt, #swipeHint) carry an inline
            `display`, which beats any rule without it. */
         #calendarControls[hidden],

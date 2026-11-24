@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for Marylebone Roster
 
-*Last updated: November 2026 — v26.50 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.60 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -102,7 +102,7 @@ gone, and that no card outgrows its cap.
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
 | Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` (what it lists: `nav-destinations.js`) |
-| Whether the ☰ menu offers the Marylebone Newsletter — only while its latest issue is under six weeks old | `newsletter-recency.js` (the Calendar asks once a load; the drawer and the staff-PIN line read the answer this device keeps) |
+| Whether the ☰ menu offers the Marylebone Newsletter — only while its latest issue is under six weeks old | `newsletter-recency.js` (the Calendar asks once a load; the drawer reads the answer this device keeps) |
 | Push notification subscribe/unsubscribe, VAPID key, notification state (shared) | `notif.js` |
 | Firestore security rules — write isolation, field validation, admin bypass | `firestore.rules` |
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
@@ -155,24 +155,24 @@ Keyboard navigation and the hover tooltip for the month grid: a roving tabindex 
 - **Exports:** `initCalendarTooltip` · `initCalendarKeyboard`
 
 ### `calendar-access.js`
-The Calendar's access gate: it decides at boot, shows the right card, exchanges the staff PIN for a session-only viewer identity, and re-locks. It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–10, 17–20; running the PIN: OPERATIONS_REFERENCE.md → "Staff PIN access for the Calendar". Tested by `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `isViewerMode` · `unlockWithPin` · `lockCalendar` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
+The Calendar's access gate: it decides at boot, shows the right card and re-locks; only a member's own sign-in opens it (the staff PIN is retired, and its boot teardown signs a leftover viewer session out). It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–9, 17, 19, 20; Tested by `calendar-access.test.mjs` and `e2e/calendar-access.spec.js`.
+- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
-The three cards that can stand where the Calendar goes — the member sign-in card (the front door), the staff-PIN card and the member's come-back card — with their wiring and the unlock backoff. They DRAW; `calendar-access.js` DECIDES and keeps the security properties, and hands its collaborators in through `initLockCards`. The header lists the four things an edit can silently break. Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `PIN_FIRST_HASH` · `initLockCards` · `resetUnlockFailures` · `takePinFirst` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showLockPanel` · `showSignInPanel` · `showMemberPanel`
+The cards that can stand where the Calendar goes — the member sign-in card (the front door), the member's come-back card, and the front door's fallback when its form cannot load — with their wiring. They DRAW; `calendar-access.js` DECIDES and keeps the security properties, and hands its collaborators in through `initLockCards`. The header lists the three things an edit can silently break. Tested through `calendar-access.test.mjs` and `e2e/calendar-access.spec.js`.
+- **Exports:** `initLockCards` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showSignInPanel` · `SIGN_IN_UNAVAILABLE_LINE` · `showSignInUnavailable` · `showMemberPanel`
 
 ### `calendar-lock-slot.js`
 The one place on the Calendar page where a card stands in for the grid, at most one at a time: mounting and unmounting it (`mountLockCard` replaces, never stacks), the boot skeleton and its timer, and hiding the workspace the card stands in for (`setWorkspaceHidden`). It decides nothing; `calendar-access.js` does. Tested through `calendar-access.test.mjs`.
 - **Exports:** `mountLockCard` · `unmountLockCard` · `lockCardId` · `armSkeleton` · `showBootSkeleton` · `setWorkspaceHidden`
 
 ### `calendar-snapshot.js`
-The member's own roster, kept on the device so the Calendar shows it, labelled, while the sign-in check runs — and the Annual Leave panel's saved balance, in the same copy. Storage only and synchronous; never a source of truth, and deleted at every sign-out, PIN unlock and lost grant. The rules it keeps are in its header. `CALENDAR_DATA.md` 17. Tested by `calendar-snapshot.test.mjs`.
+The member's own roster, kept on the device so the Calendar shows it, labelled, while the sign-in check runs — and the Annual Leave panel's saved balance, in the same copy. Storage only and synchronous; never a source of truth, and deleted at every sign-out and lost grant. The rules it keeps are in its header. `CALENDAR_DATA.md` 17. Tested by `calendar-snapshot.test.mjs`.
 - **Exports:** `SNAPSHOT_VERSION` · `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `LEAVE_YEARS_AROUND` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
 
 ### `calendar-access-core.js`
-The pure rules of Calendar access — no DOM, no Firebase, no storage: `decideAccess` (named beats viewer, anything missing is `none`), the PIN's shape and failure words (no client file ever compares the PIN), the notice audience rule and `personalActionsAllowed` (`CALENDAR_DATA.md` 14). Tested by `calendar-access-core.test.mjs`.
-- **Exports:** `CALENDAR_VIEWER_UID` · `CALENDAR_VIEWER_CLAIM` · `PIN_LENGTH` · `PIN_FIRST_HASH` · `isViewerUser` · `noticeAudienceAllows` · `personalActionsAllowed` · `decideAccess` · `normalisePin` · `isCompletePin` · `classifyUnlockFailure` · `attemptBackoffMs`
+The pure rules of Calendar access — no DOM, no Firebase, no storage: `decideAccess` (only a named member is granted, anything missing is `none`), `isViewerUser` (recognising a leftover staff-PIN session, until the cleanup release), the members-only notice audience rule and `personalActionsAllowed` (`CALENDAR_DATA.md` 14). Tested by `calendar-access-core.test.mjs`.
+- **Exports:** `CALENDAR_VIEWER_UID` · `CALENDAR_VIEWER_CLAIM` · `isViewerUser` · `noticeAudienceAllows` · `personalActionsAllowed` · `decideAccess`
 
 ### `calendar-overrides.js`
 The Calendar's override cache (`rosterOverridesCache`) and every read that fills it. It refuses any read without Calendar access — the second gate, because a cache hit never consults the rules — asks each outcome its read ticket (`answerStillWanted`), and orders the cache writes per month; its two reads are the cache's only writers. Rules: `.claude/rules/calendar.md`; `CALENDAR_DATA.md` 3–6, 16, 18, 20. Tested by `calendar-overrides.test.mjs` and `calendar-sequences.test.mjs`.
@@ -307,8 +307,8 @@ The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`) and
 - **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
 
 ### `login-overlay.js`
-The one sign-in card for every protected page, a modal by default and mounted inline as the Calendar's front door; no page redirects elsewhere to authenticate. It owns the card, the wrong-password lockout, the reset-request button and the staff-PIN-ended notice; per-page access stays with each coordinator. Bound by `.claude/rules/sessions.md`. Tested by `login-overlay.test.mjs`, `e2e/auth.spec.js` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `sayStaffPinEndedIn` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
+The one sign-in card for every protected page, a modal by default and mounted inline as the Calendar's front door; no page redirects elsewhere to authenticate. It owns the card, the wrong-password lockout, the reset-request button and the staff-PIN-ended notice; per-page access stays with each coordinator. Bound by `.claude/rules/sessions.md`. Tested by `login-overlay.test.mjs`, `e2e/auth.spec.js` and `e2e/calendar-access.spec.js`.
+- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `sayStaffPinEndedIn` · `SIGN_IN_SLOW_LINE` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
 
 ### `sw-register.js`
 Service-worker registration and the update lifecycle for every app page: the first-install guard, the hourly check, and the reload paths each page chooses — none of which reloads while a write no page started is on its way. Bound by `.claude/rules/pwa.md`. Tested by `sw-register.test.mjs`.
@@ -330,16 +330,16 @@ The mandatory "set your own password" overlay (PASSWORD_DESIGN.md Phase 2), run 
 - **Exports:** `withTimeout` · `settleOrTimeout` · `shouldForcePasswordSet` · `initPasswordForce`
 
 ### `session.js`
-The one local session and the Firebase sign-in every protected page and the Calendar's member card go through, the expired-identity teardown, the staff-PIN checks for pages that admit the PIN, and the bridge that feeds the auth store. The contract is `AUTH_AND_SESSIONS.md`; the working notes `.claude/rules/sessions.md`. Capped by `coordinator-ratchet.test.mjs`. Tested by `session.test.mjs`.
-- **Exports:** `shedCalendarViewer` · `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `authGeneration` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS` · `holdsStaffPin` · `staffPinIsCurrent` · `signOutStaffPin`
+The one local session and the Firebase sign-in every protected page and the Calendar's member card go through, the expired-identity teardown (which also signs a leftover staff-PIN session out, on every page), and the bridge that feeds the auth store. The contract is `AUTH_AND_SESSIONS.md`; the working notes `.claude/rules/sessions.md`. Capped by `coordinator-ratchet.test.mjs`. Tested by `session.test.mjs`.
+- **Exports:** `shedCalendarViewer` · `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `authGeneration` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS`
 
 ### `viewer-shed.js`
 Signs the shared Calendar viewer out before a member signs in, in the one order that keeps it out of long-lived storage (`AUTH_AND_SESSIONS.md` 8). `session.js` is its one caller and re-exports `shedCalendarViewer`. Tested through `session.js` by `session.test.mjs`.
 - **Exports:** `shedCalendarViewer`
 
 ### `staff-pin-ended.js`
-Whether arriving on THIS page ended the shared staff PIN, who is waiting to hear it, and the one sentence said when it has — on the sign-in card, or in the body of a page with none (`AUTH_AND_SESSIONS.md` 24). Tested through the real teardown by `session.test.mjs`, and on the pages by `e2e/calendar-pin.spec.js`.
-- **Exports:** `STAFF_PIN_ENDED_NOTICE` · `BACK_TO_PIN` · `noteStaffPinEnded` · `forgetStaffPinEnded` · `takeStaffPinEndedMark` · `sayStaffPinEndedIn` · `onStaffPinEnded`
+Whether arriving on THIS page signed out a leftover session of the retired staff PIN, who is waiting to hear it, and the one sentence said when it has — on the sign-in card, or in the body of a page with none. Transition plumbing, until the cleanup release. Tested through the real teardown by `session.test.mjs`, and on the pages by `e2e/calendar-access.spec.js`.
+- **Exports:** `STAFF_PIN_ENDED_NOTICE` · `noteStaffPinEnded` · `forgetStaffPinEnded` · `sayStaffPinEndedIn` · `onStaffPinEnded`
 
 ### `silent-sign-in.js`
 The rules of the sign-in nobody typed — what a page load may try for a member whose local session has no Firebase identity behind it, the six-hourly reset recheck (`AUTH_AND_SESSIONS.md` 23), and when a session began, plus the one bound on how long Firebase may take (`AUTH_RESTORE_TIMEOUT_MS`). Pure; `session.js` reads and writes the memory. Tested by `session.test.mjs`.
@@ -354,8 +354,8 @@ The auth store: the one identity state, reduced by `auth-state-core.js`. Only `s
 - **Exports:** `getAuthSnapshot` · `subscribeAuth` · `dispatchAuth` · `_resetAuthStateForTest`
 
 ### `auth-policy.js`
-Page authorisation — may this identity be on this page? — from one policy map, and the one answer to where the staff PIN may go. Client UX only: Firestore rules and the Functions' claim checks are the boundary. Holds `isOvertimeReviewer` and `canOpenOvertime` apart (`AUTH_AND_SESSIONS.md` 14), and answers the drawer's pill gates for every page (`navGatesFor`). Tested by `auth-policy.test.mjs`, `newlink-config.test.mjs`, `nav-gates.test.mjs` and `page-contract-parity.test.mjs`.
-- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `admitsStaffPin` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `navGatesFor` · `overtimeEnabled` · `requirePage`
+Page authorisation — may this identity be on this page? — from one policy map. Client UX only: Firestore rules and the Functions' claim checks are the boundary. Holds `isOvertimeReviewer` and `canOpenOvertime` apart (`AUTH_AND_SESSIONS.md` 14), and answers the drawer's pill gates for every page (`navGatesFor`). Tested by `auth-policy.test.mjs`, `newlink-config.test.mjs`, `nav-gates.test.mjs` and `page-contract-parity.test.mjs`.
+- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `navGatesFor` · `overtimeEnabled` · `requirePage`
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin only): the access gate, the session, the deep-linked cards, the update hold while work is in flight, and the wiring of every Operations card. Owns two cards itself, Account status and Password reset requests. Capped by `coordinator-ratchet.test.mjs`.
@@ -579,7 +579,7 @@ Which calendar year the Annual Leave figures on `admin.html` describe: the prece
 - **Exports:** `alFigureYear`
 
 ### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js` / `trains-status.js`
-The Trains page (`trains.html`): what changes at Marylebone when the December 2026 timetable starts, organised by station. Open to every signed-in member and to the station PIN (`auth-policy.js` → `staffPin`; AUTH_AND_SESSIONS.md 24); it reads no network. Tested by `trains-change.test.mjs`, `trains-stations.test.mjs`, `tips-content.test.mjs` and `e2e/trains.spec.js`.
+The Trains page (`trains.html`): what changes at Marylebone when the December 2026 timetable starts, organised by station. Open to every signed-in member, an Other Staff login included (`auth-policy.js` → `otherStaff`); it reads no network. Tested by `trains-change.test.mjs`, `trains-stations.test.mjs`, `tips-content.test.mjs` and `e2e/trains.spec.js`.
 - `trains-app.js` — the coordinator: the access gate, the page state and its wiring. `trains-boot.js` is its CSP shim.
 - `trains-cards.js` — paints each card from the page state.
 - `trains-change.js` — pure judgements about two timetables: alignment, `timetablePhase`, the railway day.
@@ -921,7 +921,7 @@ The roster-to-pay suggestion engine behind the hint bar: one member's recorded c
 
 ### `firebase-client.js`
 The single Firebase initialisation point: every page takes `db`, `auth` and the SDK calls from here, never from the CDN, so the SDK version appears once (a bump also moves `FIREBASE_SDK_VERSION` in `service-worker.js` — CLAUDE.md → Change impact). It cannot load in Node, so its rules live in the pure modules and factories it binds — `claim-retry.js` for every write, `documents-client.js`, `account-calls.js`, `analytics-client.js` among them. Boot persistence: `AUTH_AND_SESSIONS.md` 8; the persistent cache: `.claude/rules/pwa.md`. Tested by `firebase-client.test.mjs` and `calendar-viewer-parity.test.mjs`.
-- **Exports:** `db` · `collection` · `query` · `where` · `orderBy` · `limit` · `getDocs` · `getDocsFromCache` · `getDoc` · `getDocFromCache` · `onSnapshot` · `addDoc` · `setDoc` · `deleteDoc` · `doc` · `serverTimestamp` · `writeBatch` · `runTransaction` · `deleteField` · `COLLECTIONS` · `isSafeStorageUrl` · `resolveDocumentOpenUrl` · `auth` · `authBootstrap` · `authReady` · `currentUserAfterBoot` · `restoreMemberPersistence` · `setViewerPersistence` · `signInWithEmailAndPassword` · `signInWithCustomToken` · `signOut` · `onAuthStateChanged` · `withClaimRetry` · `writeWithClaimRetry` · `whenOwnWritesSent` · `VIEWER_WRITES_GRACE_MS` · `letViewerWritesGo` · `normaliseSurname` · `nameToEmail` · `uploadHuddle` · `uploadCircular` · `uploadNewsletter` · `getLatestCircular` · `getLatestNewsletter` · `getLatestHuddle` · `subscribeToLatestHuddle` · `currentAuthUid` · `savePushSubscription` · `deletePushSubscription` · `getStaffContact` · `saveStaffContact` · `deleteStaffContact` · `getAllStaffContacts` · `getPasswordStatus` · `probeResetAtMs` · `savePasswordSetAt` · `getAllPasswordStatus` · `reauthenticateWithPassword` · `changeOwnPassword` · `resetMemberPassword` · `getAccountSetupGaps` · `requestPasswordReset` · `fetchSignedDocumentUrl` · `getSignInStats` · `getResetRequests` · `clearResetRequest` · `logClientError` · `getClientErrors` · `resolveClientError` · `recordPageView` · `recordActiveAccount` · `recordOriginUse` · `recordPerfSample` · `getPerfStats` · `getUsageStats`
+- **Exports:** `db` · `collection` · `query` · `where` · `orderBy` · `limit` · `getDocs` · `getDocsFromCache` · `getDoc` · `getDocFromCache` · `onSnapshot` · `addDoc` · `setDoc` · `deleteDoc` · `doc` · `serverTimestamp` · `writeBatch` · `runTransaction` · `deleteField` · `COLLECTIONS` · `isSafeStorageUrl` · `resolveDocumentOpenUrl` · `auth` · `authBootstrap` · `authReady` · `currentUserAfterBoot` · `restoreMemberPersistence` · `signInWithEmailAndPassword` · `signOut` · `onAuthStateChanged` · `withClaimRetry` · `writeWithClaimRetry` · `whenOwnWritesSent` · `VIEWER_WRITES_GRACE_MS` · `letViewerWritesGo` · `normaliseSurname` · `nameToEmail` · `uploadHuddle` · `uploadCircular` · `uploadNewsletter` · `getLatestCircular` · `getLatestNewsletter` · `getLatestHuddle` · `subscribeToLatestHuddle` · `currentAuthUid` · `savePushSubscription` · `deletePushSubscription` · `getStaffContact` · `saveStaffContact` · `deleteStaffContact` · `getAllStaffContacts` · `getPasswordStatus` · `probeResetAtMs` · `savePasswordSetAt` · `getAllPasswordStatus` · `reauthenticateWithPassword` · `changeOwnPassword` · `resetMemberPassword` · `getAccountSetupGaps` · `requestPasswordReset` · `fetchSignedDocumentUrl` · `getSignInStats` · `getResetRequests` · `clearResetRequest` · `logClientError` · `getClientErrors` · `resolveClientError` · `recordPageView` · `recordActiveAccount` · `recordOriginUse` · `recordPerfSample` · `getPerfStats` · `getUsageStats`
 
 ### `fetch-timeout.js`
 The bound on every client call to a Cloud Function: `fetch` with a deadline that also covers the body read, a separate code for a caller's own cancel, and `serverRefusal` for a 4xx that is an answer rather than a fault. The header holds the per-endpoint budgets and the two rules every caller keeps: a budget sits above the endpoint's own `timeoutSeconds`, and a timeout on a state-changing call does not mean it did not happen — a write says "may still have gone through", never "failed". Tested by `fetch-timeout.test.mjs`.
@@ -997,7 +997,7 @@ The "Needs attention" strip at the top of `operations.html`: an index of excepti
 - **Exports:** `ATTENTION_CATALOGUE` · `attentionBadge` · `buildAttentionItems` · `reportLoginAccounts` · `withdrawLoginAccounts` · `createAttentionStrip`
 
 ### `operations-pin-lockout.js`
-The staff PIN's station-wide block, on Operations (owner, Nov 2026): a line on Staff Login Accounts and the strip's `pinLockout` item, while a block runs or one began in the last day. It runs no read — the fact rides on the audit's answer — and says times and counts only; its three states, and why an absent answer is unknown, are its header. Wired by `admin-auth.js`, which redraws the line when `lockoutChangesAt` says. Tested by `operations-pin-lockout.test.mjs` and `admin-auth.test.mjs`.
+The retired staff PIN's station-wide block at the still-deployed endpoint, on Operations (owner, Nov 2026; deleted in the server release): a line on Staff Login Accounts and the strip's `pinLockout` item, while a block runs or one began in the last day. It runs no read — the fact rides on the audit's answer — and says times and counts only; its three states, and why an absent answer is unknown, are its header. Wired by `admin-auth.js`, which redraws the line when `lockoutChangesAt` says. Tested by `operations-pin-lockout.test.mjs` and `admin-auth.test.mjs`.
 - **Exports:** `readLockout` · `lockoutWords` · `lockoutChangesAt` · `renderLockoutLine` · `lockoutCount`
 
 ### `operations-doc-links.js`
@@ -1232,7 +1232,7 @@ The pure rules Set up accounts and the admin reset apply at the edges of an acco
 - **Exports:** `buildResetRequestEndpoint`
 
 ### `functions/calendar-viewer-auth.js`
-The PURE server rules behind the staff Calendar PIN, kept apart from `req`/`res` so they can be tested: the PIN compare, the throttle (read `DEFAULT_THROTTLE`'s comment before changing a number), charging an attempt before its compare, the guards on the shared viewer account, and the station-wide lockout record. The PIN is never learnt, stored, logged or returned. Tested by `calendar-viewer-auth.test.mjs`; the uid and claim agreement across the browser, CommonJS and `firestore.rules` is `calendar-viewer-parity.test.mjs`.
+The PURE server rules behind the retired staff Calendar PIN (deleted in the server release), kept apart from `req`/`res` so they can be tested: the PIN compare, the throttle (read `DEFAULT_THROTTLE`'s comment before changing a number), charging an attempt before its compare, the guards on the shared viewer account, and the station-wide lockout record. The PIN is never learnt, stored, logged or returned. Tested by `calendar-viewer-auth.test.mjs`; the uid and claim agreement across the browser, CommonJS and `firestore.rules` is `calendar-viewer-parity.test.mjs`.
 - **Exports:** `CALENDAR_VIEWER_UID` · `PIN_LENGTH` · `DEFAULT_THROTTLE` · `GLOBAL_SOURCE_KEY` · `GLOBAL_THROTTLE` · `isValidPinShape` · `pinMatches` · `sourceKeyFor` · `clientIpOf` · `throttleDecision` · `recordFailure` · `reserveAttempt` · `refundAttempt` · `isThrottleStateStale` · `viewerClaims` · `viewerAccountTamper` · `isViewerAccount` · `LOCKOUT_RECORD_KEY` · `LOCKOUT_ALERT_GAP_MS` · `LOCKOUT_RECENT_MS` · `noteGlobalBlock` · `lockoutSummary` · `lockoutNoticeWords`
 
 ### `functions/pin-lockout.js`
@@ -1284,7 +1284,7 @@ How much larger than the stylesheet's sizes the phone draws its text — Android
 - **Exports:** `LARGE_FROM` · `COMPACT_FROM` · `LARGE_VALUE` · `COMPACT_VALUE` · `tierFor` · `measureTextScale` · `applyTextScale`
 
 ### `calendar-doc-access.js`
-May this Calendar read the three documents? They are behind the staff PIN or a password (owner decision), and this makes the client honour it, because a read the local cache can answer never consults the rules. It keeps no answer of its own — it reads and listens to `calendar-access-state.js` — and tells its subscribers only when the answer changes. Tested by `calendar-doc-access.test.mjs`.
+May this Calendar read the three documents? They are behind a password (owner decision; the staff PIN that also opened them is retired), and this makes the client honour it, because a read the local cache can answer never consults the rules. It keeps no answer of its own — it reads and listens to `calendar-access-state.js` — and tells its subscribers only when the answer changes. Tested by `calendar-doc-access.test.mjs`.
 - **Exports:** `hasDocumentAccess` · `onDocumentAccess` · `documentAccess` · `_clearDocumentSubscribersForTests`
 
 ### `calendar-access-state.js`
@@ -1296,7 +1296,7 @@ WHEN the Calendar page may draw, and what its next draw owes: one scheduler, cre
 - **Exports:** `GESTURE_POLL_MS` · `START_STAGES` · `createRedrawScheduler`
 
 ### `calendar-drawer.js`
-The Calendar's menu (the shared drawer), built for the SAVED session — never the picked name — when it is built, and able to be built again for whoever is signed in now, with the same page hooks. The rebuild runs when a lock card's sign-in is granted without a reload (`finishSignIn`, through the page's `onSignedInInPlace`). Tested by `calendar-drawer.test.mjs` and the menu-rebuild test in `e2e/calendar-pin.spec.js`.
+The Calendar's menu (the shared drawer), built for the SAVED session — never the picked name — when it is built, and able to be built again for whoever is signed in now, with the same page hooks. The rebuild runs when a lock card's sign-in is granted without a reload (`finishSignIn`, through the page's `onSignedInInPlace`). Tested by `calendar-drawer.test.mjs` and the menu-rebuild test in `e2e/calendar-access.spec.js`.
 - **Exports:** `calendarDrawerOptions` · `wireCalendarDrawer` · `rewireCalendarDrawer`
 
 ---

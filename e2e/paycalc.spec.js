@@ -3081,16 +3081,17 @@ test('paycalc: from 768px the period buttons are as tall as the select beside th
 });
 
 // THE SIGN-IN CARD EXPLAINS THE PAGE (v25.50). A visitor with no named session — a member whose
-// session lapsed, or the shared staff PIN, which carries no name — met a bare "Pay Calculator · Sign
-// in" with nothing to say what it was or who it was for. The PIN line is worded for everybody rather
-// than shown on detection: this page signs the PIN out moments after it arrives, by design.
-test('paycalc: the sign-in card says what the calculator is, who it is for, and that the staff PIN does not open it', async ({ page }) => {
+// session lapsed, or somebody who has not signed in here yet — met a bare "Pay Calculator · Sign in"
+// with nothing to say what it was or who it was for. (Until the staff PIN was retired, 23 Nov 2026, it
+// also said the PIN does not open it; that half went with the PIN.)
+test('paycalc: the sign-in card says what the calculator is, who it is for, and why you sign in as yourself', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/paycalc.html');
     const about = page.locator('#loginAbout');
     await expect(about).toBeVisible();
     await expect(about).toContainText('Customer Experience Ambassadors and Supervisors (CEA and CES)');
-    await expect(about).toContainText("the staff PIN doesn’t open it");
+    await expect(about).toContainText('under your own name, so you sign in as yourself.');
+    await expect(about).not.toContainText('PIN');
     await expect(about.locator('a.login-about-link')).toHaveAttribute('href', './paycalc-guide.html');
     await expect(page.locator('#loginFootnote')).toContainText('shared screen');
     // The words DESCRIBE the dialog, so a screen reader announces them with the card.

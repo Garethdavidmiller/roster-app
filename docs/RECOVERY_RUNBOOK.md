@@ -45,7 +45,7 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, published by `deploy-mirror.yml` after each passing Hosting run) |
 | Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml`, and `deploy-mirror.yml` (the Pages mirror, since its source was switched to GitHub Actions on 10 November 2026) |
 | Source of truth for a rollback | this git repo — `main` is what deploys |
-| **IAM prerequisite for `unlockCalendarViewer` (and `getDocumentUrl`)** | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials `createCustomToken` cannot sign locally; it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt (the command is §5b below). |
+| **IAM prerequisite for `getDocumentUrl`** (first needed by the retired staff PIN's `unlockCalendarViewer` — keep it after that goes) | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials the Admin SDK cannot sign locally (`getSignedUrl`, and the PIN exchange's `createCustomToken`); it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt (the command is §5b below). |
 
 You need the **Firebase CLI** (`npm i -g firebase-tools`, then `firebase login`) and the
 **gcloud CLI** (`gcloud auth login`, `gcloud config set project myb-roster`) on your own
@@ -153,8 +153,8 @@ gcloud iam service-accounts add-iam-policy-binding \
 ```
 
 That is the runtime service account named in the table at the top — the default Compute account, not
-an `@myb-roster.iam` one — and it is the SAME grant as the `unlockCalendarViewer` IAM prerequisite
-there, so if the PIN works the grant is already in place.
+an `@myb-roster.iam` one — and it is the SAME grant as the IAM prerequisite there, which the retired
+staff PIN's exchange needed first. Keep it when that exchange is deleted.
 
 **Without it the endpoint answers 503 on every call.** That is deliberate and safe: the client
 treats 503 as "use the stored URL", so a missing grant degrades to the OLD behaviour rather than to
@@ -330,7 +330,7 @@ Each document is a Firestore doc (`circulars/{date}` etc.) **plus** a Storage fi
    ```
 3. Check function logs to confirm recovery: **Console → Functions → Logs**, or
    `firebase functions:log`.
-4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `CALENDAR_VIEWER_PIN`) live in
+4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, and the retired `CALENDAR_VIEWER_PIN` until it is destroyed) live in
    Firebase Secret Manager — a deploy doesn't wipe them; a broken function is almost always code, not secrets.
 
 ### F. A Firestore / Storage Rules deploy locked people out (or opened access)
@@ -521,21 +521,39 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 
 - `CLAUDE.md` — project identity, deployment health checks, API-key referrer allowlist.
 - `DATA_MODEL.md` — every collection's fields, which is what a hand-restored record must match.
-- `OPERATIONS_REFERENCE.md` — Huddle/roster ingest flow, the Calendar PIN's operation (setting and
-  rotating it), and Security Rules detail.
+- `OPERATIONS_REFERENCE.md` — Huddle/roster ingest flow, the retired staff PIN's last manual steps,
+  and Security Rules detail.
 - `SECURITY_RELEASE_PLAN.md` — WIF deploy identity, claim model, the deferred security work.
 - `KNOWN_LIMITATIONS.md` — "The installed PWA masks live-site breakage" (why you must verify
   in a fresh window).
 
 ---
 
-## The Calendar PIN — deployment order, and breaking glass
+## The staff PIN (retired)
+
+**Retired 23 Nov 2026 (owner).** The Calendar and Trains open only to somebody signed in by name; the
+shared PIN opens nothing in the app. It comes out in three releases — client, server, cleanup —
+recorded in DECISIONS.md → "The staff PIN retired". What staff are told, how somebody without a login
+gets one, and **the manual steps after the server release** (delete the `calendar-viewer` account,
+destroy `CALENDAR_VIEWER_PIN`, purge `viewerAttempts`, consider switching off Anonymous sign-in, KEEP
+the token-creator grant): OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
+
+**Between the client and the server release the PIN still works at the endpoint.** No screen asks
+for it, but `unlockCalendarViewer` still mints a token the rules accept, so somebody holding the PIN
+can still read the roster by calling it directly. Do not leave long between the two releases. If the
+PIN is known to have got out in that window, ship the server release rather than rotating it.
+
+**The server release tightens a read rule**, so it ships AFTER the client release has soaked, never
+in the same push — the order below. An app that has not updated yet still shows the PIN box; after
+the server release its unlock fails with the card's generic "couldn't unlock" line, and the next load
+of the new app offers the sign-in card. If members lose the roster after the rules deploy, that is
+playbook F: revert the rules push. Nobody needs the PIN back to recover — a member's own password
+never went near it.
 
 ### Tightening a read rule — the order is the whole safety story
 
-**The PIN's own rollout is closed** (rules step 4 on 26 Aug 2026, verified in production on 27 Aug),
-and its client switch is retired, so rolling it back now means reverting the release or step 4's
-rules push — never flipping a flag. Its narrative — the brakes, the 10 Aug failure, the go/no-go
+**The PIN's own rollout closed** (rules step 4 on 26 Aug 2026, verified in production on 27 Aug), and
+the PIN itself is now retired (above). Its narrative — the brakes, the 10 Aug failure, the go/no-go
 readings — is `ROADMAP_HISTORY.md` → "The Calendar PIN rollout (moved from RECOVERY_RUNBOOK.md,
 24 Nov 2026)". **What stays here is the playbook it proved, for any change that TIGHTENS a read
 rule**; the step numbers are cited elsewhere, so they are kept.
@@ -575,36 +593,3 @@ old rule open with a declared hold line that a parity test pins (the PIN's was `
 **The mixed-version window at step 4** is one page load wide: the service worker claims on activate
 and reloads, so a device is on the new client by its next open, and within that load an old client
 shows the base roster plus "Couldn't update — try again". Step 3's soak keeps it to one load.
-
-### If viewer authentication fails in production
-
-**Restore access through the sign-in card, not through the rules.** A member signing in with their own
-password never touches `unlockCalendarViewer`, so their way in still works. Opening the `overrides` read
-rule (`allow read;`) would restore NOTHING: the Calendar decides access in the browser and draws the PIN
-card for anyone who is not a member or a viewer, whatever the rules say (`decideAccess`,
-`calendar-access-core.js`). It could not ship through the pipeline either — `calendar-viewer-parity.test.mjs`
-fails a bare `allow read;` that nothing declares, and `deploy-rules.yml` runs `npm run check` first.
-
-1. Tell staff to use the sign-in card with their own password. A shared station PC has no way in until
-   the exchange is fixed — say so plainly rather than leaving them to retry.
-2. Diagnose from the Cloud Function logs (`unlockCalendarViewer`). A locked Calendar has no Firebase
-   identity, so **nothing appears in the Operations Error Log** — do not read its silence as health.
-   The usual causes are an unset or un-redeployed secret (`503`, or every PIN rejected) and a
-   claim/uid mismatch between the function and the rules (unlock succeeds, no shifts appear).
-3. Fix (the IAM grant in the project facts table above, the secret, a redeploy — Actions → Deploy
-   Firebase Functions → Run workflow, on `main`), then confirm the PIN from a fresh private window.
-
-Do **not** leave it half-working: a Calendar that renders without its overrides is the one outcome
-worse than a Calendar that will not open.
-
-### If the PIN gets out
-
-Rotation needs no client release — OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN". Set the new
-secret, redeploy (Actions → Deploy Firebase Functions → Run workflow, on `main` — never a
-`firebase deploy` from an old clone), tell staff. Existing unlocked sessions keep working until their
-browsers close; to kill those too, revoke the shared account's refresh tokens
-(`getAuth().revokeRefreshTokens('calendar-viewer')`, from `firebase-admin/auth`) — which takes effect
-at each session's next token refresh, within about an hour, not instantly. Member sessions are untouched either way.
-**Do not DISABLE the `calendar-viewer` account as the kill switch** — the next correct unlock treats a
-disabled account as tampered and rebuilds it from nothing, so a disable lasts only until somebody who
-holds the PIN uses it. Rotate the PIN (and revoke the tokens) instead.

@@ -24,7 +24,7 @@
  * Firestore cache answers WITHOUT consulting the server's rules, and yesterday's Huddle would paint
  * for whoever picked up the station phone before any PIN. `AT_LOAD` is therefore captured at
  * import, where the harness cannot reach it.
- * (`e2e/calendar-pin.spec.js` does catch this in a real browser — this closes the unit half.)
+ * (`e2e/calendar-access.spec.js` does catch this in a real browser — this closes the unit half.)
  */
 import { describe, test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';

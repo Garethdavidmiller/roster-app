@@ -1280,7 +1280,7 @@ for (const [guide, id] of [['staff-guide', 'sg-sundays'], ['paycalc-guide', 'pg-
 //
 // Both directions run, because a classifier that says "signed out" to somebody genuinely offline
 // has only moved the wrong sentence. Measured on Settings, which has no `canReadDocuments` gate —
-// the Calendar answers earlier and better, and is covered in calendar-pin.spec.js.
+// the Calendar answers earlier and better, and is covered in calendar-access.spec.js.
 test('drawer: a REFUSED document read blames the session, not the signal', async ({ page }) => {
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = { authUser: true, docs: [], failGetDocs: 'permission-denied' };
@@ -1293,7 +1293,7 @@ test('drawer: a REFUSED document read blames the session, not the signal', async
     // outside the viewport. What is under test is the handler's CHOICE OF WORDS, not the tap.
     await page.locator('.nav-panel-link--circular').waitFor();
     await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
-    await expect(page.locator('#navComingSoonBody')).toHaveText(/sign-in or staff PIN may have ended/i, { timeout: 12_000 });
+    await expect(page.locator('#navComingSoonBody')).toHaveText(/your sign-in may have ended/i, { timeout: 12_000 });
     await expect(page.locator('#navComingSoonBody')).not.toHaveText(/signal/i);
 });
 

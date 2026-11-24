@@ -35,8 +35,8 @@ export const CARD_TIPS = {
     'daily-huddle': {
         title: 'Daily Huddle',
         sections: [{ items: [
-            // The three documents need a sign-in or the staff PIN (owner, 7 Sep 2026; calendar-doc-access.js).
-            { icon: '📋', html: 'Upload the day’s Huddle briefing. Staff open it from ☰ → <strong>Daily Huddle</strong> on the Calendar, once they have signed in or entered the staff PIN.' },
+            // The three documents need a sign-in (owner, 7 Sep 2026 — the staff PIN, which opened them too, is retired; calendar-doc-access.js).
+            { icon: '📋', html: 'Upload the day’s Huddle briefing. Staff open it from ☰ → <strong>Daily Huddle</strong> on the Calendar, once they have signed in.' },
             { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — shown inside the app; one too large to convert, or uploaded while the converter could not be reached, opens in Microsoft’s Word viewer instead.' },
             // functions/documents.js: a hand upload notifies on CREATE only, and only when its date is the latest.
             { icon: '🔄', html: 'Uploading a new file for the same date replaces the previous one, and does not notify staff again. The first upload for a date notifies staff only if it is the newest; an older date is filed quietly.' },
@@ -46,7 +46,7 @@ export const CARD_TIPS = {
     'weekly-circular': {
         title: 'Weekly Retail Circular',
         sections: [{ items: [
-            { icon: '📰', html: 'Upload the Weekly Retail Circular (PDF or Word) — staff open it from <strong>☰ → Weekly Retail Circular</strong>, once they have signed in or entered the staff PIN.' },
+            { icon: '📰', html: 'Upload the Weekly Retail Circular (PDF or Word) — staff open it from <strong>☰ → Weekly Retail Circular</strong>, once they have signed in.' },
             { icon: '🔄', html: 'Uploading a new file for the same date replaces the previous one, and does not notify staff again. The first upload for a date notifies staff only if it is the newest; an older date is filed quietly.' },
             { icon: '📅', html: 'Set the date to <strong>the day it was issued</strong> — usually a Friday. The picker will not accept a future date, so a circular covering next week is still filed under the day it arrived.' },
         ]}],
@@ -54,7 +54,7 @@ export const CARD_TIPS = {
     'newsletter': {
         title: 'Marylebone Newsletter',
         sections: [{ items: [
-            { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter (PDF or Word) — staff open it from <strong>☰ → Marylebone Newsletter</strong>, once they have signed in or entered the staff PIN.' },
+            { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter (PDF or Word) — staff open it from <strong>☰ → Marylebone Newsletter</strong>, once they have signed in.' },
             { icon: '⏳', html: 'The ☰ button offers each issue for <strong>six weeks</strong> from its date, then hides until the next upload, so an old issue is never offered as the latest.' },
             { icon: '🔄', html: 'Uploading a new file for the same date replaces the previous one, and does not notify staff again. The first upload for a date notifies staff only if it is the newest; an older date is filed quietly.' },
             { icon: '📅', html: 'Set the date to the issue date of the newsletter — the six weeks are counted from it.' },
@@ -177,9 +177,9 @@ export const CARD_TIPS = {
         title: 'Usage',
         sections: [
             { heading: 'What it shows', items: [
-                { icon: '👥', html: '<strong>Roster in use</strong> — how many <strong>member-and-device pairs</strong> opened the app this calendar month (with last month’s full figure beside it) and on any of the last 30 days. Simply opening the app counts, <strong>including looking at the roster on the staff PIN without signing in</strong>.' },
+                { icon: '👥', html: '<strong>Roster in use</strong> — how many <strong>member-and-device pairs</strong> opened the app this calendar month (with last month’s full figure beside it) and on any of the last 30 days. Simply opening the app counts.' },
                 { icon: '🧮', html: 'It is not a headcount of people, which is why it is not labelled “accounts”. One person on a phone <em>and</em> a laptop counts <strong>twice</strong>; on a shared device it follows <strong>whichever member is selected</strong>, who need not be the person holding it. For the exact count of distinct accounts, see the block below.' },
-                { icon: '🚫', html: 'Never counted: <strong>your own visits while signed in as admin</strong>, a brand-new device before anybody has picked a member on it, and the <strong>reload the app does by itself</strong> after an update. On a device nobody is signed in to — the station PC, on the staff PIN — a visit always counts as a page view, but as a member-device only when the Calendar has a member other than the admin chosen.' },
+                { icon: '🚫', html: 'Never counted: <strong>your own visits while signed in as admin</strong>, a brand-new device before anybody has picked a member on it, and the <strong>reload the app does by itself</strong> after an update.' },
                 { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened, and how many times each document and guide has been opened. <strong>This month / Last month</strong> switches the window.' },
             ]},
             { heading: 'Which address staff are on', items: [
@@ -213,7 +213,7 @@ export const CARD_TIPS = {
             { heading: 'How to read it', items: [
                 { icon: '🟢', html: 'Mostly green is healthy. A page is usually slower on a <strong>weak phone signal</strong> or right after an <strong>app update</strong>, when the first open downloads the new version.' },
                 { icon: '🔴', html: 'If a page is <strong>consistently</strong> red across many opens, that’s worth raising — it’s not just one person on a bad connection. Slow bars are <strong>striped</strong> as well as red.' },
-                { icon: '⏱️', html: 'Only time somebody spent <strong>waiting</strong> is counted. A page loading while nobody looked at it, and time spent typing a password or the staff PIN, are left out.' },
+                { icon: '⏱️', html: 'Only time somebody spent <strong>waiting</strong> is counted. A page loading while nobody looked at it, and time spent typing a password, are left out.' },
             ]},
             { heading: 'Privacy', items: [
                 { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it records <em>how fast</em> pages opened, never <em>who</em> opened them. No names are stored.' },

@@ -3887,7 +3887,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
 
     test('signed out, the drawer refuses a document at source, as the locked Calendar does (contracts-a lead)', async ({ page }) => {
         // The drawer was wired with the always-open default, so a visitor with no session (this page
-        // sheds a PIN holder's identity too) fired a read the rules refuse online and the device's
+        // signs a leftover staff-PIN session out too) fired a read the rules refuse online and the device's
         // cache may answer offline — and was told it failed, not what would open it.
         await off(page);
         await page.goto('/overtime.html');
@@ -3898,7 +3898,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         page.on('popup', (p) => popups.push(p));
         await page.locator('#navMenuBtn').click();
         await page.locator('#navPanel .nav-panel-link--circular').click();
-        await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN on the Calendar, to read the Weekly Retail Circular.');
+        await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in to read the Weekly Retail Circular.');
         expect(await reads(), 'no read is issued').toBe(before);
         expect(popups.length, 'and no blank tab is opened for it').toBe(0);
     });

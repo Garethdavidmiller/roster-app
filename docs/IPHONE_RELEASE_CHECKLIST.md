@@ -55,9 +55,8 @@ keeping if an unrun check looks different from a passed one.
       (`OVERTIME_AVAILABILITY.md` → Paused). A stuck splash is the exact failure the hourly currency
       check answers "yes" to, so it has to be looked at.
 - [ ] **A deep link works from a cold tab** — `/admin.html`, `/paycalc.html` — not just the root.
-- [ ] **The Calendar PIN card** accepts the code and the roster appears. Then close the browser
-      entirely, reopen, and confirm it asks again — the PIN lasts only while the browser is open,
-      and the card says so.
+- [ ] **No PIN anywhere** (retired 23 Nov 2026): a fresh tab's Calendar shows only the sign-in card,
+      with no way to enter a code; `#staff-pin` on the address does nothing.
 - [ ] **Sign in as a member**, then confirm the roster shows *that member's* shifts. After picking the
       name, the keyboard comes up on the password field without a second tap.
 - [ ] **Follow the install wording literally** in Safari's default layout (on iOS 26 and later,

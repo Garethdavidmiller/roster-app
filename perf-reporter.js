@@ -25,9 +25,9 @@
  *     had been watched from the start of the load up to it (`_watched`), and a load that STARTED
  *     hidden records none of the ordinary metrics. A Chrome prerender starts hidden, so it is left
  *     out by the same rule.
- *   · TIME A PERSON SPENT TYPING. The staff PIN unlocks the Calendar without a reload, and every
+ *   · TIME A PERSON SPENT TYPING. A Calendar sign-in grants without a reload, and every
  *     page signs in on the page itself, so `ready` used to include reading the card and typing the
- *     PIN or password. A sign-in has its own figure (`loginTotal`), so `ready` is now dropped once
+ *     password. A sign-in has its own figure (`loginTotal`), so `ready` is now dropped once
  *     the page has started waiting for a person (`markAwaitingInput`, called when the sign-in form
  *     or a Calendar lock card appears). `fcp` and `domReady` cannot include typing, so they are kept.
  *

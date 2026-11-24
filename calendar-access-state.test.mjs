@@ -29,7 +29,7 @@
  * the same, and its sixteen tests still pin the roster gate one read at a time — unchanged by v25.74).
  *
  * The coordinator (`calendar-app.js`) cannot be loaded here, so its three lines of wiring are pinned
- * from the SOURCE at the foot, and walked in a real browser by e2e/calendar-pin.spec.js.
+ * from the SOURCE at the foot, and walked in a real browser by e2e/calendar-access.spec.js.
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -254,7 +254,7 @@ describe('the roster gate and the document gate cannot disagree', () => {
 // ── WHERE THE WRITE LIVES, AND WHAT THE COORDINATOR NO LONGER DOES (from the source) ─────────────
 //
 // `calendar-app.js` builds the whole page at module scope and cannot be loaded here, so these read
-// it. That is weaker than running it, and e2e/calendar-pin.spec.js is what runs it — but the browser
+// it. That is weaker than running it, and e2e/calendar-access.spec.js is what runs it — but the browser
 // suite cannot say "nobody else writes this", and that is the half that keeps the next route honest.
 
 /** Source with comments removed, so a name in prose is not counted as a call. */

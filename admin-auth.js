@@ -104,7 +104,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
     const RESET_BY_SETUP = new Set(['unstamped', 'disabled']);
     /** The reasons Set up accounts REFUSES, each with its remedy — the server's own (functions/auth-endpoints.js). */
     const REFUSED_BY_SETUP = /** @type {Record<string, (names: string) => string>} */ ({
-        'viewer-linked': (names) => `${names}: the address is linked to the shared staff PIN account, which Set up accounts will not take over. The next staff PIN unlock clears it — then press Set up accounts.`,
+        'viewer-linked': (names) => `${names}: the address is linked to the shared staff PIN account, which Set up accounts will not take over. With the staff PIN retired nothing in the app clears it: delete the staff PIN account in the Firebase console (the retirement’s last step), then press Set up accounts.`,
         'other-member':  (names) => `${names}: the account at that address is claimed for another member, so Set up accounts will not adopt it. Check it in the Firebase console.`,
     });
 

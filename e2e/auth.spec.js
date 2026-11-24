@@ -1004,10 +1004,11 @@ test('login overlay geometry is identical across every page that shows it', asyn
 // EVERY PAGE'S CARD SAYS WHAT THE PAGE IS (owner, 21 Nov 2026). Admin, Pay, New link and Trains explained
 // themselves on the sign-in card; Settings, Operations and Links did not, so the same card read differently
 // from page to page. Every page that puts up the shared sign-in now carries an explanation. The five a member
-// reaches with their own account also say the PIN does not open them (AUTH_AND_SESSIONS 18, 24) and carry the
-// shared-screen footnote; Trains' card is the way in FOR the PIN, and New link's says who the page is for.
-test('every page\'s sign-in card says what the page is, and that the staff PIN does not open it', async ({ page }) => {
-    const SAYS_PIN_DOES_NOT_OPEN = ['/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/links.html'];
+// reaches with their own account also say why they are signed in as yourself, and carry the shared-screen
+// footnote; New link's says who the page is for. (Until the staff PIN was retired, 23 Nov 2026, the five
+// also said the PIN does not open them, and Trains' card was the way in FOR the PIN. No card mentions it now.)
+test('every page\'s sign-in card says what the page is, and none mentions the retired staff PIN', async ({ page }) => {
+    const SAYS_SIGN_IN_AS_YOURSELF = ['/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/links.html'];
     const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
         && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
     for (const url of PAGES) {
@@ -1015,9 +1016,9 @@ test('every page\'s sign-in card says what the page is, and that the staff PIN d
         await page.locator('#loginOverlay.visible').waitFor();
         const about = page.locator('#loginOverlay #loginAbout');
         await expect(about, `${url}: the card does not say what the page is`).toBeVisible();
-        if (SAYS_PIN_DOES_NOT_OPEN.includes(url)) {
-            // "it", or the page by name where "it" would have nothing to refer to (Settings' card, 22 Nov 2026).
-            await expect(about, `${url}: the card does not say the staff PIN won’t open it`).toContainText(/the staff PIN doesn’t open (it|Settings)\./);
+        await expect(page.locator('#loginOverlay'), `${url}: the card still mentions the retired staff PIN`).not.toContainText(/\bPIN\b/);
+        if (SAYS_SIGN_IN_AS_YOURSELF.includes(url)) {
+            await expect(about, `${url}: the card does not say why you sign in as yourself`).toContainText('so you sign in as yourself.');
             await expect(page.locator('#loginOverlay #loginFootnote'), `${url}: no shared-screen footnote`).toBeVisible();
         }
     }
@@ -1103,10 +1104,10 @@ test('a focused sign-in field, and the picker\'s search box, wear the field ring
 // ── A SHORT LAPTOP WINDOW SHOWS THE WAY IN (desktop audit, Nov 2026) ────────────────────────────────
 // A laptop's browser window is ~600–650px tall, and the Pay Calculator's card — explanation and all —
 // was 894px, so "Sign in →" sat under the fold with nothing to say the form went on; the Calendar's
-// front door hid "Use the staff PIN instead" the same way. On a wide, short window the card drops its
+// front door hid its way to the staff PIN (retired 23 Nov 2026) the same way. On a wide, short window the card drops its
 // logo and tightens (shared.css → "A SHORT DESKTOP WINDOW"). Measured on screen, unscrolled, at both
 // ends of that range — and a tall window keeps the logo, so the rule cannot quietly widen.
-test('on a short laptop window the sign-in button is on screen, and so is the front door\'s other way in', async ({ page }) => {
+test('on a short laptop window the sign-in button is on screen, on the Calendar\'s front door too', async ({ page }) => {
     for (const [width, height] of [[1366, 650], [1280, 600]]) {
         await page.setViewportSize({ width, height });
         for (const url of ['/admin.html', '/paycalc.html']) {
@@ -1125,7 +1126,7 @@ test('on a short laptop window the sign-in button is on screen, and so is the fr
 
         await page.goto('/');
         await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-        await expect(page.locator('#loginAlternative'), `the Calendar's front door at ${width}×${height}: "Use the staff PIN instead" is under the fold`)
+        await expect(page.locator('#loginSubmit'), `the Calendar's front door at ${width}×${height}: "Sign in →" is under the fold`)
             .toBeInViewport({ ratio: 1 });
     }
     await page.setViewportSize({ width: 1366, height: 1000 });
@@ -1401,9 +1402,9 @@ for (const [name, url, ready, init] of /** @type {Array<[string, string, string,
 }
 
 // ── THE "OTHER STAFF" GRADE (owner, 23 Nov 2026) ────────────────────────────────────────────────────────────
-// A login with no roster and no manager or admin rights, shown what the staff PIN shows plus their own Settings.
+// A login with no roster and no manager or admin rights, shown the Calendar, Trains and their own Settings.
 // The person is INVENTED and served into the real roster module (fixtures.js → withOtherStaff).
-test.describe('an Other staff login — the staff PIN\'s pages and Settings, under their own name', () => {
+test.describe('an Other Staff login — the Calendar, Trains and Settings, under their own name', () => {
     const NAME = 'Q. Example';
 
     test('the drawer offers Calendar, Trains and Settings, and no Admin or Pay; the Calendar shows the roster', async ({ page }) => {
@@ -1412,7 +1413,7 @@ test.describe('an Other staff login — the staff PIN\'s pages and Settings, und
         await seedMemberSession(page, NAME);   // the session AND the Firebase identity behind it (the Calendar asks for both)
         await page.goto('/');
         await expect(page.locator('.calendar-grid')).toBeVisible();
-        // A colleague's roster, as the staff PIN shows: they have none of their own, so the picker holds somebody else.
+        // A colleague's roster: they have none of their own, so the picker holds somebody else.
         await expect(page.locator('#teamMemberSelect')).not.toHaveValue('');
         await page.locator('#navMenuBtn').click();
         await expect(page.locator('.nav-panel-pill--calendar')).toBeVisible();

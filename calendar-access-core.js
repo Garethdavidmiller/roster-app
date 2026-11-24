@@ -9,33 +9,32 @@
  * — it imports the gstatic SDK. That is the same split, and the same reason, as
  * `auth-state-core.js` vs `auth-state.js`, and `client-errors.js` vs `error-reporter.js`.
  *
- * ── THE THREE RULES THAT MUST SURVIVE AN EDIT ───────────────────────────────────────────────────
+ * ── THE STAFF PIN IS RETIRED (owner, 23 Nov 2026) ─────────────────────────────────────────────────
  *
- * 1. **`decideAccess` prefers NAMED over VIEWER, and the order is load-bearing.** The viewer is a
- *    CAPABILITY ("may read Calendar override data"), not a person. If a member has a live named
- *    session, answering `viewer` would hand the app an identity with no `name` claim — every
- *    on-behalf write, every owner-scoped read, and every member-personalised branch would then be
- *    deciding against the wrong thing. A named session always wins.
+ * Only a member's own sign-in opens the Calendar now. What is left of the shared viewer here is
+ * TRANSITION plumbing, kept until the cleanup release deletes the `calendar-viewer` account: its uid
+ * and claim, and `isViewerUser`, so a device still holding a viewer session is RECOGNISED — refused a
+ * grant here, and signed out by `reconcileExpiredIdentity` (session.js) or before a member's sign-in
+ * (`shedCalendarViewer`, viewer-shed.js). Nothing in this file grants a viewer any more, and no
+ * client file asks for, shapes or compares a PIN.
+ *
+ * ── THE TWO RULES THAT MUST SURVIVE AN EDIT ─────────────────────────────────────────────────────
+ *
+ * 1. **`decideAccess` grants a NAMED member and nobody else.** A leftover viewer session is not a
+ *    member: it carries no `name` claim, and it has no email — so rule 1's email check alone would
+ *    let it through beside a held local session, which is why rule 1 still refuses it by uid.
  *
  * 2. **`none` is the answer whenever anything is missing.** There is no partial state and there
  *    must never be one: a Calendar that renders the base roster without overrides shows somebody
  *    their ORIGINAL shift rather than the one they are working, which is worse than showing nothing
  *    at all. Every ambiguous input resolves to `none` — a locked Calendar is a visible failure and a
  *    wrong Calendar is an invisible one.
- *
- * 3. **The PIN never reaches a comparison in this file, or any client file.** These helpers shape
- *    and validate the INPUT (digits, length) so the UI can enable a button; they do not and must
- *    not know the value. A client-side comparison — even against a hash — turns a 10,000-space
- *    secret into an offline brute force that needs no network and leaves no trace. Validation is
- *    the server's, always. Contract B of `calendar-viewer-parity.test.mjs` fails the build if the
- *    PIN's shapes appear anywhere in the repository. (This comment used to name a dedicated
- *    `calendar-secret-hygiene.test.mjs` that never existed — the kind of phantom citation that gets
- *    a real guard deleted by someone who believes another file has it covered.)
  */
 
 import { nameToEmail } from './auth-identity.js';
 
-/** The dedicated Firebase Auth UID for the shared staff Calendar viewer. Not a member, not an email
+/** The dedicated Firebase Auth UID for the RETIRED shared staff Calendar viewer (kept until the cleanup
+ *  release, so a leftover session is recognised and signed out). Not a member, not an email
  *  account — deliberately created with NO email so the roster's leaver sweep (`computeOrphanLabels`
  *  filters on `@myb-roster.local`) and the sign-in stats allowlist can never see it as staff. */
 export const CALENDAR_VIEWER_UID = 'calendar-viewer';
@@ -44,25 +43,13 @@ export const CALENDAR_VIEWER_UID = 'calendar-viewer';
  *  it is — `firestore.rules` reads it to allow override READS and nothing else. */
 export const CALENDAR_VIEWER_CLAIM = 'calendarViewer';
 
-/** Digits in the staff PIN. The VALUE lives only in Secret Manager; this is its shape. */
-export const PIN_LENGTH = 4;
-
-/** The hash that asks for the staff-PIN card FIRST (see calendar-access.js's module header). Read
- *  once at boot and removed from the address bar, so it is never carried into a member's session or
- *  a bookmark made afterwards. The member card WRITES it, the Calendar's boot reads it back, and a
- *  Lock lands on it — the Calendar's, and since v24.84 the Trains page's, which is why it lives here
- *  rather than in `calendar-lock-cards.js` (which re-exports it): a page that is not the Calendar can
- *  import it without the Calendar's cards. */
-export const PIN_FIRST_HASH = '#staff-pin';
-
 /**
- * Is this Firebase user the shared Calendar viewer?
+ * Is this Firebase user the (retired) shared Calendar viewer? Kept until the cleanup release.
  *
  * Checks the UID, and requires the user to be non-anonymous. An anonymous user can never hold this
- * uid, so the second half is belt-and-braces — but it is the belt that matters: every caller uses
- * this to decide whether an identity may be PRESERVED across `reconcileExpiredIdentity`, and a
- * predicate that could ever return true for an unverified identity would turn that preservation
- * into a bypass.
+ * uid, so the second half is belt-and-braces. Every caller now uses it to RECOGNISE a leftover viewer
+ * session: to refuse it a grant (`decideAccess`), to sign it out without touching this browser's push
+ * record (`reconcileExpiredIdentity`), and to shed it before a member's sign-in (viewer-shed.js).
  *
  * @param {{ uid?: string, isAnonymous?: boolean }|null|undefined} user
  * @returns {boolean}
@@ -76,37 +63,24 @@ export function isViewerUser(user) {
 /**
  * May a one-time notice OPEN, given the access this browser holds? (v21.81)
  *
- * A PIN unlock is a STATION, not a person. It is deliberately unattributable — one code for the
- * whole place — so a notice written in the second person is addressed to nobody in particular, and
- * a notice asking the reader to go and check their own payslips is addressed to a machine that
- * holds no payslips. Until now every notice opened on `calendarAccessReady` alone, which is the
- * moment access is granted and says nothing about WHOSE it is.
+ * Every notice is addressed to a member signed in on this device (`named`): anything about your pay,
+ * your settings or your account. The two other audiences — `'signed-out'` and `'everyone'` — existed
+ * for the staff PIN, a station rather than a person, and went with it (owner, 23 Nov 2026); no live
+ * notice used either. A Calendar nobody is signed in to shows no roster and opens no notice.
  *
- * So each notice declares its audience, and the DEFAULT is the narrow one:
- *
- *   · `'members'` — a signed-in member on this device (`named`). Anything about your pay, your
- *     settings or your account belongs here.
- *   · `'signed-out'` — ONLY where no member is signed in on this device (a PIN unlock). For a notice whose subject is signing in: telling
- *     somebody who already has to sign in is noise, and the audience check re-runs on every load,
- *     so such a notice retires itself the moment they do. That is why it needs no done-flag
- *     plumbing to stop, unlike a notice that merely expires.
- *   · `'everyone'` — both. Rarely right; reach for one of the two above first.
- *
- * An unrecognised audience is treated as `'members'`, deliberately: the cost of failing closed is a
- * notice that does not appear and is noticed in testing, and the cost of failing open is station
- * pay copy on a shared screen.
+ * So the one audience is `'members'`, and anything else — a notice still declaring a retired
+ * audience, or a typo — is refused, deliberately: the cost of failing closed is a notice that does
+ * not appear and is noticed in testing.
  *
  * A suppressed notice must be left UNFLAGGED by its caller — not marked seen — so it arrives when
  * the same device is next signed in.
  *
- * @param {'members'|'signed-out'|'everyone'|string} audience  as declared by the notice
- * @param {'named'|'viewer'|'none'} accessType  getAccessType()
+ * @param {'members'|string} audience  as declared by the notice
+ * @param {'named'|'none'|string} accessType  getAccessType()
  * @returns {boolean}
  */
 export function noticeAudienceAllows(audience, accessType) {
-    if (audience === 'everyone') return true;
-    if (audience === 'signed-out') return accessType !== 'named';
-    return accessType === 'named';
+    return audience === 'members' && accessType === 'named';
 }
 
 /**
@@ -124,14 +98,12 @@ export function noticeAudienceAllows(audience, accessType) {
  * TWO REFUSALS, AND THE SECOND DOES NOT SUBSUME THE FIRST — which is the whole reason this is a
  * function and not an `=== ` beside the buttons.
  *
- *   1. **Not in viewer mode**, whatever the device remembers. It is tempting to check the identity
- *      alone and call the PIN case covered, since `decideAccess` returns `named` whenever there is
- *      a live session. It does not: rule 1 requires a RESTORED FIREBASE USER as well, so an identity
- *      that fails to restore (on iPhones, an IndexedDB read that fails — KNOWN_LIMITATIONS → "One
- *      interaction to expect on iOS") leaves a perfectly valid 60-day local session that falls
- *      through to `viewer` the moment a PIN token is restored. The name is still in localStorage,
- *      and an identity-only rule would light both buttons on exactly the shared screen this exists
- *      to keep them off. That state is reachable, not defensive.
+ *   1. **Only on a NAMED grant**, whatever the device remembers. The name can still be in
+ *      localStorage when the Calendar was not granted to it — an identity that failed to restore (on
+ *      iPhones, an IndexedDB read that fails — KNOWN_LIMITATIONS → "One interaction to expect on
+ *      iOS") leaves a valid 60-day local session behind a locked page — so the session's name alone
+ *      is not enough. (Until the staff PIN was retired, 23 Nov 2026, this refused `viewer`: the
+ *      shared screen that state reached. Asking for `named` refuses that and anything after it.)
  *   2. **The calendar on screen must be the signed-in member's own.** The member selector is open
  *      to every signed-in member — looking at a colleague's roster is an ordinary thing to do — and
  *      an action that silently switches subject is worse than one that is absent.
@@ -140,13 +112,13 @@ export function noticeAudienceAllows(audience, accessType) {
  * failing closed is a member using the nav drawer instead.
  *
  * @param {object} input
- * @param {'named'|'viewer'|'none'|string} input.accessType  getAccessType()
+ * @param {'named'|'none'|string} input.accessType  getAccessType()
  * @param {string|null|undefined} input.sessionName   the signed-in member (getSession()?.name)
  * @param {string|null|undefined} input.shownMember   whose calendar is on screen
  * @returns {boolean}
  */
 export function personalActionsAllowed({ accessType, sessionName, shownMember }) {
-    if (accessType === 'viewer') return false;
+    if (accessType !== 'named') return false;
     const who = typeof sessionName === 'string' ? sessionName.trim() : '';
     const shown = typeof shownMember === 'string' ? shownMember.trim() : '';
     return !!who && who === shown;
@@ -158,7 +130,7 @@ export function personalActionsAllowed({ accessType, sessionName, shownMember })
  * @param {object} input
  * @param {{ name?: string|null }|null|undefined} input.session  the local MYB session (getSession())
  * @param {{ uid?: string, isAnonymous?: boolean, email?: string|null }|null|undefined} input.firebaseUser  auth.currentUser
- * @returns {'named'|'viewer'|'none'}
+ * @returns {'named'|'none'}
  */
 export function decideAccess({ session, firebaseUser }) {
     const named = !!(session && typeof session.name === 'string' && session.name.trim());
@@ -176,18 +148,14 @@ export function decideAccess({ session, firebaseUser }) {
     //   · a Firebase user who is somebody ELSE (v24.38). On a shared browser another tab can sign a
     //     different member in; the page would then show the session's name while that person's
     //     token did the reads. An account carrying an email must carry THIS member's.
+    //   · the retired staff PIN's viewer (kept until the cleanup release). It has no email, so the
+    //     check above would pass it beside a held session; it is refused by uid instead.
     if (named && u && !u.isAnonymous && !isViewerUser(u)
         && (!u.email || u.email === nameToEmail(String(session?.name).trim()))) return 'named';
 
-    // Rule 2: the shared viewer capability, restored from this browser SESSION (never longer) — but
-    // never over a member's held session (sign-in audit F1, Nov 2026). A member whose identity did not
-    // restore, in a tab that ALSO holds a PIN session, was granted the PIN: they read the station's
-    // Calendar instead of their own, and a later loss of access showed them the PIN card. `none` gives
-    // them their own card, which is CALENDAR_DATA.md 11; the late-restore path already refused it.
-    if (isViewerUser(u)) return named ? 'none' : 'viewer';
-
-    // Rule 3: everything else — including an anonymous identity, which used to be the Calendar's
-    // whole auth model and now grants nothing.
+    // Rule 2: everything else — a leftover staff-PIN viewer (retired 23 Nov 2026: the gate's teardown
+    // signs it out, `reconcileExpiredIdentity`, and the sign-in card says why), and an anonymous
+    // identity, which used to be the Calendar's whole auth model and now grants nothing.
     return 'none';
 }
 
@@ -196,104 +164,3 @@ export function decideAccess({ session, firebaseUser }) {
 // 26 Sep 2026 by owner decision: the cache read it relied on queues behind the same Firebase Auth
 // start-up it was meant to overtake, so it could not win. DECISIONS.md → "The provisional paint".
 
-/**
- * Reduce raw field input to a PIN candidate: digits only, never longer than the PIN.
- *
- * Digits-only rather than a `type="number"` field, because a number input on a phone brings a
- * spinner, accepts `e`/`-`/`.`, and reports an empty string for anything it considers invalid — so
- * the field would silently lose what was typed. Stripping here keeps the input a plain text field
- * whose value is always exactly what the user can see.
- *
- * @param {string|null|undefined} raw
- * @returns {string}
- */
-export function normalisePin(raw) {
-    if (typeof raw !== 'string') return '';
-    return raw.replace(/\D+/g, '').slice(0, PIN_LENGTH);
-}
-
-/** @param {string} pin @returns {boolean} is this a submittable PIN? */
-export function isCompletePin(pin) {
-    return typeof pin === 'string' && pin.length === PIN_LENGTH && /^\d+$/.test(pin);
-}
-
-/** The words for an unlock the app's side could not complete — a server failure, or a sign-in that
- *  failed after the PIN was accepted (`classifyUnlockFailure`). */
-const UNLOCK_FAILED_TELL_ADMIN = 'Calendar couldn’t be unlocked. Try again shortly — if it keeps happening, tell the admin.';
-
-/**
- * Turn an unlock failure into the state the UI shows.
- *
- * Every branch returns a `message` written for a staff member standing at a shared PC. Every failure
- * is one they can retry — pressing the button again IS the retry — so there is no flag to say so
- * (a `retryable: true` on every branch, which nothing read, went in Nov 2026). The distinction that
- * matters is **"you typed the wrong thing"** versus **"the app could not ask"** — conflating them
- * (which one generic "couldn't unlock" would do) sends somebody hunting for a PIN that was right all
- * along. `kind` carries it, and only `'rejected'` counts towards the card's wrong-PIN delay.
- *
- * Deliberately says nothing about rate-limit internals: how many attempts remain, when the window
- * opened, or what the threshold is. That is a choice about the MESSAGE, not a secret — the endpoint
- * sends `Retry-After` with every 429 (functions/index.js), so an automated caller can pace itself
- * either way — and a member standing at the panel needs only what happened and what to do instead.
- *
- * @param {{ status?: number|null, code?: string|null, offline?: boolean }} info
- * @returns {{ kind: 'rejected'|'throttled'|'offline'|'network'|'auth'|'server', message: string }}
- */
-export function classifyUnlockFailure({ status = null, code = null, offline = false } = {}) {
-    // Offline is checked FIRST and beats any status, because a browser that is genuinely offline can
-    // still surface a stale/synthesised response — and "check your connection" is actionable where
-    // "PIN not recognised" would be a lie that costs somebody three more attempts.
-    // "Online ONCE" (until 17 Nov 2026) read as a one-time step. It is every unlock: the PIN is checked
-    // by the server each time, and a browser closed and reopened asks for it again.
-    if (offline) {
-        return { kind: 'offline',
-                 message: 'You need to be online to unlock the Calendar. Reconnect and try again.' };
-    }
-    // The server's own limit (functions/calendar-viewer-auth.js), kept per source AND across all
-    // sources, so it can pause the PIN for somebody who typed nothing wrong. "Too many attempts. Try
-    // again shortly." (until Nov 2026) said neither why nor that a member's own password still works:
-    // signing in is not behind this limit.
-    if (status === 429) {
-        return { kind: 'throttled',
-                 message: 'The staff PIN is paused after too many wrong entries. Try again in a few minutes, or sign in instead.' };
-    }
-    if (status === 401 || status === 403) {
-        return { kind: 'rejected',
-                 message: 'PIN not recognised. Try again.' };
-    }
-    // A custom-token sign-in that fails after the server said yes. The PIN was RIGHT, so saying
-    // "not recognised" would send the member to look for a different code that does not exist.
-    // The SAME words as a server failure, and on purpose: a code here is the app's side failing
-    // after a correct PIN (a token without its claim, a sign-out that would not take, the SDK
-    // refusing the token), so once is a blip to retry and a repeat is something only the admin can
-    // look into. The member needs that second half either way.
-    if (code) {
-        return { kind: 'auth', message: UNLOCK_FAILED_TELL_ADMIN };
-    }
-    if (status === null) {
-        return { kind: 'network',
-                 message: 'Calendar couldn’t be unlocked. Check the connection and try again.' };
-    }
-    return { kind: 'server', message: UNLOCK_FAILED_TELL_ADMIN };
-}
-
-/**
- * Client-side progressive delay after consecutive failures, in milliseconds.
- *
- * This is a UX control, NOT a security control, and the difference is worth stating because the
- * shape looks identical to one. It exists to absorb a stuck key or a doubled tap and to make a
- * repeated failure feel deliberate rather than ignored. It is trivially bypassed by anyone who
- * opens a console, which is fine: the real limit is the server's, and nothing here is load-bearing
- * for it. Never move enforcement to this side, and never let a longer client delay be an argument
- * for a looser server one.
- *
- * @param {number} failures  consecutive failed attempts this session
- * @returns {number} ms to disable the submit control for
- */
-export function attemptBackoffMs(failures) {
-    const n = Number.isFinite(failures) ? Math.max(0, Math.floor(failures)) : 0;
-    if (n < 3) return 0;
-    // 3rd → 2s, 4th → 4s, 5th → 8s, capped at 20s. A cap, because an uncapped client delay on a
-    // control the server already limits only punishes the member who mistyped twice.
-    return Math.min(20000, 2000 * Math.pow(2, n - 3));
-}

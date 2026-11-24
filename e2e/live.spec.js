@@ -186,7 +186,7 @@ for (const target of TARGETS) {
         });
         // THE FRONT DOOR, NOT JUST TEXT (review, 18 Nov 2026). Every page here greets a visitor with no
         // session with the sign-in card (the Calendar's since v23.19), so its button is what "a reader
-        // can use this" means — the grid needs a member session or the staff PIN. The check this
+        // can use this" means — the grid needs a member session. The check this
         // replaced asked for forty characters of text. Measured on the live site with the card hidden,
         // that caught a bare Calendar (19 characters) and Admin ("Loading…"), but not the Pay
         // Calculator, which draws its whole page behind the card (2,728): a Pay page whose sign-in

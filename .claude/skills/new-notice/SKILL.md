@@ -174,34 +174,20 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 
 **Target-page permanent dismiss:** On the page the CTA links to, call `lsSet('myb_notice_[id]_done', '1')` when the user completes the action (e.g. after saving their email, after submitting the form). Without this, the notice re-shows after the 1-day snooze indefinitely — `DONE_KEY` is never set by the notice IIFE itself.
 
-## Audience — decide this FIRST (v21.81)
+## Audience — every notice is for members (23 Nov 2026)
 
-Notices on **`index.html`** live in `calendar-notices.js` and open through
-`_openWhenAudienceAllows(lb, audience)`, never a bare `calendarAccessReady.then(...)`. That promise
-resolves when Calendar access is GRANTED and says nothing about **whose** it is — so before this
-rule existed, every Calendar notice also opened on the PIN-unlocked station PC, including one asking
-the reader to check their own payslips were entered correctly.
+Notices on **`index.html`** live in `calendar-notices.js` and open only for a **signed-in member**.
+The audience rule began at v21.81 because Calendar access being GRANTED said nothing about **whose**
+it was: before it, every Calendar notice also opened on the PIN-unlocked station PC, including one
+asking the reader to check their own payslips were entered correctly.
 
-| Audience | Who sees it | Use for |
-|----------|-------------|---------|
-| `'members'` | a signed-in member on this device (**the default**) | anything about pay, settings, an account, or "your" anything |
-| `'signed-out'` | only where nobody is signed in — a PIN unlock | a notice whose readers are specifically people who have **not** signed in; it retires ITSELF the moment they do, since the audience is re-checked every load |
-| `'everyone'` | both | rarely right — make it a decision, not a default |
+**The staff PIN was retired on 23 Nov 2026**, so nobody reads the Calendar signed out any more, and the
+two audiences that existed for that reader — `'signed-out'` and `'everyone'` — are retired with it.
+Every notice is `'members'`; do not try to bring the others back. A refused notice is left
+**unflagged** — not marked seen — so it arrives when that device is next signed in (a leftover PIN
+session is signed out on its next load, so it never sees one).
 
-The rule itself is the pure `noticeAudienceAllows(audience, accessType)` in
-`calendar-access-core.js`. An unrecognised audience is treated as `'members'`. A refused notice is
-left **unflagged** — not marked seen — so it arrives when that device is next signed in.
-
-> **⚠️ IF YOU ARE ADDING A `'signed-out'` NOTICE, YOU ALSO RESTORE TWO TESTS (v23.23).**
-> Retiring `sign-in-2026` left no live notice declaring that audience, so the POSITIVE direction of
-> the audience gate — a `'signed-out'` notice actually REACHING a PIN unlock — currently has nothing
-> to exercise it. Both suites derive their notices from `calendar-notices.js`, so yours joins the
-> matrix automatically; what does NOT come back on its own is the browser-level proof. Re-add it:
-> a test in `e2e/calendar-pin.spec.js` → "one-time notices and the PIN unlock", mirroring the
-> members-only one beside it (clear ONE flag, seed a viewer, assert the notice opens AND reaches
-> the drawer's App Notices list). The block comment there says the same thing.
-
-Notices on other pages need no audience: those pages already require a session.
+Notices on other pages need no audience either: those pages already require a session.
 
 ## Waiting for another notice, or for a reader known only at open time (v24.86)
 
@@ -259,7 +245,7 @@ Notices on other pages need no audience: those pages already require a session.
 
 | Rule | Value |
 |------|-------|
-| Audience (index.html) | `'members'` unless the notice exists to reach people who have not signed in — see above |
+| Audience (index.html) | `'members'` — the only audience since the staff PIN was retired (see above) |
 | `archiveNotice()` timing | `onClose` for close-only notices · `onOpen` for notices with a navigation CTA |
 | Snooze on close (×, backdrop, Escape, "Not now") | 7 days — snooze pattern only; the live notices are one-offs |
 | Snooze on CTA navigation | 1 day — snooze pattern only |
@@ -281,9 +267,7 @@ Add a row to the "Current notices" table below:
 |----|------|-------|-------|--------|--------|--------|-------------------|
 | `[id]` | `[page].html` | [Title] | [Badge] | [D Mon YYYY] | [28/90] days | ✅ live until [date] | One-time; `[DONE_KEY]` set on close |
 
-For an `index.html` notice, say which audience it declared — the note above the table names which
-audiences are currently live, and anything other than `'members'` should read as a deliberate
-decision rather than a default.
+For an `index.html` notice there is nothing to declare: every notice is for members (Audience, above).
 
 ## Current notices
 
@@ -291,9 +275,8 @@ Keep this table current. It moved here from `CLAUDE.md` on 7 Nov 2026; `CLAUDE.m
 that fire by date or apply to every notice (the audience, `openNoticeIfClear`, the monthly cleanup)
 and points here for the rest.
 
-> **Every notice declares an AUDIENCE** (Audience, above). Every live notice is `'members'`, so **the
-> positive direction of the gate has nothing exercising it** until the next `'signed-out'` notice —
-> the warning under Audience names the two tests that come back with it.
+> **Every notice is for members** (Audience, above): the `'signed-out'` and `'everyone'` audiences were
+> retired with the staff PIN on 23 Nov 2026.
 
 > **The Status column is load-bearing — keep it accurate.** A notice goes INERT the moment
 > `isNoticeExpired` fires: it is marked seen *without being shown*, while the removal rule only fires
@@ -318,7 +301,7 @@ hard cutoff): `timetable-2026` and `ytd-figures-2026`, the October pair on `inde
 because `install-app-2026` still follows them. Coverage that went with them: the axe scan of the
 green `notice-badge--pay` badge on the Calendar's glass (no live Calendar notice carries it; the Pay
 page's own notices are suppressed in that suite). The Trains badge's scan and the audience proof in
-`e2e/calendar-pin.spec.js` moved to `timetable-soon-2026`'s final week.
+the Calendar's access spec moved to `timetable-soon-2026`'s final week.
 
 ## Lessons from past notices
 
@@ -376,8 +359,8 @@ somebody reading the roster on the staff PIN — had already been shown that car
 PIN, so the notice spent its life re-offering a choice the reader declined a moment earlier. Two of
 its three claims had also moved house: the PIN card itself states the code lasts only while the
 browser stays open, and its CTA pointed at Settings for a sign-in that is on the page underneath it.
-Its two guards did not survive it — no live notice declares `'signed-out'` (see the warning under
-Audience above), and it was the only notice the accessibility suite scanned. That scan moved to
+Its two guards did not survive it — no live notice declared `'signed-out'` again (the audience itself
+was retired with the PIN, 23 Nov 2026), and it was the only notice the accessibility suite scanned. That scan moved to
 `backpay-2026`, to `al-booking-2026` at v23.31, and to `install-app-2026` at v24.91, when the leave
 reminder was retired early by owner decision (22 Oct 2026).
 
