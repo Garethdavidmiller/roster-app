@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: November 2026 — v26.50 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.60 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -102,7 +102,7 @@ gone, and that no card outgrows its cap.
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
 | Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` (what it lists: `nav-destinations.js`) |
-| Whether the ☰ menu offers the Marylebone Newsletter — only while its latest issue is under six weeks old | `newsletter-recency.js` (the Calendar asks once a load; the drawer and the staff-PIN line read the answer this device keeps) |
+| Whether the ☰ menu offers the Marylebone Newsletter — only while its latest issue is under six weeks old | `newsletter-recency.js` (the Calendar asks once a load; the drawer reads the answer this device keeps) |
 | Push notification subscribe/unsubscribe, VAPID key, notification state (shared) | `notif.js` |
 | Firestore security rules — write isolation, field validation, admin bypass | `firestore.rules` |
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
@@ -155,7 +155,7 @@ Keyboard navigation and the hover tooltip for the month grid: a roving tabindex 
 - **Exports:** `initCalendarTooltip` · `initCalendarKeyboard`
 
 ### `calendar-access.js`
-The Calendar's access gate: it decides at boot, shows the right card and re-locks; only a member's own sign-in opens it (the staff PIN is retired, and its boot teardown signs a leftover viewer session out). It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–10, 17–20; Tested by `calendar-access.test.mjs` and `e2e/calendar-access.spec.js`.
+The Calendar's access gate: it decides at boot, shows the right card and re-locks; only a member's own sign-in opens it (the staff PIN is retired, and its boot teardown signs a leftover viewer session out). It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–9, 17, 19, 20; Tested by `calendar-access.test.mjs` and `e2e/calendar-access.spec.js`.
 - **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
@@ -167,7 +167,7 @@ The one place on the Calendar page where a card stands in for the grid, at most 
 - **Exports:** `mountLockCard` · `unmountLockCard` · `lockCardId` · `armSkeleton` · `showBootSkeleton` · `setWorkspaceHidden`
 
 ### `calendar-snapshot.js`
-The member's own roster, kept on the device so the Calendar shows it, labelled, while the sign-in check runs — and the Annual Leave panel's saved balance, in the same copy. Storage only and synchronous; never a source of truth, and deleted at every sign-out, PIN unlock and lost grant. The rules it keeps are in its header. `CALENDAR_DATA.md` 17. Tested by `calendar-snapshot.test.mjs`.
+The member's own roster, kept on the device so the Calendar shows it, labelled, while the sign-in check runs — and the Annual Leave panel's saved balance, in the same copy. Storage only and synchronous; never a source of truth, and deleted at every sign-out and lost grant. The rules it keeps are in its header. `CALENDAR_DATA.md` 17. Tested by `calendar-snapshot.test.mjs`.
 - **Exports:** `SNAPSHOT_VERSION` · `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `LEAVE_YEARS_AROUND` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
 
 ### `calendar-access-core.js`
@@ -307,7 +307,7 @@ The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), wh
 - **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
 
 ### `login-overlay.js`
-The one sign-in card for every protected page, a modal by default and mounted inline as the Calendar's front door; no page redirects elsewhere to authenticate. It owns the card, the wrong-password lockout, the reset-request button and the staff-PIN-ended notice; per-page access stays with each coordinator. Bound by `.claude/rules/sessions.md`. Tested by `login-overlay.test.mjs`, `e2e/auth.spec.js` and `e2e/calendar-pin.spec.js`.
+The one sign-in card for every protected page, a modal by default and mounted inline as the Calendar's front door; no page redirects elsewhere to authenticate. It owns the card, the wrong-password lockout, the reset-request button and the staff-PIN-ended notice; per-page access stays with each coordinator. Bound by `.claude/rules/sessions.md`. Tested by `login-overlay.test.mjs`, `e2e/auth.spec.js` and `e2e/calendar-access.spec.js`.
 - **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `sayStaffPinEndedIn` · `SIGN_IN_SLOW_LINE` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
 
 ### `sw-register.js`
@@ -579,7 +579,7 @@ Which calendar year the Annual Leave figures on `admin.html` describe: the prece
 - **Exports:** `alFigureYear`
 
 ### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js` / `trains-status.js`
-The Trains page (`trains.html`): what changes at Marylebone when the December 2026 timetable starts, organised by station. Open to every signed-in member and to the station PIN (`auth-policy.js` → `staffPin`; AUTH_AND_SESSIONS.md 24); it reads no network. Tested by `trains-change.test.mjs`, `trains-stations.test.mjs`, `tips-content.test.mjs` and `e2e/trains.spec.js`.
+The Trains page (`trains.html`): what changes at Marylebone when the December 2026 timetable starts, organised by station. Open to every signed-in member, an Other Staff login included (`auth-policy.js` → `otherStaff`); it reads no network. Tested by `trains-change.test.mjs`, `trains-stations.test.mjs`, `tips-content.test.mjs` and `e2e/trains.spec.js`.
 - `trains-app.js` — the coordinator: the access gate, the page state and its wiring. `trains-boot.js` is its CSP shim.
 - `trains-cards.js` — paints each card from the page state.
 - `trains-change.js` — pure judgements about two timetables: alignment, `timetablePhase`, the railway day.
@@ -1284,7 +1284,7 @@ How much larger than the stylesheet's sizes the phone draws its text — Android
 - **Exports:** `LARGE_FROM` · `COMPACT_FROM` · `LARGE_VALUE` · `COMPACT_VALUE` · `tierFor` · `measureTextScale` · `applyTextScale`
 
 ### `calendar-doc-access.js`
-May this Calendar read the three documents? They are behind the staff PIN or a password (owner decision), and this makes the client honour it, because a read the local cache can answer never consults the rules. It keeps no answer of its own — it reads and listens to `calendar-access-state.js` — and tells its subscribers only when the answer changes. Tested by `calendar-doc-access.test.mjs`.
+May this Calendar read the three documents? They are behind a password (owner decision; the staff PIN that also opened them is retired), and this makes the client honour it, because a read the local cache can answer never consults the rules. It keeps no answer of its own — it reads and listens to `calendar-access-state.js` — and tells its subscribers only when the answer changes. Tested by `calendar-doc-access.test.mjs`.
 - **Exports:** `hasDocumentAccess` · `onDocumentAccess` · `documentAccess` · `_clearDocumentSubscribersForTests`
 
 ### `calendar-access-state.js`

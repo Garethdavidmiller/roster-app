@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v26.50 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.60 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -598,7 +598,7 @@ address underneath.
 **Read it knowing what it cannot see.** It counts OPENS, so an install nobody has opened in 30 days is
 invisible — and those are exactly the people a migration strands. Someone using both addresses counts
 on each, which is what half-migrated looks like. A signed-in admin's loads are excluded, like every
-other figure on the card; the station PC's are counted (KNOWN_LIMITATIONS.md → "The Usage counts are a
+other figure on the card; the station PC's were counted while the staff PIN opened the Calendar (KNOWN_LIMITATIONS.md → "The Usage counts are a
 trend" says why the figures stepped up when that changed).
 
 **Why it matters operationally:** an installed PWA keeps launching from its own service-worker cache,

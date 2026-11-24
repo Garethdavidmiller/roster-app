@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v26.50 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.60 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -816,8 +816,9 @@ side of that release is not the same measure:
   `usage-stats.js`). It used to freeze the count on the first day for 30 days, which missed roughly
   1 in 30 daily users, 1 in 6 weekly and 1 in 5 monthly (simulated). Expect it, and the address bars,
   to step up as devices update — not growth.
-- **The station PC counts.** A device nobody is signed in to records the page view, and a
-  member-device only for a staff member's row.
+- **The station PC counted.** A device nobody was signed in to (the staff PIN) recorded the page
+  view, and a member-device only for a staff member's row. Since the PIN was retired (23 Nov 2026)
+  the Calendar counts only once access is granted to a signed-in member (`calendarAuthReady`).
 
 What stays inherent: a moved count is a `+1` on today and a `-1` on the day it left, in one write. If
 the original `+1` was ever lost (a write refused or dropped offline), the `-1` lands on a day that
@@ -879,8 +880,8 @@ server release deletes the retired staff PIN's endpoint and account):
 - **Who may change or delete their own account.** Every staff-PIN holder signs in to ONE shared
   viewer account. If users may delete their own account, or link an email to it, one PIN holder can
   end every station's PIN at its next token refresh. Nothing is exposed — the next unlock rebuilds
-  the account (`viewerAccountTamper`, AUTH_AND_SESSIONS 20) — but each station has to enter the PIN
-  again. Firebase console → Authentication → Settings → User actions.
+  the account (`viewerAccountTamper`, AUTH_AND_SESSIONS 20) — and since the PIN was retired (23 Nov
+  2026) no screen uses that account, so ending it costs nobody anything. Firebase console → Authentication → Settings → User actions.
 - **Email enumeration protection.** With it off, Firebase's own sign-in API can say which roster
   addresses have accounts. The addresses are derivable from the public roster, so this tells an
   outsider little, but it is a free signal. Same page.
