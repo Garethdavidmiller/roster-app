@@ -375,72 +375,19 @@ describe('one winner per date (v21.56)', () => {
 // swapped in a working day and then books it off gets the leave free, because with no overrides in
 // hand the day reads as a rest day.
 //
-// A static guard rather than a behavioural one, deliberately, and its limits are the point: it
-// cannot prove the map is CORRECT, only that each site still asks for it. That is exactly the
-// defect shape though — an argument dropped in a refactor — and the alternative on offer was
-// nothing at all. The write path's own stamp is covered behaviourally in admin-overrides.test.mjs.
-describe('the entitlement count is asked for with the overrides in hand', () => {
-    // EVERY reader in the family, not just the one the audit happened to break (v21.84). The first
-    // cut of this guard pinned `countedAlDates` alone — and the behavioural test written next found
-    // `alPosition`, the banner's own call site, sitting outside it. That is the same mistake one
-    // level up: a rule guarded at the site somebody thought of.
-    //
-    // `projectAlOverage` JOINED THE LIST at v23.79, when the over-entitlement projection was
-    // extracted out of both coordinators into `admin-al-projection.js`. That module does not hold
-    // the cache — it is HANDED one — so the guard stays pointed at the coordinators, which are where
-    // the argument can actually be dropped. Moving a reader behind a wrapper must not move it out of
-    // the audit; it just changes which call the audit looks at.
-    //
-    // `planAlWeekSave` and `entitlementNote` JOINED IT on 7 Nov 2026 (test audit): the week grid's
-    // save planner and the Dispatcher's day-in-lieu caption both take the cache, and `overrides: []`
-    // at either left the unit lanes green — the week-grid bar would then ignore all existing leave,
-    // and the caption read 0 days in lieu.
-    const READERS = ['countedAlDates', 'alPosition', 'projectAlOverage', 'planAlWeekSave', 'entitlementNote'];
-    const SITES   = ['admin-al.js', 'admin-app.js'];
-
-    for (const file of SITES) {
-        test(`${file} passes the override cache into every entitlement reader`, () => {
-            const src = readFileSync(new URL(`./${file}`, REPO_ROOT_URL), 'utf8');
-            let seen = 0;
-            for (const fn of READERS) {
-                for (const [i, call] of src.split(`${fn}(`).slice(1).entries()) {
-                    seen++;
-                    // The argument object, up to its closing brace — enough to see what was handed over.
-                    const args = call.slice(0, call.indexOf('})') + 1);
-                    assert.match(args, /overrides:\s*getAllOverrides\(\)/,
-                        `${file}: ${fn} call ${i + 1} must pass the override cache; without it a swapped-in day reads as a rest day and the leave costs nothing`);
-                }
-            }
-            assert.ok(seen > 0, `${file} is listed here because it reads the entitlement — it no longer does`);
-        });
-    }
-
-    // THE CALENDAR'S LEAVE PANEL fetches its own records (v25.18), so a moved January day is in its
-    // answer only if the READ reaches next January — and no browser test can see the read's bounds,
-    // because the e2e Firestore stub ignores a query's range. Shortening it back to 31 December left
-    // every suite green and showed this year a day too generous. So the bound is pinned here, with
-    // the count going through `countedAlDates` rather than a loop of the panel's own.
-    test('calendar-al-lightbox.js reads to the end of NEXT January, and counts through countedAlDates', () => {
-        const src = readFileSync(new URL('./calendar-al-lightbox.js', REPO_ROOT_URL), 'utf8');
-        assert.match(src, /where\('date', '<=', `\$\{year \+ 1\}-01-31`\)/,
-            'the read must reach 31 January of next year, where a day may come out of this year\'s allowance');
-        assert.match(src, /countedAlDates\(\{ overrides: memberOverrides, member, year \}\)/);
-        assert.doesNotMatch(src, /date\.startsWith\(yearStr\)/, 'a day counts towards leaveYearOf, never its date prefix');
-    });
-
-    // …AND FROM LAST YEAR'S BOXING DAY (15 Nov 2026): a day in lieu for working it is in THIS year's
-    // allowance (christmas-leave.js), so a read that began on 1 January would show a member who
-    // worked it a day short all year. Pinned for the same reason as the end: the stub ignores ranges.
-    test('calendar-al-lightbox.js reads from the Boxing Day this year\'s allowance draws on, and carries out only this January', () => {
-        const src = readFileSync(new URL('./calendar-al-lightbox.js', REPO_ROOT_URL), 'utf8');
-        assert.match(src, /where\('date', '>=', `\$\{boxingDayForAllowance\(year\)\}-12-26`\)/,
-            'the read must start on the Boxing Day before this year, or its day in lieu is never counted');
-        // That read now holds the last days of December, which are last year's own leave: only this
-        // year's dates can be carried out of it.
-        assert.match(src, /countedAlDates\(\{ overrides: memberOverrides, member, year: year - 1 \}\)\]\s*\.filter\(d => d\.startsWith\(`\$\{yearStr\}-`\)\)/,
-            'carried out = this January\'s days counted towards last year, and nothing dated last December');
-    });
-});
+// THE OVERRIDES IN HAND, ASKED OF THE REAL CODE (test audit, 24 Nov 2026). This block used to read admin-al.js,
+// admin-app.js and calendar-al-lightbox.js as text, for `overrides: getAllOverrides()` at every entitlement reader's
+// call and for the leave panel's read bounds. Each is now held by a test that runs the code and reads what a member
+// sees, and each was mutation-checked (the argument emptied, the bound moved) through `scripts/mutate.mjs`:
+//   - admin-al.js `projectAlOverage` — admin-range-booking.test.mjs → "a booking inside one year never raises the bar
+//     about another year that is already over";
+//   - admin-app.js `alPosition` (the banner), `entitlementNote` (its breakdown) and `planAlWeekSave` (the week grid's
+//     bar) — e2e/admin.spec.js → "the AL banner counts leave that is already on record", "leave over a worked Boxing
+//     Day names the day in lieu it takes back, and the bar counts it" and the over-allowance tests beside them;
+//   - calendar-al-lightbox.js's read, from last Boxing Day to the end of next January, and its carried-out count —
+//     calendar-al-lightbox.test.mjs → "the panel reads every day this year's allowance holds", whose Firestore
+//     stand-in now honours a query's range.
+// A NEW reader of the entitlement on a coordinator gets a test of that kind with it, not a line here.
 
 
 // ── A ROLE WITH NO ENTITLEMENT ON RECORD (v22.45) ───────────────────────────────────────────────
