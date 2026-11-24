@@ -4283,7 +4283,20 @@ test('admin: on a phone the bulk-bar pills share the chips\' left edge, and so d
     await page.locator('.week-panel .day-row .day-cb').first().check();
     const rowPills = page.locator('.week-panel .day-row.selected .col-pills').first();
     await expect(rowPills).toBeVisible();
-    await expect(rowPills, 'the per-row pills are left-aligned on a phone, as the bulk bar\'s are').toHaveCSS('justify-content', 'flex-start');
+    // Asked of the GEOMETRY, not the computed value (24 Nov 2026): Chromium 158 reports `justify-content: flex-start`
+    // as "flow-start", the same layout under another name. Left-aligned, the first pill starts straight after the
+    // row's "Type" label (its ::before, its margin and the row's gap); centred, it would start further in.
+    const row = await rowPills.evaluate(el => {
+        const cs = getComputedStyle(el);
+        const before = getComputedStyle(el, '::before');
+        const first = /** @type {Element} */ (el.querySelector('.type-pill-btn')).getBoundingClientRect();
+        const contentLeft = el.getBoundingClientRect().left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+        const label = before.content === 'none' ? 0 : parseFloat(before.width) + parseFloat(before.marginLeft) + parseFloat(before.marginRight)
+            + (parseFloat(cs.columnGap) || 0);
+        return { pill: Math.round(first.left), expected: Math.round(contentLeft + label), justify: cs.justifyContent };
+    });
+    expect(Math.abs(row.pill - row.expected), `the per-row pills are left-aligned on a phone, as the bulk bar's are — ${JSON.stringify(row)}`)
+        .toBeLessThanOrEqual(1);
 });
 
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {

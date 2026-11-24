@@ -2,7 +2,7 @@
 /**
  * calendar-drawer.test.mjs — the Calendar's menu is built for the session saved when it is built, and
  * a rebuild takes the old one down first and builds it for the session saved NOW.
- * Run with: node --test --experimental-test-module-mocks calendar-drawer.test.mjs
+ * Run with: node --test --experimental-test-module-mocks test/calendar-drawer.test.mjs
  *
  * The drawer itself (`nav-panel.js`) is replaced by a recorder, so these assert what the Calendar ASKS
  * for and in what order: a rebuild that built before resetting would leave two drawers, and one that

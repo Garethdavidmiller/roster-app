@@ -65,7 +65,8 @@ What each lane proves, and what it cannot see. `CLAUDE.md` lists the commands; t
 behind them.
 
 - **`npm test`** — `test:hygiene` + `test:parse` + `test:unit`: every file in `test/` except the
-  `test:functions` and `test:rules` suites, on a bare checkout with nothing installed (above).
+  `test:rules` suites and the `test:functions` suites that need `functions/node_modules`, on a bare
+  checkout with nothing installed (above). `roster-parse-helpers` is pure, so it runs in both lanes.
 - **`npm run test:nodeps`** (the same as `node scripts/test-nodeps.mjs`) — every suite that needs
   nothing installed. It prints how many suites it runs and which it skips, and its exclusion list is
   DERIVED from the `test:functions` and `test:rules` scripts, so nothing here restates either. It

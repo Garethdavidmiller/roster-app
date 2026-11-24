@@ -92,12 +92,31 @@ globalThis.document = /** @type {any} */ ({
 });
 
 // ── Firestore: each read waits for the test to answer it ────────────────────────────────────────
-/** @type {{ resolve: (snap: any) => void, reject: (e: any) => void }[]} */
+// THE STAND-IN HONOURS THE QUERY (test audit, 24 Nov 2026). It used to ignore `where`, so a read that
+// stopped at 31 December, or began on 1 January, was answered with every row a test offered and the
+// panel's figures came out right anyway — the bounds could only be pinned by reading the source. Now
+// each `where` is recorded and `answer()` returns only the rows it lets through, as Firestore would.
+/** @typedef {{ field: string, op: string, value: any }} Clause */
+/** @type {{ resolve: (snap: any) => void, reject: (e: any) => void, clauses: Clause[] }[]} */
 let reads = [];
+/** @param {any} row @param {Clause} c */
+const passes = (row, c) => {
+    const v = row?.[c.field];
+    switch (c.op) {
+        case '==': return v === c.value;
+        case '>=': return v >= c.value;
+        case '<=': return v <= c.value;
+        case '>':  return v > c.value;
+        case '<':  return v < c.value;
+        default: throw new Error(`the stand-in does not know the operator ${c.op}`);
+    }
+};
 mock.module('../firebase-client.js', { namedExports: {
     db: {}, COLLECTIONS: { overrides: 'overrides' },
-    collection: () => ({}), query: () => ({}), where: () => ({}),
-    getDocs: () => new Promise((resolve, reject) => { reads.push({ resolve, reject }); }),
+    collection: () => ({}),
+    query: (/** @type {any} */ _coll, /** @type {Clause[]} */ ...clauses) => ({ clauses }),
+    where: (/** @type {string} */ field, /** @type {string} */ op, /** @type {any} */ value) => ({ field, op, value }),
+    getDocs: (/** @type {{ clauses?: Clause[] }} */ q) => new Promise((resolve, reject) => { reads.push({ resolve, reject, clauses: q?.clauses ?? [] }); }),
 } });
 
 // ── The lightbox lifecycle: open runs onOpen, close runs onClose, nothing else ──────────────────
@@ -161,11 +180,13 @@ const EXAMPLE = Object.freeze({ name: 'Q. Example', role: 'CEA', rosterType: 'ma
 const settle = () => new Promise(r => setTimeout(r, 0));
 /** Open the leave panel, as the 🏖️ button does. */
 const openLeavePanel = () => byId('alBtn').fire('click');
-/** Answer the oldest read still out, as the server would. @param {any[]} [rows] */
+/** Answer the oldest read still out, as the server would: with the rows its query lets through.
+ *  @param {any[]} [rows] */
 async function answer(rows = []) {
     const read = reads.shift();
     assert.ok(read, 'premise: the panel issued its read');
-    read.resolve({ metadata: { fromCache: false }, forEach: (/** @type {Function} */ fn) => rows.forEach(r => fn({ data: () => r })) });
+    const kept = rows.filter(r => read.clauses.every(c => passes(r, c)));
+    read.resolve({ metadata: { fromCache: false }, forEach: (/** @type {Function} */ fn) => kept.forEach(r => fn({ data: () => r })) });
     await settle();
 }
 /** The stored copy, parsed, or null. */
@@ -418,6 +439,70 @@ describe('a panel\'s ways out', () => {
         assert.equal(settleWaiters.length, 1);
         settleWaiters.shift()?.();
         assert.deepEqual(jumps, [{ to: payday, closedBefore: ['dayDetailLightbox'], waitersLeft: 0 }]);
+    });
+});
+
+// ── WHAT THE READ REACHES, read through the figures (test audit, 24 Nov 2026) ──────────────────────
+// A year's allowance holds days dated outside it: next January's days a member chose to take from this year,
+// and the day in lieu for working last Boxing Day. The panel fetches its own records, so each is in its
+// answer only if the READ reaches it — and these were pinned by reading the source for the query's bounds,
+// because the stand-in ignored them. It honours them now, so each case is asked as the member meets it: the
+// figures on screen are `alPosition`'s for every row, and a read that stopped short would leave a row out.
+describe('the panel reads every day this year\'s allowance holds', async () => {
+    const { getBaseShift, isWorkedShift, parseISODate } = await import('../roster-data.js');
+    const { isChristmasLeaveDay } = await import('../christmas-leave.js');
+    /** The first day from `from` whose pattern shift `member` works, never a Sunday. @param {any} member @param {string} from */
+    const workedDayFrom = (member, from) => {
+        for (let d = parseISODate(from), i = 0; i < 40; d.setDate(d.getDate() + 1), i++) {
+            if (d.getDay() !== 0 && isWorkedShift(getBaseShift(member, d))) return formatISO(d);
+        }
+        throw new Error(`no worked day from ${from}`);
+    };
+    const AL = (/** @type {any} */ m, /** @type {string} */ date, /** @type {any} */ extra = {}) =>
+        ({ memberName: m.name, date, type: 'annual_leave', value: 'AL', ...extra });
+
+    test('a day in NEXT January taken from this year\'s allowance is counted, and said to be', async () => {
+        const jan = workedDayFrom(PERSON, `${THIS_YEAR + 1}-01-05`);
+        const rows = [AL(PERSON, jan, { leaveYear: THIS_YEAR })];
+        const todayStr = formatISO(new Date());
+        const want = alPosition({ overrides: rows, member: PERSON, year: THIS_YEAR, todayStr });
+        const none = alPosition({ overrides: [], member: PERSON, year: THIS_YEAR, todayStr });
+        assert.equal(want.taken + want.booked, none.taken + none.booked + 1, 'premise: the day counts towards this year');
+        openLeavePanel();
+        await answer(rows);
+        assert.equal(byId('alLbBooked').textContent, String(want.booked), 'the read stopped before next January');
+        assert.equal(byId('alLbCarry').textContent, `Includes 1 day in January ${THIS_YEAR + 1}.`);
+    });
+
+    test('a day THIS January taken from last year comes out of last year — and last December\'s leave is last year\'s own', async () => {
+        const jan = workedDayFrom(PERSON, `${THIS_YEAR}-01-05`);
+        const dec = workedDayFrom(PERSON, `${THIS_YEAR - 1}-12-27`);
+        assert.ok(dec < `${THIS_YEAR}-01-01`, 'premise: a day in the last days of December, inside the read');
+        openLeavePanel();
+        await answer([AL(PERSON, jan, { leaveYear: THIS_YEAR - 1 }), AL(PERSON, dec)]);
+        assert.equal(byId('alLbCarry').textContent, `1 day in January comes out of ${THIS_YEAR - 1}’s allowance.`,
+            'the December day was carried out of this year too');
+    });
+
+    test('the day in lieu for working last Boxing Day is in this year\'s allowance', async () => {
+        // The first year a Boxing Day earns one (from 2026) whose allowance the calendar can show, and an
+        // invented member whose pattern had them at work that day.
+        const year = Math.max(THIS_YEAR, 2027);
+        assert.ok(year < CONFIG.MAX_YEAR, 'premise: a year the panel can show');
+        const boxingDay = new Date(year - 1, 11, 26);
+        const worker = Array.from({ length: 20 }, (_, i) => ({ name: 'A. Person', role: 'CEA', rosterType: 'main', currentWeek: i + 1 }))
+            .find(m => isChristmasLeaveDay(m, boxingDay));
+        assert.ok(worker, 'premise: some week of the main line works Boxing Day');
+        shown = worker;
+        displayYear = year;
+        const rows = [{ memberName: worker.name, date: formatISO(boxingDay), type: 'shift', value: '06:00-14:00' }];
+        const todayStr = formatISO(new Date());
+        const want = alPosition({ overrides: rows, member: worker, year, todayStr });
+        const none = alPosition({ overrides: [], member: worker, year, todayStr });
+        assert.equal(want.entitlement, /** @type {number} */ (none.entitlement) + 1, 'premise: working it earns this year a day');
+        openLeavePanel();
+        await answer(rows);
+        assert.equal(byId('alLbEntitlement').textContent, String(want.entitlement), 'the read began after last Boxing Day');
     });
 });
 

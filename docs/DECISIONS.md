@@ -1149,8 +1149,8 @@ due at work on a Boxing Day from 2026 to 2029 it checks that the year the panel 
 whose allowance rises. The entry points are tested too: the Calendar's leave panel (2026 at the
 contract figure, 2027 one higher, with the note), Admin's banner, the week grid's row, the
 renderer's day flag, and Admin's two save checks, where leave over the worked Boxing Day takes 2027
-over. `al-entitlement.test.mjs` pins the leave panel's read range, which the browser tests' stub
-cannot see.
+over. `calendar-al-lightbox.test.mjs` holds the leave panel's read range through its figures, on a
+Firestore stand-in that honours a query's range (24 Nov 2026; the browser tests' stub still ignores it).
 
 ## The timetable notice goes up now, after the other notices, and first in its final week (owner, 16 Nov 2026)
 

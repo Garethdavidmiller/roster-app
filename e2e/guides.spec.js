@@ -99,15 +99,15 @@ async function landHeld(/** @type {import('@playwright/test').Page} */ page, /**
  * header's title, which has nothing to activate; the scroll that follows is the distance it moved the page.
  * @param {import('@playwright/test').Page} page @param {import('@playwright/test').TestInfo} info
  */
-async function nudgeAsReader(page, info) {
+async function nudgeAsReader(page, info, by = 30) {
     if (isTouchProject(info)) {
         const title = /** @type {{ x: number, y: number, width: number, height: number }} */ (
             await page.locator('.page-header h1').boundingBox());
         await page.touchscreen.tap(title.x + title.width / 2, title.y + title.height / 2);
-        await page.evaluate(() => window.scrollBy(0, 30));
+        await page.evaluate((px) => window.scrollBy(0, px), by);
     } else {
         await page.mouse.move(180, 500);
-        await page.mouse.wheel(0, 30);
+        await page.mouse.wheel(0, by);
     }
 }
 /** @param {import('@playwright/test').Page} page @param {string} id */
@@ -249,7 +249,10 @@ test('guides: on a document guide a deep link does not pull back a reader who ha
     await holdGuideMeasurement(page);
     await scaleTextBeforeLanding(page, 1.15);
     await landHeld(page, '/staff-guide.html#sg-change-a-shift');
-    await nudgeAsReader(page, info);
+    // 60px, deep into the band (Playwright 1.65, 24 Nov 2026): WebKit 27.2 on CI's runner restored the reload near the
+    // reader's own position rather than on the fragment, and after a 30px nudge the heading came back 8px BELOW the
+    // stack — outside the band, so the premise below failed and the guard went untested. Deeper, either landing is in it.
+    await nudgeAsReader(page, info, 60);
     await settleFrames(page);
     const moved = await page.evaluate(() => Math.round(window.scrollY));
     const { top, stack } = await underStack(page, 'sg-change-a-shift');
@@ -264,7 +267,7 @@ test('guides: on a document guide a deep link does not pull back a reader who ha
     await settleFrames(page);
     const restored = await page.evaluate(() => Math.round(window.scrollY));
     const back = await underStack(page, 'sg-change-a-shift');
-    expect(back.top, 'premise: the reload restored a position inside the band').toBeLessThan(back.stack);
+    expect(back.top, `premise: the reload restored a position inside the band — ${JSON.stringify({ moved, restored, ...back })}`).toBeLessThan(back.stack);
     await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
     await settleFrames(page);
     expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reloaded page off its restored position').toBe(restored);
@@ -1852,12 +1855,21 @@ test('fip: the country search placeholder fits a 390px phone whole', async ({ pa
         const cs = getComputedStyle(input);
         const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
         ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const box = /** @type {HTMLElement} */ (input.parentElement);
         return {
             text: ctx.measureText(input.placeholder).width,
-            room: input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+            // From the BORDER box, never `clientWidth`: Chromium 158 reports a text input's clientWidth without its
+            // padding (280 where it was 354, on the same 358px field), so subtracting the padding from it took the
+            // padding off twice and read a field 74px narrower than the one drawn.
+            room: input.offsetWidth - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth)
+                - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+            // What the field's room is made of, so a failure says which part moved (a browser's own layout change,
+            // Chromium 158): its boxes, its padding and sizing, and the row it sits in.
+            why: `offsetWidth ${input.offsetWidth} · clientWidth ${input.clientWidth} · width ${cs.width} · padding ${cs.paddingLeft}/${cs.paddingRight} `
+               + `· box-sizing ${cs.boxSizing} · font ${cs.fontSize} ${cs.fontFamily.split(',')[0]} · parent ${box.clientWidth} (${getComputedStyle(box).display})`,
         };
     });
-    expect(fit.text, `placeholder is ${fit.text}px in a ${fit.room}px field`).toBeLessThanOrEqual(fit.room);
+    expect(fit.text, `placeholder is ${fit.text}px in a ${fit.room}px field — ${fit.why}`).toBeLessThanOrEqual(fit.room);
 });
 
 // Side by side at 390 each "What you get" card was 174px wide — ~22 characters of 12px text a line.

@@ -1183,6 +1183,37 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
         assert.equal(_writes.length, 1);
     });
 
+    // THE CARD HANDS THE CHECK EVERY OVERRIDE THE PAGE HOLDS (test audit, 24 Nov 2026). The allowance check compares the
+    // leave before the save with the leave after it, and a year whose counted leave RISES is checked too — so the
+    // "before" must be the page's real overrides. Handed none (`overrides: []`), every year with leave in it looked as if
+    // the save had raised it, and a booking well inside 2027 stopped at a bar about 2026. Read from the source until now;
+    // asked of the real card here.
+    test('Annual Leave: a booking inside one year never raises the bar about another year that is already over', async () => {
+        const m = QX;
+        const allowance2026 = /** @type {number} */ (entitlementFor(m, 2026, []));
+        // 2026 over its allowance already (a state the app can hold: leave recorded before a figure changed), 2027 empty.
+        _allOv = workdays(m, new Date(2026, 1, 1), allowance2026 + 1).map(d => leave(m, d));
+        _ovMap = new Map();
+        const [day] = workdays(m, new Date(2027, 5, 1), 1);
+        /** @type {any[][]} */ const confirms = [];
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ ({ alMember: memberSelect(m.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
+        el('alFrom').value = day; el('alTo').value = day;
+        for (const fn of el('alTo')._on.change ?? []) fn();
+        await save();
+        assert.deepEqual(confirms, [], 'a bar about 2026 for a booking in 2027 — the check was not handed the page\'s overrides');
+        assert.equal(_writes.length, 1, 'and the booking is saved');
+        // CONTROL: the same booking in 2026, the year that is over, does stop at the bar.
+        _writes.length = 0;
+        const [late] = workdays(m, new Date(2026, 10, 2), 1, _allOv.map(o => o.date));
+        el('alFrom').value = late; el('alTo').value = late;
+        for (const fn of el('alTo')._on.change ?? []) fn();
+        await save();
+        assert.equal(confirms.length, 1, 'premise: a booking in the year that is over is asked about');
+    });
+
     test('Absence: the same for the bar an absence raises when it takes back a day in lieu', async () => {
         const p = QX;
         const worked = { id: 'n-boxing', memberName: p.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual', createdAt: { seconds: 1_798_000_000 } };
