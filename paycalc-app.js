@@ -37,7 +37,7 @@ import {
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, computeEarliestVisiblePNum, isTaxYearVisible, visiblePeriods,
   _setSelectPeriod, ytdSourceAfterRetype, payslipMayBeInHand, ytdUpdateFrom,
-  appendPayslipOptions,
+  appendPayslipOptions, YTD_SRC_EARLY,
 } from './paycalc-periods.js';
 import {
   getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
@@ -1221,6 +1221,8 @@ export function init() {
     // "Again" is figures already in the boxes when the edit began (_ytdOver — the two boxes are one
     // edit), and never a source picked in the select this visit (_ytdKeep): typed into empty boxes, or
     // after a pick, the figures come from the payslip the member chose, and moving it lost that choice.
+    // Figures held under YTD_SRC_EARLY (entered before any payslip of the year was in hand) are a
+    // first entry again when typed (refreshYtdSrc's `typed`); a load never files them.
     let _ytdOver = false; const _ytdKeep = new Set();
     const _ytdFigureInput = () => {
       saveSettings();
@@ -1229,7 +1231,7 @@ export function init() {
       const _raw = lsGet(ytdSrcKey(_ty2));
       const _moved = _ytdOver && !_ytdKeep.has(_ty2.label) ? ytdSourceAfterRetype(_raw, { p: _p2, ty: _ty2 }) : null;
       if (_moved != null) lsSet(ytdSrcKey(_ty2), String(_moved));
-      if (_moved != null || !_raw) refreshYtdSrc(_ty2);
+      if (_moved != null || !_raw || _raw === YTD_SRC_EARLY) refreshYtdSrc(_ty2, { typed: true });
       calculate();
     };
     for (const id of ['ytdPay', 'ytdTax']) {

@@ -794,6 +794,11 @@ payslip picked in the select on this visit) and `ytdSourceOffered` (from the cur
 cut-off the picker offers it too, because payslips are issued before payday).
 - **Do not replace the first-entry stamp with a window that records NOTHING until the member picks**
   — a member who never picked would be stamped one payslip LATE on the first open after payday.
+- **Figures entered while no payslip of the member's in that year can be in hand are recorded as
+  `YTD_SRC_EARLY`, never as nothing** (24 Nov 2026): recording nothing let the first load after the
+  year's first cut-off file last year's March totals against April's payslip. A load never re-stamps
+  the marker; typing figures in again is a first entry (`refreshYtdSrc`'s `typed`). Pinned by
+  `e2e/paycalc.spec.js` → "typed before the year's first payslip is in hand".
 - **The cumulative PAYE method in `calculate()` engages ONLY on the payslip immediately after the
   source** (`p.num === src + 1`); any other payslip nulls the Year to Date inputs and falls back to the
   standard non-cumulative method. **That guard is one line and its regression is quiet on screen**:

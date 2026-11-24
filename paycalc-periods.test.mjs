@@ -106,7 +106,7 @@ const {
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
     visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered, payslipMayBeInHand,
     periodLinkMissNote, ytdUpdateFrom, ytdAnchorStatus, ytdSourceToStamp, appendPayslipOptions, ytdSourceAfterRetype,
-    periodPaidInMonth,
+    periodPaidInMonth, YTD_SRC_EARLY,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -1298,8 +1298,24 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
         const MAR20 = new Date(2026, 2, 20, 10);
         assert.equal(ytdAutoSource(TY, MAR20), first.num, 'premise: the assumption clamps to the year\'s first payslip');
         assert.equal(ytdSourceOffered(first, TY, MAR20, 37), false, 'premise: which the picker does not offer yet');
-        assert.equal(ytdSourceToStamp(null, true, TY, MAR20, 37), null, 'so nothing is recorded');
+        assert.equal(ytdSourceToStamp(null, true, TY, MAR20, 37), YTD_SRC_EARLY, 'so they are recorded as from no payslip of the year');
         assert.equal(ytdSourceToStamp(null, true, TY, NOV7, 37), oct23.num, 'and the ordinary stamp is untouched');
+    });
+
+    // …AND NEVER FILED LATER EITHER (24 Nov 2026). Recording nothing only put the stamp off: the first
+    // load after the 10 Apr payslip's cut-off filed March's figures against it, and the 8 May payslip
+    // was priced cumulatively on last year's totals — on a K code, unchecked, about £1,650 of tax where
+    // £770.40 was right. Invented figures; the take-home e2e in paycalc.spec.js pins the £.
+    test('figures typed before the year\'s first payslip could be in hand are never filed against it on a later load', () => {
+        const MAR20 = new Date(2026, 2, 20, 10), APR20 = new Date(2026, 3, 20, 10), MAY1 = new Date(2026, 4, 1, 10);
+        assert.equal(ytdSourceOffered(first, TY, APR20, 37), true, 'premise: by 20 Apr the 10 Apr payslip is in hand');
+        const recorded = String(ytdSourceToStamp(null, true, TY, MAR20, 37));
+        for (const day of [APR20, MAY1]) {
+            assert.equal(ytdSourceToStamp(recorded, true, TY, day, 37), null, `not re-stamped on ${day.toDateString()}`);
+        }
+        assert.equal(parseInt(recorded, 10) || 0, 0, 'every reader that parses a source reads it as none');
+        assert.equal(status({ p: byNum(first.num + 1), src: parseInt(recorded, 10) || 0, now: APR20 }).note, '',
+            'so the card names no payslip they are "from"');
     });
 });
 
@@ -1371,7 +1387,7 @@ describe('the Year to Date rules keep to the payslips a joiner was employed for'
             assert.equal(ytdUpdateFrom({ p: dec18, ty: TY, src: 0, inUse: false, taxCode: '1257L', now: NOV30 }), null,
                 'the line does not ask for the 20 Nov figures');
             assert.equal(ytdSourceOffered(nov20, TY, NOV30), false, 'the picker does not offer 20 Nov');
-            assert.equal(ytdSourceToStamp(null, true, TY, NOV30), null, 'a first entry is not stamped 20 Nov');
+            assert.equal(ytdSourceToStamp(null, true, TY, NOV30), YTD_SRC_EARLY, 'a first entry is not stamped 20 Nov — it is from no payslip of theirs');
             // A source OLDER than 20 Nov, so the start date — not the newer-than-the-source rule — is
             // what keeps 20 Nov off the note.
             // (The note names the payslip the figures sharpen since 21 Nov 2026, so the check is on the OFFER.)
