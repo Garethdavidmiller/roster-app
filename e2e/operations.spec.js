@@ -2168,7 +2168,7 @@ test('operations: the date picker follows the clock across midnight', async ({ p
     await page.evaluate(() => document.getElementById('circularUploadBody')?.classList.add('open'));
 
     const trigger = page.locator('#circularUploadBody .date-trigger');
-    await expect(trigger).toHaveText('Tue 8 September 2026');
+    await expect(trigger).toHaveText('Tue 8 Sep 2026');
 
     // The tab just sits there while the day turns over.
     await page.clock.setFixedTime(new Date('2026-09-09T09:00:00Z'));
@@ -2181,7 +2181,7 @@ test('operations: the date picker follows the clock across midnight', async ({ p
     await expect(ninth).not.toHaveClass(/dp-off/);
     await expect(ninth).not.toHaveAttribute('aria-disabled', 'true');
     await ninth.click();
-    await expect(trigger).toHaveText('Wed 9 September 2026');
+    await expect(trigger).toHaveText('Wed 9 Sep 2026');
 });
 
 // ── The week the roster form offers first (owner, 10 Nov 2026; import-client-3) ─────────────────

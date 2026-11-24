@@ -100,13 +100,14 @@ export const formatDayMonth = d => (usable(d) ? `${d.getDate()} ${MONTH_ABB[d.ge
  * Every surface that calls this was re-measured with the full month at 320px (the longest is
  * "30 September 2026", seven characters more than "30 Sep 2026"). A surface that genuinely cannot
  * fit it takes a SEPARATELY NAMED short helper with a comment saying why — never a flag here, which
- * would let the short form back in by default. There are three, each with its measurements beside it
+ * would let the short form back in by default. There are four, each with its reason beside it
  * ("All of them", owner, 22 Nov 2026, with a fit check at 320px for each):
  *   · `formatDayMonthYear2` ("18 Sep 26") — the Pay Calculator's dense columns.
  *   · `shortWeekLabel` (admin-week-editor.js) — Admin's week navigator, "30 Aug–5 Sep 2026".
  *   · `formatTeamWeekLabel` (calendar-team-view.js) — Team View's week, between its two arrows.
- * The date picker's trigger took the full month that day (`formatWeekdayDate` with the year), and the
- * Operations rows it sits in let it take a line of its own instead.
+ *   · `shortLabel` (date-picker.js) — the date beside "Choose file" on Operations' three document
+ *     rows, "Tue 24 Nov 2026". Those rows first let the full month take a line of its own; the owner
+ *     asked for that to be reversed (24 Nov 2026), so every other trigger keeps the full month.
  * @param {Date} d
  */
 export const formatDayMonthYear = d => (usable(d) ? `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` : NO_DATE);

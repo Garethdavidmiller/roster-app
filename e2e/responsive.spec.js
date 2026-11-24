@@ -270,14 +270,15 @@ test('admin week label across New Year names the year it starts in, and still fi
     expect(fit.sw, `the New Year label ellipsises at 375px (${fit.sw}px into ${fit.cw}px)`).toBeLessThanOrEqual(fit.cw);
 });
 
-// ── THE OPERATIONS DATE FIELDS WITH THE MONTH IN FULL (22 Nov 2026) ─────────────────────────────
-// "A date with its year is written in full": the date picker's trigger reads "Wed 30 September 2026",
-// about 200px at 14px. Its row used to give it a ZERO flex basis, so it never wrapped and the words ran
-// under "Choose file" — already at 320px with the short month. The longest month, a Wednesday on its
-// widest day, set through the field's own `change` (the path a pick takes), at the narrowest phone, the
-// commonest iPhone, the e2e phone and under 1.5× text: the words stay inside the field, the field
-// inside its row, and the button beside or beneath it never covers it.
-test('operations date fields keep the full month inside the field, beside or above their button', async ({ page }) => {
+// ── THE OPERATIONS DATE FIELDS: SHORT BESIDE "Choose file", FULL ON THE ROSTER (24 Nov 2026) ─────
+// The three document rows (Huddle, Circular, Newsletter) write "Wed 30 Sep 2026" and keep the date and
+// "Choose file" on ONE line from 360px: for two days (v26.55) the full month took a line of its own,
+// and each card became three stacked full-width controls, which the owner asked to reverse. The roster's
+// week-ending keeps the month in full. The longest case, a Wednesday on September's widest day, set
+// through the field's own `change` (the path a pick takes), at the narrowest phone, the commonest iPhone,
+// the e2e phone and under 1.5× text: the words stay inside the field, the field inside its row, and the
+// button never covers it. At 320px, or under 1.5× text, the row wraps; that is the fallback, not the layout.
+test('operations date fields: the three document rows stay on one line, and no field is clipped or covered', async ({ page }) => {
     await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
@@ -290,7 +291,7 @@ test('operations date fields keep the full month inside the field, beside or abo
             el.dispatchEvent(new Event('change', { bubbles: true }));
         }
     });
-    for (const [width, scale] of [[320, 1], [375, 1], [393, 1], [320, 1.5]]) {
+    for (const [width, scale] of [[320, 1], [360, 1], [375, 1], [393, 1], [320, 1.5]]) {
         await page.setViewportSize({ width, height: 900 });
         if (scale !== 1) await scaleText(page, scale);
         const fields = await page.evaluate(() => [...document.querySelectorAll('.huddle-row > .date-trigger')].map(t => {
@@ -298,16 +299,25 @@ test('operations date fields keep the full month inside the field, beside or abo
             const btn = /** @type {HTMLElement} */ (t.parentElement).querySelector('.huddle-file-label')?.getBoundingClientRect();
             return {
                 text: t.textContent,
+                spoken: t.getAttribute('aria-label') ?? '',
                 clipped: t.scrollWidth > t.clientWidth + 1,
                 outside: tr.left < row.left - 1 || tr.right > row.right + 1,
                 covered: !!btn && btn.left < tr.right - 1 && btn.right > tr.left + 1 && btn.top < tr.bottom - 1 && btn.bottom > tr.top + 1,
+                oneLine: !!btn && Math.abs(btn.top - tr.top) < 2 && btn.left >= tr.right,
             };
         }));
-        expect(fields.map(f => f.text), 'the four fields, each with the month in full')
-            .toEqual(['Wed 30 September 2026', 'Wed 30 September 2026', 'Wed 30 September 2026', 'Sat 26 September 2026']);
+        expect(fields.map(f => f.text), 'three short dates beside "Choose file", then the roster week in full')
+            .toEqual(['Wed 30 Sep 2026', 'Wed 30 Sep 2026', 'Wed 30 Sep 2026', 'Sat 26 September 2026']);
+        for (const f of fields) expect(f.spoken, 'the spoken name contains the words on the button (Label in Name)').toContain(f.text);
         const broken = fields.filter(f => f.clipped || f.outside || f.covered)
             .map(f => `"${f.text}"${f.clipped ? ' runs out of its box' : ''}${f.outside ? ' leaves its row' : ''}${f.covered ? ' is covered by its button' : ''}`);
         expect(broken, `at ${width}px and ${scale}× text:\n  ${broken.join('\n  ')}`).toEqual([]);
+        // 360px and up: one line. Measured: the short date needs 170px, the gap 10 and "Choose file" 109,
+        // so 289px; a 360px phone gives the row 308, a 320px one 268 — that one wraps, cleanly.
+        if (scale === 1 && width >= 360) {
+            expect(fields.slice(0, 3).map(f => f.oneLine), `at ${width}px the three document rows keep the date and "Choose file" on one line`)
+                .toEqual([true, true, true]);
+        }
     }
 });
 

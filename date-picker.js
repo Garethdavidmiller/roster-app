@@ -71,6 +71,24 @@ function formatLabel(iso) {
     return formatWeekdayDate(parseISODate(iso), true);
 }
 
+/**
+ * "Tue 24 Nov 2026" — the SHORT trigger words, for a field that must share its line (owner, 24 Nov 2026).
+ *
+ * The three document upload rows on Operations (Huddle, Circular, Newsletter) put the date beside
+ * "Choose file". With the month in full the pair no longer fitted on a phone, so the row broke and the
+ * date, the file button and the upload button each took a whole line — three full-width controls where
+ * two lines did the job, which the owner asked to reverse. So those three fields take this separately
+ * named short form, as date-format.js asks of a surface that cannot fit the full month; every other
+ * trigger keeps it. The spoken name uses the same short words, never the full month: WCAG 2.5.3
+ * ("Label in Name") asks that the name contain what the button shows, for voice control.
+ * @param {string} iso YYYY-MM-DD
+ * @returns {string}
+ */
+function shortLabel(iso) {
+    const d = parseISODate(iso);
+    return `${formatWeekdayDate(d)} ${d.getFullYear()}`;
+}
+
 /** The one overlay every field on a page shares. Built on first use, never at import.
  *  @type {{ open: (input: HTMLInputElement, title?: string, week?: boolean) => void }|null} */
 let _picker = null;
@@ -341,10 +359,12 @@ function _ensurePicker() {
  * Progressively enhance each `<input type="date">` named in `inputIds`: hide it as the value
  * holder and put a styled trigger in its place. See the module header for the contract. Call once,
  * after the owning cards have set their default values, so the first trigger label is right;
- * missing ids are skipped silently.
+ * missing ids are skipped silently. `shortMonth` writes the trigger, and its spoken name, as
+ * "Tue 24 Nov 2026" (`shortLabel`).
  * @param {string[]} inputIds
+ * @param {{ shortMonth?: boolean }} [opts]
  */
-export function initDatePickers(inputIds) {
+export function initDatePickers(inputIds, { shortMonth = false } = {}) {
     if (!Array.isArray(inputIds) || !inputIds.length) return;
     if (!_ensurePicker()) return;
 
@@ -361,9 +381,12 @@ export function initDatePickers(inputIds) {
         /** Reflect the input's CURRENT value — and whether it may be changed — into the trigger. */
         const _sync = () => {
             const v = input.value;
-            trigger.textContent = v ? formatLabel(v) : 'Choose date';
+            const words = v ? (shortMonth ? shortLabel(v) : formatLabel(v)) : '';
+            trigger.textContent = words || 'Choose date';
             trigger.classList.toggle('date-trigger--empty', !v);
-            trigger.setAttribute('aria-label', `${label}: ${v ? formatLabel(v) : 'no date chosen'}. Change.`);
+            // The spoken name carries the SAME words as the button ("Label in Name", WCAG 2.5.3): a
+            // voice-control user says what they see, so a short trigger is not given a long name.
+            trigger.setAttribute('aria-label', `${label}: ${words || 'no date chosen'}. Change.`);
             trigger.disabled = input.disabled;
         };
 
