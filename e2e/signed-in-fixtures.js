@@ -43,7 +43,9 @@ import { PROJECT, EMULATOR, REGION } from './signed-in-env.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SDK_DIR = path.join(ROOT, 'node_modules', 'firebase');
-const SDK_VERSION = JSON.parse(readFileSync(path.join(SDK_DIR, 'package.json'), 'utf8')).version;
+/** The SDK version node_modules holds — the one every gstatic URL the page asks for must name (below), and the
+ *  one a journey that imports the SDK itself names too, so a bump cannot leave it on the old folder. */
+export const SDK_VERSION = JSON.parse(readFileSync(path.join(SDK_DIR, 'package.json'), 'utf8')).version;
 
 /**
  * The wrapper served at each SDK address the app imports. `export *` re-exports the real module
