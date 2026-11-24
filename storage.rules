@@ -13,12 +13,13 @@ service firebase.storage {
       // PIN/password decision below. Don't store confidential files here unless the
       // delivery model changes.
       //
-      // THE WORDS ARE NOW BEHIND THE PIN TOO (v23.18, owner decision 7 Sep 2026). A DOCX Huddle's
+      // THE WORDS ARE BEHIND A SIGN-IN TOO (v23.18, owner decision 7 Sep 2026). A DOCX Huddle's
       // converted text is written to the Firestore document as `htmlContent`, and until v23.18
       // `firestore.rules` granted that collection a bare `allow read;` — so the Huddle's words
       // needed no URL and no credential (measured against the live project, 6 Sep 2026). The
-      // Firestore read now requires a bound member (`isMember()`), `admin` or the shared `calendarViewer`, the
-      // same doors as `overrides`, and the client refuses the read at source (calendar-doc-access.js).
+      // Firestore read now requires a bound member (`isMember()`) or `admin` (the retired staff PIN's
+      // `calendarViewer` too, until its server release in Nov 2026), the same doors as `overrides`,
+      // and the client refuses the read at source (calendar-doc-access.js).
       // What this file's caution above still means: the FILE behind a bearer URL is fetchable by
       // anyone who already holds the URL — ARCHITECTURE.md EXC-007.
       // Writes come from two paths:

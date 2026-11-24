@@ -6,7 +6,8 @@
  *
  * Covers every top-level collection in firestore.rules — overrides, huddles, circulars,
  * newsletters, linkDesigns, linkTargetSets, staffContact, passwordStatus, resetRequests,
- * clientErrors, errorLogNotice, alUploads, pushSubscriptions, viewerAttempts, overtimeWindows and analytics. This said "all 9
+ * clientErrors, errorLogNotice, alUploads, pushSubscriptions, overtimeWindows and analytics — and
+ * `viewerAttempts`, the retired staff PIN's throttle store, which no rule matches any more. This said "all 9
  * collections" over a list of ten while the rules held fourteen (test audit, 7 Nov 2026); the rules
  * file is the authority, and a new collection there needs its own describe here.
  *
@@ -88,9 +89,11 @@ function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid
 function managerDb(name, uid = 'uid_mgr') { return testEnv.authenticatedContext(uid, memberClaims(name, { manager: true })).firestore(); }
 /** Authenticated links designer (linksDesigner + name claims) — writes linkDesigns (H2). */
 function designerDb(name = 'S. Silva', uid = 'uid_designer') { return testEnv.authenticatedContext(uid, memberClaims(name, { linksDesigner: true })).firestore(); }
-/** The shared staff Calendar viewer (v20.12) — the identity the four-digit PIN mints. Exactly one
- *  claim, no `name`: it is a CAPABILITY ("may read the Calendar"), not a person. Modelled with the
- *  real uid so a rule that ever keyed on the uid rather than the claim would be caught here too. */
+/** A LEFTOVER staff-PIN session (v20.12; the PIN retired 23 Nov 2026). The token its custom-token
+ *  sign-in carries: exactly one claim, `calendarViewer`, and no `name`. It was a CAPABILITY that could
+ *  read the Calendar; since the PIN's server release it grants NOTHING, and a device may still hold one
+ *  until the owner deletes the account. Modelled with the real uid so a rule that ever keyed on the
+ *  uid rather than the claim would be caught here too. */
 function viewerDb() { return testEnv.authenticatedContext('calendar-viewer', { calendarViewer: true, firebase: { sign_in_provider: 'custom' } }).firestore(); }
 
 // ── Data builders ─────────────────────────────────────────────────────────────
@@ -195,7 +198,8 @@ function realDocumentClient(/** @type {any} */ db, /** @type {{ storage?: Record
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('overrides', () => {
-    // ── READ (v20.12): a real member OR the shared staff-PIN viewer. Nobody else. ─────────────
+    // ── READ (v20.12): a real member or the admin. Nobody else — since the staff PIN's server
+    // release, not a leftover PIN session either. ─────────────────────────────────────────────
     //
     // This collection was `allow read;` — no auth at all — until v20.12. These four tests are the
     // proof that the door is shut, and the anonymous one is the substance of it: the Calendar used
@@ -239,9 +243,11 @@ describe('overrides', () => {
         await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'overrides')));
     });
 
-    test('the CALENDAR VIEWER can read', async () => {
-        await assertSucceeds(getDocs(collection(viewerDb(), 'overrides')));
-        await assertSucceeds(getDoc(doc(viewerDb(), 'overrides', uid())));
+    test('a leftover STAFF-PIN session cannot read (the PIN\'s server release)', async () => {
+        // It read the whole collection until the release; it is now a stranger here, by its claim and
+        // by its uid alike.
+        await assertFails(getDocs(collection(viewerDb(), 'overrides')));
+        await assertFails(getDoc(doc(viewerDb(), 'overrides', uid())));
     });
 
     test('an ADMIN can read', async () => {
@@ -784,8 +790,8 @@ describe('huddles', () => {
     test('a NAMED member can read', async () => {
         await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'huddles')));
     });
-    test('the CALENDAR VIEWER can read', async () => {
-        await assertSucceeds(getDocs(collection(viewerDb(), 'huddles')));
+    test('a leftover STAFF-PIN session cannot read', async () => {
+        await assertFails(getDocs(collection(viewerDb(), 'huddles')));
     });
     test('an ADMIN can read', async () => {
         await assertSucceeds(getDocs(collection(adminDb(), 'huddles')));
@@ -1554,7 +1560,7 @@ describe('clientErrors', () => {
 
     // DELETE had no test at all. The admin alone may remove an entry: a reporter who could delete
     // theirs, or a manager, could empty the log the admin learns of a fault from.
-    test('only the admin may delete an error report — not its reporter, a manager or the staff PIN', async () => {
+    test('only the admin may delete an error report — not its reporter, a manager or a leftover PIN session', async () => {
         const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
         for (const db of [memberDb(), managerDb('Q. Example'), viewerDb(), staffDb()]) {
             await assertFails(deleteDoc(doc(db, 'clientErrors', ref.id)));
@@ -1564,18 +1570,18 @@ describe('clientErrors', () => {
 
     // THE REAL WRITER (test audit, 7 Nov 2026). Every case above writes VALID_ERROR. This is the
     // production `logClientError`, at the caps error-reporter.js slices to (message 300, stack 800,
-    // user agent 150), under BOTH identities that report: a member, and the staff PIN, for which the
-    // Calendar and Trains start the reporter too. A refusal here is one the reporter would swallow,
+    // user agent 150), for a member — and REFUSED for a leftover staff-PIN session, which reported
+    // too until the PIN's server release. A refusal for a member is one the reporter would swallow,
     // leaving the Error Log empty exactly when something is wrong.
-    test('the real error writer is accepted at the reporter\'s caps, for a member and for the PIN', async () => {
-        for (const [db, memberName] of [[memberDb(), 'S. Boyle'], [viewerDb(), 'unknown']]) {
+    test('the real error writer is accepted at the reporter\'s caps for a member, and refused for a leftover PIN session', async () => {
+        for (const [db, memberName, accepted] of [[memberDb(), 'S. Boyle', true], [viewerDb(), 'unknown', false]]) {
             /** @type {Promise<unknown>[]} */ const writes = [];
             realAnalyticsClient(db, { addDoc: recording(addDoc, writes) }).logClientError({
                 memberName, page: 'index.html', message: 'm'.repeat(300), stack: 's'.repeat(800),
                 appVersion: APP_VERSION, userAgent: 'u'.repeat(150),
             });
             assert.equal(writes.length, 1, 'the writer wrote');
-            await assertSucceeds(writes[0]);
+            await (accepted ? assertSucceeds : assertFails)(writes[0]);
         }
     });
 
@@ -1665,7 +1671,7 @@ describe('alUploads (the annual leave uploader\'s log)', () => {
         const others = [
             ['a manager', managerDb('E. Sample'), 'E. Sample'],
             ['a member', namedDb('F. Example'), 'F. Example'],
-            ['the PIN viewer', viewerDb(), ADMIN],
+            ['a leftover PIN session', viewerDb(), ADMIN],
             ['a session with no claim', staffDb(), ADMIN],
             ['an anonymous session', anonymousSessionDb(), ADMIN],
             ['no session', anonDb(), ADMIN],
@@ -1837,8 +1843,8 @@ describe('circulars', () => {
     test('a NAMED member can read', async () => {
         await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'circulars')));
     });
-    test('the CALENDAR VIEWER can read', async () => {
-        await assertSucceeds(getDocs(collection(viewerDb(), 'circulars')));
+    test('a leftover STAFF-PIN session cannot read', async () => {
+        await assertFails(getDocs(collection(viewerDb(), 'circulars')));
     });
     test('an ADMIN can read', async () => {
         await assertSucceeds(getDocs(collection(adminDb(), 'circulars')));
@@ -2092,8 +2098,8 @@ describe('newsletters', () => {
     test('a NAMED member can read', async () => {
         await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'newsletters')));
     });
-    test('the CALENDAR VIEWER can read', async () => {
-        await assertSucceeds(getDocs(collection(viewerDb(), 'newsletters')));
+    test('a leftover STAFF-PIN session cannot read', async () => {
+        await assertFails(getDocs(collection(viewerDb(), 'newsletters')));
     });
     test('an ADMIN can read', async () => {
         await assertSucceeds(getDocs(collection(adminDb(), 'newsletters')));
@@ -2576,7 +2582,7 @@ describe('pushSubscriptions — a sign-in from before the member\'s last reset s
         await resetAt('null');
         const adminOnly = testEnv.authenticatedContext('uid_admin_only', { admin: true, auth_time: 1, iat: 1 }).firestore();
         await assertSucceeds(setDoc(doc(adminOnly, 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'uid_admin_only' }));
-        // …and the staff-PIN viewer is still refused by its own clause, reset or none.
+        // …and a leftover staff-PIN session is refused, reset or none: it is not a known identity.
         await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()), VALID_SUB()));
     });
     test('the delete is unchanged: a sign-in from before the reset may still remove its own record', async () => {
@@ -2692,10 +2698,8 @@ describe('analytics', () => {
 
     test('an id retired from the allowlist mid-month does not stop the month\'s other counters', async () => {
         await seedWithRetiredId();
-        for (const db of [memberDb(), viewerDb()]) {
-            await assertSucceeds(setDoc(doc(db, 'analytics', pvId()),
-                { month: monthAt(), counts: { calendar: increment(1) } }, { merge: true }));
-        }
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { calendar: increment(1) } }, { merge: true }));
         // …and the real writer, which is what every page calls.
         /** @type {Promise<unknown>[]} */ const writes = [];
         const client = realAnalyticsClient(memberDb(), { setDoc: recording(setDoc, writes) });
@@ -2716,7 +2720,7 @@ describe('analytics', () => {
     });
 
     // A MONTH NOBODY IS IN (whole-app fix, 10 Nov 2026). The id was pinned to a YYYY-MM SHAPE and
-    // not to the present, so any member or PIN session could create a document for any of 120,000
+    // not to the present, so any member could create a document for any of 120,000
     // months in each family — documents no client can delete. One month either side stays open: the
     // client names the month by its own clock, which runs ahead of UTC in London summer time.
     test('a counter for this month or one either side is accepted', async () => {
@@ -2728,7 +2732,7 @@ describe('analytics', () => {
         }
     });
 
-    test('a counter for any other month is REFUSED — to a member, the PIN viewer and the admin alike', async () => {
+    test('a counter for any other month is REFUSED — to a member, a leftover PIN session and the admin alike', async () => {
         const far = [monthAt(-2), monthAt(2), monthAt(-120), '2001-01', '9999-12'];
         for (const db of [memberDb(), viewerDb(), adminDb()]) {
             for (const month of far) {
@@ -2997,16 +3001,18 @@ describe('analytics', () => {
     // v25.00: a rolling count MOVES to the latest active day (usage-stats.rollingMove) — +1 on today
     // and -1 on the day it left, in ONE merged write. The rules never enforced increment-only, so
     // this needs no rules change; what it must not do is trip the anti-wipe guard (it removes no
-    // key), and it has to work for the PIN viewer too, because the station PC records usage.
-    test('real MOVED-count write (+1 today, -1 on the old day) is allowed for a member and the PIN viewer', async () => {
+    // key). It worked for the staff-PIN viewer too until the PIN's server release; a leftover PIN
+    // session is now refused it, as every write.
+    test('real MOVED-count write (+1 today, -1 on the old day) is allowed for a member, and refused for a leftover PIN session', async () => {
         await testEnv.withSecurityRulesDisabled(async ctx => {
             await setDoc(doc(ctx.firestore(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-20': 2 } });
             await setDoc(doc(ctx.firestore(), 'analytics', 'origins'), { daily: { '2026-06-20|web': 2, '2026-06-20|web|pwa': 1 } });
         });
-        for (const db of [memberDb(), viewerDb()]) {
-            await assertSucceeds(setDoc(doc(db, 'analytics', 'activeAccounts'),
+        for (const [db, accepted] of [[memberDb(), true], [viewerDb(), false]]) {
+            const verdict = accepted ? assertSucceeds : assertFails;
+            await verdict(setDoc(doc(db, 'analytics', 'activeAccounts'),
                 { daily: { '2026-06-25': increment(1), '2026-06-20': increment(-1) } }, { merge: true }));
-            await assertSucceeds(setDoc(doc(db, 'analytics', 'origins'),
+            await verdict(setDoc(doc(db, 'analytics', 'origins'),
                 { daily: { '2026-06-25|web': increment(1), '2026-06-20|web': increment(-1),
                            '2026-06-25|web|pwa': increment(1), '2026-06-20|web|pwa': increment(-1) } }, { merge: true }));
         }
@@ -3014,17 +3020,23 @@ describe('analytics', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Calendar viewer — privilege isolation (v20.12)
+// A leftover staff-PIN session — it grants NOTHING (v20.12; the PIN's server release, Nov 2026)
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// A new authenticated identity widens every `request.auth != null` in the rules file at once, so
-// this block walks the whole surface rather than only the collection the feature is about. The
-// question at each one is the same: does the viewer get something that was meant for members?
-//
-// The viewer is a CAPABILITY — one claim, no `name` — and everything below is an assertion about
-// what a capability is not. If any of these ever flips to `assertSucceeds`, a shared code known to
-// the whole station has become a member credential.
-describe('calendar viewer — read-only, and only the Calendar', () => {
+// From v20.12 the viewer was a CAPABILITY — one claim, no `name` — that could read the Calendar and
+// the three documents and add to the Error Log and the usage counters. The PIN was retired on 23 Nov
+// 2026 and its server release took every one of those grants away; a device can still hold such a
+// session until the owner deletes the `calendar-viewer` account. So this block walks the WHOLE
+// surface, reads and writes alike, and the question at each is now: does a leftover PIN session get
+// anything at all? If any of these ever flips to `assertSucceeds`, a retired shared code is a
+// credential again.
+describe('a leftover staff-PIN session — refused everywhere', () => {
+
+    test('it CANNOT read the Calendar or the three documents', async () => {
+        for (const col of ['overrides', 'huddles', 'circulars', 'newsletters']) {
+            await assertFails(getDocs(collection(viewerDb(), col)));
+        }
+    });
 
     test('it CANNOT create an override', async () => {
         await assertFails(setDoc(doc(viewerDb(), 'overrides', uid()), VALID_OVERRIDE()));
@@ -3088,26 +3100,25 @@ describe('calendar viewer — read-only, and only the Calendar', () => {
         await assertFails(getDocs(collection(viewerDb(), 'resetRequests')));
     });
 
-    test('it CANNOT read the error log, only add to it', async () => {
-        // Deliberate asymmetry: an office PC that hits a bug should still be able to report it, and
-        // the log is admin-read. So write succeeds and read fails, and both halves are the design.
-        await assertSucceeds(setDoc(doc(viewerDb(), 'clientErrors', uid()), VALID_ERROR()));
+    test('it CANNOT read the error log, or add to it any more', async () => {
+        // Until the PIN's server release an office PC that hit a bug could still report it. A
+        // leftover session is not a known identity now, so both halves are refused.
+        await assertFails(setDoc(doc(viewerDb(), 'clientErrors', uid()), VALID_ERROR()));
         await assertFails(getDocs(collection(viewerDb(), 'clientErrors')));
     });
 
-    test('it CANNOT read usage analytics, only increment them', async () => {
-        // Same asymmetry, same reason: usage from a shared PC is real usage, the counters carry no
-        // identity, and reading them is an admin surface. This month by UTC: the only months open.
+    test('it CANNOT read usage analytics, or increment them any more', async () => {
+        // This month by UTC: the only months open, so a refusal here is the identity's, not the month's.
         const month = new Date().toISOString().slice(0, 7);
-        await assertSucceeds(setDoc(doc(viewerDb(), 'analytics', `pv_${month}`),
+        await assertFails(setDoc(doc(viewerDb(), 'analytics', `pv_${month}`),
             { month, counts: { calendar: increment(1) } }, { merge: true }));
         await assertFails(getDoc(doc(viewerDb(), 'analytics', `pv_${month}`)));
     });
 
-    test('it CANNOT write a push subscription — every office PC shares this uid', async () => {
-        // The one rule TIGHTENED for this feature rather than merely audited. A subscription written
-        // here would be `owner`ed by an identity fifty people share: any of them could delete any
-        // other's, and it would sit on a shared machine pushing one person's Huddle for ever.
+    test('it CANNOT write a push subscription — every office PC shared this uid', async () => {
+        // The one rule TIGHTENED for the PIN rather than merely audited (v20.12). A subscription
+        // written here would be `owner`ed by an identity fifty people shared: any of them could delete
+        // any other's, and it would sit on a shared machine pushing one person's Huddle for ever.
         await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()), VALID_SUB()));
         await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()),
             { ...VALID_SUB(), owner: 'calendar-viewer' }));
@@ -3133,10 +3144,9 @@ describe('calendar viewer — read-only, and only the Calendar', () => {
         await assertFails(setDoc(doc(viewerDb(), 'newsletters', '2026-08-12'), VALID_CIRCULAR('2026-08-12')));
     });
 
-    test('it CANNOT read or write the PIN throttle store', async () => {
-        // A client that can READ this learns how close a source is to being blocked, which is how an
-        // automated traversal paces itself under the limit; one that can WRITE it clears its own
-        // failure count between guesses, which removes the limit altogether.
+    test('no client reads or writes the retired PIN throttle store — no rule matches it', async () => {
+        // Its block went with its writer in the PIN's server release; an unmatched path is refused to
+        // every client, the admin included, until the owner purges it.
         await assertFails(getDoc(doc(viewerDb(), 'viewerAttempts', 'abc')));
         await assertFails(setDoc(doc(viewerDb(), 'viewerAttempts', 'abc'), { failures: 0 }));
         await assertFails(getDoc(doc(adminDb(), 'viewerAttempts', 'abc')));
@@ -3149,6 +3159,8 @@ describe('calendar viewer — read-only, and only the Calendar', () => {
         await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), VALID_OVERRIDE()));
         await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'overrides')));
         await assertSucceeds(setDoc(doc(managerDb('S. Silva'), 'overrides', uid()), VALID_OVERRIDE()));
+        await assertSucceeds(getDocs(collection(adminDb(), 'huddles')));
+        await assertSucceeds(setDoc(doc(memberDb(), 'clientErrors', uid()), VALID_ERROR()));
     });
 });
 
@@ -3217,7 +3229,7 @@ describe('overtimeWindows', () => {
         await assertFails(getDoc(doc(namedDb('S. Silva', 'uid_silva'), 'overtimeWindows', WEEK, 'submissions', 'G. Miller')));
     });
 
-    test('the Calendar viewer and an anonymous session read nothing', async () => {
+    test('a leftover staff-PIN session and an anonymous session read nothing', async () => {
         // The viewer holds `calendarViewer` and no name/admin/manager, so it fails the same way an
         // anonymous session does — but assert it by name, because "it obviously has no access" is
         // what the v20.12 audit found to be wrong about several collections.
@@ -3353,19 +3365,21 @@ describe('a name claim is believed only from the member\'s own account (v24.23)'
     });
 });
 
-// ── THE VIEWER CLAIM IS BELIEVED ONLY ON A PIN SESSION (Sep 2026 review) ─────────────────────────
+// ── THE VIEWER CLAIM IS BELIEVED ON NO SESSION AT ALL (the staff PIN's server release, Nov 2026) ───
 //
-// `calendarViewer` is a custom claim on the SHARED `calendar-viewer` account, and a PIN session holds
-// a custom-token sign-in on it. Any PIN holder could link an email/password to that account; every
-// later PASSWORD sign-in on it would then carry `calendarViewer: true` for good — surviving a PIN
-// rotation, which is the one lever the admin has. So the claim counts only when the session is the
-// custom-token one the unlock function mints.
-describe('the calendarViewer claim is believed only on a custom-token session', () => {
+// `calendarViewer` is a custom claim on the SHARED `calendar-viewer` account. From the Sep 2026 review
+// until the PIN's server release it counted only on the custom-token session the unlock minted,
+// because any PIN holder could link an email/password to that account and a later PASSWORD sign-in
+// would have carried the claim for good. Now it counts on none: whichever way a session on that
+// account signed in — the PIN's own custom token, a linked password, or anonymously — and until the
+// owner deletes the account, it reads nothing.
+describe('the calendarViewer claim is believed on no session at all', () => {
     const as = (/** @type {Record<string, any>} */ claims) =>
         testEnv.authenticatedContext('calendar-viewer', claims).firestore();
     const LINKED = {
         'a password sign-in on the viewer account': { calendarViewer: true, email: 'x@example.com', firebase: { sign_in_provider: 'password' } },
         'an anonymous session carrying the claim': { calendarViewer: true, firebase: { sign_in_provider: 'anonymous' } },
+        'the PIN\'s own custom-token session': { calendarViewer: true, firebase: { sign_in_provider: 'custom' } },
     };
     for (const [label, claims] of Object.entries(LINKED)) {
         for (const coll of ['overrides', 'huddles', 'circulars', 'newsletters']) {
@@ -3374,9 +3388,10 @@ describe('the calendarViewer claim is believed only on a custom-token session', 
             });
         }
     }
-    test('the real PIN session still reads all four', async () => {
+    test('guard the guard: a member and the admin still read all four', async () => {
         for (const coll of ['overrides', 'huddles', 'circulars', 'newsletters']) {
-            await assertSucceeds(getDocs(collection(viewerDb(), coll)));
+            await assertSucceeds(getDocs(collection(namedDb('G. Miller'), coll)));
+            await assertSucceeds(getDocs(collection(adminDb(), coll)));
         }
     });
 });
