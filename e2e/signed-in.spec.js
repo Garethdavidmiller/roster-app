@@ -18,9 +18,12 @@
  *                         on their own phone, sees it.
  *   5. no signal        — a change saved offline says it is waiting, then reaches the database when
  *                         the signal returns: the real SDK's queue, which a stub cannot have.
- *   6. the staff PIN    — the real `unlockCalendarViewer` exchange opens the Calendar, the viewer reads
- *                         a member's record through the rules, and opening Admin ends the PIN and
- *                         says so.
+ *   6. a leftover PIN   — a browser still holding a staff-PIN session (made through the real
+ *                         `unlockCalendarViewer` exchange, which the server keeps until its own
+ *                         release) opens the Calendar again: the real teardown signs it out of the
+ *                         SDK, the card says the PIN has been retired, and the member signs in as
+ *                         themselves and reads their own record. The PIN was retired on 23 Nov 2026;
+ *                         until then this journey unlocked the Calendar with it.
  *   7. signing out      — Back loads the page again with nobody signed in: not in the app, and not
  *                         in the SDK's own stored sign-in, which a stub does not have.
  *   8. back online      — a delete made while a save from before the signal returned is still in
@@ -59,8 +62,8 @@
  *  16. two tabs          — a sign-out in one tab sends the other to its sign-in, with nobody's week
  *                         behind it, and neither tab writes as nobody (9, 21).
  *  17. a browser restart — a new browser from the old one's disk (local storage and IndexedDB, not
- *                         session storage): the staff PIN is gone even after a reload inside the
- *                         session, and a member's sign-in survives (8; CALENDAR_DATA.md 12).
+ *                         session storage): a member's sign-in survives it (CALENDAR_DATA.md 12). Its
+ *                         other half, the staff PIN dying with the browser, went with the PIN.
  *  18. the leave sheet's Save — the admin checks a leave file on Operations, answers a rest day,
  *                         confirms a person and saves: each day lands at its fixed id as Admin writes
  *                         it, the upload log passes the `alUploads` rules (written last, in a
@@ -82,7 +85,7 @@ import { readFileSync } from 'node:fs';
 import { test, expect, expectNothingLeftForGoogle, wireToEmulators } from './signed-in-fixtures.js';
 import { resetDatabase, readCollection, seedDocument, EMULATOR } from './signed-in-env.mjs';
 import { resetPasswords, disableAccount } from './signed-in-setup.mjs';
-import { signInThroughOverlay, enterPin, sheetAction, clickDialogConfirm, activeDesignName, pastDoubleTap } from './helpers.js';
+import { signInThroughOverlay, sheetAction, clickDialogConfirm, activeDesignName, pastDoubleTap } from './helpers.js';
 import { teamMembers, getBaseShift, isBankHoliday, CONFIG } from '../roster-data.js';
 import { manualOverrideId } from '../override-id.js';
 import { nameToEmail } from '../auth-identity.js';
@@ -113,8 +116,8 @@ const AUTH_KEY = readFileSync(new URL('../session.js', import.meta.url), 'utf8')
 const NOTICE_KEYS = [...readFileSync(new URL('../calendar-notices.js', import.meta.url), 'utf8')
     .matchAll(/\bDONE_KEY\s*=\s*'([^']+)'/g)].map((m) => m[1]);
 /**
- * What the sign-in card says when opening a page ended the staff PIN, read from staff-pin-ended.js where
- * it is declared (it moved there from login-overlay.js when paused Overtime began saying it too). The wording itself is pinned by e2e/calendar-pin.spec.js; here it is only the sign
+ * What the sign-in card says when arriving signed out a leftover staff-PIN session, read from staff-pin-ended.js
+ * where it is declared (it moved there from login-overlay.js when paused Overtime began saying it too). The wording itself is pinned by e2e/calendar-access.spec.js; here it is only the sign
  * that the real exchange reached the same end.
  */
 const PIN_ENDED_NOTICE = (readFileSync(new URL('../staff-pin-ended.js', import.meta.url), 'utf8')
@@ -579,7 +582,7 @@ test('Links, back online: a rename waits for the save this device has not sent y
     expectNothingLeftForGoogle(page);
 });
 
-test('the staff PIN: the real exchange opens the Calendar, the viewer reads a record through the rules, and Admin ends it with the notice', async ({ page }) => {
+test('a leftover staff-PIN session: the real teardown signs it out of the SDK, the card says the PIN has been retired, and the member signs in as themselves', async ({ page }) => {
     const pin = process.env.E2E_VIEWER_PIN;
     expect(pin, 'run this lane with `npm run test:signed-in`, which gives the emulator a PIN for the run').toMatch(/^\d{4}$/);
     const day = workingDay(MEMBER);
@@ -587,22 +590,42 @@ test('the staff PIN: the real exchange opens the Calendar, the viewer reads a re
         memberName: MEMBER, date: day, type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: MEMBER,
     });
 
+    // A browser that used the PIN before it was retired: the shared viewer, signed in through the real
+    // exchange (the server keeps it until its own release) the way the old card did — session-only
+    // persistence, then the custom token. The client no longer has a way to do this, so the test does.
     await page.goto(`/?date=${day}`);
-    await enterPin(page, /** @type {string} */ (pin));
-    await expect(page.locator('#calLockPin'), 'the PIN card closes once the exchange is accepted').toBeHidden();
-    // A viewer has no name of their own: the grid appears once somebody's roster is chosen.
-    await page.locator('#teamMemberSelect').selectOption(MEMBER);
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    await expect(page.locator(`.calendar-day[data-detail-day="${dayLabel(day)}"]`), 'the viewer reads the record through the rules').toHaveAttribute('data-detail-shift-value', 'AL');
+    await expect(page.locator('#calendarLock #loginCard'), 'the front door, before any PIN session').toBeVisible();
+    const claims = await page.evaluate(async (code) => {
+        const res = await fetch('https://europe-west2-myb-roster.cloudfunctions.net/unlockCalendarViewer', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: code }), cache: 'no-store' });
+        const { token } = await res.json();
+        const { auth } = await import('/firebase-client.js');
+        const sdk = await import('https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js');
+        await sdk.setPersistence(auth, sdk.browserSessionPersistence);
+        const cred = await sdk.signInWithCustomToken(auth, token);
+        return (await cred.user.getIdTokenResult()).claims;
+    }, pin);
+    expect(claims.calendarViewer, 'premise: the browser holds a real staff-PIN session').toBe(true);
+    expect(await sdkHolds(page), 'premise: the SDK holds it').toBe('(no email)');
 
-    await page.goto('/admin.html');
+    // Opened again: the teardown signs it out, and the card says why. Nothing is granted on the way.
+    await page.reload();
     expect(PIN_ENDED_NOTICE, 'staff-pin-ended.js no longer declares STAFF_PIN_ENDED_NOTICE as one quoted string — update PIN_ENDED_NOTICE').not.toBe('');
-    await expect(page.locator('#loginNotice'), 'the sign-in card says opening Admin ended the PIN').toHaveText(PIN_ENDED_NOTICE);
+    await expect(page.locator('#loginNotice'), 'the sign-in card says the PIN has been retired').toHaveText(PIN_ENDED_NOTICE);
+    await expect.poll(() => sdkHolds(page), { message: 'the staff-PIN session survived the Calendar' }).toBeNull();
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+
+    // The way in is the member's own: their record, read through the rules under their own name.
     await signInFirstTime(page, MEMBER);
-    await expect(page.locator('.day-row').first()).toBeVisible();
+    await expect(liveGrid(page)).toBeVisible();
+    // The day's month: the address's `?date=` was spent on the first load, and the day may be next month's.
+    await page.goto(`/?date=${day}`);
+    await expect(liveGrid(page)).toBeVisible();
+    await expect(page.locator(`.calendar-day[data-detail-day="${dayLabel(day)}"]`), 'the member reads their own record').toHaveAttribute('data-detail-shift-value', 'AL');
+    expect(await sdkHolds(page)).toBe(nameToEmail(MEMBER));
     expectNothingLeftForGoogle(page);
 });
-
 test('signing out: Back loads the page again with nobody signed in, in the app or in the SDK', async ({ page }) => {
     // The shared device: signed in on Admin, on to the Calendar, signed out THERE — then Back. Here
     // Back loads Admin again (the header says why it is never the back/forward cache in this lane).
@@ -922,33 +945,12 @@ test('two tabs: signing out in one sends the other to its sign-in, and nothing i
     expect(asNobody, 'a write went out with nobody signed in').toEqual({ here: [], other: [] });
 });
 
-test('a browser restart: the staff PIN dies with the browser, and a member\'s sign-in survives the same restart', async ({ page, context, browser }, testInfo) => {
-    const pin = process.env.E2E_VIEWER_PIN;
-    expect(pin, 'run this lane with `npm run test:signed-in`, which gives the emulator a PIN for the run').toMatch(/^\d{4}$/);
-
-    // The station PC, unlocked with the PIN and reloaded once. A reload is what once MOVED the viewer
-    // into the store that outlives the browser (CALENDAR_DATA.md 12, AUTH_AND_SESSIONS.md 8).
-    await page.goto('/');
-    await enterPin(page, /** @type {string} */ (pin));
-    await expect(page.locator('#calLockPin')).toBeHidden();
-    await page.locator('#teamMemberSelect').selectOption(MEMBER);
-    await expect(liveGrid(page)).toBeVisible();
-    await page.reload();
-    await expect(liveGrid(page), 'a reload inside the browser session stays unlocked').toBeVisible();
-    await expect(page.locator('#calendarLock')).toHaveCount(0);
-
-    // The browser closes and opens again: what it keeps on disk (local storage and IndexedDB, where a
-    // long-lived sign-in lives) comes back, and what it keeps for the session does not.
-    const station = await anotherPhone(browser, testInfo, await context.storageState({ indexedDB: true }));
-    await station.page.goto('/');
-    await expect(station.page.locator('#calendarLock'), 'the Calendar is locked again').toBeVisible();
-    await expect(station.page.locator('#calendarDisplay')).toBeHidden();
-    expect(await sdkHolds(station.page), 'the PIN\'s sign-in did not survive the restart').toBeNull();
-    expectNothingLeftForGoogle(station.page);
-    expectNothingLeftForGoogle(page);
-    await station.context.close();
-
-    // A member's phone, through the same restart: their own sign-in is meant to last (60 days).
+test('a browser restart: a member\'s sign-in survives it', async ({ browser }, testInfo) => {
+    // (Until the staff PIN was retired, 23 Nov 2026, this first proved the PIN died with the browser
+    // on a station PC unlocked and reloaded once — the half CALENDAR_DATA.md 12 was about. A leftover
+    // PIN session is now signed out on arrival whatever survives: journey 6.)
+    // A member's phone through a restart: their own sign-in is meant to last (60 days). What the
+    // browser keeps on disk (local storage and IndexedDB, where a long-lived sign-in lives) comes back.
     const phone = await anotherPhone(browser, testInfo);
     await phone.page.goto('/');
     await signInFirstTime(phone.page, MEMBER);
@@ -964,7 +966,6 @@ test('a browser restart: the staff PIN dies with the browser, and a member\'s si
     expectNothingLeftForGoogle(restarted.page);
     await restarted.context.close();
 });
-
 test('the leave sheet: a Save adds a confirmed person\'s missing leave through the real rules, records itself, and its Undo takes it back', async ({ page }) => {
     // The leave file names two members taken from the roster by rule (al-sheet-fixture.js); the app
     // already holds three of its days, seeded past the rules as a manager made them earlier.

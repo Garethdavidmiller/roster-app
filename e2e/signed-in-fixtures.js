@@ -10,7 +10,7 @@
  * is well tested; nothing ran the two TOGETHER except production. That is the "rule tested, the
  * wiring not" risk CLAUDE.md names: a save can satisfy the stub and still be refused by the rules,
  * or satisfy the rules in a unit test and never be sent that way by the page. This lane is the one
- * place a signed-in member, a manager and the staff PIN go through the app, the SDK, the rules and
+ * place a signed-in member, a manager and a leftover staff-PIN session go through the app, the SDK, the rules and
  * the server together.
  *
  * ── THE SEAM ───────────────────────────────────────────────────────────────────────────────────────
