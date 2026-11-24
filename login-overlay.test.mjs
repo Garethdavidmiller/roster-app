@@ -63,6 +63,10 @@ let signOutCode = 'ok';
 let signInGate = null;
 /** The server's record of the sign-in the fake hands back (`metadata.lastSignInTime`), or none. @type {string|undefined} */
 let serverSignInTime;
+/** Runs the instant the fake signs somebody in — where the real SDK tells every `onAuthStateChanged`
+ *  listener, BEFORE the sign-in call returns to its caller. The Calendar's late-identity watcher and
+ *  page-session's late-identity hold act right there. @type {(() => void)|null} */
+let onAnnounce = null;
 mock.module('./firebase-client.js', { namedExports: {
     auth:                       fakeAuth,
     authReady:                  Promise.resolve('indexeddb'),
@@ -74,6 +78,7 @@ mock.module('./firebase-client.js', { namedExports: {
         if (signInCode !== 'ok') throw Object.assign(new Error(signInCode), { code: signInCode });
         fakeAuth.currentUser = { uid: 'u-member', isAnonymous: false, email, getIdToken: async () => 't',
             ...(serverSignInTime ? { metadata: { lastSignInTime: serverSignInTime } } : {}) };
+        onAnnounce?.();
     },
     signOut: async () => {
         if (signOutCode !== 'ok') throw Object.assign(new Error(signOutCode), { code: signOutCode });
@@ -115,6 +120,7 @@ mock.module('./select-sheet.js', { namedExports: { enhanceSelect: (/** @type {an
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
 const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay, resetRequestFailureLine, initLoginOverlay } = await import('./login-overlay.js');
+const { PW_FORCE_PENDING_PREFIX } = await import('./storage-keys.js');
 const { getMembersForGrade, CONFIG, teamMembers } = await import('./roster-data.js');
 
 // The card's DOM-free rules live in login-core.js (Nov 2026) and are re-exported here: the SAME
@@ -549,7 +555,7 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         /** @type {any} */ (globalThis).Option = savedOption;
     });
     beforeEach(() => {
-        signInCode = 'auth/invalid-credential'; signOutCode = 'ok'; signInGate = null;
+        signInCode = 'auth/invalid-credential'; signOutCode = 'ok'; signInGate = null; onAnnounce = null;
         fakeAuth.currentUser = null; store.clear(); triggers.clear();
     });
 
@@ -722,6 +728,111 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         release();
         await turns(60);
         assert.deepEqual(opened, [], 'A’s late answer opened nothing on a card now showing B');
+    });
+
+    // ── THE SET-PASSWORD STEP'S MARKER IS THERE BEFORE FIREBASE ANNOUNCES THE USER (review, 24 Nov 2026) ──
+    // The forced set-password step runs only where its marker says a real sign-in just happened. It was
+    // written once the attempt had answered — and the page can open before that: the Calendar's late-identity
+    // watcher grants on Firebase's announcement once the app has ended the attempt, and page-session's hold
+    // reloads on it even mid-attempt. Either way a member who typed their surname default was never asked to
+    // choose their own password. `onAnnounce` stands where those listeners stand.
+    const MARKER = () => PW_FORCE_PENDING_PREFIX + A;
+
+    test('the marker is in place when Firebase announces the user, while the attempt is still in flight (page-session\'s reload)', async () => {
+        signInCode = 'ok';
+        holdSession(A);
+        /** @type {(string|null)[]} */ const seen = [];
+        onAnnounce = () => { seen.push(store.get(MARKER()) ?? null); };
+        const card = mount(A);
+        card.password.value = 'miller-surname-default';
+        card.send();
+        await settle(card);
+        assert.deepEqual(seen, ['1'], 'the page could open on the announcement with no set-password marker');
+    });
+
+    test('…and when the app had ended the attempt and the answer lands late (the Calendar\'s watcher)', async () => {
+        signInCode = 'ok';
+        holdSession(A);
+        /** @type {(string|null)[]} */ const seen = [];
+        onAnnounce = () => { seen.push(store.get(MARKER()) ?? null); };
+        /** @type {string[]} */ const opened = [];
+        const card = mount(A, (n) => { opened.push(n); });
+        const release = hold();
+        card.password.value = 'miller-surname-default';
+        card.send();
+        await turns();
+        mock.timers.tick(30_000);
+        await settle(card);
+        assert.equal(card.error.classList.contains('visible'), true, 'premise: the app ended the attempt');
+        release();
+        await turns(60);
+        assert.deepEqual(seen, ['1'], 'a grant on the late announcement found no set-password marker');
+        assert.deepEqual(opened, [A], 'premise: the late answer opened the page');
+        assert.equal(store.get(MARKER()), '1', 'the marker stays for the page that opened to consume');
+    });
+
+    test('a sign-in that fails takes the marker away again — nothing is left to ambush a later ordinary load', async () => {
+        const card = mount(A);
+        card.password.value = 'not-their-password';
+        card.send();
+        await settle(card);
+        assert.equal(store.get(MARKER()), undefined, 'a failed sign-in left the set-password marker behind');
+    });
+
+    test('…and so does an ended attempt whose late answer is a NO', async () => {
+        signInCode = 'ok';
+        holdSession(A);
+        const card = mount(A);
+        const release = hold();
+        card.password.value = 'miller-surname-default';
+        card.send();
+        await turns();
+        mock.timers.tick(30_000);
+        await settle(card);
+        assert.equal(store.get(MARKER()), '1', 'held while the ended attempt could still answer');
+        signInCode = 'auth/invalid-credential';
+        release();
+        await turns(60);
+        assert.equal(store.get(MARKER()), undefined, 'the late NO left the marker behind');
+    });
+
+    test('a marker that was there before the attempt is not the attempt\'s to take away', async () => {
+        store.set(MARKER(), '1');   // a sign-in another page has not consumed yet
+        const card = mount(A);
+        card.password.value = 'not-their-password';
+        card.send();
+        await settle(card);
+        assert.equal(store.get(MARKER()), '1');
+    });
+
+    // A LATE ANSWER AFTER A NEWER ATTEMPT THAT FAILED (review, 24 Nov 2026): the same colleague tries again
+    // once the app has ended the first attempt, mistypes, and the first then lands. It was their own correct
+    // password and Firebase holds the account whatever the card does, so it opens the page — and the second
+    // attempt's NO must not take the first one's marker with it.
+    test('an ended attempt that lands after a newer attempt FAILED still opens the page, with its marker', async () => {
+        signInCode = 'ok';
+        holdSession(A);
+        /** @type {string[]} */ const opened = [];
+        const card = mount(A, (n) => { opened.push(n); });
+        const release = hold();
+        card.password.value = 'miller-surname-default';
+        card.send();
+        await turns();
+        mock.timers.tick(30_000);
+        await settle(card);
+        // The second attempt, not held, and wrong.
+        signInGate = null;
+        signInCode = 'auth/invalid-credential';
+        card.password.value = 'a-mistype';
+        card.send();
+        await settle(card);
+        assert.match(card.error.textContent, /^Password not recognised/, 'premise: the newer attempt failed');
+        assert.equal(store.get(MARKER()), '1', 'the newer attempt\'s NO took the ended attempt\'s marker');
+        signInCode = 'ok';
+        release();
+        await turns(60);
+        assert.deepEqual(opened, [A], 'the first attempt\'s own correct password was thrown away');
+        assert.equal(store.get(MARKER()), '1');
     });
 
     test('premise: a grade with two members to switch between', () => {
