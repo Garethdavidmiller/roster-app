@@ -1727,6 +1727,23 @@ describe('the lookup and the cards as the words review read them (Nov 2026)', ()
         assert.doesNotMatch(look('SX', '16:37'), /No weekday train|is a new train/);
     });
 
+    // Review of v26.60: after the change, the 17:41 to Princes Risborough was described by its Tuesday-to-Thursday
+    // history alone, where the station cards list it as new on a Monday and Friday.
+    test('a December train that was today\'s on only some weekdays says it is new on the others', () => {
+        assert.match(look('SX', '17:41', true), /<strong>The 17:41 to Princes Risborough:<\/strong> Until 12 December it left at 17:37 on Tuesday to Thursday\.[^<]* On Mondays and Fridays it is a new train\.<\/p>/);
+        // Both versions became it: nothing is new on any weekday, and the sentence is not said.
+        assert.doesNotMatch(look('SX', '17:33', true), /is a new train/);
+        assert.match(look('SX', '17:33', true), /Until 12 December it left at 17:37 on Mondays and Fridays\./);
+        // Before the change, the same December train named by the time it will leave (hand-made: the books have an
+        // Aylesbury train at 17:41 today, so the real 17:41 is answered by that one).
+        const now = [row('17:37', 'PRR', '', 'MFX', 'HWY1807 PRR1818')], dec = [row('17:41', 'PRR', '', '', 'HWY1809 PRR1822')];
+        assert.match(look('SX', '17:41', false, now, dec),
+            /From 13 December the 17:37 to Princes Risborough \(Tue to Thu only\) leaves at 17:41 instead\. On Mondays and Fridays the 17:41 is a new train\.<\/p>/);
+        const both = [...now, row('17:39', 'PRR', '', 'MFO', 'HWY1809 PRR1820')];
+        assert.doesNotMatch(look('SX', '17:41', false, both, dec), /is a new train/);
+        assert.doesNotMatch(look('SX', '17:41', true, both, dec), /is a new train/);
+    });
+
     // The days a train runs, in the cards' words: the lookup typed its own, "Tuesdays to Thursdays".
     test('after the change, a train\'s days are named as the cards name them', () => {
         const html = look('SX', '17:33', true);

@@ -522,6 +522,19 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
     const exact = pairs.filter(({ t }) => started
         ? t.dec === at && (t.kind !== 'rerouted' || t.side === 'new')
         : t.now === at && (t.kind !== 'rerouted' || t.side === 'old'));
+    // A DECEMBER TRAIN IS NEW ON THE WEEKDAYS NOTHING BECAME IT (review of v26.60, Nov 2026). December's 17:41 to
+    // Princes Risborough runs every weekday and was the 17:37 only Tuesday to Thursday: "Until 12 December it left
+    // at 17:37 on Tuesday to Thursday" was all a Monday passenger read, where Princes Risborough's card lists it as
+    // new on a Monday. So where today's trains that became one December train leave weekdays out, those days are
+    // said. Two of today's trains become one December train only as a Monday-and-Friday version and its partner
+    // (`foldWeekdayVariants`), which between them leave no weekday out, so the sentence is never said twice of one
+    // train. A train new on every day already says so.
+    const newOn = (/** @type {import('./trains-change.js').PairedTrain} */ t, /** @type {string} */ subject) => {
+        // A December train new on every day is one pair with no days, which runs on all of them.
+        const its = pairs.filter(({ t: p }) => p.dec === t.dec && p.decTo === t.decTo);
+        const missing = WEEKDAYS.filter(w => !its.some(({ t: p }) => runsOn(p.days, w)));
+        return missing.length ? ` On ${weekdayWords(missing)} ${subject} a new train.` : '';
+    };
     const answer = exact.map(({ r, t }) => {
         const n = rowOf(nowRows, t.now, t.nowTo, t.days), d = rowOf(decRows, t.dec, t.decTo);
         const days = daysLabel(t.days);
@@ -555,7 +568,7 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
             : t.kind === 'new' ? `New from ${from}`
             : t.kind === 'terminus' ? `Until ${until}${on ? `,${on},` : ''} it ${t.shift ? `left at ${t.now} and ` : ''}${lineDepth(/** @type {string} */ (t.decTo)) > lineDepth(/** @type {string} */ (t.nowTo)) ? 'ended at' : 'went on to'} ${stations[/** @type {string} */ (t.nowTo)] ?? t.nowTo}`
             : o ? `Until ${until} this was the ${o.time} to ${routeName(stations, o.station, o.via)}` : `New from ${from}`;
-        return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(named(r, t.decTo))}:</strong> ${esc(was)}.${esc(stopsWords(n, d))}</p>`;
+        return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(named(r, t.decTo))}:</strong> ${esc(was)}.${esc(stopsWords(n, d))}${esc(newOn(t, 'it is'))}</p>`;
     }).join('');
     const adj = /** @type {Record<string, string>} */ ({ SX: 'weekday', SO: 'Saturday', SU: 'Sunday' })[day];
     // NO TRAIN AT THAT TIME IN THE RUNNING TIMETABLE — BUT ONE IN THE OTHER (words review, Nov 2026). Before
@@ -577,7 +590,8 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
             if (t.kind === 'new' || !t.now) return `From ${from} the ${at} is a new train to ${named(r, t.decTo)}.`;
             // A rerouted train's old self is on another route: named from it, not from this one.
             const was = t.kind === 'rerouted' && o ? `${o.time} to ${routeName(stations, o.station, o.via)}` : `${t.now} to ${named(r, t.nowTo)}`;
-            return `From ${from} the ${was}${days} leaves at ${at} instead${endMove(t, named(r, t.decTo))}.`;
+            // The same December train's other weekdays, as the answer above says them (`newOn`).
+            return `From ${from} the ${was}${days} leaves at ${at} instead${endMove(t, named(r, t.decTo))}.${newOn(t, `the ${at} is`)}`;
         }
         const was = `The ${at} to ${named(r, t.nowTo)}${days} ran until ${until}`;
         if (t.kind === 'gone' || !t.dec) return `${was}, and no longer runs.`;
