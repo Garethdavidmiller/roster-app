@@ -61,7 +61,7 @@ import { CONFIG } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
+import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
@@ -112,10 +112,17 @@ export function init() {
     // initialising here, and a role-gated page must not treat "pending" as "allowed".
     const access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'trains');
     if (access.decision === 'login') {
-        // No member: the sign-in. The teardown runs FIRST and is awaited, as before — it is what signs
-        // out a leftover session of the retired staff PIN (owner, 23 Nov 2026; until then this page asked
-        // `holdsStaffPin` instead and kept it), and the card says why when it does (staff-pin-ended.js).
-        reconcileExpiredIdentity().catch(() => {}).then(() => { document.body.classList.add('auth-ready'); initLoginOverlay({
+        // No member: the sign-in. The teardown runs FIRST — it is what signs out a leftover session of the
+        // retired staff PIN (owner, 23 Nov 2026) — but for no longer than the Calendar gives it
+        // (`ACCESS_DECISION_BUDGET_MS`, calendar-access.js). It begins by awaiting `authReady`, which never
+        // settles when the auth store is wedged (an iPhone's stuck IndexedDB), and an unbounded wait here
+        // left the placeholder up for good with no way to sign in (72-hour check, 24 Nov 2026). Past the
+        // budget the card goes up and the teardown runs on: the card hears the retired-PIN line whenever
+        // it lands (`onStaffPinEnded`, staff-pin-ended.js), as the Calendar's does.
+        Promise.race([
+            reconcileExpiredIdentity().catch(() => {}),
+            new Promise(resolve => setTimeout(resolve, ACCESS_DECISION_BUDGET_MS)),
+        ]).then(() => { document.body.classList.add('auth-ready'); initLoginOverlay({
             pageLabel: 'Trains', about: SIGN_IN_ABOUT,
             // No session here: reload into a fresh sign-in. Belt and braces — a session that failed to
             // save never reaches onSuccess (`runNamedSignIn` refuses with kind 'storage' first, and

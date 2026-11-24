@@ -1,5 +1,5 @@
 /**
- * welcome-email-parity.test.mjs — four copies of the welcome email, kept as ONE email.
+ * welcome-email-parity.test.mjs — the welcome email five times over, kept as ONE email.
  * Run: node scripts/run-tests.mjs welcome-email-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ function replaceOnce(html, re, by, what) {
 }
 
 /**
- * The general template with one grade's choices made, as the four copies make them: the opening
+ * The general template with one grade's choices made, as the four ready-made copies make them: the opening
  * for somebody already working at Marylebone, the grade, What it does, and the Pay Calculator section
  * the app says that grade gets — none at all for Other Staff, whose menu has no calculator.
  * @param {string} grade
@@ -162,7 +162,7 @@ describe('each ready-made copy is the general template with its choices made', (
             const want = visible(choose(grade));
             assert.ok(got === want,
                 `${file} is not ${GENERAL} with the ${grade} choices made. A change to the wording belongs ` +
-                `in all four files.${firstDifference(got, want)}`);
+                `in all five files.${firstDifference(got, want)}`);
         });
     }
 });

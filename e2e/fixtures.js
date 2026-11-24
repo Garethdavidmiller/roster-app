@@ -665,7 +665,13 @@ const _currentUser = () => {
     if (e2e.viewerUser || stored) return _viewerUser();
     return null;
 };
-export const getAuth = () => ({ get currentUser() { return _currentUser(); } });
+// WEDGED-START SEAM (v26.60): window.__E2E.authStartHangs makes authStateReady never answer, as it can on
+// an iPhone whose IndexedDB is stuck. With a long authRestoreDelayMs, the boot's own 8s wait gives up and
+// then waits on this, so authReady never settles: a page must still show the person a way in.
+export const getAuth = () => ({
+    get currentUser() { return _currentUser(); },
+    authStateReady: () => ((globalThis.__E2E || {}).authStartHangs ? new Promise(() => {}) : Promise.resolve()),
+});
 // firebase-client.js initialises Auth WITHOUT the popup/redirect resolver (Oct 2026); same instance shape.
 export const initializeAuth = getAuth;
 // Emits the CURRENT user, not a hardcoded null (v20.12). calendar-access.js resolves the first

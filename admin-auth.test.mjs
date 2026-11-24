@@ -313,7 +313,7 @@ describe('the gaps Set up accounts cannot mend say so, with their own remedy', (
         assert.match(gaps.textContent, /S\. Silva \(account claimed for another member\)/);
         assert.doesNotMatch(gaps.textContent, /wrong permissions/);
         assert.deepEqual(remedies(gaps), [
-            'B. Toth: the address is linked to the shared staff PIN account, which Set up accounts will not take over. The next staff PIN unlock clears it — then press Set up accounts.',
+            'B. Toth: the address is linked to the shared staff PIN account, which Set up accounts will not take over. With the staff PIN retired nothing in the app clears it: delete the staff PIN account in the Firebase console (the retirement’s last step), then press Set up accounts.',
             'S. Silva and A. Hared: the account at that address is claimed for another member, so Set up accounts will not adopt it. Check it in the Firebase console.',
         ]);
         assert.deepEqual(reported, [{ setUp: 3, leavers: 0, pinLockout: null }], 'still counted: each is a member who cannot sign in properly');

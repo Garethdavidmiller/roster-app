@@ -61,9 +61,9 @@ export function monthCells(year, month, weekStart = 1) {
  * THE MONTH IN FULL, FROM THE SHARED COMPOSER (owner, 22 Nov 2026: a date with its year is written in
  * full, everywhere). This built "Fri 17 Jul 2026" from its own copy of the tables, so an upload card
  * read "Tue 10 Nov 2026" in the field above a receipt reading "10 November 2026". `formatWeekdayDate`
- * with the year is the one spelling (date-format.js). The longest, "Wed 30 September 2026", is about
- * 200px at 14px: the Operations rows let the field take a line of its own where it does not fit beside
- * its button, rather than run under it (operations.css → `.huddle-row`).
+ * with the year is the one spelling (date-format.js). It is the default, though no page asks for it
+ * today: every date field this module draws shares its line with a button on Operations, and those take
+ * `shortLabel` below. A field given a line of its own should take this one.
  * @param {string} iso YYYY-MM-DD
  * @returns {string}
  */

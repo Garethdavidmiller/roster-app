@@ -1501,10 +1501,11 @@ test.describe('trains — the page turns as a whole, and a station computer is t
         expect(errors, errors.join('\n')).toEqual([]);
     });
 
-    test('a leftover PIN session that restores late is still signed out — the page waits for the teardown, then asks for a sign-in', async ({ page }) => {
+    test('a leftover PIN session that restores late is still signed out, and the card then says why', async ({ page }) => {
         // Until the PIN was retired, Trains honoured a PIN session that restored after its check (sign-in
-        // check, 11 Nov 2026). Now the same late restore must be TORN DOWN: 7.5s is past the Calendar's
-        // decision budget and inside the teardown's own 8s restore wait, which this page awaits.
+        // check, 11 Nov 2026). Now the same late restore must be TORN DOWN: 7.5s is past the decision
+        // budget, so the card is already up, and inside the teardown's own 8s restore wait, which runs on
+        // behind it; the card hears the retired-PIN line when the sign-out lands.
         test.setTimeout(60_000);
         await seedLegacyViewerSession(page);
         await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 7500 }); });
@@ -1514,6 +1515,17 @@ test.describe('trains — the page turns as a whole, and a station computer is t
         await expect.poll(() => holdsViewer(page)).toBeNull();
         await page.waitForTimeout(1000);   // a late grant would have taken the card down by now
         await expect(page.locator('#loginOverlay')).toBeVisible();
+    });
+
+    // THE TEARDOWN IS BOUNDED (72-hour check, 24 Nov 2026). While Trains asked `holdsStaffPin` it raced the
+    // check against the access budget; the PIN's removal awaited the teardown outright, and the teardown
+    // first awaits `authReady`, which never settles when the auth store is wedged. The card never came.
+    test('a signed-out visit still gets the sign-in card when the auth layer never finishes starting', async ({ page }) => {
+        test.setTimeout(60_000);
+        await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 120_000, authStartHangs: true }); });
+        await page.goto('/trains.html');
+        await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('#loginName')).toBeAttached();
     });
 
     test('a visitor who never held the PIN is told nothing about it', async ({ page }) => {
