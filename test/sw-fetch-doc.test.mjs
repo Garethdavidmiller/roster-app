@@ -451,7 +451,7 @@ describe('service worker — the pack under docs/ goes to the network, never to 
     });
 
     test('the viewer\'s own library is still the worker\'s — it is part of the app', () => {
-        assert.equal(answers({ ...MIRROR, path: '/roster-app/pdfjs/4.10.38/pdf.min.mjs', destination: 'script' }), true);
+        assert.equal(answers({ ...MIRROR, path: '/roster-app/pdfjs/5.7.284/pdf.min.mjs', destination: 'script' }), true);
         assert.equal(answers({ ...FIREBASE, path: '/pdf-viewer.js', destination: 'script' }), true);
     });
 
