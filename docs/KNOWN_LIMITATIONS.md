@@ -175,14 +175,14 @@ the override load are all bounded, and the service worker handles only GET reque
 the signal only when the browser reports being offline.
 
 **The cause found: another account's unsent write.** A checked save first waits up to
-`OWN_WRITES_WAIT_MS` for this device's earlier saves to reach the server, and is sent unchecked when
-they have not — or, if it removes something, refused as offline. That wait NEVER ends while **another
+`OWN_WRITES_WAIT_MS` for this device's earlier saves to reach the server. That wait NEVER ends while **another
 account's** unsent write is still in Firestore's on-device queue, because the SDK's IndexedDB queue
 looks up the highest unsent batch without bounding the search to the signed-in account (the SDK's
-getHighestUnacknowledgedBatchId, `@firebase/firestore` 4.19, still in 4.20 — reproduced on the
-emulators on both engines). Every checked save on that device then takes over eight seconds, and every
-checked removal is refused with a false "You appear to be offline", until that other account is next
-signed in online. The usual source was the **staff PIN** (retired 23 Nov 2026): its page views and
+getHighestUnacknowledgedBatchId, `@firebase/firestore` 4.19 and 4.19.1, still in 4.20 — an
+`IDBKeyRange` with an upper bound and no lower one; reproduced on the emulators on both engines, and
+held by signed-in journey 19). Until v26.63 every checked save on that device then took over eight
+seconds, and every checked removal was refused with a false "You appear to be offline". The first
+"ran out" reading of the diagnostic below (an installed iPhone, 23 Nov 2026) confirmed it. The usual source was the **staff PIN** (retired 23 Nov 2026): its page views and
 speed samples still queued when opening Admin ended it. Whether a member is affected depends on how their account id sorts
 against the viewer's, which is why it looks like a few people's phones and not everybody's.
 
@@ -193,23 +193,36 @@ against the viewer's, which is why it looks like a few people's phones and not e
   until the cleanup release): the sign-out a Calendar or Trains load gives a PIN session since the PIN
   was retired, and the clean-up of an identity that outlived its session. So a new leftover is not made
   while online. `clearSession()` does not wait.
+- **When the wait runs out, the save's own records are asked** (v26.63, owner's choice of fix,
+  24 Nov 2026 — `ownWritesSentFor`, claim-retry.js, through `whenOwnWritesSentFor`): each record the
+  save writes or deletes is read from the device's cache, and if none still has a write of THIS
+  account's on its way (`metadata.hasPendingWrites`), the transaction goes ahead and asks the server
+  as usual. Another account's leftover is not in this account's view, so it no longer holds a save
+  up. Anything else — a record still queued, or one the cache cannot answer — keeps the old answer:
+  held as a batch, or refused if it removes something. Admin's checked saves and deletes and the
+  weekly roster import use it. **The price:** a phone with full bars and no data now spends the wait
+  AND a transaction's own retries (about eight seconds more) before a save is held — about sixteen
+  seconds in all, accepted. **And it still waits:** an affected phone's checked save still spends its
+  eight seconds before the records are asked.
 - **The diagnostic line says how the wait went** (`trackOwnWritesWaits`, slow-save.js): "own-saves
-  wait 8.0s, ran out" means the eight seconds were spent there; "drained" with a small figure means
+  wait 8.0s, ran out, its records clear" means the eight seconds were spent there and the save then
+went on to the server ("a record still queued" or "records unreadable": it was held, or refused); "drained" with a small figure means
   the wait was not the cause; no field means the save did not wait. **When two saves overlap, the
   figure can be the OTHER save's wait**: the line reports the waits that ended while this save ran, so
   "(2 waits)" counts waits heard, not saves made.
 
 **What is still open:**
 
-- **A device that already holds another account's leftover is not rescued.** The grace does nothing
-  for it, or for a viewer ended offline; ending a leftover PIN session there can take the whole grace,
-  because the viewer's own wait meets the same SDK fault. Accepted. **To clear an affected device:**
-  this used to be "enter the staff PIN once with a signal"; with the PIN retired nobody can sign that
-  account in to send its queue, so clear the site's stored data in the browser (or remove and re-add
-  the installed app) and sign in again. Not yet tried on an affected phone.
-- **Not done (owner, 22 Nov 2026):** falling back to a per-record check when the wait runs out, which
-  would rescue affected devices at the cost of a sixteen-second wait on a save with no data
-  connection. Revisit if readings show "ran out" persisting.
+- **An affected device still spends eight seconds on every checked save**, though since v26.63 the
+  save then goes through. The leftover itself never leaves: with the PIN retired nobody can sign that
+  account in to send its queue. To remove it, clear the site's stored data in the browser (or remove
+  and re-add the installed app) and sign in again — which also clears the Pay Calculator's figures
+  on that device, so use its "Move Your Pay Data" export first. Not yet tried on an affected phone.
+  Clearing the leftover from Firestore's own on-device storage at start-up was offered and not
+  chosen (owner, 24 Nov 2026): it edits the SDK's private storage, which an update could change.
+- **The Links workspace's transactions are not covered.** Its store runs a transaction function
+  without naming the documents first (`runTx`, links-design-store.js), so it keeps the whole-queue
+  wait; a designer's phone holding a leftover would still answer a rename or delete as offline.
 - **Whether anything else is slow is unmeasured.** Long-polling on iPhones was prepared and NOT
   shipped (5 Oct 2026): App Speed's data contradicted the premise. Every "Slow save (diagnostic)"
   entry in the Error Log carries the save's time, how much of it the app spent **in the background**,

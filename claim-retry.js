@@ -247,6 +247,78 @@ export function ownWritesSent(waitForPendingWrites, ms = OWN_WRITES_WAIT_MS, { o
         .finally(() => clearTimeout(timer));
 }
 
+// ── WHEN THE WAIT RUNS OUT, ASK THE RECORDS (24 Nov 2026) ───────────────────────────────────────────
+//
+// The wait above is for the WHOLE queue, and the SDK's queue can hold another ACCOUNT's unsent write:
+// `waitForPendingWrites` finds the highest unsent batch without bounding the search to the signed-in
+// account (`getHighestUnacknowledgedBatchId`, `@firebase/firestore` 4.19–4.20 — an IDBKeyRange with an
+// upper bound and no lower one). A phone left holding the retired staff PIN's page views therefore ran
+// out its eight seconds on EVERY checked save, online, and every checked removal was refused as
+// offline — confirmed by the first "ran out" reading of the diagnostic below (23 Nov 2026). Nobody can
+// sign that account in now to send its queue.
+//
+// What the check needs is narrower than an empty queue: that none of the records THIS save touches
+// still has a write of this account's on its way, because that is the write the transaction would
+// misread. Firestore answers that per record — a document this account has written and not yet sent
+// reads from the cache with `metadata.hasPendingWrites` — and another account's queue is not part of
+// this account's view, so the leftover never shows there. So when the wait runs out, the records are
+// asked (owner's choice of fix, 24 Nov 2026). Clear: the transaction goes ahead and asks the server as
+// it would have. Anything else keeps the old answer — held or refused, writing nothing. The price: a
+// phone with full bars and no data now spends the wait AND a transaction's own retries (about eight
+// seconds more) before a save is held — sixteen in all, accepted.
+
+/** @typedef {'clear'|'queued'|'unknown'} RecordsState */
+
+/**
+ * Does any record a checked save will touch still have this account's own write on its way?
+ * Read from this device's cache alone, so it never waits on the network. A record the cache has never
+ * held rejects with `unavailable` — nothing of ours can be queued for it, since a queued write puts the
+ * record in the cache — and that is 'clear'. Any other failure is 'unknown', which the caller treats as
+ * 'queued': a check the device cannot answer never lets a transaction through.
+ * @param {(ref: any) => Promise<any>} readFromCache  the SDK's `getDocFromCache`
+ * @param {Iterable<any>} refs  every document the save writes or deletes
+ * @returns {Promise<RecordsState>}
+ */
+export async function recordsClearOfOwnWrites(readFromCache, refs) {
+    try {
+        const states = await Promise.all([...refs].map(async ref => {
+            try { return (await readFromCache(ref))?.metadata?.hasPendingWrites === true ? 'queued' : 'clear'; }
+            catch (err) { return /** @type {any} */ (err)?.code === 'unavailable' ? 'clear' : 'unknown'; }
+        }));
+        return states.includes('queued') ? 'queued' : states.includes('unknown') ? 'unknown' : 'clear';
+    } catch {
+        return 'unknown';
+    }
+}
+
+/** What the diagnostic says after "ran out", per answer. @type {Record<RecordsState, string>} */
+const RECORDS_WORDS = { clear: 'its records clear', queued: 'a record still queued', unknown: 'records unreadable' };
+
+/**
+ * `ownWritesSent`, and when it runs out, the per-record check above: true when the queue drained in
+ * time, or when it did not but none of `refs` has this account's own write queued. Told ONCE how it
+ * ended — "drained", "failed", or "ran out, <what the records said>" — so the slow-save line shows
+ * which way a save went.
+ * @param {() => Promise<void>} waitForPendingWrites
+ * @param {(ref: any) => Promise<any>} readFromCache
+ * @param {Iterable<any>} refs
+ * @param {number} [ms]
+ * @param {{ onSettled?: (w: OwnWritesWait) => void, now?: () => number }} [diag]
+ * @returns {Promise<boolean>}
+ */
+export async function ownWritesSentFor(waitForPendingWrites, readFromCache, refs, ms = OWN_WRITES_WAIT_MS, { onSettled = _announceOwnWritesWait, now = Date.now } = {}) {
+    const started = now();
+    // A holder, not a `let`: the wait reports into it from a callback, which a type check cannot follow.
+    const heard = { wait: /** @type {OwnWritesWait|null} */ (null) };
+    const tell = (/** @type {OwnWritesWait} */ w) => { try { onSettled(w); } catch { /* a diagnostic never disturbs the save */ } };
+    const drained = await ownWritesSent(waitForPendingWrites, ms, { onSettled: w => { heard.wait = w; }, now })
+        .catch(err => { tell(heard.wait ?? { ms: Math.max(0, now() - started), outcome: 'failed' }); throw err; });
+    if (drained) { tell(heard.wait ?? { ms: Math.max(0, now() - started), outcome: 'drained' }); return true; }
+    const records = await recordsClearOfOwnWrites(readFromCache, refs);
+    tell({ ms: heard.wait?.ms ?? Math.max(0, now() - started), outcome: `ran out, ${RECORDS_WORDS[records]}` });
+    return records === 'clear';
+}
+
 // ── HOW EACH WAIT WENT, FOR THE SLOW-SAVE DIAGNOSTIC (22 Nov 2026) ──────────────────────────────────
 //
 // An installed iPhone app sent three "Slow save (diagnostic)" reports in one day, each EXACTLY 8.1s
@@ -260,7 +332,7 @@ export function ownWritesSent(waitForPendingWrites, ms = OWN_WRITES_WAIT_MS, { o
 // writes it on the diagnostic line. A plain in-module list rather than a DOM event: both modules
 // import this one, and Node can run it.
 
-/** @typedef {'drained'|'ran out'|'failed'} OwnWritesOutcome  'failed': the SDK abandoned the wait (the account changed) */
+/** @typedef {'drained'|'ran out'|'failed'|`ran out, ${string}`} OwnWritesOutcome  'failed': the SDK abandoned the wait (the account changed); "ran out, …" adds what the per-record check found (`ownWritesSentFor`) */
 /** @typedef {{ ms: number, outcome: OwnWritesOutcome }} OwnWritesWait */
 
 /** @type {Set<(w: OwnWritesWait) => void>} */

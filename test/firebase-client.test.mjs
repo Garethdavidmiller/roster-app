@@ -932,6 +932,32 @@ describe('whenOwnWritesSent — the wait a checked write makes before it reads t
     });
 });
 
+// ── when the wait runs out, the records the save touches are asked (24 Nov 2026) ──────────────────
+// The rule is claim-retry.js's (ownWritesSentFor, tested there). The WIRING is tested here: that the
+// export reads the records from THIS Firestore's CACHE (a server read would wait on the network the
+// fallback exists to avoid waiting on), and asks the same SDK wait as `whenOwnWritesSent`.
+describe('whenOwnWritesSentFor — the wait, then the records from this device\'s cache', () => {
+    const waits = () => state.ops.filter((o) => o.op === 'waitForPendingWrites');
+    test('nothing queued: true at once, from the app\'s own wait, and no record read', async () => {
+        assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a')], 50), true);
+        assert.equal(waits().length, 1);
+        assert.equal(waits()[0].db, fc.db);
+        assert.deepEqual(state.cacheReads, []);
+    });
+    test('runs out, the records clear → true, each record asked from the cache', async () => {
+        state.pendingWrites = new Promise(() => {});
+        state.docs.set('overrides/a', { memberName: 'G. Miller' });
+        assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a'), fc.doc(fc.db, 'overrides', 'b')], 20), true);
+        assert.deepEqual([...state.cacheReads].sort(), ['overrides/a', 'overrides/b']);
+    });
+    test('runs out, one of them still this account\'s to send → false', async () => {
+        state.pendingWrites = new Promise(() => {});
+        state.docs.set('overrides/a', { memberName: 'G. Miller' });
+        state.queued.add('overrides/a');
+        assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a')], 20), false);
+    });
+});
+
 // ── the staff PIN's queued writes leave before it is signed out (22 Nov 2026) ─────────────────────
 // A viewer write still queued at its sign-out stayed in the on-device queue, and the SDK's wait for
 // the NEXT member's own writes waited on it (its IndexedDB queue does not bound the lookup to the

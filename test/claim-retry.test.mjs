@@ -5,7 +5,7 @@ import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss,
     runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, UNCONFIRMED_LINE, unconfirmedWriteLine,
-    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, OWN_WRITES_WAIT_MS, watchOwnWritesWaits, runWatchedClaimRetry } from '../claim-retry.js';
+    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, ownWritesSentFor, recordsClearOfOwnWrites, OWN_WRITES_WAIT_MS, watchOwnWritesWaits, runWatchedClaimRetry } from '../claim-retry.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -616,5 +616,81 @@ describe('ownWritesSent — tells how the wait ended, and never changes the answ
         } finally { stop(); stopBroken(); }
         await ownWritesSent(async () => {}, 1_000);
         assert.deepEqual(heard, ['drained', 'ran out'], 'an unsubscribed watcher hears nothing more');
+    });
+});
+
+// ── WHEN THE WAIT RUNS OUT, ASK THE RECORDS (24 Nov 2026) ───────────────────────────────────────────
+// A phone whose queue holds ANOTHER account's leftover write ran out every checked save's wait (the SDK's
+// whole-queue wait cannot see past it), so a removal was refused as offline, online. The fallback asks
+// only the records the save touches, and only a 'clear' from every one lets the transaction through.
+describe('recordsClearOfOwnWrites — is any record this save touches still on its way from this account?', () => {
+    const read = (/** @type {Record<string, any>} */ answers) => async (/** @type {any} */ ref) => {
+        const a = answers[ref.id];
+        if (a instanceof Error) throw a;
+        return { metadata: { hasPendingWrites: a === 'queued' } };
+    };
+    const notCached = Object.assign(new Error('Failed to get document from cache'), { code: 'unavailable' });
+    test('none queued → clear', async () => {
+        assert.equal(await recordsClearOfOwnWrites(read({ a: 'sent', b: 'sent' }), [{ id: 'a' }, { id: 'b' }]), 'clear');
+    });
+    test('one queued among them → queued, whatever the others say', async () => {
+        assert.equal(await recordsClearOfOwnWrites(read({ a: 'sent', b: 'queued' }), [{ id: 'a' }, { id: 'b' }]), 'queued');
+    });
+    test('a record the cache never held cannot have a queued write of ours → clear', async () => {
+        assert.equal(await recordsClearOfOwnWrites(read({ a: notCached }), [{ id: 'a' }]), 'clear');
+    });
+    test('any other failure → unknown, which never lets a transaction through', async () => {
+        const broken = Object.assign(new Error('IndexedDB went away'), { code: 'internal' });
+        assert.equal(await recordsClearOfOwnWrites(read({ a: 'sent', b: broken }), [{ id: 'a' }, { id: 'b' }]), 'unknown');
+        assert.equal(await recordsClearOfOwnWrites(read({ a: 'queued', b: broken }), [{ id: 'a' }, { id: 'b' }]), 'queued',
+            'a record known to be queued outranks one that could not be read');
+    });
+    test('a reader that throws before it reads anything → unknown', async () => {
+        assert.equal(await recordsClearOfOwnWrites(() => { throw new Error('sync'); }, [{ id: 'a' }]), 'unknown');
+    });
+});
+
+describe('ownWritesSentFor — the wait, and the records asked when it runs out', () => {
+    const neverDrains = () => new Promise(() => {});
+    const clearReads = async () => ({ metadata: { hasPendingWrites: false } });
+    test('a queue that drains: true, and no record is read', async () => {
+        let reads = 0;
+        assert.equal(await ownWritesSentFor(async () => {}, async () => { reads++; return {}; }, [{ id: 'a' }], 1_000, { onSettled: () => {} }), true);
+        assert.equal(reads, 0);
+    });
+    test('runs out, its records clear → true: the save goes on to ask the server', async () => {
+        assert.equal(await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, { onSettled: () => {} }), true);
+    });
+    test('runs out, a record still queued → false: held or refused as before', async () => {
+        const reads = async (/** @type {any} */ ref) => ({ metadata: { hasPendingWrites: ref.id === 'b' } });
+        assert.equal(await ownWritesSentFor(neverDrains, reads, [{ id: 'a' }, { id: 'b' }], 10, { onSettled: () => {} }), false);
+    });
+    test('runs out, a record unreadable → false', async () => {
+        const reads = async () => { throw Object.assign(new Error('x'), { code: 'internal' }); };
+        assert.equal(await ownWritesSentFor(neverDrains, reads, [{ id: 'a' }], 10, { onSettled: () => {} }), false);
+    });
+    test('the wait is told ONCE, with what the records said — the slow-save line\'s words', async () => {
+        /** @type {any[]} */ const told = [];
+        const onSettled = (/** @type {any} */ w) => told.push(w.outcome);
+        await ownWritesSentFor(async () => {}, clearReads, [{ id: 'a' }], 1_000, { onSettled });
+        await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, { onSettled });
+        await ownWritesSentFor(neverDrains, async () => ({ metadata: { hasPendingWrites: true } }), [{ id: 'a' }], 10, { onSettled });
+        await ownWritesSentFor(neverDrains, async () => { throw new Error('x'); }, [{ id: 'a' }], 10, { onSettled });
+        assert.deepEqual(told, ['drained', 'ran out, its records clear', 'ran out, a record still queued', 'ran out, records unreadable']);
+    });
+    test('a wait the SDK abandons (the account changed) is passed on, told as failed, and reads nothing', async () => {
+        const cancelled = Object.assign(new Error('cancelled'), { code: 'cancelled' });
+        /** @type {any[]} */ const told = [];
+        let reads = 0;
+        await assert.rejects(ownWritesSentFor(() => Promise.reject(cancelled), async () => { reads++; return {}; }, [{ id: 'a' }], 1_000,
+            { onSettled: (/** @type {any} */ w) => told.push(w.outcome) }), (/** @type {any} */ e) => e === cancelled);
+        assert.deepEqual(told, ['failed']);
+        assert.equal(reads, 0);
+    });
+    test('by default every watcher hears it, as for the plain wait', async () => {
+        /** @type {any[]} */ const heard = [];
+        const stop = watchOwnWritesWaits((w) => heard.push(w.outcome));
+        try { await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10); } finally { stop(); }
+        assert.deepEqual(heard, ['ran out, its records clear']);
     });
 });

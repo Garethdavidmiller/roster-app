@@ -364,6 +364,16 @@ test('own-saves wait: a wait that RAN OUT is the one reported, even beside a lon
     assert.deepEqual(t.stop(), { ms: 1_000, outcome: 'ran out', count: 3 });
 });
 
+test('own-saves wait: "ran out" with what the records then said still outranks a longer drained one (24 Nov 2026)', () => {
+    // Since the fallback (ownWritesSentFor, claim-retry.js) a wait that ran out says what the save's own
+    // records showed; the summary must still put it first, or the line would report the drained one.
+    const waits = fakeWaits();
+    const t = trackOwnWritesWaits(waits.deps);
+    waits.end(8_002, 'ran out, its records clear');
+    waits.end(9_500, 'drained');
+    assert.deepEqual(t.stop(), { ms: 8_002, outcome: 'ran out, its records clear', count: 2 });
+});
+
 test('own-saves wait: with none run out, the LONGEST is reported, with how many there were', () => {
     const waits = fakeWaits();
     const t = trackOwnWritesWaits(waits.deps);

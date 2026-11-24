@@ -71,6 +71,13 @@
  *                         carries the log's id (`uploadId`), and the Undo takes both days back and
  *                         marks the log once — every write through the real rules, where the stub
  *                         would accept a field the rules refuse.
+ *  19. another account's leftover — one member's save, made offline, is left in this browser's queue
+ *                         when they sign out; a second member, whose account id sorts ABOVE theirs,
+ *                         signs in online. The SDK's whole-queue wait then never drains (its
+ *                         `getHighestUnacknowledgedBatchId` is not bounded to the signed-in account),
+ *                         so before 24 Nov 2026 every checked save took eight seconds and a checked
+ *                         delete was refused as offline. Now the records the save touches are asked
+ *                         when the wait runs out (`ownWritesSentFor`), and the delete goes through.
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -83,7 +90,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect, expectNothingLeftForGoogle, wireToEmulators, SDK_VERSION } from './signed-in-fixtures.js';
-import { resetDatabase, readCollection, seedDocument, EMULATOR } from './signed-in-env.mjs';
+import { resetDatabase, readCollection, seedDocument, EMULATOR, PROJECT } from './signed-in-env.mjs';
 import { resetPasswords, disableAccount, leftoverPinToken } from './signed-in-setup.mjs';
 import { signInThroughOverlay, sheetAction, clickDialogConfirm, activeDesignName, pastDoubleTap } from './helpers.js';
 import { teamMembers, getBaseShift, isBankHoliday, CONFIG } from '../roster-data.js';
@@ -523,6 +530,77 @@ test('back online: a delete waits for the save this device has not sent yet, and
         'this device still had saves waiting').toBe(true);
     // …and the day is gone from the database, not put back by the save queued before it.
     expect(await overridesFor(MEMBER, day), 'the save queued offline landed after the delete and put the day back').toHaveLength(0);
+    expectNothingLeftForGoogle(page);
+});
+
+/**
+ * The Auth emulator's account id for each member, read with its owner credential.
+ * @param {string[]} names
+ * @returns {Promise<string[]>}
+ */
+async function accountIds(names) {
+    const res = await fetch(`http://${EMULATOR.auth}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:lookup`, {
+        method: 'POST', headers: { authorization: 'Bearer owner', 'content-type': 'application/json' },
+        body: JSON.stringify({ email: names.map((n) => nameToEmail(n)) }) });
+    const users = /** @type {any[]} */ ((await res.json()).users ?? []);
+    return names.map((n) => users.find((u) => u.email === nameToEmail(n))?.localId ?? '');
+}
+
+test('another account\'s leftover write: a checked delete still goes through, its own records clear (24 Nov 2026)', async ({ page, context }) => {
+    // Firestore's IndexedDB queue looks for the highest unsent batch at or BELOW the signed-in account,
+    // so only a leftover belonging to an account whose id sorts lower is found. Which of the two
+    // members that is depends on the ids the emulator gave them, so the test asks it.
+    const ids = await accountIds([MEMBER, COLLEAGUE]);
+    expect(ids.every(Boolean), 'both members must have accounts').toBe(true);
+    const [leftBehind, signedIn] = ids[0] < ids[1] ? [MEMBER, COLLEAGUE] : [COLLEAGUE, MEMBER];
+    const theirDay = workingDay(leftBehind);
+    const day = workingDay(signedIn);
+    const id = manualOverrideId(signedIn, day);
+    page.on('dialog', (d) => d.accept());
+
+    // 1 · The first member saves a day with no signal, and signs out with it still waiting.
+    await page.goto('/admin.html');
+    await signInFirstTime(page, leftBehind);
+    await ownPasswordRecorded(leftBehind);
+    await openAdminWeek(page, theirDay);
+    await context.setOffline(true);
+    await stageDay(page, theirDay, 'annual_leave');
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#slowSaveNotice')).toContainText('Waiting for signal');
+    // Signing out reloads the page, which needs the signal; the SDK's Write stream — the one that sends
+    // a queued save — is refused meanwhile, so the save is still waiting once the member has gone.
+    const writeStream = (/** @type {URL} */ url) => url.host === EMULATOR.firestore && url.pathname.endsWith('/Write/channel');
+    await page.route(writeStream, (route) => route.abort().catch(() => { /* the page has moved on */ }));
+    await context.setOffline(false);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    await clickDialogConfirm(page);
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    await page.unroute(writeStream);
+
+    // 2 · The second member signs in. The first one's save cannot leave — the SDK sends only the
+    // signed-in account's — and the SDK's own wait never sees past it: the fault.
+    await signInFirstTime(page, signedIn);
+    await ownPasswordRecorded(signedIn);
+    expect(await page.evaluate(() => import('/firebase-client.js').then((m) => m.whenOwnWritesSent(3_000))),
+        'the SDK\'s wait drained: this browser no longer reproduces the leftover fault, so this journey proves nothing — read KNOWN_LIMITATIONS "Admin saves are slow on iPhones"').toBe(false);
+    expect(await overridesFor(leftBehind, theirDay), 'the first member\'s save left this browser').toHaveLength(0);
+
+    // 3 · A save, then a delete of it. Both are checked; the delete is the one that used to be refused.
+    await page.reload();
+    await openAdminWeek(page, day);
+    await stageDay(page, day, 'annual_leave');
+    await page.locator('#saveBtn').click();
+    await expect.poll(async () => (await overridesFor(signedIn, day)).length, { timeout: 30_000,
+        message: 'the save never reached the database' }).toBe(1);
+    await page.locator('#overridesToggleHeader').click();
+    const del = page.locator(`#overrideTableBody .btn-delete[data-id="${id}"]`);
+    await del.click();
+    await expect(del).toHaveText('Delete?');
+    await pastDoubleTap(page);
+    await del.click();
+    await expect(page.locator('#listFeedback')).toContainText(`Deleted: ${signedIn}`, { timeout: 30_000 });
+    expect(await overridesFor(signedIn, day), 'the delete was refused, or did not reach the database').toHaveLength(0);
     expectNothingLeftForGoogle(page);
 });
 

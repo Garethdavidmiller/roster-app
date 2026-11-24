@@ -48,7 +48,7 @@ redraws the review rather than closing it, and **every row the re-read leaves un
 admin's answers, Skip all included** (`carryReviewAnswers`): reset to their defaults, a second Save
 wrote rows the admin had unticked. **Do not mint the new records' ids inside the transaction** — a
 re-run would write a second copy of every row — and do not turn a deleting part back into a batch. A
-deleting part waits for this device's own unsent saves before its transaction (`whenOwnWritesSent`),
+deleting part waits for this device's own unsent saves before its transaction (`whenOwnWritesSentFor` — and when that wait runs out, asks every record the part deletes or writes, v26.63),
 and one that gives up has sent nothing, so it is not `partialCommit`. The review's week read holds a
 record this device saved but has not yet sent as its own copy (`overrideFromSnapshot`), or the check
 would refuse it once it landed.
