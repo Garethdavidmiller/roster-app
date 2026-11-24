@@ -421,8 +421,12 @@ export function buildDocumentClient({
      * that could not be made, not a document that does not exist. It is thrown, so both callers — the
      * drawer and the in-app viewer — say they could not connect, with a way to try again, instead of
      * "No … has been uploaded yet".
+     *
+     * A document the cache DOES hold is returned, marked `fromCache: true` (v26.60 review, D-L1): it is
+     * the latest this device has SEEN, which may not be the latest there is, so the in-app viewer labels
+     * it a saved copy, as the Huddle viewer does. A server answer is marked `fromCache: false`.
      * @param {string} collectionName
-     * @returns {Promise<any>} the latest document's data, or null
+     * @returns {Promise<any>} the latest document's data with `fromCache`, or null
      */
     async function latestIn(collectionName) {
         const q = query(collection(db, collectionName), orderBy('date', 'desc'), limit(1));
@@ -432,7 +436,7 @@ export function buildDocumentClient({
         }
         if (snap.empty) return null;
         const data = snap.docs[0].data();
-        return data.storageUrl ? data : null;
+        return data.storageUrl ? { ...data, fromCache: !!snap.metadata?.fromCache } : null;
     }
 
     return {

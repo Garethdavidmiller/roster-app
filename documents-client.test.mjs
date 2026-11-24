@@ -626,9 +626,12 @@ describe('the latest Circular or Newsletter: an empty cache is not "none uploade
         assert.equal(await client.getLatestNewsletter(), null);
     });
 
-    test('a document the cache DOES hold is still returned — a saved copy is a copy, not a failure', async () => {
+    test('a document the cache DOES hold is still returned — a saved copy is a copy, not a failure — and says so', async () => {
         const row = { date: '2026-11-06', storageUrl: 'https://example.invalid/c.pdf', fileType: 'pdf' };
         const client = reading({ empty: false, docs: [{ id: 'x', data: () => row }], metadata: { fromCache: true } });
-        assert.deepEqual(await client.getLatestCircular(), row);
+        assert.deepEqual(await client.getLatestCircular(), { ...row, fromCache: true },
+            'the viewer could not tell a saved copy from the latest the server holds (D-L1)');
+        const server = reading({ empty: false, docs: [{ id: 'x', data: () => row }], metadata: { fromCache: false } });
+        assert.deepEqual(await server.getLatestNewsletter(), { ...row, fromCache: false });
     });
 });
