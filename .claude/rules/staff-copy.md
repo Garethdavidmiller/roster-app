@@ -6,7 +6,7 @@ paths:
   - "*-render.js"
   - "*-notices.js"
   - "paycalc-lightboxes.js"
-  - "paycalc-copy-parity.test.mjs"
+  - "test/paycalc-copy-parity.test.mjs"
   - "functions/push-notices.js"
 ---
 # Staff-facing words that teach — the owner's standard

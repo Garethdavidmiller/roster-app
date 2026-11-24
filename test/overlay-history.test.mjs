@@ -1,0 +1,790 @@
+/**
+ * Unit tests for the overlay.js Android-Back history STACK (_pushOverlayState /
+ * _clearOverlayHistory + the popstate listener).
+ * Run with: node scripts/run-tests.mjs test/overlay-history.test.mjs
+ *
+ * The existing overlay.test.mjs stubs window.addEventListener as a no-op, so it can't
+ * dispatch popstate. This suite installs a capturing harness (records the popstate
+ * handler + counts history.pushState/back) BEFORE importing overlay.js, and re-imports
+ * a FRESH module instance per test (query-string cache-bust) so the module-level stack
+ * state never leaks between tests.
+ *
+ * Model:
+ *   - history.pushState()  → pushCount++
+ *   - history.back()       → backCount++, then fires the captured popstate handler
+ *                            (the "echo" the real browser sends after a programmatic back)
+ *   - pressBack()          → fires the popstate handler WITHOUT a history.back() call —
+ *                            models a hardware/Android Back press (the browser popped the
+ *                            entry itself; our code must not double-pop).
+ */
+
+import { test, describe, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+let popstateHandler = /** @type {null | (() => void)} */ (null);
+let pushCount = 0;
+let backCount = 0;
+
+global.window = /** @type {any} */ ({
+    addEventListener: (/** @type {string} */ type, /** @type {any} */ fn) => {
+        if (type === 'popstate') popstateHandler = fn;
+    },
+    removeEventListener: () => {},
+    matchMedia: () => ({ matches: false }),
+});
+global.history = /** @type {any} */ ({
+    pushState: () => { pushCount++; },
+    back:      () => { backCount++; popstateHandler?.(); },
+});
+global.document = /** @type {any} */ ({
+    body: {
+        // Set-backed so `openNoticeIfClear` can ask whether an overlay is already up.
+        classList: (() => { const set = new Set(); return {
+            add: (/** @type {string} */ c) => set.add(c),
+            remove: (/** @type {string} */ c) => set.delete(c),
+            contains: (/** @type {string} */ c) => set.has(c),
+        }; })(),
+        style: { setProperty() {}, removeProperty() {} },
+    },
+    addEventListener: () => {}, removeEventListener: () => {},
+});
+
+/** Fire a hardware/Android Back press: the browser already popped the entry. */
+function pressBack() { popstateHandler?.(); }
+
+let _seq = 0;
+/** Load a fresh overlay.js instance (fresh module-level stack + popstate registration). */
+async function freshOverlay() {
+    pushCount = 0; backCount = 0; popstateHandler = null;
+    return import('../overlay.js?history-test=' + (_seq++));
+}
+
+describe('overlay history stack — _pushOverlayState / _clearOverlayHistory / popstate', () => {
+    test('single overlay: hardware Back invokes its handler, no history.back()', async () => {
+        const { _pushOverlayState } = await freshOverlay();
+        const calls = [];
+        _pushOverlayState(() => calls.push('A'));
+        assert.equal(pushCount, 1, 'one entry pushed');
+        pressBack();
+        assert.deepEqual(calls, ['A']);
+        assert.equal(backCount, 0, 'hardware Back must not call history.back()');
+    });
+
+    test('single overlay: button close pops the entry and absorbs the echo (handler not re-invoked)', async () => {
+        const { _pushOverlayState, _clearOverlayHistory } = await freshOverlay();
+        const calls = [];
+        _pushOverlayState(() => calls.push('A'));
+        _clearOverlayHistory();
+        assert.equal(backCount, 1, 'button close issues one history.back()');
+        assert.deepEqual(calls, [], 'the echoed popstate must be absorbed, not run the handler');
+        // Stack is now empty — a later Back is a no-op.
+        pressBack();
+        assert.deepEqual(calls, []);
+    });
+
+    test('nested overlays: Back closes ONLY the topmost; the next Back closes the lower one', async () => {
+        const { _pushOverlayState } = await freshOverlay();
+        const calls = [];
+        _pushOverlayState(() => calls.push('A'));   // lower (e.g. Team View)
+        _pushOverlayState(() => calls.push('B'));   // upper (e.g. a lightbox)
+        assert.equal(pushCount, 2, 'each overlay pushes its own entry');
+        pressBack();
+        assert.deepEqual(calls, ['B'], 'first Back closes only the top overlay');
+        pressBack();
+        assert.deepEqual(calls, ['B', 'A'], 'second Back closes the lower overlay');
+    });
+
+    test('REGRESSION: a top handler that itself calls _clearOverlayHistory does NOT cascade-close the lower overlay', async () => {
+        // This is the team-view toggle / lightbox-dismiss pattern: the close handler
+        // calls _clearOverlayHistory(). On the Back path that call must be a no-op.
+        const { _pushOverlayState, _clearOverlayHistory } = await freshOverlay();
+        const calls = [];
+        _pushOverlayState(() => calls.push('A'));                        // lower
+        _pushOverlayState(() => { calls.push('B'); _clearOverlayHistory(); }); // upper, clears on close
+        pressBack();
+        assert.deepEqual(calls, ['B'], 'A must survive — no cascade');
+        assert.equal(backCount, 0, 'the handler-internal _clearOverlayHistory must not issue a stray history.back()');
+        pressBack();
+        assert.deepEqual(calls, ['B', 'A'], 'the lower overlay closes on the next Back');
+    });
+
+    test('button-close of the top while a lower overlay exists: lower survives, then closes via Back', async () => {
+        // e.g. About lightbox ✕ over Team View.
+        const { _pushOverlayState, _clearOverlayHistory } = await freshOverlay();
+        const calls = [];
+        _pushOverlayState(() => calls.push('A'));   // Team View (lower)
+        _pushOverlayState(() => calls.push('B'));   // About (upper)
+        _clearOverlayHistory();                     // About ✕ (button close of the top)
+        assert.equal(backCount, 1);
+        assert.deepEqual(calls, [], 'button close does not invoke handlers');
+        pressBack();
+        assert.deepEqual(calls, ['A'], 'the lower overlay is still registered and Back closes it');
+    });
+
+    test('dedupe: re-registering the SAME handler does not stack a duplicate entry', async () => {
+        const { _pushOverlayState } = await freshOverlay();
+        const h = () => {};
+        _pushOverlayState(h);
+        _pushOverlayState(h);
+        assert.equal(pushCount, 1, 'a repeated open() for the same overlay pushes one entry, not two');
+    });
+
+    test('button close then a fresh overlay + Back stays balanced (no leaked suppression)', async () => {
+        const { _pushOverlayState, _clearOverlayHistory } = await freshOverlay();
+        const calls = [];
+        _pushOverlayState(() => calls.push('A'));
+        _clearOverlayHistory();                     // absorbs exactly one echo
+        _pushOverlayState(() => calls.push('B'));
+        pressBack();                                // must run B (suppression already consumed)
+        assert.deepEqual(calls, ['B']);
+    });
+
+    test('REGRESSION: double button-close of the TOP overlay does NOT pop the overlay beneath it', async () => {
+        // e.g. About lightbox (top) over Team View (lower); user double-taps About's ✕ during
+        // the 500ms fade. The SECOND _clearOverlayHistory(closeAbout) must find closeAbout already
+        // gone and no-op — it must NOT pop closeTV.
+        const { _pushOverlayState, _clearOverlayHistory } = await freshOverlay();
+        const calls = [];
+        const closeTV    = () => calls.push('TV');
+        const closeAbout = () => calls.push('About');
+        _pushOverlayState(closeTV);
+        _pushOverlayState(closeAbout);
+        _clearOverlayHistory(closeAbout);   // first ✕ tap
+        assert.equal(backCount, 1, 'one history.back() for the real close');
+        _clearOverlayHistory(closeAbout);   // second ✕ tap during fade — handler already gone
+        assert.equal(backCount, 1, 'the double-tap must NOT issue a second history.back()');
+        // Team View survived: a real Back now closes it (and only it).
+        pressBack();
+        assert.deepEqual(calls, ['TV']);
+    });
+
+    test('specific-handler close removes the RIGHT entry when a non-topmost overlay is dismissed', async () => {
+        const { _pushOverlayState, _clearOverlayHistory } = await freshOverlay();
+        const calls = [];
+        const closeA = () => calls.push('A');   // lower
+        const closeB = () => calls.push('B');   // upper
+        _pushOverlayState(closeA);
+        _pushOverlayState(closeB);
+        _clearOverlayHistory(closeA);           // dismiss the LOWER one by identity
+        assert.equal(backCount, 1);
+        // Only closeB remains registered; a Back closes B (not A again).
+        pressBack();
+        assert.deepEqual(calls, ['B']);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Only the TOPMOST overlay reacts to Escape (v19.53).
+//
+// Every open overlay attaches its own document-level keydown listener, so one Escape fired all of
+// them. Back was already right (one history entry consumed per press) and so was the ✕ (it belongs
+// to one overlay) — Escape was the outlier, and the dangerous one: two one-time NOTICES open meant
+// one keypress ran both onClose callbacks, archiving and permanently flagging the notice buried
+// underneath for someone who never saw it. Proven in a browser before this was written.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('_isTopOverlay — which overlay owns the keyboard', () => {
+    test('with one overlay open, it is the top', async () => {
+        const { _pushOverlayState, _isTopOverlay } = await freshOverlay();
+        const a = () => {};
+        _pushOverlayState(a);
+        assert.equal(_isTopOverlay(a), true);
+    });
+
+    test('with two open, only the LAST pushed is the top', async () => {
+        const { _pushOverlayState, _isTopOverlay } = await freshOverlay();
+        const lower = () => {}, upper = () => {};
+        _pushOverlayState(lower);
+        _pushOverlayState(upper);
+        assert.equal(_isTopOverlay(upper), true, 'the one the user can see');
+        assert.equal(_isTopOverlay(lower), false, 'the buried one must ignore the key');
+    });
+
+    test('closing the top hands the keyboard back to the one underneath', async () => {
+        const { _pushOverlayState, _clearOverlayHistory, _isTopOverlay } = await freshOverlay();
+        const lower = () => {}, upper = () => {};
+        _pushOverlayState(lower);
+        _pushOverlayState(upper);
+        _clearOverlayHistory(upper);
+        assert.equal(_isTopOverlay(lower), true);
+    });
+
+    test('FAILS OPEN: a handler that is not on the stack counts as top', async () => {
+        // A suppressed Escape is a user trapped in a dialog they cannot close — strictly worse than
+        // an extra close. If we cannot prove an overlay is underneath another, it gets the key.
+        const { _pushOverlayState, _isTopOverlay } = await freshOverlay();
+        assert.equal(_isTopOverlay(() => {}), true, 'empty stack');
+        _pushOverlayState(() => {});
+        assert.equal(_isTopOverlay(() => {}), true, 'unregistered handler, non-empty stack');
+    });
+});
+
+describe('openNoticeIfClear — a one-time notice never opens stacked', () => {
+    test('opens when nothing else is up', async () => {
+        const { openNoticeIfClear } = await freshOverlay();
+        let opened = 0;
+        assert.equal(openNoticeIfClear({ open: () => { opened++; } }), true);
+        assert.equal(opened, 1);
+    });
+
+    test('defers — and does NOT open — when another overlay is already up', async () => {
+        const { openNoticeIfClear } = await freshOverlay();
+        document.body.classList.add('lb-open');
+        let opened = 0;
+        assert.equal(openNoticeIfClear({ open: () => { opened++; } }), false);
+        assert.equal(opened, 0, 'not opening is the whole point: onClose cannot run, so the ' +
+            'notice is never flagged seen and returns on the next load');
+        document.body.classList.remove('lb-open');
+    });
+});
+
+
+// ── WHEN HAS A BUTTON-CLOSE LANDED? (v23.61) ────────────────────────────────────────────────────
+//
+// `_clearOverlayHistory` calls `history.back()`; the browser answers with a popstate LATER. A
+// dialog opened in between pushes an entry the traversal then pops — it closes itself. Every sheet
+// action used to wait out a fixed 320ms for that reason; `whenHistorySettled` and `close()`'s promise
+// replace the timer with the two events themselves. The harness above fires the echo SYNCHRONOUSLY
+// inside history.back(), which is exactly the case that hides this — so these tests swap in a
+// `back()` that does NOT echo, and fire the echo by hand when the test says so.
+describe('whenHistorySettled — the popstate echo, not a timer', () => {
+    /** history.back() that records the call and leaves the echo to the test. */
+    const silentBack = () => { global.history.back = () => { backCount++; }; };
+
+    test('nothing outstanding → runs synchronously (a hardware-Back close has no echo to wait for)', async () => {
+        const { whenHistorySettled } = await freshOverlay();
+        let ran = 0;
+        whenHistorySettled(() => { ran++; });
+        assert.equal(ran, 1);
+    });
+
+    test('an outstanding echo → waits for it, then runs exactly once', async () => {
+        const { _pushOverlayState, _clearOverlayHistory, whenHistorySettled } = await freshOverlay();
+        silentBack();
+        _pushOverlayState(() => {});
+        _clearOverlayHistory();                 // history.back() issued, echo NOT yet arrived
+        let ran = 0;
+        whenHistorySettled(() => { ran++; });
+        assert.equal(ran, 0, 'the echo is outstanding — a dialog opened now would be popped');
+        pressBack();                            // the echo lands
+        assert.equal(ran, 1, 'and the waiter runs on it');
+        pressBack();                            // a later, unrelated pop
+        assert.equal(ran, 1, 'once');
+    });
+
+    test('a browser that never sends the echo → the 500ms fallback runs it, and the late echo does not run it again', async () => {
+        const { mock } = await import('node:test');
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            const { _pushOverlayState, _clearOverlayHistory, whenHistorySettled } = await freshOverlay();
+            silentBack();
+            _pushOverlayState(() => {});
+            _clearOverlayHistory();
+            let ran = 0;
+            whenHistorySettled(() => { ran++; });
+            mock.timers.tick(499);
+            assert.equal(ran, 0);
+            mock.timers.tick(1);
+            assert.equal(ran, 1, 'the fallback covers a missing echo, as dismissOverlay covers a missing transitionend');
+            pressBack();
+            assert.equal(ran, 1, 'the late echo is absorbed without a second run');
+        } finally { mock.timers.reset(); }
+    });
+});
+
+describe('createLightbox — close() resolves when the close has LANDED, both halves', () => {
+    // A minimal overlay element: classes, a transitionend listener the test can fire, nothing else.
+    function fakeOverlay() {
+        const classes = new Set();
+        /** @type {Record<string, Function[]>} */ const listeners = {};
+        const el = {
+            classList: { add: (/** @type {string} */ c) => classes.add(c), remove: (/** @type {string} */ c) => classes.delete(c), contains: (/** @type {string} */ c) => classes.has(c) },
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (listeners[t] ??= []).push(fn); },
+            removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = (listeners[t] ?? []).filter(f => f !== fn); },
+            fade: () => (listeners.transitionend ?? []).slice().forEach(fn => fn({ target: el })),   // the overlay's OWN fade
+        };
+        return el;
+    }
+    const microtasks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+    const silentBack = () => { global.history.back = () => { backCount++; }; };
+
+    async function openOne() {
+        const { createLightbox } = await freshOverlay();
+        silentBack();
+        /** @type {any} */ (global.window).scrollY = 0;
+        /** @type {any} */ (global.window).scrollTo = () => {};
+        /** @type {any} */ (global).requestAnimationFrame = (/** @type {Function} */ fn) => fn();
+        /** @type {any} */ (global.document).activeElement = null;
+        const overlay = fakeOverlay();
+        let landed = 0;
+        const lb = createLightbox({ overlay: /** @type {any} */ (overlay), content: null, closeBtn: null, afterClose: () => { landed++; } });
+        lb.open();
+        return { lb, overlay, landedCount: () => landed };
+    }
+
+    test('fade first, echo second → resolves on the echo', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        let resolved = false;
+        const p = lb.close().then(() => { resolved = true; });
+        overlay.fade();  await microtasks();
+        assert.equal(resolved, false, 'the fade alone is not a landing — the echo is still outstanding');
+        assert.equal(landedCount(), 0);
+        pressBack();     await microtasks();
+        assert.equal(resolved, true);
+        assert.equal(landedCount(), 1, 'afterClose fires at the same moment');
+        await p;
+    });
+
+    test('echo first, fade second → resolves on the fade', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        let resolved = false;
+        lb.close().then(() => { resolved = true; });
+        pressBack();     await microtasks();
+        assert.equal(resolved, false, 'the echo alone is not a landing — the panel is still fading');
+        overlay.fade();  await microtasks();
+        assert.equal(resolved, true);
+        assert.equal(landedCount(), 1);
+    });
+
+    test('a second close() during the fade hands back the SAME landing, not a fresh resolved one', async () => {
+        const { lb, overlay } = await openOne();
+        const first = lb.close();
+        let secondResolved = false;
+        lb.close().then(() => { secondResolved = true; });
+        await microtasks();
+        assert.equal(secondResolved, false, 'a double-tap must not report the close as landed early');
+        overlay.fade(); pressBack(); await microtasks();
+        assert.equal(secondResolved, true);
+        await first;
+    });
+
+    // A CLOSE THAT A RE-OPEN OVERTOOK (16 Nov 2026). `open()` during the fade finished the fade at once, but the
+    // old landing still waited for the history echo and then ran `afterClose` — and cleared `_settling` — AFTER
+    // the re-open, against an overlay that was open again. calendar-doc-viewer.js's afterClose resets the
+    // viewer's z-index, so a re-opened viewer slid back under the Huddle.
+    test('re-opened DURING the fade: the overtaken close runs no afterClose, though its promise still resolves', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        let resolved = false;
+        lb.close().then(() => { resolved = true; });
+        lb.open();                              // re-open mid-fade: the fade is finished at once
+        pressBack(); await microtasks();        // the old close's history echo lands after the re-open
+        assert.equal(resolved, true, 'a caller awaiting the old close is still told it is over');
+        assert.equal(landedCount(), 0, 'afterClose ran against an overlay that is open again');
+        assert.equal(overlay.classList.contains('visible'), true, 'premise: it is open');
+        const second = lb.close(); overlay.fade(); pressBack(); await microtasks(); await second;
+        assert.equal(landedCount(), 1, 'the re-opened overlay\'s own close lands, once');
+    });
+
+    test('re-opened AFTER the fade but before the echo: the same — the close is overtaken, not landed', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        lb.close();
+        overlay.fade(); await microtasks();     // faded out: not visible, but the echo is still outstanding
+        lb.open();
+        pressBack(); await microtasks();
+        assert.equal(landedCount(), 0);
+        let secondResolved = false;
+        lb.close().then(() => { secondResolved = true; });
+        await microtasks();
+        assert.equal(secondResolved, false, 'the new close waits for its own landing, not the overtaken one');
+        overlay.fade(); pressBack(); await microtasks();
+        assert.equal(secondResolved, true);
+        assert.equal(landedCount(), 1);
+    });
+
+    test('close() on an overlay that is not open resolves at once and lands nothing', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        lb.close(); overlay.fade(); pressBack(); await microtasks();
+        assert.equal(landedCount(), 1);
+        let resolved = false;
+        lb.close().then(() => { resolved = true; });
+        await microtasks();
+        assert.equal(resolved, true);
+        assert.equal(landedCount(), 1, 'no second landing for a close that closed nothing');
+    });
+});
+
+// ── WHAT A DIALOG RESOLVES TO (whole-app fix, 10 Nov 2026) ──────────────────────────────────────────
+// The REAL confirmDialog, built into a small fake DOM and closed every way a member can close it.
+// A DISMISSAL — the backdrop, Escape, Android Back — resolved false, the same as Cancel, and the
+// unsaved-work offer's Cancel is Discard: a tap meant for the page landed on the backdrop and deleted
+// the kept work (shared-ui-2). And the card stays tappable through its close fade, so a second tap
+// re-ran its button: Confirm twice ran `onConfirm` twice, Cancel then Confirm resolved true (shared-ui-7).
+describe('confirmDialog — a dismissal, a button, and a second tap during the fade', () => {
+    /** @type {Function[]} */ let keydown = [];
+    const realAdd = global.document.addEventListener, realRemove = global.document.removeEventListener;
+    /** An element with classes, attributes, children and listeners the test can fire. @param {string} tag */
+    function el(tag) {
+        const cls = new Set(), attrs = /** @type {Record<string, string>} */ ({}), listeners = /** @type {Record<string, Function[]>} */ ({});
+        const e = /** @type {any} */ ({
+            tagName: tag.toUpperCase(), children: /** @type {any[]} */ ([]), style: /** @type {Record<string, string>} */ ({}),
+            set className(/** @type {string} */ v) { cls.clear(); v.split(/\s+/).filter(Boolean).forEach(c => cls.add(c)); },
+            get className() { return [...cls].join(' '); },
+            classList: { add: (/** @type {string[]} */ ...c) => c.forEach(x => cls.add(x)), remove: (/** @type {string[]} */ ...c) => c.forEach(x => cls.delete(x)),
+                contains: (/** @type {string} */ c) => cls.has(c), toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => (on ? cls.add(c) : cls.delete(c)) },
+            setAttribute: (/** @type {string} */ k, /** @type {any} */ v) => { attrs[k] = String(v); },
+            getAttribute: (/** @type {string} */ k) => attrs[k] ?? null, hasAttribute: (/** @type {string} */ k) => k in attrs,
+            appendChild: (/** @type {any} */ c) => { e.children.push(c); return c; }, remove() {},
+            focus() { /** @type {any} */ (global.document).activeElement = e; },
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (listeners[t] ??= []).push(fn); },
+            removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = (listeners[t] ?? []).filter(f => f !== fn); },
+            fire: (/** @type {string} */ t) => (listeners[t] ?? []).slice().forEach(fn => fn({ target: e, preventDefault() {} })),
+        });
+        return e;
+    }
+    /** The dialog's button with this class. @param {any} root @param {string} cls @returns {any} */
+    const find = (root, cls) => {
+        for (const c of root.children) { if (c.classList.contains(cls)) return c; const d = find(c, cls); if (d) return d; }
+        return null;
+    };
+    const microtasks = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+    /** The layers already on screen when a dialog opens, for `querySelectorAll` to find. @type {any[]} */
+    let layers = [];
+    /** A layer already on screen, at its z-index. @param {{ z: string, lbOverlay?: boolean, modal?: boolean, shown?: boolean, ariaHidden?: boolean }} o */
+    const layer = ({ z, lbOverlay = false, modal = false, shown = true, ariaHidden = false }) => {
+        const l = el('div');
+        if (lbOverlay) l.classList.add('lb-overlay');
+        if (modal) l.setAttribute('aria-modal', 'true');
+        if (ariaHidden) l.setAttribute('aria-hidden', 'true');
+        l.style.zIndex = z;
+        l.getClientRects = () => (shown ? [{}] : []);   // a shut sheet is `display: none`: no boxes
+        return l;
+    };
+
+    beforeEach(() => {
+        keydown = [];
+        layers = [];
+        // The two selectors the layer rule asks for, answered from `layers`.
+        /** @type {any} */ (global.document).querySelectorAll = (/** @type {string} */ sel) => layers.filter(l => sel.split(',').some(s =>
+            (s.trim() === '.lb-overlay' && l.classList.contains('lb-overlay'))
+            || (s.trim() === '[aria-modal="true"]' && l.getAttribute('aria-modal') === 'true')));
+        // An inline z-index wins, as in a browser; an `.lb-overlay` is otherwise the lightbox base.
+        /** @type {any} */ (global).getComputedStyle = (/** @type {any} */ e) => ({ zIndex: e.style?.zIndex || (e.classList?.contains('lb-overlay') ? '8000' : 'auto') });
+        // An echoing Back, as at the top of this file (an earlier block swapped in a silent one).
+        global.history.back = () => { backCount++; popstateHandler?.(); };
+        Object.assign(global.window, { scrollY: 0, scrollTo: () => {} });
+        /** @type {any} */ (global).requestAnimationFrame = (/** @type {Function} */ fn) => fn();
+        Object.assign(global.document, {
+            activeElement: null, createElement: el,
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { if (t === 'keydown') keydown.push(fn); },
+            removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { if (t === 'keydown') keydown = keydown.filter(f => f !== fn); },
+        });
+        Object.assign(global.document.body, { children: [], appendChild: (/** @type {any} */ c) => { /** @type {any} */ (global.document.body).children.push(c); return c; } });
+    });
+    afterEach(() => {
+        Object.assign(global.document, { addEventListener: realAdd, removeEventListener: realRemove });
+        delete (/** @type {any} */ (global.document)).querySelectorAll;
+        delete (/** @type {any} */ (global)).getComputedStyle;
+    });
+
+    /** Open the real dialog. Reduced motion closes it at once; otherwise the fade waits for `settle()`.
+     *  @param {any} opts @param {{ fade?: boolean }} [how] */
+    async function open(opts, { fade = false } = {}) {
+        const { confirmDialog } = await freshOverlay();
+        /** @type {any} */ (global.window).matchMedia = () => ({ matches: !fade });
+        let value = /** @type {any} */ ('pending');
+        const p = confirmDialog({ message: 'Restore your unsaved changes from 14:20?', confirmLabel: 'Restore', cancelLabel: 'Discard', ...opts });
+        p.then((/** @type {any} */ v) => { value = v; });
+        const overlay = /** @type {any} */ (global.document.body).children.at(-1);
+        return {
+            overlay, confirm: find(overlay, 'dialog-btn-confirm'), cancel: find(overlay, 'dialog-btn-cancel'),
+            escape: () => keydown.slice().forEach(fn => fn({ key: 'Escape', preventDefault() {} })),
+            settle: async () => { overlay.fire('transitionend'); await microtasks(); },
+            result: async () => { await microtasks(); return value; },
+        };
+    }
+
+    for (const [how, dismiss] of /** @type {Array<[string, (d: any) => void]>} */ ([
+        ['a tap on the backdrop', (d) => d.overlay.fire('click')],
+        ['Escape', (d) => d.escape()],
+        ['Android Back', () => pressBack()],
+    ])) {
+        test(`${how} resolves the caller's dismissResult — and false, a Cancel, when there is none`, async () => {
+            const asked = await open({ dismissResult: null });
+            dismiss(asked);
+            assert.equal(await asked.result(), null, `${how} answered the question — the unsaved-work offer read it as Discard`);
+            const plain = await open({});
+            dismiss(plain);
+            assert.equal(await plain.result(), false, 'every other confirmDialog still reads a dismissal as Cancel');
+        });
+    }
+
+    test('the buttons are answers whatever a dismissal resolves to: Cancel false, Confirm true', async () => {
+        const discard = await open({ dismissResult: null });
+        discard.cancel.fire('click');
+        assert.equal(await discard.result(), false, 'Discard must still delete — it is the explicit answer');
+        const restore = await open({ dismissResult: null });
+        restore.confirm.fire('click');
+        assert.equal(await restore.result(), true);
+    });
+
+    test('a second tap during the fade changes nothing — the first answer stands', async () => {
+        const flip = await open({}, { fade: true });
+        flip.cancel.fire('click');
+        flip.confirm.fire('click');                       // the card is still on screen, and tappable
+        await flip.settle();
+        assert.equal(await flip.result(), false, 'Cancel then Confirm resolved a cancelled dialog as confirmed');
+
+        let opens = 0;
+        const twice = await open({ onConfirm: () => { opens++; } }, { fade: true });
+        twice.confirm.fire('click');
+        twice.confirm.fire('click');
+        await twice.settle();
+        assert.equal(await twice.result(), true);
+        assert.equal(opens, 1, 'a double tap on "Open in Safari" opened two tabs');
+
+        const dismissed = await open({ dismissResult: null }, { fade: true });
+        dismissed.overlay.fire('click');
+        dismissed.confirm.fire('click');
+        await dismissed.settle();
+        assert.equal(await dismissed.result(), null, 'a button tapped after a dismissal answered a question nobody saw out');
+    });
+
+    // ON TOP OF WHATEVER IS SHOWING (routed from the pwa audit, 10 Nov 2026). A question can open over a
+    // layer above the lightbox base — a notification tap asks over whatever is up: the sign-in card, the
+    // picker sheet, a notice — and it painted BENEATH that layer while it held the keyboard. It opens one
+    // above the highest layer SHOWING (a shut sheet has no boxes, a surface put away is aria-hidden), and
+    // over the lightbox base it gains no style at all. The browser half: e2e/pages.spec.js, "asked over a
+    // higher layer".
+    test('it opens one above the highest layer showing, and over the lightbox base gains no style', async () => {
+        const card = () => layer({ z: '9000', modal: true });                        // the sign-in card: modal, not a lightbox
+        layers = [card()];
+        assert.equal((await open({})).overlay.style.zIndex, '9001', 'the question opened under the sign-in card');
+        layers = [layer({ z: '9100', lbOverlay: true }), card()];                    // a sheet, modal or not
+        assert.equal((await open({})).overlay.style.zIndex, '9101', 'the question opened under the open sheet');
+        layers = [layer({ z: '9100', lbOverlay: true, modal: true, shown: false }),  // a SHUT sheet
+            layer({ z: '9500', modal: true, ariaHidden: true }),                         // a surface put away
+            card()];
+        assert.equal((await open({})).overlay.style.zIndex, '9001', 'a layer that is not showing lifted the question above it');
+        layers = [layer({ z: '8000', lbOverlay: true, modal: true }), layer({ z: '7800', modal: true })];   // About, over the drawer
+        assert.equal((await open({})).overlay.style.zIndex, undefined, 'a question over the lightbox base gained a style it does not need');
+    });
+
+    // ── A QUESTION WITH ONE OPTION (sign-in audit D1, 13 Nov 2026) ───────────────────────────────────────────────
+    // Operations → Reset asks whether the member's phone is lost or stolen. `confirmWithOption` is a separate function so
+    // every `confirmDialog` caller keeps its boolean; it resolves `{ confirmed, option }`, and the option is reported
+    // ONLY when the confirm button was pressed — a ticked box under a Cancel or a dismissal is no choice at all.
+    /** The first descendant `pick` accepts. @param {any} root @param {(e: any) => boolean} pick @returns {any} */
+    const findBy = (root, pick) => {
+        for (const c of root.children) { if (pick(c)) return c; const d = findBy(c, pick); if (d) return d; }
+        return null;
+    };
+    const OPTION = { label: 'Their phone is lost or stolen', hint: 'No reset notice is sent.' };
+    /** Open the real dialog with its option, closing at once (reduced motion). @param {any} [opts] */
+    async function openWithOption(opts = {}) {
+        const { confirmWithOption } = await freshOverlay();
+        /** @type {any} */ (global.window).matchMedia = () => ({ matches: true });
+        let value = /** @type {any} */ ('pending');
+        confirmWithOption({ message: 'Reset this password?', confirmLabel: 'Reset', danger: true, option: OPTION, ...opts })
+            .then((/** @type {any} */ v) => { value = v; });
+        const overlay = /** @type {any} */ (global.document.body).children.at(-1);
+        return {
+            overlay, confirm: find(overlay, 'dialog-btn-confirm'), cancel: find(overlay, 'dialog-btn-cancel'),
+            box: findBy(overlay, (e) => e.tagName === 'INPUT' && e.type === 'checkbox'),
+            row: find(overlay, 'dialog-option'),
+            escape: () => keydown.slice().forEach(fn => fn({ key: 'Escape', preventDefault() {} })),
+            result: async () => { await microtasks(); return value; },
+        };
+    }
+
+    test('it resolves { confirmed, option } — the box as it stood when the confirm button was pressed', async () => {
+        const plain = await openWithOption();
+        assert.equal(plain.box.checked, false, 'the variant must be chosen, never inherited — the box starts unticked');
+        plain.confirm.fire('click');
+        assert.deepEqual(await plain.result(), { confirmed: true, option: false });
+        const lost = await openWithOption();
+        lost.box.checked = true;
+        lost.confirm.fire('click');
+        assert.deepEqual(await lost.result(), { confirmed: true, option: true });
+    });
+
+    for (const [how, decline] of /** @type {Array<[string, (d: any) => void]>} */ ([
+        ['Cancel', (d) => d.cancel.fire('click')],
+        ['a tap on the backdrop', (d) => d.overlay.fire('click')],
+        ['Escape', (d) => d.escape()],
+        ['Android Back', () => pressBack()],
+    ])) {
+        test(`${how} reports no option, whatever the box showed`, async () => {
+            const asked = await openWithOption();
+            asked.box.checked = true;
+            decline(asked);
+            assert.deepEqual(await asked.result(), { confirmed: false, option: false },
+                `${how} handed back a ticked box nobody confirmed`);
+        });
+    }
+
+    test('the box is named by its label, described by its hint, ticked by its whole row, and takes the first focus', async () => {
+        const d = await openWithOption();
+        assert.equal(d.row.tagName, 'LABEL', 'a row that is not the box\'s <label> is not its touch target');
+        assert.ok(d.row.children.includes(d.box), 'the box sits inside its label row');
+        const named = findBy(d.overlay, (e) => e.id === d.box.getAttribute('aria-labelledby'));
+        const described = findBy(d.overlay, (e) => e.id === d.box.getAttribute('aria-describedby'));
+        assert.equal(named?.textContent, OPTION.label, 'the name is the label alone, not a sentence with the hint in it');
+        assert.equal(described?.textContent, OPTION.hint);
+        assert.equal(/** @type {any} */ (global.document).activeElement, d.box,
+            'focus opens on the one choice the dialog asks for, so Space ticks it and Tab reaches the buttons');
+        const children = d.overlay.children[0].children;
+        assert.ok(children.indexOf(d.row) < children.indexOf(find(d.overlay, 'dialog-actions')), 'the option reads before the buttons');
+    });
+
+    test('with no hint the box is described by nothing, rather than by an empty line', async () => {
+        const d = await openWithOption({ option: { label: OPTION.label } });
+        assert.equal(d.box.getAttribute('aria-describedby'), null);
+        assert.equal(find(d.overlay, 'dialog-option-hint'), null);
+    });
+
+    test('confirmDialog is unchanged by it: no box, focus on the confirm button, and a boolean', async () => {
+        const d = await open({});
+        assert.equal(findBy(d.overlay, (e) => e.tagName === 'INPUT'), null, 'a plain confirm grew a box');
+        assert.equal(/** @type {any} */ (global.document).activeElement, d.confirm);
+        d.confirm.fire('click');
+        assert.equal(await d.result(), true);
+    });
+
+    // ── A REPORT HAS NOTHING TO CANCEL (whole-app check, 17 Nov 2026) ──────────────────────────────────────────────
+    // Operations told the admin what became of a password reset in this dialog, with "Cancel" beside "OK" — and beside a
+    // reset that had already happened, Cancel read as a way to undo it. `cancelLabel: null` draws no Cancel at all.
+    test('cancelLabel: null draws no Cancel — one answer, which takes the focus — and a dismissal still resolves false', async () => {
+        const report = await open({ cancelLabel: null, confirmLabel: 'OK' });
+        assert.equal(report.cancel, null, 'a Cancel was drawn beside an outcome that has already happened');
+        assert.equal(find(report.overlay, 'dialog-actions').children.length, 1, 'one button, the answer');
+        assert.equal(/** @type {any} */ (global.document).activeElement, report.confirm);
+        report.confirm.fire('click');
+        assert.equal(await report.result(), true);
+        const dismissed = await open({ cancelLabel: null });
+        dismissed.escape();
+        assert.equal(await dismissed.result(), false);
+        assert.ok((await open({})).cancel, 'every other confirmDialog keeps its Cancel');
+    });
+
+    // ── A DESTRUCTIVE QUESTION OPENS ON ITS SAFE ANSWER (lightbox review R1-2 / R5-1, 22 Nov 2026) ─────────────────
+    // Every `danger: true` dialog opened with focus on its red button, so one stray Enter or Space removed the thing.
+    test('a danger dialog opens on Cancel; a danger REPORT, with no Cancel, still on its one answer', async () => {
+        const risky = await open({ danger: true, confirmLabel: 'Remove' });
+        assert.equal(/** @type {any} */ (global.document).activeElement, risky.cancel,
+            'a destructive question opened on its destructive button: one Enter removes the thing');
+        const report = await open({ danger: true, cancelLabel: null });
+        assert.equal(/** @type {any} */ (global.document).activeElement, report.confirm);
+        await open({});
+        assert.equal(/** @type {any} */ (global.document).activeElement, find(/** @type {any} */ (global.document.body).children.at(-1), 'dialog-btn-confirm'),
+            'a plain question still opens on its answer');
+    });
+
+    // ── NAMED ONCE (lightbox review R1-8) ────────────────────────────────────────────────────────────────────────
+    // With no title, the message was the dialog's name AND its description, so a screen reader said it twice.
+    test('with no title the message names the dialog and describes nothing; with one, the title names it', async () => {
+        const untitled = await open({});
+        const msg = find(untitled.overlay, 'dialog-message');
+        assert.equal(untitled.overlay.getAttribute('aria-labelledby'), msg.id);
+        assert.equal(untitled.overlay.getAttribute('aria-describedby'), null, 'the message is read out twice');
+        assert.equal(untitled.overlay.getAttribute('aria-label'), null);
+        const titled = await open({ title: 'Remove your work email?' });
+        assert.equal(titled.overlay.getAttribute('aria-labelledby'), find(titled.overlay, 'dialog-title').id);
+        assert.equal(titled.overlay.getAttribute('aria-describedby'), find(titled.overlay, 'dialog-message').id);
+    });
+});
+
+// ── A LINK OUT OF THE PAGE FROM INSIDE A LIGHTBOX (18 Nov 2026) ─────────────────────────────────────────────────────
+// A notice's call to action and an About panel's page links were plain links: the next page stacked on top of the
+// lightbox's own history entry, and one Back from it landed on a step of this page that nothing answered.
+// `followLinkOutOf` closes the lightbox WITHOUT popping that entry and replaces it with the link's page, as the
+// drawer's links replace the drawer's entry. The wiring of each caller is calendar-notices.test.mjs's and the
+// browser journey e2e/calendar.spec.js's and e2e/settings.spec.js's.
+describe('followLinkOutOf — the link\'s page takes the lightbox\'s history entry', () => {
+    function fakeOverlay() {
+        const classes = new Set();
+        /** @type {Record<string, Function[]>} */ const listeners = {};
+        const el = {
+            classList: { add: (/** @type {string} */ c) => classes.add(c), remove: (/** @type {string} */ c) => classes.delete(c), contains: (/** @type {string} */ c) => classes.has(c) },
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (listeners[t] ??= []).push(fn); },
+            removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = (listeners[t] ?? []).filter(f => f !== fn); },
+            fade: () => (listeners.transitionend ?? []).slice().forEach(fn => fn({ target: el })),   // the overlay's OWN fade
+        };
+        return el;
+    }
+    /** @type {{ replaced: string[], assigned: string[] }} */ let went;
+    /** A lightbox opened on `page` (the Calendar unless said), over `beneath` handlers already on the stack. */
+    async function openOne({ beneath = /** @type {Function[]} */ ([]), page = 'https://example.test/' } = {}) {
+        const mod = await freshOverlay();
+        went = { replaced: [], assigned: [] };
+        /** @type {any} */ (global).location = { href: page,
+            replace: (/** @type {string} */ u) => { went.replaced.push(u); }, assign: (/** @type {string} */ u) => { went.assigned.push(u); } };
+        /** @type {any} */ (global.window).scrollY = 0;
+        /** @type {any} */ (global.window).scrollTo = () => {};
+        /** @type {any} */ (global).requestAnimationFrame = (/** @type {Function} */ fn) => fn();
+        /** @type {any} */ (global.document).activeElement = null;
+        for (const fn of beneath) mod._pushOverlayState(fn);
+        const overlay = fakeOverlay();
+        let closed = 0;
+        const lb = mod.createLightbox({ overlay: /** @type {any} */ (overlay), content: null, closeBtn: null, onClose: () => { closed++; } });
+        lb.open();
+        return { mod, lb, overlay, closedCount: () => closed };
+    }
+    /** A click on a link whose href attribute is `href`, resolved against the page as a browser does. */
+    function click(href, { button = 0, ctrlKey = false, target = '', download = false, prevented = false } = {}) {
+        const link = { href: new URL(href, 'https://example.test/').href, target,
+            getAttribute: (/** @type {string} */ a) => (a === 'href' ? href : null),
+            hasAttribute: (/** @type {string} */ a) => a === 'download' && download };
+        const e = { target: { closest: (/** @type {string} */ sel) => (sel === 'a[href]' ? link : null) },
+            button, ctrlKey, metaKey: false, shiftKey: false, altKey: false, defaultPrevented: prevented,
+            preventDefault() { this.defaultPrevented = true; } };
+        return e;
+    }
+
+    test('a plain click: the lightbox closes, its entry is REPLACED by the page — no Back is spent on it, and none is left', async () => {
+        const below = /** @type {string[]} */ ([]);
+        const { mod, lb, overlay, closedCount } = await openOne({ beneath: [() => below.push('team view')] });
+        assert.equal(pushCount, 2, 'premise: the lightbox pushed its own entry above the one beneath');
+        const e = click('./newlink.html');
+        assert.equal(mod.followLinkOutOf(lb, /** @type {any} */ (e)), true);
+        assert.equal(e.defaultPrevented, true, 'the browser\'s own push would stack the page on the lightbox\'s entry');
+        assert.deepEqual(went.replaced, ['https://example.test/newlink.html'], 'the page takes the lightbox\'s entry');
+        assert.deepEqual(went.assigned, []);
+        assert.equal(backCount, 0, 'a history.back() before a navigation races it — the replace is what removes the entry');
+        assert.equal(closedCount(), 1, 'it closes as any close does: a notice is answered by its onClose');
+        assert.equal(overlay.classList.contains('open'), false);
+        pressBack();                                          // the entry beneath keeps its own Back
+        assert.deepEqual(below, ['team view'], 'the lightbox\'s handler was left on the stack, over the one beneath');
+        overlay.fade();
+    });
+
+    test('an echo still on its way (the unsaved-work question just closed) is waited for, then the entry is replaced', async () => {
+        const { mod, lb, overlay } = await openOne({ page: 'https://example.test/settings.html' });   // About's "Calendar" link
+        global.history.back = () => { backCount++; };        // the dialog's echo is left to the test
+        const dialog = () => {};
+        mod._pushOverlayState(dialog);
+        mod._clearOverlayHistory(dialog);                     // "Leave": the dialog closes, its Back is on its way
+        mod.followLinkOutOf(lb, /** @type {any} */ (click('./')));
+        assert.deepEqual(went.replaced, [], 'a replace now would land on the dialog\'s entry, which the traversal is about to leave');
+        pressBack();                                          // the echo lands
+        assert.deepEqual(went.replaced, ['https://example.test/'], 'and once it has, the page takes the lightbox\'s entry');
+        overlay.fade();
+    });
+
+    test('a lightbox closed by then (Back during its fade, the card still tappable) has no entry left: the link is followed as a push', async () => {
+        const { mod, lb, overlay } = await openOne();
+        pressBack();                                          // Back closed it; the browser took its entry
+        mod.followLinkOutOf(lb, /** @type {any} */ (click('./trains.html')));
+        assert.deepEqual(went.replaced, [], 'replacing would overwrite the PAGE\'s own entry, losing it from Back');
+        assert.deepEqual(went.assigned, ['https://example.test/trains.html']);
+        overlay.fade();
+    });
+
+    for (const [what, e] of /** @type {Array<[string, any]>} */ ([
+        ['a click for a new tab', click('./admin.html', { ctrlKey: true })],
+        ['a middle-button click', click('./admin.html', { button: 1 })],
+        ['a link that opens a new window', click('https://www.nationalrail.co.uk/', { target: '_blank' })],
+        ['a download', click('./roster.pdf', { download: true })],
+        ['mail', click('mailto:someone@example.test')],
+        ['a fragment of this page', click('#top')],
+        ['this same page with a fragment', click('./#huddle')],
+        ['a click the page has already handled', click('./admin.html', { prevented: true })],
+    ])) {
+        test(`left to the browser: ${what}`, async () => {
+            const { mod, lb, overlay, closedCount } = await openOne();
+            const already = e.defaultPrevented;
+            assert.equal(mod.followLinkOutOf(lb, e), false);
+            assert.equal(e.defaultPrevented, already, 'it must not stop what the browser does with this click');
+            assert.deepEqual([went.replaced, went.assigned, closedCount()], [[], [], 0]);
+            lb.close(); overlay.fade();
+        });
+    }
+});

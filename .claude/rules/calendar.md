@@ -3,11 +3,11 @@ paths:
   - "index.html"
   - "index.css"
   - "calendar-*.js"
-  - "calendar-*.test.mjs"
+  - "test/calendar-*.test.mjs"
   - "e2e/calendar*.spec.js"
-  - "day-detail-explains.test.mjs"
-  - "lightbox-transform-parity.test.mjs"
-  - "team-week-start.test.mjs"
+  - "test/day-detail-explains.test.mjs"
+  - "test/lightbox-transform-parity.test.mjs"
+  - "test/team-week-start.test.mjs"
 ---
 
 # Calendar page — area decisions

@@ -3,7 +3,7 @@ paths:
   - "links.html"
   - "links.css"
   - "links-*.js"
-  - "links-*.test.mjs"
+  - "test/links-*.test.mjs"
 ---
 
 # Links workspace — full architecture

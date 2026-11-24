@@ -1,0 +1,523 @@
+// @ts-nocheck
+/**
+ * paycalc-migrations.test.mjs — per-member localStorage namespacing (v14.11).
+ *
+ * Covers:
+ *   - pcPrefix / setPaycalcNamespace / SK rebuild and the per-key helpers
+ *   - runMigrations' one-shot namespace migration: member-financial keys move into
+ *     the member segment, device-level keys stay put, guard flag is set, and the
+ *     migration is idempotent across reloads.
+ *
+ * Uses a Map-backed localStorage stub (length/key(i) enumeration) so lsKeys() and
+ * the migration behave exactly as in the browser. No DOM, no Firebase.
+ */
+
+import { test, describe, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+    pcPrefix, setPaycalcNamespace, SK, memberSlug,
+    periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey,
+    runMigrations, hasPendingLegacyMigration, resolveLegacyMigration,
+    parseSavedPeriod, keyOwnerSlug,
+} from '../paycalc-migrations.js';
+import { teamMembers } from '../roster-data.js';
+
+// Mirror of the private _memberSlug() in paycalc-migrations.js: lowercase, alphanumerics only.
+const slug = (/** @type {string} */ name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// ── Every member has a namespace of their own (test audit, 7 Nov 2026) ─────────────────────────
+// memberSlug's own comment says unique names mean unique slugs. They do not: punctuation and case
+// are dropped, so 'Q. Example' and 'Q Example' are the same slug. Two members sharing one would share
+// every key on a shared device and pass each other's backup identity check, and nothing checked the
+// roster for it. Hidden members count: a leaver's data can still be on a shared device.
+describe('memberSlug — one namespace per member', () => {
+    test('punctuation and case are not part of a slug, so the ROSTER is what keeps them apart', () => {
+        assert.equal(memberSlug('Q. Example'), memberSlug('Q Example'));
+        assert.equal(memberSlug('Q. Example'), memberSlug('q.example'));
+    });
+
+    test('no two roster names share a slug, and none is empty', () => {
+        /** @type {Map<string, string>} */
+        const seen = new Map();
+        for (const m of teamMembers) {
+            const s = memberSlug(m.name);
+            assert.ok(s, `${m.name} has an empty slug`);
+            assert.ok(!seen.has(s), `${m.name} and ${seen.get(s)} would share the namespace myb_pc_${s}_`);
+            seen.set(s, m.name);
+        }
+    });
+});
+
+// ── localStorage stub ─────────────────────────────────────────────────────────
+function makeLocalStorage(initial = {}) {
+    const store = new Map(Object.entries(initial));
+    return {
+        getItem(k)    { return store.has(k) ? store.get(k) : null; },
+        setItem(k, v) { store.set(k, String(v)); },
+        removeItem(k) { store.delete(k); },
+        key(i)        { return Array.from(store.keys())[i] ?? null; },
+        get length()  { return store.size; },
+        dump()        { return Object.fromEntries(store); },
+    };
+}
+
+// Deps for runMigrations. No periods (so the legacy cea/pension per-period loops are
+// empty); a single CEA member with no startDate (so no joiner pension patch).
+const MEMBER = { name: 'G. Miller', role: 'CEA', currentWeek: 3, rosterType: 'main' };
+function deps(member) {
+    return {
+        getPeriods: () => [],
+        getLoggedMember: () => member,
+        getPensionDefault: () => 147.36,
+    };
+}
+
+beforeEach(() => {
+    setPaycalcNamespace(undefined);   // reset module namespace state to unnamespaced
+    global.localStorage = makeLocalStorage();
+});
+afterEach(() => { delete global.localStorage; });
+
+// ── pure key helpers ──────────────────────────────────────────────────────────
+describe('pcPrefix / setPaycalcNamespace', () => {
+    test('defaults to the legacy unnamespaced prefix', () => {
+        assert.equal(pcPrefix(), 'myb_pc_');
+        assert.equal(SK.rate, 'myb_pc_rate');
+        assert.equal(periodKey(43), 'myb_pc_p43');
+        assert.equal(hppEstKey({ label: '2025/26' }), 'myb_pc_hpp_est_2025_26');
+        assert.equal(ytdPayKey({ label: '2026/27' }), 'myb_pc_ytd_pay_2026_27');
+    });
+
+    test('a member name slugs into the prefix and rebuilds SK + key helpers', () => {
+        setPaycalcNamespace('G. Miller');
+        assert.equal(pcPrefix(), 'myb_pc_gmiller_');
+        assert.equal(SK.rate, 'myb_pc_gmiller_rate');
+        assert.equal(SK.grade, 'myb_pc_gmiller_grade');
+        assert.equal(periodKey(43), 'myb_pc_gmiller_p43');
+        assert.equal(hppActualKey({ label: '2025/26' }), 'myb_pc_gmiller_hpp_actual_2025_26');
+        assert.equal(ytdTaxKey({ label: '2025/26' }), 'myb_pc_gmiller_ytd_tax_2025_26');
+    });
+
+    test('strips punctuation/spaces consistently and is reversible to unnamespaced', () => {
+        setPaycalcNamespace('C. Francisco-Charles');
+        assert.equal(pcPrefix(), 'myb_pc_cfranciscocharles_');
+        setPaycalcNamespace('');           // back to legacy
+        assert.equal(pcPrefix(), 'myb_pc_');
+        assert.equal(SK.rate, 'myb_pc_rate');
+    });
+});
+
+// ── per-member namespace ownership (v14.25 prompt) ────────────────────────────
+describe('per-member namespace ownership', () => {
+    // Seed shared (unnamespaced) member data plus device-level flags. Pre-set the
+    // cea/pension guards so only the namespace logic is exercised.
+    function seedShared() {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_rate':            '20.74',
+            'myb_pc_p43':             '{"std":140}',
+            'myb_pc_setup_2025_26':   '1',
+            'myb_pc_snap_43':         'a,b,c',
+            'myb_pc_ytd_notice_shown':  '1',   // device-level — must stay
+            'myb_pc_cea_migrated':      '1',
+            'myb_pc_pension_v882_migrated': '1',
+        });
+    }
+
+    test('runMigrations only ACTIVATES the namespace — it does NOT silently claim shared data', () => {
+        seedShared();
+        runMigrations(deps(MEMBER));
+        const ls = global.localStorage;
+        assert.equal(pcPrefix(), 'myb_pc_gmiller_');            // namespace active
+        assert.equal(ls.getItem('myb_pc_rate'), '20.74');       // shared data left in place
+        assert.equal(ls.getItem('myb_pc_gmiller_rate'), null);  // NOT moved
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), null);   // guard NOT set — prompt still pending
+    });
+
+    test('hasPendingLegacyMigration: true with shared data + a member; false with no member', () => {
+        seedShared();
+        assert.equal(hasPendingLegacyMigration('G. Miller'), true);
+        assert.equal(hasPendingLegacyMigration(undefined), false);
+        assert.equal(hasPendingLegacyMigration(''), false);
+    });
+
+    test('a RETIRED device flag never re-triggers the ownership prompt (v19.37 regression)', () => {
+        // The bug v19.36 shipped. `myb_pc_pay_welcome_shown` was dropped from DEVICE_KEYS when the
+        // welcome lightbox was retired — but the flag still SITS on every device that ever dismissed
+        // it. With the declaration gone it stopped being a device flag and started looking like
+        // unnamespaced member data, so `hasPendingLegacyMigration` said true and the "Is this your
+        // pay data?" prompt fired at people who have no legacy data at all.
+        //
+        // Worst hit: anyone who first used paycalc AFTER v14.11 namespacing. Their data was
+        // namespaced from the start, so the ownership prompt never ran, so `ns_migrated` — the guard
+        // that short-circuits this — was never set. Nothing protected them.
+        global.localStorage = makeLocalStorage({
+            'myb_pc_pay_welcome_shown': '1',      // retired flag, still present in the wild
+            'myb_pc_ytd_notice_shown':  '1',
+            'myb_pc_gmiller_rate':      '21.49',  // their data — correctly namespaced already
+            'myb_pc_gmiller_p16':       '{"std":140}',
+            // deliberately NO myb_pc_ns_migrated: the prompt never ran for this member
+        });
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false,
+            'a retired device flag is still a DEVICE flag — it must never read as claimable pay data');
+    });
+
+    test('hasPendingLegacyMigration: false on a clean device (only device-level keys)', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_ytd_notice_shown': '1',
+            'myb_pc_cea_migrated': '1',
+        });
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false);
+    });
+
+    test("'mine' moves shared data into the member's namespace, keeps device keys, sets guard", () => {
+        seedShared();
+        resolveLegacyMigration('G. Miller', 'mine');
+        const ls = global.localStorage;
+        assert.equal(pcPrefix(), 'myb_pc_gmiller_');
+        assert.equal(ls.getItem('myb_pc_gmiller_rate'), '20.74');
+        assert.equal(ls.getItem('myb_pc_gmiller_p43'), '{"std":140}');
+        assert.equal(ls.getItem('myb_pc_gmiller_snap_43'), 'a,b,c');
+        assert.equal(ls.getItem('myb_pc_rate'), null);                  // shared original removed
+        assert.equal(ls.getItem('myb_pc_ytd_notice_shown'), '1');       // device-level kept
+        assert.equal(ls.getItem('myb_pc_gmiller_ytd_notice_shown'), null); // not namespaced
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');            // guard set
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false);
+    });
+
+    test("'fresh' discards shared data, keeps device keys, sets guard", () => {
+        seedShared();
+        resolveLegacyMigration('G. Miller', 'fresh');
+        const ls = global.localStorage;
+        assert.equal(ls.getItem('myb_pc_rate'), null);
+        assert.equal(ls.getItem('myb_pc_p43'), null);
+        assert.equal(ls.getItem('myb_pc_snap_43'), null);
+        assert.equal(ls.getItem('myb_pc_gmiller_rate'), null);          // not moved either
+        assert.equal(ls.getItem('myb_pc_ytd_notice_shown'), '1');       // device-level kept
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');            // guard set
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false);
+    });
+
+    test('once resolved, a different member on the same device is not prompted', () => {
+        seedShared();
+        resolveLegacyMigration('G. Miller', 'mine');
+        assert.equal(hasPendingLegacyMigration('S. Silva'), false); // guard short-circuits
+    });
+
+    test('with no logged-in member, runMigrations leaves data shared and the namespace legacy', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_rate': '20.74',
+            'myb_pc_cea_migrated': '1',
+            'myb_pc_pension_v882_migrated': '1',
+        });
+        runMigrations(deps(null));
+        assert.equal(pcPrefix(), 'myb_pc_');
+        assert.equal(global.localStorage.getItem('myb_pc_rate'), '20.74');
+        assert.equal(global.localStorage.getItem('myb_pc_ns_migrated'), null);
+    });
+
+    // ── Regression: must never touch ANOTHER member's namespaced data (v14.27 review) ──
+    // G. Miller and COLLEAGUE are both real teamMembers, so their slugs are recognised
+    // and their namespaced keys are never mistaken for unclaimed legacy data. The colleague is
+    // chosen by shape, not written down: the keys below hold a pay rate, and the Pages mirror
+    // serves this file (payroll-anonymity.test.mjs).
+    const COLLEAGUE = /** @type {string} */ (teamMembers.find(m => !m.hidden && !m.managerOnly && m.name !== 'G. Miller')?.name);
+    const COLLEAGUE_RATE = `myb_pc_${memberSlug(COLLEAGUE)}_rate`;
+
+    test("another member's namespaced data does NOT trigger the prompt", () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_rate': '20.74',      // G. Miller's own namespaced data
+            'myb_pc_gmiller_p43':  '{"std":140}',
+            'myb_pc_cea_migrated': '1',
+            'myb_pc_pension_v882_migrated': '1',
+        });
+        // The colleague opens the calc on the same device — must NOT be asked to claim it.
+        assert.equal(hasPendingLegacyMigration(COLLEAGUE), false);
+    });
+
+    test("'fresh' never deletes another member's namespaced data", () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_rate': '20.74',      // belongs to G. Miller
+            'myb_pc_rate':         '99',         // genuine unnamespaced legacy
+        });
+        resolveLegacyMigration(COLLEAGUE, 'fresh');
+        assert.equal(global.localStorage.getItem('myb_pc_gmiller_rate'), '20.74'); // preserved
+        assert.equal(global.localStorage.getItem('myb_pc_rate'), null);            // legacy cleared
+    });
+
+    test("'mine' moves only genuine legacy, never another member's namespaced data", () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_rate': '20.74',      // belongs to G. Miller
+            'myb_pc_rate':         '99',         // genuine legacy
+        });
+        resolveLegacyMigration(COLLEAGUE, 'mine');
+        assert.equal(global.localStorage.getItem(COLLEAGUE_RATE), '99');   // legacy → the colleague
+        assert.equal(global.localStorage.getItem('myb_pc_gmiller_rate'), '20.74'); // Miller untouched
+        assert.equal(global.localStorage.getItem('myb_pc_rate'), null);
+    });
+
+    test('a device with multiple member namespaces stays intact (no false prompt)', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_rate':  '20.74',
+            [COLLEAGUE_RATE]: '21.81',
+        });
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false);
+        assert.equal(hasPendingLegacyMigration(COLLEAGUE), false);
+    });
+});
+
+// Leavers are kept in teamMembers with hidden: true (never hard-deleted). Their slug
+// therefore stays in the known-member set, so their namespaced paycalc data on a shared
+// device is still recognised as OWNED — never offered to the next person as claimable
+// "legacy" data. This pins the one migration edge case surfaced in the v14.36 review:
+// hard-deleting a member from teamMembers would silently reclassify their data as legacy.
+describe('hidden (leaver) member data is never treated as claimable legacy', () => {
+    test("a hidden member's namespaced key is recognised as owned, not legacy", () => {
+        const hidden = teamMembers.find(m => m.hidden);
+        assert.ok(hidden, 'expected at least one hidden member in teamMembers');
+        global.localStorage = makeLocalStorage({
+            [`myb_pc_${slug(hidden.name)}_rate`]: '20.74',   // owned by a hidden leaver
+        });
+        // No genuinely-unnamespaced data exists, so no member should be prompted.
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false);
+    });
+
+    test('genuinely unnamespaced data still triggers the prompt (contrast)', () => {
+        global.localStorage = makeLocalStorage({ 'myb_pc_rate': '20.74' }); // no owner slug
+        assert.equal(hasPendingLegacyMigration('G. Miller'), true);
+    });
+});
+
+// ── A NAMESPACE THE ROSTER NO LONGER NAMES (paycalc-3-5) ─────────────────────────────────────────
+// The block above relies on leavers staying on the roster as `hidden`. A RENAMED member (or a row
+// removed outright) leaves their pay data under a slug the roster no longer holds, and it was classed
+// as legacy: offered to whoever signed in next, re-keyed by "Yes, it's mine" to `myb_pc_<new>_<old>_…`
+// — keys nothing reads, so the calculator opened empty and the question never came back — and
+// deleted outright by another member's "No — delete it". It is somebody's namespaced data: its
+// remainder is a key this app writes, while the whole tail is not one. So it is never claimable, and
+// it stays where it is until a rename has a carry-over of its own.
+describe('a member namespace the roster no longer names is never claimable', () => {
+    const OLD = 'aoldname';   // synthetic: nobody on the roster
+    const FORMER = {
+        [`myb_pc_${OLD}_code`]: 'CODE-X',
+        [`myb_pc_${OLD}_p55`]: JSON.stringify({ satH: 8 }),
+        [`myb_pc_${OLD}_ytd_pay_2026_27`]: 'YTD-X',
+        [`myb_pc_${OLD}_setup`]: '1',
+    };
+
+    test('premise: the slug is nobody on the roster', () => {
+        assert.ok(!teamMembers.some(m => memberSlug(m.name) === OLD));
+    });
+
+    test('it is owned, not legacy — so nobody is asked to claim it', () => {
+        global.localStorage = makeLocalStorage(FORMER);
+        for (const k of Object.keys(FORMER)) assert.equal(keyOwnerSlug(k), OLD, k);
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false, 'a former member\'s pay data was offered to somebody else');
+    });
+
+    test('"Yes, it\'s mine" never re-keys it, and "No — delete it" never deletes it', () => {
+        global.localStorage = makeLocalStorage({ ...FORMER, 'myb_pc_rate': '99' });   // genuine legacy alongside
+        resolveLegacyMigration('G. Miller', 'mine');
+        const moved = global.localStorage.dump();
+        assert.equal(moved['myb_pc_gmiller_rate'], '99', 'premise: genuine legacy data still moves');
+        for (const [k, v] of Object.entries(FORMER)) assert.equal(moved[k], v, `${k} was moved`);
+        assert.ok(!Object.keys(moved).some(k => k.startsWith(`myb_pc_gmiller_${OLD}_`)), 're-keyed with the old slug left in');
+
+        global.localStorage = makeLocalStorage({ ...FORMER, 'myb_pc_rate': '99' });
+        resolveLegacyMigration('A. Panchal', 'fresh');
+        const kept = global.localStorage.dump();
+        assert.equal(kept['myb_pc_rate'], undefined, 'premise: genuine legacy data is still cleared');
+        for (const [k, v] of Object.entries(FORMER)) assert.equal(kept[k], v, `${k} was deleted by somebody else's "No — delete it"`);
+    });
+
+    test('CONTROL: every genuine legacy key shape is still legacy', () => {
+        for (const k of ['myb_pc_rate', 'myb_pc_code', 'myb_pc_p43', 'myb_pc_ytd_pay', 'myb_pc_ytd_pay_2026_27',
+            'myb_pc_setup_2025_26', 'myb_pc_setup_years_migrated', 'myb_pc_hpp_est_2025_26', 'myb_pc_hpp_actual',
+            'myb_pc_bp_state', 'myb_pc_bp_state_2026_27', 'myb_pc_pension_timeline', 'myb_pc_pension_optout',
+            'myb_pc_sl_paid_off', 'myb_pc_pg_loan', 'myb_pc_snap_55', 'myb_pc_actuals']) {
+            assert.equal(keyOwnerSlug(k), null, `${k} is unnamespaced legacy data`);
+        }
+    });
+});
+
+// ── parseSavedPeriod — the shared saved-period decoder (back-pay + HPP) ────────
+
+// ── THE RATE IS NEVER STORED, SO NOTHING BUILDS ONE (invariant 8; contracts-b-6, paycalc-3-15) ─────
+// `runMigrations` still turned a legacy single `rate` into a per-tax-year `rates` key on every
+// device that had one — a key nothing has read since the rate became fixed by grade (v17.87), and one
+// every backup then carried as "your settings". A stale rate in storage is the failure class
+// invariant 8 exists to end; the app must not be manufacturing more of it.
+describe('the retired rate keys', () => {
+    test('a legacy rate is left alone: no per-year rates key is built from it', () => {
+        global.localStorage = makeLocalStorage({ 'myb_pc_rate': '19.99' });
+        runMigrations(deps(MEMBER));
+        assert.equal(global.localStorage.getItem('myb_pc_rates'), null, 'a stale rate was copied into a new key');
+    });
+});
+
+describe('parseSavedPeriod', () => {
+    test('treats null / empty raw as "never saved", not an error', () => {
+        assert.deepEqual(parseSavedPeriod(null),      { data: null, error: false });
+        assert.deepEqual(parseSavedPeriod(undefined), { data: null, error: false });
+        assert.deepEqual(parseSavedPeriod(''),        { data: null, error: false });
+    });
+
+    test('parses valid JSON into data with no error', () => {
+        assert.deepEqual(parseSavedPeriod('{"sat":5,"rdw":8}'), { data: { sat: 5, rdw: 8 }, error: false });
+        assert.deepEqual(parseSavedPeriod('{}'),                { data: {}, error: false });
+    });
+
+    test('flags malformed JSON as an error (never throws, never silently drops)', () => {
+        assert.deepEqual(parseSavedPeriod('{bad json'),   { data: null, error: true });
+        assert.deepEqual(parseSavedPeriod('not json'),    { data: null, error: true });
+        assert.deepEqual(parseSavedPeriod('{"a":1,,}'),   { data: null, error: true });
+    });
+});
+
+describe('back-pay per-year migration (v17.86)', () => {
+    test('moves the single bp_state blob to its award-year key, preserving the tick', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_bp_state': JSON.stringify({ year: '2026/27', inc: '1', oldR: '20.74', newR: '21.49' }),
+            'myb_pc_cea_migrated': '1',
+            'myb_pc_pension_v882_migrated': '1',
+        });
+        runMigrations(deps(MEMBER));
+        const ls = global.localStorage;
+        assert.equal(ls.getItem('myb_pc_gmiller_bp_state'), null, 'old single-blob key removed');
+        const moved = JSON.parse(ls.getItem('myb_pc_gmiller_bp_state_2026_27') || 'null');
+        assert.ok(moved, 'blob re-homed under the award-year key');
+        assert.equal(moved.inc, '1', 'include-tick preserved');
+        assert.equal(moved.newR, '21.49', 'entered rate preserved');
+    });
+
+    test('no old blob → no-op (does not throw, creates nothing)', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_cea_migrated': '1', 'myb_pc_pension_v882_migrated': '1',
+        });
+        runMigrations(deps(MEMBER));
+        assert.equal(global.localStorage.getItem('myb_pc_gmiller_bp_state'), null);
+    });
+
+    test('a year-key blob already present is not overwritten', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_bp_state': JSON.stringify({ year: '2026/27', newR: '99.99' }),
+            'myb_pc_gmiller_bp_state_2026_27': JSON.stringify({ year: '2026/27', newR: '21.49' }),
+            'myb_pc_cea_migrated': '1', 'myb_pc_pension_v882_migrated': '1',
+        });
+        runMigrations(deps(MEMBER));
+        const kept = JSON.parse(global.localStorage.getItem('myb_pc_gmiller_bp_state_2026_27'));
+        assert.equal(kept.newR, '21.49', 'existing year-key blob preserved');
+        assert.equal(global.localStorage.getItem('myb_pc_gmiller_bp_state'), null, 'old key still cleaned up');
+    });
+});
+
+// ── FAULT-INJECTED STORAGE: a migration must never delete what it could not move ────────────────
+//
+// Added v21.86, after an external audit REPRODUCED permanent data loss here. The mechanism is not
+// exotic and it is not rare: `lsSet` swallows a storage exception on purpose (iOS private mode, a
+// full quota, a locked-down browser), so a write that failed looked exactly like one that worked.
+// The migration then deleted the source and wrote its completion marker, which guaranteed it would
+// never be retried. Old key gone, new key absent, question closed.
+//
+// These cases inject that failure directly, because it cannot be reached any other way: every
+// happy-path browser test and every ordinary run has working storage, so the destructive branch is
+// invisible right up until somebody's tax code disappears.
+//
+// Two failure SHAPES, deliberately, because they are not the same bug:
+//   · setItem THROWS — quota exceeded, private mode.
+//   · setItem silently does nothing — the shape a read-back catches and a try/catch does not.
+
+/** A localStorage stub where writes to keys matching `failOn` fail in the given way. */
+function makeFailingStorage(initial = {}, failOn = () => false, mode = 'throw') {
+    const store = new Map(Object.entries(initial));
+    return {
+        getItem(k)    { return store.has(k) ? store.get(k) : null; },
+        setItem(k, v) {
+            if (failOn(k)) {
+                if (mode === 'throw') { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; }
+                return;                       // silent no-op — the nastier shape
+            }
+            store.set(k, String(v));
+        },
+        removeItem(k) { store.delete(k); },
+        key(i)        { return Array.from(store.keys())[i] ?? null; },
+        get length()  { return store.size; },
+        dump()        { return Object.fromEntries(store); },
+    };
+}
+
+describe('a migration that cannot write does not delete', () => {
+    // `SK` is REBUILT when the namespace changes, and runMigrations activates the member's
+    // namespace as its last step — so reading `SK.code` afterwards names a different key from the
+    // one the migration wrote. The first draft of these tests did exactly that and two assertions
+    // passed for the wrong reason: they checked a member-namespaced key that had never existed in
+    // any run, failing or not. Capture the unnamespaced names BEFORE running.
+    const legacyNames = () => {
+        setPaycalcNamespace(undefined);
+        return { code: SK.code, ytdPay: SK.ytdPay, ytdTax: SK.ytdTax };
+    };
+
+    for (const mode of ['throw', 'silent']) {
+        test(`CEA key migration keeps the old key when the new one fails (${mode})`, () => {
+            // The audit's exact reproduction: a tax code, and a write that does not land.
+            const KEY = legacyNames().code;
+            global.localStorage = makeFailingStorage(
+                { cea_code: '1257L' }, (k) => k === KEY, mode);
+            runMigrations(deps(MEMBER));
+
+            const after = global.localStorage.dump();
+            assert.equal(after.cea_code, '1257L', 'the source survives — it is the only copy');
+            assert.equal(after[KEY], undefined, 'and the destination genuinely did not take it');
+            assert.equal(after.myb_pc_cea_migrated, undefined,
+                'so the migration is NOT recorded as done, and runs again next load');
+        });
+
+        test(`namespace migration keeps the legacy key when the member key fails (${mode})`, () => {
+            const memberKey = `myb_pc_${slug(MEMBER.name)}_code`;
+            global.localStorage = makeFailingStorage(
+                { myb_pc_code: '1257L' }, (k) => k === memberKey, mode);
+            setPaycalcNamespace(undefined);
+
+            assert.equal(hasPendingLegacyMigration(MEMBER.name), true, 'precondition: it would ask');
+            resolveLegacyMigration(MEMBER.name, 'mine');
+
+            const after = global.localStorage.dump();
+            assert.equal(after.myb_pc_code, '1257L', 'the legacy value is still there');
+            assert.equal(after[memberKey], undefined);
+            assert.equal(after.myb_pc_ns_migrated, undefined,
+                'and the one-shot guard is withheld, so the member is asked again');
+        });
+    }
+
+    test('the Year to Date figures are not lost half-way', () => {
+        // Two independent values sharing one migration. The tax half failing must not take the pay
+        // half's source with it, and vice versa — they are deleted separately for that reason.
+        // Built from the REAL legacy year, via the real key helper — a hand-written slug
+        // here would pass while the production key moved somewhere else entirely.
+        const L = legacyNames();
+        const payKey = ytdPayKey({ label: '2025/26' });   // the legacy year, by label (LEGACY_TAX_YEAR)
+        const taxKey = ytdTaxKey({ label: '2025/26' });
+        global.localStorage = makeFailingStorage(
+            { [L.ytdPay]: '12345.67', [L.ytdTax]: '2345.67', myb_pc_cea_migrated: '1' },
+            (k) => k === taxKey);
+        runMigrations(deps(MEMBER));
+
+        const after = global.localStorage.dump();
+        assert.equal(after[payKey], '12345.67', 'the half that worked moved');
+        assert.equal(after[L.ytdPay], undefined, 'and its source was cleaned up');
+        assert.equal(after[L.ytdTax], '2345.67', 'the half that failed kept its source');
+    });
+
+    test('with working storage every one of them still migrates', () => {
+        // The other direction. A guard that is too cautious would leave a healthy device stuck on
+        // legacy keys for ever, which is a slower version of the same problem.
+        const KEY = legacyNames().code;
+        global.localStorage = makeFailingStorage({ cea_code: '1257L', cea_grade: 'CEA' });
+        runMigrations(deps(MEMBER));
+
+        const after = global.localStorage.dump();
+        assert.equal(after.cea_code, undefined, 'source removed');
+        assert.equal(after[KEY], '1257L', 'destination populated');
+        assert.equal(after.myb_pc_cea_migrated, '1', 'and the migration is recorded as done');
+    });
+});

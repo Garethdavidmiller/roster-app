@@ -3,10 +3,10 @@ paths:
   - "operations.html"
   - "operations.css"
   - "operations-*.js"
-  - "operations-*.test.mjs"
+  - "test/operations-*.test.mjs"
   - "al-leave-*.js"
-  - "al-leave-*.test.mjs"
-  - "leave-file-*.test.mjs"
+  - "test/al-leave-*.test.mjs"
+  - "test/leave-file-*.test.mjs"
   - "e2e/operations.spec.js"
 ---
 # Operations page — area decisions

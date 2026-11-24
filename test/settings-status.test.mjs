@@ -1,0 +1,254 @@
+/**
+ * settings-status.test.mjs — the one line at the top of Settings, and which cards open themselves.
+ *
+ * Organised by what a wrong answer COSTS, and the two directions are nothing like each other:
+ *
+ *   FALSE REASSURANCE is the dangerous one and it is silent. "✓ You're all set" over a page that
+ *   has not finished reading — or over a read that FAILED — tells a member their password is
+ *   their own when nobody knows, and they close the page. Nothing errors, nothing looks wrong,
+ *   and the thing Settings exists to tell them is the thing it got wrong. Every state that is not
+ *   a confirmed `ok` has to be prevented from reading as one, which is why `unknown` and `error`
+ *   each get their own block below rather than being folded into "not ok".
+ *
+ *   FALSE ALARM costs attention. A card that opens itself when nothing is wrong, or a to-do listed
+ *   for a device that cannot do the thing, teaches the member that the summary is noise — and a
+ *   summary nobody believes is worse than no summary, because the page is now longer as well.
+ *
+ * A per-function suite would pass on exactly the code that produces the first failure: `summarise`
+ * is trivially right for every state it is GIVEN, and the defect is what it does with the states
+ * it was not given.
+ */
+
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { summarise, shouldOpen, installNeed, CARD_ORDER } from '../settings-status.js';
+import { MIN_PASSWORD_LENGTH } from '../auth-identity.js';
+
+// Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
+const REPO_ROOT_URL = new URL('../', import.meta.url);
+
+// `install` is 'n/a' in the ALL-OK set because that is what it reports almost everywhere: an
+// offer, not a setting to get right. Its 'action' state is the iPhone-in-a-browser case only.
+const ALL_OK = { password: 'ok', 'work-email': 'ok', install: 'n/a', notifications: 'ok' };
+
+describe('false reassurance — the silent failure', () => {
+    test('an empty report set is CHECKING, never all set', () => {
+        // First paint. Three of the four states are async, so this is the state the page is
+        // genuinely in for a moment on every single load.
+        assert.equal(summarise({}).tone, 'checking');
+    });
+
+    test('one card still out is enough to hold the whole summary back', () => {
+        for (const id of CARD_ORDER) {
+            const states = { ...ALL_OK };
+            delete states[id];
+            assert.equal(summarise(states).tone, 'checking', `${id} unreported must not read as OK`);
+        }
+    });
+
+    test('an explicit `unknown` is treated exactly like an absent report', () => {
+        // A card that reports "I do not know yet" must not be luckier than one that says nothing.
+        assert.equal(summarise({ ...ALL_OK, password: 'unknown' }).tone, 'checking');
+    });
+
+    test('unknown OUTRANKS a to-do, so the count can never be understated', () => {
+        // The alternative — list what you know and keep counting — shows "1 thing to finish"
+        // and then silently becomes 2. A member who acts on the first number leaves one undone.
+        const s = summarise({ password: 'action', 'work-email': 'unknown', notifications: 'ok' });
+        assert.equal(s.tone, 'checking');
+        assert.deepEqual(s.items, []);
+    });
+
+    test('a FAILED read is not a pass', () => {
+        // Everything has reported and nothing is outstanding — but one card learnt nothing, and
+        // "all set" over the top of that is the same lie as "all set" over silence.
+        const s = summarise({ ...ALL_OK, 'work-email': 'error' });
+        assert.equal(s.tone, 'error');
+        assert.notEqual(s.headline, '✓ You’re all set');
+    });
+
+    test('all set is reachable, and says so — the guard must not be a permanent hedge', () => {
+        const s = summarise(ALL_OK);
+        assert.equal(s.tone, 'all-set');
+        assert.deepEqual(s.items, []);
+    });
+
+    test('a card that cannot be in a bad state does not hold the page in limbo', () => {
+        // Notifications are unsupported (iOS in a browser tab). Not a to-do, not an error, and it
+        // must not stop the other two reporting all-set.
+        assert.equal(summarise({ ...ALL_OK, notifications: 'n/a' }).tone, 'all-set');
+    });
+});
+
+describe('false alarm — the noisy failure', () => {
+    test('a configured card does not open itself', () => {
+        assert.equal(shouldOpen('ok'), false);
+    });
+
+    test('nor does one that has not reported yet', () => {
+        // Opening on `unknown` means every card flaps open at first paint and shuts as its answer
+        // lands — the reflow this whole feature exists to remove.
+        assert.equal(shouldOpen('unknown'), false);
+    });
+
+    test('nor one that has nothing to be right or wrong about', () => {
+        assert.equal(shouldOpen('n/a'), false);
+    });
+
+    test('but anything the member must look at DOES open', () => {
+        for (const s of ['action', 'blocked', 'error']) {
+            assert.equal(shouldOpen(/** @type {any} */ (s)), true, `${s} must open its card`);
+        }
+    });
+
+    test('a blocked card is named as blocked, not as a thing to go and do', () => {
+        // "Turn on notifications" is a lie when the browser will refuse: the member taps, nothing
+        // happens, and the summary has sent them into a dead end.
+        const s = summarise({ ...ALL_OK, notifications: 'blocked' });
+        assert.deepEqual(s.items, ['Notifications are blocked on this device']);
+    });
+
+    test('an install OFFER is not a thing to finish', () => {
+        // The Android/desktop case, and the reason `install` is 'n/a' almost everywhere. An
+        // install that changes nothing about whether this account works must not put a to-do in
+        // front of a member — that is the false alarm this whole block is about.
+        assert.equal(summarise(ALL_OK).tone, 'all-set');
+        assert.deepEqual(summarise(ALL_OK).items, []);
+    });
+
+    test('…but the iPhone install PREREQUISITE is named rather than hidden', () => {
+        // The other direction, and the reported defect (v22.39 external review): on an iPhone in a
+        // browser, notifications are genuinely unavailable ('n/a') and the summary closed over it
+        // with "✓ You're all set" — hiding the one instruction that would change the answer.
+        const iphoneInBrowser = { ...ALL_OK, install: 'action', notifications: 'n/a' };
+        const s = summarise(iphoneInBrowser);
+        assert.equal(s.tone, 'todo');
+        assert.equal(s.headline, '1 thing to finish');
+        assert.deepEqual(s.items, ['Add the roster to your Home Screen']);
+    });
+
+    test('installing is a to-do for an iPhone in a browser, and an offer everywhere else', () => {
+        const need = (/** @type {Partial<{ios: boolean, installed: boolean, onMirror: boolean}>} */ d) =>
+            installNeed({ ios: false, installed: false, onMirror: false, ...d });
+        assert.deepEqual(need({ ios: true }), { state: 'action', from: 'here', chip: 'Not installed' });
+        for (const onMirror of [false, true]) {
+            assert.deepEqual(need({ onMirror }), { state: 'n/a', from: null, chip: 'Not installed' }, 'Android or a desktop: an offer');
+            assert.deepEqual(need({ onMirror, ios: true, installed: true }), { state: 'n/a', from: null, chip: 'Installed' }, 'already on the Home Screen');
+        }
+    });
+
+    test('…and on the Pages mirror too, from the main address — never "all set" on a phone that cannot be notified', () => {
+        // The reported defect (Nov 2026 review): the mirror's iPhone reported `n/a`, because the app is
+        // never installed FROM the mirror, and the summary closed over a phone that can receive nothing.
+        const mirror = installNeed({ ios: true, installed: false, onMirror: true });
+        assert.deepEqual(mirror, { state: 'action', from: 'main-address', chip: 'Not installed' });
+        const s = summarise({ ...ALL_OK, install: mirror.state, notifications: 'n/a' });
+        assert.notEqual(s.tone, 'all-set');
+        assert.deepEqual(s.items, ['Add the roster to your Home Screen']);
+    });
+
+    // THE INSTALL CARD'S CHIP AND THE SUMMARY ARE ONE REPORT (settings review, Nov 2026). The card gained
+    // its siblings' chip; the chip is coloured by the state it is reported with, so on every device it is
+    // the summary's amber exactly when the summary lists the to-do, and has words whenever the card shows.
+    test('the install chip and the summary cannot disagree, on any device', () => {
+        for (const ios of [false, true]) for (const installed of [false, true]) for (const onMirror of [false, true]) {
+            const need = installNeed({ ios, installed, onMirror });
+            const listed = summarise({ ...ALL_OK, install: need.state }).ids.includes('install');
+            const where = JSON.stringify({ ios, installed, onMirror });
+            assert.equal(need.state === 'action', listed, `${where}: the chip is amber only beside a listed to-do`);
+            assert.ok(need.chip, `${where}: the card has no words for its chip`);
+            assert.equal(shouldOpen(need.state), listed, `${where}: the card opens itself exactly when it is a to-do`);
+            if (installed) assert.equal(need.chip, 'Installed');
+        }
+    });
+
+    test('pay data can never appear in the summary at all', () => {
+        // It has no wrong state — it is a fact about the device, not a setting to get right — so
+        // it must not be able to nag, whatever it reports.
+        assert.ok(!CARD_ORDER.includes('pay-data'));
+        for (const state of ['action', 'error', 'unknown', 'blocked']) {
+            assert.equal(summarise({ ...ALL_OK, 'pay-data': state }).tone, 'all-set',
+                `pay-data '${state}' must not disturb the summary`);
+        }
+    });
+});
+
+describe('the list itself', () => {
+    test('the order is DECLARED, not the order the answers arrived in', () => {
+        // Two report maps built in opposite key orders must produce the same list; otherwise the
+        // line reshuffles between loads depending on which network answer won the race.
+        const all = { password: 'action', 'work-email': 'action', install: 'action', notifications: 'action' };
+        const a = summarise(all);
+        const b = summarise(Object.fromEntries(Object.entries(all).reverse()));
+        assert.deepEqual(a.items, b.items);
+        assert.deepEqual(a.items, [
+            'Set your own password', 'Save your work email',
+            'Add the roster to your Home Screen', 'Turn on notifications',
+        ]);
+    });
+
+    test('the headline agrees with the list it sits above', () => {
+        for (const n of [1, 2, 3, 4]) {
+            const states = { ...ALL_OK };
+            CARD_ORDER.slice(0, n).forEach(id => { states[id] = 'action'; });
+            const s = summarise(states);
+            assert.equal(s.items.length, n);
+            assert.ok(s.headline.startsWith(n === 1 ? '1 thing' : `${n} things`),
+                `headline "${s.headline}" must state ${n}`);
+        }
+    });
+
+    test('one outstanding item is singular', () => {
+        // "1 things to finish" is the kind of thing a member notices and nothing else catches.
+        assert.equal(summarise({ ...ALL_OK, password: 'action' }).headline, '1 thing to finish');
+    });
+
+    test('every listed card has words to be listed WITH', () => {
+        // A card added to CARD_ORDER without a label would render its raw id — 'work-email' — in a
+        // line staff read. Structural, so a later addition fails here rather than on the page.
+        for (const id of CARD_ORDER) {
+            const s = summarise({ ...ALL_OK, [id]: 'action' });
+            assert.equal(s.items.length, 1);
+            assert.notEqual(s.items[0], id, `${id} has no to-do label`);
+            assert.ok(/^[A-Z]/.test(s.items[0]), `${id}'s label should read as a sentence`);
+        }
+    });
+
+    test('every to-do leads to a card that is on the page (desktop audit, 7 Nov 2026)', () => {
+        // The strip's items are links to `#<card>`. A card id renamed in settings.html would leave a
+        // to-do that jumps nowhere — the "leads nowhere" defect again, arriving by a different road.
+        const html = readFileSync(new URL('./settings.html', REPO_ROOT_URL), 'utf8');
+        for (const [id, state] of CARD_ORDER.flatMap(id => [[id, 'action'], [id, 'blocked']])) {
+            const s = summarise({ ...ALL_OK, [id]: state });
+            if (!s.items.length) continue;
+            assert.deepEqual(s.ids, [id], `${id} (${state}): the item is about its own card`);
+            assert.equal(s.cards.length, s.items.length, 'one card per item');
+            assert.ok(s.cards[0] && html.includes(`id="${s.cards[0]}"`), `${id} → #${s.cards[0]} is not in settings.html`);
+        }
+        for (const s of [summarise({}), summarise(ALL_OK), summarise({ ...ALL_OK, password: 'error' })]) {
+            assert.deepEqual([s.ids, s.cards], [[], []], `${s.tone}: nothing to lead to`);
+        }
+    });
+});
+
+// ── THE MINIMUM A MEMBER IS TOLD IS THE MINIMUM THE SAVE ENFORCES (sign-in audit E4, 13 Nov 2026) ─────────────────
+// `validateNewPassword` refuses anything shorter than MIN_PASSWORD_LENGTH (auth-identity.js), and the forced overlay
+// words its hint from the constant. Three places a member reads the figure are HTML and prose instead — the Password
+// card's label, its `?` panel (settings-app.js's CARD_TIPS, which tips-content.test.mjs evaluates with no scope, so it
+// cannot interpolate the constant) and the staff guide — so a change to the constant left them stating the old rule.
+describe('the password minimum the page states', () => {
+    const SOURCES = ['settings.html', 'settings-app.js', 'staff-guide.html'];
+    /** Every "at least N characters" in a file, tags between the words ignored. @param {string} file */
+    const stated = (file) => [...readFileSync(new URL(`./${file}`, REPO_ROOT_URL), 'utf8')
+        .replace(/<[^>]+>/g, '').matchAll(/at least (\d+) characters/g)].map(m => Number(m[1]));
+
+    test('is MIN_PASSWORD_LENGTH everywhere a member reads it', () => {
+        const wrong = SOURCES.flatMap(f => stated(f).filter(n => n !== MIN_PASSWORD_LENGTH).map(n => `${f} says ${n}`));
+        assert.deepEqual(wrong, [], `the save refuses anything under ${MIN_PASSWORD_LENGTH} characters`);
+    });
+
+    test('guard the guard — each source states it, so a reworded line cannot pass by saying nothing', () => {
+        for (const f of SOURCES) assert.ok(stated(f).length >= 1, `${f} no longer states the minimum in words this test reads`);
+    });
+});

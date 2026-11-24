@@ -3,13 +3,13 @@ paths:
   - "admin.html"
   - "admin.css"
   - "admin-*.js"
-  - "admin-*.test.mjs"
+  - "test/admin-*.test.mjs"
   - "al-contract.js"
   - "al-entitlement*.js"
-  - "al-entitlement.test.mjs"
+  - "test/al-entitlement.test.mjs"
   - "al-swapped-days*.js"
-  - "al-swapped-days.test.mjs"
-  - "al-copy-parity.test.mjs"
+  - "test/al-swapped-days.test.mjs"
+  - "test/al-copy-parity.test.mjs"
   - "e2e/admin.spec.js"
 ---
 

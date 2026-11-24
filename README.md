@@ -63,7 +63,7 @@ the repository — and out of the record of its retirement — is a rule, not a 
 What each lane proves, and what it cannot see. `CLAUDE.md` lists the commands; this is the detail
 behind them.
 
-- **`npm test`** — `test:hygiene` + `test:parse` + `test:unit`: every root test file except the
+- **`npm test`** — `test:hygiene` + `test:parse` + `test:unit`: every file in `test/` except the
   `test:functions` and `test:rules` suites, on a bare checkout with nothing installed (above).
 - **`npm run test:nodeps`** (the same as `node scripts/test-nodeps.mjs`) — every suite that needs
   nothing installed. It prints how many suites it runs and which it skips, and its exclusion list is

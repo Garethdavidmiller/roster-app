@@ -2,11 +2,11 @@
 paths:
   - "nav-panel.js"
   - "nav-destinations.js"
-  - "nav-gates.test.mjs"
-  - "nav-panel.test.mjs"
+  - "test/nav-gates.test.mjs"
+  - "test/nav-panel.test.mjs"
   - "nav-guide-search.js"
   - "overlay.js"
-  - "overlay*.test.mjs"
+  - "test/overlay*.test.mjs"
   - "about-lightbox.js"
 ---
 

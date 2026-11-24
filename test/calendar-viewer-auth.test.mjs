@@ -1,0 +1,645 @@
+/**
+ * calendar-viewer-auth.test.mjs — the server-side staff-PIN rules.
+ * Run: node scripts/run-tests.mjs test/calendar-viewer-auth.test.mjs   (part of `npm run test:hygiene`)
+ *
+ * These decide whether ten thousand guesses are practical, so they are the part of this feature
+ * most worth testing and the part least reachable from any other test. Every interesting case is a
+ * BOUNDARY — the window that has just expired, the block that has just lifted, the attempt that
+ * reaches the limit rather than passing it, the stored document that is corrupt — and none of them
+ * is reachable from an emulator test without waiting fifteen real minutes.
+ *
+ * The other half is what must NOT happen: no PIN in a log, no PIN in an error, no length oracle,
+ * and no claim on the viewer account beyond the one capability. Those are asserted by NAME here,
+ * so adding `name` or `admin` to the viewer is a test failure rather than a review someone catches.
+ */
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+// Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
+const REPO_ROOT_URL = new URL('../', import.meta.url);
+
+const require = createRequire(REPO_ROOT_URL);
+const {
+    CALENDAR_VIEWER_UID, PIN_LENGTH, DEFAULT_THROTTLE,
+    isValidPinShape, pinMatches, sourceKeyFor, clientIpOf, GLOBAL_SOURCE_KEY, GLOBAL_THROTTLE,
+    throttleDecision, recordFailure, isThrottleStateStale, viewerClaims,
+    reserveAttempt, refundAttempt, viewerAccountTamper, isViewerAccount,
+} = require('./functions/calendar-viewer-auth.js');
+
+const T = DEFAULT_THROTTLE;
+
+describe('isValidPinShape — a gate, never an oracle', () => {
+    test('accepts exactly PIN_LENGTH digits', () => {
+        assert.equal(isValidPinShape('0000'), true);
+        assert.equal(isValidPinShape('9137'), true);
+    });
+
+    test('rejects wrong lengths, non-digits, and non-strings', () => {
+        for (const v of ['', '1', '123', '12345', '12a4', ' 123', '12 4', '+123', '1.23',
+                         null, undefined, 1234, {}, []]) {
+            assert.equal(isValidPinShape(/** @type {any} */ (v)), false, `accepted ${JSON.stringify(v)}`);
+        }
+    });
+
+    test('runs BEFORE any comparison, so the endpoint cannot leak the length', () => {
+        // The handler's `isValidPinShape(x) && pinMatches(...)` short-circuits, so a wrong-shape
+        // candidate never touches the secret. This asserts the property the handler relies on:
+        // shape alone decides, with no reference to any expected value.
+        assert.equal(isValidPinShape.length, 1, 'isValidPinShape must take only the candidate');
+    });
+});
+
+describe('pinMatches — constant time, and safe on every wrong input', () => {
+    test('matches an identical value and nothing else', () => {
+        assert.equal(pinMatches('4821', '4821'), true);
+        assert.equal(pinMatches('4821', '4822'), false);
+        assert.equal(pinMatches('4821', '1284'), false);
+    });
+
+    test('a STORED value with surrounding whitespace still matches — the deploy-day trap', () => {
+        // `echo 4821 | gcloud secrets versions add` stores "4821\n", and a console paste can pick
+        // up a space. Untrimmed, that refuses every unlock with a flat "PIN not recognised" — which
+        // reads as a wrong code rather than a bad deploy, and cannot be diagnosed by logging,
+        // because this module must never log a PIN. The one plausible operator error, and the one
+        // with no visible cause.
+        assert.equal(pinMatches('4821', '4821\n'), true);
+        assert.equal(pinMatches('4821', '4821\r\n'), true);
+        assert.equal(pinMatches('4821', ' 4821 '), true);
+    });
+
+    test('trimming the stored value cannot admit a WRONG PIN', () => {
+        // The whole safety argument for the trim. It only ever lets the intended value through.
+        assert.equal(pinMatches('4821', ' 4822 '), false);
+        assert.equal(pinMatches('4821', '48 21'), false, 'inner whitespace must not be collapsed');
+        assert.equal(pinMatches('4821', '   '), false, 'a whitespace-only secret is not a match');
+    });
+
+    test('the SUPPLIED value is NOT trimmed — that would widen what the endpoint accepts', () => {
+        // Asymmetric on purpose: `supplied` is client input and `isValidPinShape` already requires
+        // exactly four digits. Trimming here would make the pair disagree about what a PIN is.
+        assert.equal(pinMatches('4821 ', '4821'), false);
+        assert.equal(pinMatches(' 4821', '4821'), false);
+    });
+
+    test('DIFFERENT LENGTHS do not throw — that would itself be a length oracle', () => {
+        // `timingSafeEqual` throws on unequal buffer lengths, which would turn a wrong-length guess
+        // into a 500 while a wrong-value guess returned 401. Both sides are hashed to 32 bytes
+        // first, so the comparison is always well-formed.
+        assert.doesNotThrow(() => pinMatches('1', '123456'));
+        assert.equal(pinMatches('1', '123456'), false);
+        assert.equal(pinMatches('123456', '1'), false);
+    });
+
+    test('empty and non-string inputs are false, never a throw', () => {
+        for (const [a, b] of [['', '1234'], ['1234', ''], [null, '1234'], ['1234', undefined],
+                              [1234, '1234'], [{}, '1234']]) {
+            assert.equal(pinMatches(/** @type {any} */ (a), /** @type {any} */ (b)), false);
+        }
+    });
+
+    test('an EMPTY entry never matches an empty or blank secret — two empties hash alike', () => {
+        // Every case above has one side non-empty, where the two digests differ anyway, so the empty
+        // check could be deleted with this file green. Its case is BOTH empty once the secret is
+        // trimmed: sha256('') equals sha256(''), and the compare would say yes. The handler refuses
+        // both first (the shape check, and a 503 for a blank secret); this is the function's own floor.
+        for (const blank of ['', '   ', '\n', ' \r\n ']) {
+            assert.equal(pinMatches('', blank), false, `an empty entry matched the secret ${JSON.stringify(blank)}`);
+        }
+    });
+
+    test('a MISCONFIGURED secret of the wrong length compares safely', () => {
+        // If CALENDAR_VIEWER_PIN were set to something odd, this must return false rather than
+        // throwing — a 500 here would distinguish "server misconfigured" from "wrong PIN".
+        assert.equal(pinMatches('1234', 'not-a-pin-at-all'), false);
+    });
+
+    test('the compare IS constant-time: timingSafeEqual, in the source and in fact (sign-in audit C4)', () => {
+        // Every test above is about WHAT pinMatches answers, and `a.equals(b)` gives the same answers
+        // — replacing the compare with it left this whole file green. What the compare protects is how
+        // LONG an answer takes, which no answer can show, so the call itself is pinned: in the source,
+        // and seen happening, with both digests, on a right PIN and on a wrong one.
+        const src = readFileSync(new URL('./functions/calendar-viewer-auth.js', REPO_ROOT_URL), 'utf8');
+        const start = src.indexOf('function pinMatches(');
+        assert.ok(start >= 0, 'pinMatches was not found — this check reads nothing');
+        const fn = src.slice(start, src.indexOf('\n}', start) + 2);
+        assert.match(fn, /\n {4}return crypto\.timingSafeEqual\(a, b\);\n\}$/,
+            'pinMatches must END by returning crypto.timingSafeEqual over the two digests');
+        assert.doesNotMatch(fn, /\.equals\(|\.compare\(|\b[ab]\s*[!=]==?\s*[ab]\b/,
+            'the digests are compared some other way as well — that way leaks timing');
+
+        const nodeCrypto = require('crypto');
+        const real = nodeCrypto.timingSafeEqual;
+        /** @type {Array<[Buffer, Buffer]>} */ const seen = [];
+        nodeCrypto.timingSafeEqual = (/** @type {Buffer} */ a, /** @type {Buffer} */ b) => { seen.push([a, b]); return real(a, b); };
+        try {
+            assert.equal(pinMatches('4821', '4821'), true);
+            assert.equal(pinMatches('4821', '4822'), false);
+        } finally {
+            nodeCrypto.timingSafeEqual = real;
+        }
+        assert.equal(seen.length, 2, 'every compare — a right PIN and a wrong one — goes through timingSafeEqual');
+        assert.ok(seen.every(([a, b]) => a.length === 32 && b.length === 32), 'over the two 32-byte digests, never the raw PINs');
+    });
+});
+
+describe('sourceKeyFor / clientIpOf', () => {
+    test('the same address always gives the same key, and a different one does not', () => {
+        assert.equal(sourceKeyFor('10.0.0.1'), sourceKeyFor('10.0.0.1'));
+        assert.notEqual(sourceKeyFor('10.0.0.1'), sourceKeyFor('10.0.0.2'));
+    });
+
+    test('the RAW address never appears in the key', () => {
+        const ip = '203.0.113.45';
+        assert.equal(sourceKeyFor(ip).includes(ip), false);
+        assert.equal(sourceKeyFor(ip).includes('203'), false);
+    });
+
+    test('the key is a legal Firestore document id', () => {
+        // 32 hex chars: no slash, no dot, not `.`/`..`, well under 1500 bytes.
+        const k = sourceKeyFor('192.168.1.1');
+        assert.match(k, /^[0-9a-f]{32}$/);
+    });
+
+    test('an UNKNOWN source falls into ONE shared bucket, not an unlimited allowance', () => {
+        // The safe direction. An unattributable caller is throttled together with every other
+        // unattributable caller; giving each its own fresh state would be a free bypass.
+        assert.equal(sourceKeyFor(null), sourceKeyFor(undefined));
+        assert.equal(sourceKeyFor(null), sourceKeyFor(''));
+        assert.equal(sourceKeyFor(null), sourceKeyFor('   '));
+    });
+
+    // ── THE FORGED-HEADER CASES (v20.35) ────────────────────────────────────────────────────────
+    //
+    // This took the FIRST x-forwarded-for entry until v20.35, which handed any caller an unlimited
+    // supply of throttle buckets: send `X-Forwarded-For: 1.1.1.1`, then `1.1.1.2`, and every request
+    // is a brand-new source with a full allowance. Against a four-digit PIN that is not a weakened
+    // throttle, it is no throttle. Google's load balancer RETAINS a supplied value and appends its
+    // own observation, and its documentation warns the preceding values are not verified.
+    //
+    // The asymmetry is the fix: a caller can only PREPEND. Whatever they send is at the FRONT and
+    // the platform's own value is appended after it, so the LAST entry is the only one they cannot
+    // control. These cases are written as the attack, not as the mechanism.
+    test('a forged x-forwarded-for prefix cannot mint a new throttle bucket', () => {
+        // Same real caller (10.0.0.1 appended by the platform), three different forged prefixes.
+        // All three must land in ONE bucket, or the limit means nothing.
+        const forged = ['1.1.1.1', '1.1.1.2', '203.0.113.9']
+            .map(fake => clientIpOf({ headers: { 'x-forwarded-for': `${fake}, 10.0.0.1` } }));
+        assert.deepEqual(forged, ['10.0.0.1', '10.0.0.1', '10.0.0.1']);
+        assert.equal(new Set(forged.map(sourceKeyFor)).size, 1, 'one source key for one real caller');
+
+        // And a forged value must never BE the key, however many entries are stacked in front.
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '1.1.1.1, 2.2.2.2, 3.3.3.3, 10.0.0.1' } }), '10.0.0.1');
+    });
+
+    test('clientIpOf reads the END of the chain, and tolerates spacing and repeated headers', () => {
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1, 10.0.0.2' } }), '10.0.0.2');
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '  1.2.3.4  ' } }), '1.2.3.4', 'a single entry is both ends');
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '1.2.3.4,  10.0.0.1  ,' } }), '10.0.0.1', 'trailing comma');
+        // Node surfaces a REPEATED header as an array in arrival order, so the platform's value is
+        // in the last element — taking the first element would be the old bypass wearing a hat.
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': ['1.1.1.1', '9.9.9.9, 10.0.0.1'] } }), '10.0.0.1');
+    });
+
+    test('falls back to req.ip then the socket, and finally null', () => {
+        assert.equal(clientIpOf({ headers: {}, ip: '5.6.7.8' }), '5.6.7.8');
+        assert.equal(clientIpOf({ headers: {}, socket: { remoteAddress: '9.9.9.9' } }), '9.9.9.9');
+        assert.equal(clientIpOf({ headers: {} }), null);
+        assert.equal(clientIpOf(/** @type {any} */ ({})), null);
+    });
+});
+
+// ── THE ALL-SOURCES CEILING (v20.35) ────────────────────────────────────────────────────────────
+//
+// The per-source throttle can only ever be as good as the request attribution underneath it, and
+// that attribution rests on a forwarding header whose exact shape depends on the deployment chain.
+// This ceiling exists so the endpoint is bounded even when that attribution is wrong — a different
+// KIND of defence, not a second copy of the same one, which is why it is keyed on a constant.
+describe('the all-sources ceiling — bounded even if attribution is wrong', () => {
+    test('its key is a constant that no request can influence, and cannot collide with a source key', () => {
+        // A per-source key is 32 hex chars. The global key must not be able to be one, or a caller
+        // whose address happened to hash to it would share the ceiling's bucket.
+        assert.match(GLOBAL_SOURCE_KEY, /^[a-z_-]+$/, 'not hex, so no hashed address can collide');
+        assert.notEqual(GLOBAL_SOURCE_KEY.length, 32);
+        for (const ip of ['1.1.1.1', '10.0.0.1', '', null]) {
+            assert.notEqual(sourceKeyFor(ip), GLOBAL_SOURCE_KEY);
+        }
+    });
+
+    test('it sits ABOVE the per-source limit, so both shapes of chain are covered', () => {
+        // If the chain collapses every caller into one bucket, the per-source limit binds first and
+        // this never fires. If the chain is per-client, this is the only thing bounding the total.
+        // Equal or lower would make the per-source rule dead code.
+        assert.ok(GLOBAL_THROTTLE.maxFailures > DEFAULT_THROTTLE.maxFailures,
+            'the ceiling must be a backstop, never the thing that stops ordinary use');
+    });
+
+    test('it actually bounds a brute force — the arithmetic, not the intent', () => {
+        // 10,000 combinations against the ceiling's rate. If a future edit loosens this enough to
+        // make the whole space reachable inside a working day, that is worth failing over.
+        const perHour = GLOBAL_THROTTLE.maxFailures * (3600000 / GLOBAL_THROTTLE.windowMs);
+        assert.ok(10000 / perHour > 8,
+            `at ${perHour}/hour the PIN space falls in ${(10000 / perHour).toFixed(1)}h — too fast`);
+    });
+
+    test('the ceiling trips on the attempt that REACHES it, and expires on its own', () => {
+        const now = 1_000_000;
+        let state = null;
+        for (let i = 0; i < GLOBAL_THROTTLE.maxFailures - 1; i++) {
+            state = recordFailure(state, now, GLOBAL_THROTTLE);
+            assert.equal(state.blockedUntil, 0, `not blocked at ${i + 1} failures`);
+        }
+        state = recordFailure(state, now, GLOBAL_THROTTLE);
+        assert.ok(state.blockedUntil > now, 'the attempt that reaches the limit trips it');
+        assert.equal(throttleDecision(state, now).allowed, false);
+        // No permanent lock: a control any passer-by could pin open would be a denial-of-service
+        // handle pointed at the staff it protects.
+        assert.equal(throttleDecision(state, state.blockedUntil + 1).allowed, true);
+    });
+});
+
+describe('throttleDecision + recordFailure — the boundaries', () => {
+    const now = 1_700_000_000_000;
+
+    test('a first-ever attempt is allowed', () => {
+        assert.deepEqual(throttleDecision(null, now), { allowed: true, retryAfterSec: 0 });
+    });
+
+    test('a corrupt or partial stored document allows rather than blocks', () => {
+        // Fail OPEN on unreadable state: a source that can never attempt again because its document
+        // is malformed is a permanent lockout nobody can diagnose, and the PIN is still required.
+        for (const s of [{}, { failures: 'x' }, { blockedUntil: 'soon' }, { blockedUntil: null }, 'nonsense']) {
+            assert.equal(throttleDecision(/** @type {any} */ (s), now).allowed, true, JSON.stringify(s));
+        }
+    });
+
+    test('failures accumulate inside the window and TRIP AT the limit, not past it', () => {
+        // `>=` not `>`. With `>` the source gets maxFailures + 1 guesses per window — the sort of
+        // off-by-one a test asserting "31 is blocked" would happily confirm as correct.
+        let state = null;
+        for (let i = 1; i < T.maxFailures; i++) {
+            state = recordFailure(state, now, T);
+            assert.equal(state.failures, i);
+            assert.equal(state.blockedUntil, 0, `blocked early at failure ${i}`);
+        }
+        state = recordFailure(state, now, T);
+        assert.equal(state.failures, T.maxFailures);
+        assert.equal(state.blockedUntil, now + T.blockMs);
+        assert.equal(throttleDecision(state, now).allowed, false);
+    });
+
+    test('a block reports a positive Retry-After and LIFTS on its own', () => {
+        const blocked = { failures: T.maxFailures, windowStart: now, blockedUntil: now + T.blockMs };
+        const d = throttleDecision(blocked, now);
+        assert.equal(d.allowed, false);
+        assert.ok(d.retryAfterSec > 0 && d.retryAfterSec <= T.blockMs / 1000);
+        // The exact instant it expires, and one ms after: allowed. There is no permanent state.
+        assert.equal(throttleDecision(blocked, now + T.blockMs).allowed, true);
+        assert.equal(throttleDecision(blocked, now + T.blockMs + 1).allowed, true);
+    });
+
+    test('the window is ROLLING — an expired window RESTARTS at one, it does not resume', () => {
+        // This is what stops an office that mistypes a handful of times a week from eventually
+        // being blocked for good by an ever-growing counter.
+        const old = { failures: T.maxFailures - 1, windowStart: now, blockedUntil: 0 };
+        const next = recordFailure(old, now + T.windowMs + 1, T);
+        assert.equal(next.failures, 1);
+        assert.equal(next.windowStart, now + T.windowMs + 1);
+        assert.equal(next.blockedUntil, 0);
+    });
+
+    test('a failure one millisecond INSIDE the window still counts toward it', () => {
+        const old = { failures: 4, windowStart: now, blockedUntil: 0 };
+        const next = recordFailure(old, now + T.windowMs - 1, T);
+        assert.equal(next.failures, 5);
+        assert.equal(next.windowStart, now, 'the window must not slide forward on each failure');
+    });
+
+    test('the shipped limit is generous for a station and tight for a script', () => {
+        // Sized against a real deployment where every PC shares one corporate NAT address. If these
+        // ever drop to login-like numbers, the whole of Marylebone gets locked out by two people
+        // fumbling; if they rise far, 10,000 guesses stops being a meaningful wall.
+        assert.ok(T.maxFailures >= 20, 'too tight for a shared corporate address');
+        assert.ok(T.maxFailures <= 60, 'too loose to be a brute-force wall');
+        const perDay = T.maxFailures * (86_400_000 / (T.windowMs + T.blockMs));
+        assert.ok(perDay < 10000 / 2, `a full traversal would take under two days (${Math.round(perDay)}/day)`);
+    });
+
+    test('throttleDecision reads only the STAMP, so a config change cannot re-judge a live block', () => {
+        const blocked = { failures: 999, windowStart: now, blockedUntil: now + 1000 };
+        assert.equal(throttleDecision(blocked, now).allowed, false);
+        assert.equal(throttleDecision(blocked, now + 2000).allowed, true);
+    });
+});
+
+describe('isThrottleStateStale — the retention rule, stated once', () => {
+    const now = 1_700_000_000_000;
+
+    test('a missing document is stale', () => {
+        assert.equal(isThrottleStateStale(null, now), true);
+    });
+
+    test('a LIVE block is never stale, however old its window', () => {
+        // Deleting a document that is still serving a block would clear the block.
+        assert.equal(isThrottleStateStale({ windowStart: 0, blockedUntil: now + 1 }, now), false);
+    });
+
+    test('an expired window plus an expired block eventually goes', () => {
+        const s = { windowStart: now, blockedUntil: 0 };
+        assert.equal(isThrottleStateStale(s, now + 1000), false);
+        assert.equal(isThrottleStateStale(s, now + T.windowMs + T.blockMs + 1), true);
+    });
+});
+
+describe('viewerClaims — one capability, and provably not a role', () => {
+    test('carries exactly the viewer capability and nothing else', () => {
+        assert.deepEqual(viewerClaims(), { calendarViewer: true });
+        assert.deepEqual(Object.keys(viewerClaims()), ['calendarViewer']);
+    });
+
+    test('carries NONE of the member claims, each asserted by name', () => {
+        // Named individually so that adding one is a failure here rather than a review someone has
+        // to catch. `setCustomUserClaims` REPLACES the whole set, so this object is the complete
+        // and only description of what the shared account can do.
+        const c = viewerClaims();
+        for (const role of ['name', 'admin', 'manager', 'linksDesigner']) {
+            assert.equal(role in c, false, `the viewer must never carry \`${role}\``);
+        }
+    });
+
+    test('returns a FRESH object each time, so a caller cannot mutate the shared one', () => {
+        const a = viewerClaims();
+        a.admin = true;
+        assert.equal('admin' in viewerClaims(), false);
+    });
+});
+
+describe('the viewer account is invisible to staff enumeration', () => {
+    test('the uid is not an email and would never derive one', () => {
+        // `computeOrphanLabels` disables any `@myb-roster.local` account not on the roster, and
+        // `getSignInStats` counts from an allowlist of derived member emails. The viewer is created
+        // with NO email at all, so it is outside both by construction — but only while the uid
+        // stays a uid. A viewer given a member-shaped email would be swept as a leaver on the next
+        // "Set up accounts" run, and the PIN would stop working with no obvious cause.
+        assert.equal(CALENDAR_VIEWER_UID.includes('@'), false);
+        assert.equal(CALENDAR_VIEWER_UID.includes('myb-roster.local'), false);
+    });
+
+    test('the real orphan filter does not match an emailless viewer account', () => {
+        // Asserted against the ACTUAL function, not a restatement of its rule.
+        const { computeOrphanLabels } = require('./functions/roster-parse-helpers.js');
+        const users = [
+            { uid: CALENDAR_VIEWER_UID, displayName: 'Calendar viewer (shared staff access)', disabled: false },
+            { uid: 'x', email: 'g.miller@myb-roster.local', displayName: 'G. Miller', disabled: false },
+        ];
+        const orphans = computeOrphanLabels(users, new Set());
+        assert.equal(orphans.some(o => o.uid === CALENDAR_VIEWER_UID), false,
+            'the leaver sweep would disable the viewer account');
+        assert.equal(orphans.length, 1, 'the real leaver should still be caught');
+    });
+
+    test('the sign-in stats allowlist cannot include the viewer', () => {
+        const { summariseSignIns } = require('./functions/roster-parse-helpers.js');
+        const now = Date.now();
+        const users = [
+            { uid: CALENDAR_VIEWER_UID, metadata: { lastSignInTime: new Date(now).toISOString() } },
+            { uid: 'x', email: 'g.miller@myb-roster.local', metadata: { lastSignInTime: new Date(now).toISOString() } },
+        ];
+        const stats = summariseSignIns(users, now, new Set(['g.miller@myb-roster.local']));
+        // Whatever the shape of the stats object, the emailless viewer must not be counted:
+        // exactly one allowlisted account exists.
+        assert.equal(stats.total, 1, `the viewer was counted as staff: ${JSON.stringify(stats)}`);
+    });
+
+    test('the orphan filter skips the viewer even when somebody LINKED a roster-domain email to it', () => {
+        // Any PIN holder can link an email/password to the shared account from their own session. A
+        // non-roster `@myb-roster.local` address would make it a "leaver" — and disabling it is a
+        // station-wide PIN outage (Sep 2026 review).
+        const { computeOrphanLabels } = require('./functions/roster-parse-helpers.js');
+        const users = [{ uid: CALENDAR_VIEWER_UID, email: 'nobody.here@myb-roster.local', disabled: false }];
+        assert.deepEqual(computeOrphanLabels(users, new Set()), [], 'the leaver sweep would disable the viewer account');
+    });
+
+    test('PIN_LENGTH agrees on both sides of the ESM/CommonJS boundary', () => {
+        assert.equal(PIN_LENGTH, 4);
+    });
+});
+
+// ── A MALFORMED DEPLOYED SECRET IS A SERVER FAULT, NOT A WRONG PIN (v20.39, audit §31) ──────────
+//
+// The shape rule is applied to the DEPLOYED SECRET as well as to the submitted PIN, and the reason
+// is a support failure rather than a security one: a secret set to five digits by a slipped
+// keystroke can never match a four-digit entry, so every member is told their PIN is wrong. That is
+// the symptom least likely to lead anyone to the cause. Asserted through the same helper the
+// endpoint uses, since the endpoint itself needs the emulator.
+describe('deployed-secret shape', () => {
+    // ⚠️ EVERY FIXTURE BELOW IS INVENTED, AND MUST STAY THAT WAY (v21.27).
+    //
+    // These were previously written as near-misses of the LIVE PIN — a truncation of it, a spaced
+    // version, and it with a trailing keystroke. Individually each is malformed; together they
+    // reconstruct the secret for anybody reading the file, which is exactly the leak
+    // `calendar-viewer-parity.test.mjs` Contract B exists to prevent. That guard did not catch it
+    // because its file scan skips `*.test.*` — the one place the value had got to.
+    //
+    // A malformed input does not need to resemble the real value to test a shape rule. Derive these
+    // from nothing.
+    test('the shape rule rejects exactly what a slipped keystroke produces', () => {
+        for (const bad of ['12345', '908', '90 81', 'abcd', '908a', '', '   ', '9081\n5']) {
+            assert.equal(isValidPinShape(bad.trim()), false, `"${bad}" must not pass as a configured PIN`);
+        }
+    });
+
+    test('a well-formed four-digit secret still passes', () => {
+        // Values chosen to be obviously not the real PIN — the deployed secret never appears here.
+        for (const good of ['0000', '9999', '0123']) {
+            assert.equal(isValidPinShape(good), true, `"${good}" is a valid PIN shape`);
+        }
+    });
+
+    test('the same rule governs the submitted PIN and the configured one', () => {
+        // One rule, so the two can never drift into disagreeing about what a PIN is — the drift
+        // would show up as "correct PIN refused", which is indistinguishable from a wrong PIN. This
+        // compared the rule with itself (review, Nov 2026); the handler and the PIN card are what can
+        // drift. The handler needs the Functions SDK to run (index-endpoints.test.mjs runs it), so its
+        // two calls are read from the source here, where nothing need be installed.
+        const index = readFileSync(new URL('./functions/index.js', REPO_ROOT_URL), 'utf8');
+        const handler = index.slice(index.indexOf('exports.unlockCalendarViewer = onRequest('));
+        assert.match(handler, /!isValidPinShape\(expected\)/, 'the configured secret is not held to the shape rule');
+        assert.match(handler, /isValidPinShape\(supplied\) && pinMatches\(supplied, expected\)/,
+            'the submitted PIN is not held to the shape rule before it is compared');
+        // (The card's half went with the PIN card, 23 Nov 2026: no client shapes a PIN any more, and
+        // the endpoint goes in the server release.)
+    });
+});
+
+// ── CHARGE FIRST, REFUND A RIGHT PIN (Sep 2026 review) ──────────────────────────────────────────
+describe('reserveAttempt + refundAttempt — the charge comes before the compare', () => {
+    const NOW = 1_000_000_000;
+
+    test('an unblocked attempt is charged to BOTH buckets, each on its own limit', () => {
+        const r = reserveAttempt(null, null, NOW);
+        assert.equal(r.blocked, null);
+        assert.deepEqual(r.source, recordFailure(null, NOW));
+        assert.deepEqual(r.global, recordFailure(null, NOW, GLOBAL_THROTTLE));
+    });
+
+    test('a blocked bucket — either one — refuses and charges nothing', () => {
+        const blocked = { failures: 30, windowStart: NOW - 1000, blockedUntil: NOW + 60_000 };
+        for (const [src, glob] of [[blocked, null], [null, blocked]]) {
+            const r = reserveAttempt(src, glob, NOW);
+            assert.equal(r.blocked && r.blocked.allowed, false);
+            assert.equal(r.source, null);
+            assert.equal(r.global, null);
+        }
+    });
+
+    test('the attempt that REACHES the limit is still compared — the next one is not', () => {
+        const nearly = { failures: T.maxFailures - 1, windowStart: NOW - 1000, blockedUntil: 0 };
+        const r = reserveAttempt(nearly, null, NOW);
+        assert.equal(r.blocked, null, 'the 30th attempt is allowed');
+        assert.ok(r.source.blockedUntil > NOW, 'and its charge trips the block');
+        assert.equal(reserveAttempt(r.source, r.global, NOW).blocked.allowed, false, 'so a concurrent 31st is refused');
+    });
+
+    test('refunding the only charge DELETES the bucket — a right PIN leaves no dated row', () => {
+        const r = reserveAttempt(null, null, NOW);
+        assert.equal(refundAttempt(r.source, r.source), null);
+        assert.equal(refundAttempt(r.global, r.global, GLOBAL_THROTTLE), null);
+    });
+
+    test('a refund takes back one, and lifts only the block that one tripped', () => {
+        const r = reserveAttempt({ failures: T.maxFailures - 1, windowStart: NOW - 1000, blockedUntil: 0 }, null, NOW);
+        assert.deepEqual(refundAttempt(r.source, r.source),
+            { failures: T.maxFailures - 1, windowStart: NOW - 1000, blockedUntil: 0 });
+        // Somebody else's genuine failure tripped it too: the block stands.
+        const over = { failures: T.maxFailures + 1, windowStart: NOW - 1000, blockedUntil: NOW + 5000 };
+        assert.deepEqual(refundAttempt(over, over), { failures: T.maxFailures, windowStart: NOW - 1000, blockedUntil: NOW + 5000 });
+    });
+
+    test('a window that has moved on since the charge is left alone', () => {
+        const r = reserveAttempt(null, null, NOW);
+        const later = { failures: 3, windowStart: NOW + T.windowMs + 1, blockedUntil: 0 };
+        assert.equal(refundAttempt(later, r.source), undefined);
+        assert.equal(refundAttempt(null, r.source), undefined);
+    });
+});
+
+describe('the shared viewer account — tamper and identity', () => {
+    test('a bare account is as the unlock made it', () => {
+        assert.equal(viewerAccountTamper({ uid: CALENDAR_VIEWER_UID, providerData: [], disabled: false }), null);
+        assert.equal(viewerAccountTamper(null), null);
+    });
+
+    test('every way back in that does not go through the PIN is named', () => {
+        for (const [rec, why] of [
+            [{ email: 'x@example.com' }, 'has an email'],
+            [{ phoneNumber: '+447700900000' }, 'has a phone number'],
+            [{ providerData: [{ providerId: 'password' }] }, 'has a linked sign-in method'],
+            [{ disabled: true }, 'disabled'],
+        ]) assert.equal(viewerAccountTamper(rec), why);
+    });
+
+    test('the viewer is recognised by uid OR by its claim, and a member is not', () => {
+        assert.equal(isViewerAccount({ uid: CALENDAR_VIEWER_UID }), true);
+        assert.equal(isViewerAccount({ uid: 'other', customClaims: { calendarViewer: true } }), true);
+        assert.equal(isViewerAccount({ uid: 'u1', customClaims: { name: 'G. Miller', member: 'G. Miller' } }), false);
+        assert.equal(isViewerAccount(null), false);
+    });
+});
+
+// ── THE STATION-WIDE BLOCK, TOLD (owner, Nov 2026) ──────────────────────────────────────────────
+// The rules behind the admin's notice and Operations' strip. The record holds times and counts and
+// nothing else; the notice goes at most once a day; and the words carry no PIN and no address.
+describe('the station-wide block: the record, the once-a-day notice, and what Operations sees', () => {
+    const { LOCKOUT_RECORD_KEY, LOCKOUT_ALERT_GAP_MS, LOCKOUT_RECENT_MS, noteGlobalBlock, lockoutSummary, lockoutNoticeWords } =
+        require('./functions/calendar-viewer-auth.js');
+    const T0 = Date.UTC(2026, 10, 16, 14, 5);
+    const until = (/** @type {number} */ t) => t + GLOBAL_THROTTLE.blockMs;
+
+    test('the record key cannot collide with a source key, and is not the all-sources one', () => {
+        assert.doesNotMatch(LOCKOUT_RECORD_KEY, /^[0-9a-f]{32}$/);
+        assert.notEqual(LOCKOUT_RECORD_KEY, GLOBAL_SOURCE_KEY);
+    });
+
+    test('the first block ever: recorded, and the admin is told', () => {
+        const { next, alert } = noteGlobalBlock(null, T0, until(T0));
+        assert.equal(alert, true);
+        assert.deepEqual(next, { blocks: [T0], blockedUntil: until(T0), alertedAt: T0 });
+    });
+
+    test('inside the gap: recorded, not told; at the gap: told again', () => {
+        const first = noteGlobalBlock(null, T0, until(T0)).next;
+        const soon = noteGlobalBlock(first, T0 + LOCKOUT_ALERT_GAP_MS - 1, until(T0 + LOCKOUT_ALERT_GAP_MS - 1));
+        assert.equal(soon.alert, false);
+        assert.equal(soon.next.alertedAt, T0, 'the stamp is not moved by a block that was not told');
+        assert.equal(soon.next.blocks.length, 2);
+        assert.equal(noteGlobalBlock(first, T0 + LOCKOUT_ALERT_GAP_MS, until(T0 + LOCKOUT_ALERT_GAP_MS)).alert, true);
+    });
+
+    test('a stamp from a clock far AHEAD cannot hold the notices off for ever', () => {
+        assert.equal(noteGlobalBlock({ blocks: [], alertedAt: T0 + 30 * LOCKOUT_ALERT_GAP_MS }, T0, until(T0)).alert, true);
+    });
+
+    test('blocks older than a day are dropped, and the list is bounded', () => {
+        const old = noteGlobalBlock(/** @type {any} */ ({ blocks: [T0 - LOCKOUT_RECENT_MS, T0 - 1000, 'x', NaN] }), T0, until(T0)).next;
+        assert.deepEqual(old.blocks, [T0 - 1000, T0]);
+        const many = noteGlobalBlock({ blocks: Array.from({ length: 500 }, (_, i) => T0 - 500 + i) }, T0, until(T0)).next;
+        assert.ok(many.blocks.length <= 100);
+        assert.equal(many.blocks.at(-1), T0);
+    });
+
+    test('a corrupt record is read as none, never thrown on', () => {
+        for (const bad of [null, undefined, 'x', 42, { blocks: 'nope', alertedAt: 'yesterday', blockedUntil: {} }]) {
+            const { next, alert } = noteGlobalBlock(/** @type {any} */ (bad), T0, until(T0));
+            assert.equal(alert, true);
+            assert.deepEqual(next.blocks, [T0]);
+        }
+    });
+
+    test('Operations: running, recently ended, or nothing to say', () => {
+        const rec = noteGlobalBlock(null, T0, until(T0)).next;
+        assert.deepEqual(lockoutSummary(rec, T0 + 60_000), { active: true, blockedUntil: until(T0), lastBlockedAt: T0, blocks: 1 });
+        assert.equal(lockoutSummary(rec, until(T0) + 60_000)?.active, false, 'ended, and still news');
+        assert.equal(lockoutSummary(rec, T0 + LOCKOUT_RECENT_MS), null, 'a day on, nothing to say');
+        assert.equal(lockoutSummary(null, T0), null);
+        assert.deepEqual(Object.keys(lockoutSummary(rec, T0) || {}).sort(), ['active', 'blockedUntil', 'blocks', 'lastBlockedAt'],
+            'times and counts: no alert stamp, no source');
+    });
+
+    // WHETHER ONE IS RUNNING IS THE DOOR'S TO SAY (owner, 18 Nov 2026). The record keeps the end a block
+    // was given when it tripped; a right PIN's refund can lift it sooner, after the record was written.
+    test('Operations: a block runs while the all-sources row is shut, and only then', () => {
+        const rec = noteGlobalBlock(null, T0, until(T0)).next;
+        const at = T0 + 60_000;
+        const shut = { failures: GLOBAL_THROTTLE.maxFailures, windowStart: T0 - 60_000, blockedUntil: until(T0) };
+        const lifted = { failures: GLOBAL_THROTTLE.maxFailures - 1, windowStart: T0 - 60_000, blockedUntil: 0 };
+        assert.deepEqual(lockoutSummary(rec, at, shut), { active: true, blockedUntil: until(T0), lastBlockedAt: T0, blocks: 1 },
+            'the door shut: running, until the end it names');
+        // Lifted early: not running, and NO end claimed — the moment it lifted is kept nowhere, so the
+        // summary says when it began and nothing about an end it never reached.
+        assert.deepEqual(lockoutSummary(rec, at, lifted), { active: false, blockedUntil: T0, lastBlockedAt: T0, blocks: 1 });
+        assert.deepEqual(lockoutSummary(rec, at, null), { active: false, blockedUntil: T0, lastBlockedAt: T0, blocks: 1 },
+            'no row at all: the door is open');
+        // The record is best-effort; the door is not. Shut with no record behind it is still a block.
+        assert.deepEqual(lockoutSummary(null, at, shut), { active: true, blockedUntil: until(T0), lastBlockedAt: 0, blocks: 1 });
+        assert.equal(lockoutSummary(rec, at, { ...shut, blockedUntil: until(T0) + 120_000 })?.blockedUntil, until(T0) + 120_000,
+            'the end is the door\'s, not the one the record was given');
+        // A block that ran its course reads the same with the door as without it.
+        assert.deepEqual(lockoutSummary(rec, until(T0) + 60_000, lifted), lockoutSummary(rec, until(T0) + 60_000));
+        assert.equal(lockoutSummary(rec, T0 + LOCKOUT_RECENT_MS, null), null, 'a day on, nothing to say');
+        assert.equal(lockoutSummary(null, at, lifted), null, 'no record and the door open: nothing to say');
+        // Not read: the record alone decides, exactly as before the door was asked.
+        assert.deepEqual(lockoutSummary(rec, at, undefined), { active: true, blockedUntil: until(T0), lastBlockedAt: T0, blocks: 1 });
+    });
+
+    test('the notice: one event headline, a count and a London time — no PIN, no exclamation', () => {
+        const winter = lockoutNoticeWords({ blockedUntil: Date.UTC(2026, 10, 16, 14, 20) });
+        assert.deepEqual(winter, {
+            headline: 'Staff PIN — blocked station-wide',
+            body: `${GLOBAL_THROTTLE.maxFailures} wrong entries in 15 minutes. It reopens by itself at 14:20.`,
+        });
+        assert.match(lockoutNoticeWords({ blockedUntil: Date.UTC(2026, 6, 16, 14, 20) }).body, /at 15:20\.$/, 'BST');
+        assert.doesNotMatch(JSON.stringify(winter), /!/);
+    });
+});

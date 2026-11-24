@@ -1,0 +1,177 @@
+/**
+ * Tests for the Error Log noise filters in error-reporter.js.
+ * Run: node scripts/run-tests.mjs test/error-reporter.test.mjs   (part of `npm run test:hygiene`)
+ *
+ * WHY THIS FILE EXISTS — the filters shipped untested for six versions (v13.31 → v19.19), and this
+ * is precisely the code where that is backwards. The two failure directions are not symmetric:
+ *
+ *   too NARROW  → noise stays in the Error Log. Visible, annoying, self-announcing.
+ *   too BROAD   → real errors are silently swallowed. Nothing ever tells you. The Error Log looks
+ *                 healthy BECAUSE it is broken.
+ *
+ * So every filter is pinned from both sides: the thing it must suppress, and the neighbouring real
+ * error it must NOT. Added when a fifth filter (WebKit's IndexedDB teardown) was needed, because
+ * adding one more untested suppressor to four untested suppressors is how a log goes quiet.
+ */
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { shouldReport } from '../client-errors.js';
+
+const HOST = 'myb-roster.web.app';
+const SDK  = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
+const FIRESTORE = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
+const OWN  = 'https://myb-roster.web.app/calendar-app.js';
+
+/** @param {string} msg @param {string} [src] */
+const reports = (msg, src = OWN) => shouldReport(msg, src, HOST);
+
+describe('empty and cross-origin script errors', () => {
+    test('an empty message is dropped', () => {
+        assert.equal(reports(''), false);
+    });
+    test('the opaque cross-origin "Script error." is dropped', () => {
+        assert.equal(reports('Script error.'), false);
+    });
+    test("a browser extension's error is dropped", () => {
+        assert.equal(reports('boom', 'chrome-extension://abcd/inject.js'), false);
+    });
+    test("Safari's two current extension forms are dropped too, not logged as app errors", () => {
+        // A Safari web extension's own scheme, and the mask Safari 16+ puts over an extension script
+        // (WebKit bug 246010). Neither starts with http, so the foreign-origin rule let both through.
+        assert.equal(reports('TypeError: x', 'safari-web-extension://ABCD-1234/content.js'), false);
+        assert.equal(reports('TypeError: x', 'webkit-masked-url://hidden/'), false);
+    });
+    test('…while an unhandled rejection, which carries only the page path, is still kept', () => {
+        // The other side of the same line: matched by scheme, never by "not http".
+        assert.equal(reports('TypeError: x', '/roster-app/index.html'), true);
+    });
+    test('but a crash inside the app\'s OWN CDN dependency is kept', () => {
+        // The Firebase SDK and Mammoth are the app's code for this purpose — a crash in them is
+        // app-breaking, so the cross-origin rule must not swallow it.
+        assert.equal(reports('t is not a function', SDK), true);
+        assert.equal(reports('convert failed', 'https://cdn.jsdelivr.net/npm/mammoth/mammoth.browser.min.js'), true);
+    });
+});
+
+describe('ResizeObserver and view transitions', () => {
+    test('the ResizeObserver loop warning is dropped', () => {
+        assert.equal(reports('ResizeObserver loop completed with undelivered notifications.'), false);
+    });
+    test('the skipped view-transition notice is dropped', () => {
+        assert.equal(reports('Skipping view transition because the document is hidden.'), false);
+    });
+    // Reported live from Android Chrome 152 on 4 Sep 2026 (v22.62). Same declarative opt-in as the
+    // line above, different Chromium wording: the promise rejection when the document stops being
+    // fully active mid-navigation. The app never asked for the transition, so there is nothing to
+    // catch it and it lands here as an unhandled rejection.
+    test('the aborted view-transition rejection is dropped', () => {
+        assert.equal(reports('Transition was aborted because of invalid state'), false);
+    });
+    // Reported live from paycalc.html on Android Edge 152, 6 Sep 2026 (a device running v22.96 —
+    // so it already CARRIED the two filters above and this still got through). Chromium words a
+    // SKIPPED transition differently from an ABORTED one, and neither existing rule matches it.
+    // Third message, same declarative opt-in, same meaning to the member: nothing happened.
+    test('the SKIPPED view-transition rejection is dropped', () => {
+        assert.equal(reports('Transition was skipped'), false);
+        assert.equal(reports('AbortError: Transition was skipped'), false);
+    });
+    // The other side of that third rule. `skip` is a word the app's own code could easily use about
+    // something real — a skipped save, a skipped roster row — so the match is the whole phrase, and
+    // these are the neighbours it must not reach.
+    test('an app error about skipping something real is kept', () => {
+        assert.equal(reports('Transition was skipped by the overlay because it never opened'), true);
+        assert.equal(reports('Save was skipped: the batch had no writes'), true);
+        assert.equal(reports('Roster row was skipped'), true);
+    });
+    test('a REAL error that merely mentions a transition is kept', () => {
+        assert.equal(reports("Cannot read properties of null (reading 'startViewTransition')"), true);
+    });
+    // The other side of the filter above, and the reason it matches the WHOLE sentence. The app's
+    // own overlays run CSS transitions with a transitionend fallback; if one ever throws while
+    // aborting, that is a real fault in a real lightbox and must not be swallowed by a rule written
+    // for the browser's navigation animation.
+    test('an app-thrown abort that is NOT the browser\'s navigation transition is kept', () => {
+        assert.equal(reports('Transition was aborted by the overlay before it opened'), true);
+        assert.equal(reports('AbortError: Transition was aborted'), true);
+    });
+});
+
+describe('service-worker update failures', () => {
+    test('a network blip during the background update check is dropped', () => {
+        for (const net of ['net::ERR_INTERNET_DISCONNECTED', 'NetworkError', 'Failed to fetch', 'Load failed']) {
+            assert.equal(reports(`Failed to update a ServiceWorker: ${net}`), false, net);
+        }
+    });
+    test('a GENUINE service-worker installation failure is kept', () => {
+        // A script that cannot be parsed or executed is worded differently and is a real fault —
+        // it means the app cannot update at all.
+        assert.equal(reports('Failed to update a ServiceWorker: the script has an unsupported MIME type'), true);
+        assert.equal(reports('ServiceWorker script evaluation failed'), true);
+    });
+});
+
+describe("WebKit's IndexedDB teardown (v19.20 — reported from an iPhone on 19.19)", () => {
+    // Firebase Auth's indexedDBLocalPersistence POLLS its object store because Safari's storage
+    // events are unreliable across tabs. WebKit closes IDB connections when it suspends a page
+    // (backgrounding the PWA, screen lock, memory pressure), so a poll landing in that window throws
+    // from deep inside the SDK with no app frame on the stack. Harmless and self-healing — but it
+    // recurs on every iPhone, and the Error Log is only worth reading if it is mostly signal.
+    const TEARDOWN = [
+        "Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing.",
+        'Connection to Indexed Database server lost. Refresh the page to try again',
+        'An internal error was encountered in the Indexed Database server',
+    ];
+    /** A Safari stack — `fn@url:line:col` on every frame, the shape the iPhone report carried. */
+    const stackIn = (/** @type {string} */ url) => `getObjectStore@${url}:1:2345\n_withRetries@${url}:1:6789`;
+    /** An unhandled rejection's `src`: the page's path, never a script. */
+    const PAGE = '/roster-app/index.html';
+
+    for (const msg of TEARDOWN) {
+        test(`dropped when it comes from Firebase Auth's script — ${msg.slice(0, 40)}…`, () => {
+            assert.equal(reports(msg, SDK), false, 'an uncaught throw, whose source URL is the Auth script');
+            assert.equal(shouldReport(msg, PAGE, HOST, stackIn(SDK)), false,
+                'an unhandled rejection, which names the script only in its stack — the reported shape');
+        });
+
+        test(`KEPT when it comes from Firestore's offline cache — ${msg.slice(0, 40)}…`, () => {
+            // The same phrases from FIRESTORE mean its persistent cache is failing, which is a real
+            // fault: the Calendar's offline-first paint depends on it. Both SDKs load from
+            // www.gstatic.com, so a rule keyed to the ORIGIN cannot tell them apart — and until
+            // 18 Nov 2026 it dropped these, while this test claimed the failure would come from "our
+            // own origin" and still log. The app's own code never touches IndexedDB, so a failing
+            // cache always arrives from the Firestore script, as below.
+            assert.equal(reports(msg, FIRESTORE), true, 'an uncaught throw from the Firestore script');
+            assert.equal(shouldReport(msg, PAGE, HOST, stackIn(FIRESTORE)), true,
+                'an unhandled rejection from inside Firestore');
+        });
+    }
+
+    test('a teardown phrase that names no script at all is kept — the filter never guesses', () => {
+        assert.equal(shouldReport(TEARDOWN[1], PAGE, HOST, ''), true);
+    });
+
+    test('an unrelated IndexedDB error from the SDK is still kept', () => {
+        // The filter matches exact teardown phrases, never a loose substring — a quota failure or a
+        // version conflict is a real problem that happens to involve the same subsystem.
+        assert.equal(reports('QuotaExceededError: IndexedDB storage is full', SDK), true);
+        assert.equal(reports('VersionError: The requested version is less than the existing version', SDK), true);
+        // This one is load-bearing: it is the SAME API call as the teardown error and differs only
+        // in the tail, so it contains "IDBDatabase" — and therefore the substring "Database".
+        // Without it, loosening the phrase list to a generic 'Database' passes the whole suite
+        // (verified: it did), and a real version-conflict would vanish from the log unnoticed.
+        assert.equal(
+            reports("Failed to execute 'transaction' on 'IDBDatabase': A version change transaction is running.", SDK),
+            true);
+    });
+});
+
+describe('ordinary app errors always report', () => {
+    for (const msg of [
+        "Cannot read properties of undefined (reading 'name')",
+        'tips.sections is not iterable',
+        'permission-denied: Missing or insufficient permissions.',
+        'Failed to execute \'setItem\' on \'Storage\': quota exceeded',
+    ]) {
+        test(msg.slice(0, 50), () => assert.equal(reports(msg), true));
+    }
+});
