@@ -566,7 +566,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   };
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
-    if (_initialFetchInProgress) { if (isTeamViewMode()) renderTeamView(); else renderCalendar(); return; }
+    // Only while the Calendar holds access: a lock that landed mid-load draws nothing behind its card
+    // (whole-app review, 24 Nov 2026), as the ten-minute check below and the late answer above ask.
+    if (_initialFetchInProgress) { if (hasOverrideAccess()) { if (isTeamViewMode()) renderTeamView(); else renderCalendar(); } return; }
     refreshIfStale();
   });
   globalThis.addEventListener?.('pageshow', (/** @type {any} */ e) => { if (e.persisted) refreshIfStale(); });   // globalThis: the Node suites have no window

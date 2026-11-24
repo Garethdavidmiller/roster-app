@@ -1611,7 +1611,7 @@ const dayMarkers = /** @type {(f:any) => {icon:string,label:string}[]} */ (
 describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surfaces', () => {
     const SHARED = [
         { flag: 'isBH',     date: new Date(2026, 11, 25, 12), iso: '2026-12-25', title: 'Bank holiday' },
-        { flag: 'isCutoff', date: CUTOFF_2026,                iso: '2026-02-07', title: 'Cut-off date' },
+        { flag: 'isCutoff', date: CUTOFF_2026,                iso: '2026-02-07', title: 'Pay cut-off' },
         { flag: 'isPay',    date: PAYDAY_2026,                iso: '2026-02-13', title: 'Payday' },
         { flag: 'isXmas',   date: XMAS_2026,                  iso: '2026-12-25', title: 'Christmas Day' },
         { flag: 'isEaster', date: EASTER_2026,                iso: '2026-04-05', title: 'Easter Sunday' },

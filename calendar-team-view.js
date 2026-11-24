@@ -11,7 +11,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
-         SHIFT_TIME_REGEX, getShiftKind, isSunday, parseISODate } from './roster-data.js';
+         SHIFT_TIME_REGEX, getShiftKind, SHIFT_KIND_LABELS, isSunday, parseISODate } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
@@ -238,7 +238,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         if (SHIFT_TIME_REGEX.test(shift)) {
             const shiftKind = getShiftKind(shift, member);
             const EMOJI = { early: '☀️', late: '🌙', night: '🦉' };
-            return { text: `${EMOJI[shiftKind]} ${escapeHtml(shift)}`, cls: `tv-${shiftKind}`, label: `${shiftKind} shift ${shift}` };
+            return { text: `${EMOJI[shiftKind]} ${escapeHtml(shift)}`, cls: `tv-${shiftKind}`, label: `${SHIFT_KIND_LABELS[shiftKind]} ${shift}` };
         }
         if (!_unknownShiftWarned.has(shift)) { _unknownShiftWarned.add(shift); console.warn('[Team view] Unrecognised shift type:', shift); }
         return { text: escapeHtml(shift), cls: '', label: shift };

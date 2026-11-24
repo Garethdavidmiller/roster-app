@@ -479,6 +479,7 @@ roster-app/
 │   ├── calendar-state.test.mjs / calendar-member.test.mjs / calendar-overrides.test.mjs ← the Calendar's state, member and override modules, including bounded reads (--experimental-test-module-mocks)
 │   ├── calendar-renderer.test.mjs   ← the Calendar's cells and grid with the roster rules real (--experimental-test-module-mocks)
 │   ├── calendar-initial-fetch.test.mjs ← the initial fetch, the sync chip and the two-phase load
+│   ├── calendar-initial-fetch-midload.test.mjs ← back in view while the first load is out: a locked Calendar draws nothing (--experimental-test-module-mocks)
 │   ├── paycalc-periods.test.mjs ← the pay periods and their helpers (--experimental-test-module-mocks)
 │   ├── paycalc-hpp.test.mjs    ← the Holiday Pay Premium module (--experimental-test-module-mocks)
 │   ├── paycalc-fill-year.test.mjs ← the bulk fill, by what it can destroy. Part of test:hygiene

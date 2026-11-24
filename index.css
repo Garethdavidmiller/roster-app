@@ -2767,7 +2767,7 @@
             flex-shrink: 0;
             gap: 12px;
         }
-        #huddleViewerTitle { font-weight: 600; font-size: 1rem; flex: 1; }
+        #huddleViewerTitle { font-weight: 600; font-size: var(--type-medium); flex: 1; }
         #huddleViewerClose {
             /* THE NOTCH FIX — do not remove. On this FULL-BLEED panel the shared .lb-close's
                `position: absolute; top: 14px` is the top of the SCREEN, under the iOS notch. Static
@@ -2775,7 +2775,7 @@
                its shape — the 44px target, the reset, the transition — is `.lb-close`'s. */
             position: static;
             color: rgba(255,255,255,0.7);
-            font-size: 1.5rem;
+            font-size: var(--type-xl);
             padding: 8px;
         }
         @media (hover: hover) and (pointer: fine) {
@@ -2790,7 +2790,9 @@
             padding-bottom: max(16px, env(safe-area-inset-bottom));
             padding-left: max(16px, env(safe-area-inset-left));
             padding-right: max(16px, env(safe-area-inset-right));
-            font-size: 0.95rem;
+            /* The viewer reads on the app's type scale, as #docViewer beside it does (whole-app review,
+               24 Nov 2026): each size is the token nearest the rem it replaced. */
+            font-size: var(--type-button);
             line-height: 1.55;
             color: var(--text-dark);
             /* A long unbroken string in a Word Huddle (a pasted link, a row of dashes) breaks inside
@@ -2814,9 +2816,9 @@
             margin: 1em 0 0.4em;
             line-height: 1.2;
         }
-        #huddleViewerBody h1 { font-size: 1.2rem; }
-        #huddleViewerBody h2 { font-size: 1.05rem; }
-        #huddleViewerBody h3 { font-size: 0.95rem; }
+        #huddleViewerBody h1 { font-size: var(--type-large); }
+        #huddleViewerBody h2 { font-size: var(--type-medium); }
+        #huddleViewerBody h3 { font-size: var(--type-button); }
         #huddleViewerBody p  { margin: 0.4em 0; }
         /* ── THE HUDDLE TABLE SCROLLS INSIDE ITSELF, NOT BY DRAGGING THE PAGE ──────────────────────
            Otherwise a wide table drags the WHOLE document sideways, the row's own columns with it.
@@ -2846,7 +2848,7 @@
             width: auto;
             min-width: 100%;
             border-collapse: collapse;
-            font-size: 0.85rem;
+            font-size: var(--type-body);
             margin: 0.75em 0;
         }
         #huddleViewerBody td, #huddleViewerBody th {
@@ -2898,7 +2900,7 @@
             padding: 32px 16px;
         }
         #huddleViewerBody .huddle-open-prompt p {
-            font-size: 1.05rem;
+            font-size: var(--type-medium);
             color: var(--text-dark);
             margin: 0 0 22px;
         }
@@ -2909,9 +2911,9 @@
             background: var(--primary-blue);
             color: white;
             border: none;
-            border-radius: var(--radius-pill);
+            border-radius: var(--radius-button);   /* an action button, not a chip (css-tokens.md → Corners) */
             font-family: inherit;   /* a <button> does not inherit the page font — it rendered in Arial */
-            font-size: 1rem;
+            font-size: var(--type-medium);
             font-weight: 700;
             padding: 14px 28px;
             cursor: pointer;
@@ -2971,7 +2973,7 @@
             background: var(--primary-blue);
             color: white;
             border: none;
-            border-radius: var(--radius-pill);
+            border-radius: var(--radius-button);   /* an action button, not a chip (css-tokens.md → Corners) */
             font-family: inherit;   /* a <button> does not inherit the page font — it rendered in Arial */
             font-size: var(--type-button);
             font-weight: 700;
@@ -3227,6 +3229,16 @@
             outline: 2px solid var(--error-banner);
             outline-offset: 2px;
         }
+        /* 24px is a fine pointer's target; a thumb gets 44px from an invisible expander, so the chip's
+           own line does not grow (whole-app review, 24 Nov 2026). */
+        @media (pointer: coarse) {
+            .calendar-stale-retry { position: relative; }
+            .calendar-stale-retry::before {
+                content: '';
+                position: absolute;
+                inset: -10px -6px;
+            }
+        }
         .calendar-container:has(.sync-chip) .calendar-stale-note { display: none; }
         /* ON PAPER THE WORDS STAY AND ONLY THE BUTTON GOES. Hiding the whole note printed a month from
            this device's saved copy with nothing on the sheet to say it may be out of date
@@ -3268,7 +3280,7 @@
             margin: 28px auto;
             padding: 40px 24px;
             background: var(--surface);
-            border-radius: 14px;
+            border-radius: var(--radius-md);   /* as .calendar-error, the other panel drawn in place of the grid */
         }
         .first-run-prompt .first-run-emoji { font-size: 40px; margin-bottom: 6px; }
         .first-run-prompt h2 {
@@ -3297,7 +3309,7 @@
             margin: 20px auto 28px;
             padding: 36px 24px;
             background: var(--surface);
-            border-radius: 14px;
+            border-radius: var(--radius-md);   /* as .calendar-error, the other panel drawn in place of the grid */
         }
         .calendar-pending-emoji { font-size: 34px; margin-bottom: 6px; }
         .calendar-pending h2 {
@@ -3328,7 +3340,7 @@
             color: var(--primary-blue);
             background: var(--accent-gold);
             border: none;
-            border-radius: var(--radius-pill);
+            border-radius: var(--radius-button);   /* an action button, not a chip (css-tokens.md → Corners) */
             padding: 9px 20px;
             cursor: pointer;
             transition: transform var(--dur-fast) var(--ease-standard);

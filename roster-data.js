@@ -533,11 +533,12 @@ export function getSpecialDayBadges(date) {
     const badges = [];
     // WORDED EXACTLY AS `dayMarkers` WORDS THEM (calendar-renderer.js). These are the same five
     // markers on two surfaces, and both pairs had drifted: the Calendar said "Bank holiday" and
-    // "Cut-off date" while this said "Bank Holiday" and "Cut-off Date". Sentence case is right for
-    // a common noun and is what the member-facing surface already used. NOT the payslip's
+    // "Cut-off date" while this said "Bank Holiday" and "Cut-off Date" (both now "Pay cut-off", the
+    // key's words). Sentence case is right for a common noun and is what the member-facing surface
+    // already used. NOT the payslip's
     // "Bank Holiday Rostered" — that is a line name and is exact.
     if (isBankHoliday(date))   badges.push({ icon: '⭐', title: 'Bank holiday' });
-    if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Cut-off date' });
+    if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Pay cut-off' });
     if (isPayday(date))        badges.push({ icon: '💷', title: 'Payday' });
     if (isChristmasDay(date))  badges.push({ icon: '🎄', title: 'Christmas Day' });
     if (isEasterSunday(date))  badges.push({ icon: '🐣', title: 'Easter Sunday' });
@@ -663,6 +664,10 @@ export function getShiftKind(timeStr, member) {
     if (isNightShift(timeStr)) return 'night';
     return isEarlyShift(timeStr) ? 'early' : 'late';
 }
+
+/** The words for each `getShiftKind` answer — one spelling for the Calendar's day panel and Team
+ *  View's cell labels, which said "early shift" where the Calendar said "Early shift". */
+export const SHIFT_KIND_LABELS = Object.freeze({ early: 'Early shift', late: 'Late shift', night: 'Night shift' });
 
 /**
  * Returns a CSS class name for a shift value.

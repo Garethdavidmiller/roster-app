@@ -475,7 +475,17 @@ export function initPdfViewer() {
             entry.task = null;
         }
         // Landed too late: the viewer closed, the page left reach, or the zoom moved on while it drew.
-        if (current !== mine || !entry.near || entry.layout !== plan) { freeCanvas(canvas); return; }
+        if (current !== mine || !entry.near || entry.layout !== plan) {
+            freeCanvas(canvas);
+            // Out of reach: the observer skipped the OLD drawing while this one was under way, so it
+            // goes too (whole-app review, 24 Nov 2026).
+            if (current === mine && !entry.near && entry.canvas) {
+                freeCanvas(entry.canvas);
+                entry.canvas = null;
+                entry.drawnWidth = 0;
+            }
+            return;
+        }
         if (entry.canvas) freeCanvas(entry.canvas);
         entry.canvas = canvas;
         entry.drawnWidth = plan.pixelWidth;
