@@ -85,7 +85,7 @@ authentication end-state is **Microsoft / Entra ID work-account SSO** — the co
 joiners, leavers, password and MFA policy, account disablement and identity verification, and the
 app consumes an identity and maps it to its own roles, which it already does cleanly via claims.
 That is a better end-state than maintaining a staff authentication system indefinitely, and it
-would supersede most of `CREDENTIAL_LIFECYCLE.md`. It is not a plan and needs no work: it depends
+would supersede most of `PASSWORD_DESIGN.md`'s credential lifecycle section. It is not a plan and needs no work: it depends
 entirely on Chiltern IT registering the application, which is this gate. Recorded so that nobody
 builds toward it, and so that nobody is surprised later that the custom work was the right call
 *until* the gate moved.
@@ -206,7 +206,7 @@ page after a release took over a second to be usable (`LATENCY.md` → THE NOVEM
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track C row
 
 Irreversible. Its gate, why that gate depends on Track E (above), and the second route that is on the
-table and not adopted (C6, `CREDENTIAL_LIFECYCLE.md` §7) are all in that row. Read it before assuming
+table and not adopted (C6, `PASSWORD_DESIGN.md` → credential lifecycle L7) are all in that row. Read it before assuming
 C5 is close.
 
 ### 2027/28 Pay Calculator rollover

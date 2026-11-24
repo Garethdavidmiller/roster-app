@@ -82,8 +82,8 @@ roster-app/
 ├── staff-pin-ended.js      ← whether arriving on this page ended the shared staff PIN, and the one sentence that says so. Its header. Tested by session.test.mjs and login-overlay.test.mjs
 ├── silent-sign-in.js      ← the RULES of the sign-in nobody typed (pure); session.js keeps the memory. Its header. Tested by session.test.mjs
 ├── viewer-shed.js         ← signs the shared Calendar viewer out before a member signs in, in the order that keeps it out of long-lived storage. Its header. Tested by session.test.mjs
-├── auth-state-core.js      ← the PURE identity state machine (AUTH_ARCHITECTURE.md Track 1). Tested by auth-state-core.test.mjs
-├── auth-state.js           ← the auth STORE over that reducer; session.js feeds it. AUTH_ARCHITECTURE.md
+├── auth-state-core.js      ← the PURE identity state machine (AUTH_AND_SESSIONS.md → Architecture). Tested by auth-state-core.test.mjs
+├── auth-state.js           ← the auth STORE over that reducer; session.js feeds it. AUTH_AND_SESSIONS.md → Architecture
 ├── auth-policy.js          ← page AUTHORISATION: the page policies and the drawer's pill gates. CLIENT UX only — the server rules are the boundary
 ├── sw-register.js          ← shared service-worker registration and update lifecycle. Reasoning beside each rule. Tested by sw-register.test.mjs
 ├── splash-watchdog.js      ← CLASSIC (non-module) recovery script for index.html, so it runs even when the module graph fails: one guarded reload, then a Reload / Reset-cache panel. Tested by splash-watchdog.test.mjs
@@ -347,12 +347,12 @@ roster-app/
 │   ├── AL_WORKBOOK.md ← the roster clerks' annual-leave quota spreadsheet — a WORK IN PROGRESS. **Read §0 first**: `AL over depot quota` days are real leave, invisible in the calendar grid
 │   ├── AL_UPLOADER_PLAN.md ← the plan of record for the annual leave uploader (workbook → sealed leave file → Operations → Annual leave sheet)
 │   ├── CALENDAR_DATA.md ← the Calendar's feature CONTRACT: what may be shown and when, each invariant routed to its module header
-│   ├── AUTH_AND_SESSIONS.md ← the authentication feature CONTRACT: session, identity and claim, and the invariants across them; status lives in SECURITY_RELEASE_PLAN.md
+│   ├── AUTH_AND_SESSIONS.md ← the authentication feature CONTRACT: session, identity and claim, the invariants across them, and the architecture (two pure layers and a store); status lives in SECURITY_RELEASE_PLAN.md
 │   ├── SECURITY_RELEASE_PLAN.md ← the security tracks' status: **the CANONICAL TRACK STATUS table** (update a stage there and nowhere else; `auth-plan-parity.test.mjs`), plus each track's ordering, decisions and lessons
-│   ├── CREDENTIAL_LIFECYCLE.md ← how a credential is ISSUED, RECOVERED and RETIRED, and in what order. **§7 is an OPEN owner decision.** Status: SECURITY_RELEASE_PLAN.md
-│   ├── PASSWORD_DESIGN.md ← the chosen-password design (Track C, email deferred). Status: SECURITY_RELEASE_PLAN.md
+│   ├── CREDENTIAL_LIFECYCLE.md ← POINTER: merged into PASSWORD_DESIGN.md (24 Nov 2026); maps its old §N to LN
+│   ├── PASSWORD_DESIGN.md ← the chosen-password design (Track C, email deferred), and the credential lifecycle: how a credential is issued, recovered and retired, in order (L1–L10; **L7 is an OPEN owner decision**). Status: SECURITY_RELEASE_PLAN.md
 │   ├── AUTH_PLAN.md ← the full-app authentication design (Track E): what "behind authentication" can mean for static files on public hosting, and the E0–E6 phases. Status: SECURITY_RELEASE_PLAN.md
-│   ├── AUTH_ARCHITECTURE.md     ← the auth/session consolidation plan (Track 1) and its supporting refactors; companion to SECURITY_RELEASE_PLAN.md
+│   ├── AUTH_ARCHITECTURE.md     ← POINTER: folded into AUTH_AND_SESSIONS.md → Architecture (24 Nov 2026); the Track 1 phases are in ROADMAP_HISTORY.md
 │   ├── RECOVERY_RUNBOOK.md      ← the "break glass" backup, rollback and disaster-recovery runbook
 │   ├── LINKS_DEC2026_PLAN.md ← the Links workspace against the December 2026 timetable change ("Dec 26" is the timetable, NOT Boxing Day): the service, the window, the baseline and the current 26-line state
 │   ├── BRASS_PLAN.md ← modelling BRASS (the RPS pension top-up) in the pay calculator; nothing ships until its owner questions are answered

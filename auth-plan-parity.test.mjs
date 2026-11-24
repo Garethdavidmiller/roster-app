@@ -26,7 +26,18 @@ import { readFileSync } from 'node:fs';
 
 const AUTH = readFileSync('docs/AUTH_PLAN.md', 'utf8');
 const SEC  = readFileSync('docs/SECURITY_RELEASE_PLAN.md', 'utf8');
-const CRED = readFileSync('docs/CREDENTIAL_LIFECYCLE.md', 'utf8');
+// The credential lifecycle programme is a SECTION of PASSWORD_DESIGN.md since 24 Nov 2026 (it was
+// CREDENTIAL_LIFECYCLE.md, now a pointer). Only that section is read: the rest of the file is the
+// passwords AS BUILT, which may say "shipped" freely.
+const PASSWORD_DESIGN = readFileSync('docs/PASSWORD_DESIGN.md', 'utf8');
+const LIFECYCLE_HEADING = '## The credential lifecycle — the C5/C6 programme';
+const CRED = (() => {
+    const start = PASSWORD_DESIGN.indexOf(LIFECYCLE_HEADING);
+    if (start < 0) return '';
+    const rest = PASSWORD_DESIGN.slice(start + LIFECYCLE_HEADING.length);
+    const end = rest.search(/^#{1,2} /m);
+    return end < 0 ? rest : rest.slice(0, end);
+})();
 
 const EXPECTED_PHASES = ['E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
 
@@ -202,19 +213,19 @@ describe('Track E parity — each plan agrees with itself', () => {
 
 // ── THE CREDENTIAL LIFECYCLE PROGRAMME (v22.38) ────────────────────────────────────────────────
 //
-// `CREDENTIAL_LIFECYCLE.md` was a third document on the same subject, added for the reason the other
-// two exist separately: it owns ORDER, which neither of them did. Since 24 Nov 2026 its content is
-// `PASSWORD_DESIGN.md` → "The credential lifecycle — the C5/C6 programme" (its §N is that section's
-// LN), and the file is a pointer that still carries the pinned lines read below. The same structural
+// The credential lifecycle was a third document on the same subject, added for the reason the other
+// two exist separately: it owns ORDER, which neither of them did. Since 24 Nov 2026 it is
+// `PASSWORD_DESIGN.md` → "The credential lifecycle — the C5/C6 programme" (the old file's §N is that
+// section's LN, and the old file is a pointer). The same structural
 // discipline applies — and one of its sections needs more than discipline.
 //
-// **§7 (now L7) records a decision that has NOT been taken.** It sets out a second route to retiring the
+// **L7 records a decision that has NOT been taken.** It sets out a second route to retiring the
 // surname: once one-time recovery codes exist, the remaining surname credentials could be replaced
 // server-side, which answers the CREDENTIAL question without touching the READ question that Track
 // E owns. That is a materially different plan from the one in the canonical status table, and the
 // owner asked explicitly that it not be adopted quietly.
 //
-// The failure mode is specific and it is not carelessness: a later session reads §7, finds it
+// The failure mode is specific and it is not carelessness: a later session reads L7, finds it
 // persuasive, and starts *building* to it — updating the C5 row to match, or simply proceeding as
 // though the decision were made. Nothing would look wrong. Both documents would be internally
 // consistent, and the only evidence that a decision had been skipped would be the absence of a
@@ -224,9 +235,15 @@ describe('Track E parity — each plan agrees with itself', () => {
 // test, which is the point: it turns a silent drift into a deliberate act with a diff.
 
 describe('the credential lifecycle programme', () => {
-    test('§7 states, in the design doc, that neither route is adopted', () => {
+    test('the lifecycle section exists where this test reads it', () => {
+        assert.ok(CRED.length > 0, `PASSWORD_DESIGN.md has no heading "${LIFECYCLE_HEADING}" — ` +
+            'every check below would read an empty string and pass. Restore the heading or repoint ' +
+            'LIFECYCLE_HEADING.');
+    });
+
+    test('L7 states, in the design, that neither route is adopted', () => {
         assert.ok(/Neither is adopted\. The choice is the owner's/.test(CRED),
-            'CREDENTIAL_LIFECYCLE.md §7 no longer says the C5 routes are unadopted. If the owner HAS ' +
+            'PASSWORD_DESIGN.md L7 no longer says the C5 routes are unadopted. If the owner HAS ' +
             'chosen a route, say so in SECURITY_RELEASE_PLAN.md\'s C5 row and update this test in the ' +
             'same commit. If they have not, restore the marking — a section describing an alternative ' +
             'plan without saying it is unchosen is one somebody builds.');
@@ -245,7 +262,7 @@ describe('the credential lifecycle programme', () => {
         // starts marking things shipped is a second answer that can disagree with the first.
         const claims = CRED.split('\n').filter(l => /✓ SHIPPED|Current stage/.test(l));
         assert.deepEqual(claims, [],
-            'CREDENTIAL_LIFECYCLE.md has begun stating shipped status:\n  ' + claims.join('\n  ') +
+            'PASSWORD_DESIGN.md\'s credential lifecycle section has begun stating shipped status:\n  ' + claims.join('\n  ') +
             '\nStatus belongs in SECURITY_RELEASE_PLAN.md\'s canonical table and nowhere else.');
     });
 
@@ -257,7 +274,7 @@ describe('the credential lifecycle programme', () => {
         for (const id of named) {
             assert.ok(SEC.includes(`**${id} —`),
                 `SECURITY_RELEASE_PLAN.md has no canonical row for ${id}, which ` +
-                'CREDENTIAL_LIFECYCLE.md designs. Add the row, or drop the design.');
+                'PASSWORD_DESIGN.md\'s credential lifecycle designs. Add the row, or drop the design.');
         }
     });
 
@@ -271,8 +288,8 @@ describe('the credential lifecycle programme', () => {
             assert.ok(row, `AUTH_AND_SESSIONS.md has no invariant ${n}`);
             // A CONTENT matcher, not a path: docs sit together in docs/ and refer to each other by
             // bare filename, so this must stay bare even though the file moved.
-            assert.ok(row.includes('CREDENTIAL_LIFECYCLE.md') && /not yet built/.test(row),
-                `invariant ${n} must route to CREDENTIAL_LIFECYCLE.md and say it is not yet built — ` +
+            assert.ok(row.includes('PASSWORD_DESIGN.md') && /credential lifecycle/.test(row) && /not yet built/.test(row),
+                `invariant ${n} must route to PASSWORD_DESIGN.md's credential lifecycle section and say it is not yet built — ` +
                 'when it IS built, repoint it at the module and drop the marker here.');
         }
     });

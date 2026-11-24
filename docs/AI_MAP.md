@@ -346,7 +346,7 @@ The rules of the sign-in nobody typed — what a page load may try for a member 
 - **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
 
 ### `auth-state-core.js`
-The pure identity state machine (AUTH_ARCHITECTURE.md Track 1, Phase 1): who the user is, never what a page decides (that is `auth-policy.js`). Tested by `auth-state-core.test.mjs`.
+The pure identity state machine (AUTH_AND_SESSIONS.md → Architecture): who the user is, never what a page decides (that is `auth-policy.js`). Tested by `auth-state-core.test.mjs`.
 - **Exports:** `AUTH_STATUSES` · `INITIAL_STATE` · `reduceAuthState`
 
 ### `auth-state.js`
