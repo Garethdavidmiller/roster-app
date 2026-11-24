@@ -1,0 +1,302 @@
+/**
+ * Unit tests for storage-utils.js — the pure Storage helpers extracted from firebase-client.js.
+ * Run (no mocks): node scripts/run-tests.mjs test/storage-utils.test.mjs
+ *
+ * isSafeStorageUrl is a SECURITY control (the download-URL allowlist for the Huddle/Circular/
+ * Newsletter open buttons), so its boundaries are worth exact coverage.
+ */
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, resolveDocumentOpenUrl, SIGNED_URL_MARGIN_MS, sixMonthCutoffISO, legacyDocPath, versionedDocPath, uploadMimeType } from '../storage-utils.js';
+
+describe('isSafeStorageUrl', () => {
+    test('accepts a Firebase download URL under this project bucket', () => {
+        assert.equal(isSafeStorageUrl('https://firebasestorage.googleapis.com/v0/b/myb-roster.firebasestorage.app/o/huddles%2F2026-06-25.pdf?alt=media&token=abc'), true);
+        assert.equal(isSafeStorageUrl('https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/circulars%2Fx.pdf?alt=media'), true);
+    });
+    test('accepts a GCS storage.googleapis.com URL under this project bucket', () => {
+        assert.equal(isSafeStorageUrl('https://storage.googleapis.com/myb-roster.firebasestorage.app/huddles/x.pdf'), true);
+        assert.equal(isSafeStorageUrl('https://storage.googleapis.com/myb-roster.appspot.com/x.pdf'), true);
+    });
+    test('rejects http (non-TLS)', () => {
+        assert.equal(isSafeStorageUrl('http://firebasestorage.googleapis.com/v0/b/myb-roster.firebasestorage.app/o/x.pdf'), false);
+    });
+    test('rejects a Firebase Storage URL for a DIFFERENT bucket', () => {
+        assert.equal(isSafeStorageUrl('https://firebasestorage.googleapis.com/v0/b/other-project.appspot.com/o/x.pdf?alt=media'), false);
+    });
+    test('rejects a look-alike bucket that shares our prefix (the trailing-slash anchor)', () => {
+        // 'myb-rosterX' would match a bare '/myb-roster' prefix — the anchored '/myb-roster.../' must not.
+        assert.equal(isSafeStorageUrl('https://storage.googleapis.com/myb-roster.firebasestorage.app.evil.com/x.pdf'), false);
+        assert.equal(isSafeStorageUrl('https://storage.googleapis.com/myb-rosterX-hacker/x.pdf'), false);
+        assert.equal(isSafeStorageUrl('https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com.evil/o/x.pdf'), false);
+    });
+    test('rejects an unrelated https host entirely', () => {
+        assert.equal(isSafeStorageUrl('https://evil.example.com/myb-roster.appspot.com/x.pdf'), false);
+        assert.equal(isSafeStorageUrl('https://google.com'), false);
+    });
+    test('rejects a bucket in the QUERY or fragment rather than the path', () => {
+        assert.equal(isSafeStorageUrl('https://evil.com/x?b=/v0/b/myb-roster.appspot.com/'), false);
+        assert.equal(isSafeStorageUrl('https://storage.googleapis.com/evil/x#/myb-roster.appspot.com/'), false);
+    });
+    test('rejects non-string / empty / malformed input', () => {
+        assert.equal(isSafeStorageUrl(null), false);
+        assert.equal(isSafeStorageUrl(undefined), false);
+        assert.equal(isSafeStorageUrl(''), false);
+        assert.equal(isSafeStorageUrl(42), false);
+        assert.equal(isSafeStorageUrl('not a url'), false);
+        assert.equal(isSafeStorageUrl('javascript:alert(1)'), false);
+    });
+});
+
+describe('isDocxUpload', () => {
+    const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    test('true for a .docx extension (any case)', () => {
+        assert.equal(isDocxUpload({ name: 'circular.docx', type: '' }), true);
+        assert.equal(isDocxUpload({ name: 'Circular.DOCX', type: '' }), true);
+    });
+    test('true for the docx MIME even when the name lacks the extension (cloud/Android picker)', () => {
+        assert.equal(isDocxUpload({ name: 'document', type: DOCX_MIME }), true);
+    });
+    test('false for a PDF (neither extension nor MIME matches)', () => {
+        assert.equal(isDocxUpload({ name: 'circular.pdf', type: 'application/pdf' }), false);
+    });
+    test('false for a name that only CONTAINS "docx" mid-string', () => {
+        assert.equal(isDocxUpload({ name: 'my.docx.pdf', type: 'application/pdf' }), false);
+    });
+    test('false for application/zip (we intentionally do NOT broaden to zip — would accept xlsx/pptx)', () => {
+        assert.equal(isDocxUpload({ name: 'sheet', type: 'application/zip' }), false);
+    });
+});
+
+describe('officeViewerUrl', () => {
+    const SRC = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.firebasestorage.app/o/circulars%2F2026-06-25-abc.docx?alt=media&token=xyz';
+    test('wraps the URL in the Office Online full-page viewer (view.aspx)', () => {
+        const out = officeViewerUrl(SRC);
+        assert.equal(out.startsWith('https://view.officeapps.live.com/op/view.aspx?src='), true);
+    });
+    test('percent-encodes the source URL so its query string cannot leak into the viewer query', () => {
+        const out = officeViewerUrl(SRC);
+        // The whole source (incl. its ?alt=media&token=xyz) must be a single encoded src value —
+        // no bare '&' or '?' from the source may appear after the src= parameter.
+        const encoded = out.slice('https://view.officeapps.live.com/op/view.aspx?src='.length);
+        assert.equal(encoded, encodeURIComponent(SRC));
+        assert.equal(decodeURIComponent(encoded), SRC);
+        assert.equal(encoded.includes('&'), false);
+    });
+});
+
+describe('sixMonthCutoffISO', () => {
+    test('a mid-month date subtracts exactly six months', () => {
+        assert.equal(sixMonthCutoffISO(new Date(2026, 6, 15)), '2026-01-15'); // 15 Jul → 15 Jan
+    });
+    test('crosses the year boundary when the month underflows', () => {
+        assert.equal(sixMonthCutoffISO(new Date(2026, 2, 10)), '2025-09-10'); // 10 Mar → 10 Sep (prev year)
+    });
+    test('clamps a month-end day the target month does not have (the whole point)', () => {
+        // 31 Aug − 6 months = "31 Feb", which JS would roll forward to 3 Mar and delete docs
+        // ~5 months 29 days old. Clamp to 28 Feb instead.
+        assert.equal(sixMonthCutoffISO(new Date(2026, 7, 31)), '2026-02-28'); // 31 Aug → 28 Feb
+        // 31 Oct − 6 months = "31 Apr" (April has 30 days) → clamp to 30 Apr.
+        assert.equal(sixMonthCutoffISO(new Date(2026, 9, 31)), '2026-04-30'); // 31 Oct → 30 Apr
+    });
+    test('leap-year February clamps to the 29th', () => {
+        assert.equal(sixMonthCutoffISO(new Date(2028, 7, 31)), '2028-02-29'); // 2028 is a leap year
+    });
+    test('zero-pads single-digit month and day', () => {
+        assert.equal(sixMonthCutoffISO(new Date(2026, 8, 5)), '2026-03-05'); // 5 Sep → 05 Mar
+    });
+});
+
+describe('legacyDocPath — the pre-v13.99 fixed path, ONE rule for both deciders', () => {
+    // The two call sites that decide which OLD Storage object to delete (the upload engine's
+    // cleanup and the 6-month prune) each hand-wrote this fallback until v20.55 — one with
+    // `?? 'pdf'`, one with `|| 'pdf'`, which disagree exactly on a doc carrying `fileType: ''`.
+    // A drift here never errors: it orphans a file, or deletes the wrong one.
+    test('honours the legacy doc’s own fileType', () => {
+        assert.equal(legacyDocPath('circulars', '2026-06-27', 'docx'), 'circulars/2026-06-27.docx');
+    });
+    test('defaults to pdf when fileType is missing — DOCX support postdates storagePath', () => {
+        assert.equal(legacyDocPath('newsletters', '2026-06-27', undefined), 'newsletters/2026-06-27.pdf');
+    });
+    test('an empty-string fileType falls back to pdf, never "date.." (the ??-vs-|| divergence)', () => {
+        assert.equal(legacyDocPath('circulars', '2026-06-27', ''), 'circulars/2026-06-27.pdf');
+    });
+});
+
+describe('versionedDocPath — the v13.99 upload path', () => {
+    test('shape: {collection}/{date}-{uploadId}.{ext}', () => {
+        assert.equal(versionedDocPath('huddles', '2026-06-25', 'lv9kab12', 'pdf'),
+            'huddles/2026-06-25-lv9kab12.pdf');
+    });
+    test('starts with the {collection}/{date} prefix the server-side huddle prune sweeps by', () => {
+        // pruneOldHuddles (functions/huddle-retention.js) reclaims a date's objects only under the
+        // `huddles/<date>` prefix — versioned AND legacy paths must both sit under it,
+        // or a pruned date leaves its file behind forever.
+        const date = '2026-06-25';
+        for (const p of [versionedDocPath('huddles', date, 'abc123', 'docx'),
+                         legacyDocPath('huddles', date, 'pdf')]) {
+            assert.ok(p.startsWith(`huddles/${date}`), `${p} escapes the prune prefix`);
+        }
+    });
+});
+
+describe('uploadMimeType — the explicit Content-Type map', () => {
+    test('docx gets the Word MIME (Android may report application/zip)', () => {
+        assert.equal(uploadMimeType('docx'),
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    });
+    test('pdf gets application/pdf', () => {
+        assert.equal(uploadMimeType('pdf'), 'application/pdf');
+    });
+});
+
+// ── WHICH URL A DOCUMENT OPENS WITH (v24.19) ───────────────────────────────────────────────────
+//
+// Three surfaces used to answer this for themselves. They now all call one function, and the cases
+// below are the ones that were about to become three copies of a security fallback.
+describe('resolveDocumentOpenUrl — the signed url, the stored one, and the .docx wrap', () => {
+
+    const SIGNED = 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/x.pdf?X-Goog-Expires=900';
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2Fx.pdf?token=abc';
+
+    test('a signed url wins when there is one', () => {
+        const r = resolveDocumentOpenUrl({ signed: SIGNED, stored: STORED, fileType: 'pdf' });
+        assert.equal(r.url, SIGNED);
+        assert.equal(r.signed, true, 'the caller must be able to tell which url it got');
+    });
+
+    // ── THE FALLBACK. Each of these is a state the app SHIPS IN, not an error. ──────────────────
+    // The signing endpoint 503s until the IAM grant is in place, 403s a lapsed claim, 404s before
+    // anything is published, and can simply time out. A member must open the document in every one
+    // of them, exactly as they did before the endpoint existed.
+    test('no signed url falls back to the stored one, for every way of having none', () => {
+        for (const signed of [null, undefined, '']) {
+            const r = resolveDocumentOpenUrl({ signed, stored: STORED, fileType: 'pdf' });
+            assert.equal(r.url, STORED, `signed=${JSON.stringify(signed)} did not fall back`);
+            assert.equal(r.signed, false);
+        }
+    });
+
+    test('an UNSAFE signed url falls back rather than being opened', () => {
+        // The one that matters most: a signed url arrives from our own Function, but it is still a
+        // url about to reach window.open, and the allowlist is applied to it too. Anything else
+        // would make the new path the one way to bypass a control the old path always had.
+        for (const bad of ['https://evil.example.com/x.pdf', 'http://storage.googleapis.com/myb-roster.appspot.com/h/x.pdf',
+            'javascript:alert(1)', 'https://storage.googleapis.com/someone-elses-bucket/x.pdf', 42, {}]) {
+            const r = resolveDocumentOpenUrl({ signed: /** @type {any} */ (bad), stored: STORED, fileType: 'pdf' });
+            assert.equal(r.url, STORED, `${JSON.stringify(bad)} was opened as a signed url`);
+            assert.equal(r.signed, false);
+        }
+    });
+
+    test('neither url usable is the only refusal — and it is a refusal, not a guess', () => {
+        assert.equal(resolveDocumentOpenUrl({ signed: null, stored: null, fileType: 'pdf' }), null);
+        assert.equal(resolveDocumentOpenUrl({ signed: 'nope', stored: 'also-nope', fileType: 'pdf' }), null);
+        assert.equal(resolveDocumentOpenUrl({ }), null);
+    });
+
+    test('a .docx is wrapped for the Office viewer — whichever url was chosen', () => {
+        // The wrap is applied AFTER the choice, which is what makes the cutover invisible to a
+        // reader: a signed .docx reaches Microsoft the same way a stored one always did.
+        const a = resolveDocumentOpenUrl({ signed: SIGNED, stored: STORED, fileType: 'docx' });
+        const b = resolveDocumentOpenUrl({ signed: null,   stored: STORED, fileType: 'docx' });
+        assert.ok(a.url.startsWith('https://view.officeapps.live.com/'), 'signed .docx was not wrapped');
+        assert.ok(b.url.startsWith('https://view.officeapps.live.com/'), 'stored .docx was not wrapped');
+        assert.ok(a.url.includes(encodeURIComponent(SIGNED)), 'the wrapped url is not the signed one');
+        assert.equal(a.signed, true, 'wrapping must not lose which url it was');
+    });
+
+    test('a PDF is never wrapped, and an unknown fileType is treated as one', () => {
+        for (const fileType of ['pdf', null, undefined, '', 'PDF', 'doc']) {
+            const r = resolveDocumentOpenUrl({ signed: SIGNED, stored: STORED, fileType });
+            assert.equal(r.url, SIGNED, `fileType=${JSON.stringify(fileType)} was wrapped`);
+        }
+    });
+});
+
+// ── A SIGNED URL IS CHOSEN ONLY WHILE IT IS STILL LIVE, AND WRAPPED BY ITS OWN TYPE (v24.23) ──────
+describe('resolveDocumentOpenUrl — resolved at the tap, not at the mint', () => {
+    const SIGNED_URL = 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/x.docx?X-Goog-Expires=900';
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2Fx.pdf?token=abc';
+    const NOW = Date.UTC(2026, 8, 25, 12, 0);
+    const minted = (/** @type {number} */ msLeft, fileType = 'pdf') => ({ url: SIGNED_URL, expiresAt: NOW + msLeft, fileType });
+
+    test('a live signed url is used', () => {
+        const r = resolveDocumentOpenUrl({ signed: minted(10 * 60_000), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.signed, true);
+        assert.equal(r.url, SIGNED_URL);
+    });
+
+    test('a LAPSED one falls back to the stored url — the member who came back after 20 minutes', () => {
+        const r = resolveDocumentOpenUrl({ signed: minted(-5 * 60_000), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.signed, false);
+        assert.equal(r.url, STORED);
+    });
+
+    test('one within the margin falls back too — the Office viewer fetches AFTER the tap', () => {
+        const r = resolveDocumentOpenUrl({ signed: minted(SIGNED_URL_MARGIN_MS - 1), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.signed, false);
+        assert.ok(SIGNED_URL_MARGIN_MS >= 30_000, 'too small a margin to cover the viewer\'s own fetch');
+    });
+
+    test('the SERVER\'s file type wraps a signed url — the client may be holding an older document', () => {
+        // The client's copy is a PDF; the server signed the latest, a .docx. Opening a .docx directly
+        // downloads it, so the wrap must follow the file actually signed.
+        const r = resolveDocumentOpenUrl({ signed: minted(10 * 60_000, 'docx'), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.url, officeViewerUrl(SIGNED_URL));
+    });
+
+    test('…and the document\'s own type wraps the stored url it falls back to', () => {
+        const r = resolveDocumentOpenUrl({ signed: minted(-1, 'docx'), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r.url, STORED, 'a stored PDF must not be sent to the Office viewer because a lapsed signed one was a .docx');
+    });
+});
+
+// ── THE SIGNED URL MUST BE FOR THE FILE THE CALLER IS HOLDING (v24.33, external review) ──────────
+describe('resolveDocumentOpenUrl — the same FILE, not merely the latest of the kind', () => {
+    const SIGNED_URL = 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/b.pdf?X-Goog-Expires=900';
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2Fa.pdf?token=abc';
+    const NOW = Date.UTC(2026, 8, 27, 9, 0);
+    const signedFor = (/** @type {any} */ storagePath) =>
+        ({ url: SIGNED_URL, expiresAt: NOW + 10 * 60_000, fileType: 'pdf', storagePath });
+
+    test('the signed url is used when it is for the document being held', () => {
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/a.pdf'), stored: STORED,
+            fileType: 'pdf', storagePath: 'huddles/a.pdf' }, NOW);
+        assert.equal(r?.url, SIGNED_URL);
+        assert.equal(r?.signed, true);
+    });
+
+    test('an upload between the two reads: the url for the NEWER file is passed over', () => {
+        // The client read A; the server signed B. Opening B from a prompt describing A is the defect.
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/b.pdf'), stored: STORED,
+            fileType: 'pdf', storagePath: 'huddles/a.pdf' }, NOW);
+        assert.equal(r?.url, STORED, 'a url for a different file was opened');
+        assert.equal(r?.signed, false);
+    });
+
+    test('a same-day re-upload is caught too — the path is versioned, the date is not', () => {
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/2026-09-27-new.pdf'), stored: STORED,
+            fileType: 'pdf', storagePath: 'huddles/2026-09-27-old.pdf' }, NOW);
+        assert.equal(r?.signed, false);
+    });
+
+    test('a server from before v24.33 names no file and is trusted as before — either deploy order works', () => {
+        for (const storagePath of [null, undefined]) {
+            const r = resolveDocumentOpenUrl({ signed: signedFor(storagePath), stored: STORED,
+                fileType: 'pdf', storagePath: 'huddles/a.pdf' }, NOW);
+            assert.equal(r?.signed, true, `storagePath=${String(storagePath)} was refused`);
+        }
+    });
+
+    test('a held document with no path cannot be the one signed — the server never signs without one', () => {
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/b.pdf'), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r?.signed, false);
+    });
+
+    test('a mismatch with no usable stored url opens NOTHING rather than the other file', () => {
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/b.pdf'), stored: 'javascript:alert(1)',
+            fileType: 'pdf', storagePath: 'huddles/a.pdf' }, NOW);
+        assert.equal(r, null);
+    });
+});

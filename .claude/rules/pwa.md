@@ -2,10 +2,10 @@
 paths:
   - "service-worker.js"
   - "sw-register.js"
-  - "sw-*.test.mjs"
+  - "test/sw-*.test.mjs"
   - "manifest.json"
   - "firebase-client.js"
-  - "firebase-client.test.mjs"
+  - "test/firebase-client.test.mjs"
   - "e2e/offline.spec.js"
   - "playwright.offline.mjs"
 ---

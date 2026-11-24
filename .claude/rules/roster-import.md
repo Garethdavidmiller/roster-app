@@ -6,11 +6,11 @@ paths:
   - "roster-cell-rules.*"
   - "roster-entry-control.js"
   - "roster-review-states.js"
-  - "roster-geometry.test.mjs"
-  - "roster-parse-helpers.test.mjs"
-  - "roster-prompt-parity.test.mjs"
+  - "test/roster-geometry.test.mjs"
+  - "test/roster-parse-helpers.test.mjs"
+  - "test/roster-prompt-parity.test.mjs"
   - "functions/roster-*.js"
-  - "roster-cell-read.test.mjs"
+  - "test/roster-cell-read.test.mjs"
   - "functions/cell-day-rules.js"
 ---
 

@@ -9,8 +9,7 @@
     "exclude": [
         "node_modules",
         "service-worker.js",
-        "*.test.mjs",
-        "*.test.js",
+        "test",
         "purify.es.mjs",
         "pdfjs",
         "generate-sri.mjs",

@@ -1,0 +1,511 @@
+/**
+ * overtime-data.test.mjs — THE CLOCK, AND WHAT A CALL SAYS WHEN IT DOES NOT COME BACK.
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/overtime-data.test.mjs
+ *
+ * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────────────────────────
+ *
+ * `clockOffset` and `submitDisposition` are pure and pinned in `overtime-format.test.mjs`. Neither
+ * can see the thing that decides whether a member is offered Submit in the minutes around a noon
+ * deadline, because that is not a calculation — it is whether the corrected clock this module keeps
+ * was ever actually fed. An offset that is computed and dropped leaves `correctedNow()` reading the
+ * device clock, and a phone ten minutes fast then hides the Submit button from somebody who is in
+ * time. Nothing errors, and the member has no way to tell that from a form that is simply closed.
+ *
+ * ── ORGANISED BY WHAT A WRONG ANSWER COSTS ──────────────────────────────────────────────────────
+ *
+ *   1. THE CLOCK IS WRONG. Silent, and it decides a deadline.
+ *   2. A TIMEOUT REPORTED AS A FAILURE. Aborting stops us waiting; it does not stop the server
+ *      writing. Telling a member their availability did not save, while it is saving, is the one
+ *      wrong answer here that makes them act — they re-submit, or they give up.
+ *   3. A SUBMISSION THAT CANNOT BE RECONCILED. Every device of a member shares one Firebase uid, so
+ *      `clientMutationId` is the only thing that can recognise THIS phone's lost request.
+ *
+ * ── THE FAKES ───────────────────────────────────────────────────────────────────────────────────
+ *
+ * `fetch-timeout.js` is the REAL module and `globalThis.fetch` is the fake, so the three-way error
+ * classification under test is the shipped one rather than a restatement of it. `overtime-format.js`
+ * is real too — it is pure, and mocking `clockOffset` would test the mock.
+ */
+
+import { test, describe, mock, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+// ── THE FAKE NETWORK ────────────────────────────────────────────────────────────────────────────
+/** @type {Array<{ url: string, options: any, body: any }>} */
+let _calls = [];
+/** @type {(req: any) => Promise<any>} */
+let _respond = async () => ({ ok: true, status: 200, json: async () => ({}) });
+
+globalThis.fetch = async (/** @type {string} */ url, /** @type {any} */ options) => {
+    const req = { url, options, body: JSON.parse(options?.body ?? '{}') };
+    _calls.push(req);
+    // Honour the signal exactly as a real fetch does, so the bound and a caller's cancellation both
+    // reach `fetchWithTimeout` the way they would in a browser.
+    const sig = options?.signal;
+    const result = _respond(req);
+    if (!sig) return result;
+    return Promise.race([
+        result,
+        new Promise((_res, rej) => {
+            if (sig.aborted) return rej(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+            sig.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        }),
+    ]);
+};
+
+/** A response that never arrives on its own — the only way to reach the bound. */
+const NEVER = () => new Promise(() => {});
+
+/** Let the queued microtasks run. Load-bearing before any `tick`: `post` awaits a fresh ID token
+ *  BEFORE it opens the request, so the bound's timer does not exist yet at the moment the call
+ *  returns its promise — ticking first advances a clock nothing is waiting on, and the test hangs. */
+const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+
+// ── THE REST OF THE APP ─────────────────────────────────────────────────────────────────────────
+/** @type {null | { getIdToken: () => Promise<string> }} */
+let _user = { getIdToken: async () => 'tok-1' };
+
+/** When true, every Firestore snapshot says the device's cache answered it. */
+let _fromCache = false;
+/**
+ * What each subcollection read returns, by collection NAME — so the reviewer's revision branch can
+ * be reached at all (it was not: every read answered empty, overtime-core-5). A name with no entry
+ * answers empty, under `_fromCache`, as before.
+ * @type {Record<string, { docs?: { id: string, data: any }[], fromCache?: boolean, throws?: boolean }>}
+ */
+let _snaps = {};
+
+mock.module('../firebase-client.js', {
+    namedExports: {
+        auth: { get currentUser() { return _user; } },
+        db: {}, collection: (/** @type {any} */ _parent, /** @type {string} */ name) => ({ name }), doc: () => ({}),
+        getDocs: async (/** @type {any} */ coll) => {
+            const s = _snaps[coll?.name];
+            if (s?.throws) throw Object.assign(new Error('read refused'), { code: 'permission-denied' });
+            const docs = s?.docs || [];
+            return { metadata: { fromCache: s?.fromCache ?? _fromCache },
+                forEach: (/** @type {any} */ cb) => docs.forEach(d => cb({ id: d.id, data: () => d.data })) };
+        },
+    },
+});
+mock.module('../overtime-roster.js', { namedExports: { loadRosterForMembers: async () => ({}) } });
+
+/** The clock is only mocked for `setTimeout`, never for `Date`. Mocking Date here wedged the
+ *  runner — and the assertions do not need it: the correction is asserted as a DIFFERENCE from the
+ *  device clock, to a tolerance far below the minutes a wrong offset produces. */
+const NEAR_MS = 1000;
+const near = (/** @type {number} */ a, /** @type {number} */ b, /** @type {string} */ msg) =>
+    assert.equal(Math.abs(a - b) < NEAR_MS, true, `${msg} (${a} vs ${b})`);
+
+let _n = 0;
+/** A module instance with its own offset — the offset is module state with no public reset. */
+const freshData = () => import(`../overtime-data.js?n=${++_n}`);
+
+beforeEach(() => {
+    _calls = [];
+    _fromCache = false;
+    _snaps = {};
+    _user = { getIdToken: async () => 'tok-1' };
+    _respond = async () => ({ ok: true, status: 200, json: async () => ({}) });
+    mock.timers.enable({ apis: ['setTimeout'] });
+});
+afterEach(() => { mock.timers.reset(); });
+
+
+describe('1 · the clock is wrong', () => {
+    test('before any call it is the device clock, plainly', async () => {
+        const data = await freshData();
+        near(data.correctedNow(), Date.now(), 'no correction has been offered yet');
+    });
+
+    test('a read moves it onto the server’s clock', async () => {
+        const data = await freshData();
+        const serverNow = Date.now() + 10 * 60_000;      // the device is ten minutes SLOW
+        _respond = async () => ({ ok: true, status: 200, json: async () => ({ serverNow }) });
+
+        await data.getMyOvertimeState();
+        // What is pinned here is that the offset was FED, not the arithmetic — that is clockOffset's
+        // suite. A dropped offset leaves the device clock in charge, ten minutes out.
+        near(data.correctedNow(), serverNow, 'the read moved the clock onto the server');
+        assert.equal(data.correctedNow() - Date.now() > 9 * 60_000, true, 'and away from the device');
+    });
+
+    test('a response WITHOUT serverNow leaves the correction alone', async () => {
+        // Resetting to the device clock here would undo a good correction on any endpoint that does
+        // not send one — a submission, say — and put a fast phone back in charge of the deadline.
+        const data = await freshData();
+        const serverNow = Date.now() + 10 * 60_000;
+        _respond = async () => ({ ok: true, status: 200, json: async () => ({ serverNow }) });
+        await data.getMyOvertimeState();
+
+        _respond = async () => ({ ok: true, status: 200, json: async () => ({ accepted: true }) });
+        await data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        near(data.correctedNow(), serverNow, 'the earlier correction survives');
+    });
+
+    test('a REFUSED response still corrects the clock', async () => {
+        // The offset is fed before `res.ok` is consulted, deliberately: a 409 conflict is a perfectly
+        // good clock reading, and the next thing the member does is decide whether they are in time.
+        const data = await freshData();
+        const serverNow = Date.now() + 7 * 60_000;
+        _respond = async () => ({ ok: false, status: 409, json: async () => ({ error: 'revision-conflict', serverNow }) });
+
+        const r = await data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        assert.equal(r.ok, false);
+        assert.equal(/** @type {any} */ (r).code, 'revision-conflict', 'the server’s own machine code, not http-409');
+        near(data.correctedNow(), serverNow, 'a 409 is a perfectly good clock reading');
+    });
+
+    test('a body that is not JSON at all does not poison the clock', async () => {
+        const data = await freshData();
+        _respond = async () => ({ ok: false, status: 502, json: async () => { throw new Error('not json'); } });
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).code, 'http-502');
+        near(data.correctedNow(), Date.now(), 'an unreadable body corrects nothing');
+    });
+});
+
+
+describe('2 · a timeout reported as a failure', () => {
+    test('the bound fires as `timeout`, never as `network`', async () => {
+        const data = await freshData();
+        _respond = NEVER;
+        const p = data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        await flush();
+        mock.timers.tick(70_000);
+        const r = await p;
+        assert.equal(/** @type {any} */ (r).code, 'timeout',
+            'the two want opposite copy: go and check, versus it did not happen');
+    });
+
+    test('the budget is ABOVE the endpoint’s own 60s ceiling', async () => {
+        // A client that gives up first turns a slow-but-succeeding write into a reported failure.
+        const data = await freshData();
+        _respond = NEVER;
+        const p = data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        let settled = false;
+        p.then(() => { settled = true; });
+        await flush();
+        mock.timers.tick(60_000);
+        await flush();
+        assert.equal(settled, false, 'still waiting at the server’s own ceiling');
+        mock.timers.tick(10_000);
+        await p;
+    });
+
+    test('the caller’s own cancellation is `cancelled`, and is not the bound', async () => {
+        const data = await freshData();
+        _respond = NEVER;
+        const ctrl = new AbortController();
+        const p = data.getMyOvertimeState({ signal: ctrl.signal });
+        await flush();
+        ctrl.abort();
+        const r = await p;
+        assert.equal(/** @type {any} */ (r).code, 'cancelled',
+            'a request the caller withdrew is the only one that may be reported as nothing at all');
+    });
+
+    test('a BODY that outlasts the bound is `timeout`, never a success with no data', async () => {
+        // fetchWithTimeout bounds the body too; before this, the caught read left `{ ok: true,
+        // data: null }` and every caller threw on `r.data.…` with "Saving…" still up.
+        const data = await freshData();
+        // A real body read rejects when the request's signal aborts; this one does nothing else.
+        _respond = async (req) => ({ ok: true, status: 200, json: () => new Promise((_r, rej) => {
+            req.options.signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        }) });
+        const p = data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        await flush();
+        mock.timers.tick(70_000);
+        const r = await p;
+        assert.equal(/** @type {any} */ (r).ok, false);
+        assert.equal(/** @type {any} */ (r).code, 'timeout');
+    });
+
+    test('a 200 whose body is not JSON is `network`, never `ok` with no data', async () => {
+        const data = await freshData();
+        _respond = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('cut off'); } });
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).ok, false);
+        assert.equal(/** @type {any} */ (r).code, 'network');
+    });
+
+    test('a transport failure is `network`, and is not a timeout', async () => {
+        const data = await freshData();
+        _respond = async () => { throw new TypeError('Failed to fetch'); };
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).code, 'network');
+    });
+
+    test('no Firebase session sends nothing at all', async () => {
+        const data = await freshData();
+        _user = null;
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).code, 'no-session');
+        assert.equal(_calls.length, 0, 'an unauthenticated call would only be refused by the server');
+    });
+
+    test('a token that cannot be minted is a no-session, not a crash', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async () => { throw new Error('token revoked'); } };
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).code, 'no-session');
+        assert.equal(_calls.length, 0);
+    });
+
+    // ── NO SIGNAL IS NOT AN EXPIRED SIGN-IN (overtime-core-3, Nov 2026) ─────────────────────────
+    //
+    // The hourly token lapses while a half-filled form sits open; Submit on a platform with no
+    // signal cannot refresh it. That was `no-session` — "Your sign-in has expired. Reload the page"
+    // — and a reload on a phone throws away every answer not yet submitted, where pressing Submit
+    // again once the signal returned would simply have worked. The SDK names the case itself: a
+    // refresh that cannot reach the network fails `auth/network-request-failed`, its own timeout
+    // included, and it treats every OTHER failure as a token that is no longer valid.
+    const networkFailure = () => Object.assign(new Error('network'), { code: 'auth/network-request-failed' });
+
+    test('a token refresh with no network is `offline` — nothing was sent, and nobody was signed out', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async () => { throw networkFailure(); } };
+        const r = await data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        assert.equal(/** @type {any} */ (r).code, 'offline');
+        assert.equal(_calls.length, 0, 'nothing left the device, so there is nothing to reconcile');
+    });
+
+    test('a token the server REFUSED is still `no-session` — guard the guard', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async () => { throw Object.assign(new Error('expired'), { code: 'auth/user-token-expired' }); } };
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).code, 'no-session');
+    });
+
+    test('and the forced-fresh retry after a 403 tells the two apart the same way', async () => {
+        const data = await freshData();
+        _user = { getIdToken: async (/** @type {boolean} */ fresh) => { if (fresh) throw networkFailure(); return 'tok-stale'; } };
+        _respond = async () => ({ ok: false, status: 403, json: async () => ({ error: 'Forbidden — reviewer access required' }) });
+        const r = await data.getOvertimeManagerOverview();
+        assert.equal(/** @type {any} */ (r).code, 'offline', 'the refresh could not be asked — not a lost sign-in');
+        assert.equal(_calls.length, 1);
+    });
+
+    // Whole-app review, Oct 2026: a member given the manager role holds a token minted without it
+    // until the hourly refresh, and every call — every Try again — was refused for that hour.
+    test('a 403 is retried ONCE on a forced-fresh token, and the fresh answer is the one returned', async () => {
+        const data = await freshData();
+        /** @type {boolean[]} */ const asked = [];
+        _user = { getIdToken: async (/** @type {boolean} */ fresh) => { asked.push(!!fresh); return fresh ? 'tok-fresh' : 'tok-stale'; } };
+        _respond = async (req) => req.options.headers.Authorization === 'Bearer tok-fresh'
+            ? { ok: true, status: 200, json: async () => ({ ok: true, windows: [] }) }
+            : { ok: false, status: 403, json: async () => ({ error: 'Forbidden — reviewer access required' }) };
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).ok, true, 'the refreshed claim is let in');
+        assert.deepEqual(asked, [false, true], 'cached first, then forced fresh — once');
+        assert.equal(_calls.length, 2);
+    });
+
+    test('a second refusal is the answer — no third try, and nothing but auth errors are retried', async () => {
+        const data = await freshData();
+        _respond = async () => ({ ok: false, status: 403, json: async () => ({ error: 'forbidden' }) });
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).status, 403);
+        assert.equal(_calls.length, 2);
+        _calls = [];
+        _respond = async () => ({ ok: false, status: 409, json: async () => ({ error: 'conflict' }) });
+        await data.getMyOvertimeState();
+        assert.equal(_calls.length, 1, 'a conflict is not a stale claim');
+    });
+
+    test('every call carries a bearer token', async () => {
+        const data = await freshData();
+        await data.getMyOvertimeState();
+        await data.createOvertimeWindow('2026-09-05', { dryRun: true });
+        await data.withdrawOvertimeParticipant('2026-09-05', 'A. One', true);
+        assert.equal(_calls.length, 3);
+        for (const c of _calls) assert.equal(c.options.headers.Authorization, 'Bearer tok-1');
+    });
+});
+
+
+describe('3 · a submission that cannot be reconciled', () => {
+    test('every submission carries a mutation id, and the caller is given it back', async () => {
+        const data = await freshData();
+        const r = await data.submitOvertimeAvailability('2026-09-05', { '2026-09-01': {} }, 3);
+        const sent = _calls[0].body;
+        assert.equal(typeof sent.clientMutationId, 'string');
+        assert.match(sent.clientMutationId, /^[A-Za-z0-9_-]{8,64}$/, 'the server’s accepted alphabet');
+        assert.equal(/** @type {any} */ (r).mutationId, sent.clientMutationId,
+            'the caller cannot recognise its own lost write without it');
+    });
+
+    test('a TIMED-OUT submission still returns its mutation id', async () => {
+        // This is the case the id exists for. A result that drops it on the one path where the
+        // response never arrives makes reconciliation impossible exactly when it is needed.
+        const data = await freshData();
+        _respond = NEVER;
+        const p = data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        await flush();
+        mock.timers.tick(70_000);
+        const r = await p;
+        assert.equal(/** @type {any} */ (r).code, 'timeout');
+        assert.equal(/** @type {any} */ (r).mutationId, _calls[0].body.clientMutationId);
+    });
+
+    test('two submissions never share an id', async () => {
+        // Without the Math.random fallback a browser with no crypto left the buffer all zeroes, so
+        // every submission from that device carried the same id — which still passes the server's
+        // format check and quietly breaks the one thing the id is for.
+        const data = await freshData();
+        await data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        await data.submitOvertimeAvailability('2026-09-05', {}, 2);
+        assert.notEqual(_calls[0].body.clientMutationId, _calls[1].body.clientMutationId);
+    });
+
+    test('an id is minted even where the platform has no crypto', async () => {
+        // `globalThis.crypto` is getter-only in Node, so it is redefined rather than assigned.
+        const real = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+        try {
+            Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+            const data = await freshData();
+            await data.submitOvertimeAvailability('2026-09-05', {}, 1);
+            const id = _calls[0].body.clientMutationId;
+            assert.match(id, /^[A-Za-z0-9_-]{8,64}$/);
+            assert.notEqual(id, '0'.repeat(32), 'an all-zero buffer is the shipped defect');
+        } finally { if (real) Object.defineProperty(globalThis, 'crypto', real); }
+    });
+
+    test('the preview and the commit are the same call with one flag', async () => {
+        const data = await freshData();
+        await data.createOvertimeWindow('2026-09-05', { dryRun: true });
+        await data.createOvertimeWindow('2026-09-05');
+        assert.equal(_calls[0].url, _calls[1].url, 'a preview that is a separate prediction can drift from it');
+        assert.equal(_calls[0].body.dryRun, true);
+        assert.equal(_calls[1].body.dryRun, false);
+    });
+});
+
+describe('5 · the reviewer\'s week, read from the device\'s cache', () => {
+    // Whole-app review, Nov 2026. With the persistent cache on, an unreachable server does not throw:
+    // the cache answers, as of whenever it last heard, and the workspace painted that under a fresh
+    // "Availability as at <now>". A clerk rings people from this screen, so a cached answer is a
+    // failed load — Retry, not yesterday's availability presented as today's.
+    test('a cache-served read is a failed load, not a current one', async () => {
+        const data = await freshData();
+        _fromCache = true;
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: 0 });
+        assert.equal(r.ok, false);
+    });
+
+    test('and a server answer still loads', async () => {
+        const data = await freshData();
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: 0 });
+        assert.equal(r.ok, true);
+    });
+
+    // THE REVISION READS ARE HELD TO THE SAME RULE (overtime-core-5, Nov 2026). The two lists come
+    // from the server, the connection drops, and each reviser's revisions are answered by the cache:
+    // possibly nothing, possibly an older history. The week then painted as current with "Changed
+    // after initial deadline" missing, or a day's age stale, for exactly the members who revised.
+    // A revision read that THROWS stays what it was — the head shows, the markers are omitted.
+    const DEADLINE = 5_000;
+    const reviser = (/** @type {any} */ revisions) => ({
+        participants: { docs: [{ id: 'A. One', data: { createdAt: 1_000 } }] },
+        submissions:  { docs: [{ id: 'A. One', data: {
+            currentRevision: 2, days: { d: { mode: 'unavailable' } }, firstAcceptedAt: 1_000, updatedAt: 6_000 } }] },
+        revisions,
+    });
+    const history = [
+        { id: '000001', data: { revision: 1, days: { d: { mode: 'all_day' } }, acceptedAt: 1_000 } },
+        { id: '000002', data: { revision: 2, days: { d: { mode: 'unavailable' } }, acceptedAt: 6_000 } },
+    ];
+
+    test('a REVISION read the cache answered fails the load, like the lists', async () => {
+        const data = await freshData();
+        _snaps = reviser({ docs: history, fromCache: true });
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(r.ok, false, 'a cached history beside a current head is yesterday presented as today');
+    });
+
+    test('a revision read the SERVER answered loads, with the history it implies — guard the guard', async () => {
+        const data = await freshData();
+        _snaps = reviser({ docs: history });
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(r.ok, true);
+        assert.equal(r.submissions.get('A. One').history.changedSinceInitial, true);
+    });
+
+    test('and a revision read that THROWS is still not a failed week — the head shows, the marker is omitted', async () => {
+        // The deliberate half (loadWeekDetail's comment): a missing history is not a missing
+        // submission. Pinned so that the cache rule above is never widened into this one.
+        const data = await freshData();
+        _snaps = reviser({ throws: true });
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(r.ok, true);
+        assert.deepEqual(r.submissions.get('A. One').days, { d: { mode: 'unavailable' } });
+        assert.equal(r.submissions.get('A. One').history.changedSinceInitial, false);
+    });
+
+    // THE TWO PARTS OF loadWeekDetail NO TEST REACHED (whole-app check, 10 Nov 2026): every fixture
+    // here was a revision-2 head, and nothing read `lateInitial` back, so the single-revision shortcut
+    // and the window's opening time — which decides whether there is a deadline to be late against —
+    // could both break with the suite green.
+    const oneRevision = (/** @type {number} */ firstAcceptedAt) => ({
+        currentRevision: 1, days: { d: { mode: 'all_day' } }, firstAcceptedAt, updatedAt: firstAcceptedAt });
+
+    test('a head at revision 1 is its own history — no revision read, and its own acceptance time', async () => {
+        // A revision read here would fail the load (the cache answers it), so a load that succeeds
+        // proves the read was never made.
+        const week = (/** @type {number} */ at) => ({
+            participants: { docs: [{ id: 'A. One', data: { createdAt: 1_000 } }] },
+            submissions:  { docs: [{ id: 'A. One', data: oneRevision(at) }] },
+            revisions:    { docs: [], fromCache: true },
+        });
+        _snaps = week(2_000);
+        const r = await (await freshData()).loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(r.ok, true, 'a revision-1 head read its revisions');
+        const h = r.submissions.get('A. One').history;
+        assert.deepEqual(h.initialRevision?.days, { d: { mode: 'all_day' } }, 'its one revision is the head');
+        assert.equal(h.lateInitial, false);
+        assert.equal(h.changedSinceInitial, false);
+        // …first answered after the initial deadline, the same head is late.
+        _snaps = week(7_000);
+        const late = await (await freshData()).loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+        assert.equal(late.submissions.get('A. One').history.lateInitial, true, 'the shortcut lost the head\'s acceptance time');
+    });
+
+    test('a week opened after its initial deadline has nobody late against it — and it opened at its EARLIEST stamp', async () => {
+        const week = (/** @type {number[]} */ createdAts) => ({
+            participants: { docs: createdAts.map((t, i) => ({ id: `M${i}`, data: { createdAt: t } })) },
+            submissions:  { docs: [{ id: 'M0', data: oneRevision(9_000) }] },
+        });
+        const lateOf = async (/** @type {number[]} */ createdAts) => {
+            _snaps = week(createdAts);
+            const r = await (await freshData()).loadWeekDetail('2026-09-05', { initialDeadlineAt: DEADLINE });
+            return r.submissions.get('M0').history.lateInitial;
+        };
+        assert.equal(await lateOf([8_000, 8_000]), false, 'created after the deadline: there was no initial window to miss');
+        // Everyone frozen at creation shares its stamp; a LATER one is the nightly top-up adding
+        // somebody, not the opening. Opened at 1_000, an answer at 9_000 is late.
+        assert.equal(await lateOf([1_000, 8_000]), true, 'the opening was read from a top-up\'s stamp');
+    });
+});
+
+describe('6 · when the state on screen was read', () => {
+    // The deadline resync asks whether a deadline passed since the phases on screen were read. A
+    // submit's reconcile re-reads the state but adopts only the submission — moving the read time
+    // there hid a crossing the screen never took (48-hour review, Nov 2026).
+    const answer = (/** @type {number} */ serverNow) => async () => ({ ok: true, status: 200, json: async () => ({ ok: true, serverNow, windows: [] }) });
+
+    test('a read that replaces the state records the server\'s instant', async () => {
+        const data = await freshData();
+        _respond = answer(1_000_000);
+        const p = data.getMyOvertimeState(); await flush(); await p;
+        assert.equal(data.myStateReadAt(), 1_000_000);
+    });
+
+    test('a reconcile (keepReadAt) leaves it where the phases were read', async () => {
+        const data = await freshData();
+        _respond = answer(1_000_000);
+        let p = data.getMyOvertimeState(); await flush(); await p;
+        _respond = answer(2_000_000);
+        p = data.getMyOvertimeState({ keepReadAt: true }); await flush(); await p;
+        assert.equal(data.myStateReadAt(), 1_000_000);
+    });
+});

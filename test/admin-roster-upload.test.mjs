@@ -1,0 +1,3181 @@
+/**
+ * admin-roster-upload.test.mjs — the roster import, from the parsed cell to what a Save writes.
+ *
+ * It began as tests for `shiftValueToOverrideType` (the parsed-value → Firestore override `type`
+ * classification, hoisted to module scope + exported at v15.34 so it is unit-testable) and has
+ * grown with the pipeline it guards: the review state machine (`computeCellStates`, since v23.52
+ * in roster-review-states.js and re-exported from here), the chunked save and its stale-claim
+ * retry, the review table's pure formatters, and the day-drift gate — `detectShiftedRow`, the
+ * circuit breaker, and the words each of them puts on screen.
+ * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/admin-roster-upload.test.mjs
+ *
+ * The blocks written since v22.16 are organised by what a WRONG ANSWER COSTS rather than by
+ * function, and the costs here are not symmetrical. Writing a week onto the wrong days, or
+ * dropping a shift somebody actually worked, is SILENT: the review renders a perfectly ordinary
+ * roster and nobody has a reason to look twice. Refusing a good read, or asking about a cell that
+ * needed no question, costs a re-upload or a tap. Each block leans hard on the first and keeps
+ * only enough of the second to stop its gate becoming one nobody can get past.
+ *
+ * firebase-client.js is mocked via mock.module() because it imports Firebase
+ * from CDN URLs that are unreachable in Node. roster-data.js, override-utils.js and
+ * roster-alignment.js are pure and imported for real.
+ */
+
+import { test, describe, mock, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+// Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
+const REPO_ROOT_URL = new URL('../', import.meta.url);
+
+// ── Mock-controllable state for the roster-upload save-path tests ───────────────
+let   _idTokenRefreshes = 0;
+let   _refreshShouldFail = false;     // model getIdToken(true) failing (offline/flaky)
+let   _commitBehavior   = () => {};   // called on each batch.commit(); may throw
+const _batchOps         = [];         // one ops-array per COMMITTED writeBatch() or transaction
+// The import's checked save (v25.92). What a transaction READS is the SERVER's copy, which may differ
+// from what the review loaded — that difference is the whole point, so it has a seam of its own.
+const _serverDocs       = new Map();  // id → the record as the server holds it now
+const _txAttempts       = [];         // every attempt's ops, a re-run Firestore discarded included
+const _txReads          = [];         // every id a transaction read
+let   _txRerunOnce      = false;      // run the function twice, as Firestore does when a read record changed
+let   _minted           = 0;          // new ids are DISTINCT, so a second copy of a row would show
+// This device's own queued saves (v25.95): what a deleting part waits on before its transaction.
+let   _ownWritesSent    = () => Promise.resolve(true);   // true: drained; false: not in time
+let   _ownWritesAsked   = 0;
+// getDocs impl the fetchOverridesForWeek tests swap in (default: empty result set).
+let   _getDocsImpl      = async () => ({ docs: [] });
+
+/** A permission-denied error shaped like Firestore's (writeWithClaimRetry keys on .code). */
+function _denied() {
+    const e = new Error('Missing or insufficient permissions.');
+    /** @type {any} */ (e).code = 'permission-denied';
+    return e;
+}
+
+// mock.module must be called before the module under test is imported.
+mock.module('../firebase-client.js', {
+    namedExports: {
+        db: null,
+        collection: () => ({}),
+        query: () => null,
+        where: () => null,
+        getDocs: async (/** @type {any} */ ...args) => _getDocsImpl(...args),
+        // The ref RECORDS its id (test audit, 7 Nov 2026). `doc: () => ({})` and a delete that kept
+        // nothing meant a delete pointed at the wrong document — the date, the member — passed every
+        // test, and the stale import it was meant to remove stayed on the Calendar.
+        doc: (/** @type {any} */ _db, /** @type {any} */ _col, /** @type {any} */ id) => ({ id: id ?? `(new-${++_minted})` }),
+        writeBatch: () => {
+            const ops = [];
+            _batchOps.push(ops);
+            return {
+                set:    (/** @type {any} */ ref, /** @type {any} */ data) => ops.push({ op: 'set', id: ref?.id, data }),
+                delete: (/** @type {any} */ ref) => ops.push({ op: 'delete', id: ref?.id }),
+                commit: async () => { _commitBehavior(); },
+            };
+        },
+        // A transaction: its function runs against the server's copies (`_serverDocs`), and only the
+        // attempt that finishes counts as committed — an earlier one is discarded, as Firestore does.
+        runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => {
+            const attempt = async () => {
+                const ops = [];
+                _txAttempts.push(ops);
+                await fn({
+                    get: async (/** @type {any} */ ref) => { _txReads.push(ref.id); return { exists: () => _serverDocs.has(ref.id), data: () => _serverDocs.get(ref.id) }; },
+                    set: (/** @type {any} */ ref, /** @type {any} */ data) => ops.push({ op: 'set', id: ref?.id, data }),
+                    delete: (/** @type {any} */ ref) => ops.push({ op: 'delete', id: ref?.id }),
+                });
+                return ops;
+            };
+            if (_txRerunOnce) { _txRerunOnce = false; await attempt(); }
+            const ops = await attempt();
+            _commitBehavior();
+            _batchOps.push(ops);
+        },
+        serverTimestamp: () => 'TS',
+        whenOwnWritesSent: async () => { _ownWritesAsked++; return _ownWritesSent(); },
+        // Faithful mini-implementation of the real helper: run the thunk; on permission-denied,
+        // "force a token refresh" (counter) and retry once; any other error rethrows immediately.
+        writeWithClaimRetry: async (/** @type {Function} */ fn) => {
+            try { return await fn(); }
+            catch (err) {
+                if (/** @type {any} */ (err)?.code === 'permission-denied') {
+                    // Model getIdToken(true): it may fail (offline/flaky). When it does, the ORIGINAL
+                    // permission-denied is preserved and NOT replaced by the refresh's own error — the
+                    // caller keys its user-facing message on err.code (matches firebase-client.js).
+                    try {
+                        // A SIMULATED refresh failure, not a wrap of `err` — it has no cause to carry.
+                        // eslint-disable-next-line preserve-caught-error
+                        if (_refreshShouldFail) throw new Error('token refresh failed (network)');
+                        _idTokenRefreshes++;
+                    } catch { throw err; }
+                    return await fn();   // retry once with the fresh token
+                }
+                throw err;
+            }
+        },
+        COLLECTIONS: { overrides: 'overrides' },
+    },
+});
+
+const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates,
+        shiftDisplay, manualShiftDisplay, isZeroLengthRange, PARSE_ABORT_MS } = await import('../admin-roster-upload.js');
+const { teamMembers, getBaseShift } = await import('../roster-data.js');
+const { guardedWrites, replacedFromState, collectRosterWrites, carryReviewAnswers } = await import('../roster-review-states.js');
+// The alignment rules moved OUT of the coordinator at v22.16 (roster-alignment.js) — a Firebase-free
+// module, so this import needs none of the mocking above.
+const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD, driftCopy, stopCopy, geometryCopy } = await import('../roster-alignment.js');
+
+// 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
+const SUN = '2026-06-21';
+const MON = '2026-06-15';
+
+describe('shiftValueToOverrideType — existing vocabulary (regression)', () => {
+    test('AL → annual_leave; SICK → sick; SPARE → spare_shift', () => {
+        assert.equal(shiftValueToOverrideType('AL', MON), 'annual_leave');
+        assert.equal(shiftValueToOverrideType('SICK', MON), 'sick');
+        assert.equal(shiftValueToOverrideType('SPARE', MON), 'spare_shift');
+    });
+
+    test('RD / OFF → correction', () => {
+        assert.equal(shiftValueToOverrideType('RD', MON), 'correction');
+        assert.equal(shiftValueToOverrideType('OFF', MON), 'correction');
+    });
+
+    test('pipe-encoded RDW and bare RDW → rdw', () => {
+        assert.equal(shiftValueToOverrideType('RDW|14:30-22:00', MON), 'rdw');
+        assert.equal(shiftValueToOverrideType('RDW', MON), 'rdw');
+    });
+
+    test('plain time → shift on a weekday, rdw on a Sunday (Sundays uncontracted)', () => {
+        assert.equal(shiftValueToOverrideType('06:30-14:30', MON), 'shift');
+        assert.equal(shiftValueToOverrideType('06:30-14:30', SUN), 'rdw');
+    });
+
+    test('Sunday AL / SICK → correction (the Sunday block)', () => {
+        assert.equal(shiftValueToOverrideType('AL', SUN), 'correction');
+        assert.equal(shiftValueToOverrideType('SICK', SUN), 'correction');
+    });
+});
+
+describe('shiftValueToOverrideType — training (OTHER_DAYS.md)', () => {
+    test('every training grammar form → training', () => {
+        for (const v of ['TRG', 'IND', 'ASSESS', 'MEET', 'TRG RDW', 'IND RDW', 'ASSESS RDW', 'MEET RDW',
+                         'TRG 08:00-16:00', 'TRG RDW 08:00-16:00']) {
+            assert.equal(shiftValueToOverrideType(v, MON), 'other', v);
+        }
+    });
+
+    test('Sunday training → correction (layer 1 of the Sunday block — never written as training)', () => {
+        for (const v of ['TRG', 'TRG RDW', 'IND', 'ASSESS']) {
+            assert.equal(shiftValueToOverrideType(v, SUN), 'correction', v);
+        }
+    });
+
+    test('a training value never falls through to rdw/shift on its RDW substring', () => {
+        // 'TRG RDW' contains 'RDW' — the training check must classify it before the
+        // RDW checks could ever see it.
+        assert.equal(shiftValueToOverrideType('TRG RDW', MON), 'other');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _saveOverrideBatches — stale-claim retry parity (v15.70; the v15.48/v15.69
+// review fix — roster-import saves now self-heal a stale admin/manager claim,
+// like every other Admin write path).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('_saveOverrideBatches — stale-claim retry parity', () => {
+    beforeEach(() => { _idTokenRefreshes = 0; _refreshShouldFail = false; _batchOps.length = 0; _commitBehavior = () => {}; });
+
+    const one = [{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD' }];
+
+    test('happy path — one batch, one commit, no token refresh, roster_import payload', async () => {
+        await _saveOverrideBatches(one, 'G. Miller');
+        assert.equal(_batchOps.length, 1);
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets.length, 1);
+        assert.equal(sets[0].data.source, 'roster_import');
+        assert.equal(sets[0].data.type, 'shift');       // weekday plain time → shift
+        assert.equal(sets[0].data.value, '06:30-14:30');
+        assert.equal(sets[0].data.changedBy, 'G. Miller');
+        assert.equal(_idTokenRefreshes, 0);
+    });
+
+    test('returns how many rows it REFUSED, so the receipt counts only what was written (v24.38)', async () => {
+        const refused = await _saveOverrideBatches([...one, { memberName: 'G. Miller', date: MON, value: '06:00-06:00', baseShift: 'RD' }], 'G. Miller');
+        assert.equal(refused, 1);
+        assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 1, 'and only the real shift was set');
+        assert.equal(await _saveOverrideBatches(one, 'G. Miller'), 0);
+    });
+
+    test('an import over a January leave day MOVED to last year\'s allowance keeps the year (v25.18)', async () => {
+        // A write is delete-then-set: without the carry-forward a re-import over a moved day would
+        // quietly put it back on its own year, the trap the owner was told this release would avoid.
+        const JAN = '2027-01-05';
+        const movedLeave = { type: 'annual_leave', replacedType: null, leaveYear: 2026 };
+        await _saveOverrideBatches([{ memberName: 'G. Miller', date: JAN, value: 'AL', baseShift: '15:15-23:55',
+            replaceId: 'manual-1', replacedFrom: movedLeave }], 'G. Miller');
+        const set = _batchOps[0].find(o => o.op === 'set');
+        assert.equal(set?.data.type, 'annual_leave');
+        assert.equal(set?.data.leaveYear, 2026);
+        // …and an import that makes the day a SHIFT drops it: the day is no longer leave.
+        _batchOps.length = 0;
+        await _saveOverrideBatches([{ memberName: 'G. Miller', date: JAN, value: '15:15-23:55', baseShift: '15:15-23:55',
+            replaceId: 'manual-1', replacedFrom: movedLeave }], 'G. Miller');
+        assert.ok(!('leaveYear' in _batchOps[0].find(o => o.op === 'set').data));
+    });
+
+    test('the review row hands the save the replaced record\'s year — one builder for every site', () => {
+        assert.deepEqual(replacedFromState({ manualId: 'm1', manualType: 'annual_leave', manualReplacedType: null, manualLeaveYear: 2026 }),
+            { type: 'annual_leave', replacedType: null, leaveYear: 2026 });
+        assert.deepEqual(replacedFromState({ manualId: 'm1', manualType: 'shift', manualReplacedType: 'sick', manualLeaveYear: null }),
+            { type: 'shift', replacedType: 'sick' }, 'no year: the key is absent, as the builders expect');
+        assert.equal(replacedFromState({ manualId: null, manualType: 'shift' }), null);
+        // No save site may build the object by hand again — that is how a field reaches four of five.
+        // Both files: the save sites moved to roster-review-states.js with collectRosterWrites (7 Nov 2026).
+        for (const f of ['./admin-roster-upload.js', './roster-review-states.js']) {
+            const src = readFileSync(new URL(f, REPO_ROOT_URL), 'utf8');
+            assert.doesNotMatch(src, /replacedFrom:\s*(state|s)\.manualId\s*\?/, f);
+        }
+    });
+
+    test('weekday RDW import (RDW-encoded value from computeCellStates) saves type rdw, not shift', async () => {
+        // Regression: a weekday rest-day-worked import used to save the BARE time → type 'shift'
+        // (RDW overtime dropped from the calendar badge + paycalc RDW pre-fill). computeCellStates
+        // now hands _saveOverrideBatches the RDW-encoded value; the save must write {type:'rdw'}
+        // with the plain time (the RDW| encoding stripped).
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: 'RDW|14:30-22:00', baseShift: 'RD' }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets.length, 1);
+        assert.equal(sets[0].data.type, 'rdw');
+        assert.equal(sets[0].data.value, '14:30-22:00');
+    });
+
+    test('the older manual copies of a day are deleted with it — and not for a refused row (Oct 2026)', async () => {
+        await _saveOverrideBatches([
+            { memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD', replaceId: 'win', alsoDelete: ['dup1', 'dup2'] },
+            { memberName: 'G. Miller', date: SUN, value: '06:00-06:00', baseShift: 'RD', replaceId: 'w2', alsoDelete: ['dup3'] },
+        ], 'G. Miller');
+        assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 3, 'the winner and its two copies; the refused row touches nothing');
+    });
+
+    test('an OFF day over a worked base saves as a rest-day correction whose value is RD (test audit, Nov 2026)', async () => {
+        // Bilingual and CES rosters print OFF. It maps to a `correction`, and the rules allow a
+        // correction ONLY with the value 'RD' — so without the normalisation the whole batch is refused.
+        await _saveOverrideBatches([{ memberName: 'G. Miller', date: MON, value: 'OFF', baseShift: '06:30-14:30' }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets.length, 1);
+        assert.equal(sets[0].data.type, 'correction');
+        assert.equal(sets[0].data.value, 'RD', 'a correction carrying OFF is refused by the rules — the whole batch with it');
+    });
+
+    test('the deletes name the RIGHT documents — the record replaced, and its copies, by id', async () => {
+        // Both delete sites: the stale import removed with nothing written (REMOVE_IMPORT, "Rest day —
+        // leave it"), and the record a new value replaces.
+        await _saveOverrideBatches([
+            { memberName: 'G. Miller', date: MON, value: null, baseShift: 'RD', replaceId: 'stale-import', deleteOnly: true, alsoDelete: ['dupA'] },
+            { memberName: 'G. Miller', date: SUN, value: '06:30-14:30', baseShift: 'RD', replaceId: 'old-record', alsoDelete: [] },
+        ], 'G. Miller');
+        const deleted = _batchOps[0].filter(o => o.op === 'delete').map(o => o.id);
+        assert.deepEqual(deleted, ['stale-import', 'dupA', 'old-record']);
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets.length, 1, 'the delete-only row writes nothing');
+        assert.match(sets[0].id, /^\(new-/, 'the new value lands on a new document, not on the one deleted');
+    });
+
+    test('a chunk is built by OPERATIONS, so the copies cannot push a batch past 500', async () => {
+        const many = Array.from({ length: 200 }, () =>
+            ({ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD', replaceId: 'w', alsoDelete: ['a', 'b'] }));
+        await _saveOverrideBatches(many, 'G. Miller');
+        assert.ok(_batchOps.length > 1, 'split');
+        for (const ops of _batchOps) assert.ok(ops.length <= 450, `a batch of ${ops.length} operations`);
+        assert.equal(_batchOps.flat().filter(o => o.op === 'set').length, 200, 'every row still written');
+    });
+
+    test('a replaced doc\'s type survives into replacedType — swap evidence is not destroyed (v21.56)', async () => {
+        // The import deletes the doc it replaces like every other write path, and it was the one
+        // path not stamping what it destroyed: a re-import resolving a DIFF/CONFLICT over a
+        // swapped-in day (a `shift` on a base rest day) erased the only evidence the member was
+        // contracted to work it, and leave booked there afterwards went free.
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD',
+               replaceId: 'old1', replacedFrom: { type: 'rdw', replacedType: null } }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets[0].data.replacedType, 'rdw');
+        assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 1);
+    });
+
+    test('a rest day answered "swapped" (v24.42) is recorded as covering a swapped-in working day', async () => {
+        // Without replacedType the absence is HIDDEN on a rest-day base (isOverrideDisplaySuppressed)
+        // and the leave is charged nothing — the swap answer would be written and then ignored.
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: 'SICK', baseShift: 'RD', replaceId: null, replacedFrom: null, swapped: true },
+             { memberName: 'G. Miller', date: MON, value: 'AL',   baseShift: 'RD', replaceId: null, replacedFrom: null, swapped: true }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.deepEqual(sets.map(o => [o.data.type, o.data.replacedType]), [['sick', 'shift'], ['annual_leave', 'shift']]);
+    });
+
+    test('replacing nothing writes NO replacedType key — the rules refuse a null', async () => {
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD',
+               replaceId: null, replacedFrom: null }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.ok(!('replacedType' in sets[0].data));
+    });
+
+    test('permission-denied once → force token refresh → batch REBUILT → success', async () => {
+        let n = 0;
+        _commitBehavior = () => { if (n++ === 0) throw _denied(); };   // first commit denied, second ok
+        await _saveOverrideBatches(one, 'G. Miller');                  // must NOT throw
+        assert.equal(_idTokenRefreshes, 1, 'forced exactly one token refresh');
+        assert.equal(_batchOps.length, 2, 'a fresh batch was built for the retry (not reused)');
+    });
+
+    test('persistent permission-denied → rejects after one retry (feedback stays error)', async () => {
+        _commitBehavior = () => { throw _denied(); };
+        await assert.rejects(_saveOverrideBatches(one, 'G. Miller'), /permission/i);
+        assert.equal(_idTokenRefreshes, 1, 'refreshed once');
+        assert.equal(_batchOps.length, 2, 'tried the original + one retry, then gave up');
+    });
+
+    test('token refresh itself FAILS → original permission-denied preserved, no retry', async () => {
+        // Offline/flaky getIdToken(true): the caller must still see a permission-denied (an
+        // authorisation problem), NOT the refresh's network error — and there is no second attempt.
+        _refreshShouldFail = true;
+        _commitBehavior = () => { throw _denied(); };
+        await assert.rejects(_saveOverrideBatches(one, 'G. Miller'), /permission/i);
+        assert.equal(_idTokenRefreshes, 0, 'refresh failed → not counted as a successful refresh');
+        assert.equal(_batchOps.length, 1, 'no retry attempted after a failed refresh');
+    });
+
+    test('a non-auth error is NOT retried', async () => {
+        _commitBehavior = () => { throw new Error('network down'); };
+        await assert.rejects(_saveOverrideBatches(one, 'G. Miller'), /network/);
+        assert.equal(_idTokenRefreshes, 0);
+        assert.equal(_batchOps.length, 1);
+    });
+
+    test('deleteOnly (REMOVE_IMPORT) writes a delete and no set', async () => {
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: 'RD', baseShift: '06:00-14:00', replaceId: 'stale1', deleteOnly: true }],
+            'G. Miller');
+        assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 0);
+        assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 1);
+    });
+
+    test('replaceId on a normal write emits a delete + a set (replace in place)', async () => {
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD', replaceId: 'old1' }],
+            'G. Miller');
+        assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 1);
+        assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 1);
+    });
+});
+
+// ── The Save is checked against what the review LOADED (v25.92) ─────────────────────────────────
+//
+// Between the read and the Save a manager can change one of the same days. A record the import ADDS
+// cannot hide theirs (a manual record outranks an import); a record it DELETES can destroy their newer
+// version. So a part that deletes is one transaction that re-reads what it deletes (roster-import-save.js).
+
+const { IMPORT_CHANGED_CODE, refusalLine, UNSENT_SAVES_DETAIL } = await import('../roster-import-save.js');
+
+describe('the import\'s Save is checked against what the review loaded (v25.92)', () => {
+    beforeEach(() => {
+        _batchOps.length = 0; _txAttempts.length = 0; _txReads.length = 0; _serverDocs.clear();
+        _txRerunOnce = false; _commitBehavior = () => {}; _idTokenRefreshes = 0; _refreshShouldFail = false;
+        _ownWritesSent = () => Promise.resolve(true); _ownWritesAsked = 0;
+    });
+    const TUE = '2026-06-16';
+    /** A record as the review loaded it — and, unless a test says otherwise, as the server still holds it. */
+    const rec = (/** @type {string} */ id, /** @type {any} */ extra = {}) => ({ id, memberName: 'G. Miller', date: MON, type: 'shift',
+        value: '23:00-06:00', note: '', source: 'manual', changedBy: 'S. Silva', createdAt: 1_700_000_000_000, ...extra });
+    const shownOf = (/** @type {any[]} */ ...rows) => new Map(rows.map(r => [r.id, r]));
+    const useNew = (/** @type {string} */ replaceId, /** @type {any} */ extra = {}) =>
+        ({ memberName: 'G. Miller', date: MON, value: '13:00-21:00', baseShift: 'RD', replaceId, alsoDelete: [], ...extra });
+
+    test('a part that only ADDS is a plain batch, as before — no transaction, so it is still held offline', async () => {
+        await _saveOverrideBatches([{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD' }], 'G. Miller');
+        assert.equal(_txAttempts.length, 0, 'no transaction for a part that deletes nothing');
+        assert.equal(_batchOps.length, 1);
+    });
+
+    test('a part that deletes is ONE transaction that reads every record it deletes, and writes when each is unchanged', async () => {
+        const m1 = rec('m1'), dup = rec('dupA', { value: '22:00-06:00' });
+        _serverDocs.set('m1', m1).set('dupA', dup);
+        await _saveOverrideBatches([useNew('m1', { alsoDelete: ['dupA'] })], 'G. Miller', shownOf(m1, dup));
+        assert.deepEqual(_txReads.sort(), ['dupA', 'm1']);
+        assert.equal(_txAttempts.length, 1);
+        assert.deepEqual(_batchOps[0].filter(o => o.op === 'delete').map(o => o.id), ['m1', 'dupA']);
+        assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 1);
+    });
+
+    test('a record a colleague REWROTE after the read refuses the part — nothing written, the day named', async () => {
+        const m1 = rec('m1');
+        _serverDocs.set('m1', { ...m1, value: '14:00-22:00', changedBy: 'B. Khan', createdAt: 1_700_000_500_000 });
+        const err = await _saveOverrideBatches([useNew('m1'), useNew(null, { date: TUE })], 'G. Miller', shownOf(m1)).catch(e => e);
+        assert.equal(err?.code, IMPORT_CHANGED_CODE);
+        assert.deepEqual(err.days, [{ memberName: 'G. Miller', date: MON }], 'only the changed day is named');
+        assert.equal(err.savedEarlier, false);
+        assert.equal(err.partialCommit, undefined, 'a refusal is not an unknown outcome');
+        assert.equal(_batchOps.length, 0, 'nothing in the part was written — not even the other day');
+    });
+
+    test('a colleague who saved the SAME values still made a different record — refused', async () => {
+        const m1 = rec('m1');
+        _serverDocs.set('m1', { ...m1, createdAt: 1_700_000_900_000 });   // re-saved: same day, same value, a new revision
+        const err = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(m1)).catch(e => e);
+        assert.equal(err?.code, IMPORT_CHANGED_CODE);
+    });
+
+    test('a record already GONE is no difference — deleting what is not there harms nobody', async () => {
+        await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1')));
+        assert.deepEqual(_batchOps[0].map(o => o.op), ['delete', 'set']);
+    });
+
+    test('a record the review never LOADED is refused, never deleted on trust', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        const err = await _saveOverrideBatches([useNew('m1')], 'G. Miller', new Map()).catch(e => e);
+        assert.equal(err?.code, IMPORT_CHANGED_CODE);
+        assert.equal(_batchOps.length, 0);
+    });
+
+    test('new ids are minted ONCE: a re-run of the transaction writes the same documents, never a second copy', async () => {
+        const m1 = rec('m1');
+        _serverDocs.set('m1', m1);
+        _txRerunOnce = true;
+        await _saveOverrideBatches([useNew('m1'), useNew(null, { date: TUE })], 'G. Miller', shownOf(m1));
+        assert.equal(_txAttempts.length, 2, 'Firestore ran the function twice');
+        const ids = _txAttempts.map(ops => ops.filter(o => o.op === 'set').map(o => o.id));
+        assert.deepEqual(ids[0], ids[1], 'the second attempt wrote the very documents the first would have');
+        assert.equal(new Set(ids[1]).size, 2);
+    });
+
+    test('a later part refused after an earlier one landed says so — savedEarlier — and names only its own days', async () => {
+        // 300 rows of two operations: 225 to a part (chunkByWrites' 450), so two parts.
+        const rows = Array.from({ length: 300 }, (_, i) => useNew(`w${i}`, { date: `2026-07-${String(1 + (i % 28)).padStart(2, '0')}` }));
+        const shown = new Map(rows.map(r => [r.replaceId, rec(r.replaceId, { date: r.date })]));
+        for (const [id, r] of shown) _serverDocs.set(id, r);
+        _serverDocs.set('w280', { ...shown.get('w280'), value: 'AL', type: 'annual_leave' });
+        const err = await _saveOverrideBatches(rows, 'G. Miller', shown).catch(e => e);
+        assert.equal(err?.code, IMPORT_CHANGED_CODE);
+        assert.equal(err.savedEarlier, true);
+        assert.deepEqual(err.days, [{ memberName: 'G. Miller', date: shown.get('w280').date }]);
+        assert.equal(_batchOps.length, 1, 'the first part landed; the refused one wrote nothing');
+        assert.equal(err.partialCommit, undefined, 'what landed is KNOWN: said by savedEarlier, never as an unknown outcome');
+    });
+
+    test('several changed records are named once a day, in date order', async () => {
+        const m1 = rec('m1'), dupA = rec('dupA', { value: '22:00-06:00' }), m2 = rec('m2', { date: TUE });
+        for (const r of [m1, dupA, m2]) _serverDocs.set(r.id, { ...r, createdAt: 1_700_000_777_000 });
+        const err = await _saveOverrideBatches([useNew('m2', { date: TUE }), useNew('m1', { alsoDelete: ['dupA'] })],
+            'G. Miller', shownOf(m1, dupA, m2)).catch(e => e);
+        assert.deepEqual(err?.days, [{ memberName: 'G. Miller', date: MON }, { memberName: 'G. Miller', date: TUE }]);
+    });
+
+    test('a deleting part that never reaches the server is an UNKNOWN outcome — marked partialCommit even first', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        _commitBehavior = () => { throw Object.assign(new Error('offline'), { code: 'unavailable' }); };
+        const err = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1'))).catch(e => e);
+        assert.equal(err?.partialCommit, true, 'its commit may have landed with the answer lost');
+        // …whereas a part that only adds is a batch the device keeps sending: its first failure is not one.
+        _commitBehavior = () => { throw Object.assign(new Error('offline'), { code: 'unavailable' }); };
+        const err2 = await _saveOverrideBatches([useNew(null)], 'G. Miller').catch(e => e);
+        assert.equal(err2?.partialCommit, undefined);
+    });
+
+    test('a zero-length shift is refused unwritten, and its console line names nobody — the device may be shared', async () => {
+        /** @type {string[]} */ const warned = [];
+        const w = console.warn; console.warn = (/** @type {any[]} */ ...a) => { warned.push(a.join(' ')); };
+        let refused;
+        try {
+            refused = await _saveOverrideBatches([{ memberName: 'A. Person', date: MON, value: '08:00-08:00', baseShift: 'RD' }], 'Q. Example');
+        } finally { console.warn = w; }
+        assert.equal(refused, 1);
+        assert.ok(warned.some(l => l.includes('zero-length')), 'premise: the refusal was logged');
+        assert.deepEqual(warned.filter(l => l.includes('A. Person')), [], 'a member\'s name went to the console');
+    });
+
+    test('a deadline that ran out is the same unknown outcome — and an answer from the server is not one', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        _commitBehavior = () => { throw Object.assign(new Error('slow'), { code: 'deadline-exceeded' }); };
+        const late = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1'))).catch(e => e);
+        assert.equal(late?.partialCommit, true, 'a transaction whose deadline passed may have committed all the same');
+        // The control: the server ANSWERED, refusing it, so nothing of this first part can have landed.
+        _commitBehavior = () => { throw Object.assign(new Error('refused'), { code: 'invalid-argument' }); };
+        const refused = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1'))).catch(e => e);
+        assert.equal(refused?.code, 'invalid-argument');
+        assert.equal(refused.partialCommit, undefined);
+    });
+
+    // THE QUEUED-SAVE RACE (v25.95): a transaction reads the SERVER, so a Change a Shift this device saved offline is not
+    // there yet — its record would be deleted as already gone, and the queued save would then land
+    // and stand over the import's. A deleting part waits for the device's own queue first.
+    test('a deleting part waits for this device\'s own unsent saves before its transaction starts', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        /** @type {(sent: boolean) => void} */ let drained = () => {};
+        _ownWritesSent = () => new Promise(r => { drained = r; });
+        const saving = _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1')));
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(_txAttempts.length, 0, 'the transaction read the server before this device\'s own saves had reached it');
+        drained(true);
+        await saving;
+        assert.equal(_txAttempts.length, 1);
+        assert.equal(_ownWritesAsked, 1);
+    });
+
+    test('…and when they have not reached the server in time, nothing is sent and the review stays open', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        _ownWritesSent = () => Promise.resolve(false);
+        const err = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1'))).catch(e => e);
+        assert.equal(err?.code, 'unavailable');
+        assert.equal(err.partialCommit, undefined, 'no transaction started, so nothing can have landed: the review must not close as "may be saved"');
+        assert.equal(err.message, UNSENT_SAVES_DETAIL, 'the admin reads this after "Couldn\'t save — "');
+        assert.equal(_txAttempts.length, 0);
+        assert.equal(_batchOps.length, 0);
+    });
+
+    test('a part that only ADDS does not wait — its batch joins the queue behind them', async () => {
+        _ownWritesSent = () => Promise.resolve(false);
+        await _saveOverrideBatches([useNew(null)], 'G. Miller');
+        assert.equal(_ownWritesAsked, 0);
+        assert.equal(_batchOps.length, 1);
+    });
+
+    test('a LATER deleting part that gives up after an earlier part landed is still "part of it may be saved"', async () => {
+        // 230 rows that only add, then 5 that delete: the first part (225 rows) is a batch that lands.
+        const adds = Array.from({ length: 230 }, (_, i) => useNew(null, { date: `2026-07-${String(1 + (i % 28)).padStart(2, '0')}` }));
+        const dels = Array.from({ length: 5 }, (_, i) => useNew(`d${i}`));
+        const shown = new Map(dels.map(r => [r.replaceId, rec(r.replaceId)]));
+        _ownWritesSent = () => Promise.resolve(false);
+        const err = await _saveOverrideBatches([...adds, ...dels], 'G. Miller', shown).catch(e => e);
+        assert.equal(err?.code, 'unavailable');
+        assert.equal(err.partialCommit, true);
+        assert.equal(_batchOps.length, 1);
+    });
+
+    test('the refusal names the days, in the app\'s date style, and says what to do next', () => {
+        const one = [{ memberName: 'G. Miller', date: '2026-08-04' }];
+        assert.equal(refusalLine(one, { redrawn: true }),
+            'Nothing was saved: G. Miller on Tue 4 Aug changed after the roster was read. The review now shows that day as it is — check, then save again.');
+        assert.equal(refusalLine(one),
+            'Nothing was saved: G. Miller on Tue 4 Aug changed after the roster was read. Read the roster again to see the latest, then save again.');
+        const two = [...one, { memberName: 'S. Silva', date: '2026-08-05' }];
+        assert.match(refusalLine(two, { savedEarlier: true, redrawn: true }),
+            /^Part of the roster was saved, but not the rest: G\. Miller on Tue 4 Aug and S\. Silva on Wed 5 Aug changed .* those days as they are/);
+        const six = Array.from({ length: 6 }, (_, i) => ({ memberName: 'G. Miller', date: `2026-08-0${i + 2}` }));
+        assert.match(refusalLine(six), /Sun 2 Aug, G\. Miller on Mon 3 Aug, G\. Miller on Tue 4 Aug, G\. Miller on Wed 5 Aug and 2 more changed/);
+    });
+});
+
+// ── Roster Upload conflict-read FAIL-CLOSED (regression for the v16.24 Tier-1 bug) ──
+// The existing-overrides read gates the review classification. If it fails, the upload must
+// NOT proceed as "no existing overrides" — that let the review mark rows safe while blind to
+// manual AL/absence/shift changes, so Save could silently overwrite/duplicate them. The fix:
+// fetchOverridesForWeek THROWS a tagged `conflictReadFailed` error (never returns []) so the
+// parse handler stops, hides the review, clears _cellStates, and shows the fail-closed message.
+describe('fetchOverridesForWeek — fail-closed conflict read (v16.25 regression)', () => {
+    beforeEach(() => { _getDocsImpl = async () => ({ docs: [] }); });
+
+    test('a getDocs rejection throws a tagged conflictReadFailed error — NOT []', async () => {
+        _getDocsImpl = async () => { throw new Error('unavailable'); };
+        await assert.rejects(
+            () => fetchOverridesForWeek(['2026-06-15', '2026-06-16']),
+            (/** @type {any} */ err) => {
+                // The tag is what routes the parse handler to fail-closed (hide review, clear
+                // _cellStates, show "Couldn't check your existing saved changes"). Without it the
+                // handler would treat the failure as a generic error, and a [] return would have
+                // let the review apply blind — the exact Tier-1 bug.
+                assert.equal(err.conflictReadFailed, true);
+                assert.equal(err.message, 'CONFLICT_READ_FAILED');
+                return true;
+            });
+    });
+
+    test('an answer served from the OFFLINE CACHE fails closed too (Oct 2026 review)', async () => {
+        // persistentLocalCache: offline, getDocs RESOLVES from the device — often empty for this
+        // week. Accepting it hid every prior import and manual change from the review.
+        _getDocsImpl = async () => ({ docs: [], metadata: { fromCache: true } });
+        await assert.rejects(() => fetchOverridesForWeek(['2026-06-15']),
+            (/** @type {any} */ err) => err.conflictReadFailed === true);
+    });
+
+    test('a permission-denied rejection also fails closed (does not swallow to [])', async () => {
+        _getDocsImpl = async () => { throw _denied(); };
+        await assert.rejects(
+            () => fetchOverridesForWeek(['2026-06-15']),
+            (/** @type {any} */ err) => err.conflictReadFailed === true);
+    });
+
+    test('happy path returns the mapped overrides (id + data spread), never throws', async () => {
+        _getDocsImpl = async () => ({
+            docs: [
+                { id: 'o1', data: () => ({ memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual' }) },
+                { id: 'o2', data: () => ({ memberName: 'S. Boyle',  date: '2026-06-16', value: 'SICK', source: 'manual' }) },
+            ],
+        });
+        const rows = await fetchOverridesForWeek(['2026-06-15', '2026-06-16']);
+        assert.equal(rows.length, 2);
+        assert.deepEqual(rows[0], { id: 'o1', memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual' });
+        assert.equal(rows[1].id, 'o2');
+    });
+
+    // The import's Save compares every record it deletes with this read (v25.92). Read with no stamp, a
+    // record this device saved but had not yet sent could never match the server's copy once it landed,
+    // so the Save refused the device's own record as a colleague's change (override-compare.js, v25.96).
+    test('a record this device saved but has not sent yet comes back as its own copy (v25.96)', async () => {
+        const written = new Date('2026-06-01T09:30:00Z');
+        const fields = { memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual', createdAt: null };
+        _getDocsImpl = async () => ({ docs: [{ id: 'o1', metadata: { hasPendingWrites: true },
+            data: (/** @type {any} */ o) => (o?.serverTimestamps === 'estimate' ? { ...fields, createdAt: { toDate: () => written } } : fields) }] });
+        const [row] = await fetchOverridesForWeek(['2026-06-15']);
+        assert.ok(row.createdAt instanceof Date, 'read with no stamp, it can never match the save once it lands');
+        assert.equal(row.createdAt.getTime(), written.getTime());
+    });
+});
+
+// ── computeCellStates — the review state machine (hoisted to module scope + exported v16.37) ──
+// Uses a real main-roster member and reads the actual base shift at setup, so the expectations
+// track the real getBaseShift source rather than a brittle mock.
+describe('computeCellStates — review state machine', () => {
+    const member = teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main');
+    const mname  = member.name;
+    const WD     = '2026-06-15';   // a Monday (non-Sunday)
+    const base   = getBaseShift(member, new Date(WD + 'T12:00:00'));
+    const differ = (base === 'RD' || base === 'OFF') ? '07:00-15:00' : 'RD';   // guaranteed != base
+
+    /** @param {string} shiftVal @param {any[]} [existing] */
+    const run = (shiftVal, existing = []) =>
+        computeCellStates(
+            { parsed: [{ memberName: mname, shifts: { [WD]: shiftVal } }], dates: [WD] },
+            existing,
+        ).get(`${mname}|${WD}`);
+
+    test('parsed == base, no override → MATCH', () => {
+        assert.equal(run(base).state, 'MATCH');
+    });
+
+    test('parsed differs from base, no override → DIFF (pre-approved)', () => {
+        const c = run(differ);
+        assert.equal(c.state, 'DIFF');
+        assert.equal(c.chosen, true);
+    });
+
+    test('manual override already equals the PDF → COVERED', () => {
+        const c = run(differ, [{ memberName: mname, date: WD, value: differ, type: 'shift', source: 'manual', id: 'm1' }]);
+        assert.equal(c.state, 'COVERED');
+    });
+
+    test('manual override differs from the PDF → CONFLICT', () => {
+        const c = run(differ, [{ memberName: mname, date: WD, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'm2' }]);
+        assert.equal(c.state, 'CONFLICT');
+    });
+
+    // Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record the winner outranks still
+    // outranks an import, so "Use new roster" replacing only the winner left it to resurface. An
+    // import under it is taken too since Nov 2026 (below) — this test used to pin it as left alone.
+    test('a CONFLICT carries every other record of its day — the older manual copy and the import — never the winner', () => {
+        const c = run(differ, [
+            { memberName: mname, date: WD, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'newer', createdAt: new Date(2000) },
+            { memberName: mname, date: WD, value: '22:00-06:00', type: 'shift', source: 'manual', id: 'older', createdAt: new Date(1000) },
+            { memberName: mname, date: WD, value: differ, type: 'shift', source: 'roster_import', id: 'imp', createdAt: new Date(500) },
+        ]);
+        assert.equal(c.state, 'CONFLICT');
+        assert.equal(c.manualId, 'newer');
+        assert.deepEqual(c.otherRecordIds, ['older', 'imp']);
+    });
+
+    // Whole-app fix, Nov 2026: two IMPORT copies of one day — two devices importing the same week, or a
+    // save pressed twice while the first was sending — and a replace or "Clear old" took only the
+    // newer, so the older one came back on the Calendar until the roster was uploaded again.
+    test('two import copies of a day: a replace, and a "Clear old", take BOTH', () => {
+        const held = base === '10:00-18:00' ? '09:00-17:00' : '10:00-18:00';   // never the base itself
+        const copies = [
+            { memberName: mname, date: WD, value: held, type: 'shift', source: 'roster_import', id: 'copyA', createdAt: new Date(1000) },
+            { memberName: mname, date: WD, value: held, type: 'shift', source: 'roster_import', id: 'copyB', createdAt: new Date(2000) },
+        ];
+        const gone = (/** @type {string} */ parsed) => {
+            const states = computeCellStates({ parsed: [{ memberName: mname, shifts: { [WD]: parsed } }], dates: [WD] }, copies);
+            return collectRosterWrites(states).flatMap(w => [w.replaceId, ...w.alsoDelete]).sort();
+        };
+        assert.deepEqual(gone(base), ['copyA', 'copyB'], 'back to the base roster: both cleared');
+        const other = base === '11:00-19:00' ? '12:00-20:00' : '11:00-19:00';
+        assert.deepEqual(gone(other), ['copyA', 'copyB'], 'a new value: both replaced');
+    });
+
+    // Whole-app fix, Nov 2026: a day the response does not carry fell back to 'RD' on ANY day — on a
+    // worked base day a pre-ticked rest day, against the rule that a blank weekday is a question.
+    // Today's server always sends seven days; this is the fallback for a reply that does not.
+    test('a day the reply does not carry is a question, never a rest day', () => {
+        for (const missing of [undefined, '']) {
+            const states = computeCellStates({ parsed: [{ memberName: mname, shifts: missing === undefined ? {} : { [WD]: missing } }], dates: [WD] }, []);
+            const c = states.get(`${mname}|${WD}`);
+            assert.deepEqual([c.state, c.chosen], ['UNREADABLE', null], JSON.stringify(missing));
+            assert.deepEqual(collectRosterWrites(states), [], 'nothing is written until it is answered');
+        }
+    });
+
+    test('stale roster_import, PDF now matches base → REMOVE_IMPORT (delete, write nothing)', () => {
+        const c = run(base, [{ memberName: mname, date: WD, value: differ, type: 'shift', source: 'roster_import', id: 'i1' }]);
+        assert.equal(c.state, 'REMOVE_IMPORT');
+    });
+
+    // A LEAVER IS NEVER REVIEWED (test audit, 7 Nov 2026). `hidden` is how a leaver is recorded, and
+    // the server reads names from its own generated copy, which lags until somebody regenerates it —
+    // so a leaver still printed on the sheet can come back. Without the filter their week became
+    // pre-ticked rows, saved with everybody else's. Nothing tested it.
+    test('a leaver on the sheet gets no review row, and Save writes nothing for them', () => {
+        const leaver = teamMembers.find(/** @param {any} m */ m => m.hidden && !m.managerOnly);
+        assert.ok(leaver, 'needs a leaver on the roster');
+        const lBase = getBaseShift(leaver, new Date(WD + 'T12:00:00'));
+        const lDiffer = (lBase === 'RD' || lBase === 'OFF') ? '07:00-15:00' : 'RD';   // a change, were they current
+        const states = computeCellStates({ parsed: [
+            { memberName: leaver.name, shifts: { [WD]: lDiffer } },
+            { memberName: mname,       shifts: { [WD]: differ } },
+        ], dates: [WD] }, []);
+        assert.deepEqual([...states.keys()], [`${mname}|${WD}`], 'only the member still here is reviewed');
+        assert.deepEqual(collectRosterWrites(states).map(w => w.memberName), [mname], 'and only they are saved');
+    });
+
+    // A DAY BEFORE THE MEMBER STARTED (review, 16 Nov 2026). Nothing in the import read `startDate`,
+    // so a starter's row printed early was a pre-ticked change on days before they joined. An INVENTED
+    // starter is put on the roster for the test and taken off again.
+    test('a day before the start date is shown as GUARDED and writes nothing; the start day is ordinary', async () => {
+        const { guardCopy } = await import('../roster-review-states.js');
+        const starter = { name: 'V. Invented', currentWeek: 1, rosterType: 'main', role: 'CEA', startDate: new Date(2026, 5, 17) };
+        teamMembers.push(starter);
+        try {
+            const MON = '2026-06-15', TUE = '2026-06-16', SUN = '2026-06-14', WED = '2026-06-17';
+            const startBase = getBaseShift(starter, new Date(WED + 'T12:00:00'));
+            const startDiffer = (startBase === 'RD' || startBase === 'OFF') ? '07:00-15:00' : 'RD';
+            const held = { memberName: starter.name, date: TUE, value: '08:00-16:00', type: 'shift', source: 'roster_import', id: 'early' };
+            const states = computeCellStates({ parsed: [{ memberName: starter.name,
+                shifts: { [SUN]: 'RD', [MON]: '07:00-15:00', [TUE]: 'AL', [WED]: startDiffer } }],
+                dates: [SUN, MON, TUE, WED] }, [held]);
+            const st = (/** @type {string} */ d) => states.get(`${starter.name}|${d}`);
+            assert.deepEqual([st(MON).state, st(MON).guarded, st(MON).chosen], ['GUARDED', 'before-start', null], 'a shift printed before the start');
+            assert.deepEqual([st(TUE).state, st(TUE).guarded], ['GUARDED', 'before-start'], 'leave over a record held before the start');
+            assert.equal(st(SUN).state, 'MATCH', 'a rest day with nothing saved: nothing to say');
+            assert.equal(st(WED).state, 'DIFF', 'the start day itself is reviewed as any other day');
+            const writes = collectRosterWrites(states);
+            assert.deepEqual(writes.map(w => w.date), [WED], 'only the start day is written');
+            assert.equal(guardCopy('before-start'), 'Before this member’s start date, so nothing is recorded.');
+        } finally {
+            teamMembers.splice(teamMembers.indexOf(starter), 1);
+        }
+    });
+
+    // ── THE APP DECIDED SOMETHING; IT MAY NOT REPORT THAT AS A MATCH (v23.97) ────────────────
+    //
+    // Leave or an absence on a base rest day is normalised to RD before the state is chosen, so
+    // `RD === RD` and the cell came out MATCH — a state whose own definition is "PDF matches base
+    // roster, nothing to do". The PDF said leave. The base says rest. Those do not match, and
+    // MATCH rows are not RENDERED, so the day left the review entirely.
+    //
+    // The write behaviour is unchanged and these tests pin that too: nothing is written, because
+    // the v16.19 overpay guard is right. What changed is that the admin is told.
+    describe('a value the guards refuse to record is GUARDED, not MATCH', () => {
+        const restMember = teamMembers.find(/** @param {any} m */ m =>
+            !m.hidden && !m.managerOnly && getBaseShift(m, new Date(WD + 'T12:00:00')) === 'RD');
+        /** @param {string} v */
+        const onRestDay = (v) => computeCellStates(
+            { parsed: [{ memberName: restMember.name, shifts: { [WD]: v } }], dates: [WD] }, [],
+        ).get(`${restMember.name}|${WD}`);
+
+        for (const v of ['AL', 'SICK']) {
+            test(`${v} on a base rest day → GUARDED, reason 'rest-day', writes nothing`, () => {
+                assert.ok(restMember, 'no member has a base rest day on the fixed test date');
+                const c = onRestDay(v);
+                assert.equal(c.state, 'GUARDED',
+                    `${v} over a base rest day came back as ${c.state}. MATCH means "PDF agrees with `
+                    + 'the base roster"; here the app OVERRODE the PDF, and a MATCH row is never drawn, '
+                    + 'so the day would vanish from the review.');
+                assert.equal(c.guarded, 'rest-day');
+                assert.equal(c.chosen, null, 'a GUARDED row must never carry a write');
+            });
+        }
+
+        test('a Sunday value the Sunday rule strips → GUARDED, reason \'sunday\'', () => {
+            const SUN = '2026-06-14';   // the Sunday before WD
+            const c = computeCellStates(
+                { parsed: [{ memberName: mname, shifts: { [SUN]: 'AL' } }], dates: [SUN] }, [],
+            ).get(`${mname}|${SUN}`);
+            assert.equal(c.state, 'GUARDED');
+            assert.equal(c.guarded, 'sunday');
+            assert.equal(c.chosen, null);
+        });
+
+        // ── …and the rest-day ones ASK whether the day was swapped (v24.42, owner) ──
+        test('the swap question: rest-day absence and leave only — never Sunday, never a blocked read', async () => {
+            const { swapQuestionApplies } = await import('../roster-review-states.js');
+            assert.ok(restMember);
+            assert.equal(swapQuestionApplies(onRestDay('SICK')), true);
+            assert.equal(swapQuestionApplies(onRestDay('AL')), true);
+            assert.equal(swapQuestionApplies({ ...onRestDay('AL'), guarded: 'sunday' }), false);
+            assert.equal(swapQuestionApplies({ ...onRestDay('AL'), rosterBlocked: true }), false);
+            assert.equal(swapQuestionApplies(run(base)), false, 'a MATCH row asks nothing');
+            assert.equal(swapQuestionApplies(undefined), false);
+        });
+
+        test('the swap answer: only "swapped" writes, and it writes the ROSTER\'s value', async () => {
+            const { guardedWriteValue } = await import('../roster-review-states.js');
+            for (const v of ['SICK', 'AL']) {
+                const c = onRestDay(v);
+                assert.equal(guardedWriteValue(c), null, 'unanswered writes nothing — asked, never defaulted');
+                assert.equal(guardedWriteValue({ ...c, chosen: 'free' }), null, '"rest day" writes nothing');
+                assert.equal(guardedWriteValue({ ...c, chosen: 'swapped' }), v);
+                assert.equal(guardedWriteValue({ ...c, chosen: 'swapped', guarded: 'sunday' }), null);
+            }
+        });
+
+        test('the row offers both answers, and says "Will record" only once answered swapped', async () => {
+            const { guardedRowHtml } = await import('../roster-review-states.js');
+            const c = onRestDay('SICK');
+            const html = (/** @type {any} */ s) => guardedRowHtml({ key: 'k', s, dayName: 'Mon', dateStr: '15 Jun', badgeHtml: 'B', esc: String });
+            const open = html(c);
+            assert.match(open, /data-swap="yes"/);
+            assert.match(open, /data-swap="no"/);
+            assert.match(open, /Not recorded/);
+            assert.doesNotMatch(open, /Change a Shift/, 'the row answers in place now');
+            const done = html({ ...c, chosen: 'swapped' });
+            assert.match(done, /Will record/);
+            assert.match(done, /data-swap="yes" aria-pressed="true"/);
+            assert.doesNotMatch(html({ ...c, guarded: 'sunday' }), /data-swap/, 'a Sunday asks nothing');
+        });
+
+        test('an OLD IMPORT under the row is shown, with what each answer does to it (same-day bug check)', async () => {
+            // "Rest day — leave it" deletes it and leaving the row keeps it, and the row used to show
+            // neither: the tag said "Not recorded" either way.
+            const { guardedRowHtml } = await import('../roster-review-states.js');
+            const c = { ...onRestDay('AL'), manualId: 'imp1', manualValue: '07:00-15:00' };
+            const html = (/** @type {any} */ s) => guardedRowHtml({ key: 'k', s, dayName: 'Mon', dateStr: '15 Jun', badgeHtml: 'B', esc: String });
+            assert.match(html(c), /Saved now<\/span><span class="roster-guard-val">07:00-15:00/);
+            assert.match(html(c), /Kept as saved/);
+            assert.match(html({ ...c, chosen: 'free' }), /Will clear/);
+            assert.match(html({ ...c, chosen: 'swapped' }), /Will record/);
+            assert.doesNotMatch(html(onRestDay('AL')), /Saved now/, 'nothing saved, nothing shown');
+        });
+
+        test('a value the guards leave ALONE is still MATCH — this does not fire on agreement', () => {
+            // The control. Without it the rule above could be satisfied by calling everything
+            // GUARDED, which would bury the real changes in notices.
+            assert.equal(run(base).state, 'MATCH');
+            assert.equal(run(base).guarded, null);
+        });
+
+        // REVERSED Oct 2026 (production review). This test used to pin REMOVE_IMPORT — ticked, so the
+        // default Save DELETED the old import and asked nothing. That is the mechanism that deleted
+        // confirmed leave: an answered swap is itself a roster_import, and the next upload of the
+        // SAME PDF treated it as stale. A different old import on the day now asks the question;
+        // the same one is COVERED. Neither is a default delete.
+        test('a different old import under a guarded leave day ASKS — it is never a default delete', () => {
+            assert.ok(restMember);
+            const c = computeCellStates(
+                { parsed: [{ memberName: restMember.name, shifts: { [WD]: 'AL' } }], dates: [WD] },
+                [{ memberName: restMember.name, date: WD, value: '07:00-15:00', type: 'shift', source: 'roster_import', id: 'i9' }],
+            ).get(`${restMember.name}|${WD}`);
+            assert.equal(c.state, 'GUARDED');
+            assert.equal(c.chosen, null, 'nothing is pre-ticked');
+            assert.equal(c.manualId, 'i9', 'the answer must be able to replace or remove the old import');
+        });
+
+        test('re-uploading the SAME PDF after "Swapped — record it" leaves the recorded leave alone', () => {
+            assert.ok(restMember);
+            for (const v of ['AL', 'SICK']) {
+                const first = computeCellStates(
+                    { parsed: [{ memberName: restMember.name, shifts: { [WD]: v } }], dates: [WD] }, [],
+                ).get(`${restMember.name}|${WD}`);
+                assert.equal(first.state, 'GUARDED');
+                const again = computeCellStates(
+                    { parsed: [{ memberName: restMember.name, shifts: { [WD]: v } }], dates: [WD] },
+                    [{ memberName: restMember.name, date: WD, value: v, type: v === 'AL' ? 'annual_leave' : 'sick',
+                       source: 'roster_import', replacedType: 'shift', id: 'imp1' }],
+                ).get(`${restMember.name}|${WD}`);
+                assert.equal(again.state, 'COVERED', `${v}: the confirmed record was offered for deletion`);
+                assert.notEqual(again.chosen, true);
+            }
+        });
+
+        test('a stale import under a SUNDAY value still REMOVE_IMPORTs — a Sunday can never hold leave', () => {
+            const SUN = '2026-06-14';
+            const sundayRest = teamMembers.find(/** @param {any} m */ m =>
+                !m.hidden && !m.managerOnly && getBaseShift(m, new Date(SUN + 'T12:00:00')) === 'RD');
+            assert.ok(sundayRest, 'fixture: somebody rests that Sunday');
+            const c = computeCellStates(
+                { parsed: [{ memberName: sundayRest.name, shifts: { [SUN]: 'AL' } }], dates: [SUN] },
+                [{ memberName: sundayRest.name, date: SUN, value: '07:00-15:00', type: 'shift', source: 'roster_import', id: 'i8' }],
+            ).get(`${sundayRest.name}|${SUN}`);
+            assert.equal(c.state, 'REMOVE_IMPORT');
+        });
+
+        test('what a guarded row SAVES: swapped replaces the old import, rest day removes it, unanswered writes nothing', () => {
+            const base = { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'AL', baseShift: 'RD', manualId: 'i9', manualType: 'shift', manualReplacedType: null };
+            assert.deepEqual(guardedWrites({ ...base, chosen: null }, 'X', WD), []);
+            const sw = guardedWrites({ ...base, chosen: 'swapped' }, 'X', WD);
+            assert.equal(sw.length, 1);
+            assert.equal(sw[0].value, 'AL');
+            assert.equal(sw[0].swapped, true);
+            assert.equal(sw[0].replaceId, 'i9', 'the old import would survive beside the new leave');
+            const free = guardedWrites({ ...base, chosen: 'free' }, 'X', WD);
+            assert.deepEqual(free.map(w => [w.deleteOnly, w.replaceId]), [[true, 'i9']]);
+            // No previous import: unchanged from v24.42 — rest day writes nothing.
+            assert.deepEqual(guardedWrites({ ...base, manualId: null, chosen: 'free' }, 'X', WD), []);
+            assert.deepEqual(guardedWrites({ ...base, chosen: 'swapped', rosterBlocked: true }, 'X', WD), []);
+            // ONE gate, the question's own: a row that asks nothing writes nothing, whichever answer it
+            // carries — a Sunday, Christmas, a refused read, a reading that is not leave or an absence.
+            for (const asksNothing of [{ guarded: 'sunday' }, { christmas: true }, { rosterBlocked: true }, { parsedShift: 'RD' }]) {
+                for (const chosen of ['swapped', 'free']) {
+                    assert.deepEqual(guardedWrites({ ...base, ...asksNothing, chosen }, 'X', WD), [], `${JSON.stringify(asksNothing)} ${chosen}`);
+                }
+            }
+            assert.deepEqual(guardedWrites(undefined, 'X', WD), [], 'no state, no write — and no throw');
+        });
+    });
+
+    test('bare "RDW" (AI omitted the time) → UNREADABLE, never written (chosen stays null)', () => {
+        const c = run('RDW');
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.chosen, null);
+    });
+
+    // ── Resolving a flagged cell from the review table (v19.32) ──────────────────────────────
+    // Owner: "when something is flagged for review there is no way to choose the correct option
+    // from the results screen." The server now sends both readings; these pin what the client does
+    // with them — above all that a PICK cannot bypass a guard the parsed path enforces.
+
+    // A weekday this member is ROSTERED TO WORK, and one they are not. Both guards below normalise
+    // AL away on a rest day, so the "offers both readings" case is only observable on a worked day —
+    // finding it by scanning beats hardcoding a date that a roster-data edit could silently flip.
+    const scan = /** @param {(v: string) => boolean} pred */ pred => {
+        for (let d = 1; d <= 28; d++) {
+            const iso = `2026-06-${String(d).padStart(2, '0')}`;
+            const dt  = new Date(iso + 'T12:00:00');
+            if (dt.getDay() === 0) continue;                       // Sundays have their own rule
+            if (pred(getBaseShift(member, dt))) return iso;
+        }
+        throw new Error('no suitable date found for the choice tests');
+    };
+    const WORKDAY = scan(/** @param {string} v */ v => /^\d{2}:\d{2}-/.test(v));
+    const RESTDAY = scan(/** @param {string} v */ v => v === 'RD' || v === 'OFF');
+
+    /** @param {string} shiftVal @param {string[]} cand @param {string} [date] */
+    const runChoice = (shiftVal, cand, date = WORKDAY) =>
+        computeCellStates(
+            {
+                parsed:  [{ memberName: mname, shifts: { [date]: shiftVal } }],
+                dates:   [date],
+                choices: { [`${mname}|${date}`]: cand },
+            }, [],
+        ).get(`${mname}|${date}`);
+
+    test('a flagged cell with two known readings offers both, and still defaults to writing nothing', () => {
+        const c = runChoice('UNKNOWN|AL or Rest day? (PDF unclear)', ['AL', 'RD']);
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.chosen, null, 'untouched must still write nothing — the pre-v19.32 behaviour');
+        assert.equal(c.options.length, 2);
+        assert.deepEqual(c.options.map(/** @param {any} o */ o => o.value), ['AL', 'RD']);
+    });
+
+    // A BARE 'RDW' IS NEVER OFFERED AS A PICK (whole-app review, Oct 2026). Picking it built
+    // {type:'rdw', value:'RDW'}, which firestore.rules refuses (an rdw needs HH:MM-HH:MM), and the
+    // refusal failed the WHOLE save batch with a message about the session. Beside a reading that
+    // carries a time it means "rest day worked, at that time"; with no time anywhere it is dropped.
+    test('a bare RDW beside a timed reading is offered as RDW at that time', () => {
+        const c = runChoice('UNKNOWN|14:30-22:00 or RDW? (PDF unclear)', ['14:30-22:00', 'RDW']);
+        assert.ok(c.options, 'still two readings to choose between');
+        const shown = c.options.map(/** @param {any} o */ o => o.display);
+        assert.ok(!shown.includes('RDW'), `a bare RDW was offered: ${shown.join(' | ')}`);
+        assert.deepEqual(shown, ['14:30-22:00', 'RDW|14:30-22:00'],
+            'an ordinary turn and a rest day worked are two different writes, so both are asked');
+    });
+
+    test('a bare RDW with no time anywhere is dropped, leaving nothing to pick', () => {
+        const c = runChoice('UNKNOWN|RDW or Rest day? (PDF unclear)', ['RDW', 'RD']);
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.options, null, 'one writable reading is not a choice — the row stays skip-only');
+    });
+
+    test('a flagged cell over a MANUAL override records that a saved entry is at stake', () => {
+        // Picking a reading writes with replaceId = the existing doc, so it REPLACES whatever is
+        // there. For a previous import that is correct and routine. For a MANUAL entry it is the one
+        // thing the review table otherwise guarantees never happens silently — a readable PDF value
+        // in this situation becomes a CONFLICT row that shows "Saved: X" and asks. The flagged row
+        // has to carry the same information, so the renderer can show it.
+        const c = computeCellStates(
+            {
+                parsed:  [{ memberName: mname, shifts: { [WORKDAY]: 'UNKNOWN|AL or Rest day? (PDF unclear)' } }],
+                dates:   [WORKDAY],
+                choices: { [`${mname}|${WORKDAY}`]: ['AL', 'RD'] },
+            },
+            [{ memberName: mname, date: WORKDAY, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'm9' }],
+        ).get(`${mname}|${WORKDAY}`);
+        assert.equal(c.state, 'UNREADABLE');
+        assert.ok(c.options, 'still offers the two readings');
+        assert.equal(c.isManual, true, 'the row must know a MANUAL entry would be replaced');
+        assert.equal(c.manualValue, '23:00-06:00');
+    });
+
+    test('a flagged cell over a previous IMPORT is not flagged as manual', () => {
+        const c = computeCellStates(
+            {
+                parsed:  [{ memberName: mname, shifts: { [WORKDAY]: 'UNKNOWN|AL or Rest day? (PDF unclear)' } }],
+                dates:   [WORKDAY],
+                choices: { [`${mname}|${WORKDAY}`]: ['AL', 'RD'] },
+            },
+            [{ memberName: mname, date: WORKDAY, value: '23:00-06:00', type: 'shift', source: 'roster_import', id: 'i9' }],
+        ).get(`${mname}|${WORKDAY}`);
+        assert.equal(c.isManual, false, 'replacing a previous import is routine, not a warning');
+    });
+
+    test('no candidates from the server → the old skip-only row, not a broken picker', () => {
+        const c = run('UNKNOWN|garbled (PDF unclear)');
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.options, null, 'fails open to skip-only when the server sent no readings');
+    });
+
+    test('a SUNDAY choice cannot smuggle AL past the Sunday guard', () => {
+        // The whole point of routing options through normaliseCellValue. On a Sunday both readings
+        // normalise to RD, so there is no longer a question to ask — and crucially no AL to pick.
+        const c = runChoice('UNKNOWN|AL or Rest day? (PDF unclear)', ['AL', 'RD'], SUN);
+        assert.equal(c.options, null, 'both readings collapse to RD — nothing to choose between');
+    });
+
+    test('a choice on a base REST DAY cannot smuggle AL past the rest-day guard', () => {
+        // Same guard, the other axis (v16.19): AL on a day the member was not rostered to work must
+        // not consume an entitlement day, whether the AL was parsed or picked.
+        const c = runChoice('UNKNOWN|AL or Rest day? (PDF unclear)', ['AL', 'RD'], RESTDAY);
+        assert.equal(c.options, null, 'AL on a base rest day normalises to RD, so both readings agree');
+    });
+
+    // ── RDW-parity is part of COVERED (v16.23; pinned v23.52) ────────────────────────────────
+    // Found by MUTATION during the roster-review-states.js extraction: removing the type-parity
+    // term from `rdwMatches` left every assertion in this file green. The rule was argued at length
+    // beside the code and protected by nothing — which is the exact asymmetry CLAUDE.md names, and
+    // it costs REAL MONEY in one direction: a stored {type:'shift'} and an incoming RDW| compare
+    // equal on the bare time, so without the check a shift→rest-day-working reclassification is
+    // swallowed as COVERED and the overtime is never recorded. Both directions are pinned, plus the
+    // two neighbouring cases that must NOT alarm.
+    const TIME = '14:30-22:00';
+    /** @param {string} parsedVal @param {any} ex @param {string} [date] */
+    const runOver = (parsedVal, ex, date = WORKDAY) =>
+        computeCellStates(
+            { parsed: [{ memberName: mname, shifts: { [date]: parsedVal } }], dates: [date] },
+            [{ memberName: mname, date, value: TIME, source: 'roster_import', id: 'i1', ...ex }],
+        ).get(`${mname}|${date}`);
+
+    test('a stored plain SHIFT vs an incoming RDW is not COVERED — the overtime must not be swallowed', () => {
+        const c = runOver(`RDW|${TIME}`, { type: 'shift' });
+        assert.notEqual(c.state, 'COVERED',
+            'same time, different type: approving this is what records the rest-day working');
+    });
+
+    test('a stored RDW vs an incoming plain shift is not COVERED either — the reverse stuck too', () => {
+        const c = runOver(TIME, { type: 'rdw' });
+        assert.notEqual(c.state, 'COVERED');
+    });
+
+    test('a MANUAL rest-day-working the PDF now shows as an ordinary shift is a CONFLICT, not COVERED', () => {
+        // The same rule on the manual branch, where the cost is higher: silently keeping the manual
+        // entry would leave the admin no way to see the two disagree.
+        const c = runOver(TIME, { type: 'rdw', source: 'manual', id: 'm1' });
+        assert.equal(c.state, 'CONFLICT');
+    });
+
+    test('matching types on both sides ARE covered — the check must not manufacture work', () => {
+        const c = runOver(`RDW|${TIME}`, { type: 'rdw' });
+        assert.equal(c.state, 'COVERED');
+    });
+
+    test('a SUNDAY is exempt — a worked Sunday stores as rdw and arrives as a plain time', () => {
+        // Without the exemption this false-CONFLICTs every worked Sunday on every re-upload, because
+        // the save path promotes a Sunday time to rdw and the PDF never carries the marker.
+        const c = runOver(TIME, { type: 'rdw' }, SUN);
+        assert.equal(c.state, 'COVERED');
+    });
+
+    // …AND AGAINST THE BASE ROSTER (whole-app fix, Nov 2026). A weekday marked RDW at the member's own
+    // base hours compared equal on the bare time: MATCH, not shown, and the marker lost from the
+    // Calendar and the Pay Calculator's RDW count — or, over an earlier plain import, a ticked "Clear
+    // old" that deleted it. Found from the roster, not named: a member working a timed base weekday.
+    describe('a weekday RDW at the base shift\'s own hours is a change, not a match', () => {
+        const MONDAY = '2026-11-16';
+        const at = new Date(MONDAY + 'T12:00:00');
+        const who = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+            && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, at)));
+        const base = getBaseShift(who, at);
+        const st = (/** @type {string} */ value, /** @type {any[]} */ existing = []) => computeCellStates(
+            { parsed: [{ memberName: who.name, shifts: { [MONDAY]: value } }], dates: [MONDAY] }, existing).get(`${who.name}|${MONDAY}`);
+        const record = (/** @type {any} */ ex) => [{ id: 'r1', memberName: who.name, date: MONDAY, value: base, ...ex }];
+
+        test('with nothing saved, it is a ticked Update that writes rest-day working', () => {
+            const c = st(`RDW|${base}`);
+            assert.deepEqual([c.state, c.chosen], ['DIFF', true]);
+            assert.equal(shiftValueToOverrideType(collectRosterWrites(new Map([[`${who.name}|${MONDAY}`, c]]))[0].value, MONDAY), 'rdw');
+        });
+        test('over an earlier PLAIN import it replaces it rather than clearing it; over an RDW one it is covered', () => {
+            assert.equal(st(`RDW|${base}`, record({ type: 'shift', source: 'roster_import' })).state, 'DIFF');
+            assert.equal(st(`RDW|${base}`, record({ type: 'rdw', source: 'roster_import' })).state, 'COVERED');
+            assert.equal(st(`RDW|${base}`, record({ type: 'shift', source: 'manual' })).state, 'CONFLICT');
+        });
+        test('the plain base time is still a match, and a Sunday is still exempt', () => {
+            assert.equal(st(base).state, 'MATCH');
+            const other = base === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00';
+            assert.equal(st(base, record({ type: 'shift', source: 'roster_import', value: other })).state, 'REMOVE_IMPORT');
+            // Sunday work is rest-day working whatever it is marked, so a marked Sunday at the base
+            // Sunday's hours changes nothing (the save promotes a Sunday time to rdw anyway).
+            const SUNDAY = '2026-11-15';
+            const sun = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+                && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, new Date(SUNDAY + 'T12:00:00'))));
+            assert.ok(sun, 'a member rostered on the fixture Sunday');
+            const sunBase = getBaseShift(sun, new Date(SUNDAY + 'T12:00:00'));
+            assert.equal(computeCellStates({ parsed: [{ memberName: sun.name, shifts: { [SUNDAY]: `RDW|${sunBase}` } }], dates: [SUNDAY] }, [])
+                .get(`${sun.name}|${SUNDAY}`).state, 'MATCH');
+        });
+    });
+
+    test('a Sunday "AL" is normalised to RD — never written as AL', () => {
+        // SUN (2026-06-21) is the module-level Sunday constant.
+        const c = computeCellStates(
+            { parsed: [{ memberName: mname, shifts: { [SUN]: 'AL' } }], dates: [SUN] }, [],
+        ).get(`${mname}|${SUN}`);
+        assert.equal(c.displayShift, 'RD');   // the invariant: Sunday AL never surfaces/saves as AL
+    });
+});
+
+// ── WHAT ONE SAVE WRITES (test audit, 7 Nov 2026) ───────────────────────────────────────────────
+// Until this audit the collector was inline in the Save click handler, which imports Firebase from a
+// CDN, so a regex over its source was the only thing that could pin it — and most of its rules had
+// nothing on them at all: DIFF and CONFLICT write the DISPLAYED value, an unticked or unanswered row
+// writes nothing, a picked reading writes its own display, and a write takes the day's duplicate
+// manual records with it. It is now `collectRosterWrites`, held here by what it returns.
+describe('collectRosterWrites — what one Save writes', () => {
+    const D = '2026-06-16';
+    /** One cell, keyed X|D, carrying the fields every state has. */
+    const one = (/** @type {any} */ s) => collectRosterWrites(new Map([[`X|${D}`,
+        { baseShift: '06:00-14:00', manualId: null, otherRecordIds: [], ...s }]]));
+
+    test('a ticked DIFF writes the value the row DISPLAYED, never the parsed one', () => {
+        const ws = one({ state: 'DIFF', chosen: true, parsedShift: 'SICK', displayShift: 'RD' });
+        assert.equal(ws.length, 1);
+        assert.equal(ws[0].value, 'RD', 'what the admin approved is what is written');
+        assert.deepEqual([ws[0].memberName, ws[0].date, ws[0].baseShift], ['X', D, '06:00-14:00']);
+        assert.ok(!ws[0].deleteOnly);
+        assert.equal(one({ state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' })[0].value, '07:00-15:00',
+            'with nothing normalised, the parsed value is the one displayed');
+    });
+
+    test('an unticked DIFF or REMOVE_IMPORT writes nothing', () => {
+        assert.deepEqual(one({ state: 'DIFF', chosen: false, parsedShift: '07:00-15:00', displayShift: '07:00-15:00' }), []);
+        assert.deepEqual(one({ state: 'REMOVE_IMPORT', chosen: false, manualId: 'i1' }), []);
+    });
+
+    test('a ticked REMOVE_IMPORT deletes the old import and writes nothing in its place', () => {
+        assert.deepEqual(one({ state: 'REMOVE_IMPORT', chosen: true, manualId: 'i1' }).map(w => [w.deleteOnly, w.replaceId, w.value]),
+            [[true, 'i1', null]]);
+    });
+
+    test('a CONFLICT writes only on "Use new roster", and then the DISPLAYED value over the saved record', () => {
+        const c = { state: 'CONFLICT', parsedShift: 'SICK', displayShift: 'RD', manualId: 'm1', manualType: 'shift', manualReplacedType: null };
+        assert.deepEqual(one({ ...c, chosen: null }), [], 'unanswered');
+        assert.deepEqual(one({ ...c, chosen: 'manual' }), [], 'Keep saved, which Skip all also sets');
+        const ws = one({ ...c, chosen: 'pdf' });
+        assert.equal(ws.length, 1);
+        assert.equal(ws[0].value, 'RD', 'the raw SICK would land as the rest-day absence the review showed as Rest');
+        assert.equal(ws[0].replaceId, 'm1', 'or both records survive for the day');
+        assert.deepEqual(ws[0].replacedFrom, { type: 'shift', replacedType: null }, 'what the replaced record said is carried');
+    });
+
+    test('an UNREADABLE row writes only once answered: typed in place, or one of its readings picked', () => {
+        const u = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x', options: [{ display: '07:00-15:00' }, { display: 'RDW|14:30-22:00' }] };
+        assert.deepEqual(one({ ...u, chosen: null }), [], 'untouched');
+        assert.deepEqual(one({ ...u, chosen: 'entered', entered: null }), [], 'an entry that never finished');
+        assert.deepEqual(one({ ...u, chosen: 5 }), [], 'an index with no reading behind it');
+        assert.equal(one({ ...u, chosen: 1 })[0].value, 'RDW|14:30-22:00', 'the picked reading, marker and all');
+        assert.equal(one({ ...u, chosen: 0 })[0].value, '07:00-15:00', 'index 0 is a pick, not "no pick"');
+        const typed = one({ ...u, chosen: 'entered', entered: { display: 'AL', swapped: true } });
+        assert.deepEqual([typed[0].value, typed[0].swapped], ['AL', true]);
+        assert.equal(one({ ...u, chosen: 'entered', entered: { display: 'AL' } })[0].swapped, false);
+    });
+
+    test('MATCH, COVERED and an unanswered GUARDED row write nothing', () => {
+        for (const state of ['MATCH', 'COVERED']) assert.deepEqual(one({ state, chosen: null, parsedShift: '06:00-14:00' }), [], state);
+        assert.deepEqual(one({ state: 'GUARDED', guarded: 'rest-day', parsedShift: 'AL', chosen: null }), []);
+    });
+
+    test('THE HARD GATE (v22.16): a cell from a refused read writes nothing, whatever it says it chose', () => {
+        // Every state that CAN write, set to the answer that writes. The control proves each one
+        // writes when the read stands, so a refusal below is the gate and not a fixture that never
+        // wrote anything. The tick handler keeps `chosen` from becoming true on such a cell, which
+        // is why no browser test can reach this line (see the wiring test under "a shifted read").
+        const writers = [
+            { state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' },
+            { state: 'REMOVE_IMPORT', chosen: true, manualId: 'i1' },
+            { state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm1' },
+            { state: 'UNREADABLE', chosen: 0, options: [{ display: '07:00-15:00' }] },
+            { state: 'UNREADABLE', chosen: 'entered', entered: { display: 'AL' } },
+            { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'AL', chosen: 'swapped' },
+        ];
+        for (const s of writers) {
+            const what = `${s.state} ${String(s.chosen)}`;
+            assert.equal(one(s).length, 1, `control: ${what} writes when the read stands`);
+            assert.deepEqual(one({ ...s, rosterBlocked: true }), [], `${what} on a refused read`);
+        }
+    });
+
+    test('every write takes the day\'s other manual records with it — as a list, never undefined', () => {
+        const ws = one({ state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm2', otherRecordIds: ['m1', 'm0'] });
+        assert.deepEqual(ws[0].alsoDelete, ['m1', 'm0']);
+        assert.deepEqual(one({ state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' })[0].alsoDelete, []);
+        const bare = collectRosterWrites(new Map([[`X|${D}`, { state: 'DIFF', chosen: true, parsedShift: '07:00-15:00', baseShift: 'RD' }]]));
+        assert.deepEqual(bare[0].alsoDelete, [], 'a state with no duplicates field takes nothing');
+    });
+
+    test('through the real state machine: a fresh change, a previous import, an import back to base, two saved records', () => {
+        const at = new Date(D + 'T12:00:00');
+        const m = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+            && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, at)));
+        assert.ok(m, 'a member rostered to work the fixture day');
+        const base = getBaseShift(m, at);
+        const other = base === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00';
+        const states = (/** @type {string} */ parsed, /** @type {any[]} */ existing) =>
+            computeCellStates({ parsed: [{ memberName: m.name, shifts: { [D]: parsed } }], dates: [D] }, existing);
+        const save = (/** @type {string} */ parsed, /** @type {any[]} */ existing) =>
+            collectRosterWrites(states(parsed, existing)).map(w => [w.value, w.replaceId ?? null, !!w.deleteOnly]);
+        const imp = { id: 'imp1', memberName: m.name, date: D, type: 'shift', value: '09:00-17:00', source: 'roster_import' };
+
+        assert.deepEqual(save(other, []), [[other, null, false]], 'a fresh change, pre-ticked');
+        assert.deepEqual(save(other, [imp]), [[other, 'imp1', false]], 'replacing the previous import');
+        assert.deepEqual(save(base, [imp]), [[null, 'imp1', true]], 'an import whose day is back to base is removed');
+        assert.deepEqual(save(base, []), [], 'the PDF agrees with the pattern: nothing to write');
+
+        const twoSaved = [{ id: 'm1', memberName: m.name, date: D, type: 'annual_leave', value: 'AL' },
+                          { id: 'm2', memberName: m.name, date: D, type: 'annual_leave', value: 'AL' }];
+        assert.deepEqual(save(other, twoSaved), [], 'a hand-recorded day is asked about, never pre-ticked');
+        const asked = states(other, twoSaved);
+        for (const s of asked.values()) s.chosen = 'pdf';
+        const [w, ...rest] = collectRosterWrites(asked);
+        assert.equal(rest.length, 0);
+        assert.equal(w.value, other);
+        assert.deepEqual([w.replaceId, ...w.alsoDelete].sort(), ['m1', 'm2'], 'neither saved record outlives the new one');
+    });
+});
+
+// ── LEAVE OR AN ABSENCE ON A BASE REST DAY IS NOT A "REST" BUTTON (whole-app fix, Nov 2026) ──────
+// Two readings "Absent or 06:00-14:00" on a base rest day were offered as "Rest" and the time: the
+// rest-day guard had rewritten the absence, so the row never said Absent and never asked the swapped-
+// day question every other route asks. And picking "Rest" — or entering Rest Day — wrote a correction
+// over a day the base already rests, the redundant record REMOVE_IMPORT exists to avoid.
+describe('an unreadable cell on a base rest day', async () => {
+    const ec = await import('../roster-entry-control.js');
+    const rs = await import('../roster-review-states.js');
+    const WEEK = ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'];
+    /** @type {any} */ let who = null; let day = '';
+    for (const x of teamMembers) {
+        if (x.hidden || x.managerOnly || x.startDate) continue;
+        const d = WEEK.find(w => getBaseShift(x, new Date(w + 'T12:00:00')) === 'RD');
+        if (d) { who = x; day = d; break; }
+    }
+    const key = () => `${who.name}|${day}`;
+    const read = (/** @type {string[]} */ choices, /** @type {any[]} */ existing = []) => computeCellStates({
+        parsed: [{ memberName: who.name, shifts: { [day]: `UNKNOWN|${choices.join(' or ')}? (PDF unclear)` } }],
+        dates: [day], choices: { [key()]: choices } }, existing);
+    const record = (/** @type {any} */ ex) => [{ id: 'r1', memberName: who.name, date: day, ...ex }];
+
+    test('a reading the rest-day guard would rewrite offers no picks — the row shows what was read', () => {
+        assert.ok(who, 'a member resting on a weekday of the fixture week');
+        for (const absence of ['SICK', 'AL']) {
+            const s = read([absence, '06:00-14:00']).get(key());
+            assert.equal(s.state, 'UNREADABLE');
+            assert.equal(s.options, null, `${absence}: never a "Rest" button`);
+            assert.match(s.parsedShift, /06:00-14:00/, 'the readings stay on the row');
+        }
+    });
+
+    test('…and entering that absence asks the swapped-day question, as everywhere else', () => {
+        const st = read(['SICK', '06:00-14:00']);
+        const s = st.get(key());
+        s.draft = { type: 'sick', from: '', to: '', open: true };
+        ec.commitEntry(s);
+        assert.equal(s.entered, null, 'unanswered writes nothing');
+        assert.match(ec.entryControlHtml(key(), s, day), /Was it a swapped working day\?/);
+    });
+
+    test('a rest day picked or entered over a base rest day writes nothing new — and clears what was there', () => {
+        const pickRest = (/** @type {any[]} */ existing) => {
+            const st = read(['RD', '06:00-14:00'], existing);
+            const s = st.get(key());
+            s.chosen = s.options.findIndex((/** @type {any} */ o) => o.display === 'RD');
+            return collectRosterWrites(st).map(w => [w.value, w.replaceId ?? null, !!w.deleteOnly]);
+        };
+        assert.deepEqual(pickRest([]), [], 'nothing saved there: nothing to write');
+        assert.deepEqual(pickRest(record({ type: 'shift', value: '06:00-14:00', source: 'roster_import' })), [[null, 'r1', true]],
+            'an earlier import there is cleared, not covered by a correction');
+        const enterRest = (/** @type {any[]} */ existing) => {
+            const st = computeCellStates({ parsed: [{ memberName: who.name, shifts: { [day]: 'UNKNOWN|SEE CEM' } }], dates: [day] }, existing);
+            const s = st.get(key());
+            s.draft = { type: 'correction', from: '', to: '', open: true };
+            ec.commitEntry(s);
+            return { s, writes: collectRosterWrites(st) };
+        };
+        const { s, writes } = enterRest([]);
+        assert.deepEqual(writes, []);
+        assert.match(ec.entryControlHtml(key(), s, day), /nothing new is recorded/, 'and the hint does not say "will be saved"');
+        assert.equal(rs.reviewOutcome(new Map([[key(), s]])).unreadable, 0, 'an answer, not a cell nobody read');
+        assert.deepEqual(enterRest(record({ type: 'shift', value: '06:00-14:00', source: 'manual' })).writes.map(w => [w.deleteOnly, w.replaceId]),
+            [[true, 'r1']], 'over a hand-recorded entry the day goes back to its rest day');
+    });
+
+    test('on a WORKED base day nothing changes: the readings are offered, and Rest Day is a correction', () => {
+        const worked = WEEK.find(d => /^\d{2}:/.test(getBaseShift(who, new Date(d + 'T12:00:00'))));
+        assert.ok(worked, 'the fixture member works a day that week');
+        const k = `${who.name}|${worked}`;
+        const st = computeCellStates({ parsed: [{ memberName: who.name, shifts: { [worked]: 'UNKNOWN|Absent or 06:00-14:00? (PDF unclear)' } }],
+            dates: [worked], choices: { [k]: ['SICK', '06:00-14:00'] } }, []);
+        const s = st.get(k);
+        assert.deepEqual(s.options.map((/** @type {any} */ o) => o.display), ['SICK', '06:00-14:00']);
+        s.chosen = null; s.draft = { type: 'correction', from: '', to: '', open: true };
+        ec.commitEntry(s);
+        assert.deepEqual(collectRosterWrites(st).map(w => w.value), ['RD']);
+    });
+});
+
+// ── A ROW NOBODY READ (decided default, whole-app fix, Nov 2026) ─────────────────────────────────
+// A blank weekday is a question and a blank Sunday a rest day — so for a member printed on a second
+// sheet who works most of the week elsewhere, every weekday was asked about while the Sunday was taken
+// as an answer and PRE-TICKED: "Update → Rest" over a rostered Sunday, or "Clear old" over Sunday work
+// an earlier upload had recorded. When Monday to Saturday are all unread, the Sunday is unread too.
+describe('a row whose Monday to Saturday were all unread', () => {
+    const SUNDAY = '2026-11-15';
+    const DATES = ['2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21'];
+    const LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const who = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+        && /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(getBaseShift(x, new Date(SUNDAY + 'T12:00:00'))));
+    const blankWeek = (/** @type {string} */ sunday) => Object.fromEntries(DATES.map((d, i) =>
+        [d, i === 0 ? sunday : `UNKNOWN|no ${LABELS[i]} cell was read — check the PDF`]));
+    const sunday = (/** @type {Record<string,string>} */ shifts, /** @type {any[]} */ existing = []) => {
+        const states = computeCellStates({ parsed: [{ memberName: who.name, shifts }], dates: DATES }, existing);
+        return { s: states.get(`${who.name}|${SUNDAY}`), writes: collectRosterWrites(states) };
+    };
+
+    test('its blank Sunday is a question too — never a ticked "Update → Rest" over a rostered Sunday', () => {
+        assert.ok(who, 'a member rostered on the fixture Sunday');
+        const { s, writes } = sunday(blankWeek('RD'));
+        assert.deepEqual([s.state, s.chosen], ['UNREADABLE', null]);
+        assert.match(s.parsedShift, /^UNKNOWN\|Sunday \(rest day\) — nothing else on this row was read/);
+        assert.deepEqual(writes, []);
+    });
+
+    test('…nor a ticked "Clear old" over Sunday work an earlier upload recorded', () => {
+        const imp = [{ id: 'i1', memberName: who.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
+        const { s, writes } = sunday(blankWeek('RD'), imp);
+        assert.equal(s.state, 'UNREADABLE');
+        assert.deepEqual(writes, []);
+    });
+
+    test('a Sunday time on such a row is held for an answer as well, and says what was read', () => {
+        const { s } = sunday(blankWeek('10:00-14:00'));
+        assert.equal(s.state, 'UNREADABLE');
+        assert.match(s.parsedShift, /Sunday \(10:00-14:00\)/);
+    });
+
+    test('ONE weekday read is enough: the Sunday is then an answer, as the blank-cell rule says', () => {
+        const shifts = { ...blankWeek('RD'), [DATES[3]]: getBaseShift(who, new Date(DATES[3] + 'T12:00:00')) };
+        const { s } = sunday(shifts);
+        assert.deepEqual([s.state, s.chosen], ['DIFF', true], 'a rostered Sunday read as rest is a ticked change');
+    });
+});
+
+// ── THE SUMMARY AND THE SAVE BUTTON COUNT THE SAVE'S OWN WRITES (whole-app fix, Nov 2026) ─────────
+// They were a second pass over the same state, in the coordinator, held to the collector only by a
+// browser test asserting what was written. `reviewOutcome` counts what `collectRosterWrites` returns.
+describe('reviewOutcome — what the summary and the Save button say', () => {
+    const D = '2026-06-16';
+    const states = (/** @type {any[]} */ list) => new Map(list.map((s, i) => [`P${i}|${D}`,
+        { baseShift: '06:00-14:00', manualId: null, otherRecordIds: [], ...s }]));
+
+    test('every write the collector returns is counted, a delete as a clear — and nothing else is', async () => {
+        const { reviewOutcome } = await import('../roster-review-states.js');
+        const m = states([
+            { state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' },
+            { state: 'DIFF', chosen: false, parsedShift: '07:00-15:00' },
+            { state: 'REMOVE_IMPORT', chosen: true, manualId: 'i1' },
+            // "Rest day — leave it" over an old import DELETES it: a clear, not a shift updated.
+            { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'AL', chosen: 'free', manualId: 'i2', manualValue: '10:00-18:00' },
+            { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'SICK', chosen: 'swapped' },
+            { state: 'CONFLICT', chosen: 'pdf', parsedShift: '07:00-15:00', manualId: 'm1' },
+            { state: 'CONFLICT', chosen: null, parsedShift: '07:00-15:00', manualId: 'm2' },
+            { state: 'UNREADABLE', chosen: 0, options: [{ display: '07:00-15:00' }] },
+        ]);
+        const o = reviewOutcome(m);
+        const writes = collectRosterWrites(m);
+        assert.equal(o.updates + o.clears, writes.length, 'the button promises exactly what Save writes');
+        assert.equal(o.clears, writes.filter(w => w.deleteOnly).length);
+        assert.deepEqual([o.updates, o.clears, o.conflictsTotal, o.conflictsSwitched], [4, 2, 2, 1]);
+        assert.equal(o.blocked, false);
+    });
+
+    test('an unread cell is one nobody has answered — a reading, an entry, or "nothing to record"', async () => {
+        const { reviewOutcome } = await import('../roster-review-states.js');
+        const u = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x' };
+        const m = states([{ ...u, chosen: null }, { ...u, chosen: 'entered', entered: { display: '07:00-15:00' } },
+            { ...u, chosen: null, leftAsRest: true }]);
+        assert.equal(reviewOutcome(m).unreadable, 2, 'without the entry control, an answered rest day still looks unread');
+        assert.equal(reviewOutcome(m, (/** @type {any} */ st) => !!st.leftAsRest).unreadable, 1,
+            'the entry control says which rows were answered "nothing to record"');
+    });
+
+    test('held back counts only drifted rows still unticked, and a refused read is reported as one', async () => {
+        const { reviewOutcome } = await import('../roster-review-states.js');
+        const o = reviewOutcome(states([{ state: 'DIFF', chosen: false, drift: 'left', parsedShift: '07:00-15:00' },
+            { state: 'DIFF', chosen: true, drift: 'left', parsedShift: '07:00-15:00' }]));
+        assert.deepEqual([o.heldBack, o.updates, o.anySuspect], [1, 1, true]);
+        assert.equal(reviewOutcome(states([{ state: 'DIFF', chosen: true, rosterBlocked: true }])).blocked, true);
+    });
+
+    test('the summary words: one line per kind, the hint only when something saves, nothing when empty', async () => {
+        const { reviewOutcome, outcomeHtml } = await import('../roster-review-states.js');
+        const zero = { blocked: false, updates: 0, clears: 0, conflictsTotal: 0, conflictsSwitched: 0, unreadable: 0, heldBack: 0, anySuspect: false };
+        assert.equal(outcomeHtml(zero), '', 'nothing to say is no summary at all');
+        const html = outcomeHtml({ ...zero, updates: 1, clears: 2, conflictsTotal: 2, conflictsSwitched: 1, unreadable: 1, heldBack: 3, anySuspect: true });
+        for (const words of ['<strong>1</strong> shift will be updated', '<strong>2</strong> old entries will be cleared',
+            '<strong>2</strong> days need your choice — 1 switched to the new roster, 1 kept as you saved',
+            '<strong>1</strong> cell couldn\'t be read — nothing saved',
+            '<strong>3</strong> days held back — the week may be a day out', 'Ticked rows will save',
+            'Rows flagged as possibly a day out start unticked']) {
+            assert.ok(html.includes(words), `missing: ${words}`);
+        }
+        assert.ok(!outcomeHtml({ ...zero, unreadable: 2 }).includes('Ticked rows will save'), 'no hint when nothing saves');
+        assert.ok(outcomeHtml(reviewOutcome(states([{ state: 'DIFF', chosen: true, parsedShift: '07:00-15:00' }])))
+            .includes('<strong>1</strong> shift will be updated'), 'through the counts');
+    });
+});
+
+// ── A MEETING PRINTED WITH ITS TIMES ON A SUNDAY (6 Nov 2026 review) ────────────────────────────
+// v25.38 began reading `MTG` over `10:00-14:00` as `MEET 10:00-14:00`, and the Sunday guard made any
+// Other day a rest day — so on a rest Sunday nothing was written, a re-upload of a week imported
+// before v25.38 pre-ticked DELETING its rest-day working, and on a ROSTERED Sunday it pre-ticked a
+// correction that turned a worked day into rest. Through the real state machine, the three cases.
+describe('computeCellStates — a timed meeting on a Sunday is Sunday work, never rest', () => {
+    const SUNDAY = '2026-11-15';
+    const sundayOf = (/** @type {boolean} */ worked) => teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly
+        && !m.startDate && ((g => g !== 'RD' && g !== 'OFF')(getBaseShift(m, new Date(SUNDAY + 'T12:00:00'))) === worked));
+    const stateFor = (/** @type {any} */ m, /** @type {any[]} */ existing = []) => computeCellStates(
+        { parsed: [{ memberName: m.name, shifts: { [SUNDAY]: 'MEET 10:00-14:00' } }], dates: [SUNDAY] }, existing,
+    ).get(`${m.name}|${SUNDAY}`);
+
+    test('a rest Sunday: recorded, as rest-day working at the meeting\'s times', () => {
+        const m = sundayOf(false);
+        assert.ok(m, 'needs a member resting that Sunday');
+        const st = stateFor(m);
+        assert.equal(st.state, 'DIFF');
+        assert.equal(st.chosen, true);
+        assert.equal(shiftValueToOverrideType(st.displayShift, SUNDAY), 'rdw');
+    });
+
+    test('a ROSTERED Sunday: the meeting\'s times, never a correction that makes it a rest day', () => {
+        const m = sundayOf(true);
+        assert.ok(m, 'needs a member rostered that Sunday');
+        const st = stateFor(m);
+        assert.notEqual(st.displayShift, 'RD');
+        assert.equal(shiftValueToOverrideType(st.displayShift, SUNDAY), 'rdw');
+    });
+
+    test('a re-upload over a week imported before v25.38 keeps its rest-day working', () => {
+        const m = sundayOf(false);
+        const earlier = [{ id: 'old', memberName: m.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
+        assert.equal(stateFor(m, earlier).state, 'COVERED', 'not REMOVE_IMPORT, which would delete it');
+    });
+});
+
+// ── A TRAINING OR MEETING DAY CAN'T BE ON A SUNDAY (owner, 7 Nov 2026) ───────────────────────────
+// Printed WITHOUT times, the Sunday guard made it RD and the state machine compared that with the
+// base: on a ROSTERED Sunday it was a ticked DIFF writing a correction that turned a worked day into
+// rest, and a saved record there became a CONFLICT whose "use new roster" did the same. The contract
+// said the row was held. It is now, whatever the base, a saved record or an earlier import says.
+describe('computeCellStates — a bare training or meeting day on a Sunday is never written', () => {
+    const SUNDAY = '2026-11-15';
+    const sundayOf = (/** @type {boolean} */ worked) => teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly
+        && !m.startDate && ((g => g !== 'RD' && g !== 'OFF')(getBaseShift(m, new Date(SUNDAY + 'T12:00:00'))) === worked));
+    const stateFor = (/** @type {any} */ m, /** @type {string} */ value, /** @type {any[]} */ existing = []) => computeCellStates(
+        { parsed: [{ memberName: m.name, shifts: { [SUNDAY]: value } }], dates: [SUNDAY] }, existing,
+    ).get(`${m.name}|${SUNDAY}`);
+
+    for (const value of ['MEET', 'TRG', 'TEAM RDW']) {
+        test(`${value} on a ROSTERED Sunday is held and unticked — never a correction to rest`, () => {
+            const m = sundayOf(true);
+            assert.ok(m, 'needs a member rostered that Sunday');
+            const st = stateFor(m, value);
+            assert.equal(st.state, 'GUARDED');
+            assert.equal(st.chosen, null);
+            assert.equal(st.guarded, 'sunday-other');
+            assert.deepEqual(guardedWrites(st, m.name, SUNDAY), [], 'nothing written, nothing deleted');
+        });
+        test(`${value} on a rest Sunday is held too`, () => {
+            const m = sundayOf(false);
+            assert.ok(m, 'needs a member resting that Sunday');
+            assert.equal(stateFor(m, value).state, 'GUARDED');
+        });
+    }
+
+    test('a saved record on that Sunday is kept: no CONFLICT offering to overwrite it', () => {
+        const m = sundayOf(true);
+        const manual = [{ id: 'man', memberName: m.name, date: SUNDAY, type: 'rdw', value: '14:00-22:00', source: 'manual' }];
+        const st = stateFor(m, 'MEET', manual);
+        assert.equal(st.state, 'GUARDED');
+        assert.deepEqual(guardedWrites(st, m.name, SUNDAY), []);
+        // NOR BY A "REST DAY" ANSWER (test audit, 7 Nov 2026). That answer deletes the saved record on
+        // a rest-day row; a Sunday row never offers it, but the delete must not rest on the renderer
+        // alone — without `swapQuestionApplies` in guardedWrites, a 'free' carried onto this row
+        // deleted the very record it exists to keep, and every suite stayed green.
+        assert.deepEqual(guardedWrites({ ...st, chosen: 'free' }, m.name, SUNDAY), []);
+        assert.deepEqual(collectRosterWrites(new Map([[`${m.name}|${SUNDAY}`, { ...st, chosen: 'free' }]])), []);
+    });
+
+    test('an earlier import on that Sunday is kept: no REMOVE_IMPORT', () => {
+        const m = sundayOf(false);
+        const earlier = [{ id: 'old', memberName: m.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
+        const st = stateFor(m, 'MEET', earlier);
+        assert.equal(st.state, 'GUARDED');
+        assert.deepEqual(guardedWrites({ ...st, chosen: 'free' }, m.name, SUNDAY), [], 'not deleted by a "rest day" answer either');
+    });
+
+    test('leave on a rostered Sunday is unchanged: layer 4 still records the rest day', () => {
+        const st = stateFor(sundayOf(true), 'AL');
+        assert.equal(st.state, 'DIFF');
+        assert.equal(st.displayShift, 'RD');
+    });
+
+    test('the row says why, in the admin\'s words', async () => {
+        const { guardCopy } = await import('../roster-review-states.js');
+        assert.equal(guardCopy('sunday-other'),
+            'Training and meetings can’t be on a Sunday, so nothing is recorded and the day stays as it is.');
+    });
+});
+
+// ── TWO READINGS OF ONE SUNDAY CELL (7 Nov 2026 review) ─────────────────────────────────────────
+describe('computeCellStates — two readings of a Sunday cell', () => {
+    const SUNDAY = '2026-11-15';
+    const m = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+        && !['RD', 'OFF'].includes(getBaseShift(x, new Date(SUNDAY + 'T12:00:00'))));
+    const run = (/** @type {string[]} */ cand) => computeCellStates({
+        parsed:  [{ memberName: m.name, shifts: { [SUNDAY]: 'UNKNOWN|one or the other? (PDF unclear)' } }],
+        dates:   [SUNDAY],
+        choices: { [`${m.name}|${SUNDAY}`]: cand },
+    }, []).get(`${m.name}|${SUNDAY}`);
+
+    test('a timed meeting and its bare time are the same hours, so they are ONE pick, not none', () => {
+        const c = run(['MEET 10:00-14:00', '10:00-14:00']);
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.chosen, null, 'offered, never defaulted');
+        assert.deepEqual(c.options.map(/** @param {any} o */ o => o.display), ['10:00-14:00']);
+    });
+
+    test('a bare meeting reading is never offered: it would be a Rest button over the Sunday', () => {
+        const c = run(['MEET', '10:00-14:00']);
+        assert.deepEqual(c.options.map(/** @param {any} o */ o => o.display), ['10:00-14:00']);
+    });
+
+    test('a lone rest day is still not offered: on a rostered Sunday it would take the shift away', () => {
+        assert.equal(run(['AL', 'RD']).options, null);
+    });
+});
+
+// ── AN ABSENCE ALREADY ON RECORD MUST NOT SWALLOW A WORKED SHIFT ───────────────────────────────
+//
+// The manual branch of `computeCellStates` has one exemption: a hand-recorded AL or absence on a
+// day the member's BASE roster has as a rest day, where the PDF also shows rest, is COVERED rather
+// than CONFLICT. It exists because "Use new roster" on such a CONFLICT writes correction/RD and
+// DELETES the annual leave (v16.19) — so a question nobody needed to be asked is one careless tap
+// from destroying a real leave day.
+//
+// The exemption is three conjuncts wide, and the third — `normParsed === 'RD'` — is the one that
+// keeps it from applying when the PDF disagrees. Found by MUTATION: delete it and every test in
+// this file stays green, while a manual AL on a rest day with `RDW|09:00-17:00` in the PDF moves
+// from CONFLICT to COVERED. The comment beside the line states the rule exactly — "If the PDF
+// instead shows a worked shift (an RDW on the rest day), fall through to CONFLICT so the genuine
+// shift isn't dropped" — and that sentence was documented and not protected.
+//
+// The two costs, and they are not the same size:
+//
+//   DROPPING THE SHIFT is silent and it is money. The row renders COVERED, which on this surface
+//     means "nothing to do", so there is nothing to approve and nothing to notice. The rest-day
+//     working never reaches the calendar badge or paycalc's RDW pre-fill, and the day goes on
+//     reading as leave for somebody who came in and worked it.
+//
+//   ASKING WHEN NOTHING CHANGED is the v16.19 defect and is not free either — but it is a row on
+//     screen, with "Saved: AL" beside it, that an admin can answer. So both directions are pinned.
+describe('an absence already on record must not swallow a worked shift', () => {
+    const member = teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main');
+    const mname  = member.name;
+
+    /**
+     * A non-Sunday date this member's BASE roster has as a rest day.
+     *
+     * FOUND rather than named. The guard needs all three of its conditions to be genuinely in play,
+     * and two of them are facts about the roster on a particular date; a hardcoded member and day
+     * would hold until the next rota edit and then start passing for the wrong reason — the branch
+     * would simply stop being reached, and an unreached branch is green. (Sundays are excluded
+     * because they have their own rule: `normaliseCellValue` rewrites a Sunday absence to RD
+     * before this branch can see it, so the test would be about the Sunday layer instead.)
+     */
+    const RESTDAY = (() => {
+        for (let d = 1; d <= 28; d++) {
+            const iso = `2026-06-${String(d).padStart(2, '0')}`;
+            const dt  = new Date(iso + 'T12:00:00');
+            if (dt.getDay() === 0) continue;
+            const b = getBaseShift(member, dt);
+            if (b === 'RD' || b === 'OFF') return iso;
+        }
+        throw new Error('no non-Sunday base rest day found for the absence-guard tests');
+    })();
+
+    /** @param {string} parsedVal @param {string} manualVal */
+    const run = (parsedVal, manualVal) => computeCellStates(
+        { parsed: [{ memberName: mname, shifts: { [RESTDAY]: parsedVal } }], dates: [RESTDAY] },
+        [{
+            memberName: mname, date: RESTDAY, value: manualVal, id: 'm1', source: 'manual',
+            type: manualVal === 'AL' ? 'annual_leave' : 'sick',
+        }],
+    ).get(`${mname}|${RESTDAY}`);
+
+    // Both values take the exemption, so both have to be checked: fixing one and not the other is
+    // how a guard ends up half-applied, and AL and absence sit on the same line.
+    for (const manual of ['AL', 'SICK']) {
+        test(`a manual ${manual} on a rest day, with a REST-DAY WORKING in the PDF, is a CONFLICT`, () => {
+            const c = run('RDW|09:00-17:00', manual);
+            assert.equal(c.state, 'CONFLICT',
+                'the PDF says they worked it — COVERED here would drop the shift with nothing on screen');
+            assert.equal(c.manualValue, manual, 'and the row must still show what is on record');
+        });
+
+        test(`a manual ${manual} on a rest day, with a plain worked TIME in the PDF, is a CONFLICT too`, () => {
+            // Same disagreement without the RDW marker — a swapped day rather than overtime. The
+            // exemption must key on the PDF showing REST, not on the shape of what it shows instead.
+            assert.equal(run('09:00-17:00', manual).state, 'CONFLICT');
+        });
+
+        test(`a manual ${manual} on a rest day the PDF also shows as rest stays COVERED — untouched`, () => {
+            // The other direction, and the reason the exemption exists at all: turning this into a
+            // CONFLICT puts a real leave day one "Use new roster" away from being deleted.
+            assert.equal(run('RD', manual).state, 'COVERED');
+        });
+    }
+
+    test('the exemption is about a REST DAY — the same disagreement on a worked day was never exempt', () => {
+        // A guard on the guard. If the fixture above ever stopped finding a true base rest day,
+        // every CONFLICT assertion in this block would pass for the wrong reason: the exemption
+        // would not be reachable at all. This pins the neighbouring case explicitly, so the two
+        // together say the branch is live.
+        const WORKDAY = (() => {
+            for (let d = 1; d <= 28; d++) {
+                const iso = `2026-06-${String(d).padStart(2, '0')}`;
+                const dt  = new Date(iso + 'T12:00:00');
+                if (dt.getDay() === 0) continue;
+                if (/^\d{2}:\d{2}-/.test(getBaseShift(member, dt))) return iso;
+            }
+            throw new Error('no non-Sunday base WORK day found');
+        })();
+        assert.notEqual(getBaseShift(member, new Date(RESTDAY + 'T12:00:00')),
+            getBaseShift(member, new Date(WORKDAY + 'T12:00:00')),
+            'fixture: the two dates must genuinely differ, or neither case proves anything');
+        const c = computeCellStates(
+            { parsed: [{ memberName: mname, shifts: { [WORKDAY]: 'RD' } }], dates: [WORKDAY] },
+            [{ memberName: mname, date: WORKDAY, value: 'AL', type: 'annual_leave', source: 'manual', id: 'm2' }],
+        ).get(`${mname}|${WORKDAY}`);
+        assert.equal(c.state, 'CONFLICT');
+    });
+});
+
+// ── detectShiftedRow — the base-roster day-drift detector ─────────────────────
+// The independent (non-AI) signal: a parsed week that correlates with the member's
+// own base pattern ONE DAY out is very probably a drifted AI row read.
+
+describe('detectShiftedRow', () => {
+    const MEMBER = teamMembers.find(m => m.name === 'G. Miller');
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const base   = (/** @type {string} */ d, off = 0) => {
+        const dt = new Date(d + 'T12:00:00'); dt.setDate(dt.getDate() + off);
+        return getBaseShift(MEMBER, dt);
+    };
+    const rowOf = (/** @type {number} */ off) =>
+        Object.fromEntries(DATES.map(d => [d, base(d, off)]));
+
+    test('an aligned week (matches base) → null', () => {
+        assert.equal(detectShiftedRow(MEMBER, rowOf(0), DATES), null);
+    });
+
+    test('a row whose values belong one day LATER (left drift) → "left"', () => {
+        assert.equal(detectShiftedRow(MEMBER, rowOf(1), DATES), 'left');
+    });
+
+    test('a row whose values belong one day EARLIER (right drift) → "right"', () => {
+        assert.equal(detectShiftedRow(MEMBER, rowOf(-1), DATES), 'right');
+    });
+
+    test('a genuine override-heavy week (sparse changes from base) → null, no false alarm', () => {
+        const row = rowOf(0);
+        row[DATES[1]] = 'AL';
+        row[DATES[4]] = 'RDW|09:00-17:00';
+        assert.equal(detectShiftedRow(MEMBER, row, DATES), null);
+    });
+
+    test('UNKNOWN cells carry no signal but the drift is still detected from the rest', () => {
+        const row = rowOf(1);
+        row[DATES[2]] = 'UNKNOWN|smudge';
+        row[DATES[6]] = 'UNKNOWN|smudge';
+        assert.equal(detectShiftedRow(MEMBER, row, DATES), 'left');
+    });
+
+    test('guards: missing member / short dates / empty shifts → null', () => {
+        assert.equal(detectShiftedRow(null, rowOf(1), DATES), null);
+        assert.equal(detectShiftedRow(MEMBER, rowOf(1), DATES.slice(0, 5)), null);
+        assert.equal(detectShiftedRow(MEMBER, {}, DATES), null);
+    });
+});
+
+// ── HOW MUCH DRIFT IT TAKES TO BE SUSPECT — the detector's SENSITIVITY ─────────────────────────
+//
+// `detectShiftedRow` calls a row drifted only when the ±1 alignment matches at least THREE MORE
+// days than the honest one. That three is the entire sensitivity of the app's only AI-independent
+// witness, and it was the one number in the function nothing was checking. The asymmetry is what
+// makes it worth writing down: the `sLeft >= 5` floor beside it IS pinned (mutate it and the block
+// above fails), and `ALIGNMENT_BLOCK_THRESHOLD` is pinned by the breaker tests below — while the
+// bar that actually decides how much gets seen could be moved by one, in either direction, with the
+// whole suite green. Found by mutation, not by reading.
+//
+// What each direction costs:
+//
+//   RAISING IT halves the witness, silently. MEASURED over the real roster with every member's week
+//     left-shifted: 25 of 44 rows are detected at a bar of three, and 14 at four. The breaker needs
+//     THREE suspects to refuse a read, so roughly halving per-member detection roughly halves the
+//     chance a genuinely misread week is refused at all — and every row of an unrefused read stays
+//     TICKED, so the default action on it is to save a week onto the wrong days for real staff.
+//
+//   LOWERING IT starts refusing honest reads. At two, 35 of those 44 would be called suspect on a
+//     week that was read perfectly, and there is deliberately no per-row override and no "save
+//     anyway": the roster would be three coincidences away from an import nobody can complete.
+//
+// So the assertion with teeth is the BOUNDARY, from both sides — exactly three is suspect, exactly
+// two is not. One synthetic drifted row proves neither: the fixtures in the block above improve by
+// six or seven, so they survive a bar of four, five OR six unchanged, which is precisely how this
+// stayed unguarded while looking well covered.
+describe('detectShiftedRow — the improvement bar, from both sides', () => {
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const ROSTER = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+    const norm   = /** @param {string} v */ v => (v === 'OFF' ? 'RD' : v);
+    const baseOf = (/** @type {any} */ m, /** @type {string} */ d, off = 0) => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+        return getBaseShift(m, x);
+    };
+    /** `m`'s own base pattern read `off` days out — the shape a collapsed column produces. */
+    const shiftedRead = (/** @type {any} */ m, /** @type {number} */ off) =>
+        Object.fromEntries(DATES.map(d => [d, baseOf(m, d, off)]));
+
+    /**
+     * How many days better such a read lines up at ±1 than at 0.
+     *
+     * FIXTURE ARITHMETIC, not a second copy of the rule. The row IS this member's base pattern at
+     * ±1, so the shifted alignment matches all seven days by construction; the improvement over the
+     * honest alignment is therefore just seven minus the days on which their week already looks the
+     * same as the neighbouring one. Nothing here knows or restates what the detector DOES with that
+     * number — which is the whole point: a helper that re-derived the verdict would agree with any
+     * bar the detector happened to be using, including a mutated one.
+     */
+    const improvement = (/** @type {any} */ m, /** @type {number} */ off) =>
+        7 - DATES.filter(d => norm(baseOf(m, d, off)) === norm(baseOf(m, d, 0))).length;
+
+    /** Everyone on the real roster whose week moves by exactly `n` days under an `off` shift. */
+    const cohort = (/** @type {number} */ off, /** @type {number} */ n) =>
+        ROSTER.filter(m => improvement(m, off) === n);
+
+    // The bar is written TWICE in the function — once per direction — so a mutation of one line
+    // would survive a test of the other. Both are driven.
+    for (const [off, verdict] of /** @type {[number, 'left'|'right'][]} */ ([[1, 'left'], [-1, 'right']])) {
+        describe(`${verdict} drift`, () => {
+            test('a week that lines up exactly THREE days better IS suspect', () => {
+                const at3 = cohort(off, 3);
+                assert.ok(at3.length > 0,
+                    'fixture: the roster must contain members whose shifted week improves by exactly 3 — '
+                    + 'without them this pins nothing. If it ever reads zero, the rota shape changed and '
+                    + 'the boundary needs re-finding, not deleting.');
+                for (const m of at3) {
+                    assert.equal(detectShiftedRow(m, shiftedRead(m, off), DATES), verdict,
+                        `${m.name} lines up 3 days better one day out and must be flagged — this is the `
+                        + 'case a bar of four throws away, and it is ~44% of everything the detector sees');
+                }
+            });
+
+            test('a week that lines up only TWO days better is NOT', () => {
+                const at2 = cohort(off, 2);
+                assert.ok(at2.length > 0, 'fixture: the roster must contain members who improve by exactly 2');
+                for (const m of at2) {
+                    // These all match seven of seven at ±1, so the `>= 5` floor is not what refuses
+                    // them — the improvement bar is, and only the bar. That is what gives this case
+                    // teeth against a bar of two, which would call 35 of 44 honest rows suspect.
+                    assert.equal(detectShiftedRow(m, shiftedRead(m, off), DATES), null,
+                        `${m.name} improves by only 2 — a pattern that simply resembles its neighbour `
+                        + 'is not evidence of a misread, and treating it as such refuses good reads');
+                }
+            });
+        });
+    }
+
+    test('the bar leaves the witness covering most of the roster, not a third of it', () => {
+        // The SENSITIVITY itself, rather than one row. Stated as a SHARE so a new starter or a rota
+        // edit cannot fail it on arithmetic: measured today it is 25 of 44 (57%) at a bar of three,
+        // 14 of 44 (32%) at four, 35 of 44 (80%) at two. The floor sits between the first two — a
+        // bar of four cannot reach it, and today's bar clears it comfortably.
+        const detected = ROSTER.filter(m => detectShiftedRow(m, shiftedRead(m, 1), DATES)).length;
+        assert.ok(detected / ROSTER.length >= 0.4,
+            `only ${detected} of ${ROSTER.length} left-shifted weeks are detected. The breaker needs `
+            + 'three suspects in one upload; at this coverage a genuinely misread roster can pass.');
+    });
+});
+
+// ── THE 5-OF-7 FLOOR, FROM BOTH SIDES (test audit, 7 Nov 2026) ──────────────────────────────────
+//
+// Beside the improvement bar sits a second number: the ±1 alignment must match at least FIVE days.
+// The comment above says that floor "IS pinned"; it was only for raising the LEFT one, and only
+// incidentally. Raising the right floor to six left every suite green — measured on a realistic right
+// slide over the real roster, the detector's catches fell from 314 rows to 133 — and removing either
+// floor, or lowering the left one to four, survived too.
+//
+// The fixture: a member's own week read one day out (it matches all seven days at ±1 by
+// construction), with every day blanked to UNKNOWN except `keep` days whose value DIFFERS from the
+// honest alignment. UNKNOWN carries no signal, so the ±1 score is exactly `keep` and the honest score
+// is zero — which leaves the floor, and only the floor, to decide.
+describe('detectShiftedRow — the 5-of-7 floor, from both sides', () => {
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const ROSTER = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+    const norm   = /** @param {string} v */ v => (v === 'OFF' ? 'RD' : v);
+    const baseOf = (/** @type {any} */ m, /** @type {string} */ d, off = 0) => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+        return getBaseShift(m, x);
+    };
+    /** The read, or null when this member's week cannot give `keep` days that differ. */
+    function sparseShiftedRead(/** @type {any} */ m, /** @type {number} */ off, /** @type {number} */ keep) {
+        const differs = DATES.filter(d => norm(baseOf(m, d, off)) !== norm(baseOf(m, d, 0)));
+        if (differs.length < keep) return null;
+        const kept = new Set(differs.slice(0, keep));
+        // The OTHER direction must not also line up on every kept day, or a right slide would be
+        // read as a left one (the left test runs first). Fixture choice, not the rule restated.
+        const other = [...kept].filter(d => norm(baseOf(m, d, off)) === norm(baseOf(m, d, -off))).length;
+        if (other >= keep) return null;
+        return Object.fromEntries(DATES.map(d => [d, kept.has(d) ? baseOf(m, d, off) : 'UNKNOWN|smudge']));
+    }
+    /** The first member on the real roster whose week can make this read. */
+    function caseFor(/** @type {number} */ off, /** @type {number} */ keep) {
+        for (const m of ROSTER) {
+            const row = sparseShiftedRead(m, off, keep);
+            if (row) return { m, row };
+        }
+        return null;
+    }
+
+    for (const [off, verdict] of /** @type {[number, 'left'|'right'][]} */ ([[1, 'left'], [-1, 'right']])) {
+        describe(`${verdict} drift`, () => {
+            test('five readable days lining up one day out IS suspect', () => {
+                const c = caseFor(off, 5);
+                assert.ok(c, 'fixture: some member must have five days that differ from their neighbours');
+                assert.equal(detectShiftedRow(c.m, c.row, DATES), verdict,
+                    `${c.m.name}: five of seven at ±1 and none at 0 is the floor itself, and must be flagged`);
+            });
+
+            test('four readable days is NOT, however clean the alignment', () => {
+                const c = caseFor(off, 4);
+                assert.ok(c, 'fixture: some member must have four days that differ from their neighbours');
+                assert.equal(detectShiftedRow(c.m, c.row, DATES), null,
+                    `${c.m.name}: four matching days is too little evidence to untick a member's week`);
+            });
+        });
+    }
+});
+
+// ── A TIE IS A LEFT SLIDE, AT BOTH LEVELS (review, Nov 2026) ───────────────────────────────────
+//
+// Where both one-day-out alignments fit a row equally, or as many rows slide each way, the answer
+// is LEFT — the slide a skipped blank Sunday column produces, the failure this breaker was built for.
+// It decides which side of the breaker's count a tied row joins, and which cause the stop banner
+// names. Neither choice was pinned: either `>=` could become `>` with every test green.
+describe('detectShiftedRow / assessRosterAlignment — a tie is read as the left slide', () => {
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const baseOf = (/** @type {any} */ m, /** @type {string} */ d, off = 0) => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+        const v = getBaseShift(m, x);
+        return v === 'OFF' ? 'RD' : v;
+    };
+
+    test('a row that fits a day early exactly as well as a day late is called left', () => {
+        // An invented member on a real line: the CES pattern's week 2 has the shape a tie needs.
+        const member = { name: 'A. Person', rosterType: 'ces', currentWeek: 2, role: 'CES' };
+        const read = ['RD', 'RD', '14:30-23:45', 'RD', '14:30-23:45', '15:30-00:30', 'RD'];
+        const row = Object.fromEntries(DATES.map((d, i) => [d, read[i]]));
+        // FIXTURE PREMISE, by plain counting — not the rule restated: equal at ±1, at least five, and
+        // three better than the honest alignment, so only the tie-break decides.
+        const score = (/** @type {number} */ off) => DATES.filter((d, i) => read[i] === baseOf(member, d, off)).length;
+        assert.deepEqual([score(0), score(1), score(-1)], [2, 5, 5], 'the line changed shape — find another tie, do not delete this');
+        assert.equal(detectShiftedRow(member, row, DATES), 'left');
+    });
+
+    test('three slide left and three slide right: the read is refused, and named as the left slide', () => {
+        const ROSTER = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+        const shifted = (/** @type {any} */ m, /** @type {number} */ off) => Object.fromEntries(DATES.map(d => [d, baseOf(m, d, off)]));
+        const left = ROSTER.filter(m => detectShiftedRow(m, shifted(m, 1), DATES) === 'left').slice(0, 3);
+        const right = ROSTER.filter(m => !left.includes(m) && detectShiftedRow(m, shifted(m, -1), DATES) === 'right').slice(0, 3);
+        assert.deepEqual([left.length, right.length], [3, 3], 'fixture: the roster must have three of each');
+        const a = assessRosterAlignment({ dates: DATES, parsed: [
+            ...left.map(m => ({ memberName: m.name, shifts: shifted(m, 1) })),
+            ...right.map(m => ({ memberName: m.name, shifts: shifted(m, -1) })),
+        ] });
+        assert.equal(a.blocked, true);
+        assert.equal(a.direction, 'left');
+        assert.deepEqual(a.suspects, left.map(m => m.name));
+    });
+});
+
+// ── shiftDisplay / manualShiftDisplay — the review table's pure formatters (v18.85) ─────────────
+// Both were module-private and reachable only through the DOM-heavy review table, so their
+// branches (unreadable sentinel, RDW re-encoding, Other-family detail, Sunday promotion) went
+// unpinned. They are pure, so they are worth asserting directly.
+
+describe('shiftDisplay', () => {
+    test('an UNREADABLE cell shows the raw text, escaped, and no badge', () => {
+        // Upper case, as the server sends what it could not read (`normaliseShift` upper-cases it).
+        const html = shiftDisplay('UNKNOWN|<B>7A</B>');
+        assert.match(html, /review-shift-unreadable/);
+        assert.match(html, /couldn't read/);
+        assert.ok(!html.includes('<B>'), 'raw PDF text must be escaped, never injected as markup');
+        assert.match(html, /&lt;B&gt;7A&lt;\/B&gt;/);
+    });
+
+    test('a sentence the IMPORT wrote is shown as its own words, never quoted as the PDF\'s (review, Nov 2026)', async () => {
+        // Built by the server's own code, so a reworded sentence is still a sentence here.
+        const { createRequire } = await import('node:module');
+        const require = createRequire(REPO_ROOT_URL);
+        const { normaliseShift } = require('./functions/roster-parse-helpers.js');
+        const { blankCellMeaning } = require('./functions/cell-day-rules.js');
+        const quiet = (/** @type {() => any} */ fn) => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
+        const unread = quiet(() => normaliseShift('see cem <i>x</i>'));
+        assert.match(shiftDisplay(unread), /couldn't read “SEE CEM &lt;I&gt;X&lt;\/I&gt;”/, 'what the PDF said is still quoted, escaped');
+        for (const sentence of [blankCellMeaning(1, 'Monday'), 'UNKNOWN|06:00-14:00 was read here, but this cell is empty on the PDF — the row may be a day out',
+            'UNKNOWN|Rest day or 10:00-18:00? (PDF unclear)']) {
+            const html = shiftDisplay(sentence);
+            assert.doesNotMatch(html, /couldn't read/, `the import's words were dressed as the PDF's: ${html}`);
+            assert.ok(html.includes(sentence.slice('UNKNOWN|'.length)), 'and they are shown whole');
+        }
+    });
+
+    test('an RDW-encoded value shows the RDW badge plus the plain time', () => {
+        const html = shiftDisplay('RDW|08:00-16:00');
+        assert.match(html, /08:00-16:00/);
+        assert.ok(!html.includes('RDW|'), 'the pipe encoding must never reach the rendered output');
+    });
+
+    test('a worked SUNDAY is displayed as RDW — Sundays are uncontracted, so any work is overtime', () => {
+        const sun = shiftDisplay('08:00-16:00', SUN);
+        const mon = shiftDisplay('08:00-16:00', MON);
+        assert.notEqual(sun, mon, 'the Sunday badge must differ from the weekday one');
+        assert.match(sun, /08:00-16:00/, 'the time is still shown');
+    });
+
+    test('an Other-family value shows its RDW marker and times, not the badge alone', () => {
+        // TRG vs TRG RDW decides between "nothing to pay" and the 8h RDW default, so the review
+        // must surface the difference.
+        assert.match(shiftDisplay('TRG RDW'), /RDW/);
+        assert.match(shiftDisplay('IND 09:00-17:00'), /09:00-17:00/);
+        const bare = shiftDisplay('TRG');
+        assert.ok(!/review-shift-time/.test(bare), 'a bare flavour has no time detail to show');
+    });
+
+    test('a non-time value (RD/AL) renders the badge alone', () => {
+        assert.ok(!/review-shift-time/.test(shiftDisplay('RD')));
+        assert.ok(!/review-shift-time/.test(shiftDisplay('AL')));
+    });
+});
+
+describe('manualShiftDisplay', () => {
+    test('a saved RDW override is re-encoded so it shows the RDW badge, not an ordinary shift', () => {
+        // RDW-ness lives in `type`, not the value — without the re-encode the admin could not tell
+        // a saved RDW from a normal shift when resolving a CONFLICT (v16.19).
+        const asRdw    = manualShiftDisplay({ manualValue: '08:00-16:00', manualType: 'rdw' });
+        const asNormal = manualShiftDisplay({ manualValue: '08:00-16:00', manualType: 'shift' });
+        assert.notEqual(asRdw, asNormal, 'an RDW override must not render identically to a plain shift');
+        assert.equal(asRdw, shiftDisplay('RDW|08:00-16:00'));
+    });
+
+    test('a non-rdw type passes the value straight through', () => {
+        assert.equal(manualShiftDisplay({ manualValue: 'AL', manualType: 'annual_leave' }), shiftDisplay('AL'));
+    });
+
+    test('an rdw type with a non-time value is not re-encoded', () => {
+        assert.equal(manualShiftDisplay({ manualValue: 'RD', manualType: 'rdw' }), shiftDisplay('RD'));
+    });
+});
+
+// ── ZERO-LENGTH RANGES CANNOT REACH FIRESTORE (v20.39, audit §24) ──────────────────────────────
+//
+// The server refuses equal start/end in `normaliseShift`. This is the second lock on the same door,
+// and it is not redundant: the review table's CONFLICT picker lets an admin choose between two
+// candidate readings, and a hand-edited cell takes this path without passing the server normaliser
+// again. Skipping is the safe failure — the day keeps what it had rather than gaining a shift that
+// every duration helper would read as 24 hours.
+describe('isZeroLengthRange', () => {
+    test('catches equal times, in both the bare and RDW-encoded forms', () => {
+        for (const v of ['08:00-08:00', '00:00-00:00', '23:59-23:59', 'RDW|08:00-08:00']) {
+            assert.equal(isZeroLengthRange(v), true, `${v} should be refused`);
+        }
+    });
+
+    test('leaves genuine overnight and ordinary ranges alone', () => {
+        // Equality, not "end < start" — an overnight shift is ordinary on this roster and a guard
+        // that caught it would silently drop real night work.
+        for (const v of ['22:00-06:00', '00:00-08:00', '08:00-16:00', 'RDW|22:00-06:00', '08:00-08:01']) {
+            assert.equal(isZeroLengthRange(v), false, `${v} is legitimate and must be written`);
+        }
+    });
+
+    test('ignores non-time values rather than guessing at them', () => {
+        // AL / SICK / SPARE / the Other family all pass through this path; a loose regex here would
+        // start dropping them.
+        for (const v of ['AL', 'SICK', 'SPARE', 'RD', 'TRG RDW', 'UNKNOWN|08:00', '']) {
+            assert.equal(isZeroLengthRange(v), false, `${v} must not be treated as a zero-length range`);
+        }
+    });
+});
+
+// …and the ENTRY control is the third place a time is authored, so it must refuse there too, at the
+// point of typing. Before, 06:00–06:00 was accepted, counted, reported "Done", and then dropped by
+// `_saveOverrideBatches` without a word — the admin was told a day was saved that was not.
+describe('the review entry control refuses equal start and end', () => {
+    test('a Shift or RDW entry whose times are equal is not committed, and the hint says why', async () => {
+        const { commitEntry, entryControlHtml } = await import('../roster-entry-control.js');
+        for (const type of ['shift', 'rdw']) {
+            const s = { draft: { type, from: '06:00', to: '06:00', open: true }, baseShift: '06:00-14:00', date: MON };
+            commitEntry(s);
+            assert.equal(s.chosen, undefined, `${type}: nothing is chosen`);
+            assert.equal(s.entered, null, `${type}: nothing is entered`);
+            assert.match(entryControlHtml(`G. Miller|${MON}`, s, MON), /Start and end times are the same/);
+        }
+        const ok = { draft: { type: 'shift', from: '22:00', to: '06:00', open: true }, baseShift: '06:00-14:00', date: MON };
+        commitEntry(ok);
+        assert.equal(ok.chosen, 'entered', 'an overnight range is ordinary and still commits');
+    });
+});
+
+// ── ONE "COULDN'T READ" CHIP FOR BOTH UNREADABLE ROWS (polish round 2, owner-approved) ─────────
+//
+// Both unreadable row shapes say "Couldn't read" until answered. The one offering two readings
+// wore the DECISION style (`act-choice`) from the start, so the identical words looked like two
+// different problems. The style is now `act-read` until something will be written. Presentation
+// only: the helper reads `chosen` and never sets it. The render and the in-place patches are
+// driven through the real table by e2e/operations.spec.js; this pins the rule every one of them calls.
+describe('unreadableTagClass — the chip style on an unreadable row', () => {
+    const options = [{ value: '06:00-14:00', display: '06:00-14:00' }, { value: 'RD', display: 'RD' }];
+    test('unanswered is "couldn\'t read" on BOTH shapes', async () => {
+        const { unreadableTagClass } = await import('../roster-review-states.js');
+        assert.equal(unreadableTagClass({ chosen: null }), 'act-read', 'garbled, nothing offered');
+        assert.equal(unreadableTagClass({ chosen: null, options }), 'act-read',
+            'two readings offered and none picked must look like the garbled row, not like a decision');
+    });
+    test('answered — a picked reading or a finished entry — is the decision style', async () => {
+        const { unreadableTagClass } = await import('../roster-review-states.js');
+        assert.equal(unreadableTagClass({ chosen: 0, options }), 'act-choice');
+        assert.equal(unreadableTagClass({ chosen: 1, options }), 'act-choice');
+        assert.equal(unreadableTagClass({ chosen: 'entered', entered: '06:00-14:00' }), 'act-choice');
+        assert.equal(unreadableTagClass({ chosen: 'entered', entered: '06:00-14:00', options }), 'act-choice');
+    });
+    test('an answer that would write nothing is still unanswered', async () => {
+        const { unreadableTagClass } = await import('../roster-review-states.js');
+        assert.equal(unreadableTagClass({ chosen: 'entered', entered: null, options }), 'act-read',
+            'an entry that composed to nothing writes nothing');
+        assert.equal(unreadableTagClass({ chosen: 5, options }), 'act-read', 'an index with no reading behind it');
+        assert.equal(unreadableTagClass(undefined), 'act-read');
+    });
+    test('patchEntryRow applies the same rule while an entry is typed', async () => {
+        const { patchEntryRow } = await import('../roster-entry-control.js');
+        /** A row holding only the tag — the part of the DOM `patchEntryRow` restyles. */
+        const rowWith = (/** @type {string} */ cls) => {
+            const set = new Set(['roster-act', cls]);
+            const act = { textContent: '', classList: { toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => { if (on) set.add(c); else set.delete(c); } }, set };
+            const rowClasses = new Set(['roster-change-row']);
+            return { act, rowClasses, row: {
+                querySelector: (/** @type {string} */ q) => (q === '.roster-act' ? act : null),
+                classList: { toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => { if (on) rowClasses.add(c); else rowClasses.delete(c); } },
+            } };
+        };
+        const unanswered = rowWith('act-choice');                 // what an options row used to wear
+        patchEntryRow(/** @type {any} */ (unanswered.row), false, { chosen: null, options });
+        assert.ok(unanswered.act.set.has('act-read') && !unanswered.act.set.has('act-choice'));
+        assert.equal(unanswered.act.textContent, "Couldn't read");
+        assert.ok(unanswered.rowClasses.has('roster-change-unreadable'), 'the row tint follows the chip');
+
+        const picked = rowWith('act-choice');                     // a reading picked, entry half-done
+        patchEntryRow(/** @type {any} */ (picked.row), false, { chosen: 0, options });
+        assert.ok(picked.act.set.has('act-choice') && !picked.act.set.has('act-read'));
+        assert.equal(picked.act.textContent, 'Your choice');
+        assert.ok(!picked.rowClasses.has('roster-change-unreadable'));
+
+        const entered = rowWith('act-read');
+        patchEntryRow(/** @type {any} */ (entered.row), true, { chosen: 'entered', entered: '06:00-14:00' });
+        assert.ok(entered.act.set.has('act-choice') && !entered.act.set.has('act-read'));
+        assert.equal(entered.act.textContent, 'Your entry');
+    });
+});
+
+
+// ── FAILING CLOSED ON A SHIFTED READ (v22.16, external review) ────────────────────────────────
+//
+// ORGANISED BY WHAT EACH WRONG ANSWER COSTS, and the two directions are not remotely symmetric.
+//
+//   ACCEPTING A SHIFTED READ writes an entire week onto the wrong days for real staff — silently,
+//     because a shifted row still looks like a perfectly ordinary roster. It is then acted on:
+//     people come in on the wrong day and pay is calculated from it. That is the shipped defect,
+//     and it survived because the last line of defence was a WARNING above a fully-ticked list.
+//
+//   REFUSING A GOOD READ costs the admin a re-upload. Annoying, visible, and instantly correctable.
+//
+// So these tests lean hard on the first and keep only enough of the second to stop the gate
+// becoming one nobody can get past.
+//
+// Driven through `computeCellStates` — the ENTRY POINT — not through `detectShiftedRow`, which is
+// already tested above and was already correct. The defect was never the detector; it was what the
+// pipeline DID with what the detector said. A perfect helper whose answer is discarded is exactly
+// the failure shape this repo names in CLAUDE.md.
+
+// ── THE SAFETY RULE THAT DISARMED THE SAFETY NET (v22.19) ───────────────────────────────────────
+//
+// v22.16 flagged every plain-time Sunday on the SERVER as UNREADABLE, reasoning that a genuinely
+// worked Sunday carries an RDW marker. Three real rosters disproved the premise (21 worked Sundays,
+// none marked). But the sharper problem is what it did to THIS detector.
+//
+// `detectShiftedRow` scores only cells that are not UNKNOWN. On a left-shifted row the Sunday cell
+// holds MONDAY's real value — which matches the base roster at offset +1, so it is a positive
+// contributor to exactly the score that identifies the drift. Flagging it deleted that.
+//
+// MEASURED over the whole 44-member roster, every row left-shifted: 14 members are detected without
+// the flag and 12 with it. Two detections lost. With a batch threshold of three, losing two can
+// take a read from REFUSED to accepted — which is the hazard, and it is why the fix was to remove
+// the preprocessing rather than to loosen the detector.
+describe('a flagged Sunday is drift evidence deleted', () => {
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    /** `m`'s own base pattern read one day out — the shape a collapsed blank Sunday produces. */
+    const leftShifted = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1);
+        return [d, getBaseShift(m, x)];
+    }));
+
+    test('the Sunday cell is what makes a left drift detectable at all, for some members', () => {
+        // Not "for every member" — most rows have margin. The point is that some do not, and those
+        // are the ones a threshold of three is counting.
+        const roster = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+        let withCell = 0, withoutCell = 0;
+        for (const m of roster) {
+            const row = leftShifted(m);
+            if (detectShiftedRow(m, row, DATES)) withCell++;
+            const blinded = { ...row, [DATES[0]]: 'UNKNOWN|flagged' };
+            if (detectShiftedRow(m, blinded, DATES)) withoutCell++;
+        }
+        assert.ok(withCell > 0, 'the fixture must actually produce detectable drift');
+        assert.ok(withoutCell < withCell,
+            `blinding the Sunday must LOSE detections — it lost ${withCell - withoutCell} of ${withCell}. `
+            + 'If this ever reads zero, either the detector stopped scoring Sunday or the roster '
+            + 'changed shape; both are worth knowing before anyone re-adds a Sunday preprocessing rule.');
+    });
+
+    test('an UNKNOWN cell contributes nothing to the score — the mechanism, stated once', () => {
+        // WHICH member loses its detection depends on the week, so the fixture FINDS one rather
+        // than naming one. A hardcoded name here passed on the week it was written against and
+        // would have gone quietly wrong on the next — the same class of staleness the roster
+        // fixtures elsewhere in this file are built from the real detector to avoid.
+        const roster = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+        const victim = roster.find(/** @param {any} m */ (m) => {
+            const row = leftShifted(m);
+            return detectShiftedRow(m, row, DATES)
+                && !detectShiftedRow(m, { ...row, [DATES[0]]: 'UNKNOWN|flagged' }, DATES);
+        });
+        assert.ok(victim, 'at least one member must lose its detection when the Sunday is blinded');
+        const row = leftShifted(victim);
+        assert.equal(detectShiftedRow(victim, row, DATES), 'left', 'detectable with all seven cells');
+        assert.equal(detectShiftedRow(victim, { ...row, [DATES[0]]: 'UNKNOWN|flagged' }, DATES), null,
+            `and silent with the Sunday blinded (${victim.name})`);
+    });
+});
+
+// ── The PDF's own grid, folded into the same verdict (v22.31) ──────────────────────────────────
+//
+// The server (functions/roster-geometry.js) refuses a row whose AI-read day lands in a physically
+// EMPTY cell and returns those names as `geometryRefused`. These pin that the client treats such a
+// row exactly as it treats a base-roster drift — unticked, explained, counted by the breaker —
+// through ONE wiring, and that the words never borrow a direction geometry does not have.
+describe('a row the PDF\'s own grid refused fails closed the same way', () => {
+    const MEMBER = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    /** An HONEST week — the base pattern read on the right days — so the base-roster detector is silent. */
+    const honest = (/** @type {any} */ m) => Object.fromEntries(DATES.map(d => [d, getBaseShift(m, new Date(d + 'T12:00:00'))]));
+    const others = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main' && m.name !== 'G. Miller');
+    const states = (/** @type {any} */ parsedResult) => computeCellStates(parsedResult, []);
+    // ('REMOVE_INPUT' stood here beside REMOVE_IMPORT — no such state exists; test audit, 7 Nov 2026.)
+    const writable = (/** @type {Map<string,any>} */ st) =>
+        [...st.values()].filter(c => (c.state === 'DIFF' || c.state === 'REMOVE_IMPORT') && c.chosen !== false);
+
+    test('a geometry-refused member\'s rows start UNTICKED even though the base roster sees no drift', () => {
+        const parsed = [{ memberName: 'G. Miller', shifts: { ...honest(MEMBER), [DATES[1]]: '22:00-06:00' } }];
+        assert.equal(assessRosterAlignment({ parsed, dates: DATES }).byMember.get('G. Miller'), undefined, 'fixture: the detector must be silent');
+        const st = states({ parsed, dates: DATES, geometryRefused: ['G. Miller'] });
+        assert.equal(writable(st).length, 0, 'nothing selected');
+        assert.ok([...st.values()].filter(c => c.state === 'DIFF').every(c => c.drift === 'geometry'), 'and every cell says which witness');
+    });
+
+    test('without the field, the same read is saved as before — the fold-in is inert when the server says nothing', () => {
+        const parsed = [{ memberName: 'G. Miller', shifts: { ...honest(MEMBER), [DATES[1]]: '22:00-06:00' } }];
+        const st = states({ parsed, dates: DATES });
+        assert.ok(writable(st).length > 0);
+    });
+
+    test('a base-roster verdict keeps its DIRECTION when geometry also refuses the row', () => {
+        const rowFor = (/** @type {any} */ m, off) => Object.fromEntries(DATES.map(d => {
+            const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));
+        const drifter = teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main'
+            && detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+        const a = assessRosterAlignment({ parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }], dates: DATES, geometryRefused: [drifter.name] });
+        assert.equal(a.byMember.get(drifter.name), 'left', 'the more specific verdict wins');
+        assert.deepEqual(a.geometryRefused, [drifter.name], 'but the refusal is still recorded');
+    });
+
+    test('geometry refusals count toward the breaker, and three of them REFUSE the whole read', () => {
+        const names = [MEMBER, ...others.slice(0, ALIGNMENT_BLOCK_THRESHOLD - 1)];
+        const parsed = names.map(m => ({ memberName: m.name, shifts: honest(m) }));
+        const a = assessRosterAlignment({ parsed, dates: DATES, geometryRefused: names.map(m => m.name) });
+        assert.equal(a.blocked, true);
+        assert.equal(a.direction, null, 'no directional evidence → no direction claimed');
+        assert.deepEqual([...a.suspects].sort(), names.map(m => m.name).sort());
+        const st = states({ parsed, dates: DATES, geometryRefused: names.map(m => m.name) });
+        assert.ok([...st.values()].every(c => c.rosterBlocked));
+    });
+
+    // Whole-app fix, Nov 2026: the hard gate in `collectRosterWrites` reads `rosterBlocked` off each
+    // cell, and the UNREADABLE branch never stamped it — so an answered unreadable cell on a refused
+    // read was the one row the gate could not see. The HARD GATE test builds its states by hand, so it
+    // could not notice; this one builds them from the real state machine.
+    test('an unreadable cell of a refused read is refused too: answered or picked, it writes nothing', () => {
+        const names = [MEMBER, ...others.slice(0, ALIGNMENT_BLOCK_THRESHOLD - 1)];
+        const parsed = names.map(m => ({ memberName: m.name, shifts: honest(m) }));
+        const day = DATES.find(d => /^\d{2}:\d{2}-/.test(getBaseShift(MEMBER, new Date(d + 'T12:00:00'))));
+        parsed[0].shifts[day] = 'UNKNOWN|07:00-15:00 or Absent? (PDF unclear)';
+        const st = states({ parsed, dates: DATES, geometryRefused: names.map(m => m.name),
+            choices: { [`${MEMBER.name}|${day}`]: ['07:00-15:00', 'SICK'] } });
+        const cell = st.get(`${MEMBER.name}|${day}`);
+        assert.deepEqual([cell.state, cell.rosterBlocked, cell.drift], ['UNREADABLE', true, 'geometry']);
+        cell.chosen = 'entered'; cell.entered = { display: '07:00-15:00' };
+        assert.deepEqual(collectRosterWrites(st), [], 'an answered unreadable cell on a refused read');
+        cell.chosen = 0;
+        assert.ok(cell.options?.[0], 'fixture: a reading to pick');
+        assert.deepEqual(collectRosterWrites(st), [], 'a picked reading on a refused read');
+    });
+
+    test('two refusals plus one drift the breaker can see is also three', () => {
+        const rowFor = (/** @type {any} */ m, off) => Object.fromEntries(DATES.map(d => {
+            const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));
+        const drifter = others.find(/** @param {any} m */ m => detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+        const [g1, g2] = others.filter(m => m !== drifter);
+        const a = assessRosterAlignment({
+            parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }, { memberName: g1.name, shifts: honest(g1) }, { memberName: g2.name, shifts: honest(g2) }],
+            dates: DATES, geometryRefused: [g1.name, g2.name],
+        });
+        assert.equal(a.blocked, true);
+        assert.equal(a.direction, 'left', 'the one directional verdict names the direction');
+    });
+
+    test('a name the server refused that is not on this roster is ignored, not counted', () => {
+        const a = assessRosterAlignment({ parsed: [{ memberName: 'G. Miller', shifts: honest(MEMBER) }], dates: DATES, geometryRefused: ['Nobody Here', 'G. Miller'] });
+        assert.deepEqual(a.suspects, ['G. Miller']);
+    });
+
+    // Whole-app fix, Nov 2026: a LEAVER the server still prints (its generated name list lags the
+    // `hidden` flag) has a row in the read but none on the review. Refused by the grid, they counted
+    // toward the three, so two real refusals blocked the whole read under a banner naming somebody the
+    // admin could not see — and there is no "save anyway". Same test as a drifted row: on the review.
+    test('a hidden member\'s refused row is not counted either — they have no row on the review', () => {
+        const leaver = teamMembers.find(/** @param {any} m */ m => m.hidden && !m.managerOnly);
+        assert.ok(leaver, 'needs a leaver on the roster');
+        const real = [MEMBER, others[0]];
+        const parsed = [...real, leaver].map(m => ({ memberName: m.name, shifts: honest(m) }));
+        const a = assessRosterAlignment({ parsed, dates: DATES, geometryRefused: [...real, leaver].map(m => m.name) });
+        assert.equal(a.blocked, false, 'two real refusals are not three');
+        assert.deepEqual([...a.suspects].sort(), real.map(m => m.name).sort());
+        assert.ok(!a.geometryRefused.includes(leaver.name));
+    });
+
+    // The detector's coverage is NOT uniform, and the repo described it as "the one AI-independent
+    // witness" without ever saying so. A flat Mon–Fri line gives a one-day shift only two moved
+    // cells, never the three the threshold needs — so the signal is genuinely absent rather than
+    // missed. Pinned in BOTH directions: the blindness is real and must not be mistaken for a bug,
+    // and the rotating links must keep working, because the tempting "fix" is to lower the
+    // threshold and that would trade this silence for false refusals everywhere else.
+    describe('coverage is uneven — a flat pattern carries no drift signal', () => {
+        const flatWeek = (v) => ['RD', v, v, v, v, v, 'RD'];
+
+        test('a flat Mon–Fri week cannot show a one-day shift, in either direction', () => {
+            // A member on fixed pattern 2 — the real 09:00–16:00 Monday-to-Friday line.
+            const flat = { name: 'X', rosterType: 'fixed', currentWeek: 2, role: 'CEA' };
+            const baseAt = (/** @type {string} */ d, off = 0) => {
+                const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+                return getBaseShift(flat, x);
+            };
+            assert.deepEqual(DATES.map(d => baseAt(d)), flatWeek('09:00-16:00'),
+                'premise: fixed pattern 2 is the flat Monday-to-Friday line');
+            for (const off of [-1, 1]) {
+                // The member's OWN week read a day out — what a dropped or inserted cell produces.
+                const parsed = Object.fromEntries(DATES.map(d => [d, baseAt(d, off)]));
+                const differing = DATES.filter(d => parsed[d] !== baseAt(d)).length;
+                assert.ok(differing <= 2, `premise: a one-day shift on a flat line moves ${differing} cells`);
+                // THE REAL DETECTOR (test audit, 7 Nov 2026). This test used to stop at the arithmetic
+                // and never called it, so a detector that flagged EVERY row passed it.
+                assert.equal(detectShiftedRow(flat, parsed, DATES), null,
+                    `a flat line shifted ${off > 0 ? 'left' : 'right'} carries no signal, and must not be called drifted`);
+            }
+        });
+
+        test('a real rotating line DOES carry the signal — the threshold is not simply too high', () => {
+            const member = MEMBER;   // a real main-roster member from the fixture
+            const shiftedRead = Object.fromEntries(DATES.map(d => {
+                const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1);
+                return [d, getBaseShift(member, x)];
+            }));
+            assert.ok(detectShiftedRow(member, shiftedRead, DATES),
+                'a shifted week on a varied rotating line must still be caught');
+        });
+    });
+
+    // ── did the witness run at all? ──
+    // Organised by what each wrong answer COSTS, and the two directions are not symmetrical.
+    // SAYING NOTHING when the check did not run is the shipped defect: it is silent, it is
+    // indistinguishable from the check having agreed with every cell, and the admin then saves a
+    // week believing two independent readings matched. SAYING SOMETHING when it ran on everybody
+    // is noise on the surface whose whole discipline is that no warning means no exception.
+    describe('geometryCopy — the fail-open check must be visible when it fails open', () => {
+        test('a complete run says nothing at all', () => {
+            assert.equal(geometryCopy({ status: 'complete', checked: 15, total: 15 }), '');
+        });
+
+        test('an unavailable run says the check did not happen', () => {
+            const c = geometryCopy({ status: 'unavailable', checked: 0, total: 15 });
+            assert.match(c, /couldn\u2019t run/);
+            assert.match(c, /one method only/, 'it must say WHY that matters, not merely that it happened');
+            assert.match(c, /before saving/);
+        });
+
+        test('a MISSING geometry field reads as did-not-run, never as passed', () => {
+            // The direction that matters. An older server, a response shape change, a field lost
+            // in a refactor — every one of those must land on "we could not check", because the
+            // alternative is a review that silently claims a witness it never had.
+            for (const g of [undefined, null, {}, { status: undefined }, { status: 'weird' }]) {
+                assert.match(geometryCopy(/** @type {any} */ (g)), /couldn\u2019t run/,
+                    `${JSON.stringify(g)} must not read as a clean run`);
+            }
+        });
+
+        test('a partial run states the arithmetic, which no row can state for itself', () => {
+            const c = geometryCopy({ status: 'partial', checked: 12, total: 15 });
+            assert.match(c, /12 of 15/);
+            assert.match(c, /not checked/);
+            // Never a bare "3 rows" — the admin has to know which side the number is on.
+            assert.doesNotMatch(c, /couldn\u2019t run/);
+        });
+
+        test('a partial run with unusable counts still warns rather than printing NaN', () => {
+            const c = geometryCopy(/** @type {any} */ ({ status: 'partial' }));
+            assert.doesNotMatch(c, /NaN|undefined/);
+            assert.match(c, /0 of 0/);
+        });
+    });
+
+    // ── the words ──
+    test('the per-row warning for a geometry refusal never claims "shifted a day later"', () => {
+        const g = driftCopy('geometry', 'G. Miller');
+        assert.match(g, /empty cell/);
+        assert.doesNotMatch(g, /shifted a day (earlier|later)/);
+        assert.match(driftCopy('left', 'G. Miller'), /shifted a day earlier/);
+        assert.match(driftCopy('right', 'G. Miller'), /shifted a day later/);
+        for (const d of /** @type {const} */ (['left', 'right', 'geometry'])) {
+            assert.match(driftCopy(d, 'X'), /nothing here is selected/, d);
+            assert.match(driftCopy(d, 'X'), /read the roster again/, d);
+        }
+    });
+
+    test('the stop banner with NO direction speaks of the PDF\'s own table, not of a shift', () => {
+        const none = stopCopy({ direction: null, suspects: ['A', 'B', 'C'], geometryRefused: ['A', 'B', 'C'] }, 'A, B, C');
+        assert.match(none, /empty cell/);
+        assert.doesNotMatch(none, /shifted a day/);
+        assert.match(none, /has not been saved/);
+        // Two rows that line up shifted and one only the grid refused: the count says which is which
+        // (whole-app fix, Nov 2026 — it said "3 staff line up … shifted").
+        const left = stopCopy({ direction: 'left', suspects: ['A', 'B', 'C'], geometryRefused: ['C'] }, 'A, B, C');
+        assert.match(left, /2 staff line up with their usual pattern shifted a day earlier, and on 1 more row a day was read where the PDF's own table has an empty cell/);
+        assert.match(left, /blank Sunday/);
+        assert.doesNotMatch(stopCopy({ direction: 'right', suspects: ['A'], geometryRefused: [] }, 'A'), /blank Sunday|of the shifted rows/);
+    });
+
+    test('the stop banner counts as shifted only the rows that ARE shifted — from the real verdict', () => {
+        const rowFor = (/** @type {any} */ m, /** @type {number} */ off) => Object.fromEntries(DATES.map(d => {
+            const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return [d, getBaseShift(m, x)]; }));
+        const drifter = others.find(/** @param {any} m */ m => detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+        const [g1, g2] = others.filter(m => m !== drifter);
+        const verdict = assessRosterAlignment({ dates: DATES, geometryRefused: [g1.name, g2.name],
+            parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }, ...[g1, g2].map(m => ({ memberName: m.name, shifts: honest(m) }))] });
+        assert.deepEqual([verdict.blocked, verdict.direction], [true, 'left'], 'fixture: one drift and two refusals block the read');
+        const copy = stopCopy(verdict, 'who');
+        assert.match(copy, /1 person’s week lines up with their usual pattern shifted a day earlier, and on 2 more rows/);
+        assert.doesNotMatch(copy, /3 staff line up/);
+        // …and a row that is BOTH shifted and refused is counted once, as shifted, with the grid's word added.
+        const both = assessRosterAlignment({ dates: DATES, geometryRefused: [drifter.name, g1.name, g2.name],
+            parsed: [{ memberName: drifter.name, shifts: rowFor(drifter, 1) }, ...[g1, g2].map(m => ({ memberName: m.name, shifts: honest(m) }))] });
+        assert.match(stopCopy(both, 'who'), /1 person’s week lines up .* and on 2 more rows .* On 1 of the shifted rows the PDF's own table also shows an empty cell/);
+    });
+});
+
+describe('a shifted read fails closed', () => {
+    const MEMBER = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const baseAt = (/** @type {string} */ d, off = 0) => {
+        const dt = new Date(d + 'T12:00:00'); dt.setDate(dt.getDate() + off);
+        return getBaseShift(MEMBER, dt);
+    };
+    /** A week for `name` whose values are their own base pattern read `off` days out. */
+    const rowFor = (/** @type {any} */ m, off) => {
+        const dts = DATES.map(d => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off); return x; });
+        return Object.fromEntries(DATES.map((d, i) => [d, getBaseShift(m, dts[i])]));
+    };
+    /**
+     * The members whose drift is DETECTABLE at all — 13 of the 20 main-roster lines.
+     *
+     * Not cherry-picking: `detectShiftedRow` is deliberately conservative, because a member whose
+     * pattern looks similar on adjacent days scores the same at every offset and must stay silent
+     * rather than false-alarm. Building the scenario out of members the detector can actually see
+     * is what makes these tests about the GATE. A fixture that quietly included a silent member
+     * would fail for a reason that has nothing to do with what is under test — which is exactly
+     * what the first version of this block did.
+     */
+    const DRIFTABLE = teamMembers.filter(/** @param {any} m */ m =>
+        !m.hidden && !m.managerOnly && m.rosterType === 'main'
+        && detectShiftedRow(m, rowFor(m, 1), DATES) === 'left');
+
+    /** The same, for the OTHER direction. Detectability is per-direction and per-member — a member
+     *  the detector sees drifting left is not automatically one it sees drifting right, which the
+     *  first version of the opposite-directions case below assumed and got wrong. */
+    const RIGHT_DRIFTABLE = teamMembers.filter(/** @param {any} m */ m =>
+        !m.hidden && !m.managerOnly && m.rosterType === 'main'
+        && detectShiftedRow(m, rowFor(m, -1), DATES) === 'right');
+
+    const states = (/** @type {any[]} */ parsed) => computeCellStates({ parsed, dates: DATES }, []);
+    /** Only the cells that would actually be written. */
+    const writable = (/** @type {Map<string,any>} */ st) =>
+        [...st.values()].filter(c => (c.state === 'DIFF' || c.state === 'REMOVE_IMPORT') && c.chosen !== false);
+
+    // ── ACCEPTING A SHIFTED READ ───────────────────────────────────────────────────────────────
+
+    test('a drifted member\'s rows are NOT selected for saving', () => {
+        const st = states([{ memberName: 'G. Miller', shifts: rowFor(MEMBER, 1) }]);
+        assert.equal(writable(st).length, 0, 'a week that looks a day out must not default to save');
+        assert.ok([...st.values()].every(c => c.drift === 'left'), 'and every cell must say why');
+    });
+
+    test('three members drifting the same way REFUSE the whole read', () => {
+        const three = DRIFTABLE.slice(0, ALIGNMENT_BLOCK_THRESHOLD);
+        assert.equal(three.length, ALIGNMENT_BLOCK_THRESHOLD, 'fixture must match the threshold it is testing');
+        const st = states(three.map(m => ({ memberName: m.name, shifts: rowFor(m, 1) })));
+        assert.ok([...st.values()].every(c => c.rosterBlocked), 'every cell of a refused read is marked');
+        assert.equal(writable(st).length, 0);
+    });
+
+    test('a refused read blocks EVERY member, including one that reads perfectly', () => {
+        // THE CASE THE REVIEWER INSISTED ON, and the one a per-row gate would miss. A systematic
+        // misread makes the whole read untrustworthy — and a shifted row is at its most invisible
+        // exactly where it happens to agree with the base pattern.
+        const three = DRIFTABLE.slice(0, ALIGNMENT_BLOCK_THRESHOLD);
+        const clean = DRIFTABLE[ALIGNMENT_BLOCK_THRESHOLD];
+        const parsed = three.map(m => ({ memberName: m.name, shifts: rowFor(m, 1) }));
+        parsed.push({ memberName: clean.name, shifts: rowFor(clean, 0) });
+        const st = states(parsed);
+        const cleanCells = [...st.entries()].filter(([k]) => k.startsWith(`${clean.name}|`)).map(([, v]) => v);
+        assert.ok(cleanCells.length > 0);
+        assert.ok(cleanCells.every(c => c.rosterBlocked), 'the clean member is blocked too');
+        assert.equal(writable(st).length, 0);
+    });
+
+    test('drift in OPPOSITE directions is noise, not a systematic misread', () => {
+        // A parser that drops a leading blank moves every row the SAME way. Counting bare drift
+        // totals rather than per-direction would refuse reads over unrelated coincidences.
+        const rightward = RIGHT_DRIFTABLE.find(/** @param {any} m */ m =>
+            m.name !== DRIFTABLE[0].name && m.name !== DRIFTABLE[1].name);
+        assert.ok(rightward, 'fixture needs a member the detector can see drifting RIGHT');
+        const parsed = [
+            { memberName: DRIFTABLE[0].name, shifts: rowFor(DRIFTABLE[0], 1) },
+            { memberName: DRIFTABLE[1].name, shifts: rowFor(DRIFTABLE[1], 1) },
+            { memberName: rightward.name,    shifts: rowFor(rightward, -1) },
+        ];
+        const a = assessRosterAlignment({ parsed, dates: DATES });
+        assert.equal(a.blocked, false, 'two left and one right is not three in one direction');
+        assert.equal(a.byMember.size, 3, 'but all three are still individually suspect');
+    });
+
+    // ── REFUSING A GOOD READ ───────────────────────────────────────────────────────────────────
+
+    test('an ordinary aligned week is untouched — ticked, unblocked, no drift', () => {
+        const parsed = DRIFTABLE.slice(0, 4).map(m => ({ memberName: m.name, shifts: rowFor(m, 0) }));
+        const st = states(parsed);
+        assert.ok([...st.values()].every(c => !c.rosterBlocked && c.drift === null));
+        assert.equal(assessRosterAlignment({ parsed, dates: DATES }).blocked, false);
+    });
+
+    test('ONE drifted member does not refuse the read for everybody else', () => {
+        // One person can genuinely have an unusual week. The gate is per-row until the batch
+        // signature appears; conflating the two would make a single odd rota unimportable.
+        const other = DRIFTABLE[1];
+        const st = states([
+            { memberName: DRIFTABLE[0].name, shifts: rowFor(DRIFTABLE[0], 1) },
+            { memberName: other.name,        shifts: rowFor(other, 0) },
+        ]);
+        assert.ok([...st.values()].every(c => !c.rosterBlocked), 'one suspect row is not a refused read');
+        const otherCells = [...st.entries()].filter(([k]) => k.startsWith(`${other.name}|`)).map(([, v]) => v);
+        assert.ok(otherCells.every(c => c.drift === null));
+    });
+
+    test('an unknown name contributes nothing to the verdict', () => {
+        const a = assessRosterAlignment({ parsed: [{ memberName: 'Nobody At All', shifts: {} }], dates: DATES });
+        assert.equal(a.byMember.size, 0);
+        assert.equal(a.blocked, false);
+    });
+
+    test('the Save button takes its writes from the collector, and nothing else adds one (wiring)', () => {
+        // There are TWO guards on a refused read and they protect different futures: the tick
+        // handler ignores a click (`s.rosterBlocked` → return), and the save collector skips the
+        // cell. The e2e proves the first — clicking every tick leaves them all off. It CANNOT reach
+        // the second, because with the first in place `chosen` can never become true, so deleting
+        // the collector's guard leaves the whole browser suite green. That was found by mutation.
+        //
+        // Until 7 Nov 2026 the collector was inline in this click handler, so the gate could only be
+        // pinned by reading its source. It is now `collectRosterWrites`, and THE HARD GATE test in
+        // its own describe holds it by what it returns. What only the source can show is that the
+        // Save button still USES it: a handler that built its own list again would bypass the gate
+        // with every browser test green. Comments stripped first, so a commented-out line on screen
+        // cannot satisfy it (test audit, 7 Nov 2026 — the earlier form could be fooled that way).
+        // Read beside this file, not from the working directory (test audit, 7 Nov 2026).
+        const src = readFileSync(new URL('./admin-roster-upload.js', REPO_ROOT_URL), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+        const handler = src.slice(src.indexOf("applyBtn.addEventListener('click'"));
+        assert.match(handler.slice(0, 400), /const toWrite = collectRosterWrites\(_cellStates\);/,
+            'the Save button must take what it writes from collectRosterWrites');
+        assert.doesNotMatch(src, /toWrite\.push\(/, 'no write the collector did not decide may be added to its list');
+    });
+
+    test('an empty or malformed result is not a refusal', () => {
+        // The breaker must fail OPEN on absence of evidence — refusing a read nobody has parsed
+        // yet would be a gate that fires on nothing.
+        for (const bad of [{}, { parsed: [], dates: [] }, { parsed: null, dates: null }]) {
+            const a = assessRosterAlignment(/** @type {any} */ (bad));
+            assert.equal(a.blocked, false);
+            assert.equal(a.suspects.length, 0);
+        }
+    });
+});
+
+// ── THE REST-DAY GUARD ASKS, ON EVERY ROUTE (whole-app review, Oct 2026) ─────────────────────────
+//
+// Two routes still answered the swap question in silence after v24.42 made the parsed path ask it.
+// Each is pinned here at the rule the save path reads; e2e/operations.spec.js drives both to the write.
+
+/** A member, and a Mon–Sat date on which their base roster is a rest day. */
+function restDayFixture() {
+    for (const iso of ['2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20', '2026-06-15']) {
+        const m = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly
+            && getBaseShift(x, new Date(iso + 'T12:00:00')) === 'RD');
+        if (m) return { name: m.name, date: iso };
+    }
+    throw new Error('no member has a weekday base rest day in the fixture week');
+}
+
+describe('leave or an absence ENTERED on a base rest day asks the swap question (D1)', () => {
+    for (const type of ['annual_leave', 'sick']) {
+        test(`${type}: unanswered writes nothing and says so; "Swapped" writes the entry, marked as a swap`, async () => {
+            const { commitEntry, entryControlHtml, entryClick, entryLeftAsRest } = await import('../roster-entry-control.js');
+            const { date } = restDayFixture();
+            const s = { draft: { type, from: '', to: '', open: true }, baseShift: 'RD', date };
+            commitEntry(s);
+            assert.equal(s.entered, null, 'unanswered: nothing is entered — it used to be a silent Rest Day');
+            assert.notEqual(s.chosen, 'entered');
+            const html = entryControlHtml(`X|${date}`, s, date);
+            assert.match(html, /Was it a swapped working day\?/, 'the question is on screen');
+            assert.match(html, /data-entry-swap="yes"/);
+            assert.match(html, /data-entry-swap="no"/);
+            assert.match(html, /nothing is saved for this day until you do/, 'the hint never says "will be saved" over it');
+            assert.doesNotMatch(html, /this day will be saved<\/p>/);
+
+            entryClick({ dataset: { entrySwap: 'yes' } }, s);
+            const want = type === 'annual_leave' ? 'AL' : 'SICK';
+            assert.equal(s.chosen, 'entered');
+            assert.deepEqual({ value: s.entered.value, display: s.entered.display, swapped: s.entered.swapped },
+                { value: want, display: want, swapped: true }, 'the admin\'s own value, marked as covering a swapped-in day');
+            assert.match(entryControlHtml(`X|${date}`, s, date), /saved, as a swapped working day/);
+
+            entryClick({ dataset: { entrySwap: 'no' } }, s);
+            assert.equal(s.entered, null, '"Rest day — leave it" writes nothing');
+            assert.equal(entryLeftAsRest(s), true, 'and the row can say it was answered, not unread');
+        });
+    }
+
+    test('on a working base day the same pill writes as before, with no question', async () => {
+        const { commitEntry, entryControlHtml } = await import('../roster-entry-control.js');
+        const s = { draft: { type: 'annual_leave', from: '', to: '', open: true }, baseShift: '06:00-14:00', date: MON };
+        commitEntry(s);
+        assert.equal(s.chosen, 'entered');
+        assert.equal(s.entered.value, 'AL');
+        assert.ok(!s.entered.swapped);
+        assert.doesNotMatch(entryControlHtml(`X|${MON}`, s, MON), /swapped working day/);
+    });
+
+    test('a new type takes the swap answer back — a second question is not answered by the first', async () => {
+        const { commitEntry, entryClick } = await import('../roster-entry-control.js');
+        const { date } = restDayFixture();
+        const s = { draft: { type: 'annual_leave', from: '', to: '', open: true, swap: 'yes' }, baseShift: 'RD', date };
+        commitEntry(s);
+        assert.equal(s.chosen, 'entered');
+        entryClick({ dataset: { entryType: 'sick' } }, s);
+        assert.equal(s.draft.swap, undefined);
+        assert.equal(s.entered, null, 'Absent on the same rest day asks again');
+    });
+
+    test('the save path carries the answer: a "swapped" entry is written with swapped=true', async () => {
+        // Through the real entry control and the real save collector. This was a regex over the click
+        // handler until the collector became a pure function (7 Nov 2026); e2e/operations.spec.js
+        // still drives the browser path to the payload.
+        const { commitEntry, entryClick } = await import('../roster-entry-control.js');
+        const { name, date } = restDayFixture();
+        const s = { state: 'UNREADABLE', parsedShift: 'UNKNOWN|x', baseShift: 'RD', date, manualId: null, otherRecordIds: [],
+                    chosen: null, entered: null, draft: { type: 'annual_leave', from: '', to: '', open: true } };
+        commitEntry(s);
+        assert.deepEqual(collectRosterWrites(new Map([[`${name}|${date}`, s]])), [], 'unanswered: nothing is written');
+        entryClick({ dataset: { entrySwap: 'yes' } }, s);
+        const ws = collectRosterWrites(new Map([[`${name}|${date}`, s]]));
+        assert.deepEqual(ws.map(w => [w.memberName, w.date, w.value, w.swapped]), [[name, date, 'AL', true]]);
+        entryClick({ dataset: { entrySwap: 'no' } }, s);
+        assert.deepEqual(collectRosterWrites(new Map([[`${name}|${date}`, s]])), [], '"Rest day — leave it" writes nothing');
+    });
+});
+
+describe('the roster\'s leave or absence over a HAND-RECORDED swap is shown as what it is (D2)', () => {
+    const { name, date } = restDayFixture();
+    const key = `${name}|${date}`;
+    const run = (/** @type {string} */ parsed, /** @type {any[]} */ existing) =>
+        computeCellStates({ parsed: [{ memberName: name, shifts: { [date]: parsed } }], dates: [date] }, existing).get(key);
+    const manual = (/** @type {string} */ type, /** @type {string} */ value, extra = {}) =>
+        [{ id: 'm1', memberName: name, date, type, value, ...extra }];
+
+    test('PDF AL over a hand-recorded shift is a conflict whose new side is the leave, not "Rest"', () => {
+        const c = run('AL', manual('shift', '23:00-06:00'));
+        assert.equal(c.state, 'CONFLICT');
+        assert.equal(c.displayShift, 'AL', 'it read RD, so the leave was nowhere on screen');
+        assert.equal(c.guarded, null);
+        // "Use new roster" writes this value; replacing the manual shift, nextReplacedType carries
+        // 'shift' forward, so the leave costs a day and displays on the rest-day base.
+        assert.equal(shiftValueToOverrideType(c.displayShift, date), 'annual_leave');
+    });
+
+    test('PDF Absent over a hand-recorded shift likewise', () => {
+        const c = run('SICK', manual('shift', '06:00-14:00'));
+        assert.equal(c.state, 'CONFLICT');
+        assert.equal(c.displayShift, 'SICK');
+    });
+
+    test('a hand-recorded absence on a swapped-in day against PDF leave is a conflict, not hidden', () => {
+        const c = run('AL', manual('sick', 'SICK', { replacedType: 'shift' }));
+        assert.equal(c.state, 'CONFLICT', 'it was COVERED, so the PDF\'s leave never reached the admin');
+        assert.equal(c.displayShift, 'AL');
+    });
+
+    test('the same leave already recorded on the swapped-in day is covered', () => {
+        assert.equal(run('AL', manual('annual_leave', 'AL', { replacedType: 'shift' })).state, 'COVERED');
+    });
+
+    // roster-core-5 (owner, 10 Nov 2026): leave over an Other day or a Spare turn on a base rest day is
+    // free, like plain RDW — so neither is a swap, and the review treats the roster's leave there as it
+    // treats leave over an RDW: the guarded rest day, not leave that costs a day.
+    for (const [type, value] of [['other', 'TRG'], ['other', 'MEET 10:00-14:00'], ['spare_shift', 'SPARE']]) {
+        for (const parsed of ['AL', 'SICK']) {
+            test(`PDF ${parsed} over a hand-recorded ${type} (${value}) on a rest day is handled like leave over an RDW`, () => {
+                const c = run(parsed, manual(type, value));
+                const rdw = run(parsed, manual('rdw', '06:00-14:00'));
+                assert.equal(c.guarded, 'rest-day', 'it was taken for a swapped-in working day');
+                assert.equal(c.displayShift, rdw.displayShift);
+                assert.equal(c.state, rdw.state);
+            });
+        }
+    }
+
+    test('unchanged: a previous IMPORT under the day still asks, and a bare manual absence is still covered', () => {
+        const imp = run('AL', [{ id: 'i1', memberName: name, date, type: 'shift', value: '23:00-06:00', source: 'roster_import' }]);
+        assert.equal(imp.state, 'GUARDED');
+        assert.equal(run('AL', manual('sick', 'SICK')).state, 'COVERED',
+            'no evidence of a swap: both say not working on a rest day, and neither costs anything');
+    });
+});
+
+// ── THE BROWSER WAITS LONGER THAN THE SERVER MAY RUN (test audit, 7 Nov 2026) ───────────────────────
+// The import gave up at 90s while parseRosterPDF may run for 120s, so a slow parse about to succeed
+// was reported as a failure — fetch-timeout.js's own table had said 130s for this endpoint all along.
+// Both figures are read from the code that uses them, so moving either one re-runs this comparison.
+describe('the roster parse is never abandoned before the server could finish', () => {
+    const fnSrc = readFileSync(new URL('./functions/index.js', REPO_ROOT_URL), 'utf8');
+    const block = fnSrc.slice(fnSrc.indexOf('exports.parseRosterPDF = onRequest('));
+    const serverSeconds = Number(/timeoutSeconds:\s*(\d+)/.exec(block.slice(0, 600))?.[1]);
+
+    test('the abort window is above the function\'s own timeout, with headroom', () => {
+        assert.ok(serverSeconds > 0, 'parseRosterPDF\'s timeoutSeconds was not found where expected');
+        assert.ok(PARSE_ABORT_MS >= serverSeconds * 1000 + 5000,
+            `the browser gives up at ${PARSE_ABORT_MS / 1000}s; the server may run for ${serverSeconds}s`);
+    });
+
+    test('and it is the window the parse request actually uses', () => {
+        const src = readFileSync(new URL('./admin-roster-upload.js', REPO_ROOT_URL), 'utf8');
+        assert.match(src, /setTimeout\(\(\) => abortCtrl\.abort\(\), PARSE_ABORT_MS\)/,
+            'the parse request no longer aborts on PARSE_ABORT_MS — the figure above is checking a constant nobody reads');
+    });
+});
+
+// ── A READ CUT OFF IN TRANSIT IS NOT A SLOW READ (7 Nov 2026, iPhone audit) ─────────────────────
+// Safari reports EVERY network failure as "Load failed", and the import answered all of them with
+// "the PDF may be large" — so a phone that lost its signal two seconds in, or was left for another
+// app while the read ran, sent the admin to shrink a PDF that was fine. `parseFailureLine` is
+// private to the module (no export, so its documented surface is unchanged), so it is sliced out of
+// the source by name and that exact code is run, the technique splash-watchdog.test.mjs uses. A
+// rename makes the slice throw rather than pass. The click handler that feeds it is driven in
+// e2e/operations.spec.js.
+describe('a roster read that fails in transit says what happened', () => {
+    const src = readFileSync(new URL('./admin-roster-upload.js', REPO_ROOT_URL), 'utf8');
+    const start = src.indexOf('function parseFailureLine(');
+    let end = src.indexOf(') {', start) + 2;   // the BODY's brace — the parameters destructure one of their own
+    for (let depth = 0; end < src.length; end++) {
+        if (src[end] === '{') depth++;
+        else if (src[end] === '}' && --depth === 0) { end++; break; }
+    }
+    const expectedMs = Number(/const PARSE_EXPECTED_MS = ([\d_]+);/.exec(src)?.[1].replace(/_/g, ''));
+    /** @type {(err: any, seen: { online: boolean, elapsedMs: number, wasHidden: boolean }) => string|null} */
+    const line = new Function('PARSE_EXPECTED_MS', `${src.slice(start, end)}\nreturn parseFailureLine;`)(expectedMs);
+
+    const DROPPED = /^The connection dropped before it finished\. .*keep this screen open/;
+    const SLOW = /^Parsing took longer than expected/;
+    const UNREACHABLE = /^Couldn't reach the server/;
+    const seen = (/** @type {Partial<{ online: boolean, elapsedMs: number, wasHidden: boolean }>} */ o = {}) =>
+        ({ online: true, elapsedMs: 60_000, wasHidden: false, ...o });
+    const loadFailed = () => new TypeError('Load failed');
+    const aborted = () => Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
+
+    test('guard the guard — the helper and the read time were found in the module', () => {
+        assert.ok(start > 0, 'admin-roster-upload.js no longer defines parseFailureLine — update this test');
+        assert.ok(expectedMs >= 5_000 && expectedMs < PARSE_ABORT_MS, `PARSE_EXPECTED_MS read as ${expectedMs}`);
+    });
+
+    test('Safari\'s "Load failed" within seconds of starting is a dropped connection, not a slow PDF', () => {
+        assert.match(line(loadFailed(), seen({ elapsedMs: 2_000 })), DROPPED);
+        assert.match(line(loadFailed(), seen({ elapsedMs: expectedMs - 1 })), DROPPED,
+            'a read that failed before it could have finished cannot have taken longer than expected');
+    });
+
+    test('…so is any failure while the device is OFFLINE, however long it ran', () => {
+        assert.match(line(loadFailed(), seen({ online: false })), DROPPED);
+        assert.match(line(new TypeError('Failed to fetch'), seen({ online: false })), DROPPED);
+        assert.match(line(aborted(), seen({ online: false })), DROPPED, 'our own timeout, with the connection gone');
+    });
+
+    test('…and a network failure after the screen was LEFT during the read', () => {
+        // iOS suspends a page put down for another app, and its request with it.
+        assert.match(line(loadFailed(), seen({ wasHidden: true })), DROPPED);
+        assert.match(line(new TypeError('Failed to fetch'), seen({ wasHidden: true })), DROPPED);
+    });
+
+    test('a "Load failed" long into the read keeps the slow-PDF answer — iOS\'s own cut-off', () => {
+        assert.match(line(loadFailed(), seen({ elapsedMs: expectedMs })), SLOW);
+        assert.match(line(loadFailed(), seen({ elapsedMs: 61_000 })), SLOW);
+    });
+
+    test('this page\'s own timeout while online is a slow read, whether or not the screen was left', () => {
+        assert.match(line(aborted(), seen({ elapsedMs: PARSE_ABORT_MS })), SLOW);
+        assert.match(line(aborted(), seen({ elapsedMs: PARSE_ABORT_MS, wasHidden: true })), SLOW);
+    });
+
+    test('Chrome\'s "Failed to fetch" online still says the server could not be reached', () => {
+        assert.match(line(new TypeError('Failed to fetch'), seen({ elapsedMs: 1_000 })), UNREACHABLE);
+        assert.match(line(new TypeError('NetworkError when attempting to fetch resource.'), seen()), UNREACHABLE);
+    });
+
+    test('anything that is not a failure in transit is left to the caller, which carries the server\'s words', () => {
+        assert.equal(line(Object.assign(new Error('The AI found no recognisable staff members'), { adminLine: 'x' }), seen()), null);
+        assert.equal(line(new SyntaxError('Unexpected token'), seen({ elapsedMs: 1 })), null);
+        assert.equal(line(new TypeError('Cannot read properties of undefined'), seen({ elapsedMs: 1 })), null);
+    });
+
+    // Whole-app fix, Nov 2026: a refusal whose body carries no words — the platform's, not the
+    // handler's — was "Unexpected error — please try again or contact support". The words now come
+    // from the status; the browser half (a 504 and a body that stalls) is in e2e/operations.spec.js.
+    test('a refusal with no words of its own is worded from its status, and never sends anyone to "support"', async () => {
+        const { statusFailureLine } = await import('../admin-roster-upload.js');
+        assert.match(statusFailureLine(504), /^The server stopped the read because it took too long\. Try again/);
+        assert.match(statusFailureLine(408), /took too long/);
+        assert.match(statusFailureLine(413), /too large/);
+        assert.match(statusFailureLine(500), /^The server could not finish the read \(error 500\)/);
+        assert.match(statusFailureLine(503), /\(error 503\)/);
+        assert.match(statusFailureLine(429), /^The server refused the read \(error 429\)/);
+        for (const s of [400, 413, 429, 500, 502, 503, 504]) assert.doesNotMatch(statusFailureLine(s), /support/i, String(s));
+    });
+});
+
+
+// ── CHRISTMAS DAY AND BOXING DAY ARE THE APP'S CHRISTMAS LEAVE'S TO DECIDE (owner, 10 Nov 2026) ───
+// The base roster makes both a rest day for everybody, and from 2026 the app SHOWS a member due at work
+// there on leave without recording anything (christmas-leave.js). The import knew none of it: a pattern
+// shift printed on either day was a pre-ticked DIFF — saved, it put the member at work on Christmas Day
+// and added the Boxing Day lieu day — and leave printed there asked "A rest day on the base roster. Was
+// it a swapped working day?" of a day the member was rostered to work. The owner's rule: never pre-tick
+// either day, say why on the row, ask no swap question there — and a manager can still tick one on
+// purpose (a Boxing Day really worked). Driven with the week ending Saturday 26 December 2026.
+describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
+    const { getPatternShift } = await import('../roster-data.js');
+    const rs = await import('../roster-review-states.js');
+    const ec = await import('../roster-entry-control.js');
+    const DATES = ['2026-12-20', '2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24', '2026-12-25', '2026-12-26'];
+    const XMAS = '2026-12-25', BOXING = '2026-12-26';
+    const at = (/** @type {string} */ d) => new Date(d + 'T12:00:00');
+    const TIME = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+    // FOUND, not named: due at work on both days by pattern, and on an ordinary day of the week too.
+    const m = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+        && [XMAS, BOXING, '2026-12-22'].every(d => TIME.test(getPatternShift(x, at(d)))));
+    const shiftsWith = (/** @type {Record<string,string>} */ over) => ({
+        ...Object.fromEntries(DATES.map(d => [d, getBaseShift(m, at(d))])), ...over });
+    const states = (/** @type {Record<string,string>} */ over, /** @type {any[]} */ existing = []) =>
+        computeCellStates({ parsed: [{ memberName: m.name, shifts: shiftsWith(over) }], dates: DATES }, existing);
+    const other = (/** @type {string} */ d) => (getBaseShift(m, at(d)) === '10:00-18:00' ? '11:00-19:00' : '10:00-18:00');
+
+    test('the fixture: a member the base roster rests on both days, and the pattern has at work', () => {
+        assert.ok(m, 'a member due at work on 25 and 26 December 2026 by pattern');
+        assert.equal(getBaseShift(m, at(XMAS)), 'RD');
+        assert.equal(getBaseShift(m, at(BOXING)), 'RD');
+    });
+
+    test('their pattern shift printed on 25 and 26 December is shown UNTICKED, and the rest of the week is not', () => {
+        const st = states({ [XMAS]: getPatternShift(m, at(XMAS)), [BOXING]: getPatternShift(m, at(BOXING)), '2026-12-22': other('2026-12-22') });
+        for (const d of [XMAS, BOXING]) {
+            const s = st.get(`${m.name}|${d}`);
+            assert.deepEqual([s.state, s.chosen, s.christmas], ['DIFF', false, true], `${d} is offered, never pre-ticked`);
+        }
+        const ordinary = st.get(`${m.name}|2026-12-22`);
+        assert.deepEqual([ordinary.state, ordinary.chosen, ordinary.christmas], ['DIFF', true, false], 'an ordinary day keeps its tick');
+        assert.deepEqual(collectRosterWrites(st).map(w => w.date), ['2026-12-22'], 'Save writes neither Christmas day');
+        const o = rs.reviewOutcome(st);
+        assert.deepEqual([o.updates, o.christmasHeld, o.heldBack], [1, 2, 0]);
+        assert.ok(rs.outcomeHtml(o).includes('<strong>2</strong> days not selected — the app’s Christmas leave decides 25 and 26 December'),
+            'the summary says what is withheld, and why');
+    });
+
+    test('a manager can still tick one on purpose — a Boxing Day really worked is written', () => {
+        const st = states({ [BOXING]: '13:30-21:00' });
+        st.get(`${m.name}|${BOXING}`).chosen = true;
+        assert.deepEqual(collectRosterWrites(st).map(w => [w.date, w.value]), [[BOXING, '13:30-21:00']]);
+    });
+
+    test('leave printed there asks no swap question and records nothing, whatever the answer says', () => {
+        const st = states({ [XMAS]: 'AL', [BOXING]: 'SICK' });
+        for (const d of [XMAS, BOXING]) {
+            const s = st.get(`${m.name}|${d}`);
+            assert.equal(s.state, 'GUARDED', `${d}: shown, not hidden as a MATCH`);
+            assert.equal(rs.swapQuestionApplies(s), false, `${d}: nothing is asked`);
+            const html = rs.guardedRowHtml({ key: `${m.name}|${d}`, s, dayName: 'Fri', dateStr: d, badgeHtml: 'AL', esc: (/** @type {string} */ v) => v });
+            assert.ok(!/swapped working day|data-swap/.test(html), `${d}: no question worded as if they were rostered there`);
+            assert.ok(html.includes('Christmas leave decides 25 and 26 December'), `${d}: says who decides`);
+            assert.ok(!html.includes('A rest day on the base roster'), `${d}: not called a rest day on their roster`);
+            s.chosen = 'swapped';
+            assert.deepEqual(rs.guardedWrites(s, m.name, d), [], `${d}: even a forced answer writes nothing`);
+        }
+    });
+
+    test('a SPARE printed there is shown and records nothing — the days cannot be spare days (owner, 19 Nov 2026)', () => {
+        const worked = { id: 'w1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00' };
+        for (const existing of [[], [worked]]) {
+            const st = states({ [XMAS]: 'SPARE', [BOXING]: 'SPARE' }, existing);
+            for (const d of [XMAS, BOXING]) {
+                const s = st.get(`${m.name}|${d}`);
+                assert.deepEqual([s.state, s.guarded], ['GUARDED', 'christmas-spare'], `${d} with ${existing.length} saved`);
+                const html = rs.guardedRowHtml({ key: `${m.name}|${d}`, s, dayName: 'Fri', dateStr: d, badgeHtml: 'Spare', esc: (/** @type {string} */ v) => v });
+                assert.ok(html.includes('can’t be spare days'), `${d}: says why`);
+            }
+            assert.deepEqual(collectRosterWrites(st), [], 'nothing written, and a worked Boxing Day is not turned into rest');
+        }
+    });
+
+    test('a Training or Meeting day printed there is shown and records nothing (review, 21 Nov 2026)', () => {
+        const worked = { id: 'w1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00' };
+        for (const existing of [[], [worked]]) {
+            const st = states({ [XMAS]: 'TRG', [BOXING]: 'MEET 10:00-14:00' }, existing);
+            for (const d of [XMAS, BOXING]) {
+                const s = st.get(`${m.name}|${d}`);
+                assert.deepEqual([s.state, s.guarded], ['GUARDED', 'christmas-other'], `${d} with ${existing.length} saved`);
+                const html = rs.guardedRowHtml({ key: `${m.name}|${d}`, s, dayName: 'Fri', dateStr: d, badgeHtml: 'Train', esc: (/** @type {string} */ v) => v });
+                assert.ok(html.includes('can’t be on Christmas Day or Boxing Day'), `${d}: says why`);
+            }
+            assert.deepEqual(collectRosterWrites(st), [], 'nothing written, and a worked Boxing Day is left as it is');
+        }
+        // The entry control does not offer Other there, and does on Christmas Eve.
+        const pillOff = (/** @type {string} */ d) => /data-entry-type="other"[^>]*disabled/.test(ec.entryControlHtml(`${m.name}|${d}`, { baseShift: 'RD' }, d));
+        assert.deepEqual([pillOff(XMAS), pillOff(BOXING), pillOff('2026-12-24')], [true, true, false]);
+    });
+
+    test('a SPARE printed over an EARLIER IMPORT reads as the rest day the owner chose — an unticked "Clear old" (review, 20 Nov 2026)', () => {
+        // A draft's shift, or a pre-v26.38 Spare, left by an earlier upload. Kept GUARDED, it stayed with
+        // no control to remove it — stricter than the same sheet printing RD there.
+        for (const old of [{ type: 'shift', value: '13:30-21:00' }, { type: 'spare_shift', value: 'SPARE' }]) {
+            const imp = { id: 'i1', memberName: m.name, date: BOXING, ...old, source: 'roster_import' };
+            const st = states({ [BOXING]: 'SPARE' }, [imp]);
+            const s = st.get(`${m.name}|${BOXING}`);
+            assert.deepEqual([s.state, s.chosen], ['REMOVE_IMPORT', false], `${old.type}: offered, never ticked`);
+            assert.deepEqual(collectRosterWrites(st), [], `${old.type}: nothing happens unless the admin ticks it`);
+            s.chosen = true;
+            const w = collectRosterWrites(st);
+            assert.deepEqual(w.map(x => [x.replaceId, x.value, x.deleteOnly]), [['i1', null, true]],
+                `${old.type}: ticked, the old import goes and nothing is written in its place`);
+        }
+        // Before 2026 the Christmas-leave rule does not untick a row, so this one must, on its own: 2025.
+        const d25 = '2025-12-26';
+        const days25 = ['2025-12-21', '2025-12-22', '2025-12-23', '2025-12-24', '2025-12-25', d25, '2025-12-27'];
+        const imp25 = { id: 'i3', memberName: m.name, date: d25, type: 'shift', value: '13:30-21:00', source: 'roster_import' };
+        const s25 = computeCellStates({ parsed: [{ memberName: m.name, shifts: { [d25]: 'SPARE' } }], dates: days25 }, [imp25])
+            .get(`${m.name}|${d25}`);
+        assert.deepEqual([s25.state, s25.christmas, s25.chosen], ['REMOVE_IMPORT', false, false], '2025: offered, never ticked');
+        const rest = { id: 'i2', memberName: m.name, date: XMAS, type: 'correction', value: 'RD', source: 'roster_import' };
+        assert.equal(states({ [XMAS]: 'SPARE' }, [rest]).get(`${m.name}|${XMAS}`).state, 'COVERED', 'the same rest day again is left alone');
+    });
+
+    test('an unreadable cell there never offers the spare reading — picked, it was a "Rest" over the leave', () => {
+        const parsed = { parsed: [{ memberName: m.name, shifts: shiftsWith({ [BOXING]: 'UNKNOWN|SPARE or 13:30-21:00?' }) }],
+            dates: DATES, choices: { [`${m.name}|${BOXING}`]: ['SPARE', '13:30-21:00'] } };
+        const s = computeCellStates(parsed, []).get(`${m.name}|${BOXING}`);
+        assert.equal(s.state, 'UNREADABLE');
+        assert.ok(!(s.options ?? []).some((/** @type {any} */ o) => o.value === 'RD'), 'no rest-day reading is offered');
+    });
+
+    test('an unreadable cell there never offers a Training or Meeting reading either — it too was a "Rest" over the leave', () => {
+        // The twin of the spare test above, for `christmas-other` (review, 22 Nov 2026).
+        for (const [d, cand] of [[BOXING, ['TRG', '13:30-21:00']], [XMAS, ['MEET 10:00-14:00', '13:30-21:00']]]) {
+            const parsed = { parsed: [{ memberName: m.name, shifts: shiftsWith({ [d]: `UNKNOWN|${cand.join(' or ')}?` }) }],
+                dates: DATES, choices: { [`${m.name}|${d}`]: cand } };
+            const s = computeCellStates(parsed, []).get(`${m.name}|${d}`);
+            assert.equal(s.state, 'UNREADABLE', d);
+            assert.ok(!(s.options ?? []).some((/** @type {any} */ o) => o.value === 'RD' || o.guarded === 'christmas-other'),
+                `${d}: no rest-day reading stands in for the Other day`);
+        }
+    });
+
+    test('an Other day printed over an EARLIER IMPORT before 2026 is offered unticked, never pre-ticked (review, 22 Nov 2026)', () => {
+        // Before 2026 the Christmas-leave rule does not untick a row, so the Other guard must, on its own.
+        const d25 = '2025-12-26';
+        const days25 = ['2025-12-21', '2025-12-22', '2025-12-23', '2025-12-24', '2025-12-25', d25, '2025-12-27'];
+        const imp25 = { id: 'i4', memberName: m.name, date: d25, type: 'shift', value: '13:30-21:00', source: 'roster_import' };
+        for (const v of ['TRG', 'MEET 10:00-14:00']) {
+            const s25 = computeCellStates({ parsed: [{ memberName: m.name, shifts: { [d25]: v } }], dates: days25 }, [imp25])
+                .get(`${m.name}|${d25}`);
+            assert.deepEqual([s25.state, s25.guarded, s25.christmas, s25.chosen], ['REMOVE_IMPORT', 'christmas-other', false, false],
+                `${v}, 2025: offered, never ticked`);
+        }
+    });
+
+    test('a Training or Meeting day on a SUNDAY Boxing Day (2027) is held as a Christmas day, times or not (review, 22 Nov 2026)', () => {
+        // The Sunday guard turned a timed Other day into Sunday work before the Christmas guard looked,
+        // so a Training day printed with times on Sunday 26 December 2027 was a ticked DIFF of worked hours.
+        const SUN = '2027-12-26';
+        const days27 = ['2027-12-26', '2027-12-27', '2027-12-28', '2027-12-29', '2027-12-30', '2027-12-31', '2028-01-01'];
+        const worked = { id: 'w2', memberName: m.name, date: SUN, type: 'rdw', value: '13:30-21:00' };
+        for (const v of ['TRG', 'TRG 09:00-17:00', 'MEET RDW 10:00-14:00']) {
+            for (const existing of [[], [worked]]) {
+                const shifts = { ...Object.fromEntries(days27.map(d => [d, getBaseShift(m, at(d))])), [SUN]: v };
+                const st = computeCellStates({ parsed: [{ memberName: m.name, shifts }], dates: days27 }, existing);
+                const s = st.get(`${m.name}|${SUN}`);
+                assert.deepEqual([s.state, s.guarded], ['GUARDED', 'christmas-other'], `${v} with ${existing.length} saved`);
+                const html = rs.guardedRowHtml({ key: `${m.name}|${SUN}`, s, dayName: 'Sun', dateStr: SUN, badgeHtml: 'Train', esc: (/** @type {string} */ x) => x });
+                assert.ok(html.includes('can’t be on Christmas Day or Boxing Day'), `${v}: the row names Christmas as the reason`);
+                assert.ok(!html.includes('can’t be on a Sunday'), `${v}: not the Sunday reason`);
+                assert.deepEqual(collectRosterWrites(st), [], `${v} with ${existing.length} saved: nothing written`);
+            }
+        }
+    });
+
+    test('an earlier import there is an unticked "Clear old", never a question — and the same leave again is left alone', () => {
+        const imp = { id: 'i1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00', source: 'roster_import' };
+        const s = states({ [BOXING]: 'AL' }, [imp]).get(`${m.name}|${BOXING}`);
+        assert.deepEqual([s.state, s.chosen], ['REMOVE_IMPORT', false]);
+        const same = { ...imp, type: 'annual_leave', value: 'AL' };
+        assert.equal(states({ [BOXING]: 'AL' }, [same]).get(`${m.name}|${BOXING}`).state, 'COVERED');
+    });
+
+    test('the entry control asks nothing there either, and says why nothing is recorded', () => {
+        const key = `${m.name}|${XMAS}`;
+        const s = states({ [XMAS]: 'UNKNOWN|SEE CEM' }).get(key);
+        assert.deepEqual([s.state, s.christmas], ['UNREADABLE', true]);
+        for (const type of ['annual_leave', 'sick']) {
+            s.draft = { type, from: '', to: '', open: true, swap: 'yes' };
+            ec.commitEntry(s);
+            assert.deepEqual([s.entered, s.chosen], [null, null], `${type}: nothing is entered, even with a stale "yes"`);
+            const html = ec.entryControlHtml(key, s, XMAS);
+            assert.ok(!html.includes('Was it a swapped working day?'), `${type}: no swap question`);
+            assert.ok(html.includes('Christmas leave decides 25 and 26 December'), `${type}: the hint says why`);
+            assert.equal(ec.entryLeftAsRest(s), true, `${type}: an answer, not a cell nobody could read`);
+        }
+        s.draft = { type: 'shift', from: '13:30', to: '21:00', open: true };
+        ec.commitEntry(s);
+        assert.equal(s.chosen, 'entered', 'a shift entered on purpose is written');
+    });
+
+    test('other days and other years keep the question — the rule is the two days, from 2026', () => {
+        const rest = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly && !x.startDate
+            && getBaseShift(x, at('2026-12-24')) === 'RD');
+        assert.ok(rest, 'a member resting on Christmas Eve');
+        const eve = computeCellStates({ parsed: [{ memberName: rest.name, shifts: { '2026-12-24': 'AL' } }], dates: ['2026-12-24'] }, [])
+            .get(`${rest.name}|2026-12-24`);
+        assert.equal(rs.swapQuestionApplies(eve), true, 'Christmas Eve is an ordinary rest day');
+        const old = computeCellStates({ parsed: [{ memberName: m.name, shifts: { '2025-12-25': 'AL' } }], dates: ['2025-12-25'] }, [])
+            .get(`${m.name}|2025-12-25`);
+        assert.equal(old.christmas, false, '2025 predates the Christmas leave (CHRISTMAS_LEAVE_FROM_YEAR)');
+    });
+});
+
+// ── THE WEEK THE FORM OFFERS FIRST (owner, 10 Nov 2026) ─────────────────────────────────────────
+// The roster is normally uploaded on a Thursday or a Friday for the FOLLOWING week. The field used to
+// default to the week in progress on every day but Saturday — a week early on exactly those days —
+// and nothing downstream can catch a whole week out: the drift detector compares ±1 day. The owner's
+// rule: from Thursday the following week; Sunday to Wednesday the week in progress; and a Saturday
+// keeps the next Saturday, as it always did — so Thursday to the next Wednesday all offer one week.
+describe('defaultWeekEnding — the week ending the upload form offers first', async () => {
+    const { defaultWeekEnding } = await import('../roster-alignment.js');
+    const { execFileSync } = await import('node:child_process');
+    /** A London wall-clock moment in winter, when London is UTC. */
+    const gmt = (/** @type {string} */ day, time = '10:00') => new Date(`${day}T${time}:00Z`);
+
+    test('every weekday of one week: Thursday to the following Wednesday offer the same Saturday', () => {
+        const expected = {
+            '2026-11-11': '2026-11-14',   // Wed — the week in progress
+            '2026-11-12': '2026-11-21',   // Thu — the release day: the FOLLOWING week
+            '2026-11-13': '2026-11-21',   // Fri
+            '2026-11-14': '2026-11-21',   // Sat — keeps the next Saturday, as it always did
+            '2026-11-15': '2026-11-21',   // Sun — the week in progress
+            '2026-11-16': '2026-11-21',   // Mon
+            '2026-11-17': '2026-11-21',   // Tue
+            '2026-11-18': '2026-11-21',   // Wed
+            '2026-11-19': '2026-11-28',   // Thu — the next release
+        };
+        for (const [day, saturday] of Object.entries(expected)) {
+            assert.equal(defaultWeekEnding(gmt(day)), saturday, day);
+            assert.equal(defaultWeekEnding(gmt(day, '00:05')), saturday, `${day}, just after midnight`);
+            assert.equal(defaultWeekEnding(gmt(day, '23:55')), saturday, `${day}, just before midnight`);
+        }
+    });
+
+    test('across a month end and the 2026→2027 year end', () => {
+        const expected = {
+            '2026-11-26': '2026-12-05', '2026-11-30': '2026-12-05', '2026-12-01': '2026-12-05', '2026-12-03': '2026-12-12',
+            '2026-12-23': '2026-12-26', '2026-12-24': '2027-01-02', '2026-12-25': '2027-01-02', '2026-12-26': '2027-01-02',
+            '2026-12-27': '2027-01-02', '2026-12-30': '2027-01-02', '2026-12-31': '2027-01-09', '2027-01-01': '2027-01-09',
+        };
+        for (const [day, saturday] of Object.entries(expected)) assert.equal(defaultWeekEnding(gmt(day)), saturday, day);
+    });
+
+    test('the day is LONDON\'s: in summer, half past midnight on a Thursday is already the release day', () => {
+        assert.equal(defaultWeekEnding(new Date('2026-06-17T22:30:00Z')), '2026-06-20', 'Wed 23:30 BST — the week in progress');
+        assert.equal(defaultWeekEnding(new Date('2026-06-17T23:30:00Z')), '2026-06-27', 'Thu 00:30 BST — the following week');
+        assert.equal(defaultWeekEnding(new Date('2026-10-25T12:00:00Z')), '2026-10-31', 'the Sunday the clocks go back');
+        assert.equal(defaultWeekEnding(new Date('2026-03-26T12:00:00Z')), '2026-04-04', 'a Thursday before the clocks go forward');
+    });
+
+    test('…whatever zone the device is set to', () => {
+        const src = new URL('./roster-alignment.js', REPO_ROOT_URL).href;
+        const script = `const { defaultWeekEnding } = await import(${JSON.stringify(src)});
+            console.log([defaultWeekEnding(new Date('2026-11-18T20:00:00Z')), defaultWeekEnding(new Date('2026-11-19T03:00:00Z'))].join(','));`;
+        for (const TZ of ['Pacific/Auckland', 'America/Los_Angeles', 'UTC']) {
+            const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, TZ }, encoding: 'utf8' }).trim();
+            // Wed 20:00 London is Thursday in Auckland; Thu 03:00 London is still Wednesday in Los Angeles.
+            assert.equal(out, '2026-11-21,2026-11-28', TZ);
+        }
+    });
+});
+
+// ── A REFUSED SAVE KEEPS THE ADMIN'S ANSWERS (v25.94, the 13 Nov review) ─────────────────────────
+//
+// v25.92's refusal re-read the week and recomputed every row, so every answer went back to its
+// default — an unticked row came back ticked and the second Save wrote it, while the message named
+// only the changed day. These hold `carryReviewAnswers` to real `computeCellStates` rows, and the
+// first one follows the answer through to what the second Save WRITES.
+describe('carryReviewAnswers — a refused Save keeps every answer but the changed day\'s', () => {
+    const member = teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main');
+    const mname = member.name;
+    const [MO, TU, WE] = ['2026-06-15', '2026-06-16', '2026-06-17'];
+    /** A value that differs from the member's base shift on `date`. @param {string} date */
+    const differ = (date) => { const b = getBaseShift(member, new Date(date + 'T12:00:00')); return (b === 'RD' || b === 'OFF') ? '07:00-15:00' : 'RD'; };
+    const parse = { parsed: [{ memberName: mname, shifts: { [MO]: differ(MO), [TU]: differ(TU), [WE]: differ(WE) } }], dates: [MO, TU, WE] };
+    const key = (/** @type {string} */ d) => `${mname}|${d}`;
+    const m1 = { id: 'm1', memberName: mname, date: TU, value: '23:00-06:00', type: 'shift', source: 'manual' };
+    /** The review as the admin leaves it: Monday unticked, "Use new roster" on Tuesday, Wednesday as drawn. */
+    const answeredReview = () => {
+        const states = computeCellStates(parse, [m1]);
+        states.get(key(MO)).chosen = false;
+        states.get(key(TU)).chosen = 'pdf';
+        return states;
+    };
+
+    test('an answer on a row nobody changed is kept, the changed row starts from its default — and the second Save writes accordingly', () => {
+        const before = computeCellStates(parse, [m1]);
+        assert.deepEqual([before.get(key(MO)).state, before.get(key(TU)).state, before.get(key(WE)).state], ['DIFF', 'CONFLICT', 'DIFF'], 'premise');
+        // A manager rewrote Tuesday after the read: that is the day the refusal named.
+        const fresh = computeCellStates(parse, [{ ...m1, value: '14:00-22:00' }]);
+        const { states, changed } = carryReviewAnswers(answeredReview(), before, fresh);
+        assert.deepEqual(changed, [key(TU)]);
+        assert.equal(states.get(key(MO)).chosen, false, 'Monday stays unticked');
+        assert.equal(states.get(key(WE)).chosen, true, 'Wednesday stays ticked');
+        assert.equal(states.get(key(TU)).chosen, null, 'Tuesday is asked again, over what it holds now');
+        assert.equal(states.get(key(TU)).manualValue, '14:00-22:00');
+        // What the second Save writes: Wednesday only — not the Monday the admin left out, and not Tuesday.
+        assert.deepEqual(collectRosterWrites(states).map(w => w.date), [WE]);
+    });
+
+    test('a row whose OTHER records moved is asked again too — the whole row is compared, not its id', () => {
+        const before = computeCellStates(parse, [m1]);
+        // An older import copy of Monday appeared: the record the review showed is the same, the day is not.
+        const fresh = computeCellStates(parse, [m1, { id: 'imp', memberName: mname, date: MO, value: differ(MO), type: 'shift', source: 'roster_import' }]);
+        const { states, changed } = carryReviewAnswers(answeredReview(), before, fresh);
+        assert.ok(changed.includes(key(MO)), `Monday is asked again (changed: ${changed.join(', ')})`);
+        assert.notEqual(states.get(key(MO)).chosen, false, 'its untick went with it — the admin answers what the day holds now');
+        assert.equal(states.get(key(TU)).chosen, 'pdf', 'Tuesday, untouched, keeps "Use new roster"');
+    });
+
+    test('an entered shift and its editor survive, and nothing is invented for a row only one read has', () => {
+        const unreadable = { parsed: [{ memberName: mname, shifts: { [MO]: 'UNKNOWN|XZ9 GARBLED', [TU]: differ(TU) } }], dates: [MO, TU] };
+        const answered = computeCellStates(unreadable, []);
+        assert.equal(answered.get(key(MO)).state, 'UNREADABLE', 'premise');
+        Object.assign(answered.get(key(MO)), { chosen: 'entered', entered: '06:00-14:00', draft: { type: 'shift', from: '06:00', to: '14:00', open: false } });
+        const fresh = computeCellStates(unreadable, []);
+        fresh.set(`${mname}|2026-06-20`, { state: 'DIFF', chosen: true });   // a row the first read never had
+        const { states, changed } = carryReviewAnswers(answered, computeCellStates(unreadable, []), fresh);
+        assert.deepEqual(changed, []);
+        assert.deepEqual([states.get(key(MO)).chosen, states.get(key(MO)).entered, states.get(key(MO)).draft.from], ['entered', '06:00-14:00', '06:00']);
+        assert.equal(states.get(`${mname}|2026-06-20`).chosen, true, 'left as drawn');
+    });
+
+    test('Skip all is handed back: a skipped person\'s ticks are restored, so pressing it again skips them as before', () => {
+        const answered = answeredReview();
+        // The admin had unticked Monday, then pressed Skip all — which remembers each tick and clears it.
+        for (const d of [MO, WE]) { const s = answered.get(key(d)); s.preSkip = s.chosen !== false; s.chosen = false; }
+        const before = computeCellStates(parse, [m1]);
+        const kept = carryReviewAnswers(answered, before, computeCellStates(parse, [m1]), [mname]).states;
+        assert.deepEqual([kept.get(key(MO)).chosen, kept.get(key(WE)).chosen], [false, true], 'the ticks Restore would put back');
+        // Not skipped, the cleared ticks are carried as they are.
+        const asIs = carryReviewAnswers(answered, before, computeCellStates(parse, [m1])).states;
+        assert.deepEqual([asIs.get(key(MO)).chosen, asIs.get(key(WE)).chosen], [false, false]);
+    });
+});

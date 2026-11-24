@@ -282,7 +282,7 @@ access, or names a person:
 
 **Run the tests** — what each lane needs, proves and gets wrong: README.md → "The test lanes".
 ```
-npm test                    # test:hygiene + test:parse + test:unit (every root test file but the Functions and rules suites) — needs NOTHING installed
+npm test                    # test:hygiene + test:parse + test:unit (every file in test/ but the Functions and rules suites) — needs NOTHING installed
 npm run check               # lint + typecheck + npm test (full pre-push gate)
 npm run lint                # ESLint on all JS files
 npm run typecheck           # tsc --noEmit on all root JS modules
