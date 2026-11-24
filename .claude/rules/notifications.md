@@ -9,7 +9,6 @@ paths:
   - "functions/overtime*.js"
   - "functions/auth-endpoints.js"
   - "functions/reset-request.js"
-  - "functions/pin-lockout.js"
   - "functions/admin-recipients.js"
   - "functions/index.js"
   - "service-worker.js"
@@ -34,7 +33,7 @@ and needs its own explicit rules, which every Web Push notification staff receiv
 are enforced by a single builder, `buildPushPayload` in `functions/push-notices.js` (re-exported by
 `functions/roster-parse-helpers.js`), which the senders import (`functions/documents.js`,
 `functions/pay-reminder.js`, `functions/overtime.js`, `functions/auth-endpoints.js`,
-`functions/reset-request.js`, `functions/error-log-notify.js`, `functions/pin-lockout.js`); the
+`functions/reset-request.js`, `functions/error-log-notify.js`); the
 service worker renders the result.
 
 ## The core principle (what ties a notification to the app)
@@ -55,7 +54,6 @@ change, and reliably on Android and iOS (emoji render inline). The icon is alway
 | Password was reset | 🔑 | Settings "Password" card | `password-reset` | event |
 | Timetable change (one-off) | 🚆 | Trains nav pill / page badge | `timetable` | event |
 | New Error Log entries (admin only) | 🐛 | Operations "Needs attention" strip → Error Log | `error-log` | event |
-| Staff PIN blocked station-wide (admin only; the retired PIN's — deleted in the server release) | 🔢 | Operations "Needs attention" strip → Staff Login Accounts | `pin-lockout` | event |
 
 A new notifying feature: the checklist at the end.
 
@@ -89,7 +87,6 @@ time-sensitive event. "Latest" does not apply; lead with the event and its urgen
 | Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Sign in again, then choose your own.` |
 | Timetable change | `🚆 New timetable from Sunday` | `Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.` |
 | Error Log | `🐛 Error Log — 3 new` | `1 error and 2 slow saves. Tap to open the Error Log.` |
-| Staff PIN blocked | `🔢 Staff PIN — blocked station-wide` | `200 wrong entries in 15 minutes. It reopens by itself at 14:20.` |
 
 ## Who receives it — broadcast or targeted
 
@@ -106,12 +103,10 @@ to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov
   message, because a push renders on a lock screen. Checked every fifteen minutes, sent at most once
   an hour (`sendErrorLogNotification`, documents.js); the rules are `functions/error-log-notice.js`,
   the sender and its record `functions/error-log-notify.js`.
-- **The staff-PIN lockout notice goes to the admin's devices only** (owner, Nov 2026; the PIN was
-  retired on 23 Nov 2026 and this notice, its sender and its tag are deleted in the server release), by the Error
-  Log's rule — `enabledAdminUids` (`functions/admin-recipients.js`, shared with the reset request and
-  the Error Log notice). Sent when a wrong PIN trips the station-wide block, at most once a day. A
-  count and a time only — never the PIN, never an address. The rules are
-  `functions/calendar-viewer-auth.js`'s, the sender `functions/pin-lockout.js`.
+  Both admin-only notices — this one and the reset request — resolve the admin's accounts by one rule,
+  `enabledAdminUids` (`functions/admin-recipients.js`). (A third, the retired staff PIN's
+  station-wide lockout notice, 🔢 `pin-lockout`, went with the PIN's endpoint in its server
+  release, Nov 2026.)
 - **`password-reset` goes to the member whose password was reset, on their own devices** — otherwise
   the one person it concerns is the only one not told, and finds out by failing to sign in (their
   credential became the surname default and their other devices were signed out). **Except for a
@@ -232,8 +227,8 @@ hope — but write to fit; a clipped deadline is worse than none.
 A push service holds a notice for a phone that is off, and web-push's default is FOUR WEEKS — long
 enough for "hours cut-off today" to arrive days late. Every send passes a TTL from `PUSH_TTL_BY_TAG`
 (`functions/push.js`, via `pushSendOptions`): documents 36–72 h, pay and overtime 12 h, the reset
-queue 6 h, password-reset 7 days, the timetable reminder 30 h (not 24 h), the Error Log and PIN
-lockout notices 24 h, anything unlisted one day — each value's reason is its comment there. **A new
+queue 6 h, password-reset 7 days, the timetable reminder 30 h (not 24 h), the Error Log notice 24 h,
+anything unlisted one day — each value's reason is its comment there. **A new
 notification feature adds its tag there**, or it gets a day; `push-transport.test.mjs` fails on a
 feature with no TTL.
 
@@ -278,9 +273,6 @@ round.
   (`functions/documents.js`, whose comment says why it is a date-guarded daily run and passes the
   "all 50 staff" test); the next change moves the one constant, `TIMETABLE_CHANGE`.
 - Overtime → `overtime.html` (both the asked notice and the deadline reminder).
-- Staff PIN blocked → `operations.html#login-accounts` (opens Staff Login Accounts, where the lockout's
-  line is, through `DEEP_LINK_CARDS` — the card the strip's item opens too). Deleted in the server
-  release with the retired PIN's endpoint.
 - Error Log → `operations.html#error-log` (opens and scrolls to the Error Log card, through the same
   `DEEP_LINK_CARDS`). A tap while Operations is ALREADY open re-reads the log — `operations-errors.js`,
   from the hash the event carried, because the page strips the hash in the same event.

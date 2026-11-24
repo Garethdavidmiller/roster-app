@@ -25,8 +25,8 @@ that reads uniformly confident invites someone to start at the wrong end:
 **Status: the read closure is IN FORCE since 26 Aug 2026; INDIVIDUAL authentication is still
 undecided.** `overrides` reads require a verified member (`isMember()`: password sign-in, derived
 email, server-set `member` claim) or `admin`; the shared staff-PIN `calendarViewer` capability that also
-opened them was **retired on 23 Nov 2026** (owner — DECISIONS.md → "The staff PIN retired"; the rules
-still accept the claim until the server release). See E2
+opened them was **retired on 23 Nov 2026** (owner — DECISIONS.md → "The staff PIN retired"; its server
+release took the claim out of the rules). See E2
 below, which records how the staff PIN superseded the phase as designed and what it does NOT close — in
 particular that a device which unlocked earlier still holds what it cached, because rules are
 evaluated server-side and a local cache hit never reaches one. **E0 shipped v19.00** (search engines
@@ -66,8 +66,8 @@ Two consequences follow, and both are easy to get wrong:
 ## 2. What is actually exposed today
 
 Open reads (`allow read;` in `firestore.rules`): **none.** Every read rule asks for a claim — a bound
-member, `admin`, the retired staff-PIN `calendarViewer` capability (until the server release), or
-something narrower — never for a bare session. The bearer-URL exposure in §5 is unchanged by that.
+member, `admin`, or something narrower — never for a bare session (the retired staff-PIN
+`calendarViewer` capability was one too, until its server release). The bearer-URL exposure in §5 is unchanged by that.
 
 - **`overrides`** carries `memberName` + `date` + `type` + `value` — AL, absence and shift changes for
   every member — and was readable by anyone with the URL until 26 Aug 2026. (The app never stores a
@@ -116,7 +116,7 @@ that and is not intended to.
 an anonymous session against the project — which is why no rule may accept one, and why a rule that
 asked only for *a* session (Level 1, E2 as designed) would have been no barrier. The PIN raised the bar
 to "must hold the station code"; since it was retired (23 Nov 2026) the Calendar asks for a named
-sign-in, and once the server release removes the viewer claim the read rule means "must be staff".
+sign-in, and since its server release removed the viewer claim the read rule means "must be staff".
 
 ---
 
@@ -253,8 +253,8 @@ Why this is not merely E2 with extra steps:
   the PIN is neither.
 
 **The PIN was retired on 23 Nov 2026** (owner). The read now needs a named sign-in; the shared credential
-this section describes stays in the rules only until the server release deletes it (DECISIONS.md →
-"The staff PIN retired").
+this section describes was deleted from the rules, and its endpoint from the server, in the PIN's
+server release (DECISIONS.md → "The staff PIN retired").
 
 ### ⟨ DECISION GATE ⟩ — is Level 1 enough? — **ANSWERED v20.12, for the READ only**
 Binary, and it decides whether this is a day or several weeks.

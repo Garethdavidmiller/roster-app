@@ -45,7 +45,7 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, published by `deploy-mirror.yml` after each passing Hosting run) |
 | Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml`, and `deploy-mirror.yml` (the Pages mirror, since its source was switched to GitHub Actions on 10 November 2026) |
 | Source of truth for a rollback | this git repo — `main` is what deploys |
-| **IAM prerequisite for `getDocumentUrl`** (first needed by the retired staff PIN's `unlockCalendarViewer` — keep it after that goes) | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials the Admin SDK cannot sign locally (`getSignedUrl`, and the PIN exchange's `createCustomToken`); it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt (the command is §5b below). |
+| **IAM prerequisite for `getDocumentUrl`** (first needed by the retired staff PIN's `unlockCalendarViewer`, deleted in its server release — KEEP it) | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials the Admin SDK cannot sign locally (`getSignedUrl`, and the PIN exchange's `createCustomToken`); it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt (the command is §5b below). |
 
 You need the **Firebase CLI** (`npm i -g firebase-tools`, then `firebase login`) and the
 **gcloud CLI** (`gcloud auth login`, `gcloud config set project myb-roster`) on your own
@@ -154,7 +154,7 @@ gcloud iam service-accounts add-iam-policy-binding \
 
 That is the runtime service account named in the table at the top — the default Compute account, not
 an `@myb-roster.iam` one — and it is the SAME grant as the IAM prerequisite there, which the retired
-staff PIN's exchange needed first. Keep it when that exchange is deleted.
+staff PIN's exchange needed first. Keep it: that exchange is deleted, `getDocumentUrl` is not.
 
 **Without it the endpoint answers 503 on every call.** That is deliberate and safe: the client
 treats 503 as "use the stored URL", so a missing grant degrades to the OLD behaviour rather than to
@@ -330,7 +330,7 @@ Each document is a Firestore doc (`circulars/{date}` etc.) **plus** a Storage fi
    ```
 3. Check function logs to confirm recovery: **Console → Functions → Logs**, or
    `firebase functions:log`.
-4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, and the retired `CALENDAR_VIEWER_PIN` until it is destroyed) live in
+4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, and the retired `CALENDAR_VIEWER_PIN` — bound by no function, until the owner destroys it) live in
    Firebase Secret Manager — a deploy doesn't wipe them; a broken function is almost always code, not secrets.
 
 ### F. A Firestore / Storage Rules deploy locked people out (or opened access)
@@ -538,17 +538,19 @@ gets one, and **the manual steps after the server release** (delete the `calenda
 destroy `CALENDAR_VIEWER_PIN`, purge `viewerAttempts`, consider switching off Anonymous sign-in, KEEP
 the token-creator grant): OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
 
-**Between the client and the server release the PIN still works at the endpoint.** No screen asks
-for it, but `unlockCalendarViewer` still mints a token the rules accept, so somebody holding the PIN
-can still read the roster by calling it directly. Do not leave long between the two releases. If the
-PIN is known to have got out in that window, ship the server release rather than rotating it.
+**The server release has shipped: the PIN opens nothing, at the endpoint or anywhere else.**
+`unlockCalendarViewer` is deleted (the Functions deploy runs `--force`, which deletes a function the
+source no longer exports), and the rules and `getDocumentUrl` grant the `calendarViewer` claim nothing.
+Between the client and the server release the PIN still worked at the endpoint, which is why the
+second release did not wait long.
 
-**The server release tightens a read rule**, so it ships AFTER the client release has soaked, never
-in the same push — the order below. An app that has not updated yet still shows the PIN box; after
-the server release its unlock fails with the card's generic "couldn't unlock" line, and the next load
-of the new app offers the sign-in card. If members lose the roster after the rules deploy, that is
-playbook F: revert the rules push. Nobody needs the PIN back to recover — a member's own password
-never went near it.
+**The server release tightened a read rule**, so it shipped AFTER the client release had soaked,
+never in the same push — the order below. An app that has not updated yet still shows the PIN box;
+since the server release its unlock fails with the card's generic "couldn't unlock" line, and the next
+load of the new app offers the sign-in card. If members lose the roster after the rules deploy, that
+is playbook F: revert the rules push. Nobody needs the PIN back to recover — a member's own password
+never went near it. **Do not restore the function to "fix" anything**: re-adding the export would
+bring a shared code back for whoever finds the URL, and the rules would still grant its token nothing.
 
 ### Tightening a read rule — the order is the whole safety story
 

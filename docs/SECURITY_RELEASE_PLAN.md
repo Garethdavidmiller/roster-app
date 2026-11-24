@@ -32,7 +32,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **C6 — one-time recovery/activation codes** | Proposed, not started | Owner decision | — | Design in `PASSWORD_DESIGN.md` → credential lifecycle L1. Supersedes C4′ as the recovery path: today's reset makes the SURNAME valid again, so the migration's own repair mechanism undoes the migration. C4′ stays live until C6 does — break-glass may not have a gap |
 | **F — step-up for sensitive admin actions** | Proposed, not started | — | — | Design in `PASSWORD_DESIGN.md` → credential lifecycle L3. **No prerequisites** — the only item in that programme with none. Server-enforced from the token's `auth_time`, never a client timer |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
-| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session (the staff PIN was retired on 23 Nov 2026 — DECISIONS.md → "The staff PIN retired"), and the server refuses anything without a verified member (`isMember()`), `admin`, or — until the server release — `calendarViewer`. RECOVERY_RUNBOOK → "The staff PIN (retired)" has the read-tightening order | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
+| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session (the staff PIN was retired on 23 Nov 2026 — DECISIONS.md → "The staff PIN retired"), and the server refuses anything without a verified member (`isMember()`) or `admin` (the retired PIN's `calendarViewer` grants nothing since its server release). RECOVERY_RUNBOOK → "The staff PIN (retired)" has the read-tightening order | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
 | **E6 — document files** | Short-lived signed links live (`getDocumentUrl`: server v24.16–18, client v24.19); the stored permanent link kept as the fallback (owner, 7 Oct 2026) | — | Owner — revisit on DECISIONS.md's trigger (a leaked link, or `getDocumentUrl` failures making the fallback usual) | ARCHITECTURE.md EXC-007 closes: the links already in circulation no longer open |
 | **Deferred residual** | ✅ **Complete (v24.34, owner-approved).** Both switches retired with every branch that ran only when one was false: `calendar-access.js` no longer calls `signInAnonymously`, and `session.js` no longer self-heals an account or falls back to anonymous. Neither was a working rollback any more — the rules refused every session they restored | — | — | — |
 
@@ -236,8 +236,8 @@ Three design points that flow from this and still govern any future rule change:
   track is ever genuinely cancelled, close it THERE too rather than leaving two readings.
 - **D-adjacent hardening — analytics doc size (deferred, App Check is the real fix).** The
   `analytics/activeAccounts` and `analytics/perf_<YYYY-MM>` rules validate that `daily`/`months`/
-  `samples` are *maps* but do **not** bound the map-key **count**. So any signed-in member (or,
-  until the server release, a retired staff-PIN session — `isKnownIdentity` — an anonymous token is refused here) could pad one of those
+  `samples` are *maps* but do **not** bound the map-key **count**. So any signed-in member
+  (`isKnownIdentity` — an anonymous token, or a leftover staff-PIN session, is refused here) could pad one of those
   single documents toward Firestore's 1 MB limit; once near the cap, every legitimate `increment()`
   merge fails and only an admin can shrink it back — a self-inflicted **availability** DoS on analytics
   recording (not a data or money risk; non-sensitive aggregate counts). **Why deferred:** it needs an
@@ -259,9 +259,9 @@ Three design points that flow from this and still govern any future rule change:
 > **Status: the read closure is IN FORCE since 26 Aug 2026; the shared staff PIN was RETIRED on 23 Nov
 > 2026, so every reader of the Calendar signs in by name. E3/E4/E5 as designed are still not built.**
 >
-> `overrides` reads require a verified member (`isMember()`) or `admin` — and, until the server release
-> deletes it, the retired staff PIN's `calendarViewer` capability (DECISIONS.md → "The staff PIN
-> retired"). The bare `allow read;` that once sat ABOVE that rule — and which,
+> `overrides` reads require a verified member (`isMember()`) or `admin`; the retired staff PIN's
+> `calendarViewer` capability was a third, until its server release deleted it (DECISIONS.md → "The
+> staff PIN retired"). The bare `allow read;` that once sat ABOVE that rule — and which,
 > because Firestore ORs every matching allow rule, kept override data public — was deleted in its own
 > push after the client had soaked; RECOVERY_RUNBOOK.md → "The staff PIN (retired)" keeps the order
 > it followed. **The external review's "public absence/AL data" finding is closed.** The `huddles` /
@@ -313,7 +313,8 @@ REST). Staged:
   call, which is no barrier to anyone willing to script it. The staff PIN replaced it: `overrides`
   reads require a verified member (`isMember()`) **or** the `calendarViewer` capability, and anonymous
   is denied outright. That clears the **E5** bar for the read without paying E3's front-door cost. The
-  PIN itself was retired on 23 Nov 2026: a named sign-in is the only way in now. Full
+  PIN itself was retired on 23 Nov 2026, and its server release took the capability out of the
+  rules: a named sign-in is the only way in now. Full
   argument: `AUTH_PLAN.md` → E2. The **three document collections**, the one piece left over from E2,
   were closed under E6 (the reads require access; the files' bearer URLs are E6's remaining half).
 - **E3: require named on the calendar, SOFT posture.** Flip `PAGE_POLICIES.calendar` to require named,
