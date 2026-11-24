@@ -264,6 +264,8 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
    and gold on it measured 1.45:1, under the 3:1 a focus ring needs (whole-app review, Nov 2026). It sits 2px
    off the navy button, so the strip's own blue is what separates the two. */
 .print-unavailable-open:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+/* About 32px tall on a mouse; a thumb gets 44px, after the base rule (whole-app review, 24 Nov 2026). */
+@media (pointer: coarse) { .print-unavailable-open { min-height: 44px; } }
 
 /* ── The source banner (Railcard, Rangers and FIP) ──────────────────────────────────────────────
    The amber strip a page with a provisional claim carries between its header and its chip bar,
