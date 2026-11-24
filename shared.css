@@ -486,8 +486,7 @@
                              the save toast and slow-save notice 7500, the AL confirm bar 7600), which
                              at 300 covered its footer and with it Sign out (v24.52); below every
                              lightbox, dialog and sheet, which the drawer itself opens */
-    --z-toast:    7500;   /* the save toast (admin.css) and the slow-save notice: above the staged bar,
-                             below the AL confirm bar and the drawer */
+    --z-toast:    7500;   /* the save toast (admin.css) and slow-save notice, under the AL confirm bar */
     --z-lightbox: 8000;   /* .lb-overlay base (About, Tips, dialogs, the date picker, one-time notices);
                              a confirm dialog opened over a higher layer lifts above it (overlay.js) */
     --z-notice:   8500;   /* above that, below login: the Huddle viewer, Pay's help sheet and YTD notice */
@@ -3306,8 +3305,8 @@ button.nav-panel-link--notices {
     #loginSubmit:hover, #pwfSave:hover, #calLockSubmit:hover { background: var(--primary-blue-dark); }
 }
 #loginSubmit:active, #pwfSave:active, #calLockSubmit:active { transform: scale(var(--press-scale)); }
-/* Disabled while a sign-in is in flight or the 30-second lock holds: it looks it, as `.btn-save:disabled`
-   does (whole-app review, 24 Nov 2026). After :active, so a press on it does not scale. */
+/* Disabled mid-sign-in or under the 30-second lock, it looks it, as `.btn-save:disabled` does (whole-app
+   review, 24 Nov 2026). After :active, so a press on it does not scale. */
 #loginSubmit:disabled, #pwfSave:disabled, #calLockSubmit:disabled { opacity: .6; cursor: default; transform: none; }
 /* The "— Select grade first —" state:
      · `white` is the FOCUS ceiling in the three-surface model, so a DISABLED control wearing it reads

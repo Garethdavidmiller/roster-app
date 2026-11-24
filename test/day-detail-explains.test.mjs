@@ -41,7 +41,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { shiftBadgeParts, getShiftKind, getRosterForMember, getWeekNumberForDate,
-         teamMembers } from '../roster-data.js';
+         teamMembers, SHIFT_KIND_LABELS } from '../roster-data.js';
 import { parseOtherValue, OTHER_FLAVOURS } from '../override-utils.js';
 
 const RENDERER = readFileSync('./calendar-renderer.js', 'utf8');
@@ -62,12 +62,10 @@ function sliceFn(src, name) {
     return src.slice(start, end + 2).replace(/^export /, '');
 }
 
-// The renderer's own SHIFT_KIND_LABELS, read from its source rather than retyped.
-const KIND_LABELS = (() => {
-    const m = /const SHIFT_KIND_LABELS = (\{[^}]*\});/.exec(RENDERER);
-    assert.ok(m, 'SHIFT_KIND_LABELS not found in calendar-renderer.js');
-    return JSON.parse(m[1].replace(/(\w+):/g, '"$1":').replace(/'/g, '"'));
-})();
+// The renderer's SHIFT_KIND_LABELS — roster-data.js's since Team View shares them (whole-app review,
+// 24 Nov 2026) — imported rather than retyped, and the renderer is held to importing it.
+assert.match(RENDERER, /\bSHIFT_KIND_LABELS\b[^;]*from '\.\/roster-data\.js'/, 'calendar-renderer.js no longer takes SHIFT_KIND_LABELS from roster-data.js');
+const KIND_LABELS = SHIFT_KIND_LABELS;
 
 const dayMarkers = new Function(`${sliceFn(RENDERER, 'dayMarkers')}; return dayMarkers;`)();
 const shiftWords = new Function(

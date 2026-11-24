@@ -246,6 +246,7 @@ const PUBLIC_DATA_EXPORTS = /** @type {const} */ ({
     DAY_NAMES:        'Calendar words.',
     MONTH_ABB:        'Calendar words.',
     MONTH_NAMES:      'Calendar words.',
+    SHIFT_KIND_LABELS: 'Calendar words: the name of each kind of shift.',
     SHIFT_TIME_REGEX: 'A pattern for reading a shift time.',
     TIME_RE:          'A pattern for reading a clock time.',
     SWIPE_THRESHOLD:  'Gesture tuning.',
