@@ -22,7 +22,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
-import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent } from './claim-retry.js';
+import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent, ownWritesSentFor } from './claim-retry.js';
 import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
 
@@ -354,6 +354,15 @@ export async function withClaimRetry(fn) {
 export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRetry(fn)); }
 /** Whether this device's queued writes reach the server within `ms` — a checked write asks first (claim-retry.js → ownWritesSent). @param {number} [ms] */
 export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrites(db), ms);
+/**
+ * The same wait, and when it runs out, the records this save touches asked instead (24 Nov 2026,
+ * claim-retry.js → `ownWritesSentFor`): true when none of `refs` has this account's own write still
+ * queued. A checked save that knows its documents asks this; it rescues a phone whose queue holds
+ * another account's leftover write, which the SDK's whole-queue wait never sees past.
+ * @param {Iterable<any>} refs  every document the save writes or deletes
+ * @param {number} [ms]
+ */
+export const whenOwnWritesSentFor = (refs, ms) => ownWritesSentFor(() => waitForPendingWrites(db), getDocFromCache, refs, ms);
 
 /** How long the staff PIN's unsent writes get to leave before it is signed out (22 Nov 2026). */
 export const VIEWER_WRITES_GRACE_MS = 2000;

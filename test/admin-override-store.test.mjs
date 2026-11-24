@@ -108,7 +108,12 @@ mock.module('../firebase-client.js', {
         // THIS DEVICE'S OWN QUEUE (v25.95): what a checked write waits on before its transaction. It
         // answers `_queueAnswer`; a queue that drained LANDS what it held first, as the signal returning
         // does. Counted, so a test can say the wait came first and came once.
-        whenOwnWritesSent: async () => { _queueAsks++; const sent = await _queueAnswer; if (sent) _drain(); return sent; },
+        // Asked through `whenOwnWritesSentFor` since 24 Nov 2026, with the records the commit touches —
+        // recorded, so a test can say the store named every one (the fallback asks exactly those).
+        whenOwnWritesSentFor: async (/** @type {Iterable<any>} */ refs) => {
+            _queueAsks++; _askedFor.push([...refs].map(r => r.id).sort());
+            const sent = await _queueAnswer; if (sent) _drain(); return sent;
+        },
         // A BATCH (v25.90): what an ordinary save commits OFFLINE — no reads, no check, applied as it
         // stands. Counted, so a test can say which kind of commit carried a save.
         writeBatch: () => {
@@ -129,6 +134,8 @@ let _batchCommits = 0;
 /** What the device's wait answers: true once the queue has drained, false when it did not in time. */
 /** @type {Promise<boolean>} */ let _queueAnswer = Promise.resolve(true);
 let _queueAsks = 0;
+/** @type {string[][]} the ids each wait was asked about, sorted, in the order asked */
+const _askedFor = [];
 function _drain() { for (const [id, data] of _queued) serverWrite(id, data); _queued = []; }
 /** @type {Map<string, any>} */ const _server = new Map();
 let _serverCached = false;
@@ -209,7 +216,7 @@ beforeEach(() => {
     _reads = [];
     _handler = async () => [];
     _session = Promise.resolve(true);
-    _queued = []; _queueAnswer = Promise.resolve(true); _queueAsks = 0;
+    _queued = []; _queueAnswer = Promise.resolve(true); _queueAsks = 0; _askedFor.length = 0;
 });
 
 const row = (/** @type {string} */ id, /** @type {string} */ member, /** @type {string} */ date) =>
@@ -1003,7 +1010,7 @@ describe('7 · an ordinary save is checked too, whenever the server can be asked
 // A save made offline waits in the device's queue and the page shows it as saved; a transaction reads
 // the server, which does not hold it yet. In the second after the signal returned, a delete of such a
 // record met nothing, called it already gone, said "Deleted" — and the queued save then landed and put
-// the record back. Every checked write now waits for the queue first (`whenOwnWritesSent`).
+// the record back. Every checked write now waits for the queue first (`whenOwnWritesSentFor`).
 describe('8 · a checked write waits for the saves this device has not sent yet (v25.95)', () => {
     const ID = 'm_2026-08-24_G.%20Miller', DAY = '2026-08-24';
     const leave = { id: ID, memberName: 'G. Miller', date: DAY, type: 'annual_leave', value: 'AL', note: '',
@@ -1060,6 +1067,23 @@ describe('8 · a checked write waits for the saves this device has not sent yet 
         await assert.rejects(store.commitChecked(save, { shownFor: () => null, removed: [leave], line: 'changed', holdOffline: false }), offline);
         assert.equal(_batchCommits, 0);
         assert.equal(_txRuns, 0);
+    });
+
+    // 24 Nov 2026: when the wait runs out, `whenOwnWritesSentFor` asks the records it is GIVEN, so a
+    // record left off this list could carry this account's queued write past the check. Every id the
+    // commit reads or writes must be on it: the shown record, the day's fixed id, and what it deletes.
+    test('the wait is told every record the commit reads or writes — the fallback asks exactly those', async () => {
+        const OLD = 'legacy-auto-id';                 // the day was drawn from an older copy at another id
+        const store = await seed([{ ...leave, id: OLD }]);
+        serverWrite(OLD, { ...leaveData });
+        const save = (/** @type {any} */ w) => { w.delete({ id: OLD }); w.set({ id: ID }, { ...leaveData, type: 'sick', value: 'SICK', createdAt: null }); };
+        await store.commitChecked(save, { shownFor: () => ({ ...leave, id: OLD }), line: 'changed' });
+        assert.deepEqual(_askedFor, [[ID, OLD].sort()]);
+        _askedFor.length = 0;
+        const shownLeave = await seed([leave]);       // a delete of the one record a page shows
+        serverWrite(ID, { ...leaveData });
+        await shownLeave.deleteIfUnchanged(shownLeave.asShown([ID]));
+        assert.deepEqual(_askedFor, [[ID]]);
     });
 
     test('nothing queued → the wait answers at once, once, and the check runs as it always has', async () => {

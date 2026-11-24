@@ -153,6 +153,7 @@ mock.module('../firebase-client.js', {
         // Nothing queued on this device (v25.95): the wait a checked write makes first answers at once.
         // What the wait does is admin-override-store.test.mjs block 8.
         whenOwnWritesSent: async () => true,
+        whenOwnWritesSentFor: async () => true,
         writeBatch:      () => {
             let committed = false;
             /** @type {any[]} */ const ops = [];

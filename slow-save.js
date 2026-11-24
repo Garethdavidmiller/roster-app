@@ -229,7 +229,7 @@ export function trackHiddenTime({ isHidden = _pageHidden, subscribe = _onVisibil
  * itself read as that save's own, with nothing to say otherwise.
  *
  * THE SUMMARY: a wait that RAN OUT wins (the longest of them), because it alone puts eight seconds
- * into a save; otherwise the longest. `count` is how many ended in the span. `null` when none did —
+ * into a save — "ran out" with or without what the per-record check then found; otherwise the longest. `count` is how many ended in the span. `null` when none did —
  * a save that does not check (a plain batch, a contact record) never waits — or when listening failed.
  * Pure: `subscribe` is injected for the tests.
  * @param {{ subscribe?: (cb: (w: { ms: number, outcome: string }) => void) => (() => void) }} [deps]
@@ -240,7 +240,8 @@ export function trackOwnWritesWaits({ subscribe = watchOwnWritesWaits } = {}) {
         /** @type {{ ms: number, outcome: string }|null} */ let best = null;
         let count = 0;
         let listening = true;
-        const rank = (/** @type {{ ms: number, outcome: string }} */ w) => [w.outcome === 'ran out' ? 1 : 0, w.ms];
+        // "ran out" and "ran out, <what the records said>" alike (ownWritesSentFor, claim-retry.js).
+        const rank = (/** @type {{ ms: number, outcome: string }} */ w) => [String(w.outcome).startsWith('ran out') ? 1 : 0, w.ms];
         const unsubscribe = subscribe(w => {
             if (!listening || typeof w?.ms !== 'number' || !Number.isFinite(w.ms)) return;
             count++;

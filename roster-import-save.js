@@ -55,7 +55,7 @@
  * admin-roster-upload.test.mjs (the save) and e2e/operations.spec.js (a colleague's edit, end to end).
  */
 
-import { db, collection, doc, writeBatch, runTransaction, serverTimestamp, writeWithClaimRetry, whenOwnWritesSent, COLLECTIONS } from './firebase-client.js';
+import { db, collection, doc, writeBatch, runTransaction, serverTimestamp, writeWithClaimRetry, whenOwnWritesSentFor, COLLECTIONS } from './firebase-client.js';
 import { buildOverrideWrite, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { sameOverrideRecord } from './override-compare.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
@@ -156,7 +156,11 @@ export async function saveRosterWrites(toWrite, currentUser, shown = new Map()) 
                     await batch.commit();
                     return;
                 }
-                if (!(await whenOwnWritesSent())) {   // its own queued saves first (the module header)
+                // Its own queued saves first (the module header); when that wait runs out, every record
+                // this part deletes OR writes is asked instead — an older queued write of ours to one it
+                // only writes would otherwise land after it (claim-retry.js → ownWritesSentFor).
+                const touched = [...deletes.map(({ id }) => doc(db, COLLECTIONS.overrides, id)), ...sets.map(({ ref }) => ref)];
+                if (!(await whenOwnWritesSentFor(touched))) {
                     throw Object.assign(new Error(UNSENT_SAVES_DETAIL), { code: 'unavailable', unsent: true });
                 }
                 await runTransaction(db, async (/** @type {any} */ tx) => {

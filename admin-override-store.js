@@ -34,7 +34,7 @@
  * query actually runs).
  */
 
-import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, writeBatch, whenOwnWritesSent, COLLECTIONS } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, writeBatch, whenOwnWritesSentFor, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
 import { withOutrankedManualCopies } from './override-utils.js';
@@ -436,9 +436,12 @@ export function asShown(ids) {
  * offline waits in the device's queue and shows as saved, but the transaction reads the SERVER. Just
  * after the signal returned, a delete of such a record found nothing, said "Deleted", and the queued
  * save then put the record back. So the transaction starts only once the queue has drained
- * (`whenOwnWritesSent`, claim-retry.js → `ownWritesSent`); one that has not drained in time ends as a
- * transaction that never reached the server does, `unavailable` — `commitChecked` then holds a save
- * that only writes BEHIND the queue, and a removal is refused, writing nothing.
+ * (`whenOwnWritesSentFor`, claim-retry.js → `ownWritesSentFor`). A queue that has not drained in time
+ * is passed over when none of the records this commit touches has a write of this account's still on
+ * its way (24 Nov 2026: the SDK's wait can be held up by ANOTHER account's leftover write, which no
+ * record of ours carries). Otherwise it ends as a transaction that never reached the server does,
+ * `unavailable` — `commitChecked` then holds a save that only writes BEHIND the queue, and a removal
+ * is refused, writing nothing.
  * @param {Iterable<string|{id: string}>} items
  * @param {(tx: any, latest: Map<string, any>) => void} write  adds the writes to `tx`; `latest` is each
  *        id's server data (or null) as this attempt read it — called again on every re-run
@@ -463,7 +466,8 @@ export async function commitIfUnchanged(items, write, { mustExist = [], mustBeAb
     /** @type {Map<string, any>} */
     let latest = new Map();
     let attempt = 0;
-    if (!(await whenOwnWritesSent())) {
+    // Every record this commit reads or writes: the wait's fallback asks each of them (24 Nov 2026).
+    if (!(await whenOwnWritesSentFor([...expected.keys()].map(id => doc(db, COLLECTIONS.overrides, id))))) {
         throw Object.assign(new Error('this device still has saves it has not sent'), { code: 'unavailable', unsent: true });
     }
     await runTransaction(db, async (/** @type {any} */ tx) => {

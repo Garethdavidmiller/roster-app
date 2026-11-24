@@ -48,7 +48,7 @@ export function fakeTimestamp(ms) { return { toMillis: () => ms }; }
 function snap(path, id) {
     const data = state.docs.get(path);
     return { id, exists: () => data !== undefined, data: () => (data === undefined ? undefined : clone(data)),
-        metadata: { fromCache: state.fromCache } };
+        metadata: { fromCache: state.fromCache, hasPendingWrites: state.queued.has(path) } };
 }
 function merge(into, patch) {
     for (const [k, v] of Object.entries(patch)) {
@@ -134,7 +134,8 @@ export async function getDocs(q) {
     return { docs, size: docs.length, empty: docs.length === 0, metadata: { fromCache: state.fromCache } };
 }
 export const getDocsFromCache = getDocs;
-export const getDocFromCache = getDoc;
+// The cache read is getDoc's answer, and is RECORDED, so a test can say a check asked the cache.
+export async function getDocFromCache(ref) { state.cacheReads.push(ref.path); return getDoc(ref); }
 // The SERVER-only read, which the document upload asks after a refused write (documents-client.js).
 // Offline it rejects whether or not the cache holds the document — that is what it is for.
 export async function getDocFromServer(ref) {

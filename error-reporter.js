@@ -168,7 +168,10 @@ function _hiddenText(ms) {
  * The own-saves half of the diagnostic line, for one save (22 Nov 2026): whether the save waited for
  * this device's earlier saves to reach the server first, how long, and how that ended
  * (`trackOwnWritesWaits`, slow-save.js; the wait is `ownWritesSent`, claim-retry.js). "ran out" is the
- * eight-second limit: the save was then held as a batch, or refused if it removed something. Nothing
+ * eight-second limit; since 24 Nov 2026 it says what the save's own records then showed
+ * (`ownWritesSentFor`): "its records clear" — the save went on to the server, so a removal was not
+ * refused — or "a record still queued" / "records unreadable", when it was held, or refused if it
+ * removed something. Nothing
  * at all when no wait ended during the save — a save that checks nothing never waits — so the
  * field's absence is a finding too. Begins with its own separator for that reason.
  * @param {unknown} w  `{ ms, outcome, count, overlapped? }`, or null
