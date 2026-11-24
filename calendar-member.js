@@ -9,7 +9,7 @@
  * Edit here for: member dropdown logic, stale-name handling.
  */
 
-import { CONFIG, teamMembers, isOtherStaff } from './roster-data.js';
+import { CONFIG, teamMembers, isOtherStaff, fixedRoster } from './roster-data.js';
 import { getSession } from './session.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { SELECTED_MEMBER } from './storage-keys.js';
@@ -228,9 +228,17 @@ export function validateTeamMembers() {
                     dispatcher: CONFIG.DISPATCHER_ROSTER_WEEKS, fixed: undefined };
     const grades = /** @type {string[]|undefined} */ (CONFIG.GRADE_ORDER);
     const knownType = (/** @type {any} */ t) => Object.prototype.hasOwnProperty.call(cycle, t);
+    // A FIXED member's currentWeek names a `fixedRoster` pattern, not a week of a cycle, so it is bounded
+    // by the patterns that exist — unchecked, a missing one drew every day blank (whole-app review, 24 Nov 2026).
+    const fixedPatterns = new Set(Object.keys(fixedRoster ?? {}));
+    const fixedWeekOk = (/** @type {any} */ type, /** @type {any} */ week) => type !== 'fixed' || fixedPatterns.has(String(week));
+    // One name, one member: `memberName` keys every override, so a second row of a name shares the first's.
+    const seen = new Set();
     teamMembers.forEach((member, index) => {
         const who = member.name || `Index ${index}`;
         if (!member.name) errors.push(`Team member at index ${index} has no name`);
+        else if (seen.has(member.name)) errors.push(`${who}: the name appears more than once`);
+        else seen.add(member.name);
         if (!member.currentWeek || member.currentWeek < 1) errors.push(`${who}: Invalid currentWeek`);
         if (!member.role) errors.push(`${who}: Missing role field (expected "CEA", "CES" etc.)`);
         else if (grades && !grades.includes(member.role)) errors.push(`${who}: Unknown role "${member.role}"`);
@@ -239,6 +247,7 @@ export function validateTeamMembers() {
         }
         const weeks = cycle[member.rosterType];
         if (weeks && member.currentWeek > weeks) errors.push(`${who}: currentWeek ${member.currentWeek} exceeds ${member.rosterType} roster weeks (${weeks})`);
+        if (member.currentWeek && !fixedWeekOk(member.rosterType, member.currentWeek)) errors.push(`${who}: currentWeek ${member.currentWeek} names no fixed pattern`);
         if (member.startDate !== undefined && !isMidnightDate(member.startDate)) errors.push(`${who}: startDate must be a Date at midnight`);
         if (member.proRatedAL !== undefined) {
             const entries = member.proRatedAL && typeof member.proRatedAL === 'object' ? Object.entries(member.proRatedAL) : null;
@@ -259,7 +268,8 @@ export function validateTeamMembers() {
             });
         };
         dated('rosterChanges', 'from', (c) => !knownType(c.rosterType) ? `has an unknown rosterType "${c.rosterType}"`
-            : (!Number.isInteger(c.currentWeek) || c.currentWeek < 1 || (cycle[c.rosterType] && c.currentWeek > /** @type {number} */ (cycle[c.rosterType])))
+            : (!Number.isInteger(c.currentWeek) || c.currentWeek < 1 || (cycle[c.rosterType] && c.currentWeek > /** @type {number} */ (cycle[c.rosterType]))
+               || !fixedWeekOk(c.rosterType, c.currentWeek))
                 ? `has an invalid currentWeek ${c.currentWeek}` : null);
         dated('roleHistory', 'until', (h) => (!h.role || (grades && !grades.includes(h.role))) ? `has an unknown role "${h.role}"` : null);
         // AN "OTHER STAFF" LOGIN IS ONE SHAPE, AND HOLDS NO ROLE (owner, 23 Nov 2026: no roster, no admin rights).

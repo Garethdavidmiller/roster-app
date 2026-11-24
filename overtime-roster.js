@@ -47,7 +47,7 @@ import { shiftSpanMinutes, rosterBadge } from './overtime-format.js';
 export { rosterBadge };
 
 /** @typedef {'authoritative'|'error'} RosterKnowledge */
-/** @typedef {{ shift: string, isRest: boolean, hasTime: boolean, overnight: boolean, start: string, end: string, rosteredMinutes: number|null }} DayContext */
+/** @typedef {{ shift: string, isRest: boolean, hasTime: boolean, overnight: boolean, start: string, end: string, rosteredMinutes: number|null, permanentShift?: string }} DayContext */
 
 /** A worked shift, as the app stores it. */
 const SHIFT_RANGE_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/;
@@ -195,6 +195,8 @@ function resolveWeek(member, dates, overrides) {
             // already reaches 720; a day with no times is 0, not null, because "rostered nothing" is
             // a known length, where null is reserved for a day whose roster could not be read at all.
             rosteredMinutes: timed ? shiftSpanMinutes(start, end) : 0,
+            // The member's fixed kind, so the badge names it as the Calendar does (whole-app review, 24 Nov 2026).
+            ...(member.permanentShift ? { permanentShift: member.permanentShift } : {}),
         };
     }
     return byDate;

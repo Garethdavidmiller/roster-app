@@ -562,6 +562,12 @@ describe('the roster badge is ADMIN\'S badge (v23.85)', () => {
         // What the word said is still said — to a screen reader, on the badge itself.
         assert.match(html, /aria-label="Early shift, 06:20 to 14:20"/);
     });
+    test('a member\'s permanentShift names the kind, as on the Calendar (whole-app review, 24 Nov 2026)', () => {
+        const html = rosterBadge({ shift: '14:00-22:00', hasTime: true, start: '14:00', end: '22:00', permanentShift: 'early' });
+        assert.match(html, /class="shift-badge badge-early"/);
+        assert.match(html, /aria-label="Early shift, 14:00 to 22:00"/);
+        assert.match(rosterBadge({ shift: '14:00-22:00', hasTime: true, start: '14:00', end: '22:00' }), /badge-late/, 'premise: by its time it is a late');
+    });
     test('an untimed day keeps its word — there is no time to trade for', () => {
         assert.match(rosterBadge({ shift: 'RD', hasTime: false }), /REST/i);
         assert.match(rosterBadge({ shift: 'SPARE', hasTime: false }), /SPARE/i);

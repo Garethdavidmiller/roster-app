@@ -2640,6 +2640,19 @@ describe('leave or an absence ENTERED on a base rest day asks the swap question 
         });
     }
 
+    // The line under the boxes is PLAIN text, escaped only where it becomes markup: written as text
+    // (patchEntryRow), an escaped copy would show its entities (whole-app review, 24 Nov 2026).
+    test('the entry hint reads the same in the markup and when written as text', async () => {
+        const { entryControlHtml, patchEntryRow } = await import('../roster-entry-control.js');
+        const s = { draft: { type: 'other', flavour: 'TRG', from: '07:00', to: '', open: true }, baseShift: '06:00-14:00', date: MON };
+        const said = 'Fill in both times, or leave both blank to use the default hours';
+        assert.match(entryControlHtml(`X|${MON}`, s, MON), new RegExp(`<p class="roster-entry-hint">${said}</p>`));
+        const hint = { textContent: '' };
+        const row = { querySelector: (/** @type {string} */ q) => (q === '.roster-entry-hint' ? hint : null), classList: { toggle() {} } };
+        patchEntryRow(/** @type {any} */ (row), false, s);
+        assert.equal(hint.textContent, said);
+    });
+
     test('on a working base day the same pill writes as before, with no question', async () => {
         const { commitEntry, entryControlHtml } = await import('../roster-entry-control.js');
         const s = { draft: { type: 'annual_leave', from: '', to: '', open: true }, baseShift: '06:00-14:00', date: MON };

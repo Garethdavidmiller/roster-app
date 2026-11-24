@@ -734,17 +734,18 @@ export function shiftBadgeParts(timeStr, member) {
  * layout direction (stacked vs inline) is controlled purely by CSS on the
  * parent .shift-badge — no <br> in flex context needed.
  * @param {string} timeStr  Shift value (e.g. "RD", "06:00-14:00")
- * @param {{showTime?: boolean}} [opts]  `showTime` renders a WORKED shift's badge as the time
+ * @param {{showTime?: boolean, member?: any}} [opts]  `showTime` renders a WORKED shift's badge as the time
  *   (`☀️ 06:20-14:20`) rather than its classification (`☀️ Early`), keeping the word in the
  *   accessible name. Added v22.21 for Admin's Change-a-Shift week grid, where the badge was the
  *   only thing on the row and "EARLY" does not tell you what the person is rostered to work —
  *   which is precisely the question you are answering when you decide whether to change it.
  *   Non-worked values (Rest, AL, Spare, Absent, the Other family) ignore it: they have no time,
- *   and their word IS the information.
+ *   and their word IS the information. `member` is handed to `shiftBadgeParts`, so a member's
+ *   `permanentShift` names the kind here as it does on the Calendar.
  * @returns {string}  HTML string (safe — no user data interpolated)
  */
-export function getShiftBadge(timeStr, opts = {}) {
-    const { cls, emoji, word, title, timed } = shiftBadgeParts(timeStr);
+export function getShiftBadge(timeStr, opts = /** @type {{showTime?: boolean, member?: any}} */ ({})) {
+    const { cls, emoji, word, title, timed } = shiftBadgeParts(timeStr, opts.member);
     // `showTime` puts the TIME in the badge instead of the word, and names the word in the
     // accessible label so nothing is lost. Admin's week grid asks for it; the calendar does not,
     // because a calendar cell prints the time beside the badge already and repeating it would eat
