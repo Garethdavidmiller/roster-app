@@ -1,6 +1,6 @@
 # Marylebone Roster — Product Roadmap
 
-*Last updated: November 2026 — v26.60 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.70 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -149,7 +149,7 @@ failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster d
 shipped, including the wiring defects found on the way: `ROADMAP_HISTORY.md`.
 
 ### Track E — the authentication decision
-**Status:** Planned — the server and cleanup releases of the staff PIN's retirement (owner, 23 Nov 2026); E3 as designed is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
+**Status:** Planned — the cleanup release of the staff PIN's retirement (owner, 23 Nov 2026; the client release shipped at v26.60, the server release at v26.65); E3 as designed is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
 
 **The staff PIN is retired** (owner, 23 Nov 2026): everyone signs in under their own name, and
 somebody with no roster of their own gets an Other Staff login. It comes out in three releases —

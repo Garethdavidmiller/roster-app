@@ -32,7 +32,13 @@ def build(cols, src):
             if j in used: stop(f"its continuation (page/column {cols[j]['page']}/{cols[j]['col']}) is already joined to another train", src, c)
             d = cols[j]
             k = next(n for n, x in enumerate(d['cells']) if x['crs'] == last['crs'] and x['text'] == last['t'])
-            stops += [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in d['cells'][k + 1:] if timed(x)]
+            onward = [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in d['cells'][k + 1:] if timed(x)]
+            # …AND IT MUST TAKE THE TRAIN SOMEWHERE (external review of v26.69): a continuation printing only the
+            # joining station published a train the book continues as terminating there. A second time at that
+            # same station (its departure under its arrival) goes nowhere either.
+            if not any(x['crs'] != last['crs'] for x in onward):
+                stop(f"its continuation (page/column {d['page']}/{d['col']}) adds no station after {last['crs']} {last['t']}", src, c)
+            stops += onward
             used.add(j); c = dict(c, notes=c['notes'] + d['notes']); fac += d.get('fac', [])
         if not stops: continue
         out.append(dict(src=src, page=c['page'], col=c['col'], dir=c['dir'], day=c['day'], op=c['op'], fac=fac, notes=c['notes'], stops=stops))

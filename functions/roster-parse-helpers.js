@@ -58,8 +58,13 @@ const { jsonBodyOf } = require('./request-helpers');
  *   warning about a review row that never exists, burying the lines worth reading (import-server-8)
  * @returns {string}   - Normalised shift value
  */
-/** A second time range anywhere in what follows a cell's first one: "/ 14:00-18:00", " 1400-1800", "RDW 14:00-18:00". */
-const SECOND_RANGE = /\d{1,2}[:.]?\d{2}[\s\-–]+\d{1,2}[:.]?\d{2}/;
+/**
+ * A clock time in what follows a cell's first range: "14:00", "14.00", "1400", "600". Two of them are a second range,
+ * however they are joined — "/ 14:00-18:00", " 1400-1800", "RDW 14:00-18:00", "14:00 to 18:00", "14:00—18:00" — so the
+ * test counts TIMES, never a separator (external review of v26.69: a list of separators met "to" and an em dash it had
+ * not thought of, and returned the first range alone). A duty code's number ("CEA 10", "SUP 1") is too short to count.
+ */
+const CLOCK_TIME = /(?<!\d)(?:\d{1,2}[:.]\d{2}|\d{3,4})(?!\d)/g;
 
 function normaliseShift(raw, { quiet = false } = {}) {
     if (typeof raw !== 'string') return 'RD';
@@ -184,10 +189,10 @@ function normaliseShift(raw, { quiet = false } = {}) {
     if (lead && workedRange(lead[1], lead[2], lead[3], lead[4]) && !namesMeeting(s)) {
         // …BUT NEVER WHEN THE REST IS A SECOND TIME RANGE (external review of v26.67). "06:00-10:00 / 14:00-18:00"
         // came back as 06:00-10:00: four worked hours dropped, with nothing on the review to say they were there. An
-        // ordinary note ("GER") is still read past; a second range sends the WHOLE cell to review, as it was printed.
+        // ordinary note ("GER") is still read past; two more clock times send the WHOLE cell to review, as it was printed.
         // The app has no split shift to record it as, and needs none: a shift that looks complete and is not is the
         // failure, and "check the PDF" is the answer (as for every cell nobody can read with certainty).
-        if (SECOND_RANGE.test(s.slice(lead[0].length))) {
+        if ((s.slice(lead[0].length).match(CLOCK_TIME) || []).length >= 2) {
             warn('[parseRosterPDF] Two time ranges in one cell — flagged UNKNOWN for review');
             return `UNKNOWN|two times in one cell (${s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)}) — check the PDF`;
         }

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v26.60 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.70 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -450,7 +450,7 @@ before relying on this summary:
 
 | Operation | Requirement |
 |-----------|-------------|
-| Reads | Require access, as the Huddle does: a bound member identity or the admin claim (the retired `calendarViewer` claim, too, until the server release). The client refuses at source behind a sign-in (`calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL — used only when the path it signed matches the document on screen — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
+| Reads | Require access, as the Huddle does: a bound member identity or the admin claim (the retired `calendarViewer` claim was a third, until the PIN's server release at v26.65). The client refuses at source behind a sign-in (`calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL — used only when the path it signed matches the document on screen — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
 | Writes | `request.auth.token.admin == true` (admin claim only) |
 | Storage create/update | Rules enforce PDF or Word (.docx) MIME type + ≤20 MB per file |
 | Storage delete | Admin-only; MIME/size checks omitted (no `request.resource` on delete) |

@@ -172,13 +172,17 @@ describe('normaliseShift', () => {
     // in every spelling a second range takes — while an ordinary note is still read past.
     test('a second time range sends the whole cell to review — never the first range alone', () => {
         const quiet = (/** @type {() => any} */ fn) => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
-        for (const cell of ['06:00-10:00 / 14:00-18:00', '06:00-10:00 14:00-18:00', '0600-1000/1400-1800', '06:00-10:00 RDW 14:00-18:00']) {
+        for (const cell of ['06:00-10:00 / 14:00-18:00', '06:00-10:00 14:00-18:00', '0600-1000/1400-1800', '06:00-10:00 RDW 14:00-18:00',
+            // …and joined by whatever the roster happened to print (external review of v26.69)
+            '06:00-10:00 / 14:00 to 18:00', '06:00-10:00 / 14:00—18:00', '06:00-10:00 & 14.00 till 18.00', '06:00-10:00 + 600 / 1000']) {
             const got = quiet(() => normaliseShift(cell));
             assert.match(got, /^UNKNOWN\|two times in one cell \(.+\) — check the PDF$/, `${cell} → ${got}`);
             assert.ok(got.includes(cell.toUpperCase().slice(0, 11)), 'the cell is shown as it was printed');
         }
         assert.equal(normaliseShift('06:00-12:00 GER'), '06:00-12:00', 'a note is still read past');
         assert.equal(normaliseShift('06:00-12:00 RDW GER'), 'RDW|06:00-12:00');
+        assert.equal(normaliseShift('06:00-12:00 CEA 10'), '06:00-12:00', "a duty code's number is not a time");
+        assert.equal(normaliseShift('0600-1200 CEA16'), '06:00-12:00');
     });
     // …AND A CELL HOLDING ONLY A LINE IS NOT A BLANK (same review): `|` on a Monday was answered RD, a rest day out of a
     // mark nobody read — on a member whose base is a rest day, a MATCH nobody would see.
