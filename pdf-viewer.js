@@ -14,10 +14,12 @@
  *
  * ── THE LIBRARY ─────────────────────────────────────────────────────────────────────────────────
  *
- * PDF.js 4.10.38 — Mozilla's renderer, the one inside Firefox — VENDORED in pdfjs/4.10.38/ (the legacy
- * build: it supports Safari 16.4, the oldest iOS the app supports). The server's roster reader moved to
- * PDF.js 6 at v25.91 and this did NOT follow, on purpose: 6.x's legacy build targets Safari 18, and this
- * viewer only ever opens the app's own PDFs (dependency-pin-parity.test.mjs holds the version, and
+ * PDF.js 5.7.284 — Mozilla's renderer, the one inside Firefox — VENDORED in pdfjs/5.7.284/ (the legacy
+ * build: it supports Safari 16.4, the oldest iOS the app supports). It is the NEWEST PDF.js whose legacy
+ * build still does (owner, 24 Nov 2026). The server's roster reader is on PDF.js 6 (v25.91) and this does
+ * NOT follow, on purpose: from 6.0.227 the legacy build targets Safari 18 and stops carrying the
+ * stand-ins older Safaris need (6.5.438 calls `Promise.withResolvers`, Safari 17.4's, with none), and
+ * this viewer only ever opens the app's own PDFs (dependency-pin-parity.test.mjs holds the version, and
  * says how to move it). Served from our own origin because its worker must be: a browser will not start
  * a Worker from another origin, and `worker-src 'self'` would refuse one anyway. It is NOT precached —
  * about 1.8 MB that most members never need — so the service worker's cache-first branch keeps it once
@@ -42,8 +44,12 @@
  *     (and with it PDF.js's worker). Every await re-checks that the load it belongs to is still the
  *     current one, so a slow file that arrives after the reader has closed it — or opened another —
  *     draws nothing.
- *  3. `isEvalSupported: false`. PDF.js compiles some PDF functions with `new Function`, which the CSP
- *     forbids; without this it would try, be refused, and log a violation on every such file.
+ *  3. `useWasm: false`, with `wasmUrl` naming the build's two JavaScript image decoders. From 5.x PDF.js
+ *     decodes JPEG 2000 and JBIG2 images (and compiles some PDF functions, and reads ICC colour) with
+ *     WebAssembly, which the CSP forbids — it has no 'wasm-unsafe-eval', on purpose. Asked for none, it
+ *     imports the plain-JavaScript decoders from pdfjs/<version>/wasm/ instead, so a scanned sheet still
+ *     draws; without them those images would be missing. (4.10's `isEvalSupported` is gone: 5.7.284
+ *     builds no `new Function` from a PDF at all.)
  *
  * ── A PAGE THAT CANNOT BE DRAWN SAYS SO (external review, 10 Nov 2026) ─────────────────────────
  *
@@ -61,9 +67,11 @@ import {
 } from './pdf-viewer-core.js';
 
 /** The vendored build's own folder, named for its version — a re-vendor is a NEW folder (header). */
-const PDFJS_DIR = './pdfjs/4.10.38/';
+const PDFJS_DIR = './pdfjs/5.7.284/';
 const LIBRARY_URL = new URL(`${PDFJS_DIR}pdf.min.mjs`, import.meta.url).href;
 const WORKER_URL = new URL(`${PDFJS_DIR}pdf.worker.min.mjs`, import.meta.url).href;
+/** The JavaScript JPEG 2000 and JBIG2 decoders PDF.js imports in place of WebAssembly (header, 3). Absolute, with the slash PDF.js requires. */
+const DECODERS_URL = new URL(`${PDFJS_DIR}wasm/`, import.meta.url).href;
 
 /**
  * How long a file may go WITHOUT A BYTE before the viewer gives up — not how long the whole file may take (the New link
@@ -245,7 +253,7 @@ export function initPdfViewer() {
             if (!res.ok) throw Object.assign(new Error(`The file answered ${res.status}`), { status: res.status });
             const data = res.bytes;
             if (current !== mine) return;
-            mine.task = lib.getDocument({ data, isEvalSupported: false, verbosity: lib.VerbosityLevel.ERRORS });
+            mine.task = lib.getDocument({ data, useWasm: false, wasmUrl: DECODERS_URL, verbosity: lib.VerbosityLevel.ERRORS });
             const pdf = await mine.task.promise;
             if (current !== mine) return;
             const pages = await Promise.all(Array.from({ length: pdf.numPages }, (_, i) => pdf.getPage(i + 1)));

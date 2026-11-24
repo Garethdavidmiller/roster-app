@@ -94,8 +94,9 @@
  *     byte-identical to 6.4.299's), and no time budget in this file can stop a synchronous loop;
  *   · its optional native canvas is pinned too (`overrides`, 1.1.0), so an install cannot take a
  *     release younger than the two weeks every dependency here waits;
- *   · the in-app PDF viewer does NOT follow: it stays on PDF.js 4.10.38, because 6.x's legacy build
- *     targets Safari 18 and the app supports iOS 16.4 (pdf-viewer.js; DECISIONS.md).
+ *   · the in-app PDF viewer does NOT follow: it is on PDF.js 5.7.284, the newest whose legacy build
+ *     still targets Safari 16.4, because 6.x's targets Safari 18 and the app supports iOS 16.4
+ *     (pdf-viewer.js; DECISIONS.md).
  */
 
 'use strict';
