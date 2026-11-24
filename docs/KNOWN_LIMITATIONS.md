@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v26.60 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.70 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -843,7 +843,7 @@ action**:
   kept in sync forever.
 - It gates *which clients* connect, not what an authenticated client may read, so it adds nothing to
   the `overrides` read boundary, which has required a claim since 26 Aug 2026 — a member identity or the admin (`firestore.rules`;
-  the retired PIN's `calendarViewer` too, until its server release).
+  the retired PIN's `calendarViewer` was a third, until its server release at v26.65).
 - Payoff for this threat model (unadvertised app, small known team) is low: it blocks scripted bulk
   reads/writes from outside our pages, which is a real but low-probability attack here. The Aug 2026
   external review recommended it for the telemetry and reset-request paths — the same

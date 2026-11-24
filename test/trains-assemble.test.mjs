@@ -6,7 +6,8 @@
  *
  * `assemble.py` took the FIRST later 'f' column with the same time at the same station, so two trains could both be
  * given one continuation's destination; and a train with none was published shortened after a WARN nobody had to
- * read. Each case here runs the real script, under `python3 -I`, on a tiny synthetic book — never the real ones,
+ * read; and one printing only the joining station published the train as ending there (review of v26.69). Each case
+ * here runs the real script, under `python3 -I`, on a tiny synthetic book — never the real ones,
  * which are not committed (docs/timetable-dec26/tooling/README.md). Skipped, by name, where python3 is not installed.
  */
 import { test, describe } from 'node:test';
@@ -67,6 +68,16 @@ describe('assemble.py joins a continued train to exactly one continuation', { sk
         const r = assemble([continued(1, '0700', '0745')]);
         assert.notEqual(r.status, 0, 'a train ending at Haddenham was published when the book continues it');
         assert.match(r.stderr, /no continuation carries its HDM 0745 — met book, page 1, column 1/);
+    });
+
+    test('a continuation that adds no station stops the build — never published as ending where it joins', () => {
+        // Only the joining station, or that station twice (its arrival and departure): either way the book continues
+        // the train and the page would have it terminate at Haddenham (external review of v26.69).
+        for (const cells of [[cell('', 'f'), cell('HDM', '0745')], [cell('', 'f'), cell('HDM', '0745'), cell('HDM', '0747')]]) {
+            const r = assemble([continued(1, '0700', '0745'), column(2, 1, cells)]);
+            assert.notEqual(r.status, 0, 'a continued train was published as terminating where it joins its continuation');
+            assert.match(r.stderr, /its continuation \(page\/column 2\/1\) adds no station after HDM 0745 — met book, page 1, column 1/);
+        }
     });
 
     test('a continuation no train reaches stops the build — its stops would be lost', () => {

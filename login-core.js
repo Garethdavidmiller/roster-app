@@ -171,7 +171,8 @@ export function resetRequestFailureLine(err, timedOut) {
 // standing down would leave "Password not recognised" over a member who is signed in. One that lands
 // while the retry is STILL IN FLIGHT is held for it and opens the page if the retry fails (external review
 // of v26.67 — `_heldLateSignIn`), so long as the card still shows them and Firebase still holds their
-// account. What does supersede it is checked there: a card moved to somebody else or taken down, a sign-out
+// account — and when the app ends the retry too, the retry's own answer is still waited for, since it holds the
+// marker until it comes (external review of v26.69). What does supersede it is checked there: a card moved to somebody else or taken down, a sign-out
 // since, and a newer attempt for ANOTHER member, which clears the session, so session.js signs the late
 // landing back out and it answers false.
 //

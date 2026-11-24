@@ -3237,15 +3237,16 @@ describe('upload to review: an uncertain weekday cell is shown as "check the PDF
         let parsed;
         try {
             parsed = buildSafeEntries([{ memberName: m.name, Sun: 'RD', Mon: '|', Tue: '06:00-10:00 / 14:00-18:00',
-                Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }], headers, dates);
+                // …and a second range joined by a word or an em dash, which a list of separators missed (review of v26.69).
+                Wed: '06:00-10:00 / 14:00 to 18:00', Thu: '06:00-10:00 / 14:00—18:00', Fri: 'RD', Sat: 'RD' }], headers, dates);
         } finally { console.warn = w; }
         const states = computeCellStates({ parsed, dates }, []);
-        for (const date of ['2026-11-30', '2026-12-01']) {
+        for (const date of ['2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03']) {
             const st = states.get(`${m.name}|${date}`);
             assert.equal(st?.state, 'UNREADABLE', `${date} reached the review as ${st?.state}, not a row to check`);
             assert.match(String(st?.parsedShift), /check the PDF$/, `${date}: the review does not say to check the PDF`);
         }
-        assert.deepEqual(collectRosterWrites(states).filter((/** @type {any} */ wr) => wr.date === '2026-11-30' || wr.date === '2026-12-01'), [],
+        assert.deepEqual(collectRosterWrites(states).filter((/** @type {any} */ wr) => ['2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03'].includes(wr.date)), [],
             'an uncertain cell was saved');
     });
 });

@@ -888,6 +888,32 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         } finally { signInScript = []; }
     });
 
+    // …AND A RETRY THAT TIMES OUT TOO (external review of v26.69). The first lands while the retry is out, and the app
+    // then ends the retry as well: the page opens on the first, and the retry's own answer is still to come. Opening
+    // returned before that answer was waited for, so its hold on the set-password marker was never released — and the
+    // next sign-in that failed left the marker behind, for a load that should never have seen it.
+    test('the retry is ended too: the page opens on the first, and the retry\'s answer still releases its hold', async () => {
+        try {
+            const { card, opened, landFirst, failSecond } = retryInFlight();
+            await firstEndedThenRetry(card);
+            landFirst();
+            await turns(60);
+            mock.timers.tick(30_000);
+            await turns(60);
+            assert.deepEqual(opened, [A], 'premise: the page opened on the first attempt');
+            store.delete(MARKER());   // the page that opened consumed it
+            failSecond();             // the retry's own answer arrives, a NO
+            await turns(60);
+            signInCode = 'auth/invalid-credential';
+            const later = mount(A);
+            later.password.value = 'not-their-password';
+            later.send();
+            await settle(later);
+            assert.match(later.error.textContent, /^Password not recognised/, 'premise: the later sign-in failed');
+            assert.equal(store.get(MARKER()), undefined, 'the retry\'s unreleased hold kept the marker after a failed sign-in');
+        } finally { signInScript = []; }
+    });
+
     test('…but not once the card has moved to somebody else, or Firebase no longer holds their account', async () => {
         try {
             // Moved to B while the retry was out: the late answer is A's, and B is in front of the card.

@@ -58,7 +58,8 @@ new issue of the books legitimately moves them, and a parser regression looks th
   is written down — which branch follows which junction — and the source of `STATION_ORDER`.
 - **`assemble.py`** joins a train continued across pages (`e` → `f`) to the ONE continuation that carries its
   time at the same station, and stops the build — naming the book, page and column — when there is none, more than
-  one, one already joined to another train, or a continuation no train reaches (external review of v26.67: it took
+  one, one already joined to another train, one that adds no station after the join (review of v26.69: the train
+  was published as ending there), or a continuation no train reaches (external review of v26.67: it took
   the first match, and only warned when there was none). `test/trains-assemble.test.mjs` runs it on synthetic books.
   It keeps Chiltern trains that
   start or end at Marylebone, and folds a train printed in both books into one. A Mondays-and-Fridays

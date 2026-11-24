@@ -828,8 +828,11 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
-                if (await openOnHeldLateSignIn(name)) return;   // an earlier attempt of theirs signed them in meanwhile
+                // This attempt's own late answer is waited for FIRST, whatever happens next: it holds the set-password
+                // marker until it answers, and opening on an earlier one used to return before it was (external review
+                // of v26.69 — the hold outlived the page, and the next failed sign-in left the marker behind).
                 if (_result.late) awaitLateSignIn(name, typedPw, _result.late);
+                if (await openOnHeldLateSignIn(name)) return;   // an earlier attempt of theirs signed them in meanwhile
                 // Is the card still showing the person this attempt was for? The pickers are inert in
                 // flight (`setPickersInert`), but a pick from a sheet that was already closing when the
                 // member pressed Enter still lands. Then this failure is the EARLIER person's: it is
