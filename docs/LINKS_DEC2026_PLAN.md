@@ -38,7 +38,39 @@ colleagues or managers read may give the impression that the developer is in cha
 says who leads the change and no more, and the pack need not say even that. This paragraph is the record of the process;
 do not carry it into the page or the pack.
 
-> ## ⚠️ THE LINK IS 24 LINES, AND EXCLUDES THE BILINGUAL ROSTER (owner, Aug 2026)
+> ## The link is 26 lines with five cover weeks, and excludes the bilingual roster
+>
+> **The rules are `docs/links-26/RULES.md`** (owner, 1 Oct 2026, with the changes it marks since): 26 lines worked in
+> turn, five of them cover weeks as evenly spread as 26 allows, and 219 contracted days a year or fewer. It is the
+> CEA/main roster widened; those on a CEA bilingual contract keep their own links (owner, 8 Nov 2026). The line count is
+> `ROTATING_LINES` in `links-design.js` and nowhere else in code. The 24-line rows this dashboard carried until
+> November 2026 are under *Superseded* below the table.
+
+| Item | Status | Needed by | Blocker / owner |
+|---|---|---|---|
+| **Rotation length** | ✅ **26 lines, main-only** (owner, 1 Oct 2026) — `docs/links-26/RULES.md` | — | — |
+| **Cover weeks** | ✅ **5**, as evenly spread as 26 allows; each is four duties Monday to Saturday, with the Sunday as overtime on top (owner, 31 Oct 2026) | — | — |
+| **Contracted days** | ✅ **219 a year or fewer** — today's figure is the ceiling (`docs/links-26/RULES.md`) | — | — |
+| **Proposals** | ✅ **A shortlist of three** — Balanced V6, Level Crossing and Middle Ground, A to Z, no recommendation (owner, 8 Nov 2026) — in `docs/links-26/30-days-off/`, built into the Links designer read-only (`links-proposals.js`) and presented on the New link page (open since v25.60). ⚠️ **None chosen** (`CHOSEN` is null in `newlink-config.js`) | Before the link starts (January 2027) | **S. Silva**, who leads the change: the decision, then the area manager's review |
+| **Business staffing requirement** | ✅ **Confirmed verbally (owner, 29 Sep 2026)**; the levels every design is judged against are `docs/links-26/RULES.md`, which advises getting them in writing before a design is put forward | — | — |
+| Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
+| Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
+| Operating-window setting | ✅ Shipped v19.54 | — | — |
+| ORR fatigue factors (25 rows) | ✅ Shipped v19.46 (+ v19.48 / v19.69 / v21.97 corrections — the last read the ORR sheet at source and added the two rows nobody had implemented) | — | — |
+| Demand overlay | ✅ Shipped v19.56 | — | — |
+| Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
+| **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
+| **Sunday operating window** | ✅ **Settled (owner, 28 Sep 2026): no duty runs past 23:25 on a Sunday** — agreed practice, and it will remain so. The five later movements are outside the staffed window on every design, and the heat map keeps showing them as a neutral fact | — | — |
+| **FF18 reading — cadence or step?** | ✅ **Settled (owner, 28 Sep 2026, on ORR's text, 7.68): the CADENCE reading.** Standing on every weekly link; the step is reported beside it as information a design controls | — | — |
+| **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
+
+### Superseded — the 24-line dashboard (before 1 October 2026)
+
+*Kept as the record of how the tool was built, not as status. Every figure here is the 24-line design; the 24-line
+work itself was removed on 7 Nov 2026 (`git checkout 924b9dbc -- docs/links-24` restores it). Designs of an old length
+are binned when the workspace loads them (`isPre26Design`, `links-design-doc.js`).*
+
+> **⚠️ THE LINK IS 24 LINES, AND EXCLUDES THE BILINGUAL ROSTER (owner, Aug 2026)**
 >
 > The plan changed after most of this document was written. The new link **does not include the
 > bilingual roster at all** — not its lines, not its shift times, not its work. It is the CEA/main
@@ -63,24 +95,14 @@ do not carry it into the page or the pack.
 > widening to 24 is exactly the "the link has to get bigger" conclusion, arriving from the business
 > rather than from this tool.
 
-| Item | Status | Needed by | Blocker / owner |
+| Item | Status (then) | Needed by | Blocker / owner |
 |---|---|---|---|
 | **Rotation length** | ✅ **24, main-only** (owner, Aug 2026) — 22 at v19.98, corrected v20.01. Evidence class C | — | — |
 | **Spare weeks** | ✅ **4** — the same as the roster today. A fifth was added v20.01 and reverted v20.02 once its motivating FF11 finding proved to be an optimiser bug (owner) | — | — |
 | **Existing 28-line designs** | ✅ **DECIDED (owner, 30 Aug 2026): BIN THEM.** Not kept as a record — the 28-line link is described in this document and in the module comments, which is where a record belongs; a stale design in the picker is a thing somebody opens and edits by mistake. **Execution is a click in the app and is not done yet** (soft delete ✕ → they sit in 🗑 Recently deleted until removed for good). **Generate the new 24-line design FIRST**, because that is the order the work wants (until Nov 2026 `canSoftDelete` refused the last live design; it was retired, and binning the last one now opens a shortlisted proposal) | Before a proposal is frozen | **Gareth** — the clicks |
-| Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
-| Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
-| Operating-window setting | ✅ Shipped v19.54 | — | — |
-| ORR fatigue factors (25 rows) | ✅ Shipped v19.46 (+ v19.48 / v19.69 / v21.97 corrections — the last read the ORR sheet at source and added the two rows nobody had implemented) | — | — |
-| Demand overlay | ✅ Shipped v19.56 | — | — |
-| Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
-| **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
-| **Sunday operating window** | ✅ **Settled (owner, 28 Sep 2026): no duty runs past 23:25 on a Sunday** — agreed practice, and it will remain so. The five later movements are outside the staffed window on every design, and the heat map keeps showing them as a neutral fact | — | — |
 | **Contracted hours — today's duties cannot fill a 24-line link** | ✅ **Answered (owner, 29 Sep 2026)**: the December 2026 staffing levels and a 24-person link are both confirmed verbally, so the December staffing supplies the extra duty. Every sheet but one pays the 35h week exactly — 42,000 minutes Monday to Saturday — carrying **94–99 timed duties a week against today's 76**; Fifteen Turns is 60 minutes a week over. Background (v20.04; generator gated v20.98/v20.99): seeded from today's duties, 24 lines averages **29h 53m** a week against 35h, and the generator refuses a table that misses the contract in either direction | — | — |
 | **Business staffing requirement** | ✅ **Confirmed verbally (owner, 29 Sep 2026)**, with the 24-person link and the Sunday cover (10 on a Sunday, worked as overtime): the December 2026 staffing levels behind the nine soft rules every sheet is scored against — four at the open, three at the close, five at 22:00, 10 on a Sunday, the ticket office in fixed pairs, and the rest (`sheetRules`, `docs/links-24/tooling/report-data.mjs`). Three more — 14 on a Saturday, evenly spread cover weeks and weekday closers from 15:45 — are flexible rules since 30 Sep 2026: designed to (`currentRules` keeps all of them for the searches), never shown on a sheet (`flexibleRules`). First relayed 27–28 Sep. Every sheet and the rules sheet say *confirmed verbally* | — | — |
-| **FF18 reading — cadence or step?** | ✅ **Settled (owner, 28 Sep 2026, on ORR's text, 7.68): the CADENCE reading.** Standing on every weekly link; the step is reported beside it as information a design controls | — | — |
 | **Proposals** | ✅ **Drawn — 11 sheets** in `docs/links-24/` (Silva Lining added 1 Oct 2026) (28 until twenty-one were withdrawn on 29–30 Sep 2026: the *By the Book*, *Same Turns* and *Pinned Turns* families, *Running Repair*, *Weeks 17-18 Swapped*, *Targeted Fatigue Redo*, *Three Mondays*, *Frozen Block*, *Tenth Sunday*, *Short Closer*, *Light Retime*, *Polished Clean* (restored 30 Sep, the ticket office pairs rule waived for it), *Cover at Seventeen*, *Saturday Four*, *Just Enough* and *Gates Mended* — and two added the same day), the first on 17 Sep 2026, the latest (Full Overhaul, of the Running Repair family) on 29 Sep; all of them in the plain edition v2 of 30 Sep, scored against the nine soft rules; ⚠️ **none frozen** | T−8 weeks | The four decisions above are settled (29 Sep 2026), so freezing one now waits on the management review. The folder's `README.md` is the index; each sheet is eight pages, compared only with today's link, and lists its open questions on page 1 (*Still to settle*); `Proposals-Summary.pdf` sets all 10 side by side |
-| **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
 
 ## The backwards plan — because the only immovable deadline is outside this repository
 

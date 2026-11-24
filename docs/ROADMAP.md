@@ -1,4 +1,4 @@
-# MYB Roster — Product Roadmap
+# Marylebone Roster — Product Roadmap
 
 *Last updated: November 2026 — v26.50 · Updated every 0.10 version*
 
@@ -65,7 +65,7 @@ This was one line under "Open decisions". It is in fact the largest single quest
 because it decides whether several features below should exist **at all** — not how they should be
 built. Until it is answered, the answer is assumed to be "informal staff utility".
 
-**If MYB Roster remains an informal staff utility** — the position today — then it must not become
+**If Marylebone Roster remains an informal staff utility** — the position today — then it must not become
 the authoritative system for annual-leave approval, payroll, mandatory safety decisions, or official
 staffing approval. It may *assist* all of those. That is the current boundary, and it is why the
 Links panel reports a design against a limit rather than approving it, and why the pay calculator
@@ -149,16 +149,21 @@ failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster d
 shipped, including the wiring defects found on the way: `ROADMAP_HISTORY.md`.
 
 ### Track E — the authentication decision
-**Status:** Blocked on an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md`
+**Status:** Planned — phase the staff PIN out (owner, 23 Nov 2026); individual authentication on the Calendar (E3) is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
 
-E0 and E1 have shipped. **E2 was SUPERSEDED, not built** — the staff PIN did its job, and
-`SECURITY_RELEASE_PLAN.md` → Track E says "do not build it". The decision is the security/privacy
-bar, and it should be taken with the E3 measurement criteria **pre-registered** — AUTH_PLAN §6
-requires the thresholds to be written down before telemetry starts, precisely so they cannot be
-chosen after seeing the numbers.
+**There is a direction now: the staff PIN is to be phased out.** The first step, an "Other staff" named
+login that sees what the PIN shows, has shipped; retiring the PIN itself is a separate change, made only
+once everybody who uses it has a login of their own, so nobody is locked out on the day (DECISIONS.md →
+"An 'Other staff' login"). Where that stands, and which phases have shipped, is the Track E row of
+`SECURITY_RELEASE_PLAN.md`'s canonical table — not restated here.
+
+The decision still open is the bar for individual authentication (E3). Take it with the E3 measurement
+criteria **pre-registered** — AUTH_PLAN §6 requires the thresholds to be written down before telemetry
+starts, precisely so they cannot be chosen after seeing the numbers.
 
 This gates more than itself: **C5 cannot complete without it**, because a member who only ever opens
-the roster with the staff PIN never signs in and is therefore never compelled to set a password.
+the roster with the staff PIN never signs in and is therefore never compelled to set a password —
+which is also why retiring the PIN would move C5.
 
 ### Calendar start — how often we deploy (OWNER DECISION, not a code change)
 **Status:** Blocked on an owner decision — an external review's recommendation, not yet adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree
@@ -198,13 +203,11 @@ page after a release took over a second to be usable (`LATENCY.md` → THE NOVEM
   first-visit Settings, and the Railcard's corrections".
 
 ### Track C5 — retire the surname default
-**Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Gate:** ≥90% migrated **and** Track E
+**Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track C row
 
-Irreversible. Blocked on the migration percentage, which is in turn blocked on Track E (above).
-Read both before assuming it is close. **A second route is on the table and not adopted:** C6's
-one-time codes would let the remaining surname credentials be replaced server-side with unknown
-random ones, answering the credential question without touching the read one
-(`CREDENTIAL_LIFECYCLE.md` §7; `SECURITY_RELEASE_PLAN.md` → Track C).
+Irreversible. Its gate, why that gate depends on Track E (above), and the second route that is on the
+table and not adopted (C6, `CREDENTIAL_LIFECYCLE.md` §7) are all in that row. Read it before assuming
+C5 is close.
 
 ### 2027/28 Pay Calculator rollover
 **Status:** Planned · **Deadline:** 6 March 2027 · **Start:** February 2027 · See `MAINTENANCE_CALENDAR.md`
@@ -509,6 +512,15 @@ subscription.
 > handling, override deletion, calendar-client compatibility, privacy and tests are the work — the
 > feed generation is the easy part.
 
+### BRASS top-ups in the Pay Calculator
+**Status:** Conditional · **Trigger:** one real payslip carrying a BRASS deduction, read for its SHAPE (BRASS_PLAN.md → Part 2, Q1) · **Blocker:** whether BRASS lowers NI, which only that payslip can settle · **Owner:** Gareth · **Plan:** `BRASS_PLAN.md`
+
+**Why:** a member paying BRASS (the Railways Pension Scheme's AVC top-up) sees a take-home figure that
+disagrees with their payslip. The chosen shape is one optional Settings-card field, blank and invisible
+for everybody who does not pay it. Nothing ships until Q1 is answered, because it decides which of the
+two wirings is right; the HR questions (Q2) shape the copy and defaults. **Success:** a member paying
+BRASS sets the figure once, and every period agrees with the payslip.
+
 ### Team Week and the roster import read the dated grade
 **Status:** Conditional · **Trigger:** a promotion that cannot be released between two roster uploads
 
@@ -650,7 +662,7 @@ rejected** — it reduces execution cost, and execution is not the bottleneck. F
 ## DO NOT BUILD UNTIL — governance, not engineering
 
 ### Formal AL management as an approval system
-**Blocked on:** explicit Chiltern agreement that MYB Roster is authorised to record official leave
+**Blocked on:** explicit Chiltern agreement that Marylebone Roster is authorised to record official leave
 decisions. **Not** on approval workflows.
 
 Chiltern has an official HR system for leave. Building a parallel approval process risks conflict

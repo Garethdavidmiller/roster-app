@@ -32,7 +32,9 @@ excluded) and **E1 shipped v19.01** (the cache-first, auth-aware client preparat
 the two phases needing no decision. **The first real security boundary was E2's job, and the staff PIN
 did it instead** — see E2 below. Nothing beyond that is committed. The most likely trigger is external:
 if the app becomes, or is assessed as, official Chiltern infrastructure, IT may require each person to
-authenticate rather than a station to share a code. Until then the staff-PIN design stands.
+authenticate rather than a station to share a code. The owner has since set a direction for the PIN
+itself — phase it out, starting with named "Other staff" logins (23 Nov 2026); where that stands is
+SECURITY_RELEASE_PLAN.md's Track E row, not restated here.
 
 ---
 
