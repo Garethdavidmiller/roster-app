@@ -652,6 +652,52 @@ describe('cal-docs-14 · a Huddle this device could not check is labelled a save
         assert.ok(body.innerHTML.includes(READY));
     });
 
+    // D-L2 (v26.60 review): the deadline is armed before the wait for a session, so on a cold start
+    // with a slow sign-in it could pass before the server was asked — and the first cached answer then
+    // opened at once, labelled, as though the server had been asked and had not answered.
+    test('a deadline that passes before the server is asked does not let the cached answer open', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        setOnline(true);
+        window.location.hash = '#huddle';                      // a cold notification tap
+        /** @type {() => void} */ let signedIn = () => {};
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: new Promise(r => { signedIn = () => r(undefined); }), docAccess: makeGate(true) });
+        await settle();
+        t.mock.timers.tick(8000);                               // the sign-in outlasts the deadline
+        await settle();
+        assert.equal(listeners.length, 0, 'premise: the server has not been asked');
+        signedIn();
+        await settle();
+        listeners[0].onData(huddle('monday'), true);            // the cache answers first
+        await settle();
+        assert.doesNotMatch(shown(), SAVED, 'the cached Huddle was opened as a saved copy before the server was asked');
+        assert.ok(!body.innerHTML.includes(READY), 'the cached Huddle was opened before the server was asked');
+        listeners[0].onData(huddle('tuesday'), false);          // the server's answer is the one shown
+        await settle();
+        assert.ok(body.innerHTML.includes(READY));
+        assert.doesNotMatch(shown(), SAVED);
+    });
+
+    test('…and once asked, a server that stays silent still gives way to the labelled copy at its own deadline', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        setOnline(true);
+        window.location.hash = '#huddle';
+        /** @type {() => void} */ let signedIn = () => {};
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: new Promise(r => { signedIn = () => r(undefined); }), docAccess: makeGate(true) });
+        await settle();
+        t.mock.timers.tick(8000);
+        await settle();
+        signedIn();
+        await settle();
+        listeners[0].onData(huddle('monday'), true);
+        await settle();
+        t.mock.timers.tick(8000);
+        await settle();
+        assert.ok(body.innerHTML.includes(READY), 'a tap was left without the copy in hand after the server stayed silent');
+        assert.match(shown(), SAVED);
+    });
+
     test('a server answer is never labelled, whatever the device says', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         setOnline(false);
