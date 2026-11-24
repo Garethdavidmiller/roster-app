@@ -197,7 +197,10 @@ each payslip with a day under the new role the result card says why and names th
 (`unpricedLineFor`), the year so far leaves it out and says so, the premium estimate skips it, the
 rough Year to Date premium refuses a figure covering it, and back pay refuses an award whose months
 were all under it (`awardGrade` → null). A grade chosen by hand does not price such a day either. The
-Calendar's notices ask the same function over TODAY alone. **Do not invent Dispatcher values** — the rates and contractual terms are not on record. **A session name the roster does not hold refuses
+Calendar's notices ask the same function over TODAY alone, and Settings' Pay Calculator Data card asks it
+over the page's own payslips (`payslipsShownTo`, paycalc-periods.js). **The page policy decides first**: an Other Staff login,
+which `PAGE_POLICIES.paycalc` refuses, is never priced — even with an earlier priced grade in
+`roleHistory` (24 Nov 2026). **Do not invent Dispatcher values** — the rates and contractual terms are not on record. **A session name the roster does not hold refuses
 the same way**: a leaver or a renamed member keeps a valid local session, and pricing them would fall
 back to CEA rates in the bare shared `myb_pc_` namespace.
 

@@ -130,6 +130,19 @@ export function computeEarliestVisiblePNum(member) {
   return Math.max(floor, 48 + joinTy.first);
 }
 
+/**
+ * The payslips the Pay page can show `member` — from their earliest visible period to the grid's
+ * last: the span `payCalculatorPrices` (pay-audience.js) is asked over by the page's own gate and by
+ * Settings' Pay Calculator Data card (24 Nov 2026), so the card shows for exactly the members the
+ * page admits. Pure: it reads no stored state.
+ * @param {any} member - teamMembers entry (or null)
+ * @returns {any[]}
+ */
+export function payslipsShownTo(member) {
+  const floor = computeEarliestVisiblePNum(member);
+  return getPeriods().filter((/** @type {any} */ p) => p.num >= floor);
+}
+
 /** Store the current member's earliest visible period — and the first payslip they were employed
  *  for, which the Year to Date rules below keep to (a payslip from before somebody started has no
  *  figures of theirs on it). Call once from init before building selects. */

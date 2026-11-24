@@ -26,6 +26,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { payCalculatorPrices, heldPricedGrade, pricedGradeOn } from './pay-audience.js';
 import { teamMembers } from './roster-data.js';
+import { PAGE_POLICIES, requirePageAuth } from './auth-policy.js';
 
 /** Two 28-day payslips either side of a Sat 21 Nov 2026 promotion, as the page's grid draws them. */
 const P_BEFORE = { start: new Date(2026, 9, 18), cutoff: new Date(2026, 10, 14) };   // paid 20 Nov
@@ -77,6 +78,32 @@ describe('admitting a member it cannot price at all', () => {
         assert.equal(payCalculatorPrices(null, { periods: PAGE }), false);
         assert.equal(pricedGradeOn(null, new Date()), false);
         assert.equal(heldPricedGrade(null, P_BEFORE.start, P_BEFORE.cutoff), false);
+    });
+});
+
+// THE PAGE POLICY DECIDES (review, 24 Nov 2026). An Other Staff login is refused the Pay page by its
+// policy (auth-policy.js, rule 1b), but a row moved there from a priced grade keeps that grade in
+// `roleHistory` — and was priced, while its drawer hid Pay and the policy said refuse.
+const MOVED_TO_OTHER_STAFF = { name: 'Test Moved Colleague', role: 'Other Staff', otherStaff: true, hidden: true,
+    roleHistory: [{ role: 'CEA', until: new Date(2026, 9, 1) }] };
+
+describe('the page policy and the pay audience give one answer', () => {
+    test('an Other Staff row with an earlier priced grade is not priced, over any span', () => {
+        assert.equal(payCalculatorPrices(MOVED_TO_OTHER_STAFF, { periods: PAGE, today: new Date(2026, 8, 1) }), false,
+            'not even while the CEA grade is today\'s');
+        assert.equal(payCalculatorPrices(MOVED_TO_OTHER_STAFF, { periods: PAGE, today: new Date(2026, 10, 16) }), false);
+        assert.equal(heldPricedGrade(MOVED_TO_OTHER_STAFF, P_BEFORE.start, P_ACROSS.cutoff), false,
+            'premise held the other way: its CEA days are before the span');
+        assert.equal(heldPricedGrade(MOVED_TO_OTHER_STAFF, new Date(2026, 8, 1), P_ACROSS.cutoff), true,
+            'premise: the row does hold a priced grade on some days');
+    });
+    test('over the roster and invented rows: whoever is priced, the page policy admits', () => {
+        const span = [{ start: new Date(2025, 2, 9), cutoff: new Date(2027, 2, 6) }];
+        for (const m of [...teamMembers, MOVED_TO_OTHER_STAFF, PROMOTED_MANAGER, PROMOTED_FROM_DISPATCH]) {
+            if (!payCalculatorPrices(m, { periods: span, today: new Date(2026, 10, 16) })) continue;
+            const d = requirePageAuth({ status: 'named', member: m.name }, PAGE_POLICIES.paycalc, { otherStaff: m.otherStaff === true });
+            assert.notEqual(d.decision, 'forbidden', m.name);
+        }
     });
 });
 

@@ -1436,6 +1436,17 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
     });
 
+    // A colleague MOVED to Other Staff keeps their earlier grade in `roleHistory`, which the pay audience counts
+    // (by the role at the time) — so the Pay Calculator priced their CEA payslips while the page policy refused the
+    // page and the drawer hid Pay (review, 24 Nov 2026). The policy decides (pay-audience.js), on the real page.
+    test('a colleague moved to Other Staff from a priced grade is refused the Pay Calculator too', async ({ page }) => {
+        await withOtherStaff(page, NAME, "roleHistory: [{ role: 'CEA', until: new Date(2026, 9, 1) }]");
+        await seedSession(page, NAME);
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
+        await expect(page.locator('#netDisplay')).toBeHidden();
+    });
+
     test('Settings and Trains open for them', async ({ page }) => {
         await withOtherStaff(page, NAME);
         await seedSession(page, NAME);
