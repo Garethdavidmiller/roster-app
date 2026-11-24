@@ -171,6 +171,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      actions: read     # listing this run's artifacts, to wait for the upload (below)
       pages: write
       id-token: write   # deploy-pages proves the run to the Pages service with an OIDC token
     environment:
@@ -215,6 +216,25 @@ jobs:
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site/
+
+      # deploy-pages finds the upload by LISTING this run's artifacts, and that list catches up a
+      # moment after the upload finishes. On 24 Nov 2026 it asked 0.3 seconds after the upload and
+      # found nothing, twice running ("No artifacts named github-pages"), so the mirror kept serving
+      # the previous release. Re-running the job cannot recover: the second attempt finds the first
+      # attempt's upload as well as its own and refuses both. So wait here, on the same list
+      # deploy-pages reads, until it names the upload.
+      - name: Wait until GitHub lists the upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          for i in $(seq 1 30); do
+            n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=github-pages" --jq '.total_count' 2>/dev/null || echo 0)
+            if [ "${n:-0}" -ge 1 ]; then echo "Listed after $i check(s)."; exit 0; fi
+            sleep 2
+          done
+          echo "::error::GitHub had not listed the github-pages upload after a minute, so deploy-pages would not find it."
+          exit 1
 
       - name: Deploy to GitHub Pages
         id: deployment
