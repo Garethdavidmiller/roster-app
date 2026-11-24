@@ -157,7 +157,7 @@ export function entryControlHtml(key, s, date) {
                    value="${esc(d.to)}" inputmode="numeric" maxlength="5" placeholder="HH:MM"
                    autocomplete="off" aria-label="End time (24-hour, HH:MM)">
         </div>` : ''}
-        ${d.type ? `<p class="roster-entry-hint">${entryHint(d, s)}</p>` : ''}
+        ${d.type ? `<p class="roster-entry-hint">${esc(entryHint(d, s))}</p>` : ''}
     </div>`;
 }
 
@@ -327,6 +327,7 @@ function draftValue(d, st) {
 }
 
 /** The line under the boxes. It must never say "will be saved" over a draft that would not be.
+ *  PLAIN text: the markup site escapes it, and `patchEntryRow` writes it as text (whole-app review, 24 Nov 2026).
  *  @param {any} d @param {any} st @returns {string} */
 function entryHint(d, st) {
     const { value, error } = draftValue(d, st);
@@ -338,7 +339,7 @@ function entryHint(d, st) {
     // offers it. This control does not, so it says its own sentence rather than promising a chip
     // that is not on screen — every other error it raises is about times and reads correctly here.
     if (!d.flavour && d.type === 'other') return HINT_FLAVOUR;
-    if (error) return esc(error.charAt(0).toUpperCase() + error.slice(1));
+    if (error) return error.charAt(0).toUpperCase() + error.slice(1);
     return HINT_TODO;   // an Other day always composes or names its error (composeOtherValue), so it never gets here
 }
 

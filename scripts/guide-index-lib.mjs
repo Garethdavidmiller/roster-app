@@ -162,7 +162,9 @@ export function extractGuideUnits(html, page) {
     /** @type {{id: string, title: string, start: number, end: number}[]} */
     const sections = heads.map((m, i) => ({
         id: m[1],
-        title: textOf(m[2]).replace(/\s+/g, ' ').trim(),
+        // A tag beside the heading ("Admins only") is joined with a dash, so the drawer's title does not
+        // run it into the heading's words — "Weekly Roster Upload Admins only" (whole-app review, 24 Nov 2026).
+        title: textOf(m[2].replace(/<span class="admins-only">([\s\S]*?)<\/span>/g, ' — $1')).replace(/\s+/g, ' ').trim(),
         start: m.index ?? 0,
         end: i + 1 < heads.length ? (heads[i + 1].index ?? src.length) : src.length,
     }));

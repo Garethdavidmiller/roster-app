@@ -75,7 +75,7 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { STATIONS } from './trains-data.js';
 import { CARD_TIPS, tipsOn } from './trains-tips.js';
 import { railwayToday } from './trains-change.js';
-import { changesTitle, SIGN_IN_ABOUT } from './trains-render.js';
+import { changesTitle, SIGN_IN_ABOUT, HEADLINES_SHOWN } from './trains-render.js';
 import { DEC_STOPS_KNOWN, LAST_STATION_KEY, phase, renderOverview, renderChanges, renderPattern, renderStationPicks, renderLast,
     renderStationCard, renderLookup, setText, el } from './trains-cards.js';
 import { syncGridMirror } from './trains-grid-mirror.js';
@@ -381,7 +381,7 @@ function refocus(b, scope) {
     if (b.isConnected && document.activeElement === b) return;
     const sel = ['day', 'view', 'sdir', 'grid', 'station', 'col'].map(k => b.dataset[k] ? `[data-${k}="${b.dataset[k]}"]` : '').find(Boolean);
     const next = /** @type {HTMLElement|null} */ (sel ? el(scope)?.querySelector(sel) ?? null
-        : b.id === 'trHeadsMore' ? document.querySelectorAll('#trChanges .tr-head')[5] ?? null
+        : b.id === 'trHeadsMore' ? document.querySelectorAll('#trChanges .tr-head')[HEADLINES_SHOWN] ?? null
         : b.id === 'trAllTrains' ? document.querySelector('#trStation .tr-route-sum')
         : b.id === 'trGridAll' ? document.querySelector('#trPattern .tr-grid-wrap') : null);
     next?.focus();

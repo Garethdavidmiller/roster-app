@@ -23,7 +23,7 @@ const FAKE_MEMBERS = [
 // runs before any mock is registered. The dropdown tests need both — what the filter has to remove
 // is a property of the roster people are actually on, and what removing it would expose is a
 // property of `getALEntitlement`. A fixture could state neither.
-const { teamMembers: LIVE_MEMBERS, CONFIG: REAL_CONFIG, isOtherStaff } = await import('../roster-data.js?real');
+const { teamMembers: LIVE_MEMBERS, CONFIG: REAL_CONFIG, isOtherStaff, fixedRoster } = await import('../roster-data.js?real');
 const { getALEntitlement: realGetALEntitlement } = await import('../al-contract.js?real');
 
 mock.module('../ls.js', {
@@ -49,6 +49,7 @@ mock.module('../roster-data.js', {
         CONFIG:      { ...REAL_CONFIG, DEFAULT_MEMBER_NAME: 'A. Smith' },
         teamMembers: FAKE_MEMBERS,
         isOtherStaff,
+        fixedRoster,
     },
 });
 
@@ -316,11 +317,20 @@ describe('validateTeamMembers', () => {
             [{ ...ok, roleHistory: [{ role: 'Trainee', until: new Date(2026, 6, 1) }] }, /unknown role "Trainee"/],
             [{ ...ok, roleHistory: [{ role: 'CEA', until: new Date(2026, 6, 1, 23, 59) }] }, /until must be a Date at midnight/],
             [{ ...ok, roleHistory: [{ role: 'CEA', until: new Date(2026, 8, 1) }, { role: 'CES', until: new Date(2026, 6, 1) }] }, /sorted ascending by until/],
+            // A fixed member's week names a pattern, so it is bounded by the patterns that exist (whole-app review, 24 Nov 2026).
+            [{ ...ok, currentWeek: Object.keys(fixedRoster).length + 1 }, /names no fixed pattern/],
+            [{ ...ok, rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'fixed', currentWeek: Object.keys(fixedRoster).length + 1 }] }, /invalid currentWeek/],
         ]);
         for (const [member, expected] of cases) {
             const errors = validating([member]);
             assert.ok(errors.some(e => expected.test(e)), `${JSON.stringify(member)} → ${JSON.stringify(errors)}`);
         }
+    });
+
+    test('a name that appears twice is named — every override is keyed on it (whole-app review, 24 Nov 2026)', () => {
+        const errors = validating([ok, { ...ok, currentWeek: 1 }]);
+        assert.ok(errors.some(e => /D\. Invented: the name appears more than once/.test(e)), JSON.stringify(errors));
+        assert.deepEqual(validating([ok, { ...ok, name: 'E. Other' }]), [], 'two names, no complaint');
     });
 
     test('and the well-formed optional fields pass', () => {

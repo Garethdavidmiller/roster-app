@@ -154,7 +154,8 @@ export function builtStatusLine(built, ord, { attempt, maxRunOn, maxRunTarget, e
     const b = ord.before, a = ord.after;
     const moved = ord.changed
         ? ` — same shift type in a row ${b.longestBlock} → ${a.longestBlock} weeks, shifts in a row ${b.longestRun} → ${a.longestRun}, `
-          + `average week-to-week move ${b.gentleMean} → ${a.gentleMean} min, full weekends off ${b.weekends} → ${a.weekends}, `
+          // In hours and minutes, as the FF18 row states the same move (whole-app review, 24 Nov 2026).
+          + `average week-to-week move ${hmFromHours(b.gentleMean / 60)} → ${hmFromHours(a.gentleMean / 60)}, full weekends off ${b.weekends} → ${a.weekends}, `
           + `long weekends ${b.longWeekends} → ${a.longWeekends}.`
         : '. Review and save when ready.';
     const missed = maxRunOn && ord.changed && a.longestRun > maxRunTarget

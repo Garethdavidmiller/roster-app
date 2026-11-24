@@ -224,6 +224,8 @@ test('settings: typing a different address takes the "✓ Saved" away; the saved
     await page.locator('#contactChevron').click();
     const feedback = page.locator('#contactFeedback');
     await expect(feedback).toHaveText('✓ Saved');
+    // The tick is decoration in a live region, hidden from a screen reader (status-text.js; whole-app review, 24 Nov 2026).
+    await expect(feedback.locator('span[aria-hidden="true"]')).toHaveText('✓');
     await page.locator('#workEmailInput').fill('g.miller@chilternrailways.co.uk');   // the same address, typed whole
     await expect(feedback).toHaveText('✓ Saved');
     await page.locator('#workEmailInput').fill('g.millerx');

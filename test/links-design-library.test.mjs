@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 let _els = {};
 function el(/** @type {string} */ id) {
     return (_els[id] ??= {
-        id, value: '', hidden: false, disabled: false, textContent: '', className: '', innerHTML: '',
+        id, value: '', hidden: false, disabled: false, textContent: '', className: '', innerHTML: '', style: {},
         /** @type {Record<string, Function[]>} */ _on: {},
         addEventListener(/** @type {string} */ t, /** @type {Function} */ fn) { (this._on[t] ??= []).push(fn); },
     });
@@ -46,6 +46,7 @@ mock.module('../overlay.js', {
 
 const { createDesignLibrary } = await import('../links-design-library.js');
 const { PROPOSALS, proposalDisplayName } = await import('../links-proposals.js');
+const { OLDER_BEFORE } = await import('../links-shortlist.js');
 
 /** A recording store and context.
  *  @param {{ restore?: Function, create?: Function, purge?: Function, binIfStill?: Function, activeId?: () => any, kept?: boolean }} [over] */
@@ -388,6 +389,16 @@ describe('the bin: one action at a time on a row (links-design-9)', () => {
         lib.renderBinList();
         assert.match(el('designBinList').innerHTML, /class="bin-restore[^"]*"[^>]*aria-label="Restore Alpha"/);
     });
+});
+
+// The row's cut-off date is stamped from OLDER_BEFORE as the ··· More sheet opens, never typed into the
+// markup (whole-app review, 24 Nov 2026).
+test('opening ··· More stamps the Keep only the shortlist row with OLDER_BEFORE, in words', async () => {
+    setup();
+    await fire('designMoreBtn', 'click');
+    const expected = new Date(OLDER_BEFORE).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
+    assert.equal(el('keepShortlistBefore').textContent, expected);
+    assert.equal(expected, '2 November 2026', 'premise: the cut-off the owner asked for');
 });
 
 describe('Keep only the shortlist warns about unsaved work only when the open design moves (links-design-10)', () => {

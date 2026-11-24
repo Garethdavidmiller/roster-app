@@ -1684,7 +1684,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .check-quiet-summary::-webkit-details-marker { display: none; }
 .check-quiet-summary::before {
     content: '▸';
-    color: var(--accent-gold);
+    color: var(--gold-text);   /* the dark gold: the brand gold is about 1.5:1 on the card (whole-app review, 24 Nov 2026) */
     font-size: var(--type-badge);
     line-height: 1;
     transition: transform var(--dur-fast) var(--ease-standard);

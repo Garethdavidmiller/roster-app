@@ -215,7 +215,7 @@ export function createRangeBookingSection(cfg) {
             workDays: p.workDays, restCount: p.restCount, projection: p.projection, sundays: p.sundays,
             sundayNote: n ? (n === 1 ? '1 Sunday set as a rest day' : `${n} Sundays set as rest days`) : '',
         });
-        if (p.pending.length) previewEl.insertAdjacentHTML('beforeend', _swapBlock(p.pending));
+        if (p.pending.length) previewEl.insertAdjacentHTML('beforeend', _swapBlock(p.pending, dates.length));
 
         // Unanswered blocks the save outright (rule 2); otherwise "is there anything to write?".
         // `saving` first (v24.26): this runs on a swap answer, a date change and admin-app's
@@ -229,8 +229,9 @@ export function createRangeBookingSection(cfg) {
      * a CHOICE between two readings of the day, not a thing to opt into — and because an unticked
      * checkbox looks answered, which is the one thing this must never look.
      * @param {string[]} pending
+     * @param {number} rangeDays  the days in the range: one rest day among several is "1 of these days"
      */
-    function _swapBlock(pending) {
+    function _swapBlock(pending, rangeDays) {
         const rows = pending.map(d => {
             const yes = swapAnswers.get(d) === true;
             const no  = swapAnswers.get(d) === false;
@@ -243,7 +244,8 @@ export function createRangeBookingSection(cfg) {
         }).join('');
         const n = pending.length;
         return `<div class="swapday-ask" role="group" aria-label="Rest days in this range">`
-             + `<p class="swapday-lead"><strong>${n === 1 ? 'This day is a rest day' : `${n} of these days are rest days`}</strong> on the roster. `
+             // "This day" only for a one-day booking, as the Spare note words it (whole-app review, 24 Nov 2026).
+             + `<p class="swapday-lead"><strong>${n === 1 ? (rangeDays === 1 ? 'This day is a rest day' : '1 of these days is a rest day') : `${n} of these days are rest days`}</strong> on the roster. `
              + `Leave on a rest day only costs a day if the member was <strong>swapped</strong> onto it. `
              + `Answer each one — nothing is recorded until you do.</p>${rows}</div>`;
     }

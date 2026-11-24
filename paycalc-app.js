@@ -287,7 +287,7 @@ export function init() {
       const ty = taxYearForPeriod(p);
       const startStr = fdShort(p.start);
       const cutLongStr = fdLong(p.cutoff);
-      // The payday is NOT repeated here: the select above already reads "Paid 31 Jul 2026 · P20", so
+      // The payday is NOT repeated here: the select above already reads "Paid 31 July 2026 · P20", so
       // the meta row carries what it does not — the shift window and the tax year — and the gold
       // P-badge stays as the payslip cross-check. The window is LABELLED "Hours worked": a bare
       // "26 Jul – 22 Aug 2026" left the reader to guess, and three hours rows each restated the cut-off.
@@ -357,10 +357,11 @@ export function init() {
         setStatus(_hintEl, settingsSummary(ty, p));
       } else {
         _hintEl.textContent = _settingsHintDefault;
-        // What is TRUE (whole-app review): grade, tax code, loan and pension are single settings used
-        // for every payslip of every year; only the "checked" mark is per tax year.
+        // What is TRUE (whole-app review, 24 Nov 2026): the tax code and student loan are single settings
+        // used for every payslip; pension is kept per payslip (the hint beside it says so); the grade
+        // follows the roster by date. Only the "checked" mark is per tax year.
         /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
-          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. Your settings apply to every payslip — you'll be asked to check them again when a new tax year starts.`;
+          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date — you'll be asked to check them again when a new tax year starts.`;
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
         // Auto-open settings once per session per TY — only for returning users (new users already
         // see the settings card open) — with the "New tax year" notice. Never for a year that is

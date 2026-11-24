@@ -482,7 +482,7 @@ async function initPageSpeedCard() {
 
     } catch (e) {
         console.error('[AppSpeed]', e);
-        _cardLoadError(content, 'Couldn\'t load app speed — check your connection.', initPageSpeedCard);
+        _cardLoadError(content, 'Couldn’t load app speed — check your connection.', initPageSpeedCard);
     } finally {
         content.removeAttribute('aria-busy');
     }

@@ -432,7 +432,7 @@ export function init() {
                 .map(d => {
                     const isActive = d.id === cmpId;
                     return `<div class="design-chip${isActive ? ' design-chip--active' : ''}">` +
-                        `<button class="design-chip-name" data-id="${escapeHtml(d.id)}" type="button">` +
+                        `<button class="design-chip-name" data-id="${escapeHtml(d.id)}" type="button" aria-pressed="${isActive}">` +
                         `${escapeHtml(d.name)}</button></div>`;
                 }).join('');
         }
@@ -638,17 +638,20 @@ export function init() {
             const _preRevision = (id === activeDesignId) ? loadedRevision : (d.revision ?? null);
             const { baselineFresh, updatedAt: renamedAt, revision: renamedRev } = await store.rename(
                 { id, name, by: currentUser, preBaseline: _preBaseline, preRevision: _preRevision });
-            d.name = name;
+            // The list may have been re-read while the rename was out (`_refreshLists` replaces entries), so
+            // the entry updated is the LIVE one, not the one captured before the awaits (whole-app review, 24 Nov 2026).
+            const live = designs.find(x => x.id === id) ?? d;
+            live.name = name;
             if (id === activeDesignId && design) design.name = name;
             if (baselineFresh) {
-                d.updatedBy = currentUser;
-                if (renamedAt) { d.updatedAt = renamedAt; delete d.savedAt; }   // server time wins (see recordSave)
+                live.updatedBy = currentUser;
+                if (renamedAt) { live.updatedAt = renamedAt; delete live.savedAt; }   // server time wins (see recordSave)
                 // To the revision the rename COMMITTED, never one a read-back happened to see (v22.18).
-                if (typeof renamedRev === 'number') d.revision = renamedRev;
+                if (typeof renamedRev === 'number') live.revision = renamedRev;
                 if (id === activeDesignId) {
-                    loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
+                    loadedUpdatedAt = live.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
                     if (typeof renamedRev === 'number') loadedRevision = renamedRev;
-                    updateLastSaved(d.updatedBy, lastSaveTime(d));
+                    updateLastSaved(live.updatedBy, lastSaveTime(live));
                 }
             }
             _sortDesigns();

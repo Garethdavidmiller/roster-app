@@ -483,9 +483,9 @@
     /* Stacking order (v17.72). The overlay layer was hand-picked magic numbers; the login overlay
        and the paycalc one-time notices both sat at 9000 (a tie resolved only by source order). */
     --z-drawer:   7800;   /* the nav drawer — above every fixed bottom bar (Admin's staged changes 7400,
-                             the save toast and slow-save notice 7500, the AL confirm bar 7600), which
-                             at 300 covered its footer and with it Sign out (v24.52); below every
-                             lightbox, dialog and sheet, which the drawer itself opens */
+                             --z-toast, the AL confirm bar 7600), which at 300 covered its footer and
+                             Sign out (v24.52); below every lightbox, dialog and sheet it opens */
+    --z-toast:    7500;   /* the save toast (admin.css) and slow-save notice, under the AL confirm bar */
     --z-lightbox: 8000;   /* .lb-overlay base (About, Tips, dialogs, the date picker, one-time notices);
                              a confirm dialog opened over a higher layer lifts above it (overlay.js) */
     --z-notice:   8500;   /* above that, below login: the Huddle viewer, Pay's help sheet and YTD notice */
@@ -1549,8 +1549,8 @@ button.lightbox-bug-link {
     font-size: var(--type-medium);
     color: var(--text-dark);
     background-color: var(--field-bg);
-    border: 2px solid var(--border-mid);
-    border-radius: var(--radius-md);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     transition: background-color var(--dur-fast) var(--ease-standard),
                 border-color     var(--dur-fast) var(--ease-standard);
 }
@@ -1732,7 +1732,7 @@ button.lightbox-bug-link {
     align-items: center;
     gap: 4px;
     padding: 3px 10px;
-    border-radius: 14px;
+    border-radius: var(--radius-pill);
     font-size: var(--type-badge);
     font-weight: 700;
     letter-spacing: 0.4px;
@@ -2319,7 +2319,7 @@ button.lightbox-bug-link {
     display: inline-flex; align-items: center; justify-content: center;
     position: relative;   /* for the tap area below */
     flex-shrink: 0;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     -webkit-user-select: none; user-select: none;
     transition: background-color var(--dur-fast) var(--ease-standard);
 }
@@ -3304,6 +3304,8 @@ button.nav-panel-link--notices {
     #loginSubmit:hover, #pwfSave:hover, #calLockSubmit:hover { background: var(--primary-blue-dark); }
 }
 #loginSubmit:active, #pwfSave:active, #calLockSubmit:active { transform: scale(var(--press-scale)); }
+/* Disabled mid-sign-in or under the lock, it looks it; after :active, so a press does not scale. */
+#loginSubmit:disabled, #pwfSave:disabled, #calLockSubmit:disabled { opacity: .6; cursor: default; transform: none; }
 /* The "— Select grade first —" state:
      · `white` is the FOCUS ceiling in the three-surface model, so a DISABLED control wearing it reads
        as the most active field; `--field-bg-disabled` is what every disabled field uses.
@@ -3820,7 +3822,7 @@ body.auth-ready .boot-placeholder { display: none; }
     line-height: 1;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     margin-top: 1px;
 }
 
@@ -3847,7 +3849,7 @@ body.auth-ready .boot-placeholder { display: none; }
     padding: 10px 14px;
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-3);
-    z-index: 7500;
+    z-index: var(--z-toast);
 }
 #slowSaveNotice[hidden] { display: none; }
 @media print { #slowSaveNotice { display: none; } }

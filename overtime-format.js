@@ -681,7 +681,7 @@ export function isAvailableAnswer(day) {
  *
  * Returns HTML, and every value in it is app-derived (a shift constant, or a roster time already
  * matched against the shift-range pattern) — no member input reaches this string.
- * @param {{shift: string, hasTime: boolean, start: string, end: string}|null} ctx
+ * @param {{shift: string, hasTime: boolean, start: string, end: string, permanentShift?: string}|null} ctx
  * @returns {string}
  */
 export function rosterBadge(ctx) {
@@ -692,8 +692,8 @@ export function rosterBadge(ctx) {
     // beside it as plain text. Two objects for one fact, and the word is redundant when the time is
     // right there. Admin puts the TIME in the pill (`showTime`), one object, and the options beside
     // this badge are "Before 06:20 / After 14:20" — the time is the whole point of the row. Same
-    // option, same raw string admin passes, so the two pages cannot render one shift two ways.
-    return getShiftBadge(ctx.shift, { showTime: true });
+    // option, same raw string admin passes, so the two pages cannot render one shift two ways (permanentShift too).
+    return getShiftBadge(ctx.shift, { showTime: true, member: { permanentShift: ctx.permanentShift } });
 }
 
 /**

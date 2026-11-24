@@ -41,7 +41,8 @@ import { checkName, checkDesignName, nameConflict } from './links-design-naming.
 import { ROTATING_LINES } from './links-design.js';
 import { PROPOSAL_NAMES } from './links-proposals.js';
 import { docPayload, restoredEntryFrom, binEntryFromDoc, binEntryFrom } from './links-design-doc.js';
-import { isOlderDesign, olderDesigns, canKeepOnlyShortlist, keepOnlyShortlistMessage, keptOnlyShortlistLine } from './links-shortlist.js';
+import { isOlderDesign, olderDesigns, canKeepOnlyShortlist, keepOnlyShortlistMessage, keptOnlyShortlistLine, OLDER_BEFORE } from './links-shortlist.js';
+import { formatDayMonthYear } from './date-format.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { deletedLabel } from './links-deletion.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -486,7 +487,16 @@ export function createDesignLibrary(ctx) {
     // opens and something older is left, and run through the masthead's `viaSheet`, so the sheet has
     // faded before the dialog arrives.
     const keepRow = document.getElementById('keepShortlistBtn');
-    document.getElementById('designMoreBtn')?.addEventListener('click', () => { if (keepRow) keepRow.style.display = keepOffered() ? '' : 'none'; });
+    // The date the row names is OLDER_BEFORE's, read from its UTC parts so no time zone moves the day —
+    // never typed into the markup beside it (whole-app review, 24 Nov 2026).
+    const _olderBefore = new Date(OLDER_BEFORE);
+    const _beforeWords = formatDayMonthYear(new Date(_olderBefore.getUTCFullYear(), _olderBefore.getUTCMonth(), _olderBefore.getUTCDate()));
+    document.getElementById('designMoreBtn')?.addEventListener('click', () => {
+        if (!keepRow) return;
+        keepRow.style.display = keepOffered() ? '' : 'none';
+        const when = document.getElementById('keepShortlistBefore');
+        if (when) when.textContent = _beforeWords;
+    });
     keepRow?.addEventListener('click', () => { const h = ctx.getHeader(); if (h) h.viaSheet(keepOnlyShortlist); else keepOnlyShortlist(); });
 
     initDesignBin();

@@ -1321,7 +1321,7 @@ test('drawer: a REFUSED document read blames the session, not the signal', async
     await page.locator('.nav-panel-link--circular').waitFor();
     await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
     await expect(page.locator('#navComingSoonBody')).toHaveText(/your sign-in may have ended/i, { timeout: 12_000 });
-    await expect(page.locator('#navComingSoonBody')).not.toHaveText(/signal/i);
+    await expect(page.locator('#navComingSoonBody')).not.toHaveText(/check your connection/i);
 });
 
 test('drawer: a NETWORK failure still blames the network', async ({ page }) => {
@@ -1336,7 +1336,7 @@ test('drawer: a NETWORK failure still blames the network', async ({ page }) => {
     // outside the viewport. What is under test is the handler's CHOICE OF WORDS, not the tap.
     await page.locator('.nav-panel-link--circular').waitFor();
     await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
-    await expect(page.locator('#navComingSoonBody')).toHaveText(/signal/i, { timeout: 12_000 });
+    await expect(page.locator('#navComingSoonBody')).toHaveText(/check your connection/i, { timeout: 12_000 });
 });
 
 /**

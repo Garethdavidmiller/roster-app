@@ -142,7 +142,8 @@ describe('the line a build reports names its construction and its figures as the
         assert.ok(line.startsWith(`Link built — each line kept to one wave of similar start times (${built.waves} waves)`), line);
         const b = ord.before, a = ord.after;
         assert.ok(line.includes(`same shift type in a row ${b.longestBlock} → ${a.longestBlock} weeks, shifts in a row ${b.longestRun} → ${a.longestRun}, `
-            + `average week-to-week move ${b.gentleMean} → ${a.gentleMean} min, full weekends off ${b.weekends} → ${a.weekends}, long weekends ${b.longWeekends} → ${a.longWeekends}.`), line);
+            + `average week-to-week move ${hmFromHours(b.gentleMean / 60)} → ${hmFromHours(a.gentleMean / 60)}, full weekends off ${b.weekends} → ${a.weekends}, long weekends ${b.longWeekends} → ${a.longWeekends}.`), line);
+        assert.match(line, /average week-to-week move \d+h \d\dm → \d+h \d\dm,/, 'the move reads as the FF18 row does, never in raw minutes');
         assert.ok(line.endsWith(' X'));
     });
     test('the fallback, a missed run cap, and the design number after the first press', () => {

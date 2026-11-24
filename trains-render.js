@@ -60,6 +60,14 @@ const ENDED_NOTE = '<p class="card-explainer tr-lead"><strong>These times come f
  */
 export const changesTitle = (started) => started ? 'What changed' : 'What’s changing';
 
+/** How many headline changes show before "Show more"; Show more hands focus to the first one it revealed
+ *  (trains-app.js → `refocus`), so the two read one number (whole-app review, 24 Nov 2026). */
+export const HEADLINES_SHOWN = 5;
+
+/** The note shown until the new timetable's stops are published, its month from the change date. */
+export const partialStopsNote = () => `Where ${monthWords(CHANGE_DATE)}’s trains stop is not published yet, `
+    + 'so each train is compared by where it ends. Through stations fill in when it is.';
+
 /**
  * The overview's opening line, in the tense of the change: "This page compares today’s timetable with the
  * new one…" before it, "…the timetable that ran until…" from it. A sentence with a verb: "Today’s
@@ -131,7 +139,7 @@ const dot = (kind, words) => `<span class="tr-dot${kind ? ` tr-dot--${kind}` : '
  * @returns {string}
  */
 export function renderHeadlines(items, { showAll, partial }) {
-    const shown = showAll ? items : items.slice(0, 5);
+    const shown = showAll ? items : items.slice(0, HEADLINES_SHOWN);
     // The chip says what KIND of change, in words a reader can repeat: "More" alone asked "more what?".
     const word = /** @type {Record<string, string>} */ ({ more: 'More trains', less: 'Fewer trains', moved: 'New times' });
     const list = shown.length

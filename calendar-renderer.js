@@ -14,7 +14,7 @@
 import {
     DAY_NAMES, MONTH_NAMES,
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
-    isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, shiftBadgeParts,
+    isPayday, isCutoffDate, getShiftKind, SHIFT_KIND_LABELS, getShiftClass, getShiftBadge, shiftBadgeParts,
     getWeekNumberForDate, getRosterForMember, resolveMemberRoster, getBaseShift, formatISO, isSunday, isWorkedShift,
     getPatternShift,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, escapeHtml,
@@ -28,7 +28,6 @@ import { knowledgeOf, decideDisplay } from './calendar-data-state.js';
 
 const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const SHIFT_KIND_LABELS = { early: 'Early shift', late: 'Late shift', night: 'Night shift' };
 
 /**
  * WHO changed a day, in one short line — or nothing.
@@ -162,7 +161,7 @@ export function dayMarkers(f) {
     if (f.isBH)     out.push({ icon: '⭐', label: 'Bank holiday' });
     if (f.isToday)  out.push({ icon: '📍', label: 'Today' });
     if (f.isPay)    out.push({ icon: '💷', label: 'Payday' });
-    if (f.isCutoff) out.push({ icon: '✂️', label: 'Cut-off date' });
+    if (f.isCutoff) out.push({ icon: '✂️', label: 'Pay cut-off' });
     return out;
 }
 

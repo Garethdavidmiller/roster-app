@@ -479,6 +479,7 @@ roster-app/
 │   ├── calendar-state.test.mjs / calendar-member.test.mjs / calendar-overrides.test.mjs ← the Calendar's state, member and override modules, including bounded reads (--experimental-test-module-mocks)
 │   ├── calendar-renderer.test.mjs   ← the Calendar's cells and grid with the roster rules real (--experimental-test-module-mocks)
 │   ├── calendar-initial-fetch.test.mjs ← the initial fetch, the sync chip and the two-phase load
+│   ├── calendar-initial-fetch-midload.test.mjs ← back in view while the first load is out: a locked Calendar draws nothing (--experimental-test-module-mocks)
 │   ├── paycalc-periods.test.mjs ← the pay periods and their helpers (--experimental-test-module-mocks)
 │   ├── paycalc-hpp.test.mjs    ← the Holiday Pay Premium module (--experimental-test-module-mocks)
 │   ├── paycalc-fill-year.test.mjs ← the bulk fill, by what it can destroy. Part of test:hygiene
@@ -524,6 +525,7 @@ roster-app/
 │   ├── usage-reporter.test.mjs ← the usage recorder's exclusions, gating and dedup (--experimental-test-module-mocks)
 │   ├── perf-reporter.test.mjs ← the latency recorder's exclusions and the login marker (--experimental-test-module-mocks)
 │   ├── doc-upload.test.mjs ← the upload card's type gate and flow with the real documents client (--experimental-test-module-mocks)
+│   ├── operations-errors.test.mjs ← the Error Log card: overlapping reads paint only the newest (--experimental-test-module-mocks)
 │   ├── firestore.rules.test.mjs ← the Firestore security rules over every collection, under the emulators (`npm run test:rules`); gates every PR and the rules deploy
 │   ├── storage.rules.test.mjs  ← the Storage security rules, with `npm run test:rules`
 │   ├── storage-rules-static.test.mjs ← the upload size cap is present in every Storage upload block. Part of test:hygiene

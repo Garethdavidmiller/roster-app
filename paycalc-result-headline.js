@@ -114,7 +114,7 @@ function actualSummaryHtml(/** @type {any} */ actual, /** @type {number} */ esti
           <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(actual.ni)}</span></div>
           ${actual.sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(actual.sl)}</span></div>` : ''}
           <div class="sum-row sum-net"><span class="lbl">Actual take-home</span><span class="val">${fmt(actual.net)}</span></div>
-          <div class="sum-row" style="border-top:1px solid var(--border-light);margin-top:6px;padding-top:6px;font-size:var(--type-small);color:var(--text-faint)">
+          <div class="sum-row sum-compare">
             <span class="lbl">Calculator estimate</span><span class="val">${fmt(estimateNet)}</span>
           </div>
         `;

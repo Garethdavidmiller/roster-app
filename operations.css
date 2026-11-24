@@ -1298,9 +1298,12 @@ body.auth-ready .container { display: grid; }
 .auth-result-info  { color: var(--primary-blue); }
 .auth-result-error { color: var(--error-red); }
 
-/* Warning shown when the admin sign-in couldn't be confirmed */
+/* Warning shown when the admin sign-in couldn't be confirmed. Prepended into .container, a grid:
+   it spans both desktop columns and keeps the cards' one left edge — the grid gap spaces it
+   (whole-app review, 24 Nov 2026). */
 .ops-auth-warning {
-    margin: 12px 16px 0;
+    grid-column: 1 / -1;
+    margin: 0;
     padding: 12px 14px;
     background: var(--error-bg);
     border-left: 4px solid var(--error-banner);

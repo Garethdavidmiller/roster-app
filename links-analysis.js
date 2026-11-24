@@ -688,7 +688,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // goes to the assessing manager rather than hidden behind a disclosure.
         // Its counts are deliberately NOT added to the fatigue heading's tally. See links-limits.js.
         const limits = reading.limits;
-        const LIMIT_ICON = { ok: tick, breach: `<span class="check-icon check-cross" aria-hidden="true">✕</span>`, unknown: info };
+        // A breach wears the card's one cross (✗), not the ✕ of a close button (whole-app review, 24 Nov 2026).
+        const LIMIT_ICON = { ok: tick, breach: cross, unknown: info };
         const LIMIT_CLS  = { ok: 'check-good', breach: 'check-bad', unknown: 'check-neutral' };
         // ── THE CLAIM'S STRENGTH IS DERIVED, NEVER TYPED (v20.08, external review P1) ────────────
         // This heading said "Chiltern roster policy — must be met" from v19.96 to v20.07 over a limit

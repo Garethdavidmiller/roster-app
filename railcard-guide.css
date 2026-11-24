@@ -102,7 +102,9 @@ body {
 .rc-row { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; }
 .rc-lbl {
     flex-shrink: 0;
-    width: 40px;
+    /* In em, so the label column grows with larger text as the Rangers guide's does (`.rr-row`): fixed,
+       a larger size ran CLASS into its value (whole-app review, 24 Nov 2026). 4.2em of 10px is 42px. */
+    width: 4.2em;
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;

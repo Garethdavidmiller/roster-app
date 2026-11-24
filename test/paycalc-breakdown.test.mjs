@@ -124,8 +124,20 @@ test('buildSummaryRows: estimate flags add " — estimate"/"(estimated)" labels'
 test('buildSummaryRows: cumulative tax adds the "adjusted from payslip" note; slLines injected verbatim', () => {
     const sl = '<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−£30.00</span></div>';
     const html = buildSummaryRows({ ...SUM_BASE, usingCumulative: true, slLines: sl });
-    assert.ok(html.includes('adjusted from payslip'));
+    assert.ok(html.includes('<span class="sum-est">adjusted from payslip</span>'), 'the note wears the stylesheet\'s class');
     assert.ok(html.includes(sl), 'pre-rendered slLines passed through unchanged');
+});
+
+// Built markup carries classes, not inline styles: an inline style is a copy of the stylesheet's
+// recipe that a token change never reaches (whole-app review, 24 Nov 2026).
+test('the summary and breakdown rows carry no inline style', () => {
+    const rows = [
+        buildSummaryRows({ ...SUM_BASE, usingCumulative: true }),
+        buildBreakdownRows({ ...BD_BASE, slSkip: true, plan: 'plan2' }),
+        buildBreakdownRows({ ...BD_BASE, usingCumulative: true }),
+    ].join('');
+    assert.doesNotMatch(rows, /style="/);
+    assert.match(rows, /<span class="b-lbl bd-note-lbl">Student Loan not deducted this period<\/span>/);
 });
 
 test('buildSummaryRows: Year to Date figures asking for more tax than the payslip pays say to check them', () => {

@@ -315,6 +315,17 @@ describe('the estimate badge reaches the rendered row', () => {
         assert.match(html, /Includes a 7h estimate/, 'the default was drawn as if the roster said so');
     });
 
+    // A row names the Hours box it fills in that box's own words and emoji (whole-app review, 24 Nov 2026):
+    // "RDW" and "BH overtime" were not the Hours card's titles, and 🏦 is the ? panel's pension.
+    test('the rows wear the Hours rows\' titles and emoji', () => {
+        const html = render({ rdwH: 8, rdwM: 0, rdwCount: 1, bhH: 7, bhM: 0, bhCount: 1, bhOtH: 2, bhOtM: 0, bhOtCount: 1,
+            defaulted8h: {}, defaulted7h: {} });
+        assert.match(html, /<span class="roster-row-label">Rest Day Working<\/span>/);
+        assert.match(html, /<span class="roster-row-label">Bank Holiday Overtime<\/span>/);
+        assert.doesNotMatch(html, /🏦/, 'a bank holiday row wore the pension emoji');
+        assert.equal((html.match(/🏛️/g) ?? []).length, 2, 'both bank holiday rows wear the Hours rows\' 🏛️');
+    });
+
     test('an 8h RDW default is labelled too', () => {
         const html = render({ rdwH: 8, rdwM: 0, rdwCount: 1, defaulted8h: { rdw: true }, defaulted7h: {} });
         assert.match(html, /data-cat="rdw"/, 'premise: the RDW row rendered');

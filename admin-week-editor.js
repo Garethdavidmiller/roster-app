@@ -252,7 +252,7 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
                 <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${isToday ? '<span class="day-today-tag">Today</span>' : ''}${badgeHTML}${existing ? ' <span class="overwrite-badge"></span>' : ''}</span>
             </label>
-            <div class="col-base">${getShiftBadge(baseShown, { showTime: true })}</div>
+            <div class="col-base">${getShiftBadge(baseShown, { showTime: true, member })}</div>
             <div class="col-pills">
                 ${PILL_TYPES.map(t => typePillHtml(t)).join('\n                ')}
                 ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded${christmasDayName(dateISO) ? `, nor a Spare turn on ${christmasDayName(dateISO)}` : ', but a Spare turn can'}</span>` : ''}

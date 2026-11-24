@@ -155,7 +155,7 @@ describe('the wiring (links-design-library.js, links.html)', () => {
     });
 
     test('the row is wired in the library, and starts hidden', () => {
-        assert.match(lib, code("getElementById('designMoreBtn')?.addEventListener('click', () => { if (keepRow) keepRow.style.display = keepOffered() ? '' : 'none'; });"));
+        assert.match(lib, code("keepRow.style.display = keepOffered() ? '' : 'none';"));
         assert.match(lib, code("keepRow?.addEventListener('click', () => { const h = ctx.getHeader(); if (h) h.viaSheet(keepOnlyShortlist); else keepOnlyShortlist(); });"));
         assert.match(html, code('<button class="dm-menu-btn" id="keepShortlistBtn" type="button" style="display:none">'));
         // What the coordinator's `removeDesigns` does with them — compare reset and the page drawn again
@@ -167,12 +167,12 @@ describe('the wiring (links-design-library.js, links.html)', () => {
 });
 
 // ── THE ··· MORE ROW STATES THE CUT-OFF, AND IT IS THIS CONSTANT (Nov 2026) ─────────────────────
-// "Older saved designs" did not say older than WHAT. The row now names the date, and a date typed
-// into markup is a second copy of `OLDER_BEFORE` — so the two are tied here.
-test('the Keep only the shortlist row names OLDER_BEFORE as its date', () => {
+// "Older saved designs" did not say older than WHAT. The row names the date, and a date typed into
+// markup is a second copy of `OLDER_BEFORE` — so the markup holds only the place the library stamps
+// it (whole-app review, 24 Nov 2026); links-design-library.test.mjs checks what is stamped.
+test('the Keep only the shortlist row types no date of its own', () => {
     const html = readFileSync(new URL('./links.html', REPO_ROOT_URL), 'utf8');
-    const said = html.match(/Keep only the shortlist<small>Designs last saved before ([^<]+) move to Recently deleted<\/small>/)?.[1];
-    assert.ok(said, 'the row no longer states its cut-off date');
-    const expected = new Date(OLDER_BEFORE).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
-    assert.equal(said, expected, `the row says "${said}", but OLDER_BEFORE is ${expected}`);
+    assert.match(html, /Keep only the shortlist<small>Designs last saved before <span id="keepShortlistBefore"><\/span> move to Recently deleted<\/small>/,
+        'the row types its cut-off date, a second copy of OLDER_BEFORE');
+    assert.ok(Number.isFinite(OLDER_BEFORE));
 });

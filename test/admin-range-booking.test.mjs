@@ -604,6 +604,17 @@ describe('the swap answers', () => {
         for (const fn of el('alPreview')._on.click ?? []) fn({ target });
     };
 
+    // "This day is a rest day" over a five-day range read as though the whole booking were that one day;
+    // one rest day among several is "1 of these days", as the Spare note says it (whole-app review, 24 Nov 2026).
+    test('one rest day in a longer range is "1 of these days", and a one-day booking is "This day"', () => {
+        const { section } = wire({ cfg: { swapQuestion: () => [REST] } });
+        setRange(section, '2026-10-05', REST);
+        assert.match(el('alPreview').innerHTML, /<strong>1 of these days is a rest day<\/strong>/);
+        assert.doesNotMatch(el('alPreview').innerHTML, /This day is a rest day/);
+        setRange(section, REST, REST);
+        assert.match(el('alPreview').innerHTML, /<strong>This day is a rest day<\/strong>/);
+    });
+
     test('changing an answer dismisses a showing over-limit bar (review A19)', () => {
         // The bar was computed for the OLD answers; "Save anyway" then booked the new ones unchecked.
         let dismissed = 0;

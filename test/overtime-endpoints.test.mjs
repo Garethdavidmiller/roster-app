@@ -2480,9 +2480,25 @@ describe('push notices — targeted, accumulated, and never able to fail a write
         }
         // Guard the guard: the member's own account is reached through the same production resolver —
         // the asked notice and the reminder alike, and nobody else.
-        await reminderMorning({ sendPush, uidForName: null, users: { [email]: { uid: 'uid-gm' } } });
+        await reminderMorning({ sendPush, uidForName: null, users: { [email]: OWN_GM } });
         assert.deepEqual([askedSends(sent).length, reminderSends(sent).length], [1, 1]);
         assert.deepEqual(sent.map((s) => s.uids), [['uid-gm'], ['uid-gm']]);
+    });
+
+    // The member's OWN account only: enabled, carrying their `member` claim — the strictness the admin
+    // notices already had (`enabledAdminUids`). An account that merely sits at the address is not them.
+    const OWN_GM = { uid: 'uid-gm', disabled: false, customClaims: { name: 'G. Miller', member: 'G. Miller' } };
+    test('a disabled account, or one without the member\'s own claim, is never a member\'s target', async () => {
+        const { nameToEmail } = require('./functions/roster-parse-helpers.js');
+        const email = nameToEmail('G. Miller');
+        /** @type {Array<{ payload: any, uids: string[] }>} */ const sent = [];
+        const sendPush = async (/** @type {any} */ payload, /** @type {string[]} */ uids) => { sent.push({ payload, uids }); return uids.length; };
+        for (const user of [{ ...OWN_GM, disabled: true }, { uid: 'uid-gm' },
+            { ...OWN_GM, customClaims: { name: 'G. Miller', member: 'A. Other' } }]) {
+            const { w } = await reminderMorning({ sendPush, uidForName: null, users: { [email]: user } });
+            assert.deepEqual(sent, [], `a notice went to ${JSON.stringify(user)}`);
+            assert.deepEqual([w.reminderOutstanding, w.reminderAccepted], [1, 0]);
+        }
     });
 
     test('a silent member with no account was NOT reached, and the record says so', async () => {

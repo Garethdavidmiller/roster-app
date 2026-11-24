@@ -3174,6 +3174,21 @@ test('training weeks: a base Training day shows the badge and no time, on the ca
     await expect(row.locator('td.tv-cell').nth(3)).toHaveText('🏷️ Train');
 });
 
+// A worked shift's label in Team Week reads as the Calendar's day panel does — "Early shift 06:00-14:00",
+// never "early shift …" — one spelling, SHIFT_KIND_LABELS (whole-app review, 24 Nov 2026).
+test('team week: a worked shift is labelled in the Calendar\'s words', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-14T09:00:00Z'));
+    await seedMemberSession(page, 'M. Campbell');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    const worked = page.locator('td.tv-cell.tv-early, td.tv-cell.tv-late, td.tv-cell.tv-night');
+    await expect(worked.first()).toBeVisible();
+    const labels = await worked.evaluateAll(els => els.map(el => el.getAttribute('aria-label')));
+    expect(labels.length).toBeGreaterThan(0);
+    for (const l of labels) expect(l).toMatch(/^(Early|Late|Night) shift \d\d:\d\d-\d\d:\d\d$/);
+});
+
 test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }) => {
     // SIGNED IN, ON THEIR OWN CALENDAR — the only state the action is offered in since v23.04, and
     // it has to be seeded explicitly: this file's default is a VIEWER session (see its header), and

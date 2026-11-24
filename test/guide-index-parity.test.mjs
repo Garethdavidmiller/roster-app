@@ -227,3 +227,13 @@ test('contract 5c — a key legend holds no nested <div>, so blanking it blanks 
     }
     assert.ok(legends >= 2, `found ${legends} key legends — the Railcard and Rangers guides each have one`);
 });
+
+test('a heading\'s tag is joined with a dash, never run into the heading\'s words (whole-app review, 24 Nov 2026)', () => {
+    // The drawer's search showed "Weekly Roster Upload Admins only" — the Staff Guide's `.admins-only` tag
+    // read as part of the title.
+    const units = extractGuideUnits(read('staff-guide.html'), 'staff-guide.html');
+    const upload = units.find(u => u.id === 'sg-weekly-roster-upload-admins-only');
+    assert.ok(upload, 'premise: the Weekly Roster Upload section is a unit');
+    assert.equal(upload.t, 'Weekly Roster Upload — Admins only');
+    assert.match(upload.tt, /admins only/, 'and the tag is still searchable');
+});

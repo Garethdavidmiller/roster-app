@@ -383,6 +383,21 @@ describe('the "Base roster" column says what the day WAS', () => {
             'the kind must survive as the accessible name; dropping it loses the word entirely');
     });
 
+    test('a member\'s permanentShift names the kind, as the Calendar does (whole-app review, 24 Nov 2026)', () => {
+        const found = findWorkedDay();
+        assert.ok(found, 'precondition: a worked day');
+        const m = /** @type {any} */ (found.member);
+        const kindOf = () => {
+            const row = buildWeek(m.name, found.date).find(r => r.dataset.date === found.date);
+            return row.innerHTML.match(/<div class="col-base"><span class="shift-badge (badge-[a-z]+)"/)?.[1];
+        };
+        const byTime = kindOf();
+        const forced = byTime === 'badge-early' ? 'late' : 'early';
+        const before = m.permanentShift;
+        m.permanentShift = forced;   // no live member carries one today: latent, so set for the test
+        try { assert.equal(kindOf(), `badge-${forced}`); } finally { if (before === undefined) delete m.permanentShift; else m.permanentShift = before; }
+    });
+
     test('a training day\'s RDW warning names the day in words, never the raw code (6 Nov 2026 review)', () => {
         // M. Campbell's base is a bare TRG Mon–Fri from 21 Sep to 6 Nov 2026. Ticking RDW on an Other
         // day there showed "Originally rostered TRG this day".

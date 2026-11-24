@@ -26,7 +26,7 @@
 const { getAuth } = require('firebase-admin/auth');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush } = require('./push');
-const { isViewerAccount } = require('./retired-viewer-account');
+const { isMembersOwnAccount } = require('./admin-recipients');
 
 /** The roster-members.json keys the reminder is addressed to — `gradeForRole`'s non-null answers. */
 const PAY_REMINDER_GRADES = Object.freeze(['cea', 'ces']);
@@ -48,15 +48,16 @@ function payReminderMembers(roster) {
 /**
  * A member's Auth uid, from the account their name derives to — the derivation setupRosterAuth
  * provisions with, and the one the Overtime notices resolve through. Any failure is `null`, and that
- * member is skipped. The shared Calendar PIN account is refused even when a PIN holder has linked a
- * roster email to it: the devices it owns are the station's shared PCs, not the member's phone.
+ * member is skipped. Only the member's own enabled account counts (`isMembersOwnAccount`): the shared
+ * Calendar PIN account is refused even when a PIN holder has linked a roster email to it — its devices
+ * are the station's shared PCs, not the member's phone.
  * @param {string} name
  * @returns {Promise<string|null>}
  */
 async function uidForMember(name) {
     try {
         const user = await getAuth().getUserByEmail(nameToEmail(name));
-        return user && user.uid && !isViewerAccount(user) ? user.uid : null;
+        return isMembersOwnAccount(user, name) ? user.uid : null;
     } catch (_) {
         return null;
     }

@@ -103,9 +103,11 @@ export function periodDelete({ overrides, type, memberName, start, end, isRestGa
     const older = ids.filter(id => !own.includes(id));
     const olderOn = datesOf(older, () => true);
     const sundays = datesOf(own, o => o.type === 'correction');
-    const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
+    // The booking receipt's own words, so a delete undoes what "Recorded 5 days of Annual Leave" said
+    // (whole-app review, 24 Nov 2026); an absence keeps the Absence card's "absence day".
+    const what = type === 'annual_leave' ? `day${listed !== 1 ? 's' : ''} of Annual Leave` : `absence day${listed !== 1 ? 's' : ''}`;
     const one = sundays.length === 1;
-    return { ids, said: `✓ Deleted ${listed} ${noun}${listed !== 1 ? 's' : ''} for ${memberName}`
+    return { ids, said: `✓ Deleted ${listed} ${what} for ${memberName}`
         + (more > 0 ? `, and ${more} more day${more === 1 ? ' that was' : 's that were'} not counted` : '')
         + (older.length ? `, and ${older.length === 1 ? 'an earlier entry' : `${older.length} earlier entries`} for ${namedDays(olderOn)}` : '')
         + (sundays.length ? `. ${namedDays(sundays)}, set as ${one ? 'a rest day' : 'rest days'} for this `

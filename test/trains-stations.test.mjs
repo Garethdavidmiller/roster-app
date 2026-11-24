@@ -22,7 +22,7 @@ import { aRealDay, runsOn, onWeekday, weekdayGroups, weekdayWords, daysCode, WEE
 import { verdictFor, minutesWords, hourWords, hourNote, rateWords, balanceFacts, EDGE_SHIFT_MIN, JOURNEY_SHIFT_MIN } from '../trains-verdict.js';
 import { headlineChanges } from '../trains-headlines.js';
 import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks,
-    leadWords, changesTitle, renderFurtherChanges, SIGN_IN_ABOUT } from '../trains-render.js';
+    leadWords, changesTitle, renderFurtherChanges, SIGN_IN_ABOUT, HEADLINES_SHOWN, partialStopsNote } from '../trains-render.js';
 import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL, daysLabel, serviceMinutes, parseTypedTime } from '../trains-change.js';
 import { CARD_TIPS } from '../trains-tips.js';
 import { lastTrains } from '../trains-stations.js';
@@ -517,13 +517,23 @@ describe('the words on screen', () => {
     test('headlines: five, then a button for the rest, and the partial note', () => {
         const items = Array.from({ length: 7 }, (_, i) => ({ crs: 'AYS', tone: 'more', text: `Change ${i}` }));
         const html = renderHeadlines(items, { showAll: false, partial: true });
-        assert.equal((html.match(/class="tr-head"/g) ?? []).length, 5);
+        assert.equal((html.match(/class="tr-head"/g) ?? []).length, HEADLINES_SHOWN);
+        assert.equal(HEADLINES_SHOWN, 5, 'premise: the number Show more hands focus past (trains-app.js → refocus)');
         // Never "Show all": the list is the biggest changes, and every small one is on a station card (v24.83).
         assert.match(html, />Show 2 more</);
         assert.match(html, /The biggest changes only\. A train a few minutes earlier or later is on its station’s card/);
         assert.match(html, /once Chiltern publishes where December’s trains stop/);
         assert.doesNotMatch(renderHeadlines(items, { showAll: true, partial: false }), /Show \d+ more|once Chiltern publishes/);
         assert.match(renderHeadlines([], { showAll: false, partial: false }), /No big changes/);
+    });
+
+    // The overview's partial-stops note takes its month from the change date, as every other note does,
+    // never a month typed into trains.html (whole-app review, 24 Nov 2026).
+    test('the partial-stops note names the change date\'s month', () => {
+        const month = new Date(CHANGE_DATE + 'T12:00:00').toLocaleDateString('en-GB', { month: 'long' });
+        assert.equal(partialStopsNote(), `Where ${month}’s trains stop is not published yet, so each train is compared by where it ends. Through stations fill in when it is.`);
+        const html = readFileSync(new URL('./trains.html', REPO_ROOT_URL), 'utf8');
+        assert.match(html, /<p class="card-explainer tr-note" id="trPartial" hidden><\/p>/, 'the note types its own words in the markup');
     });
 
     test('a headline is escaped and opens its station', () => {
