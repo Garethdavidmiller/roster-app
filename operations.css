@@ -124,10 +124,10 @@ body.auth-ready .container { display: grid; }
    its own (320px under 1.5× text) wraps inside the box rather than running out of it.
    WHAT DECIDES THE LAYOUT IS THE WORDS. With the month in full ("Wed 30 September 2026", v26.55) the
    pair stopped fitting on a phone and each card became three stacked full-width controls; the owner
-   asked for that to be reversed (24 Nov 2026), so the three document rows write the short month
-   (`shortLabel`, date-picker.js) and stay on one line from 360px — measured: 170px of date, 10 of gap,
-   109 of button, in a 308px row. A 320px phone gives the row 268 and wraps. The roster's week keeps
-   the full month and wraps beside its roster-type menu, as it did. */
+   asked for that to be reversed (24 Nov 2026), so every Operations date writes the short month
+   (`shortLabel`, date-picker.js) and sits beside its button from 360px — measured: 170px of date, 10 of
+   gap, 109 of "Choose file", in a 308px row. A 320px phone gives the row 268 and wraps. On the Weekly
+   Roster the roster-type menu takes the first line and the week sits beside "Choose PDF" on the second. */
 .huddle-row > .date-trigger { flex: 999 1 auto; white-space: normal; text-wrap: balance; }
 .huddle-row > .huddle-file-label { flex: 1 1 auto; justify-content: center; }
 /* The FIELD's corner and edge (desktop audit, Nov 2026): it sits beside the date field on the same row,

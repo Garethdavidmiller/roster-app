@@ -74,12 +74,11 @@ function formatLabel(iso) {
 /**
  * "Tue 24 Nov 2026" — the SHORT trigger words, for a field that must share its line (owner, 24 Nov 2026).
  *
- * The three document upload rows on Operations (Huddle, Circular, Newsletter) put the date beside
- * "Choose file". With the month in full the pair no longer fitted on a phone, so the row broke and the
- * date, the file button and the upload button each took a whole line — three full-width controls where
- * two lines did the job, which the owner asked to reverse. So those three fields take this separately
- * named short form, as date-format.js asks of a surface that cannot fit the full month; every other
- * trigger keeps it. The spoken name uses the same short words, never the full month: WCAG 2.5.3
+ * Every date field on Operations shares its line with a file button ("Choose file" on the Huddle,
+ * Circular and Newsletter cards, "Choose PDF" on the Weekly Roster's). With the month in full the pair
+ * no longer fitted on a phone, so each card stacked its controls one per line, which the owner asked to
+ * reverse. So those fields take this separately named short form, as date-format.js asks of a surface
+ * that cannot fit the full month; `initDatePickers` still writes it in full unless asked. The spoken name uses the same short words, never the full month: WCAG 2.5.3
  * ("Label in Name") asks that the name contain what the button shows, for voice control.
  * @param {string} iso YYYY-MM-DD
  * @returns {string}

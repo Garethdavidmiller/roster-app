@@ -105,9 +105,9 @@ export const formatDayMonth = d => (usable(d) ? `${d.getDate()} ${MONTH_ABB[d.ge
  *   · `formatDayMonthYear2` ("18 Sep 26") — the Pay Calculator's dense columns.
  *   · `shortWeekLabel` (admin-week-editor.js) — Admin's week navigator, "30 Aug–5 Sep 2026".
  *   · `formatTeamWeekLabel` (calendar-team-view.js) — Team View's week, between its two arrows.
- *   · `shortLabel` (date-picker.js) — the date beside "Choose file" on Operations' three document
- *     rows, "Tue 24 Nov 2026". Those rows first let the full month take a line of its own; the owner
- *     asked for that to be reversed (24 Nov 2026), so every other trigger keeps the full month.
+ *   · `shortLabel` (date-picker.js) — Operations' date fields, "Tue 24 Nov 2026", each beside a file
+ *     button. With the full month each card stacked its controls one per line; the owner asked for that
+ *     to be reversed (24 Nov 2026).
  * @param {Date} d
  */
 export const formatDayMonthYear = d => (usable(d) ? `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` : NO_DATE);

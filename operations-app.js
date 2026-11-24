@@ -151,10 +151,9 @@ export function init() {
 
     // Brand-styled date pickers over the four upload date fields. AFTER the card inits above,
     // which set each field's default value (today / next Saturday) that the trigger label reads.
-    // The three document rows share the date's line with "Choose file", so their dates take the short
-    // month (owner, 24 Nov 2026 — date-picker.js → `shortLabel`); the roster's week keeps it in full.
-    initDatePickers(['huddleDate', 'circularDate', 'newsletterDate'], { shortMonth: true });
-    initDatePickers(['rosterWeekEnding']);
+    // Every Operations date shares its line with a file button, so all four take the short month (owner,
+    // 24 Nov 2026 — date-picker.js → `shortLabel`): with it in full each card stacked its controls.
+    initDatePickers(['huddleDate', 'circularDate', 'newsletterDate', 'rosterWeekEnding'], { shortMonth: true });
 
     // ...and the app's own dropdown over the roster-type select, missed by the sweep that did the
     // other six pages. It is disabled during a parse (fires no event — hence the observer).

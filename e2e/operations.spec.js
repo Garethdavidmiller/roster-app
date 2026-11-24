@@ -2195,7 +2195,7 @@ test('operations: on a Thursday the roster form offers the following week', asyn
     await page.clock.runFor(2000);
     await expect(page.locator('#rosterWeekEnding')).toHaveValue('2026-11-21');
     await page.evaluate(() => document.getElementById('rosterUploadBody')?.classList.add('open'));
-    await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText('Sat 21 November 2026');
+    await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText('Sat 21 Nov 2026');
 });
 
 // ── The app's own dropdown on Operations (v23.38) ──────────────────────────────────────────────
@@ -4330,7 +4330,7 @@ test.describe('operations: the roster read, cut off', () => {
         await expect(page.locator('#rosterParseBtn')).toHaveText('Reading…');
         await pick('2026-08-15');
         await expect(week).toHaveValue('2026-08-08');
-        await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText('Sat 8 August 2026');
+        await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText('Sat 8 Aug 2026');
     });
 
     test('Safari\'s "Load failed" seconds in is a dropped connection, not a large PDF', async ({ page }) => {
