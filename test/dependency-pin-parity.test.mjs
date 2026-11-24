@@ -228,8 +228,8 @@ describe('DOMPurify — the vendored sanitiser is the release it says it is', ()
     // pass over the bundle or a stray edit left every suite green (whole-app check, 10 November 2026).
     // Upgrading is the recipe in generate-sri.mjs's header; it ends by recording both values here.
     const PURIFY = {
-        version: '3.4.17',
-        sha256: '9b8d820485aca9a2a048c1f0837837e20f75f00cf45f5aca6261d4f24dc82abf',
+        version: '3.4.18',
+        sha256: '3257c96178288c9cc4afc6692a6a36535c4c5da7c869cef6f4f3d9c3cd020f7d',
     };
     const src = read('./purify.es.mjs');
     const v = PURIFY.version.replace(/\./g, '\\.');
