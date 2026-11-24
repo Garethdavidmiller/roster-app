@@ -608,7 +608,7 @@ describe('a closed form does not invite answers (overtime-ui-16)', () => {
     test('a failed roster read on a CLOSED form does not say availability can still be entered', async () => {
         rosterFor = 'error';
         const closed = await mountForm({ win: { phase: 'CLOSED' } });
-        assert.match(closed.host.innerHTML, /Couldn't confirm your current roster\./);
+        assert.match(closed.host.innerHTML, /Couldn't confirm your current MYB roster\./);
         assert.doesNotMatch(closed.host.innerHTML, /still enter availability/);
         const open = await mountForm();
         assert.match(open.host.innerHTML, /still enter availability using custom times/, 'an open form still says what works');
@@ -620,7 +620,7 @@ describe('a closed form does not invite answers (overtime-ui-16)', () => {
         const f = await mountForm();
         await f.submit();
         assert.doesNotMatch(f.host.parts['.ot-roster-warning'].innerHTML, /still enter availability/);
-        assert.match(f.host.parts['.ot-roster-warning'].innerHTML, /Couldn't confirm your current roster\./);
+        assert.match(f.host.parts['.ot-roster-warning'].innerHTML, /Couldn't confirm your current MYB roster\./);
     });
 });
 

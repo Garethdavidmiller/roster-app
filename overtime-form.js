@@ -277,7 +277,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
 
     /** What a failed roster read means here — and on a CLOSED form, nothing is left to enter (overtime-ui-16). */
     function rosterWarning() {
-        return 'Couldn\'t confirm your current roster.'
+        return 'Couldn\'t confirm your current MYB roster.'
             + (closed ? '' : ' You can still enter availability using custom times.');
     }
 
