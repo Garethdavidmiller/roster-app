@@ -26,22 +26,17 @@
  * quietly skip it, and it still FORWARDS the declared audience to the rule rather than hardcoding
  * one: a notice that declares anything else is refused, visibly, in testing.
  *
- * ── THE NOTICES THAT HAVE GONE (v23.23; updated to v24.91) ──────────────────────────────────────
+ * Which notices have come and gone, and why each went: the new-notice skill's table and git log — this
+ * header kept that history until 24 Nov 2026, and it belongs with the record, not the code.
  *
- * `sign-in-2026` was retired here by owner decision, not by its expiry. v23.19 made the Calendar's
- * front door a sign-in card, so its whole audience — somebody reading the roster on the staff PIN —
- * had SEEN that card and chosen the PIN instead. `backpay-2026` followed at v23.31, deleted once its
- * hard cutoff had passed rather than left inert until the 180-day sweep.
- *
- * That left `al-booking-2026` alone until v24.82 added `timetable-2026`, v24.86 the Year to Date
- * notice that follows it and v24.91 the install notice — the same release that retired the leave
- * reminder early, by owner decision (22 Oct 2026) — then v24.94 the second timetable notice (up from
- * 16 November since v26.21) and v25.61 the New link one. The two October notices were deleted on
- * 22 Nov 2026, three weeks after they went inert, as `backpay-2026` was. Every one of them is `'members'`.
+ * WHERE STORAGE WILL NOT KEEP A FLAG, NO NOTICE OPENS (App Notices review, 24 Nov 2026). Safari with
+ * every cookie blocked, a full quota or a locked-down in-app browser fail every write silently
+ * (`lsSet`), so a notice's done flag never stuck and a "one-time" notice opened on every load. Asked
+ * once, by writing and reading back (`lsAvailable`, ls.js), before anything is wired.
  */
 
-import { lsGet, lsSet } from './ls.js';
-import { archiveNotice, isNoticeExpired } from './notice-archive.js';
+import { lsGet, lsSet, lsAvailable } from './ls.js';
+import { archiveNotice, reviseArchivedNotice, isNoticeExpired } from './notice-archive.js';
 import { createLightbox, openNoticeIfClear, followLinkOutOf } from './overlay.js';
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';
@@ -112,6 +107,29 @@ function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true, whenDecide
  * midnight, and 31 Oct to 1 Nov holds no clock change, so it ends at midnight exactly.
  */
 const OCTOBER_LAST_DAY = '31 Oct 2026';
+
+/**
+ * What App Notices keeps of the timetable notice. WORDS THAT STAY TRUE for the 180 days the record is
+ * listed (App Notices review, 24 Nov 2026): it said the timetable "starts on Sunday 13 December", which
+ * is false from that Sunday while the record has months to run. The route never breaks (`\u00a0`).
+ */
+const TIMETABLE_SOON_RECORD = {
+    id: 'timetable-soon-2026', section: 'Trains', date: '16 Nov 2026',
+    title: 'The new timetable from Sunday 13 December',
+    body: 'Chiltern’s new timetable runs from Sunday 13 December 2026. The Trains page shows what changes at every '
+        + 'station, and the last trains — open it from the menu: ☰\u00a0then 🚆\u00a0Trains.',
+};
+
+/**
+ * What App Notices keeps of the New link notice. It used to add "Nothing is decided yet", which the
+ * record would go on saying after the choice is made; the page itself says where things stand.
+ */
+const NEWLINK_RECORD = {
+    id: 'newlink-2026', section: 'New link', date: '9 Nov 2026',
+    title: 'See the three proposals for the new link',
+    body: 'The three proposals for the new link, which starts in January 2027, are on the New link page — open it '
+        + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',
+};
 
 /** What every notice waits for after access — set once by `initCalendarNotices`. @type {Promise<any>} */
 let _after = Promise.resolve();
@@ -184,6 +202,10 @@ function payCalcIsTheirs() {
  *   the way the paycalc YTD notice once did (paycalc-notice-order.test.mjs).
  */
 export function initCalendarNotices({ after } = {}) {
+    // Words corrected since a device archived them, put on its record whether or not the notice is still
+    // offered — the record outlives the notice by months (`reviseArchivedNotice`).
+    for (const record of [TIMETABLE_SOON_RECORD, NEWLINK_RECORD]) reviseArchivedNotice(record);
+    if (!lsAvailable()) return;
     if (after) _after = Promise.resolve(after).catch(() => {});
     // Each notice keeps its own IIFE ON PURPOSE: their bodies bail with early `return`s (done,
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
@@ -222,8 +244,6 @@ export function initCalendarNotices({ after } = {}) {
     // the notice when its day comes. calendar-notices.test.mjs reads `STARTS` and keeps a notice out
     // of the matrix until it is due.
     (function () {
-        const NOTICE_ID       = 'timetable-soon-2026';
-        const NOTICE_DATE     = '16 Nov 2026';
         const DONE_KEY        = 'myb_notice_timetable_soon_2026_done';
         const STARTS          = new Date(2026, 10, 16);    // local midnight, Monday 16 November — its posting day
         const FINAL_WEEK      = new Date(2026, 11, 6);     // local midnight, Sunday 6 December — from then it waits for nobody
@@ -246,14 +266,7 @@ export function initCalendarNotices({ after } = {}) {
             overlay,
             content:  /** @type {HTMLElement} */ (document.getElementById('timetableSoonNoticeContent')),
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('timetableSoonNoticeClose')),
-            onOpen() {
-                archiveNotice({
-                    id: NOTICE_ID, title: 'The new timetable starts on Sunday 13 December', section: 'Trains',
-                    date: NOTICE_DATE,
-                    body: 'Chiltern’s new timetable starts on Sunday 13 December. The Trains page shows what '
-                        + 'changes at every station, and the last trains — open it from the menu: ☰\u00a0then 🚆\u00a0Trains.',   // the route never breaks
-                });
-            },
+            onOpen() { archiveNotice(TIMETABLE_SOON_RECORD); },
             onClose() { markDone(); },
         });
 
@@ -342,14 +355,19 @@ export function initCalendarNotices({ after } = {}) {
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('installNoticeClose')),
             onOpen() {
                 const route = installRoute() ?? decided;
-                _showInstallRoute(route);
+                // PAY WORDS ONLY FOR A MEMBER THE PAY PAGE PRICES (App Notices review, 24 Nov 2026): an Other
+                // Staff login has no Pay page since v26.59, and a Dispatcher's is the refusal card, so "the pay
+                // figures you save" and "Move Your Pay Data" were about a page they cannot use.
+                const pay = payCalcIsTheirs();
+                _showInstallRoute({ ...route, pay });
+                const how = route.mirror ? 'mirror' : route.how;
                 archiveNotice({
                     id: NOTICE_ID, title: 'Put the roster on your home screen', section: 'General',
                     date: NOTICE_DATE,
                     body: 'The roster works better from your phone’s home screen than from its web address: it opens '
-                        + 'in one tap, fills the screen, and the pay figures you save in the home screen app are far '
-                        + 'less likely to be cleared. '
-                        + INSTALL_HOW[route.mirror ? 'mirror' : route.how],
+                        + 'in one tap and fills the screen'
+                        + (pay ? ', and the pay figures you save in the home screen app are far less likely to be cleared. ' : '. ')
+                        + INSTALL_HOW[how] + (pay && INSTALL_PAY[how] ? ' ' + INSTALL_PAY[how] : ''),
                 });
             },
             onClose() { answered(); },
@@ -366,7 +384,7 @@ export function initCalendarNotices({ after } = {}) {
         // 'members' — the only audience since the staff PIN was retired (23 Nov 2026). A desktop, the
         // station PC included, is never asked: `installRoute()` is null there (install-prompt.js says why).
         _openWhenAudienceAllows(lb, 'members',
-            () => !!installRoute() && (payNoticeDone || !payCalcIsTheirs()),
+            () => !!installRoute() && (payNoticeDone || !payCalcIsTheirs()),   // payNoticeDone: always, since 1 Nov
             () => { decided = installRoute() ?? decided; yieldToInstallNotice(); },
             releaseInstallNoticeYield);   // refused at the open: the strip and the ask come back for this visit
     }());
@@ -401,8 +419,6 @@ export function initCalendarNotices({ after } = {}) {
     // the page gives, no person (the page names who leads the change), and nothing about how the
     // choice is made. Archived on OPEN, because the link leaves the page.
     (function () {
-        const NOTICE_ID       = 'newlink-2026';
-        const NOTICE_DATE     = '9 Nov 2026';
         const DONE_KEY        = 'myb_notice_newlink_2026_done';
         const STARTS          = new Date(2026, 10, 9);     // local midnight, Monday 9 November — its posting day
         const LAST_DAY        = '5 Dec 2026';              // offered through the whole of the Saturday
@@ -421,14 +437,7 @@ export function initCalendarNotices({ after } = {}) {
             overlay,
             content:  /** @type {HTMLElement} */ (document.getElementById('newlinkNoticeContent')),
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('newlinkNoticeClose')),
-            onOpen() {
-                archiveNotice({
-                    id: NOTICE_ID, title: 'See the three proposals for the new link', section: 'New link',
-                    date: NOTICE_DATE,
-                    body: 'The three proposals for the new link, which starts in January 2027, are on the New link page. '
-                        + 'Nothing is decided yet — open it from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',   // the route never breaks
-                });
-            },
+            onOpen() { archiveNotice(NEWLINK_RECORD); },
             onClose() { markDone(); },
         });
 
@@ -448,26 +457,33 @@ const INSTALL_HOW = {
     menu:   'Open your browser’s menu and look for Install app or Add to Home screen.',
     ios:    'Tap your browser’s Share button, then Add to Home Screen — on iOS 26 or later, Share is under •••. '
           + 'Opened the roster from an email or a chat? Open it in Safari first. The home screen app keeps its own '
-          + 'storage: you sign in there once, and Pay Calculator figures saved in the browser do not move across by '
-          + 'themselves — copy any first with Move Your Pay Data on the Pay page.',
-    mirror: 'Add it from the app’s main address, myb-roster.web.app — and if you have saved Pay Calculator '
-          + 'figures, move them first with Move Your Pay Data on the Pay page.',
+          + 'storage, so you sign in there once.',
+    mirror: 'Add it from the app’s main address, myb-roster.web.app.',
 };
+
+/** The Pay Calculator half of the archived how-to, for a member the Pay page prices — and nobody else. */
+const INSTALL_PAY = /** @type {Record<string, string>} */ ({
+    ios:    'Pay Calculator figures saved in the browser do not move across by themselves — copy any first with '
+          + 'Move Your Pay Data on the Pay page.',
+    mirror: 'If you have saved Pay Calculator figures, move them first with Move Your Pay Data on the Pay page.',
+});
 
 /**
  * Show the install notice's lines for one route and hide the rest. Every line it owns is set, shown
- * or hidden, so nothing depends on the markup's starting state.
- * @param {{ how: 'prompt'|'ios'|'menu', mirror: boolean }} route
+ * or hidden, so nothing depends on the markup's starting state. `pay` — the Pay page prices this
+ * member — gates every line about Pay Calculator figures; left out, they show, as before it existed.
+ * @param {{ how: 'prompt'|'ios'|'menu', mirror: boolean, pay?: boolean }} route
  */
-function _showInstallRoute({ how, mirror }) {
+function _showInstallRoute({ how, mirror, pay = true }) {
     /** @type {Record<string, boolean>} */
     const shown = {
+        installNoticePayLead: pay,
         installNoticeMirror:  mirror,
         installNoticeIos:     !mirror && how === 'ios',
         installNoticeSafari:  !mirror && how === 'ios',     // an email or chat app has no Add to Home Screen
         installNoticeMenu:    !mirror && how === 'menu',
-        installNoticePay:     mirror,
-        installNoticePayIos:  !mirror && how === 'ios',     // the Home Screen app's storage is its own — Android's is not
+        installNoticePay:     pay && mirror,
+        installNoticePayIos:  pay && !mirror && how === 'ios',   // the Home Screen app's storage is its own — Android's is not
         installNoticeHave:    !mirror && how === 'menu',     // Chromium offers only where it is not installed; the iPhone's line says it itself
         installNoticeActions: mirror || how === 'prompt',
         installNoticeInstall: !mirror && how === 'prompt',   // never an Install button on the mirror, whatever `how` says (v24.96)

@@ -1000,7 +1000,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify(
             ['Trains', 'Pay', 'Links', 'Settings', 'Operations', 'Calendar', 'New link', 'General']
                 .map((section, i) => ({ id: `probe-${i}`, section, title: `A ${section} notice`, date: '21 Oct 2026',
-                    body: 'Body text.', archivedAt: '2026-10-21T09:00:00.000Z' })))));
+                    body: 'Body text.', archivedAt: new Date().toISOString() })))));   // stamped now: a fixed date ages out of the 180-day archive and the list comes up empty (App Notices review)
         await page.goto('/admin.html');
         await page.waitForSelector('.day-row', { timeout: 10000 });
         await page.locator('#navMenuBtn').click();

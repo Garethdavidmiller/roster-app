@@ -1365,7 +1365,7 @@ export function init() {
     ], { createLightbox });
 
     initTransferCard();   // late: the backup card reads the per-member namespace runMigrations() chose
-    // The Calendar's Year to Date notice links to #payslipCard: open that card, held in view.
+    // A link to #payslipCard (the premium notice's, from another page) opens that card, held in view.
     openCardNamedByHash('payslipCard', 'payslipCardBody', 'payslipCardToggle');
     wireYtdLine();   // the take-home's Year to Date line opens the same card (paycalc-result-headline.js)
     wireSettingsCard({ openCardNamedByHash });   // its desktop place in the Tab order, and the banner's link to it

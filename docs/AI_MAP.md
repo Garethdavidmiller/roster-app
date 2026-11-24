@@ -1030,7 +1030,7 @@ Whether the ☰ menu offers the Marylebone Newsletter: only while its latest iss
 
 ### `notice-archive.js`
 The App Notices archive's rules: what a seen one-time notice leaves behind on this device, for how long, and when a notice is too old to show. The drawer only renders it; the pages that archive a notice import the two calls from here, and the pattern for using them is the `/new-notice` skill. Imports only `ls.js`. Tested by `notice-archive.test.mjs`.
-- **Exports:** `isNoticeExpired` · `archiveNotice` · `readArchivedNotices`
+- **Exports:** `noticeDateInFull` · `isNoticeExpired` · `archiveNotice` · `reviseArchivedNotice` · `readArchivedNotices`
 
 ### `notif.js`
 The Web Push module: the client's one copy of the VAPID public key — it must match `functions/index.js`, and a mismatch is silent and permanent (CLAUDE.md → Change impact) — and the subscription lifecycle: the state the bell and the Settings card show, enable and disable, and `releaseDevicePush` at a sign-out. Which reads have side effects and why a deliberate Off is not a lapse are its header and each export's JSDoc. Tested by `notif.test.mjs`; the server side, a rotated endpoint and the fingerprint migration are `.claude/rules/notifications.md`.

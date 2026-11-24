@@ -46,7 +46,7 @@ import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocume
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { newsletterInMenu, recordLatestNewsletter } from './newsletter-recency.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap, pinCloseButton } from './overlay.js';
-import { readArchivedNotices } from './notice-archive.js';
+import { readArchivedNotices, noticeDateInFull } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
 import { NAV_PAGES, NAV_INFORMATION, NAV_GUIDES, SECTION_MODS, visiblePills } from './nav-destinations.js';
@@ -749,9 +749,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      * this is the one copy (they were two, line for line). What each keeps for itself is its content and
      * what Tab does in it. Its open state is the module's flag (`isOpen`/`setOpen`), because
      * `resetNavPanel` and the popstate handler ask it with no lightbox in hand.
-     * @param {{ el: HTMLElement|null, closeBtn: HTMLElement|null, isOpen: () => boolean, setOpen: (v: boolean) => void, onTab: (e: KeyboardEvent) => void }} cfg
+     * `scroller` — a panel whose LIST scrolls (App Notices) fades its foot while there is more below, as every
+     * other scrolling panel does (`watchScrollFade`): it stopped at a hard edge that said nothing (24 Nov 2026).
+     * @param {{ el: HTMLElement|null, closeBtn: HTMLElement|null, isOpen: () => boolean, setOpen: (v: boolean) => void, onTab: (e: KeyboardEvent) => void, scroller?: HTMLElement|null }} cfg
      */
-    function _drawerLightbox({ el, closeBtn, isOpen, setOpen, onTab }) {
+    function _drawerLightbox({ el, closeBtn, isOpen, setOpen, onTab, scroller = null }) {
+        let stopFade = () => {};
         function open() {
             if (!el) return;
             lockBodyScroll();
@@ -760,6 +763,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             // Its ✕ stays in reach as a long panel scrolls, as every createLightbox panel's does (overlay.js).
             // A no-op where the ✕ is not directly inside a scrolling panel (App Notices' list scrolls instead).
             pinCloseButton(/** @type {HTMLElement|null} */ (el.querySelector('.lb-content')));
+            stopFade(); stopFade = watchScrollFade(scroller);
             // A CLOSE BEFORE THIS FRAME, OR THE TIMER, RETIRES THEM (15 Nov 2026), as createLightbox's does:
             // an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run after the
             // close, the frame faded the panel back in over the page and the timer moved focus into it.
@@ -774,6 +778,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         function close() {
             if (!el || !isOpen()) return;   // ONCE: a second ✕/backdrop tap mid-fade unlocked twice (test audit)
             setOpen(false);
+            stopFade();
             document.removeEventListener('keydown', onKey);
             if (_historyPushed) {
                 _historyPushed = false;
@@ -786,6 +791,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         function closeFromBack() {
             if (!el) return;
             setOpen(false);
+            stopFade();
             _historyPushed = false;
             document.removeEventListener('keydown', onKey);
             _finishNavLightboxClose(el);
@@ -838,7 +844,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 sectionEl.textContent = n.section || '';
                 const dateEl  = document.createElement('span');
                 dateEl.className = 'notices-item-date';
-                dateEl.textContent = n.date || '';
+                dateEl.textContent = noticeDateInFull(n.date || '');   // stored short: it is the expiry key
                 header.appendChild(sectionEl);
                 header.appendChild(dateEl);
                 const titleEl = document.createElement('div');
@@ -861,6 +867,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     const noticesLb = _drawerLightbox({
         el: /** @type {HTMLElement|null} */ (noticesLightbox), closeBtn: noticesClose,
         isOpen: () => _noticesOpen, setOpen: v => { _noticesOpen = v; },
+        scroller: /** @type {HTMLElement|null} */ (noticesList),
         // TWO STOPS, the ✕ and the list: the list SCROLLS, and one the keyboard cannot reach cannot
         // be scrolled (axe scrollable-region-focusable). A hidden (empty) list is no stop.
         onTab: e => {
@@ -1063,6 +1070,7 @@ function _inject(currentPage, memberName, onSignOut, gates) {
             <div class="lb-content" id="navNoticesContent">
                 <button type="button" id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-title">📣 App Notices</div>
+                <p class="nav-notices-intro">The notices this app has shown on this phone or computer, newest first. Each stays for six months.</p>
                 <div id="navNoticesList" class="nav-notices-list" tabindex="0" role="group" aria-label="Notices shown on this device"></div>
                 <div id="navNoticesEmpty" class="nav-notices-empty" hidden>Notices shown on this device appear here.</div>
             </div>

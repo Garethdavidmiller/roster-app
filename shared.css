@@ -1009,7 +1009,7 @@ html.lb-keep-gutter { scrollbar-gutter: stable; }
    is toggled by overlay.js, so a panel that fits is never faded — fading the last line of a SHORT
    panel would invent the very ambiguity this removes. The drawer's body and Admin's side column too. */
 .lb-content.has-more,
-.nav-panel-body.has-more, .col-side.has-more {
+.nav-panel-body.has-more, .col-side.has-more, .nav-notices-list.has-more {
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
             mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
 }
@@ -1891,6 +1891,11 @@ button.lightbox-bug-link {
 .notice-lb-content .btn-primary:active { background-color: var(--accent-gold-dark); }
 @media (hover: hover) and (pointer: fine) { .notice-lb-content .btn-primary:hover { background-color: var(--accent-gold-dark); } }
 
+/* A secondary button on the sheet is an outline (24 Nov 2026): white, Pay's "No — delete it" outshone the gold "Yes". */
+.notice-lb-content .btn-secondary { background-color: transparent; color: white; border-color: var(--on-navy-muted); }   /* an edge 3:1 or more */
+.notice-lb-content .btn-secondary:active:not(:disabled) { background-color: var(--on-navy-raised); }
+@media (hover: hover) and (pointer: fine) { .notice-lb-content .btn-secondary:hover:not(:disabled) { background-color: var(--on-navy-raised); } }
+
 /* Secondary dismiss — a muted text button, full width beneath the CTA so the pair reads as one
    stacked control rather than a button with a stray word under it. */
 .notice-later {
@@ -1902,6 +1907,7 @@ button.lightbox-bug-link {
     line-height: 1;
     cursor: pointer;
     padding: 12px 8px;
+    min-height: 44px;   /* the touch target: padding and one line made 38px (24 Nov 2026) */
     border-radius: var(--radius-button);
     touch-action: manipulation;
     transition: color var(--dur-fast) var(--ease-standard);
@@ -1913,6 +1919,10 @@ button.lightbox-bug-link {
     .notice-cta,
     .notice-later { transition: none; }
 }
+
+/* High contrast repaints a fill as the page, so a notice's button and badge lost their edges (24 Nov 2026).
+   System colours only: a `var(--…)` here would paint over the reader's theme. */
+@media (forced-colors: active) { .notice-cta { border: 2px solid ButtonText; } .notice-badge { border: 1px solid CanvasText; } }
 
 /* Focus on the navy sheet (desktop audit, Nov 2026): the fallback ring is navy, invisible here. Gold,
    as in the drawer; the 2px offset puts it on the navy, so it serves the gold CTA too. The ✕ only on
@@ -2814,7 +2824,9 @@ button.nav-panel-link--notices {
     overflow: hidden;
 }
 /* Centre the heading; list items below it are left-aligned */
-#navNoticesContent > .nav-cs-title { text-align: center; }
+#navNoticesContent > .nav-cs-title { text-align: center; padding-inline: 36px; }   /* clear of the ✕ at any text size, and still centred */
+/* What the panel is for, and whose list it is — this device's, not the person's (24 Nov 2026). */
+.nav-notices-intro { margin: 0; color: var(--on-navy-muted); font-size: var(--type-label); line-height: 1.45; text-align: center; }
 .nav-notices-empty {
     color: var(--on-navy-muted);   /* the sheet's secondary text: 6.6:1 at its lit top, where white 50% was 4.18:1 */
     font-size: var(--type-label);

@@ -27,6 +27,25 @@ function _parseNoticeDate(str) {
     return (m === undefined) ? NaN : new Date(+y, m, +d).getTime();
 }
 
+const _MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+                     'October', 'November', 'December'];
+
+/**
+ * A notice's posting date as the app writes a date with its year: the month in full ("22 October 2026",
+ * the house style since v26.53). DISPLAY ONLY (App Notices review, 24 Nov 2026): the stored date stays
+ * "D Mon YYYY", because it is also the notice's expiry key and `_parseNoticeDate` reads only that form —
+ * respelt there, `isNoticeExpired('16 November 2026', 1)` is false for ever and the notice never ends.
+ * Anything it cannot read comes back as it was given.
+ * @param {string} dateStr  "D Mon YYYY"
+ * @returns {string}
+ */
+export function noticeDateInFull(dateStr) {
+    const posted = _parseNoticeDate(String(dateStr ?? ''));
+    if (isNaN(posted)) return dateStr ?? '';
+    const d = new Date(posted);
+    return `${d.getDate()} ${_MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 /**
  * Returns true if a notice's posting date is older than the given number of days.
  * Use to silently dismiss stale notices on a new device:
@@ -87,6 +106,32 @@ export function archiveNotice({ id, title, section, date, body }) {
         lsSet(NOTICES_KEY, JSON.stringify(existing.slice(0, ARCHIVE_MAX)));
     } catch (e) {
         console.warn('[Nav] archiveNotice failed:', e);
+    }
+}
+
+/**
+ * Put corrected words on a notice ALREADY in this device's archive — the same id and date — keeping its
+ * place and its age. For words that went out of date while the record is still listed (App Notices
+ * review, 24 Nov 2026): "the new timetable starts on Sunday 13 December" is wrong from that Sunday, and
+ * the archive keeps a record for 180 days. `archiveNotice` cannot do it, because the same id and date
+ * is deliberately idempotent there. A device that never archived the notice gets nothing; one whose
+ * record already says this writes nothing. Never throws.
+ * @param {{ id: string, date: string, title: string, body: string }} notice
+ */
+export function reviseArchivedNotice({ id, date, title, body }) {
+    try {
+        const parsed = JSON.parse(lsGet(NOTICES_KEY) || '[]');
+        if (!Array.isArray(parsed)) return;
+        let changed = false;
+        const revised = parsed.map(n => {
+            if (!n || typeof n !== 'object' || n.id !== id || n.date !== date) return n;
+            if (n.title === title && n.body === body) return n;
+            changed = true;
+            return { ...n, title, body };
+        });
+        if (changed) lsSet(NOTICES_KEY, JSON.stringify(revised));
+    } catch (e) {
+        console.warn('[Nav] reviseArchivedNotice failed:', e);
     }
 }
 
