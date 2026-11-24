@@ -272,6 +272,6 @@ export const teamMembers = [
     // see what the retired staff PIN showed, under their own name. One row each, in this shape:
     //   { name: 'A. Surname', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },
     { name: 'S. Fayombo',       currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },
-    { name: 'K. Matusevicute',  currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },
+    { name: 'K. Matuseviciute', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },
     // Then `npm run generate:roster-members`, and once the functions deploy has finished, Operations → Set up accounts.
 ];
