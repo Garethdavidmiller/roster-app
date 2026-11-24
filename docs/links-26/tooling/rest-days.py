@@ -20,7 +20,7 @@ and the step.
   its rest days). It accepts Balanced V8, and V9 with MIXED=3 BF=3 BW=4, each with its own 6 single rest days; it
   refuses V7 (four weeks off for 14), V8 under V9's run limits (MIXED=0 BF=3 BW=4) and V9 with one mixed week (MIXED=1).
 
-WHAT IT FOUND (7 Nov 2026, README.md -> "Balanced V8 and V9 searched again"). Fewest single rest days with V8's floors:
+WHAT IT FOUND (7 Nov 2026, HISTORY.md -> "Balanced V8 and V9 searched again"). Fewest single rest days with V8's floors:
 6, in two 15-minute runs (the plain model, and with PAIRED and PATTERN), with the solver's lower bound never off 0, and a
 one-minute run asking for 5 decided nothing: 5 is neither found nor ruled out. Without the leave rules it finds 4. V9's
 runs (BF=3 BW=4) with no week mixing earlies and lates, and with at most one, at most 6 single rest days: both possible

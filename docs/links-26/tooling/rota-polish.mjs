@@ -1,7 +1,7 @@
 // POLISH A ROTATION TOWARDS A REFERENCE (28 Sep 2026) — "at least as good as the reference rotation on every measure a
 // sheet reports, and better where it can be". Unlike order-polish.mjs, the start need not already meet the reference:
 // every shortfall is a penalty, and a result counts only when every penalty is zero ("feasible"); nothing is written as
-// feasible that is not. Familiar Nine was polished twice with it (README → "Familiar Nine"). Moves are same-day swaps between working lines and whole-line swaps, so each day's duties never change.
+// feasible that is not. Familiar Nine was polished twice with it (the links-24 README → "Familiar Nine", `git show 924b9dbc:docs/links-24/README.md`). Moves are same-day swaps between working lines and whole-line swaps, so each day's duties never change.
 // Right Away's own figures are the reference: anything worse is a penalty, and a result counts only when every
 // penalty is zero ("feasible"). Among feasible results the score rewards weekends off, one-turn weeks, an even week.
 //   REST_CAP=1 node rota-polish.mjs <start.json> <out.json> <seed> <iters> <reference.json>

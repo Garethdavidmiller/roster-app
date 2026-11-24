@@ -14,7 +14,7 @@
 // "seventh", and a page-1 sentence calling leave the one shared cost against page 2's four. All are fixed below
 // ("THE REST OF THE SENTENCES"); a number in the prose is read, never typed.
 // TWO SINCE 30 OCT 2026 (owner: "Only do the shortlist for instep and short run"), and In Step recommended (owner: "I need
-// you to have a deep think from all angles about which to recommend"; README.md → "The shortlist cut to two"). The four
+// you to have a deep think from all angles about which to recommend"; HISTORY.md → "The shortlist cut to two"). The four
 // cards, the guide and the recommendation were rewritten for two: what both share, the rows where they differ (and three
 // the sheets had lacked — long earlies, long shifts, early finishes — which is where Short Run's case lies), each one's
 // edge, the guide naming the leading design outside the shortlist for each other priority, and the recommendation with
@@ -112,7 +112,7 @@
 // everywhere, the label says what it counts (all earlies or all lates, owner), and the fit guard wants 8px above the footer.
 // THE SATURDAY TICKET OFFICE TO 22:30, 6 NOV 2026 (owner: "it does close at 22.10 and needs to be a 22.30 ticket office closer.
 // Do A on every proposal"): the office's two Saturday lates finish at 22:30, and the Saturday floor pair that finished at 22:30
-// finishes at 22:00 (README.md → "The Saturday ticket office to 22:30"). Common Ground's 9-hour Saturday late went with it, so it
+// finishes at 22:00 (HISTORY.md → "The Saturday ticket office to 22:30"). Common Ground's 9-hour Saturday late went with it, so it
 // alone of the three has no shift over 8h 30m on any day, and Even Step's "no long days, Monday to Saturday" is shared with it:
 // Even Step's edge is now today's earlies and the steadiest weeks, and the guide's Common Ground row says both of its own. The two
 // new Saturday times the change makes took "nothing new on a Saturday" from Short Run and "one new Saturday time" from Even Step.

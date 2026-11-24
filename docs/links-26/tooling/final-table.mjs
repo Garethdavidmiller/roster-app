@@ -61,7 +61,7 @@
 //     not count: the option sweep found three tables that passed here and failed page 7 on exactly that. (Since 6 Nov
 //     2026 the Saturday office lates finish at 22:30, so they count at 22:00.)
 // Familiar Nine (F9-24-K31) is table K: HI=540 TODAY=1 NEWPEN=2, the office kept off the floor as for Right Away —
-// README → "Familiar Nine" has the commands.
+// The links-24 README → "Familiar Nine" has the commands (`git show 924b9dbc:docs/links-24/README.md`).
 import { writeFileSync } from 'node:fs';
 import { DEC_2026_DEMAND } from '../../../links-demand.js';
 import { today, assess } from './report-data.mjs';
@@ -100,7 +100,7 @@ const REQUIRE = process.env.REQUIRE ? { times: new Set(process.env.REQUIRE.split
 if (REQUIRE && !(REQUIRE.n >= 1)) { console.error(`REQUIRE_N must be a whole number of at least 1 (got ${process.env.REQUIRE_N})`); process.exit(2); }
 const LATE_MAX = process.env.LATE_MAX !== undefined ? Number(process.env.LATE_MAX) : Infinity;
 const MAX_TURNS = Number(process.env.MAX_TURNS ?? 99);
-// TWO MORE, 30 OCT 2026 (the owner: can Closing Time have five at the Saturday open? README.md → "In Step"), both off by
+// TWO MORE, 30 OCT 2026 (the owner: can Closing Time have five at the Saturday open? HISTORY.md → "In Step"), both off by
 // default:
 //   · OPENERS_MIN=<n> — at least n on at the open (default 4, the December rule S1). Five is Short Run's Saturday.
 //   · FIXED_FREE=1 — a free duty may also work a fixed time. The fixed count stays the ticket office's own two; a third
@@ -118,7 +118,7 @@ const FIXED = process.env.FIXED !== undefined ? (process.env.FIXED === 'none' ? 
 const CLOSER_MIN = CLS === 'weekday' && process.env.WK_CLOSER_MIN ? mm(process.env.WK_CLOSER_MIN) : null;   // WK_CLOSER_MIN (3 Nov 2026), below
 const CLOSER_ONLY = CLS === 'weekday' && CLOSER_MIN === null ? (process.env.WK_CLOSER ?? '15:45-23:55') : null;
 // TOTAL: the day's duty minutes. Five weekdays and a Saturday must make CONTRACT_MINUTES (44,100 at 26 lines) exactly, so
-// the split is a choice to sweep, as it was at 24 lines (README there). The default is the even split at link.mjs's
+// the split is a choice to sweep, as it was at 24 lines (the links-24 README). The default is the even split at link.mjs's
 // headcounts — 7,440 a weekday (15 × 8h 16m) and 6,900 on a Saturday — and 5 × 7,440 + 6,900 = 44,100.
 const TOTAL = Number(process.env.TOTAL ?? { weekday: 7440, sat: CONTRACT_MINUTES - 5 * 7440, sun: 0 }[CLS]);
 const SUN_MIN = Number(process.env.SUN_MIN ?? 4800), SUN_MAX = Number(process.env.SUN_MAX ?? 5300);
@@ -134,7 +134,7 @@ const TODAY_TIMES = process.env.TODAY === '1' ? new Set(todayRows.map(r => r.tim
 // built to share the weekday's times. Off by default; TODAY=1 still decides only what is in the pool
 const KNOWN = new Set(process.env.KNOWN ? process.env.KNOWN.split(',') : todayRows.map(r => r.time)); const NEWPEN = Number(process.env.NEWPEN ?? 0);
 const POOL = []; const seenT = new Set();
-// SEVEN SWITCHES ADDED 3 NOV 2026 (Clean Slate, README.md → "Clean Slate and Next Step"), all off by default, so every table
+// SEVEN SWITCHES ADDED 3 NOV 2026 (Clean Slate, HISTORY.md → "Clean Slate and Next Step"), all off by default, so every table
 // built before is built the same way:
 //   · EARLY_HI=<min> — a length cap for the earlies alone (a start before 11:00), beside HI for every duty;
 //   · OPENER_HI=<min> — a length cap for the duties that start at the open (owner: "8 hours 30 openers maximum on a weekday");

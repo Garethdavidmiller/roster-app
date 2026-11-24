@@ -8,19 +8,19 @@ They were put in a folder of their own on 4 November 2026 (owner: "Put all of th
 days AL into a subfolder within links 26"). They are still part of the pack: the summary sheet, the shortlist sheet's
 comparisons and the league count them like every other proposal. **Since 8 November 2026 three of them are the
 shortlist**, Balanced V6, Level Crossing and Middle Ground (owner: "Put Level Crossing, Middle Ground and Balanced V6 as the
-shortlist for now"), drawn again for a new design target, no two closing weeks side by side (`../README.md` → "The
+shortlist for now"), drawn again for a new design target, no two closing weeks side by side (`../HISTORY.md` → "The
 shortlist redrawn for closing weeks apart"). The other five are not on it. Common Ground, in this folder until it was
 discarded on 9 November 2026 (below), was on it from 5 November 2026, as the example of the links that keep today's leave
 (owner).
 
 **Open Return and Short Openers were in this folder until 8 November 2026**, when they were deleted with Second Look, Even
 Keel and In Step from the proposals folder (owner: "Delete in step, even keel, open return, short openers and second look
-from the pack and repo"; `../README.md` → "Five designs deleted"). The paragraphs below dated before then still name them.
+from the pack and repo"; `../HISTORY.md` → "Five designs deleted"). The paragraphs below dated before then still name them.
 Short Openers' grid stays in `../tooling/results/`, out of the pack, because Crossover's and Balanced V8's weeks were laid
 from its rest days.
 
 **Common Ground, Crossover and Balanced V5 were in this folder until 9 November 2026**, when they were discarded with Even
-Step from the proposals folder (owner: "Discard those three and balanced v5 now please, very carefully"; `../README.md` →
+Step from the proposals folder (owner: "Discard those three and balanced v5 now please, very carefully"; `../HISTORY.md` →
 "Four designs discarded"). Their sheets and import files have left the pack and the repository. Their grids stay in
 `../tooling/`, out of the pack, because Middle Ground's, Level Crossing's and Balanced V6's weeks were drawn from them, and
 Common Ground's finished presentations, in `../tooling/deck-template/`, are where the shortlist's are built from; each grid's
@@ -52,41 +52,22 @@ README and its table still cover them.
 | League since 8 Nov 2026, of 18 | 1st, 78.7 | 6th, 73.3 | 3rd, 77.7 | 10th, 68.1 | 4th, 77.4 | 13th, 66.9 | 17th, 59.6 | 18th, 51.8 | 41.8, for reference |
 
 The columns are in the order of the league as it was weighted until 8 November 2026, and its places are as of 9 November
-2026, after Balanced V10, Clockface and Short Working joined, five designs were deleted and four discarded (below). **Since 8 November 2026 the main league counts the closing weeks**, the switches between earlies
+2026, after Balanced V10, Clockface and Short Working joined, five designs were deleted and four discarded (above; how each moved the league, `../HISTORY.md` → "The 30-day folder's own
+record"). **Since 8 November 2026 the main league counts the closing weeks**, the switches between earlies
 and lates and the opening shifts, with the December rules and the contracted days as gates and the fatigue warnings shown
-apart (`../README.md` → "The league reweighted for the design target"): its places are the last row, read from `league.mjs`
+apart (`../HISTORY.md` → "The league reweighted for the design target"): its places are the last row, read from `league.mjs`
 that day: Level Crossing and Middle Ground lead the designs here, first and third, with Clockface, in the proposals folder,
 second. The closing weeks row reads a week of three or more weekday closes
 as a closing week, cover weeks aside. Every other figure in
 the table is as of 6 November 2026, after the Saturday ticket office's
 lates moved to 22:30, one Saturday floor late with them, and Balanced V5 and V6 joined (below); their two low scores
-widened the league's ranges, so every other score rose and the places moved. Balanced V7 joined later the same day inside
-every range the league reads, so no other score moved: it was 20th, and Balanced V6 and V5 21st and 22nd. Crossover
-joined on 7 November 2026 the same way, first: no score moved, and every place below it is one lower. Level Crossing
-joined later that day the same way, second: again no score moved, and every place below it is one lower again. Both Ways
-and Fine Tune, neither in this folder, were deleted that evening, both inside every range: no score moved, and Open
-Return is one place higher, the three Balanced designs two (`../README.md` → "Both Ways and Fine Tune deleted").
-Balanced V8 and V9 joined later that evening, 10th and 16th. Their four weeks off for 13 days' leave is the best in the
-pack, so the league's range for it widened: every design needing 14 days' leave for four weeks off, all ten others here
-among them, scored 0.46 less, and those needing 15 nothing less. So Closing Time passed Grand Tour, Second Look passed
-Open Return, and every place below the two new designs is lower (`../README.md` → "Balanced V8 and Balanced V9").
-Balanced V9's column is as searched again later that night: its heaviest week came down inside every range, so only its
-own score moved, 83.1 to 83.3, and no place (`../README.md` → "Balanced V8 and V9 searched again"). Balanced V10 joined on
-8 November 2026 inside every range both leagues read, so no other score moved in either: it is 13th, 83.9, in the league as
-weighted until 8 November and 3rd, 76.6, in the main league, and every place below it is one lower in each (`../README.md` →
-"Balanced V10"). Clockface and Short Working joined later that day, in the proposals folder and not in this table, also
-inside every range both leagues read, so again no other score moved: Clockface was 1st in the main league and 6th in the one
-until 8 November, Short Working 6th and 19th, and every place below each one lower (`../README.md` → "Clockface and
-Short Working"). Five designs were deleted later that day, Open Return and Short Openers from this folder (above), and three
-of them had set an end of four of the ranges both leagues read: Second Look the fewest days off at best for 14 days' leave
-(27), In Step the most long earlies (40 a year each) and the lightest heaviest week (41h 05m), and Open Return the shortest
-closing shift on average (7h 45m). So every score moved in both leagues: in the main league Level Crossing was first, 78.7,
-Clockface second and Middle Ground third (`../README.md` → "Five designs deleted"). Four were discarded on 9 November 2026,
-Common Ground, Crossover and Balanced V5 from this folder (above). None of them set an end of a range the league as weighted
-until 8 November reads, so no score moved there and every place below them rose. In the main league Crossover had set the
-far end of two closing-weeks measures, four closing weeks in a row (with Common Ground) and 16 closes in any 21 days, so the
-designs with closing weeks together scored less; Level Crossing, Clockface and Middle Ground still lead it. The two league
-rows above are as they are since (`../README.md` → "Four designs discarded").
+widened the league's ranges, so every other score rose and the places moved.
+
+**Both league rows are the `REF_IN_RANGE=1` reading** of `../tooling/league.mjs`, today's link inside the ranges —
+the one `pack.py` reads (`LEAGUE=31oct` as well for the row until 8 November 2026). Plain `node league.mjs` lets the
+proposals alone set the ranges and prints different numbers: on it Level Crossing is third, 73.2, not first, 78.7
+(`../README.md` → "The league"). How every place and score above moved as designs joined and left, from 6 to
+9 November 2026: `../HISTORY.md` → "The 30-day folder's own record".
 
 **What the 30 days cost.** Every layout found that buys 30 days for 14 has more single rest days than Short Run, on the
 shortlist until 8 November 2026, and Clockface: 10, 12 or 22 a year each here, against their 8 (today about 10). Grand Tour has 16
@@ -102,38 +83,11 @@ worst stretch of 19 days for 14 days' leave, as Balanced V6 has, where the rest 
 closing weeks apart with 18 of 21 weeks on one shift time, one fewer than the design it was laid from (discarded on
 9 November 2026).
 
-**Common Ground** (discarded on 9 November 2026, above) joined the folder on the evening of 4 November 2026. It was drawn up in another session, on the
-owner's brief for today's link taken to 26 weeks, and reached the pack through `main` (#1690) while this folder was being
-changed; it buys 30 days for 14, so it belongs here too. Its weeks are Grand Tour's, all 182 cells working or resting
-alike. Seven of its thirteen shift times are worked today; the other six are new — shorter versions of three of
-today's lates, a 07:00–15:30 early and two Sunday earlies. (Until 6 November 2026 it had fourteen, the fourteenth a
-9-hour Saturday late, 13:30–22:30, which now finishes at 22:00: below.)
-
 **Middle Ground** joined the folder on 5 November 2026 (owner: "Can you rename good turn as Middle Ground and add it to
 the pack please"). It was drawn for the owner's point that Common Ground's closing weeks and its 06:20 weeks come in
 runs, which makes swapping a week with a colleague harder: it keeps Common Ground's rest days and its early and late
 weeks, and chooses again which week works which shift time, so that no two closing weeks and no two 06:20 weeks fall
 side by side. It is the only design in the pack where neither does. It has been on the shortlist since 8 November 2026.
-
-**The Saturday ticket office to 22:30** (6 November 2026; owner: "I have confirmed that it does close at 22.10 and needs
-to be a 22.30 ticket office closer. Do A on every proposal"). The office shuts at 22:10 on a Saturday and takes 20
-minutes to cash up, so on every link here its two Saturday lates finish at 22:30, not 22:00, and the Saturday floor
-pair that finished at 22:30 finishes at 22:00 instead: Common Ground's and Middle Ground's 13:30–22:30, and Grand
-Tour's, Short Openers' and Open Return's 14:00–22:30. The minutes balance, so the contract, the leave, the rest days
-and the weeks are unchanged; the fingerprints, the shift times, the heaviest weeks and the league moved, and the table
-gives them as they are now. Common Ground and Middle Ground now have nothing over 8h 30m on any day, as Grand Tour has,
-and Common Ground was then first in the main league. Today's roster still has its office lates leaving at 22:00. The same
-change was made on every proposal in the pack: `../README.md` → "The Saturday ticket office to 22:30". Balanced V5 and V6
-needed none: they were drawn with the office lates finishing at 22:30.
-
-**One floor late back to 22:30** (later the same day; owner: "Yes"). Rather than half an hour off both of the Saturday
-floor pair, the hour now comes off one of them: on Grand Tour, Short Openers and Open Return one 14:00–22:00 is
-14:00–22:30 again and the other 14:30–22:00, today's Saturday office late; on Common Ground and Middle Ground one
-13:30–22:00 is 14:00–22:30, the same length. No design gains a shift time, and the first three have one new time fewer
-(Grand Tour and Open Return 16 with eight new, Short Openers 14 with six); the Saturday fit is closer on all five, Common
-Ground and Middle Ground 11.9 to 9.8 and the other three 10.7 to 10.4. Nothing else in the table moved but the
-fingerprints and the league, where Common Ground stays first and Grand Tour passes Middle Ground. `../README.md` → "The
-Saturday floor late back to 22:30".
 
 **Balanced V5 and Balanced V6** (Balanced V5 discarded on 9 November 2026, above) joined the folder on 6 November 2026 (owner: "Balanced v5 and Relief Point need adding to
 the pack, but can you rename Relief Point as Balanced v6"). Balanced V5 is a one-page roster drawn up outside the app,
@@ -162,34 +116,12 @@ three mixed weeks and its runs of earlies or lates (3, or 5 with the cover weeks
 as weighted until 8 November 2026, 77.2, between the rest of the pack and Balanced V6, and 17th in the one since, 59.6
 (20th in both, 61.9 in the one since, until four designs were discarded on 9 November 2026).
 
-**Crossover** joined the folder on 7 November 2026, the day it was drawn, on the owner's brief: keep the 13:45 finishes
-and make the 13:35s 13:45 too, every weekday closer at 15:45, 14 days' leave buying 30 days off, every rule and fatigue
-factor met, the fewest shift times, and competitive with the best in the league. Every weekday has two 06:20–13:45s and
-three 15:45–23:55 closers, and no early finishes between 15:00 and 16:00.
-- **The handover.** Two 07:30–16:00s stay for the closers' first 15 minutes, and a fifth 06:20 opener finishes at 14:50,
-  so nobody leaves as the closers come on.
-- **Shift times.** Thirteen; seven of them are worked today.
-- **Fatigue.** No fatigue factor is present in any cover-week placement tested. Its rest days are Short Openers', whose
-  cover weeks can never make a 55-hour week; its duties and its weeks are its own.
-- **The league.** It is first in the league as weighted until 8 November 2026, 87.5, 0.4 points ahead of Level Crossing
-  and 0.6 ahead of Common Ground. It joined at 87.3, inside every range the league reads, so no other score moved then
-  (Balanced V8 and V9 moved them all, and the deletions of 8 November: above). In the league since 8 November it is 17th,
-  68.5: its four closing weeks together.
-- **What it pays.** Its Saturday fit and its worst leave stretch (above), a 14h 20m shortest rest, and a week-to-week
-  change of start of 1h 31m.
-- **The name.** On the railway, a crossover is the track that lets a train cross from one line to the other; on a rota, it
-  is the time when both shifts are on together, which is what this design adds. It was drawn as Safe Hands and renamed
-  the same day (owner: "Needs a better name", and "Use railway names in future"), so the pack's names are railway names
-  from here on.
-
-It was never on the shortlist, and was discarded on 9 November 2026 (above); its grid stays, as Level Crossing's source.
-It replaced Set Fair, drawn earlier the same day and deleted (below).
-
 **Level Crossing** joined the folder later on 7 November 2026, on the owner's ask: "Middle ground is a reworking of common
 ground to make it a gentle change between weeks. As people don't want to do several weeks of closes. How possible is it
 to do the same to crossover?", then "Do it". It has Crossover's duties and rest days, laid in new weeks so that no two
 closing weeks come in a row, where Crossover has four together.
-- **What stays.** Everything above that is Crossover's: the two 13:45 finishes and the handover, the leave, the weekends,
+- **What stays.** Everything that is Crossover's (its paragraph is in `../HISTORY.md` → "The 30-day folder's own record"):
+  the two 13:45 finishes and the handover, the leave, the weekends,
   the December rules, the fit to the trains, the 14h 20m shortest rest, and no fatigue warning even if a cover week falls
   badly.
 - **What it pays.** One week fewer on one shift time (18 of 21), and a change of start from week to week of 1h 34m,
@@ -228,7 +160,7 @@ league.
   longer than V7's, four and up to six. None of these is a fatigue warning.
 - **How.** The solver could not lay these duties on Short Openers' rest days as they are: whoever works the Sunday
   09:00–18:00 there is back at 07:30 on Monday, 13h 30m later. It re-chose the early weeks' rest days to clear that, and
-  then the whole rota (`../README.md` → "Balanced V8 and Balanced V9").
+  then the whole rota (`../HISTORY.md` → "Balanced V8 and Balanced V9").
 
 Neither is on the shortlist.
 
@@ -247,7 +179,7 @@ rest days, every one, and its early and late weeks, with only which week works w
   Clockface joined), behind Level Crossing, Clockface and Middle Ground, from Balanced V8's 10th; first in 20% of the
   reweightings and in the top three in 49% (47% until 9 November). In the league as weighted until 8 November, which cannot
   see the closing weeks, it is 10th, 84.6, below V8's 8th (13th and 11th until 9 November).
-- **How.** `exact-rota.py` with `CLOSE_APART=2`, then `NEAR=` for the layout nearest Balanced V8 (`../README.md` →
+- **How.** `exact-rota.py` with `CLOSE_APART=2`, then `NEAR=` for the layout nearest Balanced V8 (`../HISTORY.md` →
   "Balanced V10").
 
 It is not on the shortlist, which the owner left as it was until seeing it ("For now leave the shortlist until I see
@@ -263,17 +195,10 @@ its own pair too, drawn later on 8 November 2026 the same way and set beside the
 shares with the three, what it adds against all three and what it costs against Level Crossing and Middle Ground. The zip
 carries the shortlist's decks only, so not Balanced V10's. The other four links here have none.
 
-**Taken out, and since deleted:** Quarter Past, whose shift times Open Return keeps, on the evening of 4 November 2026;
-and Well Kept, today's twenty weeks with six added, which was in this folder from that evening until 5 November 2026
-(owner: "Remove well kept"). It met 7 of the 9 December rules. Both were deleted on 6 November 2026, grids included
-(owner: "Permanently delete …"; `../README.md` → "Nine designs deleted"). Quarter Past's duty table stayed, as
-`../tooling/results/quarter-past-table.json`, while Open Return, drawn from it, was in the pack, and went with Open Return
-and Short Openers on 8 November 2026 (above). Set Fair was in this folder for a few
-hours on 7 November 2026 and was deleted the same day (owner: "Delete set fair as it would not work"). Its three weekday
-07:15–15:45s left as the three 15:45 closers came on. Crossover replaced it; Crossover, Common Ground and Balanced V5 were
-themselves discarded on 9 November 2026 (above).
-
-How each was drawn, and the names they were drawn under: `../README.md` → "30 days off for 14 days' leave", and for
+**Where the rest is.** The paragraphs this README carried until 24 November 2026 on Common Ground, Crossover, the Saturday
+ticket office's move to 22:30 and the designs taken out are in `../HISTORY.md` → "The 30-day folder's own record", with
+how the league above moved as designs joined and left. How each was drawn, and the names they were drawn under:
+`../HISTORY.md` → "30 days off for 14 days' leave", and for
 Well Kept and Quarter Past → "Quarter Past out, Well Kept in" and "Well Kept out", for Common Ground → "Common
 Ground — today's link taken to 26 weeks, on the owner's brief" and "Common Ground joins the 30-day folder", for
 Middle Ground → "Middle Ground — the shift times varied from week to week", and for Balanced V5 and V6 → "Balanced V5 — a

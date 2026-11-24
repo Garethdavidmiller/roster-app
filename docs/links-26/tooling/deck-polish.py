@@ -1427,7 +1427,7 @@ def link_date(d, who):
 # the colleagues' title slide, slide 3 and slide 3's notes, the managers' title slide and slide 9's notes. Each is rewritten to
 # what link.mjs says now, counted (found once as built, or already rewritten), and then nothing in the deck may date the start
 # to any other day. polish() runs it, so does shortlist-decks.py, and `deck-polish.py --link-month <deck.pptx>…` applies it
-# in place to finished decks: the eight built for earlier shortlists are not rebuilt (README.md, "The shortlist's presentations").
+# in place to finished decks: the eight built for earlier shortlists are not rebuilt (HISTORY.md, "The shortlist's presentations").
 BUILT_ON = '1 January 2027'
 def link_month(d, who):
     edits = {'colleagues': [('ppt/slides/slide1.xml', f'For discussion · from {BUILT_ON} · ', f'For discussion · from {LINK_STARTS} · '),

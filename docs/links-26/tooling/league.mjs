@@ -17,7 +17,7 @@
 // THE MAIN LEAGUE SINCE 8 NOV 2026 COUNTS THE CLOSING WEEKS (owner, 8 Nov 2026: "Make the changes you mentioned", of the
 // league read for the design target set that day — "no consecutive closing weeks, with changes between early and late duties
 // placed around useful rest breaks … Weeks on one shift time is still Important"). The method was written before any figure
-// was published (README.md → "The league reweighted for the design target"), and two things back it that the weights were not
+// was published (HISTORY.md → "The league reweighted for the design target"), and two things back it that the weights were not
 // tuned to: the target came first, and an outside reviewer's own weights put the same two designs first. What changed:
 //   · GATES, NOT POINTS: the nine December rules and the 219-day ceiling. Every design passes both, so as factors they handed
 //     every design the same 25 points of 100 and made the gaps look smaller. A design that fails a gate is listed after every design
@@ -54,12 +54,12 @@
 // which weighting it holds (`oldReadings`), so a page or a check reading it can refuse the wrong one.
 //
 // FAMILIAR SHIFT TIMES ARE MONDAY TO SATURDAY SINCE 3 NOV 2026 (owner: "Familiar shift times shouldn't apply to Sunday in
-// the league"). Sunday is overtime, not a contracted day, and its duties barely differ between the designs here (README →
+// the league"). Sunday is overtime, not a contracted day, and its duties barely differ between the designs here (HISTORY.md →
 // "Familiar shift times count the Monday-to-Saturday duties only"), so a design's Sunday duties are left out of the
 // factor, new or familiar: it is the share of the design's Monday-to-Saturday
 // shift times that are one of today's times. "Today's times" is unchanged — any time today's link works, Sunday
 // included — so a weekday 07:15–15:45, worked today only on a Sunday, is still familiar, as the pack has always called it
-// (README → "one of today's times"). The weight is unchanged. FAM_SUNDAY=1 counts the Sunday duties as before, to
+// (HISTORY.md → "one of today's times"). The weight is unchanged. FAM_SUNDAY=1 counts the Sunday duties as before, to
 // rebuild the main league's figures of 31 Oct to 3 Nov 2026; OLD_READINGS=1 counts them too, because that league is kept
 // as it was read. The JSON says which (`famSunday`).
 import fs from 'fs';
