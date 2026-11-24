@@ -1,4 +1,4 @@
-# AI_MAP.md — Claude routing guide for MYB Roster
+# AI_MAP.md — Claude routing guide for Marylebone Roster
 
 *Last updated: November 2026 — v26.50 · Updated every 0.10 version*
 
