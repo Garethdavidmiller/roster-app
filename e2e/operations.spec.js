@@ -848,6 +848,22 @@ test('operations usage: a failed sign-in-stats call leaves the rest of the card 
     await expect(page.locator('#usageContent')).not.toContainText('Couldn’t load usage');
 });
 
+// A reply missing a figure (the Functions and the page deploy in parallel) is a failed call — the
+// section goes, as on any failure — never "NaN" or "across undefined staff accounts" (whole-app review, 24 Nov 2026).
+test('operations usage: a sign-in-stats reply missing a figure is treated as a failed call', async ({ page }) => {
+    await page.route('**/getSignInStats', route => route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ last7: 19, last30: 31, neverSignedIn: 6 }),   // no total
+    }));
+    await page.addInitScript(() => { window.__E2E = { authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#usageContent')).toContainText('Page popularity');
+    await expect(page.locator('.usage-signin')).toHaveCount(0);
+    await expect(page.locator('#usageContent')).not.toContainText('undefined');
+    await expect(page.locator('#usageContent')).not.toContainText('NaN');
+});
+
 test('operations usage: the section is absent (not broken) when there is no Firebase user', async ({ page }) => {
     // Default stub state — getSignInStats throws "Not signed in" before it ever fetches. Proves the
     // section degrades the same way whether the call fails or is never made.
@@ -1423,7 +1439,7 @@ test('operations attention: a refresh that FAILS withdraws the strip item, as it
     // Resolve-all succeeds… and the in-place refresh that follows cannot read.
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = true; });
     await page.locator('.error-resolve-all-btn').click();
-    await expect(page.locator('#errorLogContent')).toContainText("Couldn't load error log");
+    await expect(page.locator('#errorLogContent')).toContainText("Couldn’t load error log");
     await expect(page.locator('#errorLogCountChip')).toHaveText('');
     await expect(strip, 'an unknown count is not still "2 unresolved errors" above a failed panel').not.toContainText('Unresolved errors');
 });
@@ -1437,7 +1453,7 @@ test('operations attention: a retry after a failed load still reaches the strip'
     await page.goto('/operations.html#error-log');
 
     // A failed read reports NOTHING rather than a reassuring zero, so the strip has no error item.
-    await expect(page.locator('#errorLogContent')).toContainText("Couldn't load error log");
+    await expect(page.locator('#errorLogContent')).toContainText("Couldn’t load error log");
     await expect(page.locator('#attentionStrip')).not.toContainText('Unresolved errors');
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
@@ -1593,7 +1609,7 @@ test('operations error log: "Resolve all shown" retries the row that failed, not
         b0.res(); b1.rej(new Error('e2e: refused')); b2.res();                       // e1 genuinely fails
     });
     const all = page.locator('.error-resolve-all-btn');
-    await expect(all).toHaveText("✗ 1 didn't resolve — try again");
+    await expect(all).toHaveText("✗ 1 didn’t resolve — try again");
     await all.click();
     await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.calls.slice(4).map((/** @type {any} */ c) => c.id)),
         { message: 'the retry must be for the row that failed' }).toEqual(['e1']);
@@ -3001,8 +3017,8 @@ test('operations offline: App speed, Usage and the Error Log refuse a cached ans
     });
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
-    await expect(page.locator('#pageSpeedContent')).toContainText('Couldn\'t load app speed — check your connection.');
-    await expect(page.locator('#usageContent')).toContainText('Couldn\'t load usage — check your connection.');
+    await expect(page.locator('#pageSpeedContent')).toContainText('Couldn’t load app speed — check your connection.');
+    await expect(page.locator('#usageContent')).toContainText('Couldn’t load usage — check your connection.');
     await expect(page.locator('#errorLogContent')).toContainText('Couldn\'t load error log — check your connection.');
     await expect(page.locator('#errorLogCountChip')).toHaveText('');
     await expect(page.locator('#attentionStrip a[href="#error-log"]')).toHaveCount(0);

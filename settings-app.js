@@ -470,7 +470,7 @@ export function init() {
         });
 
         function setFeedback(/** @type {any} */ msg, /** @type {any} */ state) {
-            feedback.textContent = msg;
+            setStatus(feedback, msg);   // a leading ✓ is decoration, not a word to announce (status-text.js)
             feedback.className   = `contact-feedback${state ? ' ' + state : ''}`;
         }
 
@@ -693,7 +693,7 @@ export function init() {
             if (next) next.focus(); else saveBtn.click();
         });
         const setFeedback = (/** @type {string} */ msg, /** @type {string} */ state = '') => {
-            feedback.textContent = msg;
+            setStatus(feedback, msg);   // a leading ✓ is decoration, not a word to announce (status-text.js)
             feedback.className   = `contact-feedback${state ? ' ' + state : ''}`;
         };
 

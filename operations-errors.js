@@ -26,6 +26,10 @@ function writeLine(text) {
 }
 /** Whether the notification-tap re-read below is wired — once per page. */
 let _tapRereadWired = false;
+/** Numbers each read. Two can overlap (a notification tap, a retry, the refresh after "Resolve all
+ *  shown"), and only the NEWEST may paint: an older snapshot landing last would repaint the card,
+ *  chip and strip with entries since resolved (whole-app review, 24 Nov 2026). */
+let _loadSeq = 0;
 /**
  * A tap on the admin's Error Log notification (v26.04, functions/error-log-notify.js) while Operations is
  * ALREADY open only changes the hash, so without this the card opened over the entries read at page
@@ -74,10 +78,13 @@ async function initErrorLog(opts = {}) {
     const content = document.getElementById('errorLogContent');
     if (!content) return;
     _rereadOnNotificationTap(opts);
+    const seq = ++_loadSeq;
+    const superseded = () => seq !== _loadSeq;
 
     try {
         await sessionReady;
         const got = (await withClaimRetry(getClientErrors)) || {};
+        if (superseded()) return;   // a newer read owns the card now
         const { errors = [], truncated = false } = got;
         // More than 200 RESOLVED records exist, and the reader took an unordered 200 of them, so the
         // resolved rows below are the newest of that 200 — not necessarily the newest (pwa-5). Read
@@ -163,7 +170,7 @@ async function initErrorLog(opts = {}) {
                     // so the header chip stranded on the pre-resolve count).
                     _setCountChip();
                     allBtn.disabled = !!unknown;
-                    allBtn.textContent = unknown ? `${failedItems.length} not confirmed` : `✗ ${failedItems.length} didn't resolve — try again`;
+                    allBtn.textContent = unknown ? `${failedItems.length} not confirmed` : `✗ ${failedItems.length} didn’t resolve — try again`;
                     if (unknown) bar.append(writeLine(unknown));
                     errStatus.textContent = `${succeeded} resolved, ${failedItems.length} ${unknown ? 'not confirmed' : 'failed'}`;
                     return;   // leave the list as-is so the admin can retry just the failures
@@ -302,15 +309,16 @@ async function initErrorLog(opts = {}) {
 
     } catch (e) {
         console.error('[ErrorLog]', e);
+        if (superseded()) return;   // a newer read owns the card, its chip and the strip
         // The count is now UNKNOWN — clear the header chip rather than let a pre-failure count
         // (possibly just resolved server-side) keep advertising on the collapsed card (v18.23
         // review fix; re-looked-up because _countChip is scoped inside the try).
         const _chip = document.getElementById('errorLogCountChip');
         if (_chip) _chip.textContent = '';
         opts.onWithdraw?.();   // …and the strip with it — one fact, two voices (v25.06)
-        _cardLoadError(content, 'Couldn\'t load error log — check your connection.', () => initErrorLog(opts));
+        _cardLoadError(content, 'Couldn’t load error log — check your connection.', () => initErrorLog(opts));
     } finally {
-        content.removeAttribute('aria-busy');
+        if (!superseded()) content.removeAttribute('aria-busy');
     }
 }
 

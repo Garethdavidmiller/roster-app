@@ -457,7 +457,7 @@ export function init() {
                     console.error('[AccountStatus] email save failed', e);
                     // An UNKNOWN outcome says so and Save stays off — the gate would refuse a second (AUTH_AND_SESSIONS 21/22).
                     const unknown = unconfirmedWriteLine(e, 'this save', 'this list');
-                    errorEl.textContent = unknown || 'Couldn\'t save — check your connection and try again';
+                    errorEl.textContent = unknown || 'Couldn’t save — check your connection and try again';
                     saveBtn.disabled = !!unknown; saveBtn.textContent = 'Save';
                 }
             });
@@ -703,7 +703,7 @@ export function init() {
             if (!main) return;
             const banner = document.createElement('p');
             banner.className   = 'ops-auth-warning';
-            banner.textContent = 'We couldn\'t confirm your admin sign-in. Please sign out and back in before using these tools.';
+            banner.textContent = 'We couldn’t confirm your admin sign-in. Please sign out and back in before using these tools.';
             main.prepend(banner);
         }
     });

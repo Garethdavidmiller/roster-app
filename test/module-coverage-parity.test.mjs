@@ -71,7 +71,6 @@ const UNNAMED_BY_DESIGN = {
     'settings-boot.js':   'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
     'trains-boot.js':     'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
 
-    'operations-errors.js': 'driven through its card by e2e/operations.spec.js (Error Log)',
     'operations-usage.js':  'driven through its card by e2e/operations.spec.js (Usage)',
     'operations-speed.js':  'driven through its card by e2e/operations.spec.js (App Speed)',
     'operations-doc-uploads.js': 'configuration only, over doc-upload.js — driven through both cards by e2e/operations.spec.js (the Circular and Newsletter uploads, "Circular uploaded for" / "Newsletter uploaded for")',

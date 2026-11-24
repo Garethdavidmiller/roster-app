@@ -195,7 +195,7 @@ async function initUsageCard() {
 
     } catch (e) {
         console.error('[Usage]', e);
-        _cardLoadError(content, 'Couldn\'t load usage — check your connection.', initUsageCard);
+        _cardLoadError(content, 'Couldn’t load usage — check your connection.', initUsageCard);
     } finally {
         content.removeAttribute('aria-busy');
     }
@@ -450,6 +450,11 @@ function _appendSignInSection(content) {
         // Guard against a re-render finishing first (retry, or a second initUsageCard): if this
         // wrapper is no longer in the document, its card has been replaced — drop the result.
         if (!wrap.isConnected) return;
+        // A reply missing a figure is a failed call, not "NaN" or "across undefined staff accounts":
+        // the Functions and the page deploy in parallel (whole-app review, 24 Nov 2026).
+        if (![s?.last30, s?.last7, s?.neverSignedIn, s?.total].every(Number.isFinite)) {
+            throw new Error('sign-in stats reply is missing a figure');
+        }
         [s.last30, s.last7, s.neverSignedIn].forEach((v, i) => {
             const n = boxes[i].querySelector('.usage-stat-num');
             if (n) n.textContent = Number(v).toLocaleString('en-GB');
