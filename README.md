@@ -54,8 +54,9 @@ recorded, with the measurements behind that decision, in `typecheck-scope.test.m
 
 The repository is public and holds no credentials. Deploys authenticate through Workload Identity
 Federation rather than a stored key; the Firebase API key is referrer-restricted; the retired
-staff PIN's value lives only in Secret Manager, until it is destroyed after the server release that
-deletes its endpoint (OPERATIONS_REFERENCE.md → "The staff PIN (retired)"). Keeping its digits out of
+staff PIN's value lives only in Secret Manager, bound by no function since the server release that
+deleted its endpoint, until the owner destroys it (OPERATIONS_REFERENCE.md → "The staff PIN
+(retired)"). Keeping its digits out of
 the repository — and out of the record of its retirement — is a rule, not a guard.
 
 ## The test lanes
@@ -150,8 +151,8 @@ behind them.
   restart (the member kept) and a new password whose record is still on its way
   (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
   throwaway Firebase project folder in the temp directory — the emulator settings from `firebase.json`,
-  a random stand-in for the retired staff PIN's secret while its function is still deployed, never the
-  real one — and writes nothing into the checkout. Each page keeps
+  a placeholder for every secret the functions declare, never a real one — and writes nothing into
+  the checkout. Each page keeps
   its own CSP, widened only by the emulators' addresses. **What it cannot see** is what only
   production has: the API key's allowed sites, the rules as DEPLOYED rather than as committed, Web
   Push, the service worker (blocked, so every request reaches the routes) and the Pages mirror. Nor

@@ -17,10 +17,11 @@
  *      what deploys.
  *   2. THE SECRETS, in that functions/ folder's `.secret.local` — the Functions emulator's own place
  *      for them, so nothing is asked of Secret Manager and nothing is written into the checkout. The
- *      names come from the functions' own defineSecret calls, so a new one needs no edit here. The
- *      staff PIN gets four RANDOM digits for this run, handed to the spec as E2E_VIEWER_PIN; the rest
- *      get a placeholder no journey reaches. The real PIN is never read, written or needed: it lives
- *      only in Secret Manager, which a `demo-` project cannot reach.
+ *      names come from the functions' own defineSecret calls, so a new one needs no edit here, and
+ *      each gets a placeholder no journey reaches. No real secret is ever read, written or needed:
+ *      they live only in Secret Manager, which a `demo-` project cannot reach. (Until the staff PIN's
+ *      server release, Nov 2026, its secret got four random digits here, for a journey that unlocked
+ *      through the real exchange; that journey now mints the leftover session itself.)
  *   3. NO PROXY for the emulator session. Everything the lane talks to is on this machine, and the
  *      Firebase CLI sends even its 127.0.0.1 calls through a proxy when one is set, NO_PROXY or not —
  *      the emulators then fail to start with "Unable to parse JSON" (measured in this repository's
@@ -39,7 +40,6 @@
  *     npm run test:signed-in -- --project=mobile-chrome -g "first sign-in"
  */
 import { spawn } from 'node:child_process';
-import { randomInt } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import os, { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -56,8 +56,6 @@ const INSIDE = '--inside';
 /** How the outer run hands the Playwright command to the inner one: JSON in the environment, so no
  *  shell re-reads it on the way through `emulators:exec` (a `-g "two words"` stays one argument). */
 const ARGS_VAR = 'SIGNED_IN_PLAYWRIGHT_ARGS';
-/** The staff PIN's secret, which the lane must be able to set. */
-const PIN_SECRET = 'CALENDAR_VIEWER_PIN';
 const PROXY_VARS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'];
 
 /**
@@ -158,14 +156,11 @@ async function outer() {
         die('the Cloud Functions\' packages are not installed, and the Functions emulator cannot load them — run `npm ci --prefix functions` first');
     }
     const secrets = declaredSecrets();
-    if (!secrets.includes(PIN_SECRET)) die(`the functions no longer declare ${PIN_SECRET}; the staff PIN journey in e2e/signed-in.spec.js needs the new name`);
-
-    const pin = String(randomInt(0, 10_000)).padStart(4, '0');
-    const env = { ...process.env, E2E_VIEWER_PIN: pin, [ARGS_VAR]: JSON.stringify(command.slice(1)) };
+    const env = { ...process.env, [ARGS_VAR]: JSON.stringify(command.slice(1)) };
     for (const name of PROXY_VARS) delete env[name];
 
     const folder = buildProjectFolder(Object.fromEntries(
-        secrets.map((name) => [name, name === PIN_SECRET ? pin : 'e2e-placeholder-not-a-secret'])));
+        secrets.map((name) => [name, 'e2e-placeholder-not-a-secret'])));
     // Ctrl-C reaches the emulators too, and they shut down on it; this process waits for them and
     // then tidies up, rather than leaving first. It also remembers the signal, because the Firebase
     // CLI exits 0 after that clean shutdown (measured), and an interrupted run must never read as a
