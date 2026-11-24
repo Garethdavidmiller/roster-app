@@ -9,7 +9,8 @@
  * summarising the wrong direction for Coming back, leaves every unit test green.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, stubPinExchange, enterPin, scaleText, pickFirstMemberAndPassword } from './helpers.js';
+import { STAFF_PIN_ENDED_NOTICE } from '../staff-pin-ended.js';
+import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, seedLegacyViewerSession, scaleText, pickFirstMemberAndPassword } from './helpers.js';
 import { TIMETABLES, STATIONS } from '../trains-data.js';
 import { busiestStations, matchStations } from '../trains-stations.js';
 
@@ -1338,7 +1339,7 @@ test('no view of the page runs off a phone\'s screen with larger text', async ({
 // ── THE WHOLE-APP FIX (Nov 2026) ─────────────────────────────────────────────────────────────────────
 // What only the page can show: that the coordinator hands each rule the right timetable, the right phase
 // and the right names. The rules themselves are trains-stations.test.mjs's and trains-change.test.mjs's.
-test.describe('trains — the page turns as a whole, and a station computer is shown its way in', () => {
+test.describe('trains — the page turns as a whole, and a station computer is told the staff PIN has gone', () => {
     // From 13 December only the tab and the card's title turned: the section, its ? and its chevron, and the
     // ? panel's own title, went on saying "What’s changing" to a screen reader and under the tab.
     test('every name the changes view goes by turns with it at the change', async ({ page }) => {
@@ -1476,32 +1477,50 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         await expect(page.locator('#trFestive'), 'and the page\'s own Christmas line went with them').toBeHidden();
     });
 
-    // The station PIN opens this page (AUTH_AND_SESSIONS 24), but its session ends with the browser and
-    // belongs to the tab that unlocked the Calendar, so a station computer can arrive here locked — and
-    // the card asked only for a member's grade, name and password.
-    test('a station computer reaching the page locked is told the PIN opens it, enters it on the roster, and comes back by the menu', async ({ page }) => {
+    // THE STAFF PIN WAS RETIRED (owner, 23 Nov 2026). Until then it opened this page (v24.84), and a
+    // station computer arriving locked was sent to the Calendar's PIN box by a line on this card. Now
+    // only a member's own sign-in opens Trains: a browser still holding a PIN session is signed out on
+    // arrival — the plain teardown, awaited before the card (trains-app.js) — and the card says why.
+    const holdsViewer = (/** @type {import('@playwright/test').Page} */ page) =>
+        page.evaluate(() => sessionStorage.getItem('__e2e_viewer'));
+
+    test('a leftover staff-PIN session is signed out on arrival: the sign-in card says the PIN has been retired, and offers nothing of it', async ({ page }) => {
         const errors = collectFatalErrors(page);
-        await stubPinExchange(page);
+        await seedLegacyViewerSession(page);
         await page.goto('/trains.html');
         await expect(page.locator('#loginOverlay')).toBeVisible();
+        await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE);
+        await expect.poll(() => holdsViewer(page), { message: 'the leftover PIN session survived the page' }).toBeNull();
+        // Nothing of the PIN on the card: no line about it, no link to its box, no box.
         const about = page.locator('#loginAbout');
-        await expect(about).toContainText('The staff PIN opens this page too');
-        await expect(about).toContainText('choose Trains from its menu');
-        await expect(page.locator('#loginOverlay')).not.toContainText(/sign(s|ed)? in with the (staff )?PIN/i);
-        const link = about.locator('.login-about-link');
-        await expect(link).toHaveAttribute('href', './#staff-pin');
-        // The way back to the roster stays: the PIN is offered beside it, not instead of it.
+        await expect(about).toContainText('Chiltern’s trains from Marylebone');
+        await expect(about).not.toContainText('PIN');
+        await expect(page.locator('#loginOverlay a[href*="staff-pin"]')).toHaveCount(0);
+        await expect(page.locator('#calLockPin, input[inputmode="numeric"]')).toHaveCount(0);
         await expect(page.locator('#loginOverlay a.login-back')).toHaveAttribute('href', './');
-        await link.click();
-        await expect(page.locator('#calLockPin'), 'the Calendar\'s PIN card, first').toBeVisible();
-        await enterPin(page, '1234');
-        await expect(page.locator('#calendarDisplay')).toBeVisible();
-        await page.locator('#navMenuBtn').click();
-        await page.locator('#navPanel .nav-panel-pill--trains').click();
-        await expect(page).toHaveURL(/trains\.html/);
-        await expect(page.locator('#trControls')).toBeVisible();
-        await expect(page.locator('#loginOverlay')).toHaveCount(0);
         expect(errors, errors.join('\n')).toEqual([]);
+    });
+
+    test('a leftover PIN session that restores late is still signed out — the page waits for the teardown, then asks for a sign-in', async ({ page }) => {
+        // Until the PIN was retired, Trains honoured a PIN session that restored after its check (sign-in
+        // check, 11 Nov 2026). Now the same late restore must be TORN DOWN: 7.5s is past the Calendar's
+        // decision budget and inside the teardown's own 8s restore wait, which this page awaits.
+        test.setTimeout(60_000);
+        await seedLegacyViewerSession(page);
+        await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 7500 }); });
+        await page.goto('/trains.html');
+        await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE, { timeout: 15_000 });
+        await expect.poll(() => holdsViewer(page)).toBeNull();
+        await page.waitForTimeout(1000);   // a late grant would have taken the card down by now
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+    });
+
+    test('a visitor who never held the PIN is told nothing about it', async ({ page }) => {
+        await page.goto('/trains.html');
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+        await page.waitForTimeout(1500);   // a teardown's line would be there well before this
+        await expect(page.locator('#loginNotice')).toBeEmpty();
     });
 });
 

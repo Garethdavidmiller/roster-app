@@ -3482,7 +3482,7 @@
            `.win-editor[hidden]` hit on the links page. These six are the Calendar workspace, hidden by
            `calendar-access.js` before the access decision and on a re-lock — after which the workspace is
            built (only the grid is emptied, calendar-app.js) and this is the only layer
-           (e2e/calendar-pin.spec.js → "a re-lock takes the offer strips…").
+           (e2e/calendar-access.spec.js → "a re-lock takes the offer strips…").
            `!important`: three of them (#installPrompt, #notifPrompt, #swipeHint) carry an inline
            `display`, which beats any rule without it. */
         #calendarControls[hidden],

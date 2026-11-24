@@ -11,7 +11,7 @@
  * ~7 days) — and until v21.28 not one of them was exercised by any browser that behaves that way.
  * Every one had been reasoned about and none had been run.
  *
- * The first run paid for itself: it found `calendar-pin.spec.js`'s footer test asserting the
+ * The first run paid for itself: it found `calendar-pin.spec.js`'s (now `calendar-access.spec.js`) footer test asserting the
  * notification bell exists unconditionally, which is a Chromium assumption. `notifSupported()`
  * correctly hides the bell where Web Push does not exist, so the app was right and the test was
  * provincial. 323 of the suite's tests pass here unchanged.

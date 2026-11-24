@@ -36,7 +36,7 @@
  *      (`showSignInUnavailable`) — never an empty slot. It was the PIN card until the PIN went.
  *
  * Tested through `calendar-access.test.mjs` (which drives these from `initCalendarAccess`, the real
- * entry point, not from the builders) and `e2e/calendar-pin.spec.js` (whose PIN half the e2e pass removes).
+ * entry point, not from the builders) and `e2e/calendar-access.spec.js`.
  */
 
 import { mountLockCard, unmountLockCard } from './calendar-lock-slot.js';

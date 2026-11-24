@@ -15,7 +15,7 @@
  * a PIN card when its form cannot load.
  *
  * The fake DOM is deliberately minimal: this file tests the module's decisions, not its markup. The
- * card's appearance and behaviour under a real browser are e2e's job (`e2e/calendar-pin.spec.js`, whose PIN
+ * card's appearance and behaviour under a real browser are e2e's job (`e2e/calendar-access.spec.js`, whose PIN
  * half the e2e pass removes).
  */
 import { test, describe, mock, beforeEach, afterEach } from 'node:test';
@@ -97,7 +97,7 @@ function emitAuth(user) {
 
 /** Every `initLoginOverlay` call the module makes — the front door is the shared card mounted
  *  INLINE (v23.19), and this is the seam: the real module imports the Firebase SDK through
- *  perf-reporter, and its form is proven in a browser (e2e/calendar-pin.spec.js). Here it records
+ *  perf-reporter, and its form is proven in a browser (e2e/calendar-access.spec.js). Here it records
  *  where it was asked to mount and what alternative it was given, and paints a marker into the host
  *  so `lastPanelHtml` can tell the sign-in card from the PIN card. @type {any[]} */
 let loginMounts = [];
@@ -536,7 +536,7 @@ describe('initCalendarAccess', () => {
         // that asked them to pick their grade and then their own name from the whole roster — on
         // the routine way back in for every migrated iPhone member. The overlay's own behaviour
         // (pre-selecting, dispatching `input`, focusing the password) is a browser matter and is
-        // pinned in e2e/calendar-pin.spec.js; THIS pins the wiring, which is the half a unit test
+        // pinned in e2e/calendar-access.spec.js; THIS pins the wiring, which is the half a unit test
         // can see and the half that silently regresses if somebody rebuilds the call.
         sessionValue = { name: 'G. Miller' };
         await initCalendarAccess({ onGranted: () => {} });

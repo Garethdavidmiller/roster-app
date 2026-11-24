@@ -1,18 +1,24 @@
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
 import { CONFIG, teamMembers, getPatternShift } from '../roster-data.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse, scaleText } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedCalendarMember, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse, scaleText } from './helpers.js';
 
-// ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
-// Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
-// simply loads index.html now gets the unlock card and none of the roster. Every test in this file
-// is about what the Calendar DOES once it is open, not about the gate, so each page starts with a
-// viewer session already in place — the state an unlocked shared office PC is in, and the closest
-// match to what these tests were implicitly written against (roster on screen, `getSession()` null).
-// The gate itself is covered end-to-end in calendar-pin.spec.js.
-// A test that also seeds a member session still gets the member: the stub ranks them that way,
-// exactly as `decideAccess` does.
-test.beforeEach(async ({ page }) => { await seedViewerAccess(page); });
+// ── Calendar access ─────────────────────────────────────────────────────────────────────────────
+// The Calendar opens only for a signed-in member (since the staff PIN was retired, 23 Nov 2026; from
+// v20.12 the PIN opened it too), so a spec that simply loads index.html gets the sign-in card and none
+// of the roster. Every test in this file is about what the Calendar DOES once it is open, not about
+// the gate, so each page starts signed in as a member with no calendar picked on this device
+// (`seedCalendarMember`) — the member's own calendar. Until the PIN went it started on a PIN viewer,
+// whose `getSession()` was null; the tests that existed only for that state (the first-run prompt,
+// the station PC's Team View and bug report) went with it. The gate itself is calendar-access.spec.js.
+test.beforeEach(async ({ page }) => { await seedCalendarMember(page); });
+
+/** Undo the default member for a test about the FRONT DOOR: no session, no identity. Register it after
+ *  the beforeEach's seed (later init scripts run last). @param {import('@playwright/test').Page} page */
+const signedOut = (page) => page.addInitScript(() => {
+    localStorage.removeItem('myb_admin_session');
+    window.__E2E = Object.assign(window.__E2E || {}, { authUser: false });
+});
 
 
 // ── CALENDAR (index.html) ──────────────────────────────────────────────────
@@ -887,7 +893,7 @@ test('calendar: the Today highlight moves when the local date turns', async ({ p
 
 // THE ROW TEAM VIEW MARKS AS THE READER'S OWN IS THE MEMBER SIGNED IN (17 Nov 2026) — through the page's
 // own wiring (`ownName`), which the unit test cannot reach. It was the picker's member: a colleague's
-// row on a colleague's calendar, and on the staff PIN whoever was chosen last. Two current CEAs are
+// row on a colleague's calendar. Two current CEAs are
 // taken from the roster by position, so no name is written here.
 test('team view: the row marked as the reader\'s own is the member signed in, never the picker\'s', async ({ page }) => {
     const [me, colleague] = teamMembers.filter(m => !m.hidden && m.role === 'CEA');
@@ -899,16 +905,6 @@ test('team view: the row marked as the reader\'s own is the member signed in, ne
     const mine = page.locator('tr.tv-my-row th.tv-name-col');
     await expect(mine).toHaveCount(1);
     await expect(mine, 'the colleague the picker shows was marked as the reader').toHaveText(me.name);
-});
-
-test('team view on the staff PIN marks nobody\'s row as the reader\'s own', async ({ page }) => {
-    const [someone] = teamMembers.filter(m => !m.hidden && m.role === 'CEA');
-    await seedMember(page, someone.name);   // the picker's last choice on a station PC
-    await page.goto('/');
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    await page.locator('#teamViewBtn').click();
-    await expect(page.locator('tr th.tv-name-col').first()).toBeVisible();
-    await expect(page.locator('tr.tv-my-row'), 'a station PC marked the last-chosen member as the reader').toHaveCount(0);
 });
 
 // …AND TEAM VIEW'S WEEK FOLLOWS THE SAME RULE AS THE MONTH (16 Nov 2026). It kept the week it was on, so
@@ -1345,109 +1341,15 @@ test('calendar: the name picker does not change width when the member changes', 
         .toBeLessThan(56);
 });
 
-test('calendar: first run (no saved member, not signed in) shows the choose-your-name prompt', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await page.goto('/');   // fresh context: no saved member, no session → first run
-    // Prompt shows INSTEAD of a rendered roster.
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await expect(page.locator('.calendar-day')).toHaveCount(0);
-    await expect(page.locator('#teamMemberSelect option').first()).toHaveText('— Choose your name —');
-    // No default member leaked onto the print header (stampPrintDate + beforeprint must respect first run).
-    expect(await page.locator('.header').getAttribute('data-member-name'),
-        'first run must not stamp a member on the print header').toBeNull();
-    // Picking a name renders the real calendar and clears the prompt (index 0 is the placeholder).
-    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    await expect(page.locator('.first-run-prompt')).toHaveCount(0);
-    expect(errors, 'Uncaught JS exceptions on first-run calendar').toHaveLength(0);
-});
-
-test('calendar: first-run pick survives a failed localStorage write (iOS private mode)', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    // Simulate iOS Safari private mode: writing the selected-member key throws, so it never persists.
-    // The in-memory backstop must still clear the first-run prompt and show the picked member's
-    // calendar — otherwise the prompt re-appears on every render and the app is a dead-end.
-    await page.addInitScript(() => {
-        const realSet = Storage.prototype.setItem;
-        Storage.prototype.setItem = function (key, value) {
-            if (key === 'myb_roster_selected_member') throw new Error('QuotaExceededError (simulated private mode)');
-            return realSet.call(this, key, value);
-        };
-    });
-    await page.goto('/');
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
-    // Pick sticks despite the write failure — calendar renders and the prompt is gone.
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    await expect(page.locator('.first-run-prompt')).toHaveCount(0);
-    expect(errors, 'Uncaught JS exceptions in private-mode first-run').toHaveLength(0);
-});
-
-// ── A FIRST RUN THAT GOES INTO TEAM VIEW, OR OPENS THE LEAVE PANEL (10 Nov 2026, cal-ui-3) ─────────
-// A station PC on the staff PIN where nobody has picked a name. Team View handles that state on purpose
-// (no "my row"), so its controls must work there; and the leave panel and the colour key must give the
-// first-run answer the grid gives — nobody's figures, no key to a grid that is not there.
-test('calendar: on a first run, Team View still answers 📍 and the ← → T keys', async ({ page }) => {
-    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
-    await page.goto('/');
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await page.locator('#teamViewBtn').click();
-    const label = page.locator('#tvWeekJump');
-    await expect(label).toBeVisible();
-    const thisWeek = await label.innerText();
-    await page.keyboard.press('ArrowRight');
-    await expect(label, '→ moves a week, as the Team View help says').not.toHaveText(thisWeek);
-    await page.keyboard.press('t');
-    await expect(label, 'T comes back to this week').toHaveText(thisWeek);
-    await page.locator('#tvNextWeek').click();
-    await expect(label).not.toHaveText(thisWeek);
-    await page.locator('#todayBtn').click();
-    await expect(label, '📍 comes back to this week').toHaveText(thisWeek);
-});
-
-test('calendar: on a first run, the leave panel shows nobody\'s leave and asks for a name', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await page.locator('#alBtn').click();
-    await expect(page.locator('#alLightbox')).toBeVisible();
-    await expect(page.locator('#alLbWho'), 'nobody has been chosen, so the panel names nobody').toBeHidden();
-    await expect(page.locator('#alLbTaken')).toHaveText('—');
-    await expect(page.locator('#alLbError')).toHaveText(/Choose your name/);
-    await expect(page.locator('#alLightbox')).toHaveAttribute('aria-label', 'Annual Leave balance');
-});
-
 // …and from TEAM VIEW, where the name picker is not on screen (index.css hides it there), the leave panel
 // says where a name is chosen: back in the month view, by its button's own words (18 Nov 2026).
-test('calendar: on a first run in Team View, the leave panel sends the member back to 📅 Month for a name', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await page.locator('#teamViewBtn').click();
-    await expect(page.locator('#tvWeekJump')).toBeVisible();
-    await expect(page.locator('#navRow'), 'premise: no name picker on screen in Team View').toBeHidden();
-    await page.locator('#alBtn').click();
-    await expect(page.locator('#alLightbox')).toBeVisible();
-    await expect(page.locator('#alLbError')).toHaveText('Go back to 📅 Month and choose your name to see your leave.');
-});
-
-test('calendar: on a first run, leaving Team View does not put the colour key under the prompt', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await expect(page.locator('.legend'), 'premise: no key beside the prompt').toBeHidden();
-    await page.locator('#teamViewBtn').click();
-    await expect(page.locator('#tvWeekJump')).toBeVisible();
-    await page.locator('#teamViewBtn').click();   // back to Month
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await expect(page.locator('.legend')).toBeHidden();
-});
-
-test('calendar: Team View opens on the grade of the name picked after a first run', async ({ page }) => {
+test('calendar: Team View opens on the grade of the name picked, and a tab the reader chooses stays chosen', async ({ page }) => {
+    // (Until the staff PIN was retired this began on a first run, nobody chosen, where Team View opened
+    // on the first grade. A signed-in member always has a calendar on screen, so that state is gone.)
     const ces = teamMembers.find(m => !m.hidden && m.role === 'CES');
     expect(ces, 'premise: the roster has a CES').toBeTruthy();
     await page.goto('/');
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await page.locator('#teamViewBtn').click();
-    await expect(page.locator('#gradeTab-CEA'), 'nobody chosen yet: the first grade').toHaveAttribute('aria-selected', 'true');
-    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.locator('#teamMemberSelect').selectOption({ label: ces.name });
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.locator('#teamViewBtn').click();
@@ -1458,20 +1360,6 @@ test('calendar: Team View opens on the grade of the name picked after a first ru
     await page.locator('#teamViewBtn').click();
     await expect(page.locator('#gradeTab-Dispatcher')).toHaveAttribute('aria-selected', 'true');
 });
-
-test('calendar: a first visit does not use up the swipe hint over the choose-your-name prompt', async ({ page }, info) => {
-    test.skip(!isTouchProject(info), 'the hint is touch-only');
-    test.setTimeout(30_000);
-    await page.goto('/');
-    await expect(page.locator('.first-run-prompt')).toBeVisible();
-    await page.waitForTimeout(6_500);
-    await expect(page.locator('#swipeHint'), 'there is no month to swipe under the prompt').toBeHidden();
-    expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBeNull();
-    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    await expect(page.locator('#swipeHint'), 'shown once there is a month to swipe').toBeVisible();
-});
-
 // Retired, the hint fades and is then hidden, and the wait before hiding it is the fade's own length, read off the
 // stylesheet: calendar-app.js kept a second copy of the number (400ms, against --dur-slower's 0.3s), and two homes for
 // one figure drift apart. A fade made longer here must run to its end before the line goes.
@@ -1734,55 +1622,20 @@ async function recordUsageCalls(page) {
     });
 }
 
-test('calendar: origin telemetry gets the selected member when nobody is signed in', async ({ page }) => {
-    await recordUsageCalls(page);
-
-    // A returning, signed-OUT visitor: a member has been chosen, so this is not first run.
-    await seedMember(page, 'S. Silva');
-    await page.goto('/');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-
-    await expect.poll(async () => (await page.evaluate(() => window.__E2E?.usageCalls?.length)) || 0)
-        .toBeGreaterThan(0);
-    const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
-    expect(call, 'the calendar must report a page view').toBeTruthy();
+test('calendar: origin telemetry gets the member signed in and, apart, the calendar shown', async ({ page }) => {
     // TWO ARGUMENTS SINCE v25.00. The selection is the dedup key for the origin and account metrics,
-    // and it is passed SECOND, where it can never exclude: a station PC left on the admin's row used
-    // to drop every staff open on it, because one argument did both jobs. Nobody is signed in here,
-    // so the identity that excludes is empty.
-    expect(call.selected, 'the selected member is the dedup key for both the origin and account metrics')
-        .toBe('S. Silva');
-    expect(call.signedIn, 'nobody is signed in, so nothing here may exclude the visit').toBe(null);
-});
-
-test('calendar: an admin row left selected on a signed-out device is handed over as a selection, never as the session', async ({ page }) => {
-    // The station-PC case the v25.00 review found. The reporter decides what an admin SELECTION may
-    // record (the page view, no member-device — usage-reporter.test.mjs); this proves the page hands
-    // it over in the argument that cannot exclude.
+    // and it is passed SECOND, where it can never exclude; the identity that excludes is the session.
+    // (Until the staff PIN was retired a signed-out station PC sent `signedIn: null` here; only a
+    // member opens the Calendar now, so the two tests of that case went with it.)
     await recordUsageCalls(page);
-    await seedMember(page, 'G. Miller');
+    await seedMember(page, 'S. Silva');   // the beforeEach's member, looking at a colleague's calendar
     await page.goto('/');
     await expect(page.locator('#calendarDisplay')).toBeVisible();
     await expect.poll(async () => (await page.evaluate(() => window.__E2E?.usageCalls?.length)) || 0)
         .toBeGreaterThan(0);
     const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
-    expect(call).toEqual({ page: 'calendar', signedIn: null, selected: 'G. Miller' });
+    expect(call).toEqual({ page: 'calendar', signedIn: 'G. Miller', selected: 'S. Silva' });
 });
-
-test('calendar: a FIRST-RUN device reports no identity, so the default admin cannot exclude it', async ({ page }) => {
-    // The guard that makes the fallback above safe. Before anyone picks a name the "selection" is
-    // only CONFIG.DEFAULT_MEMBER_NAME — an admin — so keying on it unguarded would silently drop
-    // every fresh visitor from the member-device counts AND from the migration metric.
-    await recordUsageCalls(page);
-
-    await page.goto('/');                       // no seeded member — first run
-    await expect.poll(async () => (await page.evaluate(() => window.__E2E?.usageCalls?.length)) || 0)
-        .toBeGreaterThan(0);
-    const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
-    expect(call.selected, 'a first-run device must not be keyed on the default member').toBe(null);
-    expect(call.signedIn).toBe(null);
-});
-
 
 // ── EACH GUIDE MUST COUNT AS ITSELF (v19.95) ─────────────────────────────────────────────────────
 // The guides are static pages with no Firebase, so the drawer tap is the only place an open can be
@@ -2007,23 +1860,6 @@ test('install strip: an unreadable width flag leaves the browser its own offer',
     expect(prevented,
         'an unreadable flag must NOT be read as "yes" — capturing here suppresses the browser\'s '
         + 'own offer while our strip stays hidden').toBe(false);
-    await expect(page.locator('#installPrompt')).toBeHidden();
-});
-
-test('install strip: the shared PIN station is never invited to install', async ({ page }) => {
-    // A PIN unlock is a STATION, not a person — nobody should be putting the staff roster onto the
-    // mess-room PC, and there would be no one able to take it off again.
-    await page.setViewportSize({ width: 390, height: 800 });
-    await seedViewerAccess(page);
-    await seedMember(page);            // a chosen member is a DISPLAY choice, not a session
-    await page.goto('/');
-    await expect(page.locator('.month-year')).toBeVisible();
-    await page.evaluate(() => {
-        const e = new Event('beforeinstallprompt');
-        /** @type {any} */ (e).prompt = () => Promise.resolve();
-        window.dispatchEvent(e);
-    });
-    await page.waitForTimeout(600);
     await expect(page.locator('#installPrompt')).toBeHidden();
 });
 
@@ -2330,6 +2166,12 @@ test('on a phone, the New link notice comes the load after the install notice �
         }));
         localStorage.setItem('myb_roster_selected_member', n);
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true });
+        // ONCE: the file's default member suppressed the notices on the first load, and each answer
+        // below must survive the reload that follows it (helpers.js → seedCalendarMember).
+        if (!sessionStorage.getItem('__e2e_flags_cleared')) {
+            sessionStorage.setItem('__e2e_flags_cleared', '1');
+            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
+        }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
     for (const [lb, answer] of [['#installNoticeLb', '#installNoticeClose'],
@@ -2364,6 +2206,12 @@ async function colleagueWithNoNoticesAnswered(page, day) {
         }));
         localStorage.setItem('myb_roster_selected_member', n);
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true });
+        // ONCE: the file's default member suppressed the notices on the first load, and each answer
+        // below must survive the reload that follows it (helpers.js → seedCalendarMember).
+        if (!sessionStorage.getItem('__e2e_flags_cleared')) {
+            sessionStorage.setItem('__e2e_flags_cleared', '1');
+            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
+        }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
 }
@@ -3476,53 +3324,6 @@ test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ 
     await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
 });
 
-/**
- * Write a member's local session into a page that is ALREADY PIN-unlocked — the way a name reaches a
- * station PC after the unlock (another tab signing in), now that a session held at start-up gets the
- * member's card instead of the PIN (v25.98, `decideAccess`). Writing it in the page fires no `storage`
- * event there, so the unlocked grid stays as it is, and `getSession()` reads the name from then on.
- * @param {import('@playwright/test').Page} page @param {string} name
- */
-async function writeStaleSessionAfterUnlock(page, name) {
-    await page.evaluate((n) => localStorage.setItem('myb_admin_session', JSON.stringify({
-        name: n, ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,
-    })), name);
-}
-
-test('day detail: a PIN-unlocked screen offers neither personal action', async ({ page }) => {
-    // The station PC — and deliberately the HARD version of it: a stale local session naming the
-    // very member whose calendar is on screen. That state is reachable, not contrived (an iOS ITP
-    // eviction drops the Firebase user while the 60-day session lives on, so `decideAccess` falls
-    // to `viewer` with the name still in localStorage), and it is the only fixture that can see the
-    // viewer refusal work. With no session seeded the buttons are hidden by the NAME check instead,
-    // which is why the first cut of this test survived a mutation hardcoding the access type to
-    // `named`.
-    // SINCE v25.98 THE SESSION ARRIVES AFTER THE UNLOCK, not before it: a member's session held at
-    // start-up is answered with the member's own card, never the PIN (sign-in audit F1,
-    // `decideAccess`), so seeding it first no longer reaches a PIN-unlocked screen at all. The state
-    // is still reachable the other way round — a name written by another tab after this one was
-    // unlocked, while this tab's access stays `viewer` — and the day panel reads `getSession()` live,
-    // so it is written here once the grid is up.
-    await seedMember(page, 'G. Miller');
-    await seedViewerAccess(page);
-    await page.addInitScript(() => {
-        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
-        w.__E2E.docs = [{ id: 'al1', memberName: 'G. Miller', date: '2026-01-04',
-                          type: 'annual_leave', value: 'AL', note: '' }];
-    });
-    await page.goto('/');
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    await writeStaleSessionAfterUnlock(page, 'G. Miller');
-
-    const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
-        .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
-    expect(payIdx, 'the month has no pay-marked day to check').toBeGreaterThan(-1);
-    await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
-    await expect(page.locator('#dayDetailPayBtn')).toBeHidden();
-    await expect(page.locator('#dayDetailLeaveBtn')).toBeHidden();
-    await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
-});
-
 // ─── AND THE OTHER TWO ROUTES TO THE CALCULATOR (v23.07) ────────────────────────────────────────
 //
 // ─── THE PAY ROUTE, WHICH IS NOW ONE ROUTE ───────────────────────────────────────────────────────
@@ -3710,31 +3511,6 @@ test('calendar: T in Team View keeps focus on the control it was pressed from', 
     await expect(page.locator('#tvNextWeek')).toBeFocused();
 });
 
-test('calendar: a PIN-unlocked screen cannot click through to the calculator', async ({ page }) => {
-    // THE STATION PC — and deliberately the HARD version of it: a stale local session naming the
-    // very member on screen (reachable — an iOS ITP eviction drops the Firebase user while the
-    // 60-day session lives on) and a rule that only compared names would wave this straight through.
-    // SINCE v25.98 THE SESSION ARRIVES AFTER THE UNLOCK, not before it: a member's session held at
-    // start-up is answered with the member's own card, never the PIN (sign-in audit F1,
-    // `decideAccess`), so seeding it first no longer reaches a PIN-unlocked screen at all. The state
-    // is still reachable the other way round — a name written by another tab after this one was
-    // unlocked, while this tab's access stays `viewer` — and the day panel reads `getSession()` live,
-    // so it is written here once the grid is up.
-    await seedMember(page, 'G. Miller');
-    await seedViewerAccess(page);
-    await page.goto('/');
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    await writeStaleSessionAfterUnlock(page, 'G. Miller');
-
-    const payIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
-        .findIndex(c => c.dataset.paydayIso || c.dataset.cutoffIso));
-    expect(payIdx, 'the month has no pay-marked day to click').toBeGreaterThan(-1);
-    await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
-    await expect(page.locator('#dayDetailLightbox')).toBeVisible();
-    await expect(page.locator('#dayDetailPayBtn'), 'a shared screen has no whose to open').toBeHidden();
-    expect(page.url(), 'a shared screen must not open anybody’s calculator').not.toContain('paycalc');
-});
-
 // A MOUSE CAN DO SOMETHING A FINGER CANNOT: DRAG — and from v23.59 a click opens the day panel on
 // every pointer type, so "does a paging drag also open a panel?" is a question the change raises and
 // nothing else answers. It does not, and THE REASON IS THE PLATFORM'S, not ours: the swipe takes
@@ -3851,7 +3627,7 @@ test('calendar: a boot makes only the performance marks the App Speed card reads
         { message: 'the boot must actually have finished before asserting what it marked', timeout: 15000 },
     ).toBeGreaterThan(0);
     // No stored copy was seeded, so the one other mark the card reads (`myb-roster-snapshot`) is
-    // absent too — e2e/calendar-pin.spec.js pins that it IS made when a copy is painted.
+    // absent too — e2e/calendar-access.spec.js pins that it IS made when a copy is painted.
     const marks = await page.evaluate(() => performance.getEntriesByType('mark').map(m => m.name));
     expect(marks.filter(n => n.startsWith('myb-'))).toEqual(['myb-page-ready']);
 });
@@ -5551,7 +5327,7 @@ test('sign-in card: picking your name focuses the password box inside the tap', 
     // The sheet sets the name only once its close has landed, long after the tap, and iOS raises its
     // keyboard only for a focus made synchronously inside it — so an iPhone got a caret and no
     // keyboard. The tap and the read are one `evaluate`. The Calendar's front door is the card inline.
-    await page.addInitScript(() => { try { sessionStorage.removeItem('__e2e_viewer'); } catch { /* noop */ } });
+    await signedOut(page);   // the front door: undo the file's default member
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await expect(page.locator('#loginGradeTrigger')).toBeVisible();
@@ -5585,10 +5361,9 @@ test('member card: "Sign in →" opens the form with the password box focused in
     // A member whose identity has gone is offered their own sign-in, which lands on the password box.
     // It used to `await` the form's module first, so the focus came after the tap and no keyboard rose.
     // The card now fetches the form while the member reads it, and a tap that finds it opens it at once.
-    await page.addInitScript(() => { try { sessionStorage.removeItem('__e2e_viewer'); } catch { /* noop */ } });
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
-    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authUser: false, failSignIn: true }); });
     await page.goto('/');
     await expect(page.locator('#calLockWho')).toContainText('G. Miller');
     await expect(page.locator('#calLockSubmit')).toBeEnabled({ timeout: 20_000 });
@@ -5645,7 +5420,7 @@ test('about: a bug report from a desktop browser says it was not the installed a
 
 // THE BUG REPORT SAYS WHO SENT IT (18 Nov 2026). Its "User:" line named the member whose calendar was on
 // screen — a colleague's as often as not — where every other page names the signed-in member. It names
-// the reporter now ("Staff PIN" on the PIN), and the calendar shown is a line of its own. Names are read
+// the reporter now, and the calendar shown is a line of its own. Names are read
 // from the page or invented, never taken from the roster.
 /** The bug report's body, as the About panel's link carries it. @param {import('@playwright/test').Page} page */
 async function bugReportBody(page) {
@@ -5664,16 +5439,6 @@ test('about: the Calendar\'s bug report names the member signed in, and whose ca
     expect(shown, 'premise: the calendar on screen is not the reporter\'s').not.toBe('A. Person');
     const lines = (await bugReportBody(page)).split('\n');
     expect(lines, 'the report named the calendar on screen as its sender').toContain('User: A. Person');
-    expect(lines).toContain(`Calendar shown: ${shown}`);
-});
-
-test('about: on the staff PIN, the Calendar\'s bug report says so — and still says whose calendar was shown', async ({ page }) => {
-    await seedMember(page);   // the beforeEach's PIN viewer, and a calendar chosen on this device
-    await page.goto('/');
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    const shown = ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
-    const lines = (await bugReportBody(page)).split('\n');
-    expect(lines, 'a PIN unlock reported a member as the sender').toContain('User: Staff PIN');
     expect(lines).toContain(`Calendar shown: ${shown}`);
 });
 

@@ -321,7 +321,7 @@ export async function openReference(page) {
     if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
 }
 
-// ── Staff Calendar PIN (v20.12) ─────────────────────────────────────────────────────────────────
+// ── Calendar access: a named member (the staff PIN retired, 23 Nov 2026) ───────────────────────
 
 /**
  * Seed a signed-in MEMBER for the Calendar: the local session AND the Firebase identity.
@@ -330,8 +330,11 @@ export async function openReference(page) {
  * live local session *and* a restorable named identity — a member holding only one of the two is
  * asked to sign in rather than shown their roster, which is a real state (KNOWN_LIMITATIONS → "One
  * interaction to expect on iOS" — not Safari's seven-day rule, which deletes both halves together). A helper
- * that seeded only the session would make every "member sees no PIN" test fail for a reason that
- * has nothing to do with what it was written to check.
+ * that seeded only the session would put a sign-in card in front of every test that meant to start on
+ * the roster, for a reason that has nothing to do with what it was written to check.
+ *
+ * Since the staff PIN was retired (23 Nov 2026) this is how every Calendar spec that is not about the
+ * gate gets the roster on screen.
  */
 export function seedMemberSession(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
@@ -351,67 +354,55 @@ export function seedMemberSession(page, name = 'G. Miller') {
 }
 
 /**
- * Intercept the PIN exchange so a spec can drive the REAL unlock path without a Cloud Function.
+ * The DEFAULT for a Calendar spec that is about what the Calendar does once it is open, not about the
+ * gate: a signed-in member (the local session AND the Firebase identity), with NO calendar picked on
+ * this device, so the Calendar shows the member's own — the state a member opening their phone is in.
  *
- * The endpoint is an ordinary HTTPS POST, so Playwright routes it directly — which means the spec
- * exercises `calendar-access.js`'s whole ladder (fetch → persistence switch → custom-token sign-in
- * → claim verification), not a shortcut around it. `status` lets a spec produce the three failures
- * that matter: 401 (wrong PIN), 429 (throttled) and a transport failure.
- *
- * @param {import('@playwright/test').Page} page
- * @param {{ status?: number, token?: string|null, abort?: boolean }} [opts]
+ * Until the staff PIN was retired (23 Nov 2026) these specs began on a PIN viewer session instead,
+ * whose `getSession()` was null; that state no longer opens the Calendar (calendar-access.spec.js).
+ * A spec that seeds another session or picks a calendar (`seedSession`, `seedMember`) after this one
+ * wins, because later init scripts run last. One that needs the session WITHOUT the identity sets
+ * `window.__E2E.authUser = false` in an init script of its own.
  */
-export async function stubPinExchange(page, { status = 200, token = 'E2E_VIEWER_TOKEN', abort = false } = {}) {
-    await page.route('**/unlockCalendarViewer', async (route) => {
-        if (abort) return route.abort('failed');
-        await route.fulfill({
-            status,
-            contentType: 'application/json',
-            body: JSON.stringify(status === 200 ? (token ? { token } : {}) : { error: 'nope' }),
-        });
-    });
+export function seedCalendarMember(page, name = 'G. Miller') {
+    return page.addInitScript((n) => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({
+            name: n, ver: 2,
+            expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
+        }));
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
+        // The one-time notices are suppressed as `seedSession` suppresses them (the same keys, and the
+        // reason is there) — but ONCE PER TAB, not on every load. A signed-in member is exactly who the
+        // notices are FOR, so a spec whose subject is the notices' order across reloads runs on this
+        // seed too: it clears the flags once (a later init script, behind a sentinel of its own), and a
+        // re-seed on each reload would answer for the member every notice it was waiting for.
+        try {
+            if (sessionStorage.getItem('__e2e_member_flags_seeded')) return;
+            sessionStorage.setItem('__e2e_member_flags_seeded', '1');
+        } catch (_) { /* private mode: seed every load, as seedSession does */ }
+        for (const k of ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done', 'myb_notice_install_app_2026_done',
+                         'myb_notice_timetable_soon_2026_done', 'myb_notice_newlink_2026_done', 'myb_pc_ytd_notice_2_shown',
+                         'myb_pc_hpp_notice_2526_shown', 'myb_links_welcome_seen']) localStorage.setItem(k, '1');
+    }, name);
 }
 
 /**
- * Get the staff-PIN card on screen. Since v23.19 the front door is the member SIGN-IN card and the
- * PIN card is one tap behind it ("Use the staff PIN instead"), so a test about the PIN card first
- * has to ask for it — the way a visiting colleague does. Idempotent: if the PIN card is already up
- * (a `#staff-pin` arrival, a re-lock from viewer mode) it changes nothing.
- * @param {import('@playwright/test').Page} page
- */
-export async function openPinCard(page) {
-    const pin = page.locator('#calLockPin');
-    const usePin = page.locator('#loginAlternative');
-    await pin.or(usePin).first().waitFor();
-    if (await pin.count()) return;
-    await usePin.click();
-    await pin.waitFor();
-}
-
-/** Type the PIN and press Unlock. Uses the real form, so the digits-only filter and the
- *  disabled-until-complete button are exercised rather than bypassed. Reaches the PIN card first if
- *  the sign-in card is the one on screen (`openPinCard`). */
-export async function enterPin(page, pin = '1234') {
-    await openPinCard(page);
-    await page.locator('#calLockPin').fill(pin);
-    await page.locator('#calLockSubmit').click();
-}
-
-/**
- * Give this page Calendar access as the shared staff-PIN VIEWER, with no member session.
+ * Put a LEFTOVER staff-PIN session in this tab, as a browser that used the PIN before it was retired
+ * (owner, 23 Nov 2026) still holds one: the shared `calendar-viewer` identity, and no member session.
  *
- * The default state for every Calendar spec that is not specifically about a signed-in member,
- * because it is the state most of them were implicitly written against: the roster is on screen and
- * `getSession()` is null. Before v20.12 that was simply what an unauthenticated visitor got; now it
- * takes an unlock, and a viewer session is exactly what an unlocked shared PC holds.
- *
- * Seeded through sessionStorage rather than by driving the PIN card, so a spec about first-run
- * behaviour or the stale-member banner does not have to type four digits before it can begin. The
- * flow itself is covered end-to-end in calendar-pin.spec.js.
+ * It grants nothing. Every page's teardown (session.js → `reconcileExpiredIdentity`) signs it out on
+ * arrival, and the sign-in card says the PIN has been retired (staff-pin-ended.js) — which is what a
+ * spec seeding this is there to see. ONCE PER TAB, as the real one: the stub keeps it in
+ * sessionStorage, the teardown's sign-out removes it, and a reload must not bring it back, or every
+ * load would be a first one and "signed out for good" could not be asserted.
  */
-export function seedViewerAccess(page) {
+export function seedLegacyViewerSession(page) {
     return page.addInitScript(() => {
-        try { sessionStorage.setItem('__e2e_viewer', '1'); } catch (_) { /* private mode */ }
+        try {
+            if (sessionStorage.getItem('__e2e_viewer_seeded')) return;
+            sessionStorage.setItem('__e2e_viewer_seeded', '1');
+            sessionStorage.setItem('__e2e_viewer', '1');
+        } catch (_) { /* private mode */ }
     });
 }
 

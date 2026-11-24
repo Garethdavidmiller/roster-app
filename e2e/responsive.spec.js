@@ -1,16 +1,13 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, seedViewerAccess, scaleText } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, seedCalendarMember, scaleText } from './helpers.js';
 
-// ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
-// Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
-// simply loads index.html now gets the unlock card and none of the roster. Every test in this file
-// is about what the Calendar DOES once it is open, not about the gate, so each page starts with a
-// viewer session already in place — the state an unlocked shared office PC is in, and the closest
-// match to what these tests were implicitly written against (roster on screen, `getSession()` null).
-// The gate itself is covered end-to-end in calendar-pin.spec.js.
-// A test that also seeds a member session still gets the member: the stub ranks them that way,
-// exactly as `decideAccess` does.
-test.beforeEach(async ({ page }) => { await seedViewerAccess(page); });
+// ── Calendar access ─────────────────────────────────────────────────────────────────────────────
+// The Calendar opens only for a signed-in member (the staff PIN, which opened it too from v20.12, was
+// retired on 23 Nov 2026), so a spec that simply loads index.html gets the sign-in card and none of
+// the roster. Every test in this file is about what the Calendar DOES once it is open, not about the
+// gate, so each page starts signed in as a member with no calendar picked (`seedCalendarMember`).
+// A test that seeds another session after it wins. The gate itself is calendar-access.spec.js.
+test.beforeEach(async ({ page }) => { await seedCalendarMember(page); });
 
 
 // ── DESKTOP GEOMETRY (added v14.37) ───────────────────────────────────────

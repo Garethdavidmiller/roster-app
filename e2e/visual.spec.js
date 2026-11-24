@@ -43,7 +43,7 @@
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
 import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, stubUsageReads, usageStats, openPinCard, sheetAction } from './helpers.js';
+import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, stubUsageReads, usageStats, sheetAction } from './helpers.js';
 import { FIXED_TIME, dismissOneTimeOverlays, prep, settle } from './visual-harness.js';
 import { ROTATING_LINES } from '../links-design.js';
 import { alSheetFixture } from './al-sheet-fixture.js';
@@ -1093,16 +1093,14 @@ test('overlay — Tips panel (settings, desktop 1280)', async ({ page }) => {
     await expect(page).toHaveScreenshot('overlay-tips-desktop-1280.png');
 });
 
-// ── The staff PIN unlock card (v20.12) ──────────────────────────────────────────────────────────
+// ── The Calendar's front door (v20.12) ──────────────────────────────────────────────────────────
 //
-// Baselined because it is the app's front door for anybody who is not signed in, it is composed of
-// nothing the rest of the suite covers, and the behavioural specs provably cannot see it: they
-// assert the field exists, is labelled and is 16px+, none of which would notice the card losing its
-// padding, its badge, or its surface — the exact way the links "Recently deleted" panel shipped as
-// a transparent box at v19.41 with every behavioural test green.
-// The front door is the SIGN-IN card since v23.19 (owner decision); the PIN card is one tap behind
-// it. The two `calendar-lock-*` baselines keep their names — they baseline the locked front door,
-// whichever card that is — and the PIN card gets its own.
+// Baselined because it is the app's front door for anybody who is not signed in, and the behavioural
+// specs provably cannot see a card losing its padding, its badge, or its surface — the exact way the
+// links "Recently deleted" panel shipped as a transparent box at v19.41 with every behavioural test
+// green. The front door is the SIGN-IN card since v23.19 (owner decision). The two `calendar-lock-*`
+// baselines keep their names from when it was the staff PIN card; the PIN card's own baseline went
+// with the PIN (retired 23 Nov 2026).
 test('calendar — front door: the sign-in card @1280', async ({ page }) => {
     await page.clock.setFixedTime(FIXED_TIME);
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -1117,15 +1115,6 @@ test('calendar — front door: the sign-in card @390', async ({ page }) => {
     await page.goto('/index.html');
     await settle(page, '#calendarLock #loginCard');
     await expect(page).toHaveScreenshot('calendar-lock-mobile-390.png');
-});
-
-test('calendar — staff PIN card @390', async ({ page }) => {
-    await page.clock.setFixedTime(FIXED_TIME);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/index.html');
-    await openPinCard(page);
-    await settle(page, '#calLockPin');
-    await expect(page).toHaveScreenshot('calendar-lock-pin-mobile-390.png');
 });
 
 

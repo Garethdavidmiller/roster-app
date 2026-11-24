@@ -21,7 +21,7 @@
  *
  * The last block is the module's second job, `speakAfterMount`: WHEN a line in a new live region is
  * written. Its callers' own tests drive it through real cards (calendar-access.test.mjs,
- * session.test.mjs, e2e/calendar-pin.spec.js); this pins the timing rule itself — after a frame AND
+ * session.test.mjs, e2e/calendar-access.spec.js); this pins the timing rule itself — after a frame AND
  * a task, never inside the task that mounted the region, and never into a region off the page.
  */
 import { test, describe } from 'node:test';

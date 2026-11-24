@@ -478,7 +478,7 @@ jobs:
     # ── AND CUT BY TIME, NOT BY COUNT (17 Nov 2026) ──────────────────────────────────────────────
     #
     # Playwright gives each shard the same NUMBER of tests, in file order, so the first third of a
-    # project took every heavy file — admin, auth, axe and calendar-pin — and on #1803's run desktop
+    # project took every heavy file — admin, auth, axe and calendar-pin (now calendar-access) — and on #1803's run desktop
     # Chrome's first shard took 9.3 minutes of tests against 5.2 and 4.7 for the other two. The
     # Hosting deploy runs the same cut, so every release waited on that one shard as well.
     #

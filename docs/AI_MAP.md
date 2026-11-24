@@ -155,11 +155,11 @@ Keyboard navigation and the hover tooltip for the month grid: a roving tabindex 
 - **Exports:** `initCalendarTooltip` · `initCalendarKeyboard`
 
 ### `calendar-access.js`
-The Calendar's access gate: it decides at boot, shows the right card and re-locks; only a member's own sign-in opens it (the staff PIN is retired, and its boot teardown signs a leftover viewer session out). It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–10, 17–20; Tested by `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
+The Calendar's access gate: it decides at boot, shows the right card and re-locks; only a member's own sign-in opens it (the staff PIN is retired, and its boot teardown signs a leftover viewer session out). It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–10, 17–20; Tested by `calendar-access.test.mjs` and `e2e/calendar-access.spec.js`.
 - **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
-The cards that can stand where the Calendar goes — the member sign-in card (the front door), the member's come-back card, and the front door's fallback when its form cannot load — with their wiring. They DRAW; `calendar-access.js` DECIDES and keeps the security properties, and hands its collaborators in through `initLockCards`. The header lists the three things an edit can silently break. Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
+The cards that can stand where the Calendar goes — the member sign-in card (the front door), the member's come-back card, and the front door's fallback when its form cannot load — with their wiring. They DRAW; `calendar-access.js` DECIDES and keeps the security properties, and hands its collaborators in through `initLockCards`. The header lists the three things an edit can silently break. Tested through `calendar-access.test.mjs` and `e2e/calendar-access.spec.js`.
 - **Exports:** `initLockCards` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showSignInPanel` · `SIGN_IN_UNAVAILABLE_LINE` · `showSignInUnavailable` · `showMemberPanel`
 
 ### `calendar-lock-slot.js`
@@ -338,7 +338,7 @@ Signs the shared Calendar viewer out before a member signs in, in the one order 
 - **Exports:** `shedCalendarViewer`
 
 ### `staff-pin-ended.js`
-Whether arriving on THIS page signed out a leftover session of the retired staff PIN, who is waiting to hear it, and the one sentence said when it has — on the sign-in card, or in the body of a page with none. Transition plumbing, until the cleanup release. Tested through the real teardown by `session.test.mjs`, and on the pages by `e2e/calendar-pin.spec.js`.
+Whether arriving on THIS page signed out a leftover session of the retired staff PIN, who is waiting to hear it, and the one sentence said when it has — on the sign-in card, or in the body of a page with none. Transition plumbing, until the cleanup release. Tested through the real teardown by `session.test.mjs`, and on the pages by `e2e/calendar-access.spec.js`.
 - **Exports:** `STAFF_PIN_ENDED_NOTICE` · `noteStaffPinEnded` · `forgetStaffPinEnded` · `sayStaffPinEndedIn` · `onStaffPinEnded`
 
 ### `silent-sign-in.js`
@@ -1296,7 +1296,7 @@ WHEN the Calendar page may draw, and what its next draw owes: one scheduler, cre
 - **Exports:** `GESTURE_POLL_MS` · `START_STAGES` · `createRedrawScheduler`
 
 ### `calendar-drawer.js`
-The Calendar's menu (the shared drawer), built for the SAVED session — never the picked name — when it is built, and able to be built again for whoever is signed in now, with the same page hooks. The rebuild runs when a lock card's sign-in is granted without a reload (`finishSignIn`, through the page's `onSignedInInPlace`). Tested by `calendar-drawer.test.mjs` and the menu-rebuild test in `e2e/calendar-pin.spec.js`.
+The Calendar's menu (the shared drawer), built for the SAVED session — never the picked name — when it is built, and able to be built again for whoever is signed in now, with the same page hooks. The rebuild runs when a lock card's sign-in is granted without a reload (`finishSignIn`, through the page's `onSignedInInPlace`). Tested by `calendar-drawer.test.mjs` and the menu-rebuild test in `e2e/calendar-access.spec.js`.
 - **Exports:** `calendarDrawerOptions` · `wireCalendarDrawer` · `rewireCalendarDrawer`
 
 ---

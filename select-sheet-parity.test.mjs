@@ -552,7 +552,7 @@ test('no spec asserts text on a trigger button instead of its face', () => {
 //     `visibility: hidden` visible, so the assertion survives the enhancement and stops meaning
 //     anything: the control the reader actually uses could be absent, unstyled or behind another
 //     layer and the line would not notice. **This is the dangerous half**, and there were FIVE of
-//     them the day this contract was written — including `calendar-pin.spec.js`'s proof that a
+//     them the day this contract was written — including `calendar-pin.spec.js`'s (now `calendar-access.spec.js`) proof that a
 //     LOCKED Calendar shows a name control, in the file whose whole job is that proof.
 //
 // The fix at every site is the same: assert on `#<id>Trigger`, which is what the reader sees. That

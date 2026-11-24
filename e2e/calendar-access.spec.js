@@ -1,5 +1,10 @@
 /**
- * calendar-pin.spec.js — the staff Calendar PIN, in a real browser.
+ * calendar-access.spec.js — the Calendar's access gate, in a real browser.
+ *
+ * Only a member's own sign-in opens the Calendar. Until 23 Nov 2026 the shared staff PIN opened it
+ * too, and this file was calendar-pin.spec.js; the PIN's card, unlock, Lock and `#staff-pin` went
+ * with it (owner decision), and what is left of the PIN here is its END — a browser still holding a
+ * PIN session is signed out on arrival and told why ("A LEFTOVER STAFF-PIN SESSION", below).
  *
  * The unit tests own the RULES; this owns the things only a browser can answer. Three of them
  * genuinely cannot be checked anywhere else:
@@ -10,12 +15,13 @@
  *   · **that the splash comes down on the locked path.** The dismissal moved out of the deferred
  *     workspace precisely so a locked visitor is not left staring at a loading screen, and nothing
  *     short of a real page load exercises that ordering.
- *   · **that a viewer is still refused by the protected pages.** The policy is unit-tested; whether
- *     the pages actually consult it on a viewer session is a wiring question.
+ *   · **that a leftover staff-PIN session is signed out, on the Calendar and on Trains, and the card
+ *     says why.** The teardown is unit-tested; whether each page actually runs it is a wiring question.
  */
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
-import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags, isTouchProject, recordFirstFrameText, firstFrameText } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, signInThroughOverlay, collectFatalErrors, seedLegacyViewerSession, clearNoticeFlags, isTouchProject, recordFirstFrameText, firstFrameText } from './helpers.js';
+import { STAFF_PIN_ENDED_NOTICE } from '../staff-pin-ended.js';
 import { forcePasswordSet } from './fixtures.js';
 
 // (Until v24.34 every test here pinned `CONFIG.CALENDAR_PIN_ACCESS` on, and four more proved the
@@ -29,10 +35,9 @@ test('a fresh browser gets the SIGN-IN card first, and NO roster data', async ({
     await seedMember(page);              // a member was chosen on this machine before — still locked
     await page.goto('/index.html');
 
-    // ── THE FRONT DOOR IS SIGN-IN FIRST (v23.19, owner decision) ────────────────────────────────
-    // Most people opening the app are staff with a password; the PIN is for the shared PC and for
-    // visiting or agency staff, and is one tap behind. From v20.12 to v23.18 this asserted the PIN
-    // field here.
+    // ── THE FRONT DOOR IS A SIGN-IN, AND NOTHING ELSE (v23.19; the PIN retired 23 Nov 2026) ──────
+    // From v20.12 to v23.18 this asserted the PIN field here, and until the PIN was retired a link to
+    // it sat under the form. There is no other way in now.
     await expect(page.locator('#calendarLock')).toBeVisible();
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
     // THE TRIGGER, NOT THE SELECT (v23.50). This read `#loginName` until v23.49 put the sign-in
@@ -43,8 +48,8 @@ test('a fresh browser gets the SIGN-IN card first, and NO roster data', async ({
     // pixel is the trigger, so that is what the reader sees and what this asserts.
     await expect(page.locator('#loginNameTrigger')).toBeVisible();
     await expect(page.locator('#calLockPin')).toHaveCount(0);
-    await expect(page.locator('#loginAlternative')).toHaveText(/staff PIN/i);
-    await expect(page.locator('#loginAlternativeHint')).toContainText(/agency/i);
+    await expect(page.locator('#loginAlternative')).toHaveCount(0);
+    await expect(page.locator('#loginNotice'), 'nobody held the PIN here, so nothing is said about it').toBeEmpty();
     // Inline, not a modal: no dialog role, no scroll lock, and the drawer's burger is still there.
     await expect(page.locator('#loginOverlay')).not.toHaveAttribute('role', 'dialog');
     await expect(page.locator('body')).not.toHaveClass(/lb-open/);
@@ -70,21 +75,6 @@ test('the splash comes down on the LOCKED path — no infinite loading screen', 
     // The dismissal used to sit after the first render. Locked, that render never happens.
     await expect(page.locator('#splash')).toBeHidden({ timeout: 5000 });
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-});
-
-test('the staff PIN is one tap behind the sign-in card, and the way back is in place', async ({ page }) => {
-    await page.goto('/index.html');
-    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    await page.locator('#loginAlternative').click();
-    // A swap in ONE slot: the PIN card is up, the sign-in card is gone — not covered, gone.
-    await expect(page.locator('#calLockPin')).toBeVisible();
-    await expect(page.locator('#loginCard')).toHaveCount(0);
-    expect(await page.locator('#calendarLock').count()).toBe(1);
-    await expect(page.locator('#calLockSignIn')).toHaveText(/sign in/i);
-    await page.locator('#calLockSignIn').click();
-    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    await expect(page.locator('#calLockPin')).toHaveCount(0);
-    expect(await page.locator('#calendarLock').count()).toBe(1);
 });
 
 test('Escape on the front-door card does NOT leave the page', async ({ page }) => {
@@ -164,31 +154,39 @@ test('the member\'s come-back card signs them in in place too, and the full-scre
     expect(await stillThisPage(page), 'the sign-in reloaded the page').toBe(true);
 });
 
-test('a PIN viewer whose access lapsed, then signs in, still RELOADS — the Calendar was built for the viewer', async ({ page }) => {
+test('a member whose access lapsed, then signs in, still RELOADS — the Calendar was built for the first grant', async ({ page }) => {
     // The fallback, kept on purpose (`finishSignIn`): a page granted once holds a Calendar built for that
-    // grant, and the sign-in hands the member a fresh one rather than the viewer's.
-    await stubPinExchange(page);
+    // grant, and the sign-in hands the member a fresh one rather than repainting the old. (Until the
+    // staff PIN was retired this was a PIN viewer's lapse; a member's is the only one left.)
+    await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
-    await page.goto('/index.html#staff-pin');
-    await enterPin(page, '1234');
+    await page.goto('/index.html');
     await expect(page.locator('#calendarDisplay')).toBeVisible();
     await page.evaluate(async () => { (await import('./calendar-access.js')).handleAccessLost(); });
-    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calLockWho')).toContainText('G. Miller');
     await markThisPage(page);
-    await page.locator('#calLockSignIn').click();
-    await signInThroughOverlay(page, 'G. Miller');
+    await page.locator('#calLockSubmit').click();
+    await expect(page.locator('#loginPassword')).toBeVisible();
+    await page.locator('#loginPassword').fill('miller');
+    await page.locator('#loginSubmit').click();
     await expect.poll(() => stillThisPage(page).catch(() => false), { message: 'the page was not reloaded', timeout: 20_000 }).toBe(false);
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
 });
-
-test('`#staff-pin` lands on the PIN card first, and the hash is consumed', async ({ page }) => {
-    // The one direct route to the PIN card: what the member card's sign-out to the PIN reloads
-    // with, and what a station PC can bookmark. It must not stay in the address bar.
+test('`#staff-pin` is an ordinary address now: the sign-in card, and nothing else', async ({ page }) => {
+    // It was the PIN card's own route — a station PC's bookmark, and the way back from a page that
+    // ended the PIN. Retired with the PIN (23 Nov 2026): a bookmark still carrying it must open the
+    // front door like any other visit, with no PIN box, no link to one, and no line about it.
+    const errors = collectFatalErrors(page);
     await page.goto('/index.html#staff-pin');
-    await expect(page.locator('#calLockPin')).toBeVisible();
-    await expect(page.locator('#loginCard')).toHaveCount(0);
-    expect(new URL(page.url()).hash).toBe('');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await expect(page.locator('#loginNameTrigger')).toBeVisible();
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    await expect(page.locator('input[inputmode="numeric"]'), 'a PIN box by any other id').toHaveCount(0);
+    await expect(page.locator('#loginAlternative')).toHaveCount(0);
+    await expect(page.locator('#loginNotice'), 'nobody held the PIN in this browser').toBeEmpty();
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+    expect(errors, errors.join('\n')).toEqual([]);
 });
-
 test('the nav drawer and the guides stay reachable while locked', async ({ page }) => {
     // Locking the building to reach the noticeboard would be absurd: the guides, the Huddle and the
     // documents are deliberately outside the gate.
@@ -199,7 +197,7 @@ test('the nav drawer and the guides stay reachable while locked', async ({ page 
     await expect(page.locator('#navPanel')).toContainText('Railcard');
 });
 
-// ── THE DOCUMENTS ARE BEHIND THE PIN TOO (v23.17, owner decision 7 Sep 2026) ────────────────────
+// ── THE DOCUMENTS ARE BEHIND THE GATE TOO (v23.17, owner decision 7 Sep 2026) ───────────────────
 //
 // The rules close the reads on the server; these prove the CLIENT refuses them at source, which is
 // the half a rules test cannot see — the local Firestore cache answers without consulting a rule.
@@ -218,7 +216,7 @@ test('locked: a Daily Huddle tap says what to do, and issues NO read', async ({ 
     const before = await docReads(page);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in to read the Daily Huddle');
     await expect(page.locator('#huddleViewer')).toHaveClass(/open/);
     expect(await docReads(page), 'the tap itself issued nothing').toBe(before);
     // ABSOLUTE, not a delta: the first cut compared before/after the tap, and a listener attached
@@ -228,38 +226,29 @@ test('locked: a Daily Huddle tap says what to do, and issues NO read', async ({ 
         'no Huddle listener may ever attach on a locked Calendar').toBe(0);
 });
 
-test('locked: a Circular deep link says what to do, issues NO read, and is FINISHED by the PIN', async ({ page }) => {
-    await stubPinExchange(page);
+test('locked: a Circular deep link says what to do, and issues NO read', async ({ page }) => {
     await page.goto('/index.html#circular');
     await expect(page.locator('#calendarLock')).toBeVisible();
     await expect(page.locator('#docViewer')).toBeVisible();
     // PROMPTLY, not eventually: the viewer waits for the access decision before calling itself
     // locked, and the lock card being up means that decision is made. Left to the default timeout this
     // also passed on the viewer's own 8s fallback, i.e. with the decision never wired to it at all.
-    await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
-    const before = await docReads(page);
-    // The message sits over the PIN card, so the reader closes it to type — and the held tap has to
-    // survive that close, or a notification tap could never be finished by a PIN.
-    await page.locator('#docViewerClose').click();
-    await expect(page.locator('#docViewer')).toBeHidden();
-    await enterPin(page, '1234');
-    // The deep link survived the unlock: the read the lock held back now runs, and its result —
-    // the fixture has no circular — is what replaces the message.
-    await expect(page.locator('#docViewerBody')).toContainText('No Weekly Retail Circular has been uploaded yet', { timeout: 10000 });
-    expect(await docReads(page), 'the held read ran once the PIN was in').toBeGreaterThan(before);
+    await expect(page.locator('#docViewerBody')).toContainText('Sign in to read the Weekly Retail Circular', { timeout: 3000 });
+    expect(await docReads(page), 'a locked Calendar read the Circular').toBe(0);
+    // (Finishing the held link is the sign-in's job now: the next test. Until 23 Nov 2026 the staff
+    // PIN finished it here too.)
 });
-
 // ── …AND BY A SIGN-IN (whole-app review, 10 Nov 2026) ───────────────────────────────────────────
 // Both sign-ins on the locked Calendar used to end in a reload, and the tap had been consumed long
-// before, so "Enter the staff PIN, or sign in" was true only of the PIN. Since v26.40 a sign-in on a
-// never-granted page grants IN PLACE, and the grant opens the held tap as the PIN's does; a sign-in that
+// before, so "Sign in to read it" was not true of a sign-in. Since v26.40 a sign-in on a
+// never-granted page grants IN PLACE, and the grant opens the held tap; a sign-in that
 // still reloads (`finishSignIn`'s fallback) carries it across (`pagehide`, calendar-doc-viewer.js and
 // calendar-huddle-viewer.js). These two are the in-place half, and say so.
-test('locked: a Circular deep link is FINISHED by a sign-in too — in place, as the PIN finishes it', async ({ page }) => {
+test('locked: a Circular deep link is FINISHED by a sign-in — in place', async ({ page }) => {
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
     await page.goto('/index.html#circular');
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
+    await expect(page.locator('#docViewerBody')).toContainText('Sign in to read the Weekly Retail Circular', { timeout: 3000 });
     await page.locator('#docViewerClose').click();
     await expect(page.locator('#docViewer')).toBeHidden();
     await markThisPage(page);
@@ -270,7 +259,7 @@ test('locked: a Circular deep link is FINISHED by a sign-in too — in place, as
     expect(await stillThisPage(page), 'finished by a reload, not in place').toBe(true);
 });
 
-test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page }) => {
+test('locked: a Daily Huddle tap is FINISHED by a sign-in', async ({ page }) => {
     const stored = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
     await page.addInitScript((s) => {
         window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true,
@@ -280,7 +269,7 @@ test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page })
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in to read the Daily Huddle');
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
     await markThisPage(page);
@@ -306,7 +295,7 @@ test('locked: the Newsletter check asks nothing, and the menu offers what this d
     expect(await docReads(page), 'the locked Calendar asked for the Newsletter').toBe(0);
     expect(await page.evaluate((k) => localStorage.getItem(k), NEWSLETTER_LATEST_KEY)).toBe(isoDaysAgo(3));
     await row.click();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN, to read the Marylebone Newsletter.');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in to read the Marylebone Newsletter.');
 });
 
 test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {
@@ -318,15 +307,15 @@ test('locked: the drawer refuses a Circular tap without opening a tab', async ({
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--circular').click();
     await expect(page.locator('#navComingSoonLightbox')).toBeVisible();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular.');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in to read the Weekly Retail Circular.');
     // READ OUT, not only shown (lightbox review R1-7): focus goes to the ✕, so a screen reader heard the panel's name
     // and "Close, button", never why the tap was refused. The message is the dialog's description.
-    await expect(page.locator('#navComingSoonLightbox')).toHaveAccessibleDescription(/Sign in, or enter the staff PIN, to read the Weekly Retail Circular/);
+    await expect(page.locator('#navComingSoonLightbox')).toHaveAccessibleDescription(/Sign in to read the Weekly Retail Circular/);
     expect(await docReads(page)).toBe(before);
     expect(popups.length, 'no blank tab is opened for a read that will not happen').toBe(0);
 });
 
-test('a public guide loads with no PIN and no member sign-in', async ({ page }) => {
+test('a public guide loads with no member sign-in', async ({ page }) => {
     await page.goto('/railcard-guide.html');
     await expect(page.locator('h1')).toBeVisible();
     await expect(page.locator('#calendarLock')).toHaveCount(0);
@@ -367,118 +356,22 @@ test('the locked Calendar\'s menu, rebuilt in place after a sign-in, is the memb
     await expect(page.locator('#navPanelAvatar')).toHaveText('GM');
     await expect(page.locator('#navSignOutBtn')).toBeVisible();
     await expect(page.locator('#navPanel .nav-panel-pill--operations')).toHaveCount(1);
-    await expect(page.locator('#navLockCalendarBtn')).toBeHidden();  // the PIN's button stays the PIN's
     await page.keyboard.press('Escape');                              // and it still closes
     await expect(page.locator('#navPanel')).not.toHaveClass(/open/);
     expect(errors, errors.join('\n')).toEqual([]);
 });
 
-// ── Unlocking ───────────────────────────────────────────────────────────────────────────────────
+// ── Access lost mid-session ─────────────────────────────────────────────────────────────────────
 
-test('the correct PIN unlocks the Calendar and the roster appears', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await seedMember(page);
-    await stubPinExchange(page);
+test('access lost mid-session: re-lock says why, on the member\'s own card, with the grid off screen', async ({ page }) => {
+    // Revoked tokens look like this: every FRESH read comes back permission-denied. Until the staff PIN
+    // was retired (23 Nov 2026) the PIN rotation sent every open station here and the same PIN card
+    // re-unlocked in place; a member's way back is their own sign-in, which reloads (the test above).
+    await seedMemberSession(page, 'G. Miller');
     await page.goto('/index.html');
-
-    await expect(page.locator('#calendarLock')).toBeVisible();
-    await enterPin(page, '1234');
-
-    await expect(page.locator('#calendarLock')).toHaveCount(0);
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await expect(page.locator('#calendarControls')).toBeVisible();
-    // The workspace really was BUILT, not merely revealed: the member dropdown is populated by
-    // `populateTeamMemberDropdown`, which only runs inside the deferred start.
-    expect(await page.locator('#teamMemberSelect option').count()).toBeGreaterThan(0);
-    await expect(page.locator('.calendar-header')).toBeVisible();
-    expect(errors).toEqual([]);
-});
-
-test('the submit button stays disabled until four digits are entered', async ({ page }) => {
-    await page.goto('/index.html');
-    await openPinCard(page);
-    const submit = page.locator('#calLockSubmit');
-    await expect(submit).toBeDisabled();
-    await page.locator('#calLockPin').fill('12');
-    await expect(submit).toBeDisabled();
-    await page.locator('#calLockPin').fill('1234');
-    await expect(submit).toBeEnabled();
-});
-
-test('non-digits are stripped as they are typed', async ({ page }) => {
-    // Typed, not `fill()`ed. `maxlength="4"` truncates a bulk fill to `1a2b` BEFORE the input
-    // handler sees it, so a fill-based assertion would be testing maxlength and calling it the
-    // digit filter. Typing is also what a member actually does.
-    await page.goto('/index.html');
-    await openPinCard(page);
-    await page.locator('#calLockPin').pressSequentially('1a2b3c4d');
-    await expect(page.locator('#calLockPin')).toHaveValue('1234');
-});
-
-// ── Failure ─────────────────────────────────────────────────────────────────────────────────────
-
-test('a WRONG PIN shows no roster data and keeps the card', async ({ page }) => {
-    await seedMember(page);
-    await stubPinExchange(page, { status: 401 });
-    await page.goto('/index.html');
-    await enterPin(page, '0000');
-
-    await expect(page.locator('#calLockMsg')).toContainText(/not recognised/i);
-    await expect(page.locator('#calendarLock')).toBeVisible();
-    await expect(page.locator('#calendarDisplay')).toBeHidden();
-    expect(await page.locator('#calendarDisplay').innerHTML()).toBe('');
-    // The field is cleared on every attempt — a PIN left in a form field on a shared PC is readable
-    // by whoever sits down next.
-    await expect(page.locator('#calLockPin')).toHaveValue('');
-});
-
-test('a throttled attempt says something different from a wrong PIN', async ({ page }) => {
-    await stubPinExchange(page, { status: 429 });
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calLockMsg')).toContainText(/paused after too many wrong entries/i);
-    await expect(page.locator('#calLockMsg')).toContainText(/sign in instead/i);   // the one other way in
-    await expect(page.locator('#calLockMsg')).not.toContainText(/not recognised/i);
-});
-
-test('a transport failure is recoverable — the same card retries and succeeds', async ({ page }) => {
-    await seedMember(page);
-    await stubPinExchange(page, { abort: true });
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calLockMsg')).toContainText(/connection/i);
-
-    await page.unroute('**/unlockCalendarViewer');
-    await stubPinExchange(page);
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-});
-
-test('showing the card WARMS the exchange function while the member types', async ({ page }) => {
-    // A cold start is the largest single number in the unlock chain, and the seconds spent typing
-    // are exactly the seconds it takes — so the card fires one fire-and-forget GET on display
-    // (v20.45). Asserted as a REQUEST, not a response: the warm-up ignores its answer by design.
-    const warm = page.waitForRequest(r =>
-        r.url().includes('unlockCalendarViewer') && r.method() === 'GET', { timeout: 5000 });
-    await page.goto('/index.html');
-    await openPinCard(page);
-    await warm;
-});
-
-test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, and the grid repaints', async ({ page }) => {
-    // The PIN-rotation path, end to end — the ordinary one, not a corner: rotating the PIN revokes
-    // the viewer's tokens, so every open viewer hits this on its next read. Three prior defects live
-    // on this exact path (the one-shot gate v20.41, the claimed months v20.41, the missing repaint
-    // v20.45), and no e2e walked it until now — each was found by reading, which is the wrong way
-    // round for the path every rotation exercises.
-    await seedMember(page);
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
 
-    // Every FRESH read now comes back permission-denied — what revoked tokens look like. The boot
-    // window is already claimed, so navigate beyond it to force one.
+    // The boot window is already claimed, so navigate beyond it to force a fresh read.
     await page.evaluate(() => { (window.__E2E = window.__E2E || {}).failGetDocs = 'permission-denied'; });
     await page.locator('#nextMonth').click();
     await page.locator('#nextMonth').click();
@@ -486,33 +379,23 @@ test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, a
     // Re-locked, and it says WHY — an expired session is not a network blip, and the generic
     // "couldn't update, try again" here would be a loop the member cannot win.
     await expect(page.locator('#calendarLock')).toBeVisible();
-    await expect(page.locator('#calLockMsg')).toContainText(/expired/i);
+    await expect(page.locator('#calLockWho')).toContainText('G. Miller');
+    await expect(page.locator('#calLockWhy')).toContainText(/expired/i);
     await expect(page.locator('#calendarDisplay')).toBeHidden();
-
-    // The new PIN works — and the grid comes back WITHOUT any further navigation. The workspace is
-    // un-hidden exactly as the re-lock left it and nothing else asks for a render, so before the
-    // v20.45 repaint this showed the pre-lock grid frozen until the member happened to swipe.
-    await page.evaluate(() => { window.__E2E.failGetDocs = false; });
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    await expect(page.locator('#calendarLock')).toHaveCount(0);
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
 });
-
 // A RE-LOCK TAKES THE GRID OFF THE PAGE, NOT ONLY OUT OF SIGHT (18 Nov 2026). Before the first grant
 // nothing is built; after one, a re-lock hid the workspace and left what the grant drew in
 // #calendarDisplay — every day of the month, or every row of the Team View week, in the page behind
-// the card, for a screen reader, a devtools pane or one CSS rule going missing. Emptied on the loss,
-// and the PIN draws it again. Both surfaces, because Team View draws into the same element.
+// the card, for a screen reader, a devtools pane or one CSS rule going missing. Emptied on the loss.
+// Both surfaces, because Team View draws into the same element.
 // ONE-SHOT, read as the card arrives: the loss empties the grid before the card goes up, and nothing
 // redraws it while locked, so an auto-retrying assertion would add nothing but a way to pass late.
 for (const surface of /** @type {const} */ (['month', 'Team View'])) {
-    test(`a re-lock empties the ${surface} grid behind the card — and the PIN draws it again`, async ({ page }) => {
+    test(`a re-lock empties the ${surface} grid behind the card`, async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));   // the first read: Aug–Oct
-        await seedMember(page);
-        await stubPinExchange(page);
+        await seedMemberSession(page, 'G. Miller');
         await page.goto('/index.html');
-        await enterPin(page, '1234');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         if (surface === 'month') {
             await page.locator('#nextMonth').click();   // October: the first read's, so nothing is read
@@ -527,20 +410,13 @@ for (const surface of /** @type {const} */ (['month', 'Team View'])) {
         await expect(page.locator('#calendarLock')).toBeVisible();
         expect(await page.locator('#calendarDisplay').evaluate(el => el.childElementCount),
             'what the grant drew stayed in the page behind the card').toBe(0);
-
-        await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
-        await enterPin(page, '1234');
-        await expect(page.locator(surface === 'month' ? '#calendarDisplay .calendar-day' : '#calendarDisplay .team-week-text').first(),
-            'the PIN did not draw the grid again').toBeVisible();
     });
 }
 
 test('a day panel open when access is lost closes with it — it does not stay over the lock card (sign-in check, 11 Nov 2026)', async ({ page }) => {
     // The panel shows what only access may show, and until v25.77 the lock card went up UNDERNEATH it.
-    await seedMember(page);
-    await stubPinExchange(page);
+    await seedMemberSession(page, 'G. Miller');
     await page.goto('/index.html');
-    await enterPin(page, '1234');
     await page.locator('.calendar-day:not(.other-month)').first().click();
     await expect(page.locator('#dayDetailLightbox')).toHaveClass(/visible/);
 
@@ -558,10 +434,8 @@ test('the month picker open when access is lost closes with it, and cannot move 
     // The day and leave panels closed on a lost grant; the month picker stayed open over the lock card,
     // and "Go to month" moved and PERSISTED the month behind it, so the member signed back in to a month
     // they had not chosen. The keyboard already refused there; the picker now does too.
-    await seedMember(page);
-    await stubPinExchange(page);
+    await seedMemberSession(page, 'G. Miller');
     await page.goto('/index.html');
-    await enterPin(page, '1234');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.locator('.month-year').click();
     await expect(page.locator('#monthJumpOverlay')).toHaveClass(/visible/);
@@ -584,85 +458,19 @@ test('the month picker open when access is lost closes with it, and cannot move 
     expect(await stored(), 'a month was moved and kept behind the lock card').toBe(before);
 });
 
-test('Back from the PIN card the front door opened returns to the sign-in card, not out of the app (sign-in check, 11 Nov 2026)', async ({ page }) => {
-    await page.goto('/index.html');
-    await expect(page.locator('#loginPassword')).toBeVisible();
-    await page.locator('#loginAlternative').click();
-    await expect(page.locator('#calLockPin')).toBeVisible();
-    await page.goBack();
-    await expect(page.locator('#loginPassword')).toBeVisible();
-    await expect(page.locator('#calLockPin')).toHaveCount(0);
-    expect(new URL(page.url()).pathname, 'Back left the page').toMatch(/\/(index\.html)?$/);
-});
-
-test('the front door\'s two other ways in take a 44px tap on a phone (sign-in check, 11 Nov 2026)', async ({ page }) => {
-    // "Use the staff PIN instead" and "Sign in instead" drew 36px tall — their padding alone — under the
-    // 44px target the stylesheet's own comment promised for them.
-    await page.setViewportSize({ width: 375, height: 800 });
-    await page.goto('/index.html');
-    const toPin = page.locator('#loginAlternative');
-    await expect(toPin).toBeVisible();
-    expect((await toPin.boundingBox())?.height ?? 0, '"Use the staff PIN instead"').toBeGreaterThanOrEqual(44);
-    await toPin.click();
-    const toSignIn = page.locator('#calLockSignIn');
-    await expect(toSignIn).toBeVisible();
-    expect((await toSignIn.boundingBox())?.height ?? 0, '"Sign in instead"').toBeGreaterThanOrEqual(44);
-});
-
-test('a month read that FAILS after the Calendar re-locked is not drawn as failed when the PIN is entered again', async ({ page }) => {
-    // The read ticket (Calendar step 1, v25.72), through the real modules. A read that failed after a
-    // re-lock, before anybody was back in, was checked against the grant number alone, and that does
-    // not move until somebody comes back in. So it recorded a failed month against the locked Calendar,
-    // and the next grant drew "Couldn't check this month" for a month it had not yet asked about.
-    await seedMember(page);
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
-    const settled = () => page.waitForFunction(() => {
-        const e = /** @type {any} */ (window).__E2E; return (e.docReadsSettled || 0) >= (e.docReads || 0);
-    });
-    await settled();
-
-    // Two months on (beyond the first load's three): that month's read is held, and fails when released.
-    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.docsHeld = true; e.heldFailWith = 'e2e: network'; });
-    await page.locator('#nextMonth').click();
-    await page.locator('#nextMonth').click();
-    await expect(page.locator('.calendar-pending')).toContainText('Checking this month');
-
-    // The month after is refused for access, and the Calendar re-locks.
-    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = 'permission-denied'; });
-    await page.locator('#nextMonth').click();
-    await expect(page.locator('#calendarLock')).toBeVisible();
-
-    // The held read fails now: after the lock, before anybody is back in.
-    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.failGetDocs = false; e.docsHeld = false; });
-    await settled();
-
-    // Back in, with reads held again, so the first thing that month shows is what was recorded for it.
-    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.heldFailWith = false; e.docsHeld = true; });
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.locator('#prevMonth').click();
-    await expect(page.locator('.calendar-pending')).toContainText('Checking this month');
-    await expect(page.locator('.calendar-pending--failed')).toHaveCount(0);
-});
-
 // ── ONE LOSS SHUTS BOTH GATES, BY EITHER ROUTE (Calendar step 2, v25.74) ─────────────────────────
 // Whether access is held is kept once (calendar-access-state.js), and the roster reads and the three
 // documents both ask it. Until v25.74 each kept a flag of its own and the page shut them one after
 // the other, separately on each of the two routes that notice a loss. Walked on a real page, one
 // route each, because only a page shows the coordinator handing BOTH routes to the one call — and
 // the documents are how a browser can see a gate left open behind the card.
-test('a re-lock by a MONTH read shuts the documents too — a Huddle tap behind the card reads nothing, and the PIN finishes it', async ({ page }) => {
+test('a re-lock by a MONTH read shuts the documents too — a Huddle tap behind the card reads nothing', async ({ page }) => {
     const stored = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
     await page.addInitScript((s) => {
         window.__E2E = Object.assign(window.__E2E || {}, { huddleDoc: { date: '2026-09-25', storageUrl: s, fileType: 'pdf' } });
     }, stored);
-    await seedMember(page);
-    await stubPinExchange(page);
+    await seedMemberSession(page, 'G. Miller');
     await page.goto('/');   // '/', so the drawer's `./#huddle` is a hash change (see the locked Huddle test above)
-    await enterPin(page, '1234');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     const listeners = () => page.evaluate(() => (/** @type {any} */ (window).__E2E || {}).snapshotSubs || 0);
     await expect.poll(listeners, 'premise: the grant opened the documents, so the Huddle is listened for').toBe(1);
@@ -677,68 +485,43 @@ test('a re-lock by a MONTH read shuts the documents too — a Huddle tap behind 
     const before = await docReads(page);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in to read the Daily Huddle');
     expect(await docReads(page), 'a re-locked Calendar read or listened for a document').toBe(before);
-
-    // The PIN opens both again: the grid, and the Huddle the tap was for — on ONE new listener.
-    await page.locator('#huddleViewerClose').click();
-    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarLock')).toHaveCount(0);
-    await expect(page.locator('#huddleOpenFileBtn'), 'the PIN was entered, and the Huddle the tap was for never came')
-        .toBeVisible({ timeout: 10_000 });
-    expect(await listeners(), 'one listener per grant: the first, and the one this unlock attached').toBe(2);
+    expect(await listeners(), 'a re-locked Calendar attached a second Huddle listener').toBe(1);
 });
-
-// The other route: the FIRST LOAD's own read. A PIN that was right a moment ago and a first read that
-// is refused all the same — the tokens were revoked between the two (a rotation) — so the grant is
+// The other route: the FIRST LOAD's own read. A sign-in that was good a moment ago and a first read that
+// is refused all the same — the tokens were revoked between the two — so the grant is
 // lost before anything was drawn. This route calls the access layer DIRECTLY: nothing has shut the
 // state for it, as calendar-overrides.js has for a month read, so it is the one that shows
 // `handleAccessLost` shutting the state itself before its card goes up.
 //
-// ON A FIRST VISIT TOO, and that half is not a variation. With no name chosen no month is drawn, so
-// the first load is the ONLY read there is: nothing follows it to notice the loss a second time. With
-// a name chosen a month read does follow, and re-locks by the other route one read later — which is
-// why that case alone could not tell this route's wiring from its absence (measured, 11 Nov 2026:
-// with `onAccessLost: null` it stayed green).
-for (const [label, named] of /** @type {[string, boolean][]} */ ([['with a name chosen', true], ['on a first visit, no name chosen', false]])) {
-    test(`the FIRST load's read refused (${label}): the Calendar re-locks, the documents shut with it, and the PIN brings both back`, async ({ page }) => {
-        if (named) await seedMember(page);
-        await stubPinExchange(page);
-        await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failGetDocs: 'permission-denied' }); });
-        await page.goto('/index.html');
-        await enterPin(page, '1234');
-        await expect(page.locator('#calLockMsg')).toContainText(/expired/i);
-        await expect(page.locator('#calendarLock')).toBeVisible();
-        await expect(page.locator('#calendarDisplay')).toBeHidden();
+// (Until the staff PIN was retired this ran a second time ON A FIRST VISIT, no name chosen, where the
+// first load is the only read — the case that could tell this route's wiring from its absence. A
+// signed-in member always has a calendar to draw (their own), so that state is gone here; the route's
+// wiring is held by calendar-access.test.mjs.)
+test('the FIRST load\'s read refused: the Calendar re-locks, and the documents shut with it', async ({ page }) => {
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failGetDocs: 'permission-denied' }); });
+    await page.goto('/index.html');
+    await expect(page.locator('#calLockWhy')).toContainText(/expired/i);
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
 
-        // Behind the card, with reads working again: a Circular link is answered with what to do, and
-        // issues nothing. Left open, the documents gate would read it here — from this device's saved
-        // copy too, which no server rule is asked about.
-        await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
-        const before = await docReads(page);
-        await page.evaluate(() => { window.location.hash = '#circular'; });
-        await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
-        expect(await docReads(page), 'a re-locked Calendar read a document').toBe(before);
-
-        // The PIN brings back both: the read the lock held, and a Calendar this page had not yet drawn.
-        await page.locator('#docViewerClose').click();
-        await expect(page.locator('#docViewer')).toBeHidden();
-        await enterPin(page, '1234');
-        await expect(page.locator('#docViewerBody')).toContainText('No Weekly Retail Circular has been uploaded yet', { timeout: 10_000 });
-        await page.locator('#docViewerClose').click();
-        await expect(page.locator('#calendarLock')).toHaveCount(0);
-        await expect(page.locator(named ? '.calendar-day' : '.first-run-prompt').first()).toBeVisible();
-    });
-}
+    // Behind the card, with reads working again: a Circular link is answered with what to do, and
+    // issues nothing. Left open, the documents gate would read it here — from this device's saved
+    // copy too, which no server rule is asked about.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
+    const before = await docReads(page);
+    await page.evaluate(() => { window.location.hash = '#circular'; });
+    await expect(page.locator('#docViewerBody')).toContainText('Sign in to read the Weekly Retail Circular', { timeout: 3000 });
+    expect(await docReads(page), 'a re-locked Calendar read a document').toBe(before);
+});
 
 // Whole-app review, Oct 2026: after a re-lock the grid is behind the card, and the arrow keys still
 // moved — and persisted — the month there, so the next unlock opened on a different one.
 test('re-locked mid-session: the keyboard does not move the month behind the card', async ({ page }) => {
-    await seedMember(page);
-    await stubPinExchange(page);
+    await seedMemberSession(page, 'G. Miller');
     await page.goto('/index.html');
-    await enterPin(page, '1234');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.evaluate(() => { (window.__E2E = window.__E2E || {}).failGetDocs = 'permission-denied'; });
     await page.locator('#nextMonth').click();
@@ -747,7 +530,7 @@ test('re-locked mid-session: the keyboard does not move the month behind the car
 
     const viewed = () => page.evaluate(() => [localStorage.getItem('myb_roster_month'), localStorage.getItem('myb_roster_year')]);
     const before = await viewed();
-    await page.evaluate(() => /** @type {HTMLElement|null} */ (document.activeElement)?.blur());   // off the PIN field
+    await page.evaluate(() => /** @type {HTMLElement|null} */ (document.activeElement)?.blur());   // off the card's button
     for (const key of ['ArrowRight', 'ArrowRight', 'ArrowLeft', 't']) await page.keyboard.press(key);
     expect(await viewed()).toEqual(before);
 });
@@ -759,10 +542,8 @@ test('re-locked mid-session: the keyboard does not move the month behind the car
 // phone's width (from 1024px the strips do not show at all).
 test('a re-lock takes the offer strips and the swipe hint down with the rest of the workspace', async ({ page }) => {
     await page.setViewportSize({ width: 393, height: 800 });
-    await seedMember(page);
-    await stubPinExchange(page);
+    await seedMemberSession(page, 'G. Miller');
     await page.goto('/index.html');
-    await enterPin(page, '1234');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     const ids = ['notifPrompt', 'installPrompt', 'swipeHint'];
     await page.evaluate((list) => {
@@ -794,56 +575,9 @@ test('a first visit that begins locked does not use up the swipe hint', async ({
     expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBeNull();
 });
 
-test('a token WITHOUT the viewer claim leaves the Calendar locked', async ({ page }) => {
-    // The quietest failure there is: sign-in succeeds, so a naive implementation renders a Calendar
-    // whose every read is then denied — unlocked-looking and empty, with no error anywhere.
-    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { viewerClaimMissing: true }); });
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarLock')).toBeVisible();
-    await expect(page.locator('#calendarDisplay')).toBeHidden();
-});
-
-// ── Session lifetime ────────────────────────────────────────────────────────────────────────────
-
-test('a reload within the same browser session stays unlocked', async ({ page }) => {
-    await seedMember(page);
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-
-    await page.reload();
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await expect(page.locator('#calendarLock')).toHaveCount(0);
-});
-
-test('when the browser SESSION ends, the PIN is required again', async ({ page }) => {
-    // What "session-only persistence" means, at browser level: the viewer identity lives exactly as
-    // long as the browser session and no longer. A PC left signed into a Windows account must not
-    // carry the roster into the next person's day.
-    //
-    // Modelled by clearing sessionStorage and reloading rather than by opening a second context.
-    // A fresh context would not carry this suite's Firebase stub route, so the page would fail to
-    // load its module graph and show no card — passing for a reason that has nothing to do with
-    // persistence. Clearing the session store is the same event the real Firebase SDK observes.
-    await seedMember(page);
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-
-    await page.evaluate(() => sessionStorage.clear());
-    await page.reload();
-    await expect(page.locator('#calendarLock')).toBeVisible();   // the front door again (sign-in first)
-    await expect(page.locator('#calendarDisplay')).toBeHidden();
-    expect(await page.locator('#calendarDisplay').innerHTML()).toBe('');
-});
-
 // ── A member is not interrupted ─────────────────────────────────────────────────────────────────
 
-test('a signed-in member never sees the PIN card', async ({ page }) => {
+test('a signed-in member never sees a lock card', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/index.html');
@@ -852,7 +586,7 @@ test('a signed-in member never sees the PIN card', async ({ page }) => {
     expect(errors).toEqual([]);
 });
 
-test('a member does not even FLASH the PIN card', async ({ page }) => {
+test('a member does not even FLASH a lock card', async ({ page }) => {
     // The workspace is hidden synchronously and the decision is asynchronous, so the risk is the
     // other way round: the lock card appearing for a frame before the decision lands. Sampling from
     // the very first paint is the only way to see it.
@@ -870,7 +604,7 @@ test('a member does not even FLASH the PIN card', async ({ page }) => {
     expect(await page.evaluate(() => window.__sawLock)).toBe(false);
 });
 
-// ── A member is never sent to the PIN (v20.79) ──────────────────────────────────────────────────
+// ── A member is never left at a sign-in they do not need (v20.79) ───────────────────────────────
 //
 // The reported symptom was "the PIN occasionally comes up for people who are already signed in", and
 // it is TWO faults sharing one screen. `decideAccess` needs a local session AND a restored Firebase
@@ -886,7 +620,7 @@ test('a member does not even FLASH the PIN card', async ({ page }) => {
 // Neither was reachable by a test until `authRestoreDelayMs` existed, because the Firebase stub
 // handed every caller a user synchronously — no restore budget in the app had ever been exercised.
 
-test('a member whose identity restores LATE is let in, and is never asked for a PIN', async ({ page }) => {
+test('a member whose identity restores LATE is let in', async ({ page }) => {
     // 15s is past every bound on the path (the 6.5s reconcile race, then the 6s first-emission
     // budget), so the boot decision genuinely resolves `none` with a valid member session held.
     // Before v20.79 that was terminal for the page load.
@@ -899,12 +633,10 @@ test('a member whose identity restores LATE is let in, and is never asked for a 
     await page.goto('/index.html');
 
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 30_000 });
-    // The PIN field never existed. Not "was dismissed" — a member must never be shown a shared code
-    // as the way back into their own roster.
-    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
 });
 
-test('an EVICTED identity signs the member back in silently, with no PIN card', async ({ page }) => {
+test('an EVICTED identity signs the member back in silently, with no sign-in card', async ({ page }) => {
     // The deterministic case: session intact, Firebase identity gone. For anyone still on the surname
     // default `ensureNamedSession` re-establishes it with nothing typed, which is what makes this
     // recoverable without asking them for anything at all.
@@ -916,13 +648,13 @@ test('an EVICTED identity signs the member back in silently, with no PIN card', 
     await page.goto('/index.html');
 
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
 });
 
-test('a MIGRATED member whose identity is gone is offered sign-in, with the PIN behind a link', async ({ page }) => {
+test('a MIGRATED member whose identity is gone is offered their own sign-in', async ({ page }) => {
     // The silent route only tries the surname, so a member who has chosen their own password cannot
-    // be recovered without them. They get their OWN sign-in — not a shared code — and the PIN stays
-    // reachable underneath, because a session left behind on a shared PC is a real situation.
+    // be recovered without them. They get their OWN sign-in. (Until 23 Nov 2026 the staff PIN sat
+    // under it, as a way out for the next person at a shared PC; it went with the PIN.)
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
@@ -931,6 +663,7 @@ test('a MIGRATED member whose identity is gone is offered sign-in, with the PIN 
     await expect(page.locator('#calendarLock')).toBeVisible();
     await expect(page.locator('#calLockWho')).toContainText('G. Miller');
     await expect(page.locator('#calLockPin')).toHaveCount(0);
+    await expect(page.locator('#calLockPinInstead'), 'the member card\'s way to the PIN went with it').toHaveCount(0);
     const signIn = page.locator('#calLockSubmit');
     await expect(signIn).toBeEnabled({ timeout: 20_000 });
     await expect(signIn).toHaveText(/sign in/i);
@@ -981,44 +714,6 @@ test('a preset name NO grade lists falls through to the ordinary form — a conv
     await expect(page.locator('#loginNameTrigger')).toContainText(/select your name/i);
 });
 
-test('the member card falls back to the staff PIN by SIGNING OUT first', async ({ page }) => {
-    // ── WHAT THIS PINS, AND WHY IT CHANGED AT v21.23 ────────────────────────────────────────────
-    //
-    // "Use the staff PIN instead" used to swap one card for another and leave everything else
-    // alone. But `calendar-app.js` builds the nav drawer at module scope from the local session,
-    // before access is decided — so the next person at a shared PC unlocked with the staff PIN onto
-    // a Calendar whose drawer still named the previous member and still showed the page pills their
-    // permissions earned. It now clears the session and reloads.
-    //
-    // The seed is ONE-SHOT (`seedSessionOnce`) because the ordinary `seedSession` re-runs on every
-    // navigation, so it wrote the session back after the reload and this test failed against
-    // behaviour that was working. That is what it did for four releases — see the helper's header.
-    await seedSessionOnce(page, 'G. Miller');
-    await seedMember(page, 'G. Miller');
-    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-
-    await expect(page.locator('#calLockPinInstead')).toBeVisible();
-    await page.locator('#calLockPinInstead').click();
-
-    // The PIN card arrives via a RELOAD, not a repaint — so the wait is for the reloaded page.
-    await expect(page.locator('#calLockPin')).toBeVisible({ timeout: 20_000 });
-
-    // THE PRIVACY PROPERTY, which the old test did not check at all: the previous member's identity
-    // is gone, not merely covered over. Asserted on the stored session rather than the pixels,
-    // because every consumer — the drawer's name, its Sign out button, its permission pills — is
-    // seeded from this one value at module scope.
-    {   // assert_cleared
-        const stored = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
-        expect(stored, 'the previous member\'s session survived the switch to the staff PIN').toBeNull();
-    }
-    await expect(page.locator('#calLockWho')).toHaveCount(0);
-
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-});
-
 // ── The page says something while it decides (v20.80) ───────────────────────────────────────────
 
 test('a slow decision shows a SKELETON, not a blank page — and no roster data in it', async ({ page }) => {
@@ -1059,117 +754,141 @@ test('a normal boot never shows the skeleton at all', async ({ page }) => {
     expect(await page.evaluate(() => window.__sawSkeleton)).toBe(false);
 });
 
-// ── Privilege isolation ─────────────────────────────────────────────────────────────────────────
+// ── A LEFTOVER STAFF-PIN SESSION (the PIN retired, owner, 23 Nov 2026) ─────────────────────────────
+//
+// A browser that opened the Calendar with the PIN before it was retired can still hold its session —
+// the shared `calendar-viewer` identity, kept in sessionStorage. Every page signs it out on arrival
+// (session.js → `reconcileExpiredIdentity`, which no page asks to keep it any more), and the card says
+// why in ONE line (staff-pin-ended.js). Silent, a station that used the code yesterday would meet a
+// sign-in today with nothing to say what changed.
 
-for (const [label, url] of [['Admin', '/admin.html'], ['Settings', '/settings.html'], ['Pay', '/paycalc.html']]) {
-    test(`a viewer navigating to ${label} still has to sign in as a member`, async ({ page }) => {
-        // The viewer holds a Firebase identity, so a page that merely checked "is anyone signed in?"
-        // would let it through. These pages check for a MEMBER, and this proves they still do.
-        await stubPinExchange(page);
-        await page.goto('/index.html');
-        await enterPin(page, '1234');
-        await expect(page.locator('#calendarDisplay')).toBeVisible();
+/** Whether this tab still holds the leftover PIN session (the stub keeps it in sessionStorage). */
+const holdsViewer = (/** @type {import('@playwright/test').Page} */ page) =>
+    page.evaluate(() => sessionStorage.getItem('__e2e_viewer'));
 
+test('a leftover PIN session on the Calendar is signed out on load: the sign-in card, the retired line, and no PIN box', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedLegacyViewerSession(page);
+    await seedMember(page);   // a calendar chosen on this machine before — no roster for it either
+    await recordFirstFrameText(page, '#loginNotice');
+    await page.goto('/index.html');
+
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE);
+    // SIGNED OUT, not merely refused: the identity itself is gone, so no later page meets it.
+    await expect.poll(() => holdsViewer(page), { message: 'the leftover PIN session survived the load' }).toBeNull();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.signOutCount || 0), 'the teardown never signed out').toBeGreaterThan(0);
+    // Spoken, not only shown: the line arrived after the card was drawn (`speakAfterMount`).
+    const atFirstFrame = await firstFrameText(page, '#loginNotice');
+    expect(atFirstFrame.length, 'premise: the card\'s notice line was seen arriving').toBeGreaterThan(0);
+    expect(atFirstFrame.filter(Boolean), 'the line was already in the card at its first frame, so it was never announced').toEqual([]);
+    // Nothing of the PIN is left to type into or to tap.
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    await expect(page.locator('input[inputmode="numeric"]'), 'a PIN box by any other id').toHaveCount(0);
+    await expect(page.locator('#loginAlternative')).toHaveCount(0);
+    await expect(page.locator('#calLockPinInstead')).toHaveCount(0);
+    // …and no roster: the viewer it held used to open one.
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+    expect(await page.locator('#calendarDisplay').innerHTML()).toBe('');
+    expect(await page.locator('#teamMemberSelect option').count()).toBe(0);
+    // The drawer is a locked visitor's: no footer, so no End staff PIN and no bell.
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toBeVisible();
+    await expect(page.locator('.nav-panel-footer')).toBeHidden();
+    await expect(page.locator('#navLockCalendarBtn')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    // A reload does not bring it back, and is not told twice: the session has gone.
+    await page.reload();
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await page.waitForTimeout(1000);   // the teardown lands in well under that when there is one
+    await expect(page.locator('#loginNotice'), 'the line outlived the session it was about').toBeEmpty();
+    expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('a leftover PIN session that restores LATE is still signed out — never granted', async ({ page }) => {
+    // The late-identity watcher grants only a NAMED identity now (calendar-access.js); until the PIN
+    // was retired it granted a late viewer too, which is the cliff this guards against coming back.
+    // 7.5s: past the access decision's 6.5s budget (so the front door is already up when the session
+    // lands, and the watcher hears it), inside the teardown's own 8s restore wait (so the teardown does
+    // too). A restore later than THAT is not torn down on this load — it is still never granted, and
+    // the next load's teardown takes it.
+    test.setTimeout(60_000);
+    await seedLegacyViewerSession(page);
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 7500 }); });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE, { timeout: 15_000 });
+    await expect.poll(() => holdsViewer(page)).toBeNull();
+    await page.waitForTimeout(1000);   // a grant from the watcher would have landed by now
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+});
+
+test('a member who signs in on that card is not told about the PIN again', async ({ page }) => {
+    // The line is old news once a member signs in on the page (`forgetStaffPinEnded`).
+    await seedLegacyViewerSession(page);
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
+    await page.goto('/index.html');
+    await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE);
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await page.evaluate(async () => { (await import('./calendar-access.js')).handleAccessLost(); });
+    await expect(page.locator('#calLockWhy')).toContainText(/expired/i);
+    await expect(page.getByText(STAFF_PIN_ENDED_NOTICE)).toHaveCount(0);
+});
+
+// The PROTECTED pages never admitted the PIN, and sign it out on arrival exactly as the Calendar now
+// does — and say the same line. (Until 23 Nov 2026 they said the PIN only opened the Calendar and
+// Trains, and their way back opened the PIN box.) Both ways back are covered, one per page: the link
+// (Admin) and Escape (Pay), which follows wherever the link goes — to the roster's front door.
+for (const [label, url, way] of [['Admin', '/admin.html', 'link'], ['Pay', '/paycalc.html', 'Escape']]) {
+    test(`a leftover PIN session arriving at ${label} is signed out and told the PIN has been retired; the way back (${way}) is the roster`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedLegacyViewerSession(page);
+        await recordFirstFrameText(page, '#loginNotice');
         await page.goto(url);
         await expect(page.locator('#loginOverlay')).toBeVisible();
-    });
-}
-
-// ── WHAT THE VIEWER IS TOLD THERE (v25.78 — owner, 11 Nov 2026) ─────────────────────────────────
-//
-// Those pages still sign the PIN out (above) — the rule did not move. What changed is that it used to
-// happen in silence: the card said nothing, and "← Back to roster" found the roster locked again. Now
-// the card says so, and its way back opens the Calendar on the PIN BOX (`#staff-pin`), the box they
-// were using a moment ago. `#calLockPin` visible with no sign-in card is the proof of the landing:
-// `enterPin` would reach the box either way, so it cannot be what shows it. Both ways back are
-// covered, one per page: the link (Admin) and Escape (Pay), which follows wherever the link goes.
-for (const [label, pill, url, way] of [['Admin', 'admin', /admin\.html/, 'link'], ['Pay', 'pay', /paycalc\.html/, 'Escape']]) {
-    test(`a viewer who opens ${label} from the menu is told the PIN has ended, and the way back (${way}) opens the PIN box`, async ({ page }) => {
-        const errors = collectFatalErrors(page);
-        await stubPinExchange(page);
-        await recordFirstFrameText(page, '#loginNotice');
-        await page.goto('/index.html');
-        await enterPin(page, '1234');
-        await expect(page.locator('#calendarDisplay')).toBeVisible();
-        await page.locator('#navMenuBtn').click();
-        await page.locator(`#navPanel .nav-panel-pill--${pill}`).click();
-
-        await expect(page).toHaveURL(url);
-        await expect(page.locator('#loginNotice')).toHaveText(
-            'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.');
-        // …and it was SPOKEN: the line was empty when the card was first drawn, so the words arrived as
-        // a change. Written in the task that mounted the card, it is text the live region was created
-        // with, and a screen reader says nothing (`speakAfterMount`, status-text.js — 17 Nov 2026).
+        await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE);
         const atFirstFrame = await firstFrameText(page, '#loginNotice');
         expect(atFirstFrame.length, 'premise: the card\'s notice line was seen arriving').toBeGreaterThan(0);
         expect(atFirstFrame.filter(Boolean), 'the notice was already in the card at its first frame, so it was never announced').toEqual([]);
-        await expect(page.locator('#loginCard a.login-back')).toHaveAttribute('href', './#staff-pin');
+        await expect.poll(() => holdsViewer(page), { message: 'the leftover PIN session survived the page' }).toBeNull();
+        await expect(page.locator('#loginCard a.login-back')).toHaveAttribute('href', './');
 
         if (way === 'link') await page.locator('#loginCard a.login-back').click();
         else await page.locator('#loginPassword').press('Escape');
-        await expect(page.locator('#calLockPin')).toBeVisible();
-        await expect(page.locator('#loginCard')).toHaveCount(0);
-        await enterPin(page, '1234');
-        await expect(page.locator('#calendarDisplay')).toBeVisible();
+        await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+        await expect(page.locator('#calLockPin')).toHaveCount(0);
         expect(errors, errors.join('\n')).toEqual([]);
     });
 }
 
-// …AND THE PHONE'S BACK OPENS THE PIN BOX TOO (audit B3). The card says "go back and enter the PIN", but
-// Back is not its link: it returns to the Calendar, which reloads a restored viewer page with no hash (and
-// a fresh load has none), so both landed on the member sign-in card, one tap short of the box. The page
-// that ended the PIN leaves this tab a mark the Calendar's boot reads once, as it reads `#staff-pin`.
-test('a viewer who opens Pay and goes BACK lands on the PIN box, not the member sign-in card', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.locator('#navMenuBtn').click();
-    await page.locator('#navPanel .nav-panel-pill--pay').click();
-    await expect(page).toHaveURL(/paycalc\.html/);
-    await expect(page.locator('#loginNotice')).toContainText('the roster is locked again');
-
-    await page.goBack();
-    await expect(page.locator('#calLockPin')).toBeVisible();
-    await expect(page.locator('#loginCard')).toHaveCount(0);
-    expect(new URL(page.url()).hash, 'the way back carried a hash — the mark is in the tab, not the address').toBe('');
-    expect(await page.evaluate(() => sessionStorage.getItem('myb_staff_pin_ended')), 'read once: the mark outlived the boot').toBeNull();
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    expect(errors, errors.join('\n')).toEqual([]);
-});
-
 // PAUSED OVERTIME SAYS IT TOO (audit C1; AUTH_AND_SESSIONS 24 — the sign-out is never silent). Paused, the
-// page signs the PIN out like every page that does not admit it, but offers no sign-in, and only a sign-in
-// card listened: the PIN ended in silence. The page now says the card's sentence itself, with the way back.
-// Its own `overtimeEnabled` seam holds it paused whichever way the committed switch sits.
-test('a viewer who opens paused Overtime is told the PIN has ended, and its link opens the PIN box', async ({ page }) => {
+// page signs the leftover session out like every page, but offers no sign-in, so it says the card's
+// sentence itself, with the way back. Its own `overtimeEnabled` seam holds it paused whichever way the
+// committed switch sits.
+test('a leftover PIN session arriving at paused Overtime is told the PIN has been retired, with the way back to the roster', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: false }; });
-    await page.goto('/overtime.html');   // first, with no PIN held: the guard on the other side
+    await page.goto('/overtime.html');   // first, with no PIN session held: the guard on the other side
     await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
     await page.waitForTimeout(1000);     // the teardown that would fill it lands in well under that
     await expect(page.locator('#otMineContent [role="status"]')).toBeEmpty();
 
-    await stubPinExchange(page);
+    await seedLegacyViewerSession(page);
     await recordFirstFrameText(page, '#otMineContent [role="status"]');
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.goto('/overtime.html');
+    await page.reload();
     await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
     const said = page.locator('#otMineContent [role="status"]');
-    await expect(said).toContainText(
-        'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.');
+    await expect(said).toContainText(STAFF_PIN_ENDED_NOTICE);
     // Spoken, not just shown: the region was drawn empty first (`speakAfterMount`, status-text.js).
     const atFirstFrame = await firstFrameText(page, '#otMineContent [role="status"]');
     expect(atFirstFrame.length, 'premise: the page\'s status region was seen arriving').toBeGreaterThan(0);
     expect(atFirstFrame.filter(Boolean), 'the line was already in the region at its first frame, so it was never announced').toEqual([]);
-    await expect(said.locator('a')).toHaveAttribute('href', './#staff-pin');
+    await expect(said.locator('a')).toHaveAttribute('href', './');
     await said.locator('a').click();
-    await expect(page.locator('#calLockPin')).toBeVisible();
-    await expect(page.locator('#loginCard')).toHaveCount(0);
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
     expect(errors, errors.join('\n')).toEqual([]);
 });
 
@@ -1177,167 +896,28 @@ test('a visitor who never held the PIN is told nothing about it, and the way bac
     // The guard on the line above's other side: a card that always said it would pass every test there.
     await page.goto('/admin.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
-    // The teardown that would set the line waits for the boot restore; the viewer's case shows it in
-    // well under a second here, so two seconds of nothing is the answer, not a race.
+    // The teardown that would set the line waits for the boot restore; the leftover session's case
+    // shows it in well under a second here, so two seconds of nothing is the answer, not a race.
     await page.waitForTimeout(2000);
     await expect(page.locator('#loginNotice')).toBeEmpty();
     await expect(page.locator('#loginCard a.login-back')).toHaveAttribute('href', './');
 });
 
-test("Admin's sign-in card says what Admin is for, and that the PIN does not open it — in Pay's words", async ({ page }) => {
-    // The clause is shared on purpose: a station reaches both pages from one menu (admin-app.js →
-    // ADMIN_SIGN_IN_ABOUT). If one card is reworded, this asks for the other to follow.
-    const clause = "so you sign in as yourself — the staff PIN doesn’t open it.";
+test("Admin's sign-in card says what Admin is for, and why you sign in as yourself — in Pay's words", async ({ page }) => {
+    // The clause is shared on purpose: both pages keep things under a name, and are reached from one
+    // menu (admin-app.js → ADMIN_SIGN_IN_ABOUT). If one card is reworded, this asks for the other to
+    // follow. (Until 23 Nov 2026 it ended "— the staff PIN doesn’t open it".)
+    const clause = 'under your own name, so you sign in as yourself.';
     for (const url of ['/admin.html', '/paycalc.html']) {
         await page.goto(url);
         await expect(page.locator('#loginAbout'), url).toContainText(clause);
+        await expect(page.locator('#loginAbout'), url).not.toContainText('PIN');
     }
     await page.goto('/admin.html');
     await expect(page.locator('#loginAbout')).toContainText('Record your annual leave, absences and shift changes, so they show on the Calendar.');
     await expect(page.locator('#loginFootnote')).toHaveText('On a shared screen, sign out from the menu when you finish.');
 });
-
-// The one protected page the PIN may read (v24.84, owner, 22 Oct 2026). The loop above is the other
-// half and stays: Admin and Settings still sign the PIN out, and only auth-policy's `staffPin` flag
-// separates the two — page-contract-parity holds every coordinator to it.
-test('a viewer opens Trains from the drawer and reads it, still unlocked when it comes back', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.locator('#navMenuBtn').click();
-    await page.locator('#navPanel .nav-panel-pill--trains').click();
-
-    await expect(page).toHaveURL(/trains\.html/);
-    // The view tabs are on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
-    await expect(page.locator('#trControls')).toBeVisible();
-    await expect(page.locator('#loginOverlay')).toHaveCount(0);
-    // The drawer is the station's, not a member's: the PIN's label and Lock, and no Sign out.
-    await page.locator('#navMenuBtn').click();
-    await expect(page.locator('#navPanelMember')).toHaveText('Staff PIN access');
-    await expect(page.locator('#navLockCalendarBtn')).toBeVisible();
-    await expect(page.locator('#navLockCalendarBtn'), 'it ends the PIN everywhere, not only the Calendar (owner, 21 Nov 2026)').toHaveText('End staff PIN');
-    await expect(page.locator('#navPanel .nav-panel-pill--trains')).toHaveAttribute('aria-current', 'page');
-
-    // Until v24.84 arriving here signed the PIN out, so the Calendar asked for it again.
-    await page.goto('/index.html');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await expect(page.locator('#calendarLock')).toHaveCount(0);
-    expect(errors, errors.join('\n')).toEqual([]);
-});
-
-test('Trains honours a PIN session that restores AFTER its check — the station is not left at a sign-in (sign-in check, 11 Nov 2026)', async ({ page }) => {
-    // The Calendar has honoured a late PIN session since cal-data-10; Trains asked once, within the
-    // 6.5s budget, and a station PC on a slow restore stood at the member sign-in for good.
-    await seedViewerAccess(page);
-    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 9000 }); });
-    await page.goto('/trains.html');
-    await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 9000 });   // the check's budget ran out first
-    await expect(page.locator('#loginOverlay')).toHaveCount(0, { timeout: 8000 });
-    await expect(page.locator('#trControls')).toBeVisible();
-    await page.locator('#navMenuBtn').click();
-    await expect(page.locator('#navPanelMember')).toHaveText('Staff PIN access');
-});
-
-test('Lock on the Trains page locks the station: the PIN card, and Trains asks for a sign-in again', async ({ page }) => {
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.goto('/trains.html');
-    // The view tabs are on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
-    await expect(page.locator('#trControls')).toBeVisible();
-
-    await page.locator('#navMenuBtn').click();
-    await page.locator('#navLockCalendarBtn').click();
-    // Back to the PIN card, as the Calendar's own Lock does: this is a machine the PIN is used on.
-    await expect(page.locator('#calLockPin')).toBeVisible();
-    await expect(page.locator('#calendarDisplay')).toBeHidden();
-    await page.goto('/trains.html');
-    await expect(page.locator('#loginOverlay')).toBeVisible();
-});
-
-// ── LOCK FROM WHERE THE STATION ACTUALLY IS (v24.89) ──────────────────────────────────────────────
-// Every lock test above starts at `/index.html`, and from there `location.replace('./#staff-pin')`
-// is a navigation to another path, so the page reloaded and locked. The station opens the Calendar
-// at `/` — the start_url, the drawer's Calendar pill — where the same call differs by its fragment
-// alone: the browser scrolled, the drawer closed as though it had locked, and the roster stayed on
-// screen with the viewer signed out underneath it. Reproduced on 22 Oct 2026; live since late
-// September. Both paths are pinned, because the one that broke is the one nobody tested.
-for (const start of ['/', '/index.html']) {
-    test(`End staff PIN locks when the Calendar was opened at ${start}`, async ({ page }) => {
-        const errors = collectFatalErrors(page);
-        await stubPinExchange(page);
-        await page.goto(start);
-        await enterPin(page, '1234');
-        await expect(page.locator('#calendarDisplay')).toBeVisible();
-        await page.locator('#navMenuBtn').click();
-        await page.locator('#navLockCalendarBtn').click();
-        await expect(page.locator('#calLockPin'), 'the PIN card, for the next person at this machine').toBeVisible();
-        await expect(page.locator('#calendarDisplay'), 'and no roster left on screen').toBeHidden();
-        expect(errors, errors.join('\n')).toEqual([]);
-    });
-}
-
-test('End staff PIN appears for a viewer and not for a member', async ({ page }) => {
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await page.locator('#navMenuBtn').click();
-    await expect(page.locator('#navLockCalendarBtn')).toBeVisible();
-});
-
-test('End staff PIN is hidden from a signed-in member', async ({ page }) => {
-    await seedMemberSession(page, 'G. Miller');
-    await page.goto('/index.html');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.locator('#navMenuBtn').click();
-    await expect(page.locator('#navPanel')).toBeVisible();
-    await expect(page.locator('#navLockCalendarBtn')).toBeHidden();
-});
-
 // ── Accessibility + layout ──────────────────────────────────────────────────────────────────────
-
-test('the unlock card is operable by keyboard alone', async ({ page }) => {
-    await seedMember(page);
-    await stubPinExchange(page);
-    await page.goto('/index.html');
-    await openPinCard(page);
-    const pin = page.locator('#calLockPin');
-    await pin.focus();
-    await page.keyboard.type('1234');
-    await page.keyboard.press('Enter');            // submit without ever reaching the button
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-});
-
-test('the PIN field is labelled, and large enough not to trigger iOS focus zoom', async ({ page }) => {
-    await page.goto('/index.html');
-    await openPinCard(page);
-    const label = page.locator('label[for="calLockPin"]');
-    await expect(label).toBeVisible();
-    // iOS Safari zooms the whole page when a focused field is under 16px. On the app's front door
-    // that lands a first-time user in a half-scrolled layout.
-    const size = await page.locator('#calLockPin').evaluate(el => parseFloat(getComputedStyle(el).fontSize));
-    expect(size).toBeGreaterThanOrEqual(16);
-    // …and drawn as a PIN, not as the login field it sits in. The PIN rule asks for --type-xl in navy;
-    // the shared login skin, (0,3,1), beat its class on size, padding and colour, so this field drew at
-    // 16px in grey and the floor above still passed (whole-app review, Nov 2026).
-    const look = await page.locator('#calLockPin').evaluate((el) => {
-        const cs = getComputedStyle(el);
-        const probe = document.body.appendChild(document.createElement('div'));
-        probe.style.fontSize = 'var(--type-xl)';
-        probe.style.color = 'var(--primary-blue)';
-        const want = { size: getComputedStyle(probe).fontSize, colour: getComputedStyle(probe).color };
-        probe.remove();
-        return { size: cs.fontSize, colour: cs.color, want,
-                 extraLeft: parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), tracking: parseFloat(cs.letterSpacing) };
-    });
-    expect(look.size, 'the PIN is --type-xl, not the login field\'s 16px').toBe(look.want.size);
-    expect(look.colour, 'the PIN is navy').toBe(look.want.colour);
-    // The run ends in one letter-space nobody sees; the left padding gives it back, so the dots sit centred.
-    expect(look.extraLeft, 'the extra left padding is one letter-space').toBeCloseTo(look.tracking, 1);
-});
 
 test('the card does not overflow at 360px, nor sprawl at 1440px', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 740 });
@@ -1348,23 +928,18 @@ test('the card does not overflow at 360px, nor sprawl at 1440px', async ({ page 
     expect(overflow).toBeLessThanOrEqual(1);
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    // Both cards this slot can hold — the sign-in card is up first; the PIN card wears the same recipe.
+    // Compact on purpose — a wide centred panel is what a corporate login portal looks like.
     const w = await page.locator('#calendarLock #loginCard').evaluate(el => el.getBoundingClientRect().width);
     expect(w).toBeLessThanOrEqual(440);
-    await openPinCard(page);
-    const w2 = await page.locator('.cal-lock-card').evaluate(el => el.getBoundingClientRect().width);
-    // Compact on purpose — a wide centred panel is what a corporate login portal looks like.
-    expect(w2).toBeLessThanOrEqual(440);
 });
 
 // ── Regressions found by the v20.15 bug sweep ───────────────────────────────────────────────────
 
 test('the nav drawer shows NO footer while the Calendar is locked', async ({ page }) => {
-    // v20.12 widened the footer condition from `onSignOut` to `(onSignOut || onLockCalendar)` so the
-    // viewer's End staff PIN button had somewhere to live — and the calendar always passes the
-    // latter, so a locked visitor got an empty footer bar with a blank member name, and a
-    // NOTIFICATION BELL. The bell is documented as signed-in only, and a viewer tapping it would be
-    // denied by the v20.12 push-subscription rule: a control that cannot succeed, offered.
+    // v20.12 widened the footer condition so the staff PIN's End button had somewhere to live, and a
+    // locked visitor got an empty footer bar with a blank member name, and a NOTIFICATION BELL — a
+    // control the push rules would refuse, offered. The PIN's button went with the PIN (23 Nov 2026);
+    // the footer stays a signed-in member's.
     await page.goto('/index.html');
     await expect(page.locator('#calendarLock')).toBeVisible();
     await page.locator('#navMenuBtn').click();
@@ -1391,21 +966,6 @@ test('locked: with the guide search matching nothing, Tab from its box stays in 
         'one Tab from the box left the drawer').toBe(true);
     await page.keyboard.press('Shift+Tab');
     await expect(input, 'and Shift+Tab comes back round to it').toBeFocused();
-});
-
-test('a VIEWER gets the footer for End staff PIN — but still no bell', async ({ page }) => {
-    await stubPinExchange(page);
-    await seedMember(page);
-    await page.goto('/index.html');
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.locator('#navMenuBtn').click();
-    await expect(page.locator('.nav-panel-footer')).toBeVisible();
-    await expect(page.locator('#navLockCalendarBtn')).toBeVisible();
-    await expect(page.locator('#navPanelMember')).toHaveText('Staff PIN access');
-    // Every office PC unlocking with the PIN shares one uid, so a subscription written under it is
-    // owned by fifty people. The rules deny it; the UI must not offer it either.
-    await expect(page.locator('#navNotifBell')).toHaveCount(0);
 });
 
 // A SESSION WHOSE ACCOUNT HAS GONE GETS NO BELL (v25.06, whole-app review). The footer is there (the
@@ -1471,74 +1031,18 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
 
 // ── WHO THE NOTICES ARE ADDRESSED TO (v21.81) ───────────────────────────────────────────────────
 //
-// Reported by the owner the day the PIN went live: the one-time notices were opening on the station
-// PC. They waited on `calendarAccessReady`, which is the moment access is GRANTED and says nothing
-// about whose it is — so a notice asking the reader to check their own payslips were entered
-// correctly appeared on a machine that is deliberately unattributable and holds nobody's payslips.
-//
-// The rule is unit-tested in calendar-access-core.test.mjs. What is tested HERE is the wiring, and
-// only a browser can answer it: whether a real page open on a viewer session actually withholds a
-// notice it is not addressed by, and whether the same notice reaches the member it IS for.
-//
-// ── ONE DIRECTION LOST ITS SUBJECT AT v23.23, AND SAYING SO IS THE POINT ────────────────────────
-// The other half — a `'signed-out'` notice REACHING a PIN unlock — was carried by `sign-in-2026`,
-// which was retired by owner decision (the Calendar's front door became a sign-in at v23.19, so the
-// notice re-offered a choice its reader had just declined). No live notice declares that audience
-// now, so that direction has nothing to exercise it and the test went with the notice rather than
-// being faked against one that cannot open. What still holds the line meanwhile is static, in
-// calendar-notices.test.mjs: `_openWhenAudienceAllows` must FORWARD its declared audience to the
-// rule rather than hardcode one, which is the shape a members-only regression would take.
-// **The next `'signed-out'` notice restores this test** — `.claude/skills/new-notice/` says so.
-test.describe('one-time notices and the PIN unlock', () => {
-    // Inside the timetable notice's FINAL WEEK (6–12 Dec 2026), or it silently retires and these
-    // would pass by testing nothing. Pinned rather than removed with a notice: what is under test is
-    // the audience gate, and the next members-only notice inherits it — as this one did on 22 Nov
-    // 2026, from the October timetable notice retired that day.
-    //
-    // WHY ITS FINAL WEEK: the audience must be the ONLY thing standing between the notice and the
-    // station. Before 6 December it also waits for the install and New link notices, conditions a
-    // PIN unlock may meet or not for reasons of their own, so it could stay off the station even when
-    // declared `'everyone'`, and the mutation this block exists to catch would pass. In its final
-    // week it has no second condition.
+// The one-time notices are members-only (calendar-access-core.js → `noticeAudienceAllows`, unit-tested
+// there). Until the staff PIN was retired (23 Nov 2026) this block also proved a PIN-unlocked station
+// was REFUSED a members' notice — the reported bug that made the audience gate. No unlock but a
+// member's is left, so that half has no subject and went with the PIN; this is the wiring half: a
+// member's real page does open one.
+test.describe('one-time notices reach a signed-in member', () => {
+    // Inside the timetable notice's FINAL WEEK (6–12 Dec 2026), where it has no second condition (the
+    // install and New link notices it otherwise waits behind), or it silently retires and this would
+    // pass by testing nothing.
     const IN_FINAL_WEEK = new Date('2026-12-07T09:00:00Z');
-    // The notices open 1500ms after access is granted. Proving an ABSENCE means waiting past that,
-    // and the first test below is what makes this number credible rather than hopeful: it shows a
-    // permitted notice is already on screen by then, on the same session, through the same path.
-    const PAST_THE_DEFER = 2500;
 
-    // ONE flag per test, deliberately, and keep it that way as notices come and go. Only one notice
-    // can be on screen at a time — `openNoticeIfClear`, v19.53 — so a test that clears every flag
-    // and asserts the members-only notice is absent passes whether the gate refused it or it merely
-    // lost the race to another one. That is not a hypothetical: it is what the first version of
-    // this block did, and a mutation declaring the members-only notice `'everyone'` — the exact
-    // reported bug — sailed through it.
-    test('...and NOT one addressed to members', async ({ page }) => {
-        const errors = collectFatalErrors(page);
-        await page.clock.setFixedTime(IN_FINAL_WEEK);
-        await seedViewerAccess(page);
-        await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_timetable_soon_2026_done']);
-        await page.goto('/');
-        await expect(page.locator('.month-year')).toBeVisible();
-        await page.waitForTimeout(PAST_THE_DEFER);
-        await expect(page.locator('#timetableSoonNoticeLb')).not.toHaveClass(/open/);
-        // ...and NOT flagged seen, or it would never arrive on the day that device signs in.
-        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_timetable_soon_2026_done'));
-        expect(flagged, 'a suppressed notice must be left untouched, not marked seen').toBeNull();
-
-        // ...and NOT in the ARCHIVE either, which is the half the report was actually about: the
-        // drawer's "App Notices" list is this store, so a notice kept off the screen but written
-        // here would still be sitting in a menu on the station PC. It is archived in `onOpen`, so
-        // not opening covers it — but that is a consequence of the wiring rather than a rule
-        // anybody stated, and it is one refactor away from not being true.
-        const archived = await page.evaluate(() =>
-            JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id));
-        expect(archived, 'a notice the station was not addressed by must not reach its drawer')
-            .not.toContain('timetable-soon-2026');
-        expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
-    });
-
-    test('a signed-in member on the same device does get it', async ({ page }) => {
+    test('a signed-in member gets a members\' notice', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await page.clock.setFixedTime(IN_FINAL_WEEK);
         await seedSession(page);
@@ -1547,7 +1051,7 @@ test.describe('one-time notices and the PIN unlock', () => {
         await clearNoticeFlags(page, ['myb_notice_timetable_soon_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
-        await expect(page.locator('#timetableSoonNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
+        await expect(page.locator('#timetableSoonNoticeLb')).toHaveClass(/open/);
         expect(errors, 'Uncaught JS exceptions on a member calendar').toHaveLength(0);
     });
 });
@@ -1588,7 +1092,7 @@ test('a returning member sees NO roster while the identity is confirmed — then
 //
 // The app-owned copy DECISIONS.md named as the only shape that can beat the sign-in round trip
 // (calendar-snapshot.js). Pinned on a rendered page because every rule that matters is about what is
-// ON SCREEN, and for whom: shown at once and labelled, for the signed-in member only, never to the PIN,
+// ON SCREEN, and for whom: shown at once and labelled, for the signed-in member only, never to a locked visitor,
 // replaced by the live grid on the grant, and written by a settled live read.
 const SNAPSHOT_KEY = 'myb_cal_snapshot';
 // THE REAL MONTH, NOT A PINNED CLOCK: `authRestoreDelayMs` waits on Date.now() advancing, so a fixed
@@ -1704,20 +1208,20 @@ test('a settled live read WRITES the copy — the member\'s own rows only', asyn
     expect((await readSnapshotKey(page)).member).toBe('G. Miller');
 });
 
-test('the staff PIN never sees a member\'s copy — and unlocking with it deletes one', async ({ page }) => {
+test('a browser with no member session never shows a stored copy — the front door, and nothing roster-shaped', async ({ page }) => {
+    // Until 23 Nov 2026 this was the staff PIN's half (a PIN unlock deleted a member's copy). A copy left
+    // on a shared machine by somebody signed out is for nobody now: the front door does not paint it.
     test.setTimeout(60_000);
     await seedSnapshot(page, 'G. Miller', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
-    await seedViewerAccess(page);
     await page.goto('/index.html');
-    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#calendarSnapshot')).toHaveCount(0);
-    expect(await readSnapshotKey(page)).toBeNull();
+    expect(await page.locator('.calendar-day').count()).toBe(0);
 });
-
 // A Calendar that has LOST access keeps no copy (v24.59). Since v25.74 that is not a line in each of
 // the two access-lost handlers: the page listens for the one access state shutting, so the copy goes
 // by whichever route the loss was noticed (calendar-app.js → ACCESS LOST, BY WHICHEVER ROUTE).
-test('a member who loses access mid-session keeps NO stored copy — and is offered their own sign-in, never the PIN', async ({ page }) => {
+test('a member who loses access mid-session keeps NO stored copy — and is offered their own sign-in', async ({ page }) => {
     test.setTimeout(60_000);
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
@@ -1734,7 +1238,6 @@ test('a member who loses access mid-session keeps NO stored copy — and is offe
     await page.locator('#nextMonth').click();
     await page.locator('#nextMonth').click();
     await expect(page.locator('#calLockWhy')).toContainText('Calendar access has expired. Sign in again to carry on.');
-    await expect(page.locator('#calLockPin'), 'a member is never sent to the staff PIN').toHaveCount(0);
     // ONE-SHOT, read as the card arrives: the copy goes inside the write that shuts the state, which
     // is before the card. A retrying assertion would also pass on a copy deleted later, by anything.
     expect(await readSnapshotKey(page), 'the copy outlived the access it was saved under').toBeNull();
@@ -1843,35 +1346,6 @@ test('a cached, slow-restoring open writes `ready` — and no `readyProvisional`
     // No stored copy was seeded, so none was painted — and an open that showed none must not be timed
     // as though it had (v24.85). The test below is the other half.
     expect((await sampleKeys()).filter(k => k.includes('|rosterSnapshot|'))).toEqual([]);
-});
-
-// TYPING THE PIN IS NOT LOAD TIME (App Speed review, Oct 2026). The PIN unlocks the Calendar without a
-// reload, so "Usable" used to include reading the card and typing. The PIN card tells the recorder the
-// page is waiting for a person (`onAwaitingInput`) — wiring no unit suite runs, because the gate
-// imports no telemetry and the card module is reached only through it.
-//
-// THROUGH THE STATION PC'S BOOKMARK (`#staff-pin`), where the PIN card is the first and only card. From
-// the front door the sign-in card has already said so through the shared sign-in overlay, so a test
-// arriving that way passed with the PIN card's own call deleted (found by mutation).
-test('a PIN unlock writes no "Usable" sample — that wait was typing, not loading', async ({ page }) => {
-    test.setTimeout(60_000);
-    await seedMember(page);
-    await stubPinExchange(page);
-    await page.goto('/index.html#staff-pin');
-    await expect(page.locator('#calLockPin')).toBeVisible();   // the PIN card, with no sign-in card before it
-    await expect(page.locator('#calendarLock')).toBeVisible();
-    await enterPin(page, '1234');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    // The grid is up, so the page HAS marked itself usable; the reading must still leave it out.
-    await expect.poll(() => page.evaluate(() => performance.getEntriesByName('myb-page-ready').length),
-        { timeout: 15_000 }).toBeGreaterThan(0);
-    const sampleKeys = async () => page.evaluate(() => (window.__E2E?.setWrites || [])
-        .filter(w => String(w.path || '').includes('perf_'))
-        .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
-    // The open IS recorded — the station PIN is a staff load, not the developer's — just not as usable.
-    await expect.poll(async () => (await sampleKeys()).some(k => k.includes('|calendar|domReady|')), { timeout: 25_000 }).toBe(true);
-    await page.waitForTimeout(3000);
-    expect((await sampleKeys()).filter(k => k.includes('|calendar|ready|'))).toEqual([]);
 });
 
 // THE MOMENT A MEMBER FIRST SEES THEIR SHIFTS IS TIMED (v24.85). "Shifts shown" is the grid after the

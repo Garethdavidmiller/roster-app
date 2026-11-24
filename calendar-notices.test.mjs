@@ -1124,7 +1124,7 @@ describe('9 · every notice key is pre-dismissed by the browser suites\' session
     const SEEDERS = {
         'e2e/helpers.js':          { text: readFileSync(new URL('./e2e/helpers.js', here), 'utf8'),          atLeast: 3 },   // seedSession, seedMemberSession and the third seeder
         'e2e/visual-harness.js':   { text: readFileSync(new URL('./e2e/visual-harness.js', here), 'utf8'),   atLeast: 1 },
-        'e2e/calendar-pin.spec.js': { text: readFileSync(new URL('./e2e/calendar-pin.spec.js', here), 'utf8'), atLeast: 1 },  // heldSessionWithReset
+        'e2e/calendar-access.spec.js': { text: readFileSync(new URL('./e2e/calendar-access.spec.js', here), 'utf8'), atLeast: 1 },  // heldSessionWithReset
     };
     test('the scan is reading real keys', () => {
         assert.ok(KEYS.length >= 3, `found ${KEYS.length} DONE_KEYs in calendar-notices.js`);
