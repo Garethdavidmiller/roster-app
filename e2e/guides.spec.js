@@ -99,15 +99,15 @@ async function landHeld(/** @type {import('@playwright/test').Page} */ page, /**
  * header's title, which has nothing to activate; the scroll that follows is the distance it moved the page.
  * @param {import('@playwright/test').Page} page @param {import('@playwright/test').TestInfo} info
  */
-async function nudgeAsReader(page, info) {
+async function nudgeAsReader(page, info, by = 30) {
     if (isTouchProject(info)) {
         const title = /** @type {{ x: number, y: number, width: number, height: number }} */ (
             await page.locator('.page-header h1').boundingBox());
         await page.touchscreen.tap(title.x + title.width / 2, title.y + title.height / 2);
-        await page.evaluate(() => window.scrollBy(0, 30));
+        await page.evaluate((px) => window.scrollBy(0, px), by);
     } else {
         await page.mouse.move(180, 500);
-        await page.mouse.wheel(0, 30);
+        await page.mouse.wheel(0, by);
     }
 }
 /** @param {import('@playwright/test').Page} page @param {string} id */
@@ -249,7 +249,10 @@ test('guides: on a document guide a deep link does not pull back a reader who ha
     await holdGuideMeasurement(page);
     await scaleTextBeforeLanding(page, 1.15);
     await landHeld(page, '/staff-guide.html#sg-change-a-shift');
-    await nudgeAsReader(page, info);
+    // 60px, deep into the band (Playwright 1.65, 24 Nov 2026): WebKit 27.2 on CI's runner restored the reload near the
+    // reader's own position rather than on the fragment, and after a 30px nudge the heading came back 8px BELOW the
+    // stack — outside the band, so the premise below failed and the guard went untested. Deeper, either landing is in it.
+    await nudgeAsReader(page, info, 60);
     await settleFrames(page);
     const moved = await page.evaluate(() => Math.round(window.scrollY));
     const { top, stack } = await underStack(page, 'sg-change-a-shift');
@@ -264,7 +267,7 @@ test('guides: on a document guide a deep link does not pull back a reader who ha
     await settleFrames(page);
     const restored = await page.evaluate(() => Math.round(window.scrollY));
     const back = await underStack(page, 'sg-change-a-shift');
-    expect(back.top, 'premise: the reload restored a position inside the band').toBeLessThan(back.stack);
+    expect(back.top, `premise: the reload restored a position inside the band — ${JSON.stringify({ moved, restored, ...back })}`).toBeLessThan(back.stack);
     await page.evaluate(() => /** @type {any} */ (window).__releaseGuideMeasurement());
     await settleFrames(page);
     expect(await page.evaluate(() => Math.round(window.scrollY)), 'the measurement moved a reloaded page off its restored position').toBe(restored);
