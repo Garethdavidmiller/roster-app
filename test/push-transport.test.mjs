@@ -373,3 +373,38 @@ describe('releasePushForOwner deletes the records one account owns, and nothing 
         assert.deepEqual(queries, [], 'an empty owner must never reach a where() — it could match the unowned records');
     });
 });
+
+// ── THE REAL web-push, AS push.js REQUIRES IT (web-push 4.0.0, Nov 2026) ──────────────────────────
+// Every test above hands push.js a FAKE web-push, so none of them can see the library itself. From
+// 4.0.0 it is an ES module with NO default export, and push.js is CommonJS: `require('web-push')`
+// returns the module NAMESPACE (Node's require-of-ESM), whose named exports are the very functions
+// the fake models. This pins that seam with the real package and no network: the namespace carries
+// both functions, the library ACCEPTS the options push.js passes (it throws on any key it does not
+// know, so a renamed `TTL` is a refused send, not an ignored one), the TTL and timeout reach the
+// request, and a failure still carries `statusCode` for the 404/410 cleanup. `require` here is the
+// file's own, rooted at REPO_ROOT_URL, so `./functions/...` resolves from the repository root.
+test('the real web-push accepts what push.js sends it', async () => {
+    const { createECDH, randomBytes } = await import('node:crypto');
+    delete require.cache[pushPath];
+    const mod = require('./functions/push.js');
+    const wp = mod.getWebPush();
+    assert.equal(typeof wp.setVapidDetails, 'function', 'require(\'web-push\') must expose setVapidDetails by name');
+    assert.equal(typeof wp.sendNotification, 'function', 'require(\'web-push\') must expose sendNotification by name');
+
+    const vapid = wp.generateVAPIDKeys();
+    mod.setupWebPush({ value: () => vapid.privateKey }, vapid.publicKey);
+    const ecdh = createECDH('prime256v1');
+    ecdh.generateKeys();
+    const subscription = {
+        endpoint: 'https://fcm.googleapis.com/fcm/send/real-lib-check',
+        keys: { p256dh: ecdh.getPublicKey().toString('base64url'), auth: randomBytes(16).toString('base64url') },
+    };
+    const details = wp.generateRequestDetails(subscription, JSON.stringify(PAYLOAD), mod.pushSendOptions(PAYLOAD, 10000));
+    assert.equal(details.headers.TTL, 6 * 3600, 'the per-feature TTL reaches the request');
+    assert.equal(details.timeout, 10000, 'the per-send bound reaches the request');
+    assert.match(details.headers.Authorization, /^vapid t=/, 'the VAPID details set by setupWebPush sign the request');
+
+    const { shouldDeleteSubscription } = require('./functions/roster-parse-helpers.js');
+    const gone = new wp.WebPushError('Received unexpected response code', 410, {}, '', subscription.endpoint);
+    assert.equal(shouldDeleteSubscription(gone.statusCode), true, 'a 410 from the real library is still a dead subscription');
+});
