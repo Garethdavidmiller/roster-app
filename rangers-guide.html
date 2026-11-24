@@ -142,10 +142,15 @@
          ticket WORKS; the pills say how well we have CHECKED it. A green badge and a green pill mean
          entirely different things, so the key states both separately and the badges carry a word,
          never just a colour. -->
-    <div class="key" aria-label="Key to symbols">
-        <span class="key-item"><span class="myb-status myb-status--yes">MYB ✓</span> usable at Marylebone</span>
-        <span class="key-item"><span class="myb-status myb-status--no">MYB ⊘</span> not usable at Marylebone</span>
-        <span class="key-item"><span class="tok tok-ok">✓</span> valid on Chiltern — check the stated area</span>
+    <div class="key" role="group" aria-label="Key to symbols">
+        <!-- THE KEY DRAWS EACH BADGE AS THE CARDS DRAW IT (whole-app review, 24 Nov 2026): it drew "MYB ✓", which no
+             card wears, had no line for the Chiltern badges the page is built round, and told the green ✓ token a
+             meaning it has on no card (it marks "no time restriction" in a When row). -->
+        <span class="key-item"><span class="myb-status myb-status--yes">✓ Valid</span> beside Marylebone: you can accept it here</span>
+        <span class="key-item"><span class="myb-status myb-status--no">⊘ Not valid</span> beside Marylebone: you can’t accept it here</span>
+        <span class="key-item"><span class="ch-status ch-status--yes">✓ Area only</span> beside Chiltern: valid on Chiltern, only inside the area the card states</span>
+        <span class="key-item"><span class="ch-status ch-status--conflict">⚠ Conflict</span> beside Chiltern: the source disagrees with itself about Chiltern</span>
+        <span class="key-item"><span class="tok tok-ok">✓</span> no time restriction</span>
         <span class="key-item"><span class="tok tok-no">⊘</span> not valid in the stated place or time</span>
         <span class="key-item"><span class="pill pill-checked">✓ checked</span> read at the National Rail source</span>
         <span class="key-item"><span class="pill pill-conflict">⚠ conflict</span> the source contradicts itself — check the retail system</span>
@@ -410,7 +415,7 @@
             <div class="rr-status">
                 <span class="rr-status-lbl">Chiltern</span>
                 <span class="ch-status ch-status--yes">✓ Area only</span>
-                <span class="rr-status-note">Banbury, Leamington Spa through to Birmingham Moor Street with the Stratford branch, and Oxford &mdash; but not Oxford Parkway or Bicester.</span>
+                <span class="rr-status-note">Banbury, Leamington Spa through to Birmingham Moor Street with the Stratford branch, and Oxford &mdash; but not Oxford Parkway, Bicester Village or Bicester North.</span>
             </div>
         </div>
         <div class="rr-facts">

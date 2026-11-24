@@ -218,7 +218,7 @@ function _netNote({ _bpThisPeriod, _hppForPeriod, _bpIsEstimate, _hppIsEstimate 
  *   gBasicSat:number, bhCapped:number, gBankHol:number, bhOtHrs:number, gBhOt:number,
  *   oHrs:number, gOvertime:number, rHrs:number, gRdw:number, sHrs:number, r150:number,
  *   gSunday:number, bHrs:number, r300:number, gBoxing:number, peer:number, gPeer:number,
- *   LONDON:number, otherAdj:number, slSkip:boolean, slPaidOff?:boolean, plan:string,
+ *   LONDON:number, otherAdj:number, slSkip:boolean, slPaidOff?:boolean, paidOffDay?:string, plan:string,
  *   pgLoan:boolean, usingCumulative:boolean, _bpThisPeriod:number, _bpIsEstimate:boolean,
  *   _hppForPeriod:number, _hppIsEstimate:boolean, ytdFrom?:string
  * }} d

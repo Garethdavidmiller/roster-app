@@ -690,7 +690,7 @@ describe('somebody the week has stopped asking', () => {
         for (const d of ['Sun 30 Aug', 'Mon 31 Aug']) {
             assert.equal(/D\. Four/.test(onlyPanelFor(html, d)), false, `${d} still lists them`);
         }
-        assert.equal(/D\. Four/.test(html.split('Awaiting a form')[1].split('Not being asked')[0]), false,
+        assert.equal(/D\. Four/.test(html.split('Awaiting a form')[1].split('No longer asked')[0]), false,
             'still being chased for a form');
     });
 
@@ -707,7 +707,7 @@ describe('somebody the week has stopped asking', () => {
     test('the exclusion is STATED, with who did it and when', () => {
         // Withdrawal is the only action on this page that changes what somebody else's record is
         // measured against. A silent one is an unattributable edit.
-        const panel = render(withThem).split('Not being asked')[1];
+        const panel = render(withThem).split('No longer asked')[1];
         assert.match(panel, /D\. Four/);
         assert.match(panel, /Stopped by H\. Croft, Wed 12 Aug/);
         assert.match(panel, /data-ask-again="D\. Four"/, 'and it can be undone from where it is stated');
@@ -717,14 +717,14 @@ describe('somebody the week has stopped asking', () => {
         // Unlike the three day sections, whose empty state MUST render — a hidden "No response"
         // makes "nobody outstanding" look like a section that failed to draw. Here the absence is
         // unambiguous, and a permanent empty panel on every screen is furniture.
-        assert.equal(/Not being asked/.test(render()), false);
+        assert.equal(/No longer asked/.test(render()), false);
     });
 
     test('the grade filter hides them along with everyone else of that grade', () => {
         // Otherwise a CES-only view would carry a CEA name in its footnote, which is the one place
         // the filter is easy to forget.
         assert.equal(/D\. Four/.test(render({ ...withThem, grade: 'CES' })), false);
-        assert.match(render({ ...withThem, grade: 'CEA' }), /Not being asked/);
+        assert.match(render({ ...withThem, grade: 'CEA' }), /No longer asked/);
     });
 
     test('a grade with nobody left in it loses its chip', () => {

@@ -76,8 +76,18 @@ describe('a box filled key by key, and settled only when it is left', () => {
         assert.equal(type('2355'), '23:55');
     });
     it('leaving a box changes nothing that is already a time, or already impossible, or unfinished', () => {
-        for (const v of ['06:30', '23:55', '00:00', '24:00', '19:75', '12:3', '07', ''])
+        for (const v of ['06:30', '23:55', '00:00', '24:00', '19:75', '19:9', '07', ''])
             assert.equal(finaliseClockInput(v), formatClockInput(v), v);
+    });
+    // …and ANY three digits left are a dropped zero when that reads as a time (owner, 24 Nov 2026): "130" stayed
+    // "13:0" and was refused at Save, though it can only mean 01:30.
+    it('three digits left in the box read as a dropped zero whenever that is a time — 130 is 01:30', () => {
+        assert.equal(type('130'), '13:0', 'still typing: it may yet be 1300');
+        assert.equal(finaliseClockInput(type('130')), '01:30');
+        assert.equal(finaliseClockInput(type('123')), '01:23');
+        assert.equal(finaliseClockInput(type('059')), '00:59');
+        assert.equal(finaliseClockInput('1:30'), '01:30', 'a keyboard that types the colon');
+        assert.equal(finaliseClockInput(type('199')), '19:9', 'no time either way: left as typed');
     });
 });
 

@@ -68,7 +68,9 @@ const CAPS = {
     // 3800 → 3830 (22 Nov 2026, at 3,826), a deliberate RAISE: the card header's larger-text rule (an em
     // container query, the shared header's own — every card page draws it), the app header's gap, the hint's
     // `text-wrap` and the gold-wash token pair three pages had each copied. The sheet was at 3,799 of 3,800.
-    'shared.css':     3830,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
+    // 3830 → 3855 (24 Nov 2026, at 3,851), MOVED, not grown: the refusal card's parts came here from paycalc.css
+    // when Admin gained one too (`.role-card`), and paycalc.css's cap came down by the same 25 lines.
+    'shared.css':     3855,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     // 2700 → 2650 (Nov 2026, at 2,574): the week grid's five-column template and the two blocks that
     // restated the stacked one over it became one rule; dead and inert rules out (css-admin-ops-15).
     // 2650 → 2600 (16 Nov 2026 (tidy-up), at 2,506): comments that had become a changelog cut to their reasons.
@@ -85,7 +87,8 @@ const CAPS = {
     'operations.css': 2250,
     // 2100 → 1950 on 8 Nov 2026, brought DOWN (2,099 measured lines to 1,891): changelog comments cut
     // to their reasons, and rules that shared.css's `.hidden` or an identical twin already set.
-    'paycalc.css':    1950,
+    // 1950 → 1925 (24 Nov 2026, at 1,890): the refusal card's parts moved to shared.css (`.role-card`), Admin's too.
+    'paycalc.css':    1925,
     'overtime.css':   1900,   // paused since v25.05, kept (owner, 3 Nov 2026); see KNOWN_LIMITATIONS
     // NEW on 18 Nov 2026, at 913, a deliberate RAISE: a phone's larger text — container queries in em that keep
     // the Day control, the weekday totals and a station's card on the screen (css-tokens.md → "Larger text"). The

@@ -115,7 +115,7 @@ export function contractEvidence(ov) {
  * week grid still records one, and the Absence card does over work that earned a day in lieu, which the
  * absence takes back) and is hidden all the same; the Absence card leaves a rest day's RDW or free leave
  * as it is rather than hide it (`absenceHiddenDates`, al-swapped-days.js). `rdw`, `correction`,
- * and plain `shift` are never suppressed; `spare_shift` only on 25 or 26 December, in any year:
+ * and plain `shift` are never suppressed; `spare_shift` only on 25 or 26 December, in any year, and `other` there too:
  * the two days cannot be spare days (owner, 19 Nov 2026), so a Spare saved there before Save refused
  * one (v26.38) — a Christmas 2025 import, say — shows the day as it would be without it (owner, 20 Nov
  * 2026: "Fix"). Every write path already refuses one, so only such legacy records reach this.
@@ -136,7 +136,10 @@ export function isOverrideDisplaySuppressed(override, baseShift, sunday, christm
         case 'sick':         return sunday || (isRestShift(baseShift)
             && isContractedWorkOverride(override.replacedType ? { type: override.replacedType } : null) !== true);
         case 'annual_leave': return sunday;
-        case 'other':        return sunday;
+        // An Other day (Training, Meeting and the rest) on 25 or 26 December too (owner, 24 Nov 2026: "yes"): the two
+        // days cannot be one (Boxing Day Jul 2026, Christmas Day 21 Nov 2026), so a record saved before Save refused it
+        // shows the day as it would be without it, exactly as a Spare there does.
+        case 'other':        return sunday || christmasDay === true;
         case 'spare_shift':  return christmasDay === true;
         default:             return false;
     }

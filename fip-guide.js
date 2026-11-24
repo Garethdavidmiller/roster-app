@@ -380,17 +380,24 @@ document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') clearCountryPrint();
 });
 
-countryCards.forEach(function (card) {
+// THE FERRY CARDS PRINT ALONE TOO (owner, 24 Nov 2026: "yes"). Lake Constance's card is a `country-` id and had a
+// button; the three ferries beside it are `ferry-` ids and had none, though they are the same kind of card.
+var printableCards = countryCards.concat(Array.prototype.slice.call(document.querySelectorAll('details[id^="ferry-"]')));
+
+printableCards.forEach(function (card) {
     var body = card.querySelector('.detail-body');
     if (!body) return;                                  // the two not-FIP <div>s have no body
-    var name = (card.querySelector('summary')?.textContent || '').replace('▾', '').trim();
+    // A card whose title says more than its name ("Latvia — not a FIP member") names itself in `data-print-name`
+    // (whole-app review, 24 Nov 2026): the button repeated the status line.
+    var name = card.getAttribute('data-print-name')
+        || (card.querySelector('summary')?.textContent || '').replace('▾', '').trim().replace(/^\S+\s/, '');
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn-print-country';
     // The country is NAMED in the label. "Print this country" on a page of identical buttons
     // reads fine in place and badly in a screen reader's element list, where they would be
     // copies of one string with nothing to tell them apart.
-    btn.textContent = '⤓ Print ' + name.replace(/^\S+\s/, '');
+    btn.textContent = '⤓ Print ' + name;
     btn.addEventListener('click', function () {
         resetStalePrint();   // a previous country's print may never have been restored — see above
         _fipPrintTarget = /** @type {HTMLElement} */ (card);

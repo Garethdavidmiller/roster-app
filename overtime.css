@@ -358,7 +358,8 @@ body {
 .ot-row-btn {
     padding: 7px 12px;
     border: 1px solid var(--border-mid);
-    border-radius: var(--radius-xs);
+    /* An action button's corner (css-tokens.md → Corners), as Submit's beside it (whole-app review, 24 Nov 2026). */
+    border-radius: var(--radius-button);
     background: white;
     color: var(--text-dark);
     font-family: var(--font-sans);
@@ -1105,8 +1106,8 @@ body {
     margin-left: -3px;
 }
 
-/* What was asked, said back. `role="status"` on the element, so it is announced once when it
-   appears rather than on every repaint of the day. */
+/* What was asked, said back. It is the tick's DESCRIPTION (`aria-describedby`, overtime-form.js), not a live region,
+   so it is read with the tick rather than announced on every repaint of the day (overtime-ui-13). */
 .ot-release-said {
     margin: 0 0 var(--space-2);
     padding-left: var(--space-2);

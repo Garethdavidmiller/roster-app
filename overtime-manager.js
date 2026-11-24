@@ -581,10 +581,9 @@ function section(title, rows, tone) {
  * @param {any} p @param {any} day @param {any} history
  * @param {any} ctx that member's roster for THIS date, or null when it could not be read
  * @param {any} initialDay what they had said for this date at the initial deadline, if anything
- * @param {{ now?: number, frozenAt?: number, stopAsking?: boolean, showRoster?: boolean }} meta the
- *   corrected clock, when this window's population was frozen (see `frozenAt`), whether this row may
- *   offer to stop expecting an answer (true only on the Awaiting panel, see there), and whether a
- *   roster chip belongs on it at all — which is a different question from whether one could be read
+ * @param {{ now?: number, frozenAt?: number, showRoster?: boolean }} meta the corrected clock, when this
+ *   window's population was frozen (see `frozenAt`), and whether a roster chip belongs on it at all — which
+ *   is a different question from whether one could be read. (Stop asking moved to `askedPanel`.)
  * @param {number} [updatedAt] when this person last changed their form
  */
 function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, updatedAt = 0) {
@@ -626,9 +625,6 @@ function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, up
             ${day ? `<span class="ot-answer ot-answer--${answerTone(day)}">${esc(answerCopy(day))}</span>` : ''}
             ${releaseRequestLine(day) ? `<span class="ot-release-flag">${esc(releaseRequestLine(day))}</span>` : ''}
             ${age ? `<span class="ot-person-age"><span class="visually-hidden">Said </span>${esc(age)}</span>` : ''}
-            ${meta.stopAsking
-                ? `<button type="button" class="ot-person-btn" data-stop-asking="${esc(p.memberName)}">Stop asking</button>`
-                : ''}
             ${flags.length ? `<div class="ot-person-flags">${
                 flags.map(f => `<span class="ot-person-flag">${esc(f)}</span>`).join('')}</div>` : ''}
         </div>`;
@@ -753,7 +749,7 @@ function withdrawnPanel(withdrawn, closed = false, win = {}) {
     if (!withdrawn.length) return '';
     return `
         <div class="ot-day-panel ot-day-panel--muted">
-            <div class="ot-day-panel-head">${closed ? 'Was not asked' : 'Not being asked'}</div>
+            <div class="ot-day-panel-head">${closed ? 'Stopped being asked' : 'No longer asked'}</div>
             <div class="ot-section-note">Left out of the counts above. Their forms and anything they
                 already said are kept.</div>
             ${withdrawn.map(p => {
@@ -768,7 +764,7 @@ function withdrawnPanel(withdrawn, closed = false, win = {}) {
                     ${restorable
                         ? `<button type="button" class="ot-person-btn" data-ask-again="${esc(p.memberName)}">Ask again</button>`
                         : closed ? ''
-                        : '<span class="ot-person-note">Stopped before the first deadline — they join again next week</span>'}
+                        : p.withdrawnAt ? '<span class="ot-person-note">Stopped before the first deadline, so they can’t be put back for this week</span>' : ''}
                 </div>`;
             }).join('')}
         </div>`;

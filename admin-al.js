@@ -29,6 +29,7 @@ const esc = escapeHtml;
  *        booked (`projectAlBooking`) — the reason a save that charged nothing still wrote a day
  * @param {string} [shift] what the booking did to each year, when a Spare week over New Year moved a day
  *        between them (`yearShiftWords`) — said after the rest, as the preview says it
+ * @param {string[]} [lieu] the days written that take a day in lieu back (`lieuLost`) — counted, and named
  */
 function recordedWords(n, m, held, free = 0, capFreed = 0, shift = '', lieu = []) {
     const said = recordedCore(n, m, held, free, capFreed, lieu);
