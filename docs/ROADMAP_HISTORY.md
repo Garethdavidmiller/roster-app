@@ -2008,7 +2008,7 @@ localStorage session exists (waits for `onAuthStateChanged` — at most 20s sinc
 in if none found). The client-side account self-heal and the anonymous fallback were removed at
 v24.34: a failure now resolves to no session and a sign-in prompt. Full description and the "do not
 remove this call" rule:
-**CLAUDE.md → "Firebase Auth (complete — v7.94)"**.
+**CLAUDE.md → "Firebase Auth"**.
 
 ### ⏰ The four v11 security tasks — current status
 
