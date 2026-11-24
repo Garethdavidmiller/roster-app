@@ -16,6 +16,7 @@ import { swapDecisionDates } from './al-swapped-days.js';
 import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords, yearShiftWords } from './admin-al-projection.js';
 import { spareShiftNote, spareDaysOf, spareWeekDaysOf } from './admin-al-spare-note.js';
 import { SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
+import { roleOn } from './roster-roles.js';
 
 const esc = escapeHtml;
 
@@ -49,6 +50,11 @@ function recordedCore(n, m, held, free, capFreed) {
     }
     if (!held) return `Recorded ${n} day${n !== 1 ? 's' : ''} of Annual Leave for ${m}${noCost ? ` (+ ${noCost})` : ''}`;
     const fresh = n - held;
+    // …AND THE SAME WITH DAYS ALREADY BOOKED (external review of v26.58): Monday and Tuesday of a Spare week whose
+    // Wednesday to Saturday were booked are written and free on balance, and "No new days" said none was written.
+    if (fresh === 0 && free > 0) {
+        return `Recorded ${free} new day${free > 1 ? 's' : ''} of Annual Leave for ${m} at no cost (${held} already booked)`;
+    }
     return `${fresh ? `Recorded ${fresh} new day${fresh > 1 ? 's' : ''} of Annual Leave` : 'No new days of Annual Leave'} for ${m} (${[`${held} already booked`, noCost].filter(Boolean).join(', ')})`;
 }
 
@@ -160,12 +166,16 @@ export function initALSection({
         // BALANCE (review, 22 Nov 2026): a day charged that frees a day of the week already booked
         // (`capFreed`) costs nothing, and the note said "It still uses 1 day" under "No days".
         const capFreed = projection.capFreed ?? 0;
-        const spareCharged = Math.max(0, spareWeek.dates.filter(d => projection.consuming.includes(d)).length - capFreed);
-        const c = projection.counts;
         // DAYS THAT ALREADY HOLD LEAVE ARE NOT NEW DAYS (review, Nov 2026). The save writes them again,
         // at the cost they already had, so "5 days" over three days already booked was booked where the
         // balance fell by 2. They are counted apart, by the projection's own `alreadyBooked`.
         const held = new Set(/** @type {string[]} */ (projection.alreadyBooked ?? []));
+        // …AND THE SPARE LINE COUNTS AS THE HEADLINE DOES (external review of v26.58): a Spare turn saved on a
+        // working day is a Spare day outside the rostered week, charged one and never capped, so it joins the
+        // days the line counts; and a day already booked is not charged again, so the figure is the new days'.
+        const spareCounted = [...new Set([...spareWeek.dates, ...spareDays])];
+        const spareCharged = Math.max(0, spareCounted.filter(d => projection.consuming.includes(d) && !held.has(d)).length - capFreed);
+        const c = projection.counts;
         const heldNote = held.size ? `${held.size} already booked` : '';
         const days = (/** @type {number} */ n, /** @type {string} */ tail = '') =>
             `${n}${held.size ? ' new' : ''} day${n === 1 ? '' : 's'}${tail}`;
@@ -217,12 +227,15 @@ export function initALSection({
             }
             if (parts.length) restNote = ` <em>(+ ${parts.join(', ')})</em>`;
         }
-        const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
+        // BY THE GRADE HELD ON THE DAY, as the cap reads it (external review of v26.58): read off today's `role`, a CEA
+        // that week and a Dispatcher now had the week capped at four with no line saying why.
+        const isSpareRole = !!memberObj && dates.some(d => ['CEA', 'CES'].includes(String(roleOn(memberObj, parseISODate(d)))));
         // Wording, and why a Spare day costs one and a Spare week at most four: admin-al-spare-note.js's header.
         // Upright, not italic (review, 21 Nov 2026): it is information to read, and a whole italic
         // sentence on a phone is the hardest line on the card to read.
         const noteText  = isSpareRole
-            ? spareShiftNote(spareDays.length, dates.length, spareCharged, { days: spareWeek.dates.length, weeks: spareWeek.weeks }) : '';
+            ? spareShiftNote(spareDays.length, dates.length, spareCharged,
+                { days: spareCounted.length, weeks: spareWeek.weeks, held: spareCounted.filter(d => held.has(d)).length }) : '';
         const spareNote = noteText ? `<br>${esc(noteText)}` : '';
         return `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     }

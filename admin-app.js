@@ -46,7 +46,7 @@ import { mergeBookedPeriods } from './override-utils.js';
 import { collectWeekRows } from './admin-week-collect.js';
 import { alPosition, consumesEntitlement, costsWithoutSpareCap, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
-import { planAlWeekSave } from './admin-al-week-save.js';
+import { planAlWeekSave, planAlDelete } from './admin-al-week-save.js';
 import { createBookedPeriods, fadeFeedback, holdFeedback, periodDelete } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
@@ -972,18 +972,38 @@ export function init() {
      * @param {HTMLElement} feedbackEl Feedback div to write success/error into
      * @param {HTMLButtonElement} btn  The delete button (disabled during the request)
      * @param {number} [listedCount]  How many days the row showed — what the confirmation reports
+     * @param {{ resume?: (atPress: any) => void, atPress?: { shown: any[], said: string } }} [ask] the over-allowance
+     *        question's two ends: `resume` runs the delete again, through the list's control, once "Save anyway"
+     *        answers it, carrying `atPress` — what was on screen at the first tap
+     * @returns {Promise<void|'asked'>} 'asked' when the question is up and nothing was deleted
      */
-    async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn, listedCount) {
+    async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn, listedCount, ask = {}) {
         // WHICH RECORDS GO, AND WHAT THE LINE SAYS: `periodDelete` (admin-booked-periods.js) — scoped so a Sunday RD
         // correction another range still needs is kept (edge Sunday, A1), a stored Christmas day stays the Christmas
         // row's, and the line counts the DAYS the row listed (not documents), naming any uncounted ones it takes too.
         const allForDelete = getAllOverrides();
         const memberObj = teamMembers.find(m => m.name === memberName);
-        const { ids: deleteIds, said } = periodDelete({ overrides: allForDelete, type, memberName, start, end,
+        const fresh = ask.atPress ? null : periodDelete({ overrides: allForDelete, type, memberName, start, end,
             isRestGap: d => isRestGap(d, memberObj), listedCount });
+        // THE ROWS AS SHOWN: compared with the server below, and — answered "Save anyway" — the ones first shown, so
+        // the answer deletes what it was asked about and a colleague's change since is still refused (review, 21 Nov 2026).
+        const listed = new Set(fresh?.ids ?? []);
+        const shown = ask.atPress?.shown ?? allForDelete.filter(o => listed.has(o.id));
+        const said = ask.atPress?.said ?? fresh?.said ?? '';
         // THE BUTTON'S IDLE STATE IS admin-booked-periods.js's, restored when this promise settles.
-        if (!deleteIds.length) return;
-        const idSet = new Set(deleteIds);
+        if (!shown.length) return;
+        // THE OVER-ALLOWANCE QUESTION A DELETE OWES (external review of v26.58), as Saved Changes' ✕ and Delete selected
+        // ask it (`planAlDelete`): deleting December leave in a Spare week over New Year moves its four onto January's
+        // days, and deleting a worked day's record can take back a day in lieu — either can leave a year over.
+        const overage = ask.atPress || !ask.resume ? null
+            : planAlDelete({ rows: shown, members: teamMembers, overrides: allForDelete, isRead: hasOverrideAuthorityFor });
+        if (overage && ask.resume) {
+            const resume = ask.resume, atPress = { shown, said };
+            btn.focus?.();   // what the bar's Cancel goes back to
+            showALConfirm(overage.headline, overage.detail, null, [], () => resume(atPress), type === 'sick' ? 'sick' : 'al');
+            return 'asked';
+        }
+        const idSet = new Set(shown.map(o => o.id));
         // IN FLIGHT FROM THE CONFIRMING TAP, BEFORE ANYTHING IS AWAITED (review, 22 Nov 2026). Marked only after
         // the session wait, a second confirming tap during that wait still found the control armed and
         // enabled, passed `twoTap`, and started a second delete of the same days. A disabled control takes no
@@ -1004,7 +1024,7 @@ export function init() {
                 return;
             }
             // The rows this card LISTED are compared with the server and deleted in ONE transaction.
-            await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(allForDelete.filter(o => idSet.has(o.id)))), { held: false });
+            await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(shown)), { held: false });
             removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage
             renderTable();
             updateALBanner();
@@ -1012,7 +1032,7 @@ export function init() {
             updateSickBookedBox();
             _refreshAlPreview?.(); _refreshSickPreview?.();   // a range already picked was drawn over the deleted days (admin-2-2)
             // The week follows the delete (admin-own-write.js): a change staged on a deleted day is cleared, named below.
-            const cleared = syncWeekAfterOwnWrite(allForDelete.filter(o => idSet.has(o.id)));
+            const cleared = syncWeekAfterOwnWrite(shown);
             if (feedbackEl) {
                 setStatus(feedbackEl, withClearedDays(said, cleared));
                 feedbackEl.className = 'feedback success';

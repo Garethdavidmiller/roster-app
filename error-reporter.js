@@ -37,8 +37,8 @@
  *      alongside `recordUsage`/`recordPageLatency`. The no-member `else` branch calls `afterAuth()`
  *      directly.
  *
- * (A fourth, Trains' station-PIN branch, called it directly once `holdsStaffPin` had read the viewer;
- * it went with the PIN.) `AUTH_AND_SESSIONS.md` invariant 13 states the rule; this is where the shapes live.
+ * (A fourth, Trains' station-PIN branch, called it directly once it had found a PIN session; it went
+ * with the PIN, retired 23 Nov 2026.) `AUTH_AND_SESSIONS.md` invariant 13 states the rule; this is where the shapes live.
  */
 
 import { APP_VERSION } from './roster-data.js';
@@ -171,13 +171,15 @@ function _hiddenText(ms) {
  * eight-second limit: the save was then held as a batch, or refused if it removed something. Nothing
  * at all when no wait ended during the save — a save that checks nothing never waits — so the
  * field's absence is a finding too. Begins with its own separator for that reason.
- * @param {unknown} w  `{ ms, outcome, count }`, or null
+ * @param {unknown} w  `{ ms, outcome, count, overlapped? }`, or null
  */
 function _ownWritesText(w) {
     const o = /** @type {any} */ (w);
     if (!o || typeof o.ms !== 'number' || !Number.isFinite(o.ms)) return '';
     const several = typeof o.count === 'number' && o.count > 1 ? ` (${o.count} waits)` : '';
-    return ` · own-saves wait ${(o.ms / 1000).toFixed(1)}s, ${o.outcome}${several}`;
+    // Another save shared this one's span, so the wait heard may be that save's (D-L4, slow-save.js).
+    const shared = o.overlapped === true ? ', another save overlapped — the wait may be that save’s' : '';
+    return ` · own-saves wait ${(o.ms / 1000).toFixed(1)}s, ${o.outcome}${several}${shared}`;
 }
 
 /**

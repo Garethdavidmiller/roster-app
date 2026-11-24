@@ -1518,6 +1518,72 @@ describe('the Trains review (Nov 2026): counts, pairings at the station, and the
         assert.equal(hwy.verdict.text, 'Tuesday to Thursday, 2 more trains a day: 87, was 85.');
     });
 
+    test('one slot\'s two weekday versions on two routes read as one retimed train, never one lost and one new (review of v26.60)', () => {
+        // Princes Risborough, coming back: Tuesday to Thursday the 07:21 starts there (08:07 into Marylebone); on a
+        // Monday and Friday the 07:21 is the Oxford train (08:03), at the same stops and minutes. December's 07:13
+        // runs every weekday. The card said, of a Monday, "Will no longer stop here" AND "New train" — and counted two.
+        const card = (/** @type {'dep'|'arr'} */ dir, /** @type {string} */ crs) => {
+            const v = stationView(TIMETABLES.now.SX[dir], TIMETABLES.dec.SX[dir], crs, dir, { change: CHANGE_DATE });
+            const rows = (/** @type {import('../trains-weekdays.js').Weekday} */ w, /** @type {string} */ at) => (v.trains ?? [])
+                .filter(t => runsOn(t.days, w) && (t.nowAt === at || t.decAt === at))
+                .map(t => `${t.nowAt ?? '—'}>${t.decAt ?? '—'} ${changeLabel(t, STATIONS, dir, { withTime: false, here: crs })}`);
+            return { v, rows, html: renderStation(v, { stations: STATIONS, dir, showTrains: true, allTrains: true, started: false }) };
+        };
+        const prr = card('arr', 'PRR');
+        assert.deepEqual(prr.rows('Tue', '07:21'), ['07:21>07:13 8 mins earlier'], 'premise: the Tuesday-to-Thursday version');
+        assert.deepEqual(prr.rows('Mon', '07:21'), ['07:21>07:13 8 mins earlier, will start here']);
+        assert.deepEqual(prr.rows('Mon', '07:13'), prr.rows('Mon', '07:21'), 'December\'s 07:13 is on that one row on a Monday, never a new one');
+        assert.deepEqual(prr.rows('Fri', '07:21'), prr.rows('Mon', '07:21'));
+        // Read through the card itself: one row for the Monday-and-Friday train, and no new 07:13 under its days.
+        assert.doesNotMatch(prr.html, /<td>07:13<span class="tr-days">Mon and Fri only<\/span>/);
+        assert.match(prr.html, /<td>07:21<span class="tr-days">Mon and Fri only<\/span>.*?<\/td><td>07:13.*?8 mins earlier, will start here/);
+        // High Wycombe, leaving: the Monday-and-Friday 17:45 to Oxford calls there; Tuesday to Thursday the 17:37 to
+        // Princes Risborough does. December's 17:41 to Princes Risborough runs every weekday.
+        const hwy = card('dep', 'HWY');
+        assert.deepEqual(hwy.rows('Tue', '17:41'), ['17:37>17:41 4 mins later']);
+        assert.deepEqual(hwy.rows('Mon', '17:41'), ['17:45>17:41 4 mins earlier, will run to Princes Risborough']);
+        assert.deepEqual(hwy.rows('Mon', '17:45'), hwy.rows('Mon', '17:41'));
+        // Saunderton, leaving: neither of today's 17:45s to Oxford is carried on by a train that stopped THERE —
+        // the 17:37 to Princes Risborough runs through — so nothing ties them to December's 17:41, which stays a
+        // train that now stops there, every weekday.
+        const sdr = card('dep', 'SDR');
+        assert.deepEqual(['Mon', 'Tue'].map(w => sdr.rows(/** @type {any} */ (w), '17:41')), [['—>17:41 Will stop here'], ['—>17:41 Will stop here']]);
+        // The sentence is a Tuesday's count, which the fold does not touch.
+        assert.equal(prr.v.verdict.text, '2 more trains a day: 40, was 38.');
+    });
+
+    test('a slot is folded across routes only on the books\' own evidence: the opposite weekday version, here, within the bar', () => {
+        // Hand-made, leaving Marylebone, read at High Wycombe — the real 17:37 / 17:45 pattern.
+        const prrTrain = (days = 'MFX') => row('17:37', 'PRR', '', days, 'HWY1807 PRR1818');
+        const oxfMF = (days = 'MFO') => row('17:45', 'OXF', '', days, 'HWY1813 PRR1826 OXF1906');
+        const oxfTT = row('17:45', 'OXF', '', 'MFX', 'PRR1826 OXF1906');
+        const dec = (prr = '17:41', stops = 'HWY1809 PRR1822') => [row(prr, 'PRR', '', '', stops), row('17:45', 'OXF', '', '', 'PRR1826 OXF1907')];
+        const words = (/** @type {any[]} */ ts) => ts.map(t => `${t.nowAt ?? '—'}>${t.decAt ?? '—'} ${changeLabel(t, STATIONS, 'dep', { withTime: false })}${t.days ? ` (${daysLabel(t.days)})` : ''}`);
+        // The two versions: one row each, the Monday-and-Friday one retimed onto its partner's December train.
+        assert.deepEqual(words(stationTrains([prrTrain(), oxfMF(), oxfTT], dec(), 'HWY', 'dep')),
+            ['17:37>17:41 4 mins later (Tue to Thu only)', '17:45>17:41 4 mins earlier, will run to Princes Risborough (Mon and Fri only)']);
+        // Time alone is not evidence: a train calling here every day that stops calling is not a weekday version.
+        assert.deepEqual(words(stationTrains([prrTrain(), oxfMF('')], dec(), 'HWY', 'dep')),
+            ['17:37>17:41 4 mins later (Tue to Thu only)', '—>17:41 New train (Mon and Fri only)', '17:45>— Will no longer stop here']);
+        // Only the OPPOSITE version is evidence: a Wednesdays-only train and a Mondays-and-Fridays one are not one slot.
+        assert.deepEqual(words(stationTrains([prrTrain('WO'), oxfMF(), oxfTT], dec(), 'HWY', 'dep')),
+            ['17:37>17:41 4 mins later (Wed only)', '—>17:41 New train (Mon, Tue, Thu and Fri only)', '17:45>— Will no longer stop here (Mon and Fri only)']);
+        // A December train already on a Monday-and-Friday row here is not given a second one.
+        assert.deepEqual(words(stationTrains([prrTrain(), row('17:39', 'PRR', '', 'MFO', 'HWY1809 PRR1820'), oxfMF(), oxfTT], dec(), 'HWY', 'dep')),
+            ['17:37>17:41 4 mins later (Tue to Thu only)', '17:39>17:41 2 mins later (Mon and Fri only)', '17:45>— Will no longer stop here (Mon and Fri only)']);
+        // Never across Aylesbury's two routes, as `uncross` never swaps them: a via-Wycombe train that stops running is
+        // not the via-Amersham one's Monday-and-Friday version, however the minutes fall.
+        assert.deepEqual(words(stationTrains([row('17:37', 'AYS', 'A', 'MFX', 'AMR1815 AYS1838'), row('17:45', 'AYS', 'H', 'MFO', 'HWY1813 AYS1840')],
+            [row('17:41', 'AYS', 'A', '', 'AMR1819 AYS1842')], 'AYS', 'dep')),
+            ['17:37>17:41 4 mins later (Tue to Thu only)', '—>17:41 New train (Mon and Fri only)', '17:45>— Will stop running (Mon and Fri only)']);
+        // Only a train that stops calling here is re-paired: one whose December train still calls here keeps it.
+        const keeps = words(stationTrains([prrTrain(), oxfMF()], [dec()[0], row('17:47', 'OXF', '', '', 'HWY1815 PRR1828 OXF1908')], 'HWY', 'dep'));
+        assert.ok(keeps.includes('17:45>17:47 2 mins later (Mon and Fri only)') && keeps.includes('—>17:41 New train (Mon and Fri only)'), keeps.join(' | '));
+        // Past MAX_SHIFT_MIN at the station, the slot is not the same: 17:45 and 17:21 are 24 minutes apart.
+        assert.deepEqual(words(stationTrains([prrTrain(), oxfMF(), oxfTT], dec('17:21', 'HWY1749 PRR1802'), 'HWY', 'dep')),
+            ['—>17:21 New train (Mon and Fri only)', '17:37>17:21 16 mins earlier (Tue to Thu only)', '17:45>— Will no longer stop here (Mon and Fri only)']);
+    });
+
     test('two pairings cross only on a day both trains run, and a swap says what the train now is', () => {
         // Hand-made, leaving Marylebone: today's 10:00 to Oxford and 10:05 to High Wycombe both call at Gerrards
         // Cross; December's Oxford train is ten minutes later and its Wycombe one seven minutes earlier.
@@ -1662,6 +1728,23 @@ describe('the lookup and the cards as the words review read them (Nov 2026)', ()
         // And nothing is added where neither timetable has a train then, or where one leaves at that time.
         assert.match(look('SX', '10:38'), /No weekday train leaves at exactly 10:38 in the current timetable\.<\/p>/);
         assert.doesNotMatch(look('SX', '16:37'), /No weekday train|is a new train/);
+    });
+
+    // Review of v26.60: after the change, the 17:41 to Princes Risborough was described by its Tuesday-to-Thursday
+    // history alone, where the station cards list it as new on a Monday and Friday.
+    test('a December train that was today\'s on only some weekdays says it is new on the others', () => {
+        assert.match(look('SX', '17:41', true), /<strong>The 17:41 to Princes Risborough:<\/strong> Until 12 December it left at 17:37 on Tuesday to Thursday\.[^<]* On Mondays and Fridays it is a new train\.<\/p>/);
+        // Both versions became it: nothing is new on any weekday, and the sentence is not said.
+        assert.doesNotMatch(look('SX', '17:33', true), /is a new train/);
+        assert.match(look('SX', '17:33', true), /Until 12 December it left at 17:37 on Mondays and Fridays\./);
+        // Before the change, the same December train named by the time it will leave (hand-made: the books have an
+        // Aylesbury train at 17:41 today, so the real 17:41 is answered by that one).
+        const now = [row('17:37', 'PRR', '', 'MFX', 'HWY1807 PRR1818')], dec = [row('17:41', 'PRR', '', '', 'HWY1809 PRR1822')];
+        assert.match(look('SX', '17:41', false, now, dec),
+            /From 13 December the 17:37 to Princes Risborough \(Tue to Thu only\) leaves at 17:41 instead\. On Mondays and Fridays the 17:41 is a new train\.<\/p>/);
+        const both = [...now, row('17:39', 'PRR', '', 'MFO', 'HWY1809 PRR1820')];
+        assert.doesNotMatch(look('SX', '17:41', false, both, dec), /is a new train/);
+        assert.doesNotMatch(look('SX', '17:41', true, both, dec), /is a new train/);
     });
 
     // The days a train runs, in the cards' words: the lookup typed its own, "Tuesdays to Thursdays".

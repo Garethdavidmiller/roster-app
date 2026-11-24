@@ -2446,6 +2446,69 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
     expect(errors, 'Uncaught JS exceptions on the Year to Date anchor').toHaveLength(0);
 });
 
+// ── LAST YEAR'S TOTALS TYPED IN MARCH ARE NEVER READ AS APRIL'S (24 Nov 2026) ────────────────────
+// Between the March and April paydays the page opens on the new year's first payslip, and a member
+// copying their March payslip's totals types them into the new year's card. From 21 Nov 2026 nothing
+// was recorded for them while that payslip could not be in hand — but the first load after its
+// cut-off filed them against it, so the 8 May payslip was priced cumulatively on last year's totals.
+// On a K code, which the under-the-code check leaves alone, that was about £1,650 of tax where £770.40
+// was right (review, 24 Nov 2026). The rule is ytdSourceToStamp (paycalc-periods.test.mjs); this pins
+// the whole path — typed on one day, loaded on a later one — to the rendered £: exactly the take-home
+// with no Year to Date figures at all. Figures invented.
+test('paycalc: Year to Date figures typed before the year\'s first payslip is in hand never reach a later payslip\'s £', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-03-20T10:00:00Z'));   // the 10 Apr 2026 payslip (p50) is not yet issued
+    await seedSession(page, LONG_SERVING);
+    await page.addInitScript((pc) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem(`${pc}grade`, 'cea');
+        localStorage.setItem(`${pc}setup`, '1');
+        localStorage.setItem(`${pc}code`, 'K100');
+    }, LONG_SERVING_PC);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('50');
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+    await page.fill('#ytdPay', '42000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '7400');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect.poll(() => page.evaluate(k => localStorage.getItem(k), `${LONG_SERVING_PC}ytd_tax_2026_27`),
+        'premise: the figures are saved in the new year\'s card').toBe('7400');
+
+    /** The take-home on the 8 May 2026 payslip (p51), loaded on 20 Apr — after p50's cut-off. */
+    const netOnMay8 = async () => {
+        await page.clock.setFixedTime(new Date('2026-04-20T10:00:00Z'));
+        await page.reload();
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await page.locator('#periodSelect').selectOption('51');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await waitForReadsToLand(page);
+        return poundsOf(await page.locator('#netDisplay').textContent());
+    };
+    const withFigures = await netOnMay8();
+    const chip = (await page.locator('#ytdStatusChip').textContent() ?? '').trim();
+    const note = await page.locator('#ytdUptoNote').textContent() ?? '';
+    await page.evaluate((pc) => {
+        localStorage.removeItem(`${pc}ytd_pay_2026_27`);
+        localStorage.removeItem(`${pc}ytd_tax_2026_27`);
+    }, LONG_SERVING_PC);
+    const withoutFigures = await netOnMay8();
+    expect(withFigures, 'March\'s totals must not reach the 8 May payslip\'s take-home').toBe(withoutFigures);
+    expect(chip, 'nor is the card to call them in use').not.toBe('✓ in use');
+    expect(note, 'nor to say they are from the 10 Apr payslip').not.toContain('10 Apr');
+
+    // Figures typed in NOW, with the 10 Apr payslip in hand, are a first entry again and are filed
+    // against it — the marker holds back only the load, never the member.
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+    await page.fill('#ytdPay', '3000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await expect.poll(() => page.evaluate(k => localStorage.getItem(k), `${LONG_SERVING_PC}ytd_src_2026_27`),
+        'typed on 20 Apr, the figures are from the 10 Apr payslip').toBe('50');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // ── AN OVER-COLLECTED YEAR IS SAID, NOT HIDDEN BEHIND £0 (72-hour review) ────────────────────────
 // computeTax reports the over-collection it clamps to £0; this pins calculate() handing it to the
 // summary — the wiring a unit test of either half cannot see.

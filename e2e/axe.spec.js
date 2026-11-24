@@ -87,6 +87,17 @@ async function scan(page, { pageWaivers = [], exclude = [] } = {}) {
     // gives 8.2:1 — while Chromium, faster, scanned the settled page. Nobody reads that frame; the
     // scan's job is the page a reader is left with. CSS TRANSITIONS only, never every animation: an
     // infinite one (a spinner) would never finish, and a bounded wait would still be a wait on it.
+    // …AND A LIGHTBOX'S FADE HAS TO HAVE STARTED BEFORE IT CAN BE WAITED FOR (24 Nov 2026). `createLightbox`
+    // shows an overlay at opacity 0 (`.visible`) and starts its fade on the NEXT frame (`.open`, overlay.js),
+    // so a test that waits for something inside it to be "visible" — opacity 0 counts — can reach this line
+    // before that frame has run: no transition exists yet, the wait below passes at once, and axe measures
+    // a panel part-way up from transparent. WebKit in CI did exactly that to the About panel on the paused
+    // Overtime page (the badge and the update line "failed" contrast, twice in one job, on code that had
+    // passed an hour before); a requestAnimationFrame slowed in a probe reproduced the same race. So every
+    // overlay that is up must be OPEN first; then its fade is a CSS transition the next step waits out. A
+    // closing overlay (`.visible` without `.open`) never satisfies it, so the wait is bounded and runs on.
+    await page.waitForFunction(() => [...document.querySelectorAll('.lb-overlay.visible')]
+        .every(o => o.classList.contains('open')), null, { timeout: 3_000 }).catch(() => {});
     await page.evaluate(() => Promise.race([
         Promise.all(document.getAnimations()
             .filter(a => typeof CSSTransition !== 'undefined' && a instanceof CSSTransition)

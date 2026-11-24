@@ -502,7 +502,7 @@ describe('the staff PIN lockout rides on the audit, and unknown is never "none"'
     test('a block running now: a line on the card, a count for the strip', async () => {
         const { gaps, reported } = await wire({ ...CLEAN, pinLockout: running });
         assert.match(gaps.textContent, /The staff PIN is blocked for everyone until \d{2}:\d{2}/);
-        assert.match(gaps.textContent, /members can still sign in with their password/);
+        assert.match(gaps.textContent, /nobody needs it — members sign in with their own password/);
         assert.match(gaps.textContent, /Everyone on the roster has a login/, 'the audit\'s own answer still shows');
         assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: 1 }]);
     });

@@ -4013,7 +4013,7 @@ test('operations: a staff PIN blocked for everyone reaches the strip and Staff L
     await expect(page.locator('#authSetupBody')).toHaveClass(/open/);
     const line = page.locator('#authSetupGaps .auth-gap-line--pin');
     await expect(line).toContainText(/The staff PIN is blocked for everyone until \d{2}:\d{2}/);
-    await expect(line).toContainText('members can still sign in with their password');
+    await expect(line).toContainText('nobody needs it — members sign in with their own password');
     await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
 });
 

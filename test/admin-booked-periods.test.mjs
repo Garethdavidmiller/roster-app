@@ -637,6 +637,29 @@ describe('after a delete from the keyboard, focus is handed on — never dropped
         assert.equal(x.textContent, '✕', 'and it is idle again');
     });
 
+    // THE OVER-ALLOWANCE QUESTION (external review of v26.58): a delete that asks hands focus to the bar, so the list
+    // must not take it back; and "Save anyway" runs the delete again through this control, with the first tap's view.
+    it('a delete that asked leaves focus where the question put it, and its answer runs again here', async () => {
+        /** @type {any[]} */ const asks = [];
+        /** @type {any} */ const del = renderList({ entries: THREE.map(d => leaveOn(d)), counted: THREE,
+            onDelete: (/** @type {any[]} */ ...a) => {
+                const ask = a[7];
+                if (!ask.atPress) { asks.push(ask); _focusDoc.activeElement = 'the bar'; return 'asked'; }
+                return landing(del)(...a);
+            } });
+        del.xs()[1].focus();
+        twoTaps(del.xs()[1]);
+        await settled();
+        assert.equal(_focusDoc.activeElement, 'the bar', 'the list took focus back from the question');
+        assert.equal(del.xs()[1].textContent, '✕', 'and the control is idle under it');
+        assert.equal(typeof asks[0]?.resume, 'function', 'premise: the control handed over a way to run it again');
+        asks[0].resume({ shown: ['as at the tap'] });
+        await settled();
+        assert.deepEqual(del.calls.at(-1)[7].atPress, { shown: ['as at the tap'] }, 'the answer carries the first tap\'s view');
+        assert.equal(del.xs().length, 2, 'and the delete ran');
+        assert.equal(_focusDoc.activeElement, del.xs()[1], 'focus follows it, as "Save anyway" had it');
+    });
+
     it('a mouse delete moves nothing', async () => {
         /** @type {any} */ const del = renderList({ entries: THREE.map(d => leaveOn(d)), counted: THREE, onDelete: (/** @type {any[]} */ ...a) => landing(del)(...a) });
         _focusDoc.activeElement = null;

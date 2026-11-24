@@ -82,7 +82,7 @@
  * changes which person and which day, never whether the journey runs.
  */
 import { readFileSync } from 'node:fs';
-import { test, expect, expectNothingLeftForGoogle, wireToEmulators } from './signed-in-fixtures.js';
+import { test, expect, expectNothingLeftForGoogle, wireToEmulators, SDK_VERSION } from './signed-in-fixtures.js';
 import { resetDatabase, readCollection, seedDocument, EMULATOR } from './signed-in-env.mjs';
 import { resetPasswords, disableAccount } from './signed-in-setup.mjs';
 import { signInThroughOverlay, sheetAction, clickDialogConfirm, activeDesignName, pastDoubleTap } from './helpers.js';
@@ -595,16 +595,17 @@ test('a leftover staff-PIN session: the real teardown signs it out of the SDK, t
     // persistence, then the custom token. The client no longer has a way to do this, so the test does.
     await page.goto(`/?date=${day}`);
     await expect(page.locator('#calendarLock #loginCard'), 'the front door, before any PIN session').toBeVisible();
-    const claims = await page.evaluate(async (code) => {
+    const claims = await page.evaluate(async ({ code, version }) => {
         const res = await fetch('https://europe-west2-myb-roster.cloudfunctions.net/unlockCalendarViewer', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin: code }), cache: 'no-store' });
         const { token } = await res.json();
         const { auth } = await import('/firebase-client.js');
-        const sdk = await import('https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js');
+        // The SDK folder the page itself loads (the fixture's SDK_VERSION), never a written-down number.
+        const sdk = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`);
         await sdk.setPersistence(auth, sdk.browserSessionPersistence);
         const cred = await sdk.signInWithCustomToken(auth, token);
         return (await cred.user.getIdTokenResult()).claims;
-    }, pin);
+    }, { code: pin, version: SDK_VERSION });
     expect(claims.calendarViewer, 'premise: the browser holds a real staff-PIN session').toBe(true);
     expect(await sdkHolds(page), 'premise: the SDK holds it').toBe('(no email)');
 

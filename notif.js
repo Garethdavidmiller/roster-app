@@ -10,7 +10,7 @@
  *   notifSupported()        → boolean — push usable on this device/browser
  *   getNotifState()         → Promise<state> — reads state AND runs VAPID-rotation/persist side effects
  *   peekNotifState()        → Promise<state> — this browser's view only, no side effects (for frequent UI reads)
- *   enableNotifications()   → Promise<state> — requests permission if needed, subscribes
+ *   enableNotifications({beforeSubscribe}?) → Promise<state> — requests permission at once (inside the tap), subscribes
  *   disableNotifications()  → Promise<state> — unsubscribes, removes server record
  *   notifOffByChoice()      → boolean — the member switched them off on this device (not a lapse)
  *   releaseDevicePush(ms?)  → Promise<void> — on SIGN-OUT: drop this device's server record
@@ -306,9 +306,22 @@ export async function peekNotifState() {
 /**
  * Turn notifications on. Requests browser permission when it has not been asked,
  * then subscribes. A no-op resulting in 'denied' if the user blocks the prompt.
+ *
+ * THE PERMISSION REQUEST IS MADE BEFORE ANYTHING IS AWAITED. Call this straight from the tap's
+ * handler, with no `await` before it: iPhone Safari (and Firefox) honour `requestPermission()` only
+ * while the tap's user activation lasts, and an await in front of it can outlive that, so the prompt
+ * never shows. A caller that must wait for something before the record is SAVED — Settings waits for
+ * its session, because `savePushSubscription` names the record's owner from the account signed in at
+ * that moment — passes it as `beforeSubscribe`: it is awaited only after permission is granted.
+ *
+ * @param {object} [opts]
+ * @param {() => Promise<unknown>} [opts.beforeSubscribe] awaited after permission is granted and
+ *   before the subscription is made and saved. A rejection is ignored, as the card's wait always was.
  * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
  */
-export async function enableNotifications() { return _announce(await _enableNotifications()); }
+export async function enableNotifications({ beforeSubscribe } = {}) {
+    return _announce(await _enableNotifications(beforeSubscribe));
+}
 
 /**
  * Tell every other notification control on the page what the setting is now (whole-app review, Oct
@@ -324,10 +337,14 @@ function _announce(state) {
     return state;
 }
 
-/** @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>} */
-async function _enableNotifications() {
+/**
+ * @param {(() => Promise<unknown>)} [beforeSubscribe] see `enableNotifications`
+ * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
+ */
+async function _enableNotifications(beforeSubscribe) {
     if (!notifSupported()) return 'unsupported';
     try {
+        // Synchronous up to here: the request below is still inside the caller's tap (see above).
         const perm = Notification.permission === 'granted'
             ? 'granted'
             : await Notification.requestPermission();
@@ -335,6 +352,7 @@ async function _enableNotifications() {
             lsSet(PROMPT_DISMISSED, '1');
             return perm === 'denied' ? 'denied' : 'off-default';
         }
+        if (beforeSubscribe) await Promise.resolve().then(beforeSubscribe).catch(() => undefined);
         await subscribe();
         return 'on';
     } catch (err) {

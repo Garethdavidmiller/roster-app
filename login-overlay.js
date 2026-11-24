@@ -40,7 +40,7 @@ import { saveSession, clearSession, getSession, ensureNamedSession, isTransientA
 import { isCredentialRejection } from './auth-identity.js';
 // The card's DOM-free rules — the sign-in core, which links its explanation may carry, and what a failed
 // reset request says — are login-core.js's, re-exported so every caller and test keeps importing them here.
-import { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine, signInAboutFor } from './login-core.js';
+import { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine, signInAboutFor, holdPasswordMarker, releasePasswordMarker } from './login-core.js';
 export { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine };
 // Already loaded wherever this card is: session.js imports it. The words are its own, shared with a
 // page that has no card (paused Overtime, which imports `sayStaffPinEndedIn` from here).
@@ -714,11 +714,11 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         // is removed (`dismissLoginOverlay`), and a re-show builds a new one.
         resetResetRequest();
         // One-shot "a real sign-in just happened" marker for the forced set-password overlay
-        // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written HERE — the one place every
+        // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written in this card — the one place every
         // protected page's sign-in passes through — rather than in each coordinator's onSuccess,
         // so the five pages can't drift on it. Consumed by initPasswordForce on the authorised
         // path (both the reload and the in-place branch run it). Deliberately set BEFORE
-        // onSuccess, which on the reload path never returns.
+        // onSuccess, which on the reload path never returns — and held since the attempt began (`holdPasswordMarker`).
         lsSet(PW_FORCE_PENDING_PREFIX + name, '1');
         // Confirm success before the (usually slow) reload kicks in, so there is no silent
         // "did it work?" gap between the click and the destination page appearing.
@@ -745,10 +745,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
      * the card is still up, for them, with nothing else in flight, it opens the page — the saved session the
      * failure kept is confirmed (external review, 23 Nov 2026). Committed through `runNamedSignIn` with the
      * answer already in hand, so the local session is written by the one path that writes it.
+     * A newer attempt of theirs that FAILED does not withdraw it: it was their own correct password, and
+     * Firebase holds that account whatever this card does (login-core.js → "A LATE ANSWER AFTER A NEWER
+     * ATTEMPT"). The set-password marker's hold is released first, whatever the card then does.
      * @param {string} name @param {string} typedPw @param {Promise<boolean>} late
      */
     function awaitLateSignIn(name, typedPw, late) {
-        late.then(async (named) => {
+        late.then((named) => { releasePasswordMarker(name, named); return named; }).then(async (named) => {
             if (!named || !overlay.isConnected || _attempting || nameSelect.value !== name) return;
             const r = await runNamedSignIn({ ...signInDeps(name, typedPw), ensureNamedSession: async () => true });
             if (!r.ok) { showError(/** @type {string} */ (r.error)); return; }
@@ -797,7 +800,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
             // class; see runNamedSignIn / ROADMAP_HISTORY.md). On failure we restore the button and
             // show the message it returns; on success we hand off to onSuccess (reload/navigate).
-            const _result = await runNamedSignIn(signInDeps(name, typedPw));
+            holdPasswordMarker(name);   // before Firebase can announce anybody (login-core.js says why)
+            const _result = await runNamedSignIn(signInDeps(name, typedPw)).catch((e) => { releasePasswordMarker(name, false); throw e; });
+            if (_result.ok || !_result.late) releasePasswordMarker(name, _result.ok);   // a late answer releases its own
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time

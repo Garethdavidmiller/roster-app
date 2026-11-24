@@ -223,8 +223,10 @@ export function trackHiddenTime({ isHidden = _pageHidden, subscribe = _onVisibil
  * first thing a checked save does, synchronously, while its promise is being built — BEFORE it is
  * handed to withSlowSaveNotice — so a start-based match would miss the very wait it is for. THE
  * PRICE: when two saves overlap, each hears the other's wait too, so the reported wait can be the
- * OTHER save's, and `count` is the number of waits heard in the span — not a number of saves. The
- * summary is a diagnostic; read a count above one as "another save overlapped".
+ * OTHER save's, and `count` is the number of waits heard in the span — not a number of saves. Nothing
+ * here can tell whose a wait was, so `withSlowSaveNotice` SAYS when the span overlapped another save
+ * (`overlapped: true`, v26.60 review, D-L4): until then a lone wait heard by a save that never waited
+ * itself read as that save's own, with nothing to say otherwise.
  *
  * THE SUMMARY: a wait that RAN OUT wins (the longest of them), because it alone puts eight seconds
  * into a save; otherwise the longest. `count` is how many ended in the span. `null` when none did —
@@ -300,6 +302,8 @@ function _render() {
 
 /** Writes handed to withSlowSaveNotice and not yet settled, slow or not. */
 let _inFlight = 0;
+/** The span of each of those writes, so one can be marked as overlapped by another. @type {Set<{ overlapped: boolean }>} */
+const _spans = new Set();
 /** A number per save, so a listener can pair the two announcements of one save. */
 let _saveSeq = 0;
 
@@ -358,13 +362,24 @@ function _hide(batched, held) {
  * @returns {Promise<T>}
  */
 export function withSlowSaveNotice(promise, { batched = false, held = true } = {}) {
+    // Did another save share any part of this one's span? Then the own-saves wait it heard may be
+    // that save's (trackOwnWritesWaits), and its report says so. Marked both ways: this one, if any
+    // was already in flight, and every one in flight, by this one's arrival.
+    const span = { overlapped: _spans.size > 0 };
+    for (const other of _spans) other.overlapped = true;
+    _spans.add(span);
     _inFlight++;
     _render();   // the live region goes into the page now, empty, so its words can be announced later
     // From the START, the span `ms` below covers: a phone usually freezes the app before the slow
     // moment, and it is the overdue timer, on the way back, that raises the notice (v25.87).
     const hidden = trackHiddenTime();
     const ownWrites = trackOwnWritesWaits();   // this save's own-saves wait, which ends inside its span
-    const settle = () => { _inFlight = Math.max(0, _inFlight - 1); _render(); hidden.stop(); ownWrites.stop(); };
+    const settle = () => { _spans.delete(span); _inFlight = Math.max(0, _inFlight - 1); _render(); hidden.stop(); ownWrites.stop(); };
+    /** This save's own-saves summary, marked when another save overlapped it. */
+    const ownWritesSummary = () => {
+        const w = ownWrites.stop();
+        return w && span.overlapped ? { ...w, overlapped: true } : w;
+    };
     promise.then(settle, settle);   // observe only — the caller still sees the result or error
     // `window.__E2E?.slowSaveMs` is a TEST SEAM, the same shape as text-scale.js's: the e2e holds a
     // commit open and would otherwise sit through eight real seconds to see the notice. Nothing in
@@ -389,7 +404,7 @@ export function withSlowSaveNotice(promise, { batched = false, held = true } = {
             _hide(batched, held);
             try {
                 globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, {
-                    detail: { phase: 'done', id, ms: Date.now() - started, hiddenMs: hidden.stop(), ownWrites: ownWrites.stop(), onlineWhenSlow, batched, ok },
+                    detail: { phase: 'done', id, ms: Date.now() - started, hiddenMs: hidden.stop(), ownWrites: ownWritesSummary(), onlineWhenSlow, batched, ok },
                 }));
             } catch { /* a diagnostic must never disturb the save it describes */ }
         },

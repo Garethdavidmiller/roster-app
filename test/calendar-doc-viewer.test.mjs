@@ -751,3 +751,37 @@ describe('a Newsletter read here is kept for the ☰ menu', () => {
         assert.deepEqual(_recorded, [], 'a read that could not answer said something about the newsletter');
     });
 });
+
+// ── D-L1 (v26.60 review): A COPY THIS DEVICE COULD NOT CHECK IS LABELLED ─────────────────────────────
+// Offline, the read answers from this device's cache, and an older issue came back as the latest with
+// nothing to say so. documents-client.js marks such an answer `fromCache`; the viewer says so in the
+// Huddle viewer's words, and still offers the file.
+describe('a Circular or Newsletter answered by this device\'s cache alone is labelled a saved copy', () => {
+    const SAVED = /Saved copy — couldn’t check for changes/;
+    const row = { storageUrl: 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/circulars%2Fx.pdf?token=perm', date: '2026-11-13', fileType: 'pdf' };
+
+    for (const [hash, label] of [['#circular', 'Weekly Retail Circular'], ['#newsletter', 'Marylebone Newsletter']]) {
+        test(`${hash}: the saved copy is named, and still opens`, async () => {
+            _circularImpl = _newsletterImpl = () => Promise.resolve({ ...row, fromCache: true });
+            global.window.location.hash = hash;
+            initDocViewer({ authReady: Promise.resolve() });
+            await flush(20);
+            assert.match(bodyText(), SAVED, 'an issue this device could not check was shown as the latest');
+            assert.match(bodyText(), new RegExp(`Open ${label}`), 'the saved copy can still be opened');
+        });
+    }
+
+    test('the server\'s answer carries no label — and a later open of one clears an earlier one', async () => {
+        _circularImpl = () => Promise.resolve({ ...row, fromCache: true });
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush(20);
+        assert.match(bodyText(), SAVED, 'premise');
+        _circularImpl = () => Promise.resolve({ ...row, fromCache: false });
+        global.window.location.hash = '#circular';
+        (_winListeners.hashchange ?? []).forEach(fn => fn());
+        await flush(20);
+        assert.doesNotMatch(bodyText(), SAVED, 'a document the server has just answered with was labelled a saved copy');
+        assert.match(bodyText(), /Open Weekly Retail Circular/);
+    });
+});

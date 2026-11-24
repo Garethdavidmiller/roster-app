@@ -31,11 +31,14 @@
  * card runs `getNotifState()` ONCE: it re-saves the `pushSubscriptions` record at once when the
  * account it was saved under differs (or is unknown), and at most once a day otherwise.
  *
- * ── ENABLE WAITS FOR THE SESSION, AND NEVER FOR EVER ON THE BROWSER ──────────────────────────────
+ * ── ENABLE ASKS AT ONCE, SAVES AFTER THE SESSION, AND NEVER WAITS FOR EVER ON THE BROWSER ──────────
  *
  * `savePushSubscription` names the record's owner from the signed-in account AT THAT MOMENT, so a tap
- * before the session was ready saved a record with no owner, or none at all. Enable awaits
- * `sessionReady` first. And `Notification.requestPermission()` may never settle — Chrome's quiet
+ * before the session was ready saved a record with no owner, or none at all. So the subscribe waits
+ * for `sessionReady` — but the PERMISSION REQUEST does not: iPhone Safari (and Firefox) show the
+ * prompt only while the tap's user activation lasts, and v26.53's wait in front of the request could
+ * outlive it, so a tap during the sign-in on opening Settings got no prompt. The handler calls
+ * `enableNotifications` before it awaits anything, and passes the wait as its `beforeSubscribe`. And `Notification.requestPermission()` may never settle — Chrome's quiet
  * prompt is a small icon a member can miss — so after `askLimitMs` with the question still unanswered
  * the button comes back with a line saying the browser is still asking. Only the ASK is bounded here:
  * once permission is answered, the subscribe and its save have their own limits (notif.js).
@@ -60,8 +63,8 @@ const ASK_LIMIT_MS = 15_000;
  *   only to stop the chip being coloured by its state (v25.14): an `ok` "Off" the member chose.
  * @param {boolean} [opts.payReminders] whether THIS member is sent the pay reminder — only CEA and CES
  *   are (`PAY_REMINDER_GRADES`, functions/pay-reminder.js); without it the card names the rest alone.
- * @param {Promise<boolean>} [opts.sessionReady] the page's `sessionReady` (session.js): Enable waits for
- *   it, and the once-per-open re-registration runs when it resolves true.
+ * @param {Promise<boolean>} [opts.sessionReady] the page's `sessionReady` (session.js): Enable's subscribe
+ *   waits for it (the permission request does not), and the once-per-open re-registration runs when it resolves true.
  * @param {number} [opts.askLimitMs] how long Enable waits on an unanswered permission question.
  * @param {() => Date} [opts.now] the clock the timetable item is listed by.
  * @returns {{ setOpen(open: boolean): void }} the card's collapse handle, so a caller can open it once
@@ -152,6 +155,8 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
 
     let _gen = 0;          // the newest read started; an older one that lands later is not painted
     let _busy = false;     // a button's action is in flight — it repaints when it ends
+    /** the enable in flight, which a second tap waits on rather than repeating @type {{ settled: boolean, result: Promise<string> }|null} */
+    let _enabling = null;
     /** @param {() => Promise<any>} [read] */
     async function refresh(read = peekNotifState) {
         const gen = ++_gen;
@@ -176,19 +181,28 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
         _busy = true;
         _enableBtn.disabled = true;
         _enableBtn.textContent = 'Enabling…';
-        // The record's owner is the account signed in when it is saved — see the header.
-        await Promise.resolve(sessionReady).catch(() => false);
-        let settled = false;
-        const run = enableNotifications()
-            .catch(err => { console.warn('[Notifications] Enable failed:', err); return 'off-lapsed'; })
-            .finally(() => { settled = true; });
+        // NOTHING IS AWAITED BEFORE THIS CALL: it asks for permission at once, inside the tap, which
+        // iPhone Safari requires. The record's owner is the account signed in when it is SAVED, so the
+        // session is awaited after the answer, before the subscribe — see the header.
+        // ONE ENABLE AT A TIME: past the ask limit the button comes back while the first enable is
+        // still running, and a second tap used to start another — a second permission request, and
+        // possibly a second subscribe and save. A tap then waits on the one in flight instead.
+        if (!_enabling) {
+            const enabling = { settled: false, result: Promise.resolve(/** @type {string} */ ('off-lapsed')) };
+            enabling.result = enableNotifications({ beforeSubscribe: () => Promise.resolve(sessionReady) })
+                .catch(err => { console.warn('[Notifications] Enable failed:', err); return 'off-lapsed'; })
+                .finally(() => { enabling.settled = true; if (_enabling === enabling) _enabling = null; });
+            _enabling = enabling;
+        }
+        const enabling = _enabling;
+        const run = enabling.result;
         const timer = setTimeout(() => {
             // Bounded on the ASK alone: past it, the subscribe's own limits apply (notif.js). The
             // button comes back; should the question be answered later, the enable still finishes
             // and repaints the card below.
-            if (settled || Notification.permission !== 'default') return;
+            if (enabling.settled || Notification.permission !== 'default') return;
             _busy = false;
-            safeRefresh().then(() => { if (!settled) _statusMsg.textContent = STILL_ASKING_LINE; });
+            safeRefresh().then(() => { if (!enabling.settled) _statusMsg.textContent = STILL_ASKING_LINE; });
         }, askLimitMs);
         const result = await run;
         clearTimeout(timer);

@@ -18,7 +18,7 @@
 
 import { lsGet, lsSet } from './ls.js';
 import { ytdSrcKey } from './paycalc-migrations.js';
-import { buildYtdSourceSelect, ytdSourceToStamp, ytdAnchorStatus, _setSelectPeriod } from './paycalc-periods.js';
+import { buildYtdSourceSelect, ytdSourceToStamp, ytdAnchorStatus, _setSelectPeriod, YTD_SRC_EARLY } from './paycalc-periods.js';
 
 /** True when either Year to Date box holds text — the one guard the anchor stamp, the note and the
  *  header chip all branch on. @returns {boolean} */
@@ -31,16 +31,21 @@ export function ytdHasFigures() {
  * Refresh the card's source anchor for the viewed tax year: rebuild the "From which payslip?"
  * select, record a source for figures that never had one (`ytdSourceToStamp`) and select the stored
  * source. Its note and chip follow in the calculate() that every caller runs next.
- * @param {any} ty
+ *
+ * `typed` is the member typing figures in now: over `YTD_SRC_EARLY` that is a first entry again, so
+ * the stamp decides afresh. A LOAD never does — filing figures typed before any payslip of the year
+ * could be in hand against the first one that can is the defect the marker exists to stop.
+ * @param {any} ty @param {{ typed?: boolean }} [o]
  */
-export function refreshYtdSrc(ty) {
+export function refreshYtdSrc(ty, { typed = false } = {}) {
   const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ytdSrcSelect'));
   if (!sel) return;
   buildYtdSourceSelect(ty);
-  const raw = lsGet(ytdSrcKey(ty));
+  const stored = lsGet(ytdSrcKey(ty));
+  const raw = typed && stored === YTD_SRC_EARLY ? null : stored;
   const stamp = ytdSourceToStamp(raw, ytdHasFigures(), ty);
   if (stamp != null) lsSet(ytdSrcKey(ty), String(stamp));
-  const src = stamp ?? (parseInt(raw ?? '', 10) || 0);
+  const src = parseInt(String(stamp ?? raw ?? ''), 10) || 0;
   if (src) _setSelectPeriod(sel, src);
 }
 

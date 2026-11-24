@@ -37,12 +37,16 @@ describe('readLockout — three states, and unknown is not none', () => {
 });
 
 describe('lockoutWords — what happened, and what the admin can do', () => {
-    test('running: until when, in London time; that passwords still work; what to do if it repeats', () => {
+    // THE PIN IS RETIRED (23 Nov 2026): nothing reads it, so the advice is that nothing needs doing — never to
+    // change it (OPERATIONS_REFERENCE.md → "Until the server release"). The card and the tip say the same.
+    test('running: until when, in London time; that nobody needs the retired PIN; never to change it', async () => {
         const { text, fix } = lockoutWords({ active: true, blockedUntil: NOW + 10 * MIN, lastBlockedAt: NOW - 5 * MIN, blocks: 1 }, NOW);
         assert.equal(text, 'The staff PIN is blocked for everyone until 14:20 — too many wrong entries.');
-        assert.match(fix, /reopens by itself/);
-        assert.match(fix, /sign in with their password/);
-        assert.match(fix, /consider changing the PIN/);
+        assert.equal(fix, 'Nothing to do: it reopens by itself. The staff PIN is retired, so nobody needs it — members sign in with their own password — and there is no need to change it. The next server release removes it.');
+        assert.doesNotMatch(fix, /consider changing/i, 'the card still tells the admin to change a PIN nothing reads');
+        const { CARD_TIPS } = await import('../operations-tips.js');
+        const tip = CARD_TIPS['staff-login'].sections.flatMap((/** @type {any} */ s) => s.items).find((/** @type {any} */ i) => /staff PIN/.test(i.html));
+        assert.ok(tip?.html.endsWith(fix), 'the Staff Login Accounts tip no longer gives the card\'s advice');
     });
 
     test('ended: since when, and how many times', () => {

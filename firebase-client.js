@@ -358,13 +358,12 @@ export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrite
 /** How long the staff PIN's unsent writes get to leave before it is signed out (22 Nov 2026). */
 export const VIEWER_WRITES_GRACE_MS = 2000;
 /**
- * LET THE STAFF PIN'S WRITES GO BEFORE IT IS SIGNED OUT (22 Nov 2026). Each sign-out that ends the
- * PIN for a member awaits this first: End staff PIN (`lockCalendar`, calendar-access.js;
- * `signOutStaffPin`, session.js), a member signing in over it (`shedCalendarViewer`, viewer-shed.js)
- * and the expired-identity reconcile (session.js). Two kinds do NOT: `clearSession()`, and the unlock
- * path's own sign-outs (calendar-access.js) — harmless there: the viewer has ONE fixed account, which
- * either signs straight back in, so the queue is its own again, or has only just signed in and has
- * queued nothing. A viewer write still queued when it was signed out (its page views, speed
+ * LET THE STAFF PIN'S WRITES GO BEFORE IT IS SIGNED OUT (22 Nov 2026). The PIN is retired (23 Nov
+ * 2026), so the sign-outs left are a LEFTOVER viewer session's, and both await this first: a member
+ * signing in over it (`shedCalendarViewer`, viewer-shed.js) and the expired-identity reconcile
+ * (`reconcileExpiredIdentity`, session.js), which is how the Calendar and Trains end one on arrival.
+ * `clearSession()` does not. Until the retirement the PIN's own Lock and sign-out awaited it too, and
+ * its unlock path's sign-outs did not. A viewer write still queued when it was signed out (its page views, speed
  * samples) stays in Firestore's on-device queue until the viewer signs in again — and the SDK's
  * `waitForPendingWrites` for the next member WAITS ON IT (its IndexedDB queue looks up the highest
  * unsent batch, `getHighestUnacknowledgedBatchId`, without bounding it to the signed-in account:

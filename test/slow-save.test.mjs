@@ -441,6 +441,45 @@ test('a slow save reports its own-saves wait — the REAL wait (claim-retry.js o
     }
 });
 
+test('two saves that overlap each say so — the wait one heard may be the other\'s (D-L4)', async () => {
+    // A slow save that never waited, and a checked save started while it was in flight whose wait
+    // ran out: the first hears the second's wait, and nothing could tell it was not its own.
+    const { ownWritesSent } = await import('../claim-retry.js');
+    /** @type {any[]} */ const done = [];
+    const g = /** @type {any} */ (globalThis);
+    const et = new EventTarget();
+    g.addEventListener = et.addEventListener.bind(et);
+    g.removeEventListener = et.removeEventListener.bind(et);
+    g.dispatchEvent = et.dispatchEvent.bind(et);
+    const listener = (/** @type {any} */ e) => { if (e.detail.phase === 'done') done.push(e.detail); };
+    globalThis.addEventListener(SLOW_SAVE_EVENT, listener);
+    const prevDoc = globalThis.document, prevE2E = globalThis.__E2E;
+    globalThis.document = /** @type {any} */ ({ getElementById: () => null, createElement: () => ({ setAttribute() {} }), body: { appendChild() {} } });
+    globalThis.__E2E = { slowSaveMs: 5 };
+    try {
+        const plain = deferred();
+        const first = withSlowSaveNotice(plain.p);
+        const second = withSlowSaveNotice((async () => (await ownWritesSent(() => new Promise(() => {}), 30)) ? 'checked' : 'held')());
+        assert.equal(await second, 'held');
+        plain.resolve(); await first; await tick();
+        assert.equal(done.length, 2);
+        for (const d of done) {
+            assert.equal(d.ownWrites?.outcome, 'ran out', 'premise: each heard the one wait');
+            assert.equal(d.ownWrites?.overlapped, true, 'a save reported a wait as its own while another save shared its span');
+        }
+
+        // Alone again, a save's wait carries no such mark.
+        const alone = withSlowSaveNotice((async () => (await ownWritesSent(() => new Promise(() => {}), 30)) ? 'checked' : 'held')());
+        await alone; await tick();
+        assert.equal(done.length, 3);
+        assert.equal(done[2].ownWrites?.overlapped, undefined, 'a save that ran alone was marked as overlapped');
+    } finally {
+        globalThis.removeEventListener(SLOW_SAVE_EVENT, listener);
+        delete g.addEventListener; delete g.removeEventListener; delete g.dispatchEvent;
+        globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
+    }
+});
+
 test('a QUICK save stops listening for own-saves waits when it settles — no watcher outlives it (24-hour check)', async () => {
     // A save that never went slow has no 'done' to stop its tracker, so `settle` is the only place it
     // stops; without it every quick save left a watcher on claim-retry.js's list, for the life of the page.

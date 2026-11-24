@@ -323,7 +323,7 @@ export function pickBookedYear({ pinned, preferred, years }) {
  *   fmtDate: (iso: string) => string,
  *   fmtRange: (start: string, end: string) => string,
  *   onDelete: (type: string, memberName: string, start: string, end: string, feedbackEl: any, btn: any,
- *              listedCount: number) => (void | Promise<void>),
+ *              listedCount: number, ask: { resume: ((atPress: any) => void), atPress?: any }) => (void | 'asked' | Promise<void | 'asked'>),
  *   onRendered?: (boxId: string) => void,
  * }} deps
  */
@@ -534,21 +534,25 @@ export function createBookedPeriods(deps) {
             // has no name at all.
             btn.textContent = '✕';
             btn.setAttribute('aria-label', `Delete ${what}`);
-            btn.addEventListener('click', () => {
-                if (!twoTap(btn, 'Delete?', '✕')) return;   // arms, or the same gesture's second tap
+            /** One run of the delete: from the confirming tap, or — `atPress` given — from "Save anyway" on the
+             *  over-allowance question it asked (`'asked'`), carrying what was on screen at the tap.
+             *  @param {any} [atPress] */
+            const run = (atPress) => {
                 // FOCUS IS HANDED ON, NOT DROPPED (whole-app check, 10 Nov 2026). A delete that lands
                 // re-renders the list and destroys this control — and a focused element that is
                 // removed hands focus to <body>, so a keyboard user's next Tab began at the burger.
-                const hadFocus = deps.doc.activeElement === btn;
+                // From "Save anyway", which had focus and goes with the bar, focus follows the delete.
+                const hadFocus = !!atPress || deps.doc.activeElement === btn;
                 const pos = [...body.querySelectorAll('.btn-period-delete')].indexOf(btn);
-                // Whatever the delete does — succeeds, is refused, throws — the control comes
+                // Whatever the delete does — succeeds, is refused, throws, asks — the control comes
                 // back to idle. On success the box has already re-rendered and this node is
                 // detached, which is harmless; on every other path it is the node on screen.
-                Promise.resolve(deps.onDelete(type, memberName, start, end, feedbackEl, btn, count))
+                Promise.resolve(deps.onDelete(type, memberName, start, end, feedbackEl, btn, count, { resume: run, atPress }))
                     .catch(() => {})
-                    .finally(() => {
+                    .then((outcome) => {
                         disarmConfirm(btn, '✕');
-                        if (!hadFocus) return;
+                        // It ASKED (the over-allowance bar): focus is the bar's now, and its Cancel hands it back.
+                        if (outcome === 'asked' || !hadFocus) return;
                         // Still here (refused, or failed): back to this ✕. Gone: the ✕ now in its
                         // place, the year chip, or — the list emptied and hid — the line saying why.
                         if (!box.hidden && body.contains(btn)) { btn.focus(); return; }
@@ -557,6 +561,10 @@ export function createBookedPeriods(deps) {
                             ?? (box.hidden ? null : body.querySelector('.al-year-chip.is-active'))
                             ?? deps.doc.getElementById(feedbackId))?.focus();
                     });
+            };
+            btn.addEventListener('click', () => {
+                if (!twoTap(btn, 'Delete?', '✕')) return;   // arms, or the same gesture's second tap
+                run();
             });
             return btn;
         };

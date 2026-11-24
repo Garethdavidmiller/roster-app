@@ -260,9 +260,9 @@ export function initCalendarNotices({ after } = {}) {
         _wireNoticeLink('timetableSoonNoticeGo', lb, markDone);
         document.getElementById('timetableSoonNoticeLater')?.addEventListener('click', () => lb.close());
 
-        // 'members', as the October notice was: whether the station PC should be told too is still the
-        // owner's open question. A PIN unlock is left unflagged, so a signed-in load still gets it, and
-        // so is a device still waiting for the install or New link notice.
+        // 'members', as the October notice was — the only audience since the staff PIN was retired
+        // (23 Nov 2026). A device still waiting for the install or New link notice is left unflagged, so
+        // a later load still gets it.
         _openWhenAudienceAllows(lb, 'members',
             () => finalWeek || ((installNoticeDone || !installRoute())
                 && (newlinkNoticeDone || !canOpenNewlink(getSession()?.name))));
@@ -363,8 +363,8 @@ export function initCalendarNotices({ after } = {}) {
         _wireNoticeLink('installNoticeGo', lb, answered);   // the mirror's link to the main address
         document.getElementById('installNoticeLater')?.addEventListener('click', () => lb.close());
 
-        // 'members' — the station PC is not a person, and nobody should install the staff roster on
-        // it (install-prompt.js says why). A PIN unlock is not flagged seen.
+        // 'members' — the only audience since the staff PIN was retired (23 Nov 2026). A desktop, the
+        // station PC included, is never asked: `installRoute()` is null there (install-prompt.js says why).
         _openWhenAudienceAllows(lb, 'members',
             () => !!installRoute() && (payNoticeDone || !payCalcIsTheirs()),
             () => { decided = installRoute() ?? decided; yieldToInstallNotice(); },

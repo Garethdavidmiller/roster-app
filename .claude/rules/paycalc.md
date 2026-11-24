@@ -197,7 +197,10 @@ each payslip with a day under the new role the result card says why and names th
 (`unpricedLineFor`), the year so far leaves it out and says so, the premium estimate skips it, the
 rough Year to Date premium refuses a figure covering it, and back pay refuses an award whose months
 were all under it (`awardGrade` → null). A grade chosen by hand does not price such a day either. The
-Calendar's notices ask the same function over TODAY alone. **Do not invent Dispatcher values** — the rates and contractual terms are not on record. **A session name the roster does not hold refuses
+Calendar's notices ask the same function over TODAY alone, and Settings' Pay Calculator Data card asks it
+over the page's own payslips (`payslipsShownTo`, paycalc-periods.js). **The page policy decides first**: an Other Staff login,
+which `PAGE_POLICIES.paycalc` refuses, is never priced — even with an earlier priced grade in
+`roleHistory` (24 Nov 2026). **Do not invent Dispatcher values** — the rates and contractual terms are not on record. **A session name the roster does not hold refuses
 the same way**: a leaver or a renamed member keeps a valid local session, and pricing them would fall
 back to CEA rates in the bare shared `myb_pc_` namespace.
 
@@ -794,6 +797,11 @@ payslip picked in the select on this visit) and `ytdSourceOffered` (from the cur
 cut-off the picker offers it too, because payslips are issued before payday).
 - **Do not replace the first-entry stamp with a window that records NOTHING until the member picks**
   — a member who never picked would be stamped one payslip LATE on the first open after payday.
+- **Figures entered while no payslip of the member's in that year can be in hand are recorded as
+  `YTD_SRC_EARLY`, never as nothing** (24 Nov 2026): recording nothing let the first load after the
+  year's first cut-off file last year's March totals against April's payslip. A load never re-stamps
+  the marker; typing figures in again is a first entry (`refreshYtdSrc`'s `typed`). Pinned by
+  `e2e/paycalc.spec.js` → "typed before the year's first payslip is in hand".
 - **The cumulative PAYE method in `calculate()` engages ONLY on the payslip immediately after the
   source** (`p.num === src + 1`); any other payslip nulls the Year to Date inputs and falls back to the
   standard non-cumulative method. **That guard is one line and its regression is quiet on screen**:

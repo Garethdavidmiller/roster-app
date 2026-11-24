@@ -876,15 +876,18 @@ export async function withLinksDesigners(page, names) {
 
 /**
  * Add one INVENTED "Other Staff" login to the served roster for this page (owner, 23 Nov 2026). Call BEFORE page.goto().
+ * `fields` is JavaScript source for any further properties of the row — `roleHistory: [...]` for a colleague moved
+ * to Other Staff from a priced grade.
  * @param {import('@playwright/test').Page} page
  * @param {string} name
+ * @param {string} [fields]
  */
-export async function withOtherStaff(page, name) {
+export async function withOtherStaff(page, name, fields = '') {
     // An INVENTED "Other Staff" login (owner, 23 Nov 2026), served in the real roster module: the row goes in just
     // before the array's end, after the comment that documents its shape, so the app reads it exactly as it would a
     // real one. BEFORE page.goto(), for the same reason as the CONFIG overrides above.
     if (page.url() !== 'about:blank') throw new Error('withOtherStaff: call it BEFORE page.goto()');
-    const row = `    { name: ${JSON.stringify(name)}, currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },`;
+    const row = `    { name: ${JSON.stringify(name)}, currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true${fields ? `, ${fields}` : ''} },`;
     await page.route('**/roster-member-data.js', async route => {
         const body = await (await route.fetch()).text();
         const anchor = 'Operations → Set up accounts.\n];';

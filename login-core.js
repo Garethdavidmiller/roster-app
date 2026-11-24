@@ -8,7 +8,9 @@
  * must be capped (coordinator-ratchet.test.mjs): the card's markup and wiring stayed, and the three
  * things a Node test can hold without a DOM came here. Nothing about them changed in the move.
  * login-overlay.js imports them and re-exports them, so every caller and login-overlay.test.mjs still
- * reach them there. Imports no session state: `runNamedSignIn` is handed everything it touches.
+ * reach them there. Imports no session state: `runNamedSignIn` is handed everything it touches. The forced
+ * set-password step's marker, which the card holds for each typed attempt, is kept here too (Nov 2026):
+ * localStorage only, through ls.js.
  */
 
 import { isCredentialRejection } from './auth-identity.js';
@@ -16,6 +18,8 @@ import { isCredentialRejection } from './auth-identity.js';
 // Every page that loads the card statically already loads password-force.js statically, and the
 // Calendar loads the card on demand, so the import adds nothing to any page's start-up.
 import { withTimeout } from './password-force.js';
+import { lsGet, lsSet, lsDel } from './ls.js';
+import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 
 /**
  * How long one sign-in may take before the APP ends it (external review, 23 Nov 2026). It was 8 seconds —
@@ -138,6 +142,66 @@ export function resetRequestFailureLine(err, timedOut) {
     if (status === '404') return 'Your name isn’t on the app’s list for reset requests yet — contact the admin directly.';
     if (status === '503') return 'Reset requests aren’t available at the moment — contact the admin directly.';
     return 'Couldn’t send the request — check your connection, or contact the admin directly.';
+}
+
+// ── THE SET-PASSWORD STEP'S MARKER IS WRITTEN WHEN A TYPED ATTEMPT STARTS (review, 24 Nov 2026) ──────
+//
+// The forced set-password step (password-force.js) runs only where a one-shot marker says a real sign-in
+// has just happened. It was written in the card's `opened` (login-overlay.js), once the attempt had answered — and an attempt's answer
+// is not the first thing on the page to hear it. Firebase announces the new user to every
+// `onAuthStateChanged` listener BEFORE the sign-in call returns to its caller, and two of those listeners
+// act at once: the Calendar's late-identity watcher grants the moment nothing is in flight (after the
+// app has ended the attempt at `SIGN_IN_GIVE_UP_MS`, nothing is), and page-session's late-identity hold
+// reloads the page even mid-attempt. Either way the page opened before `opened` ran, found no marker, and
+// a member who had typed their surname default was never asked to choose their own password.
+//
+// So the marker is written as the attempt STARTS, and held while any typed attempt for that member could
+// still sign them in — the attempt in flight, and one the app ended whose answer may yet arrive (`late`).
+// It is taken away again only when every one of them has answered NO, so a failed sign-in still leaves
+// nothing to ambush a later ordinary load with (password-force.js → "WHY IT IS LOGIN-GATED"). Counted,
+// not flagged: an ended attempt can still answer while a second is in flight, and the first NO must not
+// take the second's marker. A marker that was already there when the first attempt began is somebody
+// else's (a sign-in another page has not consumed yet) and is left alone.
+//
+// A LATE ANSWER AFTER A NEWER ATTEMPT THAT FAILED still signs them in, and keeps the marker. The same
+// colleague tries again once the app has ended the first attempt, mistypes, and the first then lands.
+// The card opens the page on it (`awaitLateSignIn`): it was their own correct password, Firebase holds
+// that account whatever the card does (session.js leaves a same-member landing alone unless the session
+// was cleared), and the Calendar's watcher and page-session's hold would open the page on it anyway —
+// standing down would leave "Password not recognised" over a member who is signed in. What does
+// supersede it is checked there: an attempt still in flight, a card moved to somebody else or taken
+// down, and a newer attempt for ANOTHER member, which clears the session, so session.js signs the late
+// landing back out and it answers false.
+//
+// What it costs: a page closed mid-attempt leaves the marker behind, and that member's next grant asks
+// `passwordStatus` once — which shows the step only to a member still on the surname default, the one
+// person it is for. The alternative of making each listener wait for the card was the smaller change on
+// the Calendar but not on page-session, and a listener added later would have to remember to wait too.
+
+/** Typed attempts, per member, that could still sign that member in. Module-level, so a card rebuilt on
+ *  the same page (page-session's "signed in again" card) shares the count. @type {Map<string, number>} */
+const _markerHolds = new Map();
+/** Members whose marker stays when their last hold is released: one of the attempts signed them in, or
+ *  the marker was there before the first one began. Lives only while holds are outstanding. @type {Set<string>} */
+const _markerKept = new Set();
+
+/** A typed attempt for `name` is starting: the marker is in place before Firebase can announce anybody.
+ *  @param {string} name */
+export function holdPasswordMarker(name) {
+    const key = PW_FORCE_PENDING_PREFIX + name;
+    if (!_markerHolds.has(name) && lsGet(key)) _markerKept.add(name);
+    _markerHolds.set(name, (_markerHolds.get(name) ?? 0) + 1);
+    lsSet(key, '1');
+}
+
+/** A typed attempt for `name` has answered: `signedIn` when that answer signed them in. The marker goes
+ *  only when this was the last attempt outstanding and none of them did. @param {string} name @param {boolean} signedIn */
+export function releasePasswordMarker(name, signedIn) {
+    if (signedIn) _markerKept.add(name);
+    const left = (_markerHolds.get(name) ?? 1) - 1;
+    if (left > 0) { _markerHolds.set(name, left); return; }
+    _markerHolds.delete(name);
+    if (!_markerKept.delete(name)) lsDel(PW_FORCE_PENDING_PREFIX + name);
 }
 
 // ── WHAT A PAGE IS, ON ITS SIGN-IN CARD (owner, 21 Nov 2026) ─────────────────────────────────────────

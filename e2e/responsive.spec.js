@@ -268,13 +268,15 @@ test('admin week label across New Year names the year it starts in, and still fi
 });
 
 // ── THE OPERATIONS DATE FIELDS SIT BESIDE THEIR FILE BUTTON (24 Nov 2026) ─────────────────────────
-// Every Operations date writes the short month ("Wed 30 Sep 2026") and shares ONE line with its file
+// Every Operations date writes the short month ("Wed 20 May 2026") and shares ONE line with its file
 // button from 360px: for two days (v26.55) the full month took a line of its own and each card stacked
 // its controls one per line, which the owner asked to reverse. On the Weekly Roster the roster-type menu
-// keeps the first line and the week sits beside "Choose PDF" on the second. The longest case, a Wednesday on September's widest day, set
-// through the field's own `change` (the path a pick takes), at the narrowest phone, the commonest iPhone,
-// the e2e phone and under 1.5× text: the words stay inside the field, the field inside its row, and the
-// button never covers it. At 320px, or under 1.5× text, the row wraps; that is the fallback, not the layout.
+// keeps the first line and the week sits beside "Choose PDF" on the second. The longest case is MEASURED, not
+// guessed: over every date of 2026–27 in Inter at weights 400–600, "Wed 20 May" is the widest and "Sat 30 May"
+// the widest week-ending (review, 24 Nov 2026: the test had used Wed 30 Sep, about 3px narrower). Set through
+// the field's own `change` (the path a pick takes), at the narrowest phone, the commonest iPhone, the e2e
+// phone and under 1.5× text: the words stay inside the field, the field inside its row, and the button never
+// covers it. At 320px, or under 1.5× text, the row wraps; that is the fallback, not the layout.
 test('operations date fields: each sits beside its file button, and no field is clipped or covered', async ({ page }) => {
     await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
     await seedSession(page, 'G. Miller');
@@ -282,7 +284,7 @@ test('operations date fields: each sits beside its file button, and no field is 
     await expect(page.locator('#huddleBody .date-trigger')).toBeAttached();
     await page.evaluate(() => {
         for (const id of ['huddleBody', 'circularUploadBody', 'newsletterUploadBody', 'rosterUploadBody']) document.getElementById(id)?.classList.add('open');
-        for (const [id, iso] of [['huddleDate', '2026-09-30'], ['circularDate', '2026-09-30'], ['newsletterDate', '2026-09-30'], ['rosterWeekEnding', '2026-09-26']]) {
+        for (const [id, iso] of [['huddleDate', '2026-05-20'], ['circularDate', '2026-05-20'], ['newsletterDate', '2026-05-20'], ['rosterWeekEnding', '2026-05-30']]) {
             const el = /** @type {HTMLInputElement} */ (document.getElementById(id));
             el.value = iso;
             el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -304,15 +306,15 @@ test('operations date fields: each sits beside its file button, and no field is 
             };
         }));
         expect(fields.map(f => f.text), 'four short dates: the three documents, then the roster week')
-            .toEqual(['Wed 30 Sep 2026', 'Wed 30 Sep 2026', 'Wed 30 Sep 2026', 'Sat 26 Sep 2026']);
+            .toEqual(['Wed 20 May 2026', 'Wed 20 May 2026', 'Wed 20 May 2026', 'Sat 30 May 2026']);
         for (const f of fields) expect(f.spoken, 'the spoken name contains the words on the button (Label in Name)').toContain(f.text);
         const broken = fields.filter(f => f.clipped || f.outside || f.covered)
             .map(f => `"${f.text}"${f.clipped ? ' runs out of its box' : ''}${f.outside ? ' leaves its row' : ''}${f.covered ? ' is covered by its button' : ''}`);
         expect(broken, `at ${width}px and ${scale}× text:\n  ${broken.join('\n  ')}`).toEqual([]);
-        // 360px and up: one line. Measured: the short date needs 170px, the gap 10 and "Choose file" 109,
-        // so 289px; a 360px phone gives the row 308, a 320px one 268 — that one wraps, cleanly.
+        // 360px and up: one line. Measured: the widest short date needs about 170px, the gap 10 and "Choose file" 109,
+        // so about 290px; a 360px phone gives the row 308, a 320px one 268 — that one wraps, cleanly.
         if (scale === 1 && width >= 360) {
-            expect(fields.map(f => f.oneLine), `at ${width}px every date keeps its file button on its own line`)
+            expect(fields.map(f => f.oneLine), `at ${width}px every date keeps its file button on the same line`)
                 .toEqual([true, true, true, true]);
         }
     }

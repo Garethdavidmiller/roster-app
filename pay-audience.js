@@ -23,11 +23,13 @@
  * `pay-audience.test.mjs` sweeps the roster and invented members for that one-way agreement.
  *
  * Its own module because the Calendar must ask this without loading the Pay Calculator's module graph
- * (the reason `gradeForRole` lives in roster-data.js). Pure: no DOM, no storage.
+ * (the reason `gradeForRole` lives in roster-data.js). Pure: no DOM, no storage. It asks the page
+ * policy (auth-policy.js), which every roster page loads already.
  */
 
-import { gradeForRole } from './roster-data.js';
+import { gradeForRole, isOtherStaff } from './roster-data.js';
 import { roleOn, rolesInRange } from './roster-roles.js';
+import { PAGE_POLICIES, requirePageAuth } from './auth-policy.js';
 
 /**
  * True when the member's grade on `date` is one the Pay Calculator has confirmed rates for.
@@ -58,12 +60,20 @@ export function heldPricedGrade(member, start, end) {
  * Would the Pay Calculator price this member? Yes when they hold a priced grade TODAY, or held one on
  * any day of the payslips passed in (`{ start, cutoff }` each — the page's visible payslips). A name
  * the roster does not hold (null) is never priced.
+ *
+ * THE PAGE POLICY DECIDES FIRST (24 Nov 2026). An "Other Staff" login is refused the Pay page by
+ * `PAGE_POLICIES.paycalc` (auth-policy.js, rule 1b) and has no Pay pill — but a row moved to Other
+ * Staff from a priced grade keeps that grade in `roleHistory`, which priced its old payslips while the
+ * policy said refuse. So the policy is asked here, with the row's own flag, and wins: the page, the
+ * Calendar's notices and Settings' Pay card then give one answer.
  * @param {any} member  teamMembers entry, or null
  * @param {{ periods?: Array<{ start: Date, cutoff: Date }>, today?: Date }} [o]
  * @returns {boolean}
  */
 export function payCalculatorPrices(member, { periods = [], today = new Date() } = {}) {
     if (!member) return false;
+    if (requirePageAuth({ status: 'named', member: member.name }, PAGE_POLICIES.paycalc,
+        { otherStaff: isOtherStaff(member) }).decision === 'forbidden') return false;
     if (pricedGradeOn(member, today)) return true;
     if (!periods.length) return false;
     return heldPricedGrade(member, periods[0].start, periods[periods.length - 1].cutoff);
