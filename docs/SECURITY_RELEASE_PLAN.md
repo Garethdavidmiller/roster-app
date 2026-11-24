@@ -27,7 +27,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **Member-claim binding** | ✅ Complete — v24.23 believes a `name` only on a password sign-in at the name's derived email; v24.24 stamps the server-only `member` claim (Set up accounts); v24.27 requires it (`isMember()` in `firestore.rules`, `memberNameFromClaims` on the server) | — | — | Every member rule and endpoint reads identity through `isMember()` / `memberName()`; never roll rules back past v24.23 |
 | **A5 — push subscriptions** | ✅ Complete (v17.76, extended v18.74) | — | — | Per-owner create/update/delete enforced |
 | **A7 — deploy credential scope** | Code side done (v24.97): the backup check reads its account from the `BACKUP_CHECK_SERVICE_ACCOUNT` repository variable, and alerts only on a definite "no backups" | **Owner, in GCP:** limit the WIF provider to `refs/heads/main`, then give the backup check a read-only account — the commands are **Appendix A2 → "Tightening it"** | — | A token for `github-deploy@` cannot be minted from any ref but `main`, and the weekly backup check no longer runs as the deploy account |
-| **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge. **⚠️ A SECOND ROUTE is on the table and NOT adopted** — C6 (below) would let the remaining surname credentials be replaced server-side with unknown random ones, which answers the CREDENTIAL question without touching the READ question. The two routes and what the second costs: `PASSWORD_DESIGN.md` → credential lifecycle L7. Until the owner decides, this row stands as written | ≥90% migrated **and** a proven recovery route for the remainder |
+| **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never signed in, so the metric could not converge — a premise gone since the staff PIN was retired (23 Nov 2026); what that does to the gate is part of the open decision. **⚠️ A SECOND ROUTE is on the table and NOT adopted** — C6 (below) would let the remaining surname credentials be replaced server-side with unknown random ones, which answers the CREDENTIAL question without touching the READ question. The two routes and what the second costs: `PASSWORD_DESIGN.md` → credential lifecycle L7. Until the owner decides, this row stands as written | ≥90% migrated **and** a proven recovery route for the remainder |
 | **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it. **A saved address is not a credential** — possession must be proven and recorded (`verifiedAt`) before it can recover an account; design in `PASSWORD_DESIGN.md` → credential lifecycle L8 |
 | **C6 — one-time recovery/activation codes** | Proposed, not started | Owner decision | — | Design in `PASSWORD_DESIGN.md` → credential lifecycle L1. Supersedes C4′ as the recovery path: today's reset makes the SURNAME valid again, so the migration's own repair mechanism undoes the migration. C4′ stays live until C6 does — break-glass may not have a gap |
 | **F — step-up for sensitive admin actions** | Proposed, not started | — | — | Design in `PASSWORD_DESIGN.md` → credential lifecycle L3. **No prerequisites** — the only item in that programme with none. Server-enforced from the token's `auth_time`, never a client timer |
@@ -187,8 +187,9 @@ Three design points that flow from this and still govern any future rule change:
   and an expired session forces a real typed login, so coverage completes itself inside 60 days and
   staggers naturally. Shows only for a `named` identity, and fails open on any failure it cannot
   recover from: a mandatory overlay that cannot be satisfied is a lockout, not a control. Pure
-  roster-viewers who never sign in anywhere are NOT reached — that needs Track E (or C6's second
-  route). This made the C5 ≥90% gate reachable for the first time.
+  roster-viewers who never signed in anywhere were NOT reached — that needed Track E (or C6's second
+  route), until the staff PIN was retired on 23 Nov 2026 and every reader signs in. This made the C5
+  ≥90% gate reachable for the first time.
 - **Ordering within C:** verification (C2) → reset path (C4) → self-service change (C3, needs B0) →
   retire surname (C5, irreversible, ≥90% migrated). *(Historic ordering — C3/C4′ shipped first as the
   "C-lite" reshuffle; C2 is deferred behind a mail relay.)*
@@ -273,9 +274,6 @@ Three design points that flow from this and still govern any future rule change:
 > removing the shared code; E3's soft posture, E4's offline grace and E5's named-only rules for the
 > whole app remain dormant (`AUTH_PLAN.md` → E3). `AUTH_PLAN.md` → E2 records how a server-validated shared credential answered
 > the decision gate in a way the phase list did not contain, and what it deliberately leaves open.
->
-> The owner has since set a DIRECTION for the PIN itself — the stage is in the canonical table's Track E
-> row, and is not restated here.
 
 **Two different bars, wildly different costs:**
 

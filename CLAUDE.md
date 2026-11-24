@@ -563,10 +563,10 @@ working notes are `.claude/rules/sessions.md`, which loads with the session and 
   (AUTH_AND_SESSIONS 3). **The `manager` tier is load-bearing** (on-behalf edits, daily); **do NOT
   grant managers `admin: true`.** A newly listed manager needs `npm run generate:roster-members` in the same
   commit, then — once Deploy Firebase Functions has finished — Set up accounts and a token refresh.
-- **An "Other staff" login** (v26.59) is a named sign-in with the staff PIN's view: only pages whose
-  `PAGE_POLICIES` entry says `otherStaff: true` admit it (`auth-policy.js` — the Calendar, Settings and
-  Trains). The owner's direction is to phase the PIN out; this is the first step (DECISIONS.md → "An
-  'Other staff' login").
+- **An Other Staff login** (v26.59) is a named sign-in for somebody with no roster of their own: only
+  pages whose `PAGE_POLICIES` entry says `otherStaff: true` admit it (`auth-policy.js` — the Calendar,
+  Settings and Trains). It replaced the retired staff PIN for them (DECISIONS.md → "An 'Other staff'
+  login", "The staff PIN retired").
 
 **New starter:** invoke `/new-starter` — the skill has the full checklist, in the order it must run (the account step comes only after the roster change has deployed), the mid-year field reference and the pro-rata formula invariant.
 

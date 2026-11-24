@@ -149,22 +149,22 @@ failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster d
 shipped, including the wiring defects found on the way: `ROADMAP_HISTORY.md`.
 
 ### Track E — the authentication decision
-**Status:** Planned — phase the staff PIN out (owner, 23 Nov 2026); individual authentication on the Calendar (E3) is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
+**Status:** Planned — the server and cleanup releases of the staff PIN's retirement (owner, 23 Nov 2026); E3 as designed is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
 
-**There is a direction now: the staff PIN is to be phased out.** The first step, an "Other staff" named
-login that sees what the PIN shows, has shipped; retiring the PIN itself is a separate change, made only
-once everybody who uses it has a login of their own, so nobody is locked out on the day (DECISIONS.md →
-"An 'Other staff' login"). Where that stands, and which phases have shipped, is the Track E row of
-`SECURITY_RELEASE_PLAN.md`'s canonical table — not restated here.
+**The staff PIN is retired** (owner, 23 Nov 2026): everyone signs in under their own name, and
+somebody with no roster of their own gets an Other Staff login. It comes out in three releases —
+client, server, cleanup (DECISIONS.md → "The staff PIN retired"). Where that stands, and which phases
+have shipped, is the Track E row of `SECURITY_RELEASE_PLAN.md`'s canonical table — not restated here.
 
-The decision still open is the bar for individual authentication (E3). Take it with the E3 measurement
+What is still open is E3 as designed — its soft posture and the rules beyond it (`AUTH_PLAN.md` → E3),
+since the retirement reached E3's front door without them. Take it with the E3 measurement
 criteria **pre-registered** — AUTH_PLAN §6 requires the thresholds to be written down before telemetry
 starts, precisely so they cannot be chosen after seeing the numbers.
 
 This gated more than itself: **C5 could not complete without it**, because a member who only ever
 opened the roster with the staff PIN never signed in and was never compelled to set a password. The
 PIN was retired on 23 Nov 2026, so every reader now signs in; what that does to C5's gate is part of
-the open decision in `CREDENTIAL_LIFECYCLE.md` §7.
+the open decision in `PASSWORD_DESIGN.md` → credential lifecycle L7.
 
 ### Calendar start — how often we deploy (OWNER DECISION, not a code change)
 **Status:** Blocked on an owner decision — an external review's recommendation, not yet adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree

@@ -264,10 +264,10 @@ Binary, and it decides whether this is a day or several weeks.
 - **A motivated outsider** willing to script an anonymous sign-in → no longer relevant to the read:
   anonymous is denied. What remains is a person who has been *told the code*, which is a different
   and much narrower threat, and one no rule can address.
-- **What is still open, and must not be quietly counted as closed:** the PIN is *shared*, so nothing
-  about it attributes an action to a person, revokes access for one person, or survives the code
-  becoming widely known. If a future requirement is "each individual authenticates" — the likeliest
-  form of a Chiltern IT mandate — that is E3/E4/E5, and none of it has been built.
+- **What stayed open, and was not quietly counted as closed:** the PIN was *shared*, so nothing
+  about it attributed an action to a person, revoked access for one person, or survived the code
+  becoming widely known. Retiring it (23 Nov 2026) closed that by removing the shared code; E3/E4/E5
+  as designed — the likeliest shape of a Chiltern IT mandate — are still not built.
 
 Everything past this gate touches the app's front door, opened many times a day.
 
@@ -613,7 +613,7 @@ change).
 - **Do not** verify any of this from an installed phone. Always a **fresh private window with a cold
   cache** — the installed PWA launches from the service-worker cache and will happily hide a broken live
   site (CLAUDE.md → "Deployment health check").
-- **Starting E3 consciously REVERSES a recorded decision** — `CREDENTIAL_LIFECYCLE.md` §4, keep both
+- **Starting E3 consciously REVERSES a recorded decision** — `PASSWORD_DESIGN.md` → credential lifecycle L4, keep both
   kinds of Calendar access (the staff PIN for the shared station PC). Record the reversal when it
   happens — do not make it silently. **Retiring the PIN (23 Nov 2026) was that reversal**, and it is
   recorded there and in DECISIONS.md.

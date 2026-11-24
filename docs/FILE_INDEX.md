@@ -36,11 +36,11 @@ roster-app/
 ├── calendar-al-lightbox.js ← the Calendar's annual-leave panel and day-detail panel (`initCalendarLightboxes`); every badge on the day panel comes from the grid's own authorities. Reasoning: its header. Tested by calendar-al-lightbox.test.mjs
 ├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_PLAN.md → E1)
 ├── calendar-keyboard.js    ← keyboard navigation and the hover tooltip for index.html
-├── calendar-access.js ← the Calendar's ACCESS GATE: the front door (sign-in card, PIN behind it), the shared viewer session, `calendarAccessReady`. **Read its header before touching the unlock ladder.** Tested by calendar-access.test.mjs
-├── calendar-lock-slot.js ← the ONE place a card can stand in for the Calendar grid, and the workspace it hides; at most one card, no decisions. Exercised through calendar-access.test.mjs and e2e/calendar-pin.spec.js
-├── calendar-lock-cards.js ← the cards that can stand where the Calendar goes (sign-in, staff PIN, come-back): it DRAWS, `calendar-access.js` DECIDES. Its header
-├── calendar-access-core.js ← the PURE rules behind the gate: the viewer identity, `decideAccess`, PIN input shaping, failure classes, backoff, notice audiences. **The PIN is never compared in any client file.** Tested by calendar-access-core.test.mjs
-├── calendar-snapshot.js ← the member's OWN roster kept on this device so the Calendar opens instantly while sign-in is checked; bounded, deleted on any refusal. Tested by calendar-snapshot.test.mjs and e2e/calendar-pin.spec.js
+├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs a leftover staff-PIN session out. **Read its header first.** Tested by calendar-access.test.mjs
+├── calendar-lock-slot.js ← the ONE place a card can stand in for the Calendar grid, and the workspace it hides; at most one card, no decisions. Exercised through calendar-access.test.mjs and e2e/calendar-access.spec.js
+├── calendar-lock-cards.js ← the cards that can stand where the Calendar goes (sign-in, its can't-load fallback, come-back): it DRAWS, `calendar-access.js` DECIDES. Its header
+├── calendar-access-core.js ← the PURE rules behind the gate: the viewer identity (for the teardown), `decideAccess`, notice audiences (members only). **No client file shapes, sends or compares a PIN.** Tested by calendar-access-core.test.mjs
+├── calendar-snapshot.js ← the member's OWN roster kept on this device so the Calendar opens instantly while sign-in is checked; bounded, deleted on any refusal. Tested by calendar-snapshot.test.mjs and e2e/calendar-access.spec.js
 ├── calendar-data-state.js  ← what the Calendar KNOWS about a month's overrides, and so what it may SHOW. Pure; the four states: its header. Tested by calendar-data-state.test.mjs
 ├── calendar-legend.js ← the month legend: which keys apply and whether a legend applies at all. Reasoning: its header. Tested by calendar-legend.test.mjs
 ├── calendar-overrides.js   ← the Calendar's Firestore override cache: range fetches, the phase-1 cache read, the access gate, the read ticket and the write ordering — each rule argued beside its code
@@ -60,11 +60,11 @@ roster-app/
 ├── guide-index.js          ← GENERATED cross-guide search index — do NOT hand-edit; `npm run generate:guide-index` with any guide-content change. Pinned by guide-index-parity.test.mjs
 ├── nav-guide-search.js     ← the drawer's guide search box, lazy-loaded with the index on first focus
 ├── install-prompt.js ← the one-off "add to home screen" strip on the Calendar, plus `installRoute`; never shown with the notification prompt. Its header
-├── calendar-notif-prompt.js ← the Calendar's one-off notification prompt and the silent subscription renewal; never for the shared PIN viewer. Its header. Tested by calendar-notif-prompt.test.mjs
+├── calendar-notif-prompt.js ← the Calendar's one-off notification prompt and the silent subscription renewal; never for a leftover staff-PIN viewer. Its header. Tested by calendar-notif-prompt.test.mjs
 ├── calendar-doc-access.js ← whether this Calendar may read the DOCUMENTS (Huddle, Circular, Newsletter): the gate their viewers and drawer links consult, read from `calendar-access-state.js`. Its header. Tested by calendar-doc-access.test.mjs
 ├── calendar-access-state.js ← whether Calendar access is HELD right now — the one copy, with one write, read by both the roster gate and the document gate. Its header. Tested by calendar-access-state.test.mjs
 ├── calendar-redraw.js ← WHEN the Calendar page may draw and what its next draw owes (start-up stages, the swipe wait, owed focus); draws nothing. Its header. Tested by calendar-redraw.test.mjs
-├── calendar-drawer.js ← the Calendar's menu for the saved session, and its rebuild after an in-place sign-in. Its header. Tested by calendar-drawer.test.mjs and e2e/calendar-pin.spec.js
+├── calendar-drawer.js ← the Calendar's menu for the saved session, and its rebuild after an in-place sign-in. Its header. Tested by calendar-drawer.test.mjs and e2e/calendar-access.spec.js
 ├── text-scale.js ← how much larger the phone draws text than the stylesheet asks, and the tier the Calendar's rows key on (`data-text-scale`). Its header. Tested by text-scale.test.mjs
 ├── notif.js                ← shared Web Push: support and state, enable/disable, sign-out release, and the platform reads (iOS, standalone, Pages mirror)
 ├── select-sheet.js ← the app's OWN dropdown in place of the OS's; the native `<select>` stays as the value holder. The rules an edit can break: its header and select-sheet-parity.test.mjs. Tested by select-sheet.test.mjs and select-sheet-pick.test.mjs
@@ -79,9 +79,9 @@ roster-app/
 ├── login-core.js           ← the sign-in card's DOM-free rules, including the 30-second typed sign-in deadline (`SIGN_IN_GIVE_UP_MS`); login-overlay.js re-exports them. Tested by login-overlay.test.mjs
 ├── password-force.js ← the MANDATORY "set your own password" overlay (PASSWORD_DESIGN.md Phase 2). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs
 ├── session.js              ← shared auth/session: re-establishing the Firebase session, the pre-warm, the local session, and the named-vs-anonymous identity signals
-├── staff-pin-ended.js      ← whether arriving on this page ended the shared staff PIN, and the one sentence that says so. Its header. Tested by session.test.mjs and login-overlay.test.mjs
+├── staff-pin-ended.js      ← whether arriving on this page signed out a leftover session of the retired staff PIN, and the one sentence that says so; transition plumbing. Its header. Tested by session.test.mjs and login-overlay.test.mjs
 ├── silent-sign-in.js      ← the RULES of the sign-in nobody typed (pure); session.js keeps the memory. Its header. Tested by session.test.mjs
-├── viewer-shed.js         ← signs the shared Calendar viewer out before a member signs in, in the order that keeps it out of long-lived storage. Its header. Tested by session.test.mjs
+├── viewer-shed.js         ← signs a leftover staff-PIN viewer out before a member signs in, in the order that keeps it out of long-lived storage. Its header. Tested by session.test.mjs
 ├── auth-state-core.js      ← the PURE identity state machine (AUTH_AND_SESSIONS.md → Architecture). Tested by auth-state-core.test.mjs
 ├── auth-state.js           ← the auth STORE over that reducer; session.js feeds it. AUTH_AND_SESSIONS.md → Architecture
 ├── auth-policy.js          ← page AUTHORISATION: the page policies and the drawer's pill gates. CLIENT UX only — the server rules are the boundary
@@ -136,7 +136,7 @@ roster-app/
 ├── operations-usage.js     ← the Usage card: page and document opens, active accounts, the exact sign-in figures
 ├── operations-speed.js     ← the App Speed card; the rules every figure keeps: its header
 ├── operations-attention.js ← the "Needs attention" strip on operations.html: an index of exceptional card states that runs no reads and owns no navigation. Tested by operations-attention.test.mjs and e2e/operations.spec.js
-├── operations-pin-lockout.js ← the staff PIN shut for everyone, shown on Operations from the audit's answer; absent is unknown, never "none". Tested by operations-pin-lockout.test.mjs and admin-auth.test.mjs
+├── operations-pin-lockout.js ← the retired staff PIN shut for everyone at the endpoint (until the server release), shown on Operations from the audit's answer; absent is unknown, never "none". Tested by operations-pin-lockout.test.mjs and admin-auth.test.mjs
 ├── operations-reset.js     ← what Account status's Reset asks (incl. the lost-phone box) and every sentence about its answer. Pure; tested by operations-reset.test.mjs and e2e/operations.spec.js
 ├── operations-doc-links.js ← the Document links card (Check, then Replace) and the words of every outcome; the work is functions/doc-link-rotation.js. Tested by operations-doc-links.test.mjs and e2e/operations.spec.js
 ├── operations-al-sheet.js ← the Annual leave sheet card: a leave file in, each member's records read whole, every difference drawn as text; nothing kept. Driven by e2e/operations.spec.js
@@ -244,7 +244,7 @@ roster-app/
 ├── overtime-manager.js     ← the reviewer's workspace for one week, rendered from data it is handed. **Available, Not available and No response never merge.**
 ├── overtime-roster.js      ← what people are actually rostered to do across an Overtime window, in one bounded read (not the Calendar's fetcher — its header)
 ├── overtime-tips.js        ← CARD_TIPS for overtime.html's `?` panels. Pure data
-├── trains.html             ← Trains: what changes at Marylebone with the December 2026 timetable, for signed-in members and the staff PIN. Reads no network — the timetables are a generated module
+├── trains.html             ← Trains: what changes at Marylebone with the December 2026 timetable, for signed-in members. Reads no network — the timetables are a generated module
 ├── trains.css              ← CSS for trains.html; the grid's scroll box must stay `position: relative`
 ├── trains-app.js           ← coordinator for trains.html: the gate, session wiring and page state; body is `init()`, run by trains-boot.js
 ├── trains-cards.js         ← writes each card of trains.html from the page state; decides nothing. Proven by e2e/trains.spec.js
@@ -539,7 +539,7 @@ roster-app/
 ├── app-name-parity.test.mjs ← **"MYB" may name the STATION, never the SOFTWARE** ("Marylebone Roster"). Part of test:hygiene
 ├── rdw-term-parity.test.mjs ← **RDW has one name on screen: "Rest Day Working"**. Part of test:hygiene
 ├── uk-english-parity.test.mjs ← **the app speaks UK English**; its word list: its header. Part of test:hygiene
-├── welcome-email-parity.test.mjs ← the welcome email's four copies are one email. Part of test:hygiene
+├── welcome-email-parity.test.mjs ← the welcome email's five copies are one email. Part of test:hygiene
 ├── al-copy-parity.test.mjs ← the Annual Leave help teaches the rule the save follows. Part of test:hygiene
 ├── admin-al-week-save.test.mjs ← a week-grid save's annual leave. Part of test:hygiene
 ├── card-header-parity.test.mjs ← the card-header conventions. Part of test:hygiene
@@ -603,9 +603,9 @@ roster-app/
 ├── calendar-drawer.test.mjs ← the Calendar's menu built and rebuilt for the session saved at the time
 ├── calendar-doc-access.test.mjs ← the document gate defaults SHUT. Part of test:hygiene
 ├── calendar-access-core.test.mjs ← the Calendar access decision as states the app can really be in. Part of test:hygiene
-├── calendar-access.test.mjs ← the unlock exchange and the viewer session lifecycle, asserting ORDER (--experimental-test-module-mocks)
+├── calendar-access.test.mjs ← the gate's decision, cards, grant and loss, asserting ORDER; a leftover viewer session is never granted (--experimental-test-module-mocks)
 ├── calendar-access-gate.test.mjs ← **no access, no override data** — the cache never consults the rules (--experimental-test-module-mocks)
-├── calendar-viewer-auth.test.mjs ← the server-side staff-PIN rules at every boundary. Part of test:hygiene
+├── calendar-viewer-auth.test.mjs ← the server-side rules of the retired staff PIN at every boundary (until the server release). Part of test:hygiene
 ├── calendar-viewer-parity.test.mjs ← the PIN feature's static contracts: one viewer uid and claim everywhere, and the PIN never in the repository. Part of test:hygiene
 ├── calendar-notices.test.mjs ← who a Calendar notice is addressed to, and whether it asks (--experimental-test-module-mocks)
 ├── install-route.test.mjs ← the install notice's route through the real `installRoute()`
@@ -629,8 +629,8 @@ roster-app/
 ├── guide-colour-parity.test.mjs ← the guide palettes' contract with the app. Part of test:hygiene
 ├── module-parse.test.mjs   ← every root JS module parses as an ES module (`node --check` misses ES-module syntax errors)
 ├── e2e/                    ← the Playwright smoke suite (`npm run test:e2e`): every page in headless Chromium with the Firebase SDK stubbed. NOT part of `npm test`; CSP header violations need `npm run test:csp`
-│   ├── calendar.spec.js ← the Calendar: render, first run, stale member, dropdown, drawer and guide opens
-│   ├── calendar-pin.spec.js ← the staff Calendar PIN in a real browser: no roster data in a locked DOM, and the unlock ladder end to end. Its header
+│   ├── calendar.spec.js ← the Calendar for a signed-in member: render, stale member, dropdown, drawer and guide opens
+│   ├── calendar-access.spec.js ← the Calendar's access gate in a real browser: no roster data in a locked DOM, and a leftover staff-PIN session signed out on every page. Its header
 │   ├── auth.spec.js        ← the sign-in overlay and named-session enforcement on every authenticated page
 │   ├── paycalc.spec.js ← the Pay Calculator's sign-in, period selector, layout, notices and backup wiring
 │   ├── paycalc-cards.spec.js ← the Pay Calculator's occasional cards against the rest of the page
@@ -729,8 +729,8 @@ roster-app/
     ├── doc-link-rotation.js       ← a new key for the permanent link of every stored document file, so old copies stop opening it (ARCHITECTURE.md EXC-007). Its header
     ├── london-clock.js            ← an ISO date and the instant it names in London. **Requires nothing**, which keeps overtime-core.test.mjs in the every-branch lane
     ├── overtime-core.js           ← every RULE Overtime Availability has, with no I/O. **The deadline hours are the highest-risk thing in the feature.** Design: OVERTIME_AVAILABILITY.md
-    ├── calendar-viewer-auth.js    ← the PURE server-side staff-PIN rules and throttles; it never learns, stores, logs or returns a PIN. Sizing: its header
-    ├── pin-lockout.js             ← the PIN throttle store's upkeep and the station-wide block's notice; never changes the 401. Tested by pin-lockout.test.mjs
+    ├── calendar-viewer-auth.js    ← the PURE server-side rules and throttles of the retired staff PIN, deleted in the server release; it never learns, stores, logs or returns a PIN. Sizing: its header
+    ├── pin-lockout.js             ← the retired PIN's throttle store upkeep and the station-wide block's notice, deleted in the server release; never changes the 401. Tested by pin-lockout.test.mjs
     ├── roster-members.json       ← generated from roster-data.js — do NOT hand-edit; `npm run generate:roster-members`. The server-owned name and role lists. CI-locked by sw-asset-check.test.mjs
     └── package.json
 ```

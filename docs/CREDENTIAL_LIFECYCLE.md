@@ -13,7 +13,7 @@ lifecycle — the C5/C6 programme". It is kept because other documents cite it b
 | §1 | L1 | C6 — one-time recovery and activation codes |
 | §2 | L2 | Keep converting personal devices |
 | §3 | L3 | F — step-up authentication for sensitive admin actions |
-| §4 | L4 | Calendar access: both kinds today, the PIN to be phased out (the owner's direction since 23 Nov 2026; it was "Keep both kinds of Calendar access") |
+| §4 | L4 | Calendar access: one kind — the staff PIN retired (owner, 23 Nov 2026; it was "Keep both kinds of Calendar access") |
 | §5 | L5 | Retire the anonymous fallback — done |
 | §6 | L6 | The Calendar start round trip — decided |
 | §7 | L7 | C5 — the surname retirement, and the decision on the table |

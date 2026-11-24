@@ -4365,11 +4365,11 @@ page-auth policy — was complete and behaviour-preserving, and landed before B3
 - Migrate the roster **data structure**, remove/alter GitHub Pages support, or solve surname passwords
   (Track C in the security plan).
 - Make the Calendar's data private — that came later and separately, through the staff PIN
-  (`AUTH_PLAN.md` → E2).
+  (`AUTH_PLAN.md` → E2), itself retired on 23 Nov 2026 for a named sign-in.
 - Move `PAYSLIP_ACTUALS` — a **separate** privacy task (see its section), not on the auth critical path.
 - Build a general app-wide state store (the machine owns identity only).
 
-The page table that stood in that file was deleted, not moved: it predated the "Other staff" login
+The page table that stood in that file was deleted, not moved: it predated the Other Staff login
 (v26.59) and mis-stated Admin as "admin *or* manager" (Admin's policy is any named member; on-behalf
 writes are decided by the claim). The one answer is `PAGE_POLICIES` in `auth-policy.js`.
 
@@ -4525,8 +4525,8 @@ only, with tests asserting no write hits a non-live `auth.currentUser`.)*
 ## The Calendar PIN rollout (moved from RECOVERY_RUNBOOK.md, 24 Nov 2026)
 
 *Moved verbatim when RECOVERY_RUNBOOK.md's "Deploying it" section was compressed to the general
-playbook for tightening a read rule (RECOVERY_RUNBOOK.md → "The Calendar PIN — deployment order, and
-breaking glass", whose step numbers are unchanged). The rollout closed on 26 Aug 2026 and was verified
+playbook for tightening a read rule (RECOVERY_RUNBOOK.md → "The staff PIN (retired)" → "Tightening a
+read rule — the order is the whole safety story", whose step numbers are unchanged). The rollout closed on 26 Aug 2026 and was verified
 in production on 27 Aug.*
 
 ### As it stood: "Deploying it — the order is the whole safety story"

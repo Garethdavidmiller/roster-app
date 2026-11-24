@@ -131,7 +131,7 @@ forbidden on Operations and allowed on Admin. They are policy outcomes, Layer 2.
 
 `requirePageAuth(snapshot, policy, roles) → { decision, reason }` in `auth-policy.js`, driven by the
 declarative `PAGE_POLICIES` map, the single home for each page's rule (who may open it, whether it is
-soft, whether the staff PIN or an "Other staff" login may read it). **Read the map, not a copy of it**
+soft, whether an Other Staff login may read it). **Read the map, not a copy of it**
 — a page table here went stale within weeks. Decisions are `allow` / `soft-allow` / `login` /
 `forbidden` / `pending`; `requirePage(snapshot, page)` fails closed on an unknown page. Policy keys
 can later grow `page → page.action` without touching the reducer, because granularity lives entirely

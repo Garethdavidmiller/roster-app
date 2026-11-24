@@ -997,7 +997,7 @@ The "Needs attention" strip at the top of `operations.html`: an index of excepti
 - **Exports:** `ATTENTION_CATALOGUE` · `attentionBadge` · `buildAttentionItems` · `reportLoginAccounts` · `withdrawLoginAccounts` · `createAttentionStrip`
 
 ### `operations-pin-lockout.js`
-The staff PIN's station-wide block, on Operations (owner, Nov 2026): a line on Staff Login Accounts and the strip's `pinLockout` item, while a block runs or one began in the last day. It runs no read — the fact rides on the audit's answer — and says times and counts only; its three states, and why an absent answer is unknown, are its header. Wired by `admin-auth.js`, which redraws the line when `lockoutChangesAt` says. Tested by `operations-pin-lockout.test.mjs` and `admin-auth.test.mjs`.
+The retired staff PIN's station-wide block at the still-deployed endpoint, on Operations (owner, Nov 2026; deleted in the server release): a line on Staff Login Accounts and the strip's `pinLockout` item, while a block runs or one began in the last day. It runs no read — the fact rides on the audit's answer — and says times and counts only; its three states, and why an absent answer is unknown, are its header. Wired by `admin-auth.js`, which redraws the line when `lockoutChangesAt` says. Tested by `operations-pin-lockout.test.mjs` and `admin-auth.test.mjs`.
 - **Exports:** `readLockout` · `lockoutWords` · `lockoutChangesAt` · `renderLockoutLine` · `lockoutCount`
 
 ### `operations-doc-links.js`
@@ -1232,7 +1232,7 @@ The pure rules Set up accounts and the admin reset apply at the edges of an acco
 - **Exports:** `buildResetRequestEndpoint`
 
 ### `functions/calendar-viewer-auth.js`
-The PURE server rules behind the staff Calendar PIN, kept apart from `req`/`res` so they can be tested: the PIN compare, the throttle (read `DEFAULT_THROTTLE`'s comment before changing a number), charging an attempt before its compare, the guards on the shared viewer account, and the station-wide lockout record. The PIN is never learnt, stored, logged or returned. Tested by `calendar-viewer-auth.test.mjs`; the uid and claim agreement across the browser, CommonJS and `firestore.rules` is `calendar-viewer-parity.test.mjs`.
+The PURE server rules behind the retired staff Calendar PIN (deleted in the server release), kept apart from `req`/`res` so they can be tested: the PIN compare, the throttle (read `DEFAULT_THROTTLE`'s comment before changing a number), charging an attempt before its compare, the guards on the shared viewer account, and the station-wide lockout record. The PIN is never learnt, stored, logged or returned. Tested by `calendar-viewer-auth.test.mjs`; the uid and claim agreement across the browser, CommonJS and `firestore.rules` is `calendar-viewer-parity.test.mjs`.
 - **Exports:** `CALENDAR_VIEWER_UID` · `PIN_LENGTH` · `DEFAULT_THROTTLE` · `GLOBAL_SOURCE_KEY` · `GLOBAL_THROTTLE` · `isValidPinShape` · `pinMatches` · `sourceKeyFor` · `clientIpOf` · `throttleDecision` · `recordFailure` · `reserveAttempt` · `refundAttempt` · `isThrottleStateStale` · `viewerClaims` · `viewerAccountTamper` · `isViewerAccount` · `LOCKOUT_RECORD_KEY` · `LOCKOUT_ALERT_GAP_MS` · `LOCKOUT_RECENT_MS` · `noteGlobalBlock` · `lockoutSummary` · `lockoutNoticeWords`
 
 ### `functions/pin-lockout.js`
