@@ -1,7 +1,7 @@
 // THE CLOSING WEEKS AND THE SWITCHES, AS THE LEAGUE READS THEM (8 Nov 2026). The owner set the design target that day: "no
 // consecutive closing weeks, with changes between early and late duties placed around useful rest breaks", weeks on one shift
 // time "still Important". An outside review the owner passed on the same day asked for the closing weeks to be measured
-// directly, and the switches by the rest around them; the audit that followed (README.md → "The league reweighted for the
+// directly, and the switches by the rest around them; the audit that followed (HISTORY.md → "The league reweighted for the
 // design target") measured every design this way, and the main league counts what is here. One module, so the league and any
 // sheet that prints these figures read one definition.
 //
@@ -68,7 +68,7 @@ if (process.argv[1]?.endsWith('closing.mjs')) {
   const load = f => { const j = JSON.parse(readFileSync(f, 'utf8')); return j.patterns ?? j; };
   if (process.argv[2] === '--check') {
     // PINNED to the audit of 8 Nov 2026, which measured every design with a script of its own before this module existed
-    // (README.md → "The league reweighted for the design target"); today's link is report-data.mjs's
+    // (HISTORY.md → "The league reweighted for the design target"); today's link is report-data.mjs's
     const { today, PACK_DIRS } = await import('./report-data.mjs');
     const { existsSync } = await import('node:fs');
     const R = new URL('../', import.meta.url).pathname;

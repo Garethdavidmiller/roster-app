@@ -29,7 +29,7 @@ TODAY = ['06:20-13:35', '06:20-13:45', '06:20-14:00', '06:20-14:20', '06:20-14:5
          '14:30-22:00', '14:30-23:25', '14:45-23:55', '15:15-23:55']
 PLAN = ['15:45-23:55', '07:15-15:30', '13:30-22:30', '06:20-14:20', '14:00-22:30', '06:20-14:50', '14:30-22:30']
 SHORTLIST = ['Short-Run-SR-26-F1', 'Second-Edition-SE-26-F1', 'Long-Break-LB-26-F1']
-# EVEN KEEL'S TIMES, KEPT WHEN IT WAS DELETED (8 Nov 2026, README.md -> "Five designs deleted"). It was the fourth design of the
+# EVEN KEEL'S TIMES, KEPT WHEN IT WAS DELETED (8 Nov 2026, HISTORY.md -> "Five designs deleted"). It was the fourth design of the
 # shortlist of 3 Oct 2026 above, and its sheet went with it; its shift times are written here so that the times a repair may
 # use, and so every repair already run, stay as they were. Three are in no other list here: 06:20-15:00, 07:45-16:45 and
 # 14:45-22:30.

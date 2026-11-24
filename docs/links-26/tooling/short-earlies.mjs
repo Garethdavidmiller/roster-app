@@ -1,7 +1,7 @@
 // EVERY WAY TO KEEP A 13:35 OR 13:45 EVERY WEEKDAY (owner, 26 Oct 2026). The brief was today's 20-line link on 26
 // lines with a 16:00 closer, keeping "either the 13.35 or 13.45 finish or both"; told that the arithmetic left room for
 // three a week, the owner asked: "Check every possibility. We need to maintain at least one weekday 13.35 or 13.45
-// finish per day." This is that check, committed so the README's table of possibilities can be rebuilt.
+// finish per day." This is that check, committed so the table of possibilities in HISTORY.md (→ "Today's link on 26 lines") can be rebuilt.
 //
 // WHY THE MINUTES RUN OUT. With today's times, three 16:00–23:55 closers and nothing else finishing after 22:30, a
 // weekday pays at most 7,485 minutes and a Saturday 6,855: 44,280 a week against the 44,100 the contract needs. A 13:45
@@ -62,7 +62,7 @@ if (process.env.SCAN === '1') await scan();
 
 // ---- the weeks
 const TODAY = new Set([...TODAYS.split(','), '14:45-23:55', '15:15-23:55']);
-const GIVEN = new Set(['16:00-23:55', '15:15-23:25']);   // the brief's closer and the Sunday closer (README): in every week
+const GIVEN = new Set(['16:00-23:55', '15:15-23:25']);   // the brief's closer and the Sunday closer (HISTORY.md): in every week
 const SUN = [['07:15-15:45', 4], ['08:00-16:30', 1], ['14:00-22:30', 2], ['15:15-23:25', 3]];
 const m = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
 const rows = readFileSync(SCAN_FILE, 'utf8').split('\n').filter(l => l.includes(' | ')).map(l => { const [head, tail] = l.split(' | ');
@@ -93,7 +93,7 @@ for (let i = 0; i < W.length; i++) { offer([[W[i], 5]]);
 const fitKey = x => x.wkFit + x.satFit / 5, show = x => `Sat closers ${x.satC.join('/')} · new ${x.newT.length ? x.newT.join(', ') : 'none'} · ${x.short} short earlies a week${x.both ? ' (a 13:35 and a 13:45 every weekday)' : ''} · ${x.lateYear} finishes after 23:00 a year (${x.extra} non-closers a week) · ${x.times} times · fit ${x.wkFit.toFixed(1)} · ${x.satFit} · ${x.wk.map(([w, k]) => `${k}×${w.way}@${w.total}`).join('+')} + ${x.s.way}@${x.s.total}`;
 console.log(`${W.length} weekday tables (every one with a 13:35 or 13:45), ${S.length} Saturday tables; ${paying.toLocaleString('en-GB')} whole weeks pay 44,100 exactly, ${weeks.length.toLocaleString('en-GB')} inside 18 shift times`);
 
-// THE README'S ROWS: the best week (fewest late finishes, then the closest fit) for each way of finding the minutes
+// HISTORY.md'S ROWS: the best week (fewest late finishes, then the closest fit) for each way of finding the minutes
 const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 const ROWS = [
   ["Saturday's closers stay at today's 14:45", x => same(x.satC, ['14:45']) && !x.newT.length && !x.extra],

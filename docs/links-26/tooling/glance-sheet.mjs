@@ -4,7 +4,7 @@
 // for someone with a minute, not a second copy of its tables.
 //
 // AUDITED THE SAME DAY (owner: "audit it for clarity, comparability and improvements"): a colleague's reading of the page
-// alone, and a comparability audit against this code and the rest of the pack. The README has what changed. The rules the
+// alone, and a comparability audit against this code and the rest of the pack. HISTORY.md → "The shortlist at a glance" has what changed. The rules the
 // audit left are here, each beside the lines it governs; the one that mattered most is THE WORST SEVEN DAYS, below.
 //
 // THE FIGURES ARE what-it-means-data.mjs's, which are deck-check.mjs's (the decks' own) and the grids' counts, so this page,

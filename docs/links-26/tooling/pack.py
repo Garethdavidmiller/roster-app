@@ -59,8 +59,8 @@ for name, code, fp in proposals:
     d = DIR_OF[code]
     files += [(f'{ROOT}/{d}/{base}-{fp}.pdf', f'4 Proposal sheets/{IN_ZIP[d]}{base}-{fp}.pdf'),
               (f'{ROOT}/{d}/{base}-import.txt', f'5 Import files for the Links page/{IN_ZIP[d]}{base}-import.txt')]
-# THE TECHNICAL NOTES ARE RULES.md ALONE (owner, 5 Nov 2026: "Leave it out of the pack"). README.md is this folder's working
-# record — every design's history, the tooling, the league — written for whoever rebuilds the pack rather than for a reader
+# THE TECHNICAL NOTES ARE RULES.md ALONE (owner, 5 Nov 2026: "Leave it out of the pack"). README.md (with HISTORY.md since 24 Nov 2026) is this folder's
+# working record — every design's history, the tooling, the league — written for whoever rebuilds the pack rather than for a reader
 # of it, and it had come to say things the pack does not. It stays in the repository, where the read-me's history points
 files += [(f'{ROOT}/RULES.md', '6 Technical notes/RULES.md')]
 missing = [s for s, _ in files if not os.path.exists(s)]
@@ -224,7 +224,7 @@ if AFTER_31_OCT != AFTER_31_OCT_SET:
 LATE_WORDS = ', '.join(LATE[:-1]) + ' and ' + LATE[-1] if len(LATE) > 1 else ''.join(LATE)   # three since 4 Nov: 'A, B and C', never 'A and B and C'
 # DELETED, 6 NOV 2026 (owner: "Permanently delete well kept, quarter past, the four second designs, quiet friday, little and
 # often and same again"). Nine designs that had left the pack, or were never in it, are gone from the repository: grids,
-# metas and their own search files (README.md -> "Nine designs deleted"). Until then the read-me named six of them as
+# metas and their own search files (HISTORY.md -> "Nine designs deleted"). Until then the read-me named six of them as
 # withdrawn or taken out, with their record "kept in the repository"; it now names none. Refused if one is back in SUPPLIED,
 # and refused if the read-me names one, so a deleted design cannot come back unnoticed
 DELETED = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear', 'Quiet Friday', 'Same Again', 'Little and Often',
@@ -232,11 +232,11 @@ DELETED = ['Second Nature', 'Second Wind', 'Second Sight', 'Second Gear', 'Quiet
            'Set Fair',   # 7 Nov 2026 (owner: "Delete set fair as it would not work"): drawn and deleted the same day, Crossover in its place
            'Both Ways', 'Fine Tune',   # 7 Nov 2026 (owner: "Please cut both ways and fine tune from the links 26 pack"): of the
            # 21 outside Balanced V5-V7, the lowest and fourth-lowest average place over the league's ten readings, and alone
-           # best at none of its twenty measures (README.md -> "Both Ways and Fine Tune deleted")
+           # best at none of its twenty measures (HISTORY.md -> "Both Ways and Fine Tune deleted")
            'Second Look', 'Even Keel', 'In Step', 'Open Return', 'Short Openers',   # 8 Nov 2026 (owner: "Delete in step, even
-           # keel, open return, short openers and second look from the pack and repo"; README.md -> "Five designs deleted")
+           # keel, open return, short openers and second look from the pack and repo"; HISTORY.md -> "Five designs deleted")
            'Common Ground', 'Crossover', 'Even Step', 'Balanced V5']   # 9 Nov 2026 (owner: "Discard those three and balanced v5
-           # now please, very carefully"; README.md -> "Four designs discarded"): out of the pack for good, their grids kept in the
+           # now please, very carefully"; HISTORY.md -> "Four designs discarded"): out of the pack for good, their grids kept in the
            # tooling because other designs' decks and checks are built from them (fresh.mjs -> BASES)
 if any(n in names.split(', ') for n in DELETED):
     raise SystemExit(f'pack: {DELETED} were deleted or discarded (6 to 9 Nov 2026); regenerate.mjs SUPPLIED lists one of them')
@@ -348,7 +348,7 @@ if not set(AT_2230) <= names_in:   # 22:30 paragraph names these eight as drawn 
 # them only loosely (Crossover first by 0.35 to half a point, which can print 0.5), so a design joining or a grid changing
 # could have left the read-me a tenth, or a leader, behind the sheet. They are read here as the sheet reads them: the main
 # league, today's link and Familiar Nine inside its ranges (REF_IN_RANGE=1), the lead to a tenth (the sheet's f1). SINCE 8 NOV
-# 2026 THE MAIN LEAGUE COUNTS THE CLOSING WEEKS (league.mjs; README.md -> "The league reweighted for the design target"): the
+# 2026 THE MAIN LEAGUE COUNTS THE CLOSING WEEKS (league.mjs; HISTORY.md -> "The league reweighted for the design target"): the
 # sentence names the day it was reweighted and the leader on it, and refuses a JSON from any other reading
 import json, subprocess, tempfile
 with tempfile.TemporaryDirectory() as _t:
@@ -548,7 +548,7 @@ readme = '\n'.join([
             f'All {WORDS[len(AFTER_5_NOV)]} buy 30 days off for 14 days\' leave too, and are in the folder 30 days off, the '
             f'{WORDS[sum(n.startswith("Balanced ") for n in AFTER_5_NOV)]} Balanced designs in its subfolder Balanced.'), '']
       if AFTER_5_NOV else []),
-    # THE 22:30 OFFICE (6 Nov 2026; README.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
+    # THE 22:30 OFFICE (6 Nov 2026; HISTORY.md -> "The Saturday ticket office to 22:30"): what it changed, said once, for a reader
     # holding a printout from before it, whose fingerprints no longer match. THE COUNT IS READ SINCE 7 NOV 2026: it said "the
     # nineteen already in the pack", true on 6 Nov, until Both Ways and Fine Tune were deleted and a reader counting found 17
     # SINCE 9 NOV 2026 it names none of the four discarded that day: Balanced V5 and Crossover finished the Saturday lates at
@@ -603,7 +603,7 @@ readme = '\n'.join([
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
 _named = [n for n in DELETED if n in ' '.join(readme.split())]
-if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6, 7 or 8 Nov 2026 or discarded on 9 Nov 2026 (README.md -> "Nine designs deleted", "Crossover", "Both Ways and Fine Tune deleted", "Five designs deleted", "Four designs discarded")')
+if _named: raise SystemExit(f'pack: the read-me names {_named}, deleted on 6, 7 or 8 Nov 2026 or discarded on 9 Nov 2026 (HISTORY.md -> "Nine designs deleted", "Crossover", "Both Ways and Fine Tune deleted", "Five designs deleted", "Four designs discarded")')
 _old = [n for n in RENAMED if n in ' '.join(readme.split())]
 if _old: raise SystemExit(f'pack: the read-me names {_old}, the old name of {[RENAMED[n] for n in _old]}')
 # PLAIN ASCII: it opens in Notepad, and an older one reads a file with no byte-order mark in the PC's own code page
