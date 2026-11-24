@@ -43,7 +43,8 @@ One line each; the record is `ROADMAP_HISTORY.md` → "Track 1 — the auth cons
 
 `ROADMAP_HISTORY.md` → "Track 1 — the auth consolidation phases" → Phase 9. The mechanism's safety
 net is live code: an in-place `onSuccess` reloads if `init()`/`initAuthorised()` throws or the session
-save failed (`e2e/auth.spec.js`, the no-reload tests).
+save failed (`e2e/auth.spec.js`, the no-reload tests). The "Phase 10" note (scoped, deliberately not
+built) moved with it.
 
 ## PAYSLIP_ACTUALS
 
