@@ -328,6 +328,35 @@ describe('enableNotifications', () => {
         setupEnv({ apis: false });
         assert.equal(await enableNotifications(), 'unsupported');
     });
+    // ── THE ASK IS INSIDE THE TAP, THE SAVE AFTER THE CALLER'S WAIT (v26.60 review, D-M1) ───────────
+    // iPhone Safari honours requestPermission() only while the tap's activation lasts, so it must be
+    // made before anything is awaited; Settings' wait for its session belongs before the SAVE alone.
+    test('the permission request is made before anything is awaited; beforeSubscribe runs before the save', async () => {
+        setupEnv({ permission: 'default' });
+        const flush = () => new Promise(r => setImmediate(r));
+        let asked = 0;
+        /** @type {any} */ (globalThis.Notification).requestPermission = async () => { asked++; return 'granted'; };
+        /** @type {() => void} */ let release = () => {};
+        const gate = new Promise(r => { release = () => r(undefined); });
+        let waited = 0;
+        const run = enableNotifications({ beforeSubscribe: () => { waited++; return gate; } });
+        assert.equal(asked, 1, 'asked synchronously, while the tap still counts');
+        await flush();
+        assert.equal(waited, 1, 'the caller\'s wait runs once permission is granted');
+        assert.equal(_saveCalls, 0, 'nothing is saved before the caller\'s wait is over');
+        release();
+        assert.equal(await run, 'on');
+        assert.equal(_saveCalls, 1);
+    });
+    test('a refused prompt never reaches beforeSubscribe; a rejecting one does not stop the subscribe', async () => {
+        setupEnv({ permission: 'default', requestResult: 'denied' });
+        let waited = 0;
+        assert.equal(await enableNotifications({ beforeSubscribe: async () => { waited++; } }), 'denied');
+        assert.equal(waited, 0);
+        setupEnv({ permission: 'granted' });
+        assert.equal(await enableNotifications({ beforeSubscribe: () => Promise.reject(new Error('no session')) }), 'on');
+        assert.equal(_saveCalls, 1);
+    });
     // ── A SAVE THE SERVER NEVER ANSWERS (whole-app check, 17 Nov 2026) ──────────────────────────────
     // A Firestore write settles only when the server acknowledges it, so with no connection turning
     // notifications on waited for ever: the Settings card sat on "Enabling…". It is given up at the time
