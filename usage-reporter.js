@@ -14,8 +14,8 @@
  *
  * Call once per page from the coordinator, at the same point initErrorReporter() is
  * called (after the Firebase Auth session is being established) so the writes satisfy
- * the analytics rule, which needs a member or the admin (`isKnownIdentity`, v24.56 — it still accepts
- * the retired staff PIN's viewer too, until the server release removes that claim from the rules).
+ * the analytics rule, which needs a member or the admin (`isKnownIdentity`, v24.56 — the retired staff
+ * PIN's viewer was accepted too, until the PIN's server release removed that claim from the rules).
  *
  * ── ONE IDENTITY ARGUMENT, AND ANONYMOUS VISITS COUNT (v19.95) ─────────────────────
  *
