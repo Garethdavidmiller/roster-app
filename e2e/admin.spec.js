@@ -4082,9 +4082,9 @@ test('admin: a Saved Changes row is one row — controls side by side, under 64p
     expect(Math.abs(g.edit.top - g.del.top), 'and they share a line').toBeLessThan(2);
     expect(g.row, 'the row is sized by its content, not a stacked control cluster').toBeLessThan(64);
 
-    // The controls kept their names — the glyph alone has none.
-    await expect(card.locator('.btn-edit')).toHaveAttribute('aria-label', /^Edit G\. Miller 2026-09-01$/);
-    await expect(card.locator('.btn-delete')).toHaveAttribute('aria-label', /^Delete G\. Miller 2026-09-01$/);
+    // The controls kept their names — the glyph alone has none — and say the date as the row does.
+    await expect(card.locator('.btn-edit')).toHaveAttribute('aria-label', /^Edit G\. Miller 1 September 2026$/);
+    await expect(card.locator('.btn-delete')).toHaveAttribute('aria-label', /^Delete G\. Miller 1 September 2026$/);
 
     // One member on screen: the name is not repeated on every row…
     await expect(card.locator('.oc-member')).toBeHidden();

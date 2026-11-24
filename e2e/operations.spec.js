@@ -1364,7 +1364,7 @@ test('operations account status: a failed Remove leaves the open edit form its o
     await remove.click();                                                       // the Remove fails
     await expect(row.locator('.email-set-error').last()).toHaveText(/Couldn’t remove/);
     await row.locator('.email-set-save').click();                               // and the form's save fails
-    await expect(row.locator('.email-set-form .email-set-error')).toHaveText(/Couldn't save/);
+    await expect(row.locator('.email-set-form .email-set-error')).toHaveText(/Couldn’t save/);
 });
 
 test('operations reset requests: a Clear that fails AFTER the list was redrawn reports on the row now shown', async ({ page }) => {
@@ -3019,7 +3019,7 @@ test('operations offline: App speed, Usage and the Error Log refuse a cached ans
     await page.goto('/operations.html');
     await expect(page.locator('#pageSpeedContent')).toContainText('Couldn’t load app speed — check your connection.');
     await expect(page.locator('#usageContent')).toContainText('Couldn’t load usage — check your connection.');
-    await expect(page.locator('#errorLogContent')).toContainText('Couldn\'t load error log — check your connection.');
+    await expect(page.locator('#errorLogContent')).toContainText('Couldn’t load error log — check your connection.');
     await expect(page.locator('#errorLogCountChip')).toHaveText('');
     await expect(page.locator('#attentionStrip a[href="#error-log"]')).toHaveCount(0);
     await expectNothingForTheErrorLog(page, pageErrors);
