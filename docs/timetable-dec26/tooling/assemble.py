@@ -15,22 +15,36 @@ def build(cols, src):
         fac = list(c.get('fac', []))
         stops = [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in cells if timed(x)]
         if any(x['text'] == 'e' for x in cells):
+            if not stops: stop(f'a train continued on another page with no time before it', src, c)
             last = stops[-1]
             # the continuation: a LATER column of the same direction and day whose first cell is 'f'
-            # and which carries the identical time at the same station
-            for j in range(i + 1, len(cols)):
-                d = cols[j]
-                if d['dir'] != c['dir'] or d['day'] != c['day'] or not d['cells'] or d['cells'][0]['text'] != 'f': continue
-                if any(x['crs'] == last['crs'] and x['text'] == last['t'] for x in d['cells']):
-                    k = next(n for n, x in enumerate(d['cells']) if x['crs'] == last['crs'] and x['text'] == last['t'])
-                    stops += [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in d['cells'][k + 1:] if timed(x)]
-                    used.add(j); c = dict(c, notes=c['notes'] + d['notes']); fac += d.get('fac', [])
-                    break
-            else:
-                print('WARN unlinked continuation', src, c['page'], c['col'], [s['crs'] + s['t'] for s in stops][:4])
+            # and which carries the identical time at the same station. EXACTLY ONE, AND NOT ALREADY
+            # JOINED (external review of v26.67): the first match was taken, so two trains could both be
+            # given one continuation's destination, and a train with none was published shortened after a
+            # WARN nobody had to read. Either is a question for the book, so the build stops and names it.
+            cands = [j for j in range(i + 1, len(cols))
+                     if cols[j]['dir'] == c['dir'] and cols[j]['day'] == c['day'] and cols[j]['cells']
+                     and cols[j]['cells'][0]['text'] == 'f'
+                     and any(x['crs'] == last['crs'] and x['text'] == last['t'] for x in cols[j]['cells'])]
+            if not cands: stop(f"no continuation carries its {last['crs']} {last['t']}", src, c)
+            if len(cands) > 1: stop(f"{len(cands)} continuations carry its {last['crs']} {last['t']} (page/column " + ', '.join(f"{cols[j]['page']}/{cols[j]['col']}" for j in cands) + ')', src, c)
+            j = cands[0]
+            if j in used: stop(f"its continuation (page/column {cols[j]['page']}/{cols[j]['col']}) is already joined to another train", src, c)
+            d = cols[j]
+            k = next(n for n, x in enumerate(d['cells']) if x['crs'] == last['crs'] and x['text'] == last['t'])
+            stops += [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in d['cells'][k + 1:] if timed(x)]
+            used.add(j); c = dict(c, notes=c['notes'] + d['notes']); fac += d.get('fac', [])
         if not stops: continue
         out.append(dict(src=src, page=c['page'], col=c['col'], dir=c['dir'], day=c['day'], op=c['op'], fac=fac, notes=c['notes'], stops=stops))
+    # …and a continuation no train reached is a train's END left behind: its stops would be lost.
+    for j, d in enumerate(cols):
+        if d['cells'] and d['cells'][0]['text'] == 'f' and j not in used:
+            stop('a continuation no train on an earlier page reaches', src, d)
     return out
+def stop(why, src, col):
+    """End the build on a question only the printed book can answer, naming where to look."""
+    sys.exit(f"assemble.py: {why} — {src} book, page {col['page']}, column {col['col']}, {col['dir']} {col['day']}. "
+             "Check the book, then teach assemble.py.")
 # The letter after a printed time, from each book's key. 'a'/'d' only say which of a pair it is.
 # 'u' and 's' are stops a passenger cannot use one way: a train leaving London that only PICKS UP at
 # a station cannot set anyone from London down there, and one coming in that only SETS DOWN cannot

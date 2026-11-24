@@ -576,6 +576,7 @@ roster-app/
 │   ├── overtime-parity.test.mjs ← the two copies of `deriveHistory` agree by behaviour. Part of test:hygiene
 │   ├── overtime-format.test.mjs ← the Overtime client's words and its deadline clock. Part of test:hygiene
 │   ├── overtime-clock.test.mjs ← overtime-clock.js's extraction: the same objects re-exported, no imports. Part of test:hygiene
+│   ├── trains-assemble.test.mjs ← the timetable builder (`assemble.py`) joins a continued train only to its ONE continuation, run on synthetic books. Part of test:hygiene; skipped without python3
 │   ├── trains-change.test.mjs ← what the Trains page says changes, against hand-checked facts from the printed books. Part of test:hygiene
 │   ├── trains-stations.test.mjs ← the Trains page from a station, and its words. Part of test:hygiene
 │   ├── newlink-data.test.mjs ← the new link page says what the pack says (the generator in `--check` mode)
