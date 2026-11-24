@@ -20,6 +20,13 @@
  *
  * What it may say is times and counts. The PIN, an address, who tripped it — none of it reaches this
  * page, and nothing here could say it.
+ *
+ * THE PIN IS RETIRED (owner, 23 Nov 2026), and this card goes with the server release that deletes
+ * `unlockCalendarViewer`. Until then a block can still happen — an app that has not updated, or somebody
+ * calling the endpoint directly — so the card still says when; but its advice is now that nothing needs
+ * doing. It used to say "consider changing the PIN", which nothing reads any more (OPERATIONS_REFERENCE.md
+ * → "The staff PIN (retired)" → "Until the server release": do not rotate it). The tip says the same
+ * (operations-tips.js → 'staff-login').
  */
 
 /** How long a block that has ended is still worth a line. The server applies the same day — `LOCKOUT_RECENT_MS`
@@ -93,7 +100,7 @@ export function lockoutWords(l, now) {
             : `The staff PIN was blocked for everyone ${once} — too many wrong entries.`;
     return {
         text,
-        fix: 'It reopens by itself, and members can still sign in with their password. If it keeps happening, somebody may be guessing — consider changing the PIN.',
+        fix: 'Nothing to do: it reopens by itself. The staff PIN is retired, so nobody needs it — members sign in with their own password — and there is no need to change it. The next server release removes it.',
     };
 }
 
