@@ -10,6 +10,7 @@ import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInVi
 import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
 import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG, isBankHoliday, formatISO } from '../roster-data.js';
 import { fmtPeriodDate, formatDisplay } from '../admin-period-dates.js';
+import { entitlementFor } from '../al-entitlement.js';
 
 // AN INVENTED MEMBER, SERVED INTO THE ROSTER FILE FOR ONE TEST (as paycalc.spec.js serves its promoted manager).
 // A test that puts leave, an absence or a rest-day change on somebody uses this, never a colleague looked up
@@ -3446,6 +3447,83 @@ test('admin: a booked period a colleague has since changed is not deleted, and t
     await expect(page.locator('#alFeedback')).toContainText(/Someone else has changed this/);
     expect(await page.evaluate(() => (window.__E2E?.deletedPaths || []).length), 'something was deleted').toBe(0);
     await expect(page.locator('#alBookedBody .btn-period-delete')).toHaveCount(1);
+});
+
+// A RECORDED DATES DELETE ASKS THE OVER-ALLOWANCE QUESTION (external review of v26.58), as Saved Changes' ✕ does. A
+// Spare week over New Year spends its four from its December days, so deleting 28–31 December moves the charge onto
+// 1 and 2 January: with 2027 one day short of full, it ends one over. The list's ✕ deleted at once, with no question.
+// An INVENTED member, Spare that week, with 2027's other leave on their working days.
+const NY_SPARE = ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02'];
+/** @param {import('@playwright/test').Page} page @param {{ server?: (rows: any[]) => any[] }} [o] */
+async function openNewYearSpareDelete(page, o = {}) {
+    let week = 0;
+    for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS && !week; w++) {
+        if (NY_SPARE.every(d => getBaseShift(inventedCea(w), parseISODate(d)) === 'SPARE')) week = w;
+    }
+    expect(week, 'premise: some week of the main line is Spare over New Year 2026/27').toBeGreaterThan(0);
+    const who = inventedCea(week);
+    const allowance = /** @type {number} */ (entitlementFor(who, 2027, []));
+    /** @type {string[]} */ const workdays = [];
+    for (const d = new Date(2027, 1, 1, 12); workdays.length < allowance - 1; d.setDate(d.getDate() + 1)) {
+        const base = getBaseShift(who, d);
+        if (d.getDay() !== 0 && !isBankHoliday(d) && !isRestShift(base) && base !== 'SPARE') workdays.push(formatISO(d));
+    }
+    const leave = (/** @type {string} */ date) => ({ id: `ny-${date}`, memberName: who.name, date, type: 'annual_leave', value: 'AL', note: '',
+        source: 'manual', replacedType: 'spare_shift' });
+    const rows = [...NY_SPARE.map(leave), ...workdays.map(leave)];
+    await serveInventedMember(page, who);
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));   // the list opens on 2026, where 28–31 December are
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(([docs, txDocs]) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true, docs, ...(txDocs ? { txDocs } : {}) });
+    }, [rows, o.server ? o.server(rows) : null]);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption(who.name);
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    // By the row, not the control's name: an armed ✕ is named "Confirm delete …".
+    const row = page.locator('#alBookedBody .al-period-row').filter({ hasText: 'Mon 28 – Thu 31 Dec' });
+    await expect(row, 'premise: 28–31 December is one row of the 2026 list').toHaveCount(1);
+    const btn = row.locator('.btn-period-delete');
+    await clickInView(btn);
+    await expect(btn).toHaveText('Delete?');
+    await pastDoubleTap(page);
+    await clickInView(btn);
+    return { who, btn };
+}
+const deletedCount = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => (/** @type {any} */ (window).__E2E?.deletedPaths || []).length);
+
+test('admin: a Recorded dates delete that leaves next year over its allowance asks first, and deletes on "Save anyway"', async ({ page }) => {
+    const { who, btn } = await openNewYearSpareDelete(page);
+    const bar = page.locator('#alConfirmBar');
+    await expect(bar).toHaveClass(/visible/);
+    await expect(page.locator('#alConfirmMsg')).toContainText('2027');
+    expect(await deletedCount(page), 'nothing is deleted while the question is open').toBe(0);
+    await expect(page.locator('#alConfirmSaveBtn'), 'the question has focus').toBeFocused();
+    await expect(btn).toHaveText('✕');
+    await page.locator('#alConfirmSaveBtn').click();
+    await expect(page.locator('#alFeedback')).toContainText(`Deleted 4 AL days for ${who.name}`);
+    expect(await deletedCount(page), 'the four December days').toBe(4);
+    await expect(bar).not.toHaveClass(/visible/);
+});
+
+test('admin: Cancel on a Recorded dates delete\'s question deletes nothing, and hands focus back to its ✕', async ({ page }) => {
+    const { btn } = await openNewYearSpareDelete(page);
+    await expect(page.locator('#alConfirmBar')).toHaveClass(/visible/);
+    await page.locator('#alConfirmCancelBtn').click();
+    expect(await deletedCount(page)).toBe(0);
+    await expect(btn).toBeFocused();
+    await expect(btn).toHaveText('✕');
+});
+
+test('admin: "Save anyway" on a Recorded dates delete still refuses a day a colleague has changed since', async ({ page }) => {
+    // The server's 29 December is a worked rest day now: the answer deletes what was on screen at the tap, or nothing.
+    await openNewYearSpareDelete(page, { server: rows => rows.map(r => r.date === '2026-12-29' ? { ...r, type: 'rdw', value: '09:00-17:00' } : r) });
+    await expect(page.locator('#alConfirmBar')).toHaveClass(/visible/);
+    await page.locator('#alConfirmSaveBtn').click();
+    await expect(page.locator('#alFeedback')).toContainText(/Someone else has changed this/);
+    expect(await deletedCount(page), 'something was deleted').toBe(0);
 });
 
 // ── THE PAGE'S OWN WRITE IS NOT A COLLEAGUE'S (Nov 2026, review) ──────────────────────────────────────
