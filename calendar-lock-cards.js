@@ -164,6 +164,9 @@ export async function showSignInPanel(notice = '') {
         pageLabel: 'Calendar',
         onSuccess: () => { _deps.finishSignIn(); },
         host: panel,
+        // The roster IS this page: "← Back to roster" here would only reload the card it sits on.
+        // The PIN's button held this slot until the PIN was retired, so nothing showed it before.
+        showBackLink: false,
         notice,
     });
 }

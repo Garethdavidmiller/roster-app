@@ -187,6 +187,15 @@ test('`#staff-pin` is an ordinary address now: the sign-in card, and nothing els
     await expect(page.locator('#calendarDisplay')).toBeHidden();
     expect(errors, errors.join('\n')).toEqual([]);
 });
+test('the Calendar\'s own sign-in card offers no "Back to roster": the roster is this page', async ({ page }) => {
+    // The retired PIN's button held this slot, so the form's default link never showed here. Without
+    // it, "← Back to roster" pointed at the page it sat on and only reloaded the same card (found in
+    // #1838's visual baselines). Other pages keep the link; the guard on that side is Admin's below.
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await expect(page.locator('#loginCard .login-back')).toBeHidden();
+    await expect(page.getByText('Back to roster')).toBeHidden();
+});
 test('the nav drawer and the guides stay reachable while locked', async ({ page }) => {
     // Locking the building to reach the noticeboard would be absurd: the guides, the Huddle and the
     // documents are deliberately outside the gate.

@@ -145,8 +145,11 @@ function sayStaffPinEnded(overlay) {
  *  staff PIN can arrive after the card is up; an empty one takes no room (shared.css).
  *  @param {string} pageLabel
  *  @param {{ label: string, hint?: string }|null} alternative
- *  @param {LoginAbout|null} about */
-function overlayHtml(pageLabel, alternative, about) {
+ *  @param {LoginAbout|null} about
+ *  @param {boolean} [showBackLink]  false on the page the link would lead to (the Calendar's own front
+ *    door), where "Back to roster" only reloads the card it is on. The link is still drawn, `hidden`:
+ *    the busy class it wears while a sign-in is in flight is what the Calendar reads (`signInInFlight`). */
+function overlayHtml(pageLabel, alternative, about, showBackLink = true) {
     return `
     <div id="loginCard">
         <img src="icon-192.png" alt="Marylebone Roster">
@@ -197,7 +200,7 @@ function overlayHtml(pageLabel, alternative, about) {
         ${alternative
             ? `<button type="button" class="login-back" id="loginAlternative"></button>` +
               (alternative.hint ? `<p class="login-help" id="loginAlternativeHint"></p>` : '')
-            : `<a href="./" class="login-back">← Back to roster</a>`}
+            : `<a href="./" class="login-back"${showBackLink ? '' : ' hidden'}>← Back to roster</a>`}
         ${about?.footnote ? '<p class="login-help login-footnote" id="loginFootnote"></p>' : ''}
     </div>`;
 }
@@ -249,6 +252,8 @@ function fillAbout(overlay, about) {
  * @param {{ label: string, hint?: string, onSelect: () => void }|null} [opts.alternative]  Replaces
  *   the "← Back to roster" link with a button — the other way in, where there is one. Ignored while
  *   a sign-in is in flight, for the same reason the link is.
+ * @param {boolean} [opts.showBackLink]  false hides the "← Back to roster" link: for the Calendar's own
+ *   front door, where the roster IS the page and the link would only reload the card. Default true.
  * @param {string} [opts.notice]  One line under the subtitle saying why the card is up, when it is
  *   not obvious — an expired session, say. Empty leaves the card's notice line empty (it takes no room),
  *   which the retired staff PIN's line may fill later (`sayStaffPinEnded`; it replaces a
@@ -264,7 +269,7 @@ function fillAbout(overlay, about) {
  *   `signInAboutFor` is used (Settings, Operations, Links); with neither, nothing renders.
  * @returns {void}
  */
-export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, notice = '', presetName = '', about: pageAbout = null }) {
+export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, showBackLink = true, notice = '', presetName = '', about: pageAbout = null }) {
     // A page that passes no explanation of its own gets the one login-core.js keeps for it, if any.
     const about = pageAbout ?? signInAboutFor(pageLabel);
     // Inject the overlay (idempotent — never double-mount).
@@ -281,7 +286,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         overlay.setAttribute('aria-label', `Sign in to ${pageLabel}`);
         overlay.setAttribute('aria-modal', 'true');
     }
-    overlay.innerHTML = overlayHtml(pageLabel, alternative, about);
+    overlay.innerHTML = overlayHtml(pageLabel, alternative, about, showBackLink);
     // textContent for the three caller-supplied strings, never interpolation: the label and the
     // notice are the app's own words today, but a card built by string concatenation on the front
     // door is not the place to rely on where a value came from.

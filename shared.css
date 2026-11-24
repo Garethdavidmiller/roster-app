@@ -3288,6 +3288,8 @@ button.nav-panel-link--notices {
     transition: color var(--dur-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
+/* [hidden] must beat the inline-block above: the Calendar's own front door hides its link (login-overlay.js). */
+.login-back[hidden] { display: none; }
 /* While a sign-in is genuinely in flight the Back link is inert — leaving mid-submit is the
    "half signed-in" escape route the v14.75 login fix closed (JS preventDefault is the real guard;
    this just makes the disabled state visible). */
