@@ -239,8 +239,9 @@ export function init() {
         // that, so a revoked member was left on a form whose every send would fail.
         // The sign-in that covers the page is hidden in print, so what the lost account read goes
         // first — or Ctrl+P printed the availability sheet from behind it (overtime-ui-4).
+        // The shared card (external review of v26.67), so this page too says "signed in again" with Try again.
         if (currentUser) guardNamedSession({ page: 'overtime', pageLabel: 'Overtime', member: currentUser, established: setAuth,
-            signIn: () => { review.standDown({ clear: true }); initLoginOverlay({ pageLabel: 'Overtime', onSuccess: () => window.location.reload() }); } });
+            beforeSignIn: () => review.standDown({ clear: true }) });
 
         // ── THE `ready` MILESTONE IS LATE ON THIS PAGE, AND THAT IS THE POINT ───────────────────
         //

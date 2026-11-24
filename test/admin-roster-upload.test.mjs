@@ -3217,3 +3217,35 @@ describe('the review entry control on a Sunday', () => {
         assert.doesNotMatch(weekday, /data-entry-type="\w+"[^>]*\sdisabled/, 'a weekday offers every type');
     });
 });
+
+// UPLOAD TO REVIEW, FOR THE TWO CELLS THAT LOOKED LIKE ANSWERS (external review of v26.67). A Monday cell of only `|`
+// became a rest day, and "06:00-10:00 / 14:00-18:00" became 06:00-10:00 — each a valid-looking duty out of a cell nobody
+// could read with certainty. Through the server's real `buildSafeEntries` and the review's real `computeCellStates`:
+// each is a row the admin sees as "check the PDF", and nothing is written for either.
+describe('upload to review: an uncertain weekday cell is shown as "check the PDF", and never saved', () => {
+    test('a Monday of only a line, and a Tuesday of two times, reach the admin unreadable — on a rest-day base too', async () => {
+        const { createRequire } = await import('node:module');
+        const require = createRequire(REPO_ROOT_URL);
+        const { buildSafeEntries } = require('./functions/roster-parse-helpers.js');
+        // A member whose base rests on both days, so an RD read would have been a silent MATCH.
+        const m = teamMembers.find((/** @type {any} */ x) => !x.hidden && ['RD', 'OFF'].includes(getBaseShift(x, new Date('2026-11-30T12:00:00')))
+            && ['RD', 'OFF'].includes(getBaseShift(x, new Date('2026-12-01T12:00:00'))));
+        assert.ok(m, 'premise: a member who rests on Monday 30 November and Tuesday 1 December');
+        const dates = ['2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04', '2026-12-05'];
+        const headers = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const w = console.warn; console.warn = () => {};
+        let parsed;
+        try {
+            parsed = buildSafeEntries([{ memberName: m.name, Sun: 'RD', Mon: '|', Tue: '06:00-10:00 / 14:00-18:00',
+                Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }], headers, dates);
+        } finally { console.warn = w; }
+        const states = computeCellStates({ parsed, dates }, []);
+        for (const date of ['2026-11-30', '2026-12-01']) {
+            const st = states.get(`${m.name}|${date}`);
+            assert.equal(st?.state, 'UNREADABLE', `${date} reached the review as ${st?.state}, not a row to check`);
+            assert.match(String(st?.parsedShift), /check the PDF$/, `${date}: the review does not say to check the PDF`);
+        }
+        assert.deepEqual(collectRosterWrites(states).filter((/** @type {any} */ wr) => wr.date === '2026-11-30' || wr.date === '2026-12-01'), [],
+            'an uncertain cell was saved');
+    });
+});

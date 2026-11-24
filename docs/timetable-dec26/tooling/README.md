@@ -56,7 +56,11 @@ new issue of the books legitimately moves them, and a parser regression looks th
   hard-coded position read the Met book and found nothing at all in the main-line one. Each column
   also records its block's **station rows in printed order** (`rows`): the one place the geography
   is written down — which branch follows which junction — and the source of `STATION_ORDER`.
-- **`assemble.py`** joins a train continued across pages (`e` → `f`), keeps Chiltern trains that
+- **`assemble.py`** joins a train continued across pages (`e` → `f`) to the ONE continuation that carries its
+  time at the same station, and stops the build — naming the book, page and column — when there is none, more than
+  one, one already joined to another train, or a continuation no train reaches (external review of v26.67: it took
+  the first match, and only warned when there was none). `test/trains-assemble.test.mjs` runs it on synthetic books.
+  It keeps Chiltern trains that
   start or end at Marylebone, and folds a train printed in both books into one. A Mondays-and-Fridays
   and a not-Mondays-and-Fridays copy of the same train at the same time are ONE row — but only when
   they stop alike: the 17:45 to Oxford calls at High Wycombe on Mondays and Fridays and at

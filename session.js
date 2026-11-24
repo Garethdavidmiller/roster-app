@@ -179,6 +179,19 @@ export function getFirebaseIdentity() { return _fbIdentity; }
 export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
 
 /**
+ * True when the LIVE Firebase user is this member's own account — ground truth (`auth.currentUser`), read as
+ * the superseded-attempt check in `ensureNamedSession` reads it, never the shared `_fbIdentity` a newer attempt
+ * may have moved. The sign-in card asks it before opening the page on a late answer it held back while a retry
+ * was in flight: a sign-out since, here or in another tab, has signed Firebase out, and the answer then opens nothing.
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function signedInAs(name) {
+    const u = auth.currentUser;
+    return !!u && !u.isAnonymous && u.email === nameToEmail(name);
+}
+
+/**
  * The auth error code behind the last non-'named' `ensureFirebaseSession` outcome, or undefined.
  * @returns {string | undefined}
  */

@@ -220,6 +220,11 @@ const CAPS = {
     'overtime-form.js':        1000,
     // 560 → 550 on 16 Nov 2026 (tidy-up), brought DOWN: changelog comments cut to their reasons (559 measured lines to 480).
     'admin-overrides.js':      550,
+    // NEW TO THE TABLE on 24 Nov 2026 (external review of v26.67), at 922 — the deliberate act this suite asks for. The
+    // card's DOM-free rules already left for login-core.js (Nov 2026); what grew is the card's own state, a late answer
+    // HELD while the colleague's retry is in flight (`_heldLateSignIn`), which lives where `_attempting` does. Bring this
+    // down the moment anything else leaves the file.
+    'login-overlay.js':        930,
     // **950 IS ABSOLUTE, AND THE FILE IS AT IT** (external review of v23.92, 16 Sep 2026). Zero
     // headroom is not a coincidence to be relieved with a bigger number — it is the signal this
     // ratchet exists to produce. The reviewer's instruction, adopted: *the next meaningful

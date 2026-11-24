@@ -427,20 +427,23 @@ export const SIGNED_OUT_NOTICE = 'You’ve been signed out on this device. Sign 
  * Once the page's own Firebase session settles: sign in again now if it could not be confirmed, and
  * again later if the account goes mid-visit.
  * @param {{ page: string, pageLabel: string, member: string, established: Promise<any>|any,
- *           signIn?: () => void, about?: import('./login-overlay.js').LoginAbout|null }} opts
- *        `signIn` defaults to the shared in-place sign-in, reloading on success. That card is FOR
- *        `member` (their grade and name chosen, the password next) and, once this page has cleared the
- *        session, says so (`SIGNED_OUT_NOTICE`): a blank card asking for grade and name again read like
- *        a fault (review, Nov 2026). `about` is what it says the page is, for a page whose card at load
- *        carries one (Trains). A page that passes its own `signIn` words its own card.
+ *           beforeSignIn?: () => void, about?: import('./login-overlay.js').LoginAbout|null }} opts
+ *        The card is the shared in-place sign-in, reloading on success, on EVERY page (external review of
+ *        v26.67: Admin and Overtime passed a card of their own, which never heard `back` — so a tab that
+ *        could not reload by itself showed them no "signed in again" and no Try again). It is FOR `member`
+ *        (their grade and name chosen, the password next) and, once this page has cleared the session, says
+ *        so (`SIGNED_OUT_NOTICE`): a blank card asking for grade and name again read like a fault (review,
+ *        Nov 2026). `about` is what it says the page is, for a page whose card at load carries one (Trains,
+ *        Admin). `beforeSignIn` runs before each card is drawn — what the page must put away first (Overtime
+ *        clears the availability it was showing, so Ctrl+P cannot print it from behind the card).
  * @returns {Promise<void>}
  */
-export function guardNamedSession({ page, pageLabel, member, established, signIn, about = null }) {
+export function guardNamedSession({ page, pageLabel, member, established, beforeSignIn = () => {}, about = null }) {
     // Loaded on demand: the Calendar and the Pay Calculator import this module for the sign-out
     // routines and never call this one, and the sign-in is 44 KB they would otherwise load at start.
     // Every page that DOES call it already has the module (it shows its own sign-in at load).
     /** @type {(signedOut: boolean, back?: boolean) => void} */
-    const showSignIn = signIn ? () => signIn() : (signedOut, back = false) => { import('./login-overlay.js')
+    const showSignIn = (signedOut, back = false) => { import('./login-overlay.js')
         .then(({ initLoginOverlay, dismissLoginOverlay }) => {
             // BACK, ON A TAB THAT CANNOT RELOAD BY ITSELF (`lateReloadAllowed` → 'no-memory'): the card is
             // drawn again saying so, with Try again in place of "Back to roster" — a reload the colleague
@@ -450,6 +453,7 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
             // the 30-second wrong-password lock disables it too, and this notice and its Try again were
             // dropped on a member who had merely mistyped three times (review, 24 Nov 2026).
             if (back) { if (document.querySelector('#loginOverlay .login-back--busy')) return; dismissLoginOverlay(); }
+            beforeSignIn();
             initLoginOverlay({ pageLabel, about, presetName: member,
                 notice: back ? LATE_IDENTITY_NOTICE : signedOut ? SIGNED_OUT_NOTICE : '', onSuccess: () => window.location.reload(),
                 alternative: back ? { label: 'Try again', hint: 'Opens the page again, now your sign-in is back.', onSelect: () => window.location.reload() } : null });

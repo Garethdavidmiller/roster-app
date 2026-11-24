@@ -58,6 +58,9 @@ const { jsonBodyOf } = require('./request-helpers');
  *   warning about a review row that never exists, burying the lines worth reading (import-server-8)
  * @returns {string}   - Normalised shift value
  */
+/** A second time range anywhere in what follows a cell's first one: "/ 14:00-18:00", " 1400-1800", "RDW 14:00-18:00". */
+const SECOND_RANGE = /\d{1,2}[:.]?\d{2}[\s\-–]+\d{1,2}[:.]?\d{2}/;
+
 function normaliseShift(raw, { quiet = false } = {}) {
     if (typeof raw !== 'string') return 'RD';
     const s = raw.trim().toUpperCase();
@@ -179,6 +182,15 @@ function normaliseShift(raw, { quiet = false } = {}) {
     // ("06:00-12:00 MTG CEA 3") goes to review rather than lose its code here to a plain shift.
     const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
     if (lead && workedRange(lead[1], lead[2], lead[3], lead[4]) && !namesMeeting(s)) {
+        // …BUT NEVER WHEN THE REST IS A SECOND TIME RANGE (external review of v26.67). "06:00-10:00 / 14:00-18:00"
+        // came back as 06:00-10:00: four worked hours dropped, with nothing on the review to say they were there. An
+        // ordinary note ("GER") is still read past; a second range sends the WHOLE cell to review, as it was printed.
+        // The app has no split shift to record it as, and needs none: a shift that looks complete and is not is the
+        // failure, and "check the PDF" is the answer (as for every cell nobody can read with certainty).
+        if (SECOND_RANGE.test(s.slice(lead[0].length))) {
+            warn('[parseRosterPDF] Two time ranges in one cell — flagged UNKNOWN for review');
+            return `UNKNOWN|two times in one cell (${s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)}) — check the PDF`;
+        }
         const time = `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
         // Preserve an RDW marker carried in the trailing content: "06:00-12:00 RDW GER" is rest-day-
         // worked OVERTIME with a depot annotation. The anchored rdwMatch above ($-terminated) rejects
@@ -219,7 +231,10 @@ function normaliseShift(raw, { quiet = false } = {}) {
     // and re-uploads, or records the shift manually. Pipes are stripped so they can't break the
     // "PREFIX|value" decoding; capped so a pathological value can't bloat the payload.
     const cleaned = s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
-    if (cleaned === '') return 'RD';   // was only pipes/whitespace — treat as blank
+    // ONLY PIPES IS NOT A BLANK (external review of v26.67). A Monday cell holding `|` was answered 'RD' here — a rest
+    // day out of a mark nobody read, which on a member whose base is a rest day is a MATCH, unseen. Something was in
+    // the cell, so it goes to review like any other unreadable value, on any day.
+    if (cleaned === '') return 'UNKNOWN|only a line was read in this cell — check the PDF';
     // Its length, never its text (as above): the review row carries the text to the admin, who holds the PDF.
     warn(`[parseRosterPDF] Unrecognised shift value (${s.length} characters) — flagged UNKNOWN for review`);
     return `UNKNOWN|${cleaned}`;

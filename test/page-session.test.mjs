@@ -292,11 +292,42 @@ describe('guardNamedSession', () => {
         assert.match(src, /guardNamedSession\(\{[^}]*about: SIGN_IN_ABOUT/, 'the card a lost session gets does not say what the page is');
     });
 
-    test('a page with its own sign-in (Admin) gets that, not the shared one', async () => {
-        decision = 'login';
-        await ps.guardNamedSession({ page: 'admin', pageLabel: 'Admin', member: 'A. Member', established: null,
-            signIn: () => log.push('adminLogin') });
-        assert.deepEqual(log, ['requirePage:admin', 'releasePush', 'clearSession', 'resetNavPanel', 'adminLogin']);
+    // EVERY PAGE GETS THE SHARED CARD (external review of v26.67). Admin and Overtime passed a card of their own,
+    // which never heard `back`: on a tab that could not reload by itself, the sign-in came back and they showed no
+    // "signed in again" and no Try again. Now they pass what differs — Admin its explanation, Overtime what it
+    // clears first — and the card is the shared one, notice and Try again included.
+    test('a page that clears something first (Overtime) has it cleared before EACH card, the "signed in again" one too', async () => {
+        const real = global.sessionStorage;
+        const refuse = () => { throw new Error('SecurityError'); };
+        global.sessionStorage = /** @type {any} */ ({ getItem: refuse, setItem: refuse });
+        try {
+            decision = 'pending';
+            const { nameToEmail } = await import('../auth-identity.js');
+            await ps.guardNamedSession({ page: 'overtime', pageLabel: 'Overtime', member: 'A. Member', established: false,
+                beforeSignIn: () => log.push('standDown') });
+            await settle();
+            assert.deepEqual(log.slice(-2), ['standDown', 'login:Overtime'], 'cleared, then the card');
+            assert.equal(lastLoginOpts?.presetName, 'A. Member', 'the card is for the member');
+            log = [];
+            authCb({ isAnonymous: false, email: nameToEmail('A. Member') });
+            await settle();
+            assert.deepEqual(log, ['authUnwatch', 'dismissLogin', 'standDown', 'login:Overtime']);
+            assert.equal(lastLoginOpts?.notice, ps.LATE_IDENTITY_NOTICE, 'Overtime did not say the sign-in was back');
+            assert.equal(lastLoginOpts?.alternative?.label, 'Try again');
+        } finally { global.sessionStorage = real; }
+    });
+
+    test('…and Admin and Overtime are WIRED to the shared card: no card of their own (the wiring, read from source)', async () => {
+        const { readFileSync } = await import('node:fs');
+        for (const [file, wants] of /** @type {Array<[string, RegExp]>} */ ([
+            ['admin-app.js', /guardNamedSession\(\{[^}]*about: ADMIN_SIGN_IN_ABOUT[^}]*\}\)/],
+            ['overtime-app.js', /guardNamedSession\(\{[^}]*beforeSignIn: \(\) => review\.standDown\(\{ clear: true \}\)/],
+        ])) {
+            const src = readFileSync(new URL(`./${file}`, REPO_ROOT_URL), 'utf8');
+            assert.match(src, wants, `${file} no longer passes what its card needs to guardNamedSession`);
+            const call = src.slice(src.indexOf('guardNamedSession({'), src.indexOf('});', src.indexOf('guardNamedSession({')));
+            assert.doesNotMatch(call, /signIn:/, `${file} passes a card of its own again, which never says "signed in again"`);
+        }
     });
 
     test('it waits for the session to settle before deciding', async () => {
