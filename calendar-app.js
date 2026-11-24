@@ -1271,7 +1271,9 @@ initCalendarAccess({
         });
     },
 }).then((t) => {
-    // Not a member's own grant — no access at all: the copy is not shown again (v24.59).
+    // Not a member's own grant — no access at all: the copy is not shown again (v24.59). 'none' is also
+    // what a silent sign-in still pending reads as, so that member loses the next open's instant paint.
+    // Accepted (owner, 24 Nov 2026): keeping the copy instead would keep it after a sign-in that fails.
     if (t !== 'named') clearSnapshot();
     _accessDecided(t);
 }, _accessDecided);
