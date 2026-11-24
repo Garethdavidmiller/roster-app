@@ -1,0 +1,2547 @@
+/**
+ * Unit tests for roster-data.js utility functions.
+ * Run with: node scripts/run-tests.mjs test/roster-data.test.mjs
+ *
+ * Uses Node's built-in test runner (no dependencies required).
+ * Covers: bank holidays, Easter, paydays, cutoffs, AL entitlement, validation, the START-DATE
+ * BOUNDARY (a new starter's first day) and the worked-shift predicate the lieu-day count and the
+ * calendar renderer both read.
+ */
+
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+    getBankHolidays,
+    isBankHoliday,
+    isChristmasDay,
+    isEasterSunday,
+    getPaydaysAndCutoffs,
+    isPayday,
+    isCutoffDate,
+    isWorkedShift,
+    projectAnnualLeaveOverage,
+    validateRosterPatterns,
+    isChristmasRD,
+    isEarlyShift,
+    isNightShift,
+    getShiftKind,
+    getShiftClass,
+    getShiftBadge,
+    shiftBadgeParts,
+    getWeekNumberForDate,
+    getRosterForMember,
+    resolveMemberRoster,
+    getBaseShift,
+    isSameDay,
+    teamMembers,
+    computeEaster,
+    escapeHtml,
+    parseSmartFloat,
+    avatarInitials,
+    avatarHue,
+    getSpecialDayBadges,
+    isSunday,
+    parseISODate,
+    formatISO,
+    CONFIG,
+    fixedRoster,
+    FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS,
+    weeklyRoster,
+    bilingualRoster,
+    cesRoster,
+    dispatcherRoster,
+    isValidEmail,
+    isChilternWorkEmail,
+    workEmailLocalPart,
+    workEmailFrom,
+    getMembersForGrade,
+    signInMembers,
+    isOtherStaff,
+    parseSmartFloatOrNull,
+} from '../roster-data.js';
+// The grade on a day lives beside the data it reads, in a module of its own (roster-data.js is at its size cap).
+import { roleOn, rolesInRange } from '../roster-roles.js';
+// The contract allowance left roster-data.js for a module of its own (Nov 2026 — its header says why).
+import { getALEntitlement, allowanceRole } from '../al-contract.js';
+import { isChristmasLeaveDay } from '../christmas-leave.js';
+
+// Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
+const REPO_ROOT_URL = new URL('../', import.meta.url);
+
+describe('isChilternWorkEmail', () => {
+    test('accepts a valid Chiltern work email (any case on the domain)', () => {
+        assert.equal(isChilternWorkEmail('john.smith@chilternrailways.co.uk'), true);
+        assert.equal(isChilternWorkEmail('  John.Smith@ChilternRailways.CO.UK  '), true);
+    });
+    test('rejects a valid email on the wrong domain', () => {
+        assert.equal(isChilternWorkEmail('john.smith@gmail.com'), false);
+        assert.equal(isChilternWorkEmail('john@arriva.co.uk'), false);
+    });
+    test('rejects look-alike and subdomain spoofs', () => {
+        assert.equal(isChilternWorkEmail('x@evil-chilternrailways.co.uk'), false);
+        assert.equal(isChilternWorkEmail('x@sub.chilternrailways.co.uk'), false);
+        assert.equal(isChilternWorkEmail('x@chilternrailways.co.uk.evil.com'), false);
+    });
+    test('rejects non-emails and non-strings', () => {
+        assert.equal(isChilternWorkEmail('notanemail'), false);
+        assert.equal(isChilternWorkEmail(''), false);
+        assert.equal(isChilternWorkEmail(/** @type {any} */ (null)), false);
+    });
+    test('uses CONFIG.WORK_EMAIL_DOMAIN as the single source', () => {
+        assert.equal(CONFIG.WORK_EMAIL_DOMAIN, 'chilternrailways.co.uk');
+        assert.equal(isChilternWorkEmail('a@' + CONFIG.WORK_EMAIL_DOMAIN), true);
+    });
+});
+
+// The Settings field shows `@chilternrailways.co.uk` beside itself, so it holds the LOCAL
+// PART. Organised by what each wrong answer costs, because the two directions are not
+// remotely symmetrical:
+//
+//   SILENTLY CHANGING AN ADDRESS is the dangerous one. Strip any `@…` rather than only our
+//   own, and `g.miller@gmail.com` becomes `g.miller`, which the save path then completes
+//   into a Chiltern address the member never gave — stored, validated, and pointing at
+//   somebody else's mailbox for the account recovery this field exists to enable. Nothing
+//   errors; the card says "✓ Saved".
+//
+//   SHOWING THE DOMAIN TWICE is the reported defect (v22.39 external review) — visible the
+//   moment a member with a saved address opens the card, and it costs them a retype.
+describe('workEmailLocalPart / workEmailFrom', () => {
+    describe('never silently changes an address', () => {
+        test('a foreign domain survives the strip, so the validator can refuse it', () => {
+            assert.equal(workEmailLocalPart('g.miller@gmail.com'), 'g.miller@gmail.com');
+            assert.equal(workEmailFrom('g.miller@gmail.com'),      'g.miller@gmail.com');
+            assert.equal(isChilternWorkEmail(workEmailFrom('g.miller@gmail.com')), false);
+        });
+        test('a look-alike domain is not treated as ours', () => {
+            assert.equal(workEmailLocalPart('x@evil-chilternrailways.co.uk'), 'x@evil-chilternrailways.co.uk');
+            assert.equal(workEmailLocalPart('x@sub.chilternrailways.co.uk'),  'x@sub.chilternrailways.co.uk');
+        });
+        test('an empty field saves nothing rather than a bare domain', () => {
+            assert.equal(workEmailFrom(''),     '');
+            assert.equal(workEmailFrom('   '),  '');
+            assert.equal(workEmailFrom(/** @type {any} */ (null)), '');
+        });
+    });
+
+    describe('never shows the domain twice', () => {
+        test('a saved full address loads as the local part', () => {
+            assert.equal(workEmailLocalPart('g.miller@chilternrailways.co.uk'), 'g.miller');
+        });
+        test('autofill in any case is stripped', () => {
+            assert.equal(workEmailLocalPart('G.Miller@ChilternRailways.CO.UK'), 'G.Miller');
+            assert.equal(workEmailLocalPart('  g.miller@CHILTERNRAILWAYS.CO.UK  '), 'g.miller');
+        });
+        test('a local part is left alone', () => {
+            assert.equal(workEmailLocalPart('g.miller'), 'g.miller');
+            assert.equal(workEmailLocalPart(''), '');
+            assert.equal(workEmailLocalPart(/** @type {any} */ (undefined)), '');
+        });
+    });
+
+    describe('the round trip', () => {
+        test('full → local → full is the same address', () => {
+            for (const e of ['g.miller@chilternrailways.co.uk', 's.silva@chilternrailways.co.uk']) {
+                assert.equal(workEmailFrom(workEmailLocalPart(e)), e);
+            }
+        });
+        test('local → full → local is the same local part', () => {
+            for (const l of ['g.miller', 'm.robson', "o'brien.x"]) {
+                assert.equal(workEmailLocalPart(workEmailFrom(l)), l);
+            }
+        });
+        test('completing a local part produces an address the validator accepts', () => {
+            assert.equal(isChilternWorkEmail(workEmailFrom('g.miller')), true);
+        });
+        test('workEmailFrom is idempotent, so calling it on an autofilled value is safe', () => {
+            const once = workEmailFrom('g.miller');
+            assert.equal(workEmailFrom(once), once);
+        });
+        test('both read the domain from CONFIG rather than a literal', () => {
+            assert.equal(workEmailFrom('a'), 'a@' + CONFIG.WORK_EMAIL_DOMAIN);
+            assert.equal(workEmailLocalPart('a@' + CONFIG.WORK_EMAIL_DOMAIN), 'a');
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Build a local-noon Date to match the app's DST-safe convention. */
+const d = (year, month, day) => new Date(year, month - 1, day, 12, 0, 0);
+
+// ---------------------------------------------------------------------------
+// Bank holidays
+// ---------------------------------------------------------------------------
+
+test('getBankHolidays: returns 8 bank holidays for 2026', () => {
+    // England has exactly 8 fixed bank holidays in a standard year.
+    assert.equal(getBankHolidays(2026).length, 8);
+});
+
+test('getBankHolidays: New Year\'s Day 2026 is 1 Jan (weekday — no substitute)', () => {
+    // 1 Jan 2026 is a Thursday.
+    const bhs = getBankHolidays(2026);
+    const newYear = bhs.find(h => h.getMonth() === 0);
+    assert.ok(newYear, 'New Year\'s Day not found');
+    assert.equal(newYear.getDate(), 1);
+});
+
+test('getBankHolidays: Good Friday 2026 is 3 Apr', () => {
+    // Easter Sunday 2026 = 5 Apr → Good Friday = 3 Apr.
+    const bhs = getBankHolidays(2026);
+    const gf = bhs.find(h => h.getMonth() === 3 && h.getDate() === 3);
+    assert.ok(gf, 'Good Friday 3 Apr 2026 not found in bank holidays');
+});
+
+test('getBankHolidays: Easter Monday 2026 is 6 Apr', () => {
+    const bhs = getBankHolidays(2026);
+    const em = bhs.find(h => h.getMonth() === 3 && h.getDate() === 6);
+    assert.ok(em, 'Easter Monday 6 Apr 2026 not found in bank holidays');
+});
+
+test('getBankHolidays: Summer Bank Holiday 2026 is 31 Aug (last Monday in August)', () => {
+    // Aug 31 2026 is a Monday.
+    const bhs = getBankHolidays(2026);
+    const sbh = bhs.find(h => h.getMonth() === 7);
+    assert.ok(sbh, 'Summer Bank Holiday not found');
+    assert.equal(sbh.getDate(), 31);
+});
+
+test('getBankHolidays: returns empty array for year below MIN_YEAR', () => {
+    assert.deepEqual(getBankHolidays(2023), []);
+});
+
+test('isBankHoliday: 3 Apr 2026 (Good Friday) is a bank holiday', () => {
+    assert.ok(isBankHoliday(d(2026, 4, 3)));
+});
+
+test('isBankHoliday: 4 Apr 2026 (Saturday before Easter) is not a bank holiday', () => {
+    assert.equal(isBankHoliday(d(2026, 4, 4)), false);
+});
+
+// ── EVERY YEAR THE APP SHOWS, NOT ONLY 2026 (whole-app review, 10 Nov 2026) ───────────────────────
+//
+// Only 2026 was asserted, so the weekend-substitute branches — one of which has been wrong before
+// (calculateBankHolidays's own note) — could move a day with every suite green. The next two are near:
+// Christmas on a Saturday in 2027 (27 and 28 Dec) and New Year on a Saturday in 2028 (3 Jan); a moved
+// day would be marked on the Calendar, counted in a Dispatcher's lieu days and routed by the pay fill.
+// The England & Wales dates by the standing rules: 2024–2026 are the lists gov.uk published, 2027–2030
+// follow the same rules. A one-off announced for any of these years goes in SPECIAL_BANK_HOLIDAYS and
+// here together.
+const ENGLAND_AND_WALES = {
+    2024: ['01-01', '03-29', '04-01', '05-06', '05-27', '08-26', '12-25', '12-26'],
+    2025: ['01-01', '04-18', '04-21', '05-05', '05-26', '08-25', '12-25', '12-26'],
+    2026: ['01-01', '04-03', '04-06', '05-04', '05-25', '08-31', '12-25', '12-28'],
+    2027: ['01-01', '03-26', '03-29', '05-03', '05-31', '08-30', '12-27', '12-28'],
+    2028: ['01-03', '04-14', '04-17', '05-01', '05-29', '08-28', '12-25', '12-26'],
+    2029: ['01-01', '03-30', '04-02', '05-07', '05-28', '08-27', '12-25', '12-26'],
+    2030: ['01-01', '04-19', '04-22', '05-06', '05-27', '08-26', '12-25', '12-26'],
+};
+
+test('getBankHolidays: every year from MIN_YEAR to MAX_YEAR is the England & Wales list', () => {
+    const years = Object.keys(ENGLAND_AND_WALES).map(Number);
+    assert.deepEqual(years, Array.from({ length: CONFIG.MAX_YEAR - CONFIG.MIN_YEAR + 1 }, (_, i) => CONFIG.MIN_YEAR + i),
+        'the navigable range moved: add each new year\'s bank holidays here, and any one-off to SPECIAL_BANK_HOLIDAYS');
+    for (const year of years) {
+        assert.deepEqual(getBankHolidays(year).map(formatISO).sort(),
+            ENGLAND_AND_WALES[/** @type {keyof typeof ENGLAND_AND_WALES} */ (year)].map(md => `${year}-${md}`), `${year}`);
+    }
+});
+
+test('getBankHolidays: nothing past MAX_YEAR, where no year has been checked', () => {
+    const was = console.warn; console.warn = () => {};
+    try { assert.deepEqual(getBankHolidays(CONFIG.MAX_YEAR + 1), []); } finally { console.warn = was; }
+});
+
+// ---------------------------------------------------------------------------
+// Christmas and Easter
+// ---------------------------------------------------------------------------
+
+test('isChristmasDay: 25 Dec returns true', () => {
+    assert.ok(isChristmasDay(d(2026, 12, 25)));
+});
+
+test('isChristmasDay: 26 Dec returns false', () => {
+    assert.equal(isChristmasDay(d(2026, 12, 26)), false);
+});
+
+test('isEasterSunday: 5 Apr 2026 is Easter Sunday', () => {
+    assert.ok(isEasterSunday(d(2026, 4, 5)));
+});
+
+test('isEasterSunday: 6 Apr 2026 (Easter Monday) is not Easter Sunday', () => {
+    assert.equal(isEasterSunday(d(2026, 4, 6)), false);
+});
+
+// ---------------------------------------------------------------------------
+// Paydays and cutoffs
+// ---------------------------------------------------------------------------
+
+test('getPaydaysAndCutoffs: 13 Feb 2026 is a payday (known reference date)', () => {
+    // CONFIG.FIRST_PAYDAY = 13 Feb 2026.
+    assert.ok(isPayday(d(2026, 2, 13)));
+});
+
+test('getPaydaysAndCutoffs: 14 Feb 2026 is not a payday', () => {
+    assert.equal(isPayday(d(2026, 2, 14)), false);
+});
+
+test('getPaydaysAndCutoffs: cutoff for 13 Feb 2026 payday is 7 Feb (previous Saturday)', () => {
+    // 13 Feb is Friday → 6 days back = 7 Feb (Saturday).
+    assert.ok(isCutoffDate(d(2026, 2, 7)));
+});
+
+test('getPaydaysAndCutoffs: 8 Feb 2026 is not a cutoff date', () => {
+    assert.equal(isCutoffDate(d(2026, 2, 8)), false);
+});
+
+// THE YEAR SPLIT (review, 16 Nov 2026). Every navigable year's paydays and cut-offs fall in that year,
+// which is what isCutoffDate and paydayForCutoff assume. The first that does not is beyond MAX_YEAR:
+// payday Fri 6 Jan 2034, whose cut-off is Sat 31 Dec 2033 and is seen by neither. Pinned rather than
+// fixed; the guard below fails the day MAX_YEAR is raised far enough to reach it.
+test('getPaydaysAndCutoffs: every navigable year keeps its cut-offs and paydays in that year', () => {
+    for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
+        const { paydays, cutoffs } = getPaydaysAndCutoffs(y);
+        assert.ok(paydays.every(p => p.getFullYear() === y) && cutoffs.every(c => c.getFullYear() === y), String(y));
+    }
+});
+
+test('getPaydaysAndCutoffs: the first split is payday 6 Jan 2034 — beyond MAX_YEAR, and pinned', () => {
+    const first = getPaydaysAndCutoffs(2034);
+    assert.equal(formatISO(first.paydays[0]), '2034-01-06');
+    assert.equal(formatISO(first.cutoffs[0]), '2033-12-31');
+    assert.equal(isCutoffDate(d(2033, 12, 31)), false, 'the known gap: the cut-off is in the year before its list');
+    assert.ok(CONFIG.MAX_YEAR < 2033,
+        'MAX_YEAR now reaches the first year whose cut-off sits in the year before its payday: teach '
+        + 'isCutoffDate and paydayForCutoff to look in the next year\'s list (roster-data.js) before raising it');
+});
+
+test('getPaydaysAndCutoffs: returns empty paydays for year below MIN_YEAR', () => {
+    const result = getPaydaysAndCutoffs(2023);
+    assert.deepEqual(result.paydays, []);
+    assert.deepEqual(result.cutoffs, []);
+});
+
+// ---------------------------------------------------------------------------
+// Annual leave entitlement
+// ---------------------------------------------------------------------------
+
+test('getALEntitlement: CEA on main roster gets 32 days', () => {
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main' }), 32);
+});
+
+test('getALEntitlement: a CEA on a FIXED roster gets 32, not 34 (pins the Jun-2026 correction)', () => {
+    // Guards the header comment in al-contract.js from re-diverging: a CEA on a fixed line holds a CEA
+    // contract (not CEA-BL), so 32 — the same as every other CEA, regardless of the fixed rosterType.
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'fixed' }), 32);
+});
+
+test('getALEntitlement: CES gets 34 days', () => {
+    assert.equal(getALEntitlement({ role: 'CES', rosterType: 'ces' }), 34);
+});
+
+test('getALEntitlement: Dispatcher base entitlement is 22 days (no BH worked)', () => {
+    // Dispatchers earn 22 base days + 1 lieu day per bank holiday actually worked.
+    // A member with no valid roster (no currentWeek) works no bank holidays, so returns 22.
+    assert.equal(getALEntitlement({ role: 'Dispatcher', rosterType: 'dispatcher' }), 22);
+});
+
+// Format a Date to the YYYY-MM-DD override-key string (local time, matching the count's own keying).
+const _bhKey = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+test('getALEntitlement: Dispatcher earns +1 lieu day per bank holiday WORKED', () => {
+    // The incremental branch (countDispatcherBankHolidaysWorked) — previously untested. Override EVERY
+    // 2026 BH to RD (so the base roster can't add lieu days) except one worked RDW → 22 + 1 = 23.
+    const member = { name: 'D. Test', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1 };
+    const bhs = getBankHolidays(2026);
+    const overrides = bhs.map(d => ({ memberName: 'D. Test', date: _bhKey(d), value: 'RD', type: 'correction', source: 'manual' }));
+    overrides[0] = { memberName: 'D. Test', date: _bhKey(bhs[0]), value: '09:00-17:00', type: 'rdw', source: 'manual' };
+    assert.equal(getALEntitlement(member, 2026, overrides), 23);
+});
+
+test('getALEntitlement: Dispatcher lieu count honours override precedence (manual RDW beats a stale import RD on a BH)', () => {
+    // The lieu count uses shouldReplaceOverride, not last-in-array-wins: a stale roster_import RD listed
+    // AFTER the manual RDW must not shadow it (that would miscount the entitlement by Firestore order).
+    const member = { name: 'D. Test', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1 };
+    const bhs = getBankHolidays(2026);
+    // Every OTHER BH → RD; on bhs[0] a manual RDW competes with a stale import RD listed after it.
+    const overrides = bhs.slice(1).map(d => ({ memberName: 'D. Test', date: _bhKey(d), value: 'RD', type: 'correction', source: 'manual' }));
+    overrides.push({ memberName: 'D. Test', date: _bhKey(bhs[0]), value: '09:00-17:00', type: 'rdw',       source: 'manual',        createdAt: { seconds: 50 } });
+    overrides.push({ memberName: 'D. Test', date: _bhKey(bhs[0]), value: 'RD',          type: 'correction', source: 'roster_import', createdAt: { seconds: 100 } });
+    assert.equal(getALEntitlement(member, 2026, overrides), 23, 'manual RDW wins → the BH counts as worked');
+});
+
+test('getALEntitlement: all CEAs incl. fixed-line get the standard 32 — no fixed premium', () => {
+    // Invented people, as every leave figure in this file is: the GitHub Pages mirror serves the test
+    // files, so a real roster name beside an allowance would publish it (payroll-anonymity.test.mjs).
+    assert.equal(getALEntitlement({ name: 'F. Fixedline', role: 'CEA', rosterType: 'fixed', currentWeek: 1 }), 32);
+    assert.equal(getALEntitlement({ name: 'T. Trainee', role: 'CEA', rosterType: 'fixed', currentWeek: 3 }), 32);
+});
+
+test('getALEntitlement: every CEA on a fixed line in the REAL roster gets the plain contract figure', () => {
+    // Drives the shipped data, selected by shape rather than by name. A fixed-line CEA's joining year
+    // reads the clerks' own figure, so only the years after it are the contract's.
+    const fixedCeas = teamMembers.filter(m => m.role === 'CEA' && m.rosterType === 'fixed' && m.bilingualContract !== true);
+    assert.ok(fixedCeas.length > 0, 'premise: the roster has a CEA on a fixed line');
+    for (const m of fixedCeas) {
+        const year = Math.max(2026, ...Object.keys(m.proRatedAL ?? {}).map(Number)) + 1;
+        assert.ok(getALEntitlement(m, year, []) === 32, `${m.name}: a fixed line is not a premium`);
+    }
+});
+
+// ── A CEA's entitlement follows the CONTRACT, not the LINE (owner, 6 Sep 2026) ──────────────────
+//
+// Organised by what a wrong answer COSTS, because the two directions are not alike.
+//
+// Paying 32 to a bilingual contract is the SHIPPED defect and the silent one: two days vanish from
+// the Admin banner, the week-grid cap, `admin-al.js`'s booking cap and `alPosition`, the app
+// challenges a booking the roster clerk allows, and nothing fails — a wrong leave balance renders
+// perfectly and books against perfectly.
+//
+// Paying 34 to a plain CEA contract is what the OBVIOUS FIX produces, and it is the reason these
+// tests exist at all. Keying on `rosterType === 'bilingual'` passes every case anybody would think
+// to write today, because the only two bilingual rows are the only two bilingual contracts. It
+// breaks the moment a CEA is parked on a bilingual line while waiting for a CEA one — routine, per
+// the owner — and it breaks in the staff member's favour, so nobody reports it.
+test('getALEntitlement: a bilingual CONTRACT gets 34', () => {
+    assert.equal(getALEntitlement({ name: 'B. Lingual', role: 'CEA', rosterType: 'bilingual', bilingualContract: true }), 34);
+    // The CONTRACT, on whatever line: a bilingual contract parked on a main line keeps its 34.
+    assert.equal(getALEntitlement({ name: 'B. Parked', role: 'CEA', rosterType: 'main', bilingualContract: true }), 34);
+});
+
+test('getALEntitlement: a CEA parked on a BILINGUAL LINE without the contract still gets 32', () => {
+    // The case the line-based fix gets wrong. There is nobody in this state in the roster today,
+    // which is exactly why it needs a test rather than an example.
+    assert.equal(getALEntitlement({ name: 'A. Waiting', role: 'CEA', rosterType: 'bilingual' }), 32);
+});
+
+test('getALEntitlement: the flag is read STRICTLY, so a stray value cannot buy two days', () => {
+    // `bilingualContract` is hand-maintained in a file 53 people are listed in. A truthy-test would
+    // let a note, a date or a stray '' decide somebody's leave.
+    for (const v of ['yes', 1, 'true', {}, [], 'false']) {
+        assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', bilingualContract: /** @type {any} */ (v) }), 32,
+            `bilingualContract: ${JSON.stringify(v)} must not grant the premium`);
+    }
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', bilingualContract: false }), 32);
+});
+
+test('getALEntitlement: a bilingual contract still yields to a joining year\'s pro-rata', () => {
+    // Pro-rata is checked before the CEA branch, and must stay that way: a part-year bilingual
+    // starter is owed part of 34, and the figure the clerk agrees is the one in proRatedAL.
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'bilingual', bilingualContract: true, proRatedAL: { 2026: 17 } }, 2026), 17);
+});
+
+test('getALEntitlement: the two bilingual contracts in the REAL roster are flagged, and each is given 34', () => {
+    // Drives the shipped data, not a fixture — the fix is worth nothing if the flag is on nobody.
+    // Pinned as a COUNT so adding a third contract fails here and gets read by a person. Not as a list
+    // of names: this is a leave test, and the Pages mirror serves it (payroll-anonymity.test.mjs).
+    const flagged = teamMembers.filter(m => m.bilingualContract === true);
+    assert.equal(flagged.length, 2, 'a bilingual contract was added or removed — check it against the clerks\' records');
+    for (const m of flagged) {
+        assert.equal(m.role, 'CEA', `${m.name}: the flag is a CEA contract term`);
+        assert.ok(getALEntitlement(m, 2027, []) === 34, `${m.name} holds a bilingual contract and is not given its premium`);
+    }
+});
+
+test('getALEntitlement: an unresolved member is refused, not defaulted', () => {
+    // v22.45: an unresolved member is REFUSED, not handed a CEA's 32. See the null-entitlement
+    // block in al-entitlement.test.mjs for why a fall-through default is the dangerous answer here.
+    assert.equal(getALEntitlement(null), null);
+});
+
+// ---------------------------------------------------------------------------
+// projectAnnualLeaveOverage — the shared over-entitlement projection (v16.40)
+// ---------------------------------------------------------------------------
+const _proj = (existing, newDates, entitlement, name = 'A. Example', year = '2026') =>
+    projectAnnualLeaveOverage({ name, year, existingALDates: new Set(existing), newALDates: newDates, entitlement });
+
+test('projectAnnualLeaveOverage: within entitlement → null', () => {
+    assert.equal(_proj(['2026-01-05', '2026-01-06'], ['2026-02-10'], 32), null);
+});
+
+test('projectAnnualLeaveOverage: exactly at the cap → null (not over)', () => {
+    assert.equal(_proj([], ['2026-02-10', '2026-02-11'], 2), null);
+});
+
+test('projectAnnualLeaveOverage: one over the cap → over:1 with the confirm strings', () => {
+    const r = _proj(['2026-02-10'], ['2026-02-11', '2026-02-12'], 2);
+    assert.equal(r.over, 1);
+    assert.equal(r.projectedTotal, 3);
+    assert.equal(r.headline, 'A. Example will be 1 day over their 2026 annual leave allowance');
+    assert.equal(r.detail, '3 days used of 2 allowed in 2026');
+});
+
+test('projectAnnualLeaveOverage: pluralises "days" when 2+ over', () => {
+    const r = _proj([], ['2026-03-01', '2026-03-02', '2026-03-03'], 1);
+    assert.equal(r.over, 2);
+    assert.match(r.headline, /will be 2 days over/);
+});
+
+test('projectAnnualLeaveOverage: a new date already in existing is NOT double-counted', () => {
+    // Re-booking a day already marked AL must not consume a second entitlement day.
+    const r = _proj(['2026-04-01', '2026-04-02'], ['2026-04-02', '2026-04-03'], 3);
+    // existing 2 + new (only 04-03 is genuinely new) 1 = 3 → within a 3-day cap → null.
+    assert.equal(r, null);
+});
+
+test('projectAnnualLeaveOverage: full overlap adds nothing (all new dates already existing)', () => {
+    assert.equal(_proj(['2026-05-01', '2026-05-02'], ['2026-05-01', '2026-05-02'], 2), null);
+});
+
+// ---------------------------------------------------------------------------
+// Roster pattern validation
+// ---------------------------------------------------------------------------
+
+test('validateRosterPatterns: all roster patterns are valid (returns 0 errors)', () => {
+    assert.equal(validateRosterPatterns(), 0);
+});
+
+// A pattern may hold a BARE Other flavour Monday to Saturday (v25.40, fixedRoster[3] — training with
+// no times), and nothing else of the Other grammar. The reasons are in the validator's own header: a
+// time would be hidden in the cell and printed in the day panel, an RDW marker would be shown and not
+// paid, and an Other day can never be a Sunday. Each refusal is checked on its own, against a pattern
+// the test builds, so the shipped data is never edited to prove it.
+describe('validateRosterPatterns: the Other family in a pattern', () => {
+    const week = (/** @type {Record<string, string>} */ over) =>
+        ({ t: { 1: { sun: 'RD', mon: 'TRG', tue: 'TRG', wed: 'TRG', thu: 'TRG', fri: 'TRG', sat: 'RD', ...over } } });
+    // The validator reports through console.error, which is the point of it at load time and noise here.
+    const quietly = (/** @type {() => number} */ fn) => {
+        const was = console.error; console.error = () => {};
+        try { return fn(); } finally { console.error = was; }
+    };
+    test('a bare flavour on a weekday is accepted', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({}))), 0);
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'IND', sat: 'TEAM' }))), 0);
+    });
+    test('never on a Sunday', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({ sun: 'TRG' }))), 1);
+    });
+    test('never with an RDW marker', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'TRG RDW' }))), 1);
+    });
+    test('never with times', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'TRG 09:00-16:00' }))), 1);
+    });
+    test('an unknown word is still refused', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: 'TRAINING' }))), 1);
+    });
+});
+
+// …and only what the app can DRAW and PAY (whole-app review, 10 Nov 2026). The time test was a shape
+// — two digits, a colon, two digits — so '24:00-08:00' and '29:99-99:99' passed to be drawn ❓ Unknown,
+// and '06:20-06:20' to be paid as a 24-hour turn. 'AL' and 'RDW' passed as keywords, though leave and
+// RDW are things that happen TO a day, as overrides, and RDW in a pattern is shown and never paid.
+describe('validateRosterPatterns: a pattern holds only what the app can draw and pay', () => {
+    const week = (/** @type {Record<string, string>} */ over) => ({ t: { 1: {
+        sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'OFF', thu: 'SPARE', fri: '15:30-00:30', sat: '22:00-07:00', ...over } } });
+    const quietly = (/** @type {() => number} */ fn) => {
+        const was = console.error; console.error = () => {};
+        try { return fn(); } finally { console.error = was; }
+    };
+    test('real ranges — overnight ones and a midnight finish included — and RD, OFF and SPARE pass', () => {
+        assert.equal(quietly(() => validateRosterPatterns(week({}))), 0);
+        assert.equal(quietly(() => validateRosterPatterns(week({ mon: '15:30-00:00' }))), 0);
+    });
+    for (const bad of ['24:00-08:00', '29:99-99:99', '06:20-06:20', 'AL', 'RDW', 'SICK', '6:20-14:20', '06:20-14:20-15:00']) {
+        test(`'${bad}' is refused`, () => {
+            assert.equal(quietly(() => validateRosterPatterns(week({ mon: bad }))), 1);
+        });
+    }
+});
+
+// ── A PATTERN IN FORCE IS NEVER EDITED IN PLACE (whole-app review, 10 Nov 2026) ─────────────────
+//
+// A pattern has no start date: getBaseShift reads one table for every date, past and future. So the
+// edit roster-cycle-data.js used to ask for — replace the table when a new base roster arrives —
+// redraws every day already worked and re-judges the leave recorded on them, and nothing errors.
+// Simulated for the January 2027 CEA link: 5,433 of the 6,573 base shifts the 21 main-link members
+// had between 1 Jan and 9 Nov 2026 came out different. A new base roster is a new table and roster
+// type, with each member moved onto it by a dated `rosterChanges` entry (roster-cycle-data.js).
+//
+// So every week that exists today is pinned, with the constants that place each cycle in time: a NEW
+// week or table passes untouched, and an EDITED one fails, naming the week. If an edit corrects a cell
+// that was ALWAYS wrong — so every past date was wrong too — update its digest and say so in the commit.
+describe('a pattern in force is never edited in place', () => {
+    const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    /** A week's seven cells, Sunday first. Eight hex characters are plenty to notice an edit. */
+    const digest = (/** @type {Record<string, string>} */ week) =>
+        createHash('sha256').update(DAYS.map(k => week[k]).join('|')).digest('hex').slice(0, 8);
+    /** @type {Record<string, Record<number, Record<string, string>>>} */
+    const TABLES = { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
+    /** Week 1 first. A week of Spare on all seven days digests to '1089a547' wherever it appears. */
+    const PINNED = {
+        weeklyRoster: ['1089a547', '1eabcfbc', 'baa733f8', '45a0efd8', 'b402c7d5', '4de0e2e6', '1089a547', 'b9e0c3bb', '3cc3f934', '2f2d51b0',
+                       '790b1ee8', '1089a547', 'da69c2a2', 'dbebf081', '078d038f', 'edc96eb1', '1089a547', 'e04d76a0', '4fb50022', '45adc273'],
+        bilingualRoster: ['1089a547', '45a0fabe', 'd8aabddb', '32db854e', '57d55631', '5a8850a7', '51b43c2c', '1089a547'],
+        fixedRoster: ['cc3c67d4', '036722bc', '005e3a19', '036722bc'],   // 4 is 2's week; its bank holidays differ (below)
+        cesRoster: ['5f974d01', 'abdac8bd', 'a72314b0', '1089a547', '7f51ec7e', '9b06e81f', '719872fb', 'efc75714', '1089a547', 'e6afee3f'],
+        dispatcherRoster: ['b5d10c52', 'ceeca403', '787c08de', '52f118ff', 'efd0ff79', 'f8b3ec7b', 'ec1a9db3', '1efb4600', '4e9ea548', '697433ff'],
+    };
+
+    test('every week in force reads as it did', () => {
+        const edited = [];
+        for (const [name, digests] of Object.entries(PINNED)) {
+            digests.forEach((want, i) => {
+                const week = TABLES[name][i + 1];
+                if (!week || digest(week) !== want) edited.push(`${name} week ${i + 1}`);
+            });
+        }
+        assert.deepEqual(edited, [],
+            `these weeks were edited in place, which redraws every past date they cover:\n  ${edited.join('\n  ')}\n`
+            + 'Bring a new base roster in as a NEW table and roster type, and move members onto it with a dated\n'
+            + 'rosterChanges entry (roster-cycle-data.js header). Update a digest only for a cell that was always wrong.');
+    });
+
+    test('and the fixed patterns that rest on bank holidays are the ones they were', () => {
+        // A week of seven cells cannot say it, so the digests above cannot see it: a pattern added to this
+        // list redraws every past bank holiday of everyone on it, exactly as an edited week would.
+        assert.deepEqual([...FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS], [4],
+            'a fixed line that changes how it treats bank holidays is a NEW pattern and a dated rosterChanges entry');
+    });
+
+    test('and the constants that place each cycle in time are unchanged', () => {
+        const placed = Object.fromEntries(['MAIN', 'BILINGUAL', 'CES', 'DISPATCHER'].map(k => [k,
+            `${CONFIG[`${k}_ROSTER_WEEKS`]} weeks from ${formatISO(CONFIG[`${k}_ROSTER_REFERENCE_DATE`])}`]));
+        assert.deepEqual(placed, {
+            MAIN: '20 weeks from 2026-02-08', BILINGUAL: '8 weeks from 2026-02-15',
+            CES: '10 weeks from 2026-02-15', DISPATCHER: '10 weeks from 2026-02-01',
+        }, 'a cycle length or a reference Sunday moves every past date of every member on that cycle');
+    });
+
+    test('and each roster type still reads the table it always has', () => {
+        for (const [type, table] of /** @type {[string, any][]} */ ([['main', weeklyRoster], ['bilingual', bilingualRoster],
+            ['fixed', fixedRoster], ['ces', cesRoster], ['dispatcher', dispatcherRoster]])) {
+            assert.equal(getRosterForMember({ rosterType: type, currentWeek: 1 }).data, table,
+                `pointing '${type}' at another table redraws every past date of every member on it`);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Annual leave entitlement — edge cases
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// isChristmasRD
+// ---------------------------------------------------------------------------
+
+test('isChristmasRD: 25 Dec is always a rest day', () => {
+    assert.ok(isChristmasRD(d(2026, 12, 25)));
+});
+
+test('isChristmasRD: 26 Dec is a rest day (can be overridden to RDW via Firestore)', () => {
+    assert.ok(isChristmasRD(d(2026, 12, 26)));
+});
+
+test('isChristmasRD: 24 Dec is not a Christmas rest day', () => {
+    assert.equal(isChristmasRD(d(2026, 12, 24)), false);
+});
+
+// ---------------------------------------------------------------------------
+// Shift classification — isEarlyShift, isNightShift, getShiftClass
+// ---------------------------------------------------------------------------
+
+test('isEarlyShift: 04:00-12:00 is an early shift', () => {
+    assert.ok(isEarlyShift('04:00-12:00'));
+});
+
+test('isEarlyShift: 11:00-19:00 is not an early shift (starts at threshold)', () => {
+    assert.equal(isEarlyShift('11:00-19:00'), false);
+});
+
+test('isNightShift: 21:00-05:00 is a night shift', () => {
+    assert.ok(isNightShift('21:00-05:00'));
+});
+
+test('isNightShift: 14:00-22:00 is not a night shift', () => {
+    assert.equal(isNightShift('14:00-22:00'), false);
+});
+
+test('getShiftClass: early shift returns "early-shift"', () => {
+    assert.equal(getShiftClass('06:00-14:00'), 'early-shift');
+});
+
+test('getShiftClass: night shift returns "night-shift"', () => {
+    assert.equal(getShiftClass('22:00-06:00'), 'night-shift');
+});
+
+test('getShiftClass: late shift returns "late-shift"', () => {
+    assert.equal(getShiftClass('14:00-22:00'), 'late-shift');
+});
+
+test('getShiftClass: every training grammar form returns "other-day" (never unknown-day)', () => {
+    for (const v of ['TRG', 'IND', 'ASSESS', 'TRG RDW', 'ASSESS RDW', 'IND 08:00-16:00', 'TRG RDW 08:00-16:00']) {
+        assert.equal(getShiftClass(v), 'other-day', v);
+    }
+});
+
+// ── `showTime`: the badge says WHAT, not what KIND (v22.21) ─────────────────────────────────────
+//
+// Admin's Change-a-Shift week grid showed `☀️ EARLY` and nothing else, so the one thing an admin
+// needs to decide whether to change a day — what the person is actually rostered to work — was the
+// one thing missing. Owner report, with a screenshot: "you can't see the default shift time as
+// reference, only early or late."
+//
+// The option, rather than a second badge builder, because two builders drift. The direction that
+// matters is the DEFAULT: every existing caller — the calendar cell, the month legend, Team View —
+// must render exactly as before, since a calendar cell prints the time beside the badge already.
+
+// ── THE BADGE HAS ONE DECLARATION, AND TWO CONSUMERS (v22.69) ───────────────────────────────────
+//
+// `getShiftBadge` returns MARKUP, which the calendar's day-detail panel cannot use: writing markup
+// out of a `data-` attribute is how an attribute becomes an injection surface. So the panel builds
+// real elements from `shiftBadgeParts`, and `getShiftBadge` builds its HTML from the same function.
+//
+// The risk this pins is drift: the day a shift is one colour in the grid and another in the panel
+// that describes it, which is a fault nobody would think to look for and which no behavioural test
+// asserts. Driven over every KIND rather than a sample, so a tenth badge cannot be added to one and
+// not the other.
+test('each shift kind keeps its established colour', () => {
+    // A LITERAL TABLE, deliberately. The parity test below proves the two builders AGREE — and
+    // since they now share a source, agreement is cheap: a mutation changing SPARE from purple to
+    // the rest-day grey passed it, because both consumers changed together. Agreement is not
+    // correctness, and the thing that matters to a member is that 📋 is the same purple in the
+    // panel as it is in the cell they tapped.
+    //
+    // These pairings are the app's visual vocabulary — staff read them daily and the guides print
+    // them — so they are contract, not implementation detail, and pinning them is the point.
+    const EXPECTED = {
+        RD: 'badge-rest', OFF: 'badge-rest', SPARE: 'badge-spare', RDW: 'badge-rdw',
+        AL: 'badge-al', SICK: 'badge-sick', TRG: 'badge-other',
+        '06:30-15:00': 'badge-early', '14:00-22:00': 'badge-late', '22:00-06:00': 'badge-night',
+        'not-a-shift': 'badge-unknown',
+    };
+    for (const [shift, cls] of Object.entries(EXPECTED)) {
+        assert.equal(shiftBadgeParts(shift).cls, cls, `'${shift}' changed colour`);
+    }
+});
+
+test('only a TIMED kind may trade its word for the time', () => {
+    // `timed` is what lets the day panel show `☀️ 06:20-14:50 → ☀️ 06:30-15:00` instead of
+    // `☀️ EARLY → ☀️ EARLY`. A same-kind change — a time tweak, probably the commonest change
+    // there is — otherwise renders as two identical pills either side of an arrow, which reads as
+    // "nothing changed" directly under a headline saying it did.
+    for (const t of ['06:30-15:00', '14:00-22:00', '22:00-06:00']) {
+        assert.equal(shiftBadgeParts(t).timed, true, `'${t}' is a timed shift`);
+    }
+    for (const k of ['RD', 'SPARE', 'AL', 'SICK', 'RDW', 'TRG', 'not-a-shift']) {
+        assert.ok(!shiftBadgeParts(k).timed,
+            `'${k}' has no time to show, so the panel would print the raw value as its label`);
+    }
+});
+
+test('shiftBadgeParts and getShiftBadge agree on every shift kind', () => {
+    const KINDS = ['RD', 'OFF', '', 'SPARE', 'RDW', 'AL', 'SICK', 'TRG', 'IND', 'MEET',
+                   '06:30-15:00', '14:00-22:00', '22:00-06:00', 'not-a-shift'];
+    for (const k of KINDS) {
+        const { cls, emoji, word } = shiftBadgeParts(k);
+        const html = getShiftBadge(k);
+        assert.ok(html.includes(`shift-badge ${cls}`),
+            `getShiftBadge('${k}') does not carry the class shiftBadgeParts reports (${cls}) — the `
+            + 'grid and the day panel would colour the same shift differently');
+        assert.ok(html.includes(`>${emoji}</span>`),
+            `emoji mismatch for '${k}': parts say ${emoji}`);
+        assert.ok(html.includes(`<span>${word}</span>`),
+            `word mismatch for '${k}': parts say ${word}`);
+    }
+});
+
+test('every badge kind has a colour class, an emoji and a word — colour is never alone', () => {
+    // The app's WCAG 1.4.1 rule: a badge never carries meaning in colour alone. The panel's pill
+    // reuses these parts, so a kind that lost its word would become colour-only there too.
+    for (const k of ['RD', 'SPARE', 'RDW', 'AL', 'SICK', 'TRG', '06:30-15:00', '22:00-06:00', 'xx']) {
+        const p = shiftBadgeParts(k);
+        assert.match(p.cls, /^badge-[a-z]+$/, `no colour class for '${k}'`);
+        assert.ok(p.emoji && p.emoji.length > 0, `no emoji for '${k}'`);
+        assert.ok(p.word && p.word.length > 0, `no word for '${k}' — the badge would be colour alone`);
+    }
+});
+
+test('getShiftBadge showTime: a worked shift shows its TIME instead of Early/Late/Night', () => {
+    assert.match(getShiftBadge('06:20-14:20', { showTime: true }), />06:20-14:20</);
+    assert.match(getShiftBadge('06:20-14:20', { showTime: true }), /badge-early/, 'still classified');
+    assert.match(getShiftBadge('06:20-14:20', { showTime: true }), /☀️/, 'and still carries the icon');
+    assert.match(getShiftBadge('14:30-22:00', { showTime: true }), />14:30-22:00</);
+    assert.match(getShiftBadge('14:30-22:00', { showTime: true }), /badge-late/);
+    assert.match(getShiftBadge('22:00-06:00', { showTime: true }), />22:00-06:00</);
+    assert.match(getShiftBadge('22:00-06:00', { showTime: true }), /badge-night/);
+    // The word is not lost — it moves into the accessible name, which a screen reader gets and
+    // which the icon (aria-hidden) never gave it in the first place.
+    assert.match(getShiftBadge('06:20-14:20', { showTime: true }), /aria-label="Early shift, 06:20 to 14:20"/);
+    assert.match(getShiftBadge('22:00-06:00', { showTime: true }), /aria-label="Night shift, 22:00 to 06:00"/);
+});
+
+test('getShiftBadge showTime: a value with no time is untouched — its word IS the information', () => {
+    for (const v of ['RD', 'OFF', 'SPARE', 'AL', 'SICK', 'RDW', 'TRG', 'IND 08:00-16:00', 'nonsense']) {
+        assert.equal(getShiftBadge(v, { showTime: true }), getShiftBadge(v),
+            `${v} has no time to show, so the option must change nothing`);
+    }
+});
+
+test('getShiftBadge: the DEFAULT is byte-identical — the calendar must not move', () => {
+    // The load-bearing half. `showTime` was added for ONE caller; every other surface renders the
+    // classification and a regression there would be silent, because a badge is a badge.
+    for (const v of ['06:20-14:20', '14:30-22:00', '22:00-06:00', 'RD', 'AL', 'SPARE']) {
+        assert.equal(getShiftBadge(v), getShiftBadge(v, {}), 'an empty options object is the default');
+        assert.equal(getShiftBadge(v), getShiftBadge(v, { showTime: false }));
+        assert.doesNotMatch(getShiftBadge(v), /aria-label/, 'and the default adds no label');
+    }
+    assert.match(getShiftBadge('06:20-14:20'), />Early</);
+    assert.match(getShiftBadge('14:30-22:00'), />Late</);
+    assert.match(getShiftBadge('22:00-06:00'), />Night</);
+});
+
+test('getShiftBadge: Other-family flavours get 🏷️ + the SHORT word (Train/Ind/Assess)', () => {
+    assert.match(getShiftBadge('TRG'),    /badge-other/);
+    assert.match(getShiftBadge('TRG'),    /🏷️/);
+    assert.match(getShiftBadge('TRG'),    />Train</);
+    assert.match(getShiftBadge('IND'),    />Ind</);
+    assert.match(getShiftBadge('ASSESS'), />Assess</);
+    assert.match(getShiftBadge('MEET'),   />Meet</);   // Meeting flavour (roster "MTG")
+    // RDW/timed variants keep the same flavour badge — the detail lives in the hours slot / tap label
+    assert.match(getShiftBadge('TRG RDW'),            />Train</);
+    assert.match(getShiftBadge('IND 08:00-16:00'),    />Ind</);
+    // and never the ❓ Unknown fallthrough
+    assert.doesNotMatch(getShiftBadge('TRG RDW'), /badge-unknown/);
+});
+
+// ---------------------------------------------------------------------------
+// getShiftKind
+// ---------------------------------------------------------------------------
+
+test('getShiftKind: 04:00 start is early (lower boundary)', () => {
+    assert.equal(getShiftKind('04:00-12:00'), 'early');
+});
+
+test('getShiftKind: 10:59 start is early (upper boundary)', () => {
+    assert.equal(getShiftKind('10:59-18:59'), 'early');
+});
+
+test('getShiftKind: 11:00 start is late (boundary)', () => {
+    assert.equal(getShiftKind('11:00-19:00'), 'late');
+});
+
+test('getShiftKind: 20:59 start is late (upper boundary)', () => {
+    assert.equal(getShiftKind('20:59-04:59'), 'late');
+});
+
+test('getShiftKind: 21:00 start is night (boundary)', () => {
+    assert.equal(getShiftKind('21:00-05:00'), 'night');
+});
+
+test('getShiftKind: 03:59 start is night (wraps past midnight)', () => {
+    assert.equal(getShiftKind('03:59-11:59'), 'night');
+});
+
+test('getShiftKind: permanentShift early wins over a late time', () => {
+    assert.equal(getShiftKind('14:30-22:30', { permanentShift: 'early' }), 'early');
+});
+
+test('getShiftKind: permanentShift late wins over an early time', () => {
+    assert.equal(getShiftKind('06:00-14:00', { permanentShift: 'late' }), 'late');
+});
+
+test('getShiftKind: member without permanentShift falls back to time-based', () => {
+    assert.equal(getShiftKind('06:00-14:00', { name: 'X' }), 'early');
+});
+
+// ---------------------------------------------------------------------------
+// getShiftBadge
+// ---------------------------------------------------------------------------
+
+test('getShiftBadge: RD returns rest badge', () => {
+    const badge = getShiftBadge('RD');
+    assert.ok(badge.includes('🏠'), `Expected 🏠 in "${badge}"`);
+});
+
+test('getShiftBadge: AL returns annual leave badge', () => {
+    const badge = getShiftBadge('AL');
+    assert.ok(badge.includes('🏖️'), `Expected 🏖️ in "${badge}"`);
+});
+
+test('getShiftBadge: SPARE returns spare badge', () => {
+    const badge = getShiftBadge('SPARE');
+    assert.ok(badge.includes('📋'), `Expected 📋 in "${badge}"`);
+});
+
+test('getShiftBadge: RDW returns RDW badge', () => {
+    const badge = getShiftBadge('RDW');
+    assert.ok(badge.includes('💼'), `Expected 💼 in "${badge}"`);
+});
+
+test('getShiftBadge: early worked shift shows early badge', () => {
+    const badge = getShiftBadge('06:00-14:00');
+    assert.ok(badge.includes('☀️') && badge.includes('Early'), `Expected early badge in "${badge}"`);
+});
+
+// ---------------------------------------------------------------------------
+// isSameDay
+// ---------------------------------------------------------------------------
+
+test('isSameDay: same date returns true', () => {
+    assert.ok(isSameDay(d(2026, 6, 15), d(2026, 6, 15)));
+});
+
+test('isSameDay: different dates return false', () => {
+    assert.equal(isSameDay(d(2026, 6, 15), d(2026, 6, 16)), false);
+});
+
+test('isSameDay: same day different times return true', () => {
+    assert.ok(isSameDay(new Date(2026, 5, 15, 0, 0), new Date(2026, 5, 15, 23, 59)));
+});
+
+// ---------------------------------------------------------------------------
+// getRosterForMember
+// ---------------------------------------------------------------------------
+
+test('getRosterForMember: main roster member returns weeklyRoster', () => {
+    const member = teamMembers.find(m => m.rosterType === 'main');
+    assert.ok(member, 'No main roster member found in teamMembers');
+    const roster = getRosterForMember(member);
+    assert.ok(roster, 'getRosterForMember returned falsy');
+    assert.ok(roster.data, 'Roster has no data property');
+    assert.equal(roster.type, 'main', 'Roster type should be main');
+});
+
+test('getRosterForMember: fixed roster member returns fixedRoster', () => {
+    const member = teamMembers.find(m => m.rosterType === 'fixed');
+    assert.ok(member, 'No fixed roster member found in teamMembers');
+    const roster = getRosterForMember(member);
+    assert.ok(roster, 'getRosterForMember returned falsy');
+});
+
+// ---------------------------------------------------------------------------
+// getWeekNumberForDate
+// ---------------------------------------------------------------------------
+
+test('getWeekNumberForDate: returns a number between 1 and roster cycle length', () => {
+    const member = teamMembers.find(m => m.rosterType === 'main');
+    assert.ok(member, 'No main roster member found');
+    const week = getWeekNumberForDate(d(2026, 3, 17), member);
+    assert.ok(typeof week === 'number', 'Expected a number');
+    assert.ok(week >= 1 && week <= 20, `Week ${week} out of range for 20-week main roster`);
+});
+
+// Pinned exact-value tests.  The reference date for the main roster is
+// Sun 8 Feb 2026 (G. Miller on Week 3).  The noon helper avoids DST issues.
+
+test('getWeekNumberForDate: G. Miller on the main reference date (8 Feb 2026) → week 3', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    assert.ok(miller, 'G. Miller not found');
+    assert.equal(getWeekNumberForDate(d(2026, 2, 8), miller), 3);
+});
+
+test('getWeekNumberForDate: G. Miller one week after reference (15 Feb 2026) → week 4', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    assert.ok(miller);
+    assert.equal(getWeekNumberForDate(d(2026, 2, 15), miller), 4);
+});
+
+test('getWeekNumberForDate: G. Miller one week before reference (1 Feb 2026) → week 2', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    assert.ok(miller);
+    assert.equal(getWeekNumberForDate(d(2026, 2, 1), miller), 2);
+});
+
+test('getWeekNumberForDate: G. Miller 8 weeks after reference (5 Apr 2026) → week 11', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    assert.ok(miller);
+    assert.equal(getWeekNumberForDate(d(2026, 4, 5), miller), 11);
+});
+
+test('getWeekNumberForDate: T. Nsuala (week 20) advances past cycle end → wraps to week 1', () => {
+    // T. Nsuala is on week 20 as of the reference date.  One week later she wraps to 1.
+    const nsuala = teamMembers.find(m => m.name === 'T. Nsuala');
+    assert.ok(nsuala, 'T. Nsuala not found');
+    assert.equal(getWeekNumberForDate(d(2026, 2, 8),  nsuala), 20); // on reference date
+    assert.equal(getWeekNumberForDate(d(2026, 2, 15), nsuala),  1); // wraps
+});
+
+test('getWeekNumberForDate: L. Springer (week 1) goes back before reference → wraps to week 20', () => {
+    const springer = teamMembers.find(m => m.name === 'L. Springer');
+    assert.ok(springer, 'L. Springer not found');
+    assert.equal(getWeekNumberForDate(d(2026, 2, 8), springer),  1); // on reference date
+    assert.equal(getWeekNumberForDate(d(2026, 2, 1), springer), 20); // wraps backward
+});
+
+// CES roster — separate reference date (Sun 15 Feb 2026, F. Mohamed on CES Week 1)
+
+test('getWeekNumberForDate: F. Mohamed on CES reference date (15 Feb 2026) → week 1', () => {
+    const mohamed = teamMembers.find(m => m.name === 'F. Mohamed');
+    assert.ok(mohamed, 'F. Mohamed not found');
+    assert.equal(getWeekNumberForDate(d(2026, 2, 15), mohamed), 1);
+});
+
+test('getWeekNumberForDate: F. Mohamed one week after CES reference (22 Feb 2026) → week 2', () => {
+    const mohamed = teamMembers.find(m => m.name === 'F. Mohamed');
+    assert.ok(mohamed);
+    assert.equal(getWeekNumberForDate(d(2026, 2, 22), mohamed), 2);
+});
+
+test('getWeekNumberForDate: F. Mohamed one week before CES reference (8 Feb 2026) → wraps to week 10', () => {
+    // CES cycle is 10 weeks.  Week 1 minus 1 = week 10.
+    const mohamed = teamMembers.find(m => m.name === 'F. Mohamed');
+    assert.ok(mohamed);
+    assert.equal(getWeekNumberForDate(d(2026, 2, 8), mohamed), 10);
+});
+
+// ---------------------------------------------------------------------------
+// resolveMemberRoster — scheduled roster transitions
+// ---------------------------------------------------------------------------
+
+test('resolveMemberRoster: returns member unchanged when no rosterChanges', () => {
+    const member = { name: 'X', rosterType: 'main', currentWeek: 3 };
+    assert.strictEqual(resolveMemberRoster(member, d(2026, 7, 1)), member);
+});
+
+test('resolveMemberRoster: keeps base fields before the first change date', () => {
+    const member = {
+        name: 'X', rosterType: 'fixed', currentWeek: 1,
+        rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 6, 30)); // 30 Jun — before 1 Jul
+    assert.equal(eff.rosterType, 'fixed');
+    assert.equal(eff.currentWeek, 1);
+});
+
+test('resolveMemberRoster: applies the change on the from date (inclusive)', () => {
+    const member = {
+        name: 'X', rosterType: 'fixed', currentWeek: 1,
+        rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 7, 1)); // 1 Jul — on the boundary
+    assert.equal(eff.rosterType, 'ces');
+    assert.equal(eff.currentWeek, 4);
+});
+
+// ── TWO OR MORE CHANGES: WHICH ONE WINS ───────────────────────────────────────────────────────
+// The expensive direction is resolving to the EARLIER move: the member is then drawn, paid and
+// rostered off a link they left, on every page, for every date after the second move — and
+// nothing errors, because the earlier entry is a real roster the app renders perfectly.
+// Every member in `teamMembers` carries at most ONE entry today, so the precedence rule this
+// block pins is exercised by no real data at all: inverting the comparison in
+// `resolveMemberRoster` left the whole suite green before these cases existed.
+
+test('resolveMemberRoster: with TWO changes past, the LATER one wins', () => {
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 2 },  // 1 Jun
+            { from: new Date(2026, 6, 1), rosterType: 'ces',   currentWeek: 4 },  // 1 Jul
+        ],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 9, 15)); // well after both
+    assert.equal(eff.rosterType, 'ces');
+    assert.equal(eff.currentWeek, 4);
+});
+
+test('resolveMemberRoster: between two changes, only the FIRST applies', () => {
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 2 },
+            { from: new Date(2026, 6, 1), rosterType: 'ces',   currentWeek: 4 },
+        ],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 6, 30)); // 30 Jun — after the first, before the second
+    assert.equal(eff.rosterType, 'fixed');
+    assert.equal(eff.currentWeek, 2);
+});
+
+test('resolveMemberRoster: the SECOND change is inclusive on its own from date', () => {
+    // The boundary the first-change test already pins, asserted where it can be got wrong a
+    // second way: on 1 Jul the later entry must take over, not merely become eligible.
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 2 },
+            { from: new Date(2026, 6, 1), rosterType: 'ces',   currentWeek: 4 },
+        ],
+    };
+    assert.equal(resolveMemberRoster(member, d(2026, 7, 1)).rosterType, 'ces');
+    // A midnight date object, not the noon one `d` builds — `from` is compared at midnight.
+    assert.equal(resolveMemberRoster(member, new Date(2026, 6, 1)).rosterType, 'ces');
+    assert.equal(resolveMemberRoster(member, new Date(2026, 5, 30, 23, 59, 59)).rosterType, 'fixed');
+});
+
+test('resolveMemberRoster: an OUT-OF-ORDER array still resolves to the latest applicable change', () => {
+    // The contract says sorted ascending and a separate test holds the real roster to it, but
+    // nothing stops an author writing two entries the wrong way round — and the consequence
+    // would be a silently wrong link rather than an error. The lookup is order-independent by
+    // construction (v16.19); this is the behaviour, pinned, not an invitation to unsort.
+    const later  = { from: new Date(2026, 6, 1), rosterType: 'ces',   currentWeek: 4 };
+    const earlier = { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 2 };
+    const member = { name: 'X', rosterType: 'main', currentWeek: 3, rosterChanges: [later, earlier] };
+    assert.equal(resolveMemberRoster(member, d(2026, 9, 15)).rosterType, 'ces');
+    assert.equal(resolveMemberRoster(member, d(2026, 9, 15)).currentWeek, 4);
+    // …and the mid-window answer is the earlier one, whichever order they were written in.
+    assert.equal(resolveMemberRoster(member, d(2026, 6, 30)).rosterType, 'fixed');
+});
+
+test('resolveMemberRoster: three changes, the last of them wins', () => {
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 2, 1), rosterType: 'fixed',      currentWeek: 1 },
+            { from: new Date(2026, 5, 1), rosterType: 'ces',        currentWeek: 4 },
+            { from: new Date(2026, 8, 1), rosterType: 'dispatcher', currentWeek: 7 },
+        ],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 12, 25));
+    assert.equal(eff.rosterType, 'dispatcher');
+    assert.equal(eff.currentWeek, 7);
+});
+
+test('getBaseShift follows the LATER of two changes, not the first', () => {
+    // The precedence matters because every shift the app shows is read through it. A member
+    // resolved onto the wrong entry is not a wrong label — it is a wrong shift, for a real
+    // person, on every page.
+    const member = {
+        name: 'X', rosterType: 'main', currentWeek: 3,
+        rosterChanges: [
+            { from: new Date(2026, 5, 1), rosterType: 'fixed', currentWeek: 1 },   // C. Reen's 12:00–19:00 line
+            { from: new Date(2026, 6, 1), rosterType: 'fixed', currentWeek: 2 },   // the Mon–Fri 09:00–16:00 line
+        ],
+    };
+    const monday = d(2026, 9, 14); // a Monday, after both changes
+    assert.equal(monday.getDay(), 1, 'precondition: the sample date is a Monday');
+    assert.equal(getBaseShift(member, monday), '09:00-16:00');
+    // Between the two, the first line is still in force.
+    const midMonday = d(2026, 6, 15);
+    assert.equal(midMonday.getDay(), 1, 'precondition: the mid-window date is a Monday');
+    assert.equal(getBaseShift(member, midMonday), '12:00-19:00');
+});
+
+// ---------------------------------------------------------------------------
+// B. Khalil — new CES starter on the CES rotation from his 9 Jun 2026 start
+// (no bespoke fixed induction line — corrected June 2026)
+// ---------------------------------------------------------------------------
+
+test('B. Khalil: RD before his 9 Jun 2026 start date', () => {
+    const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.ok(k, 'B. Khalil not found in teamMembers');
+    assert.equal(getBaseShift(k, d(2026, 6, 8)), 'RD'); // 8 Jun — day before start
+});
+
+// His line is the one that was vacant when he arrived (anchor 4). These read 05:40-14:30 on 10 Jun and
+// 05:40-15:00 on 13 Jun until 10 Nov 2026 — G. Rotaru's turns, from the anchor his row wrongly shared
+// (roster-member-data.js). That week his own line is CES week 10; the early turns come a week later.
+test('B. Khalil: on the CES rotation (not a fixed line) from June', () => {
+    const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.equal(getRosterForMember(k, d(2026, 6, 10)).type, 'ces'); // June already the CES roster
+    assert.equal(getBaseShift(k, d(2026, 6, 10)), 'SPARE');          // Wed 10 Jun — CES week 10
+    assert.equal(getBaseShift(k, d(2026, 6, 17)), '05:40-14:30');    // Wed 17 Jun — CES week-1 early shift
+});
+
+test('B. Khalil: works CES early shifts incl. some Saturdays (not a fixed 12:00-19:00 line)', () => {
+    const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.equal(getBaseShift(k, d(2026, 6, 20)), '05:40-15:00'); // Sat 20 Jun — CES week-1 works the Saturday
+});
+
+test('B. Khalil: stays on the CES roster across the 1 July boundary', () => {
+    const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.equal(getRosterForMember(k, d(2026, 6, 30)).type, 'ces');
+    assert.equal(getRosterForMember(k, d(2026, 7, 1)).type, 'ces');
+});
+
+// ---------------------------------------------------------------------------
+// getBaseShift
+// ---------------------------------------------------------------------------
+
+test('getBaseShift: returns a valid shift for a known member on a weekday', () => {
+    const member = teamMembers.find(m => m.rosterType === 'main' && !m.hidden);
+    assert.ok(member, 'No visible main roster member found');
+    // Any Monday in 2026 — use a stable date
+    const shift = getBaseShift(member, d(2026, 3, 16)); // Mon 16 Mar 2026
+    assert.ok(
+        /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shift) || ['RD', 'SPARE', 'OFF'].includes(shift),
+        `Expected a valid shift string, got "${shift}"`
+    );
+});
+
+test('getBaseShift: fixed-roster member on a weekend returns RD', () => {
+    const member = teamMembers.find(m => m.rosterType === 'fixed');
+    assert.ok(member, 'No fixed roster member found');
+    // Fixed roster is Mon–Fri; Saturday should be RD
+    const shift = getBaseShift(member, d(2026, 3, 14)); // Sat 14 Mar 2026
+    assert.equal(shift, 'RD');
+});
+
+test('getBaseShift: startDate suppression — returns RD before member joins', () => {
+    // M. Okeke has startDate = new Date(2026, 3, 20) = 20 Apr 2026
+    const member = teamMembers.find(m => m.name === 'M. Okeke');
+    assert.ok(member, 'M. Okeke not found in teamMembers');
+    // One day before startDate
+    const shiftBefore = getBaseShift(member, d(2026, 4, 19)); // 19 Apr 2026
+    assert.equal(shiftBefore, 'RD', 'Expected RD for date before startDate');
+    // On startDate itself — should return normal shift (not suppressed). Asserted against the SAME
+    // member with the startDate removed, which skips the suppression branch altogether: `!== undefined`
+    // stood here for years and could not fail, since getBaseShift always returns a string. The boundary
+    // is swept across the whole roster in "a member's first day is theirs" at the end of this file.
+    const roster = getBaseShift({ ...member, startDate: undefined }, d(2026, 4, 20));
+    assert.equal(getBaseShift(member, d(2026, 4, 20)), roster, 'the join day is not suppressed');
+});
+
+// Regression: v13.97 — getBaseShift previously accessed member.startDate without
+// a null guard; a null/undefined member would throw TypeError. Sibling helpers
+// (getWeekNumberForDate, getRosterForMember, getALEntitlement) all guard !member.
+test('getBaseShift: null member returns RD without throwing', () => {
+    assert.equal(getBaseShift(null, d(2026, 3, 16)), 'RD');
+});
+
+test('getBaseShift: undefined member returns RD without throwing', () => {
+    assert.equal(getBaseShift(undefined, d(2026, 3, 16)), 'RD');
+});
+
+test('getBaseShift: Christmas Day (Dec 25) always returns RD regardless of roster', () => {
+    // isChristmasRD() is applied before base roster lookup — Dec 25 is always RD.
+    const member = teamMembers.find(m => m.rosterType === 'main' && !m.hidden);
+    assert.ok(member, 'No visible main roster member found');
+    assert.equal(getBaseShift(member, d(2026, 12, 25)), 'RD');
+});
+
+// ---------------------------------------------------------------------------
+// getALEntitlement
+// ---------------------------------------------------------------------------
+
+test('getALEntitlement: proRatedAL overrides standard entitlement for the joining year', () => {
+    // An invented joiner. The real roster's figures are checked below, by shape and not by name.
+    const member = { name: 'J. Joiner', role: 'CEA', rosterType: 'main', currentWeek: 1, startDate: new Date(2026, 4, 5), proRatedAL: { 2026: 24 } };
+    assert.equal(getALEntitlement(member, 2026), 24, 'Expected pro-rated AL of 24 for joining year');
+    assert.equal(getALEntitlement(member, 2027), 32, 'Expected standard CEA AL of 32 from year after joining');
+});
+
+// EVERY JOINING-YEAR FIGURE ON THE REAL ROSTER IS READ AS WRITTEN. They are the roster clerks' figures,
+// and at least one is AGREED rather than derived — above the day-count from its start date, because
+// earlier service counted (owner, 6 Sep 2026) — so the app returns each verbatim and never recomputes
+// it. The year after reads the contract of the grade then held. Asserted over the whole roster and
+// selected by shape: a real name beside its allowance would be published by the Pages mirror, which
+// serves this file (payroll-anonymity.test.mjs). A failure names the person and prints no figure.
+test('getALEntitlement: every joining-year figure on the real roster stands as written, and the contract follows it', () => {
+    const contract = (/** @type {any} */ m, /** @type {number} */ y) => {
+        const role = allowanceRole(m, y);
+        if (role === 'CES') return 34;
+        if (role === 'CEA') return m.bilingualContract === true ? 34 : 32;
+        return undefined;   // a Dispatcher's figure is earned per year, and is tested on its own below
+    };
+    const joiners = teamMembers.filter(m => m.proRatedAL && Object.keys(m.proRatedAL).length > 0);
+    assert.ok(joiners.length >= 3, 'premise: the roster has joiners with a figure on record');
+    let checked = 0;
+    for (const m of joiners) {
+        const years = Object.keys(m.proRatedAL).map(Number);
+        for (const y of years) {
+            if (allowanceRole(m, y) === 'Dispatcher') continue;
+            assert.ok(getALEntitlement(m, y, []) === m.proRatedAL[y], `${m.name}: the ${y} figure on record is not the one returned`);
+            checked++;
+        }
+        const after = Math.max(...years) + 1;
+        const expected = contract(m, after);
+        if (expected !== undefined) {
+            assert.ok(getALEntitlement(m, after, []) === expected, `${m.name}: ${after} is not the contract figure for the grade then held`);
+        }
+    }
+    assert.ok(checked >= 3, 'premise: enough non-Dispatcher joining years were checked');
+});
+
+// A year that ended before the member joined has no allowance on record (whole-app review, 10 Nov
+// 2026). It read the full contract figure — 32 for a 2026 joiner's 2025, all of it remaining.
+test('getALEntitlement: nothing on record for a year before the member joined', () => {
+    const joiner = { role: 'CEA', rosterType: 'main', currentWeek: 1, startDate: new Date(2026, 4, 5), proRatedAL: { 2026: 20 } };
+    assert.equal(getALEntitlement(joiner, 2024), null);
+    assert.equal(getALEntitlement(joiner, 2025), null);
+    assert.equal(getALEntitlement(joiner, 2026), 20, 'the joining year is unchanged');
+    assert.equal(getALEntitlement(joiner, 2027), 32, 'and so is every year after it');
+    // A return on full-year terms (`noProRate`) has its whole first year, and still nothing before it.
+    const back = { role: 'CES', rosterType: 'ces', currentWeek: 1, startDate: new Date(2026, 5, 9), noProRate: true };
+    assert.equal(getALEntitlement(back, 2025), null);
+    assert.equal(getALEntitlement(back, 2026), 34);
+    // A member with no start date is unaffected in any year.
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', currentWeek: 1 }, 2024), 32);
+});
+
+// ---------------------------------------------------------------------------
+// computeEaster
+// ---------------------------------------------------------------------------
+
+test('computeEaster: 2026 Easter Sunday is 5 April', () => {
+    const e = computeEaster(2026);
+    assert.equal(e.getMonth(), 3);  // April = month index 3
+    assert.equal(e.getDate(), 5);
+});
+
+test('computeEaster: 2025 Easter Sunday is 20 April', () => {
+    const e = computeEaster(2025);
+    assert.equal(e.getMonth(), 3);
+    assert.equal(e.getDate(), 20);
+});
+
+test('computeEaster: 2024 Easter Sunday is 31 March', () => {
+    const e = computeEaster(2024);
+    assert.equal(e.getMonth(), 2);  // March = month index 2
+    assert.equal(e.getDate(), 31);
+});
+
+// ---------------------------------------------------------------------------
+// escapeHtml
+// ---------------------------------------------------------------------------
+
+test('escapeHtml: null returns empty string', () => {
+    assert.equal(escapeHtml(null), '');
+});
+
+test('escapeHtml: undefined returns empty string', () => {
+    assert.equal(escapeHtml(undefined), '');
+});
+
+test('escapeHtml: plain string with no special chars is unchanged', () => {
+    assert.equal(escapeHtml('Hello world'), 'Hello world');
+});
+
+test('escapeHtml: escapes < and >', () => {
+    assert.equal(escapeHtml('<b>bold</b>'), '&lt;b&gt;bold&lt;/b&gt;');
+});
+
+test('escapeHtml: escapes &', () => {
+    assert.equal(escapeHtml('fish & chips'), 'fish &amp; chips');
+});
+
+test('escapeHtml: escapes double-quotes', () => {
+    assert.equal(escapeHtml('"quoted"'), '&quot;quoted&quot;');
+});
+
+test('escapeHtml: escapes all four special chars together', () => {
+    assert.equal(escapeHtml('<a href="x">&</a>'), '&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;');
+});
+
+test('escapeHtml: number is coerced to string', () => {
+    assert.equal(escapeHtml(42), '42');
+});
+
+// ---------------------------------------------------------------------------
+// parseSmartFloat
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// getMembersForGrade — pinned against LIVE data
+// ---------------------------------------------------------------------------
+
+test('getMembersForGrade(Management) returns every CONFIG.MANAGER_NAMES manager (live-data regression)', () => {
+    // Every ACTIVE manager row carries hidden:true as the standing convention, so the Management
+    // filter must NOT exclude hidden — a `!m.hidden` filter here once emptied the login group,
+    // locking all managers out and exposing their accounts to "Disable accounts for leavers".
+    const names = getMembersForGrade('Management').map(m => m.name);
+    for (const mgr of CONFIG.MANAGER_NAMES) {
+        assert.ok(names.includes(mgr), `Management login group must include active manager ${mgr}`);
+    }
+    assert.ok(names.length >= CONFIG.MANAGER_NAMES.length, 'Management group must not be empty');
+});
+
+// THE "OTHER STAFF" GRADE (owner, 23 Nov 2026): a login with no roster, picked by its own flag as managers are by
+// theirs — so it is not lost to the `hidden` it carries. The person is INVENTED and lives only for the test.
+test('Other Staff: their own sign-in group, in everybody who can sign in, and in the server\'s list', async () => {
+    const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true };
+    const before = getMembersForGrade('Other Staff').map(m => m.name);
+    assert.ok(!before.includes('Q. Example'), 'premise: the invented name is not a real login');
+    assert.deepEqual(before, teamMembers.filter(m => m.role === 'Other Staff').map(m => m.name),
+        'every real Other Staff row is in the group, and nothing else is');
+    teamMembers.push(/** @type {any} */ (row));
+    try {
+        assert.ok(isOtherStaff(row) && !isOtherStaff({ ...row, otherStaff: 'yes' }), 'the flag must be exactly true');
+        assert.deepEqual(getMembersForGrade('Other Staff').map(m => m.name), [...before, 'Q. Example']);
+        for (const g of ['CEA', 'CES', 'Dispatcher', 'Management']) {
+            assert.ok(!getMembersForGrade(g).includes(/** @type {any} */ (row)), `not also listed under ${g}`);
+        }
+        assert.deepEqual(signInMembers(), CONFIG.GRADE_ORDER.flatMap(getMembersForGrade), 'every grade, in the sign-in\'s order');
+        assert.ok(signInMembers().includes(/** @type {any} */ (row)));
+        const { buildRosterMembers } = await import('../scripts/generate-roster-members.mjs');
+        const built = /** @type {any} */ (buildRosterMembers());
+        assert.ok(built.activeMembers.includes('Q. Example'), 'the server gives them an account (activeMembers)');
+        assert.ok(!Object.values(built.roles).flat().includes('Q. Example'), 'and no claim tier beyond a member\'s');
+        assert.ok(!built.cea.includes('Q. Example') && !built.ces.includes('Q. Example'), 'nor a pay reminder');
+    } finally {
+        teamMembers.splice(teamMembers.indexOf(/** @type {any} */ (row)), 1);
+    }
+});
+
+// A LEAVER LEFT ON A ROLE LIST KEEPS A WORKING LOGIN (review D5, Nov 2026). setupRosterAuth unions every
+// role name into the set it provisions and never sweeps (resolveRosterAuthConfig, so that a sweep can
+// never disable an admin or a designer), so a name hidden or removed from teamMembers but still in
+// CONFIG.ADMIN_NAMES or CONFIG.LINKS_DESIGNERS is re-enabled and re-claimed on every run — an admin's
+// tier included. The managers' half is the test above; these are the other two lists.
+for (const list of /** @type {const} */ (['ADMIN_NAMES', 'LINKS_DESIGNERS'])) {
+    test(`every CONFIG.${list} name is a current member — a leaver on it keeps a working login`, () => {
+        const current = new Set(['CEA', 'CES', 'Dispatcher', 'Management'].flatMap(g => getMembersForGrade(g).map(m => m.name)));
+        assert.ok(CONFIG[list].length > 0, `premise: CONFIG.${list} names somebody`);
+        for (const name of CONFIG[list]) {
+            assert.ok(current.has(name), `${name} is in CONFIG.${list} but is not a current member (hidden, or no longer in teamMembers) — `
+                + `take them off CONFIG.${list} and run npm run generate:roster-members, or Set up accounts keeps their login working`);
+        }
+    });
+}
+
+test('parseSmartFloat: empty/null/undefined returns 0', () => {
+    assert.equal(parseSmartFloat(''), 0);
+    assert.equal(parseSmartFloat(null), 0);
+    assert.equal(parseSmartFloat(undefined), 0);
+});
+
+test('parseSmartFloat: plain numeric string parses', () => {
+    assert.equal(parseSmartFloat('20.74'), 20.74);
+    assert.equal(parseSmartFloat('  21.81 '), 21.81);
+});
+
+test('parseSmartFloat: unparseable string returns 0', () => {
+    assert.equal(parseSmartFloat('abc'), 0);
+});
+
+test('parseSmartFloat: strips thousands separators and £ sign (payslip figures pasted verbatim)', () => {
+    assert.equal(parseSmartFloat('23,456.78'), 23456.78);
+    assert.equal(parseSmartFloat('£1,234.56'), 1234.56);
+    assert.equal(parseSmartFloat('1,000'), 1000);
+});
+
+// A decimal-comma keypad (whole-app review, Oct 2026): stripping every comma read "21758,94" in the
+// Year to Date box as £2,175,894. A comma before one or two FINAL digits cannot be a thousands
+// separator — a thousands group is three digits — so it is the decimal point.
+test('parseSmartFloat: a decimal COMMA is the point, and a thousands comma is unchanged', () => {
+    assert.equal(parseSmartFloat('21758,94'), 21758.94);
+    assert.equal(parseSmartFloat('2534,85'), 2534.85);
+    assert.equal(parseSmartFloat('7,5'), 7.5);
+    assert.equal(parseSmartFloat('-5,50'), -5.5);
+    assert.equal(parseSmartFloat('1.234,56'), 1234.56, 'dots before a decimal comma are thousands');
+    assert.equal(parseSmartFloat('21,758'), 21758, 'three digits after a comma is a thousands group');
+    assert.equal(parseSmartFloat('£21,758.94'), 21758.94);
+    assert.equal(parseSmartFloatOrNull('21758,94'), 21758.94);
+});
+
+// …and so is a comma with NO digit before it, or more than two after (whole-app review, 10 Nov 2026).
+// The rule above demanded a digit in front, so ",5" — the comma twin of ".5", typed for half an hour
+// — was stripped to 5 and priced as five hours; "7,5833" read as 75,833. A comma is a thousands
+// separator only where it sits like one: a leading group of one to three digits that does not start
+// with 0, then exactly three digits.
+test('parseSmartFloat: a decimal comma with no digit before it, or more than two after, is still the point', () => {
+    assert.equal(parseSmartFloat(',5'), 0.5, 'the comma twin of ".5"');
+    assert.equal(parseSmartFloat(',25'), 0.25);
+    assert.equal(parseSmartFloat('-,5'), -0.5);
+    assert.equal(parseSmartFloat('7,5833'), 7.5833);
+    assert.equal(parseSmartFloat('0,125'), 0.125, 'no thousands group starts with 0');
+    assert.equal(parseSmartFloat('1.234,567'), 1234.567, 'a dot in front makes the comma the point');
+    assert.equal(parseSmartFloatOrNull(',5'), 0.5);
+    assert.equal(parseSmartFloatOrNull('7,5833'), 7.5833);
+});
+
+test('parseSmartFloat: a comma placed like a thousands separator still is one', () => {
+    assert.equal(parseSmartFloat('1,234'), 1234);
+    assert.equal(parseSmartFloat('12,345'), 12345);
+    assert.equal(parseSmartFloat('123,456'), 123456);
+    assert.equal(parseSmartFloat('-1,234'), -1234);
+    assert.equal(parseSmartFloat('12,345,678'), 12345678);
+    assert.equal(parseSmartFloatOrNull('£1,500'), 1500);
+});
+
+// A space INSIDE a number (15 Nov 2026): parseFloat stops at the first one. A phone keyboard that adds
+// a space after a full stop turned a Year to Date "3105.40" into "3105. 40", read as £3,105, and a
+// space between thousands, "3 105.40", read as £3 — in the Tax Paid box, that asked one payslip for
+// nearly the whole year's tax. Figures invented.
+test('parseSmartFloat: a space anywhere inside a number is ignored', () => {
+    assert.equal(parseSmartFloat('3105. 40'), 3105.40, 'a space after the point');
+    assert.equal(parseSmartFloat('3 105.40'), 3105.40, 'a space between thousands');
+    assert.equal(parseSmartFloat('3 105.40'), 3105.40, 'a no-break space, as a paste brings it');
+    assert.equal(parseSmartFloat('3 105.40'), 3105.40, 'a narrow no-break space');
+    assert.equal(parseSmartFloat('3 105,40'), 3105.40, 'a thin space, with a decimal comma');
+    assert.equal(parseSmartFloat('£ 1,234.56'), 1234.56);
+    assert.equal(parseSmartFloat('- 50'), -50, 'a sign and its number, apart');
+    assert.equal(parseSmartFloatOrNull('3105. 40'), 3105.40);
+    assert.equal(parseSmartFloatOrNull('3 105.40'), 3105.40);
+    assert.equal(parseSmartFloatOrNull('   '), null, 'spaces alone are still nothing');
+    assert.equal(parseSmartFloat('   '), 0);
+});
+
+test('parseSmartFloat: iOS smart minus is normalised so parseFloat succeeds', () => {
+    // U+2212 MINUS SIGN — raw parseFloat('−5') returns NaN; the strip fixes it.
+    assert.equal(parseSmartFloat('−5'), -5);
+});
+
+test('parseSmartFloat: curly quote is stripped before parse', () => {
+    // A trailing curly quote must not break an otherwise-valid number.
+    assert.equal(parseSmartFloat('20.74’'), 20.74);
+});
+
+// ---------------------------------------------------------------------------
+// avatarInitials
+// ---------------------------------------------------------------------------
+
+test('avatarInitials: null returns "?"', () => {
+    assert.equal(avatarInitials(null), '?');
+});
+
+test('avatarInitials: empty string returns "?"', () => {
+    assert.equal(avatarInitials(''), '?');
+});
+
+test('avatarInitials: "G. Miller" → "GM"', () => {
+    assert.equal(avatarInitials('G. Miller'), 'GM');
+});
+
+test('avatarInitials: "C. Reen" → "CR"', () => {
+    assert.equal(avatarInitials('C. Reen'), 'CR');
+});
+
+test('avatarInitials: single word uses first letter only', () => {
+    assert.equal(avatarInitials('Alice'), 'A');
+});
+
+test('avatarInitials: hyphenated surname uses first letter of last token', () => {
+    // 'C. Francisco-Charles' → parts = ['C.','Francisco-Charles'], first='C', last='F'
+    assert.equal(avatarInitials('C. Francisco-Charles'), 'CF');
+});
+
+test('avatarInitials: result is always uppercase', () => {
+    const initials = avatarInitials('g. miller');
+    assert.equal(initials, initials.toUpperCase());
+});
+
+// ---------------------------------------------------------------------------
+// avatarHue
+// ---------------------------------------------------------------------------
+
+test('avatarHue: returns a CSS oklch() string', () => {
+    const colour = avatarHue('G. Miller');
+    assert.match(colour, /^oklch\(52% 0\.12 \d+(\.\d+)?deg\)$/);
+});
+
+test('avatarHue: same name always produces the same colour', () => {
+    assert.equal(avatarHue('G. Miller'), avatarHue('G. Miller'));
+});
+
+test('avatarHue: different names produce different hues (probabilistic)', () => {
+    // Not exhaustive — just a basic sanity check that the hash varies
+    assert.notEqual(avatarHue('G. Miller'), avatarHue('C. Reen'));
+});
+
+test('avatarHue: empty/null name returns a valid oklch string (h=0)', () => {
+    assert.match(avatarHue(''), /^oklch\(52% 0\.12 0deg\)$/);
+    // null: length is 0, h stays 0
+    assert.match(avatarHue(null), /^oklch\(52% 0\.12 0deg\)$/);
+});
+
+// ---------------------------------------------------------------------------
+// getSpecialDayBadges
+// ---------------------------------------------------------------------------
+
+// 2026-02-13 is the first payday (Friday). Cutoff = Sat 7 Feb 2026.
+const PAYDAY_2026   = new Date(2026, 1, 13, 12, 0, 0);  // Feb 13
+const CUTOFF_2026   = new Date(2026, 1,  7, 12, 0, 0);  // Feb 7 (Saturday before Feb 13)
+const EASTER_2026   = new Date(2026, 3,  5, 12, 0, 0);  // Apr 5 — Easter Sunday
+const XMAS_2026     = new Date(2026, 11, 25, 12, 0, 0); // Dec 25
+const PLAIN_WEEKDAY = new Date(2026, 5, 17, 12, 0, 0);  // Jun 17 (Wednesday, no special day)
+
+test('getSpecialDayBadges: plain weekday returns empty array', () => {
+    const badges = getSpecialDayBadges(PLAIN_WEEKDAY, '2026-06-17');
+    assert.deepEqual(badges, []);
+});
+
+test('getSpecialDayBadges: payday includes 💷 badge', () => {
+    const badges = getSpecialDayBadges(PAYDAY_2026, '2026-02-13');
+    assert.ok(badges.some(b => b.icon === '💷'), 'Expected payday badge');
+});
+
+test('getSpecialDayBadges: cutoff date includes ✂️ badge', () => {
+    const badges = getSpecialDayBadges(CUTOFF_2026, '2026-02-07');
+    assert.ok(badges.some(b => b.icon === '✂️'), 'Expected cutoff badge');
+});
+
+test('getSpecialDayBadges: Good Friday is a bank holiday — includes ⭐ badge', () => {
+    const goodFriday = new Date(2026, 3, 3, 12, 0, 0); // Apr 3 2026
+    const badges = getSpecialDayBadges(goodFriday, '2026-04-03');
+    assert.ok(badges.some(b => b.icon === '⭐'), 'Expected bank holiday badge');
+});
+
+test('getSpecialDayBadges: Easter Sunday includes 🐣 badge', () => {
+    const badges = getSpecialDayBadges(EASTER_2026, '2026-04-05');
+    assert.ok(badges.some(b => b.icon === '🐣'), 'Expected Easter Sunday badge');
+});
+
+test('getSpecialDayBadges: Christmas Day includes 🎄 badge', () => {
+    const badges = getSpecialDayBadges(XMAS_2026, '2026-12-25');
+    assert.ok(badges.some(b => b.icon === '🎄'), 'Expected Christmas Day badge');
+});
+
+test('getSpecialDayBadges: Christmas Day is also a bank holiday — includes both 🎄 and ⭐', () => {
+    const badges = getSpecialDayBadges(XMAS_2026, '2026-12-25');
+    assert.ok(badges.some(b => b.icon === '🎄'), '🎄 badge missing');
+    assert.ok(badges.some(b => b.icon === '⭐'), '⭐ badge missing');
+});
+
+test('getSpecialDayBadges: returns objects with icon and title fields', () => {
+    const badges = getSpecialDayBadges(PAYDAY_2026, '2026-02-13');
+    for (const b of badges) {
+        assert.ok(typeof b.icon  === 'string', 'icon should be a string');
+        assert.ok(typeof b.title === 'string', 'title should be a string');
+    }
+});
+
+// ── THE APP HAS ONE MARKER VOCABULARY, DECLARED IN THREE PLACES (v22.70) ────────────────────────
+//
+// `index.css` draws ⭐ 💷 ✂️ 🐣 🎄 as calendar-cell `::before`/`::after` content, `getSpecialDayBadges`
+// above hands the same five to admin.html's day rows, and `dayMarkers` in calendar-renderer.js hands
+// them to the day panel's chips. Three copies of one fact, and the whole point of the v22.70 chip
+// row is that a member tapping a day sees the SAME star that is on the cell — so a drift here does
+// not throw, does not fail a render, and quietly makes the panel explain a marker the calendar is
+// not showing.
+//
+// `dayMarkers` cannot be imported here: calendar-renderer.js reaches the gstatic Firebase SDK
+// through its import graph, so nothing in it loads in Node. It has no imports of its own, though,
+// so it is sliced out BY NAME and evaluated against its real source — the `sw-internals.test.mjs`
+// idiom — and compared against the REAL `getSpecialDayBadges` on the other side. Extraction throws
+// if the function is renamed, so this fails loudly rather than silently checking nothing.
+//
+// It deliberately does NOT compare the labels: the panel's are sentence case because they are
+// joined into the hover tooltip's sentence, admin's are title case because they are a badge
+// `title`. Nor the ORDER, which each surface chooses. The ICON is the shared fact.
+const _rendererSrc = readFileSync(new URL('./calendar-renderer.js', REPO_ROOT_URL), 'utf8');
+const _dayMarkersSrc = /export function dayMarkers\(f\) \{[\s\S]*?\n\}/.exec(_rendererSrc);
+assert.ok(_dayMarkersSrc, 'dayMarkers could not be sliced out of calendar-renderer.js — renamed?');
+const dayMarkers = /** @type {(f:any) => {icon:string,label:string}[]} */ (
+    new Function(`${_dayMarkersSrc[0].replace('export function', 'function')}; return dayMarkers;`)());
+
+describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surfaces', () => {
+    const SHARED = [
+        { flag: 'isBH',     date: new Date(2026, 11, 25, 12), iso: '2026-12-25', title: 'Bank holiday' },
+        { flag: 'isCutoff', date: CUTOFF_2026,                iso: '2026-02-07', title: 'Cut-off date' },
+        { flag: 'isPay',    date: PAYDAY_2026,                iso: '2026-02-13', title: 'Payday' },
+        { flag: 'isXmas',   date: XMAS_2026,                  iso: '2026-12-25', title: 'Christmas Day' },
+        { flag: 'isEaster', date: EASTER_2026,                iso: '2026-04-05', title: 'Easter Sunday' },
+    ];
+
+    for (const { flag, date, iso, title } of SHARED) {
+        test(`${title} wears the same icon on the day panel as on an admin day row`, () => {
+            const panel = dayMarkers({ [flag]: true });
+            assert.equal(panel.length, 1, `dayMarkers({${flag}}) should produce exactly one chip`);
+            const admin = getSpecialDayBadges(date, iso).find(b => b.title === title);
+            assert.ok(admin, `getSpecialDayBadges no longer produces a ${title} badge`);
+            assert.equal(panel[0].icon, admin.icon,
+                `${title}: the day panel says ${panel[0].icon} and the admin row says ${admin.icon} `
+                + '— the panel exists to explain the marker the calendar is showing');
+            // AND THE SAME WORDS, which this did not check until v23.77 — so TWO of the five had
+            // quietly drifted apart in case ("Bank Holiday" vs "Bank holiday", "Cut-off Date" vs
+            // "Cut-off date") and the icon check sailed past both. The admin title is also an
+            // `aria-label` on the day row and now the week grid's visible legend, so a reader can
+            // meet both spellings of one marker in a single session.
+            assert.equal(admin.title, panel[0].label,
+                `${title}: the admin row says "${admin.title}" and the day panel says `
+                + `"${panel[0].label}" — one marker, one name`);
+        });
+    }
+
+    // Today is the one marker with no admin badge and no cell icon (the cell tints its day number
+    // instead), so it carries a glyph of its own — a chip with none would read as one that failed
+    // to load. Pinned so the reason survives, not the glyph: change it deliberately.
+    test('Today carries a glyph of its own, having no cell icon to borrow', () => {
+        const [today] = dayMarkers({ isToday: true });
+        assert.equal(today.label, 'Today');
+        assert.ok(today.icon && today.icon.length > 0, 'the Today chip lost its glyph');
+        assert.equal(getSpecialDayBadges(PLAIN_WEEKDAY, '2026-06-17').length, 0,
+            'the admin row has no Today badge — if it gains one, these two must agree');
+    });
+
+    // Boxing Day is deliberately ABSENT from both, and index.css says why beside the 🎄: 26 December
+    // is left plain so it still reads as an overtime opportunity. A marker added to one surface and
+    // not the other is exactly the drift this block exists to catch, so the absence is pinned too.
+    test('Boxing Day is marked on neither surface, deliberately', () => {
+        const boxing = new Date(2026, 11, 26, 12);
+        assert.deepEqual(getSpecialDayBadges(boxing, '2026-12-26'), [],
+            'Boxing Day gained an admin badge — index.css leaves the cell plain on purpose');
+        // The sliced FUNCTION, with comments stripped — the module's header explains at length why
+        // Boxing Day is absent, so scanning the whole file matches its own explanation and this
+        // assertion fails on the code being correctly documented. (It did, on the first run.)
+        const body = _dayMarkersSrc[0].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        assert.equal(/boxing/i.test(body), false,
+            'dayMarkers gained a Boxing Day chip — the cell has no marker for it to explain');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// parseISODate
+// ---------------------------------------------------------------------------
+
+test('parseISODate: parses YYYY-MM-DD to the correct local calendar day at noon', () => {
+    const d = parseISODate('2026-03-18');
+    assert.equal(d.getFullYear(), 2026);
+    assert.equal(d.getMonth(), 2);      // March (0-indexed)
+    assert.equal(d.getDate(), 18);
+    assert.equal(d.getHours(), 12);     // noon anchor — the DST/BST off-by-one guard
+});
+
+test('parseISODate: round-trips with formatISO', () => {
+    for (const iso of ['2026-01-01', '2026-03-29', '2026-10-25', '2026-12-31']) {
+        assert.equal(formatISO(parseISODate(iso)), iso, `round-trip failed for ${iso}`);
+    }
+});
+
+// isSunday
+// ---------------------------------------------------------------------------
+
+test('isSunday: returns true for a known Sunday', () => {
+    assert.equal(isSunday('2026-06-14'), true);  // June 14 2026 is Sunday
+});
+
+test('isSunday: returns true for another Sunday', () => {
+    assert.equal(isSunday('2026-06-21'), true);  // June 21 2026 is Sunday
+});
+
+test('isSunday: returns false for Monday', () => {
+    assert.equal(isSunday('2026-06-15'), false);  // June 15 2026 is Monday
+});
+
+test('isSunday: returns false for Saturday', () => {
+    assert.equal(isSunday('2026-06-20'), false);  // June 20 2026 is Saturday
+});
+
+test('isSunday: returns false for a mid-week day', () => {
+    assert.equal(isSunday('2026-06-17'), false);  // June 17 2026 is Wednesday
+});
+
+// ---------------------------------------------------------------------------
+// teamMembers roster integrity
+// ---------------------------------------------------------------------------
+
+const ROSTER_CYCLE_LENGTHS = {
+    main:       CONFIG.MAIN_ROSTER_WEEKS,
+    bilingual:  CONFIG.BILINGUAL_ROSTER_WEEKS,
+    // Fixed rosters don't rotate, but `currentWeek` selects which fixed pattern a member sits
+    // on, so the valid range is the number of defined fixed patterns (derive it so adding a
+    // pattern auto-updates the bound).
+    fixed:      Object.keys(fixedRoster).length,
+    ces:        CONFIG.CES_ROSTER_WEEKS,
+    dispatcher: CONFIG.DISPATCHER_ROSTER_WEEKS,
+};
+const VALID_ROSTER_TYPES = new Set(Object.keys(ROSTER_CYCLE_LENGTHS));
+const VALID_ROLES        = new Set(['CEA', 'CES', 'Dispatcher', 'Management', 'Other Staff']);
+
+test('every teamMember has a valid rosterType', () => {
+    const bad = teamMembers.filter(m => !VALID_ROSTER_TYPES.has(m.rosterType));
+    assert.deepEqual(
+        bad.map(m => m.name), [],
+        `Members with invalid rosterType:\n  ${bad.map(m => `${m.name}: '${m.rosterType}'`).join('\n  ')}`
+    );
+});
+
+test('every teamMember has a valid role', () => {
+    const bad = teamMembers.filter(m => !VALID_ROLES.has(m.role));
+    assert.deepEqual(
+        bad.map(m => m.name), [],
+        `Members with invalid role:\n  ${bad.map(m => `${m.name}: '${m.role}'`).join('\n  ')}`
+    );
+});
+
+test('every teamMember.currentWeek is in range for their rosterType', () => {
+    const bad = teamMembers.filter(m => {
+        const len = ROSTER_CYCLE_LENGTHS[m.rosterType];
+        return len === undefined || m.currentWeek < 1 || m.currentWeek > len;
+    });
+    assert.deepEqual(
+        bad.map(m => m.name), [],
+        `Members whose currentWeek is out of range:\n  ${bad.map(m =>
+            `${m.name}: week ${m.currentWeek}, rosterType ${m.rosterType} (max ${ROSTER_CYCLE_LENGTHS[m.rosterType]})`
+        ).join('\n  ')}`
+    );
+});
+
+test('every teamMember.startDate is a Date instance when present', () => {
+    const bad = teamMembers.filter(m => m.startDate !== undefined && !(m.startDate instanceof Date));
+    assert.deepEqual(
+        bad.map(m => m.name), [],
+        `Members with non-Date startDate:\n  ${bad.map(m => `${m.name}: ${m.startDate}`).join('\n  ')}`
+    );
+});
+
+/**
+ * The members whose `rosterChanges` are not strictly ascending by `from`. A function, so the check
+ * can be run on a made-up roster as well as the real one (test audit, 7 Nov 2026): no member carries
+ * two changes today, so on the real roster it compares nothing, and a check that could never fail
+ * passed. The fixture test below is what makes "roster-data.test.mjs fails an unsorted array" true.
+ * @param {any[]} members @returns {string[]}
+ */
+function unsortedRosterChanges(members) {
+    const bad = [];
+    for (const m of members) {
+        if (!m.rosterChanges || m.rosterChanges.length < 2) continue;
+        for (let i = 1; i < m.rosterChanges.length; i++) {
+            if (m.rosterChanges[i].from <= m.rosterChanges[i - 1].from) {
+                bad.push(`${m.name}: entry ${i} is not after entry ${i - 1}`);
+                break;
+            }
+        }
+    }
+    return bad;
+}
+
+test('every teamMember.rosterChanges is sorted ascending by from date', () => {
+    const bad = unsortedRosterChanges(teamMembers);
+    assert.deepEqual(bad, [], `rosterChanges not sorted ascending:\n  ${bad.join('\n  ')}`);
+});
+
+test('the sort check fails an unsorted array — it is not vacuous (test audit, 7 Nov 2026)', () => {
+    const on = (/** @type {number} */ month) => ({ from: new Date(2026, month, 1), rosterType: 'fixed', currentWeek: 2 });
+    assert.deepEqual(unsortedRosterChanges([{ name: 'X', rosterChanges: [on(5), on(6), on(8)] }]), []);
+    assert.deepEqual(unsortedRosterChanges([{ name: 'X', rosterChanges: [on(6), on(5)] }]), ['X: entry 1 is not after entry 0']);
+    assert.deepEqual(unsortedRosterChanges([{ name: 'X', rosterChanges: [on(5), on(5)] }]), ['X: entry 1 is not after entry 0'],
+        'two changes on the same day leave which one applies to the order they were typed in');
+});
+
+test('every rosterChanges entry has a valid rosterType and currentWeek', () => {
+    const bad = [];
+    for (const m of teamMembers) {
+        if (!m.rosterChanges) continue;
+        for (const change of m.rosterChanges) {
+            const len = ROSTER_CYCLE_LENGTHS[change.rosterType];
+            if (!VALID_ROSTER_TYPES.has(change.rosterType)) {
+                bad.push(`${m.name}: rosterChanges entry has invalid rosterType '${change.rosterType}'`);
+            } else if (change.currentWeek < 1 || change.currentWeek > len) {
+                bad.push(`${m.name}: rosterChanges entry currentWeek ${change.currentWeek} out of range for ${change.rosterType} (max ${len})`);
+            }
+        }
+    }
+    assert.deepEqual(bad, [], `Invalid rosterChanges entries:\n  ${bad.join('\n  ')}`);
+});
+
+// ── NO TWO PEOPLE ON ONE LINE (whole-app review, 10 Nov 2026) ────────────────────────────────────
+//
+// A rotating line is one person's. Two rows that resolve to the same week of the same roster on the
+// same day means one carries the wrong anchor and is drawn somebody else's turns. B. Khalil's row sat
+// like that for five months: given anchor 5 because 5 DISPLAYED week 4 on 1 Jul (the reference-anchored
+// mistake .claude/rules/roster-data.md warns about), it shared G. Rotaru's line while the real vacancy,
+// anchor 4, stayed empty. The range checks above cannot see it — 5 is in range.
+//
+// One kind of sharing is legitimate, a SUCCESSION: a leaver's row is kept (hidden) so their past still
+// resolves, and somebody later takes the line. So, on every day: at most one current row per line, and
+// a hidden row may share only a line it was on BEFORE the current holder arrived. Fixed patterns are
+// shared by design and are not lines.
+test('no two rows hold one rotating line, except a leaver\'s line taken after them', () => {
+    const ROTATING = new Set(['main', 'bilingual', 'ces', 'dispatcher']);
+    const midnight = (/** @type {Date} */ x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    /** When a row came onto the line it holds on `day`: the later of its start and the move in force. */
+    const arrived = (/** @type {any} */ m, /** @type {Date} */ day) => Math.max(
+        m.startDate ? midnight(m.startDate) : -Infinity,
+        ...(m.rosterChanges ?? []).map((/** @type {any} */ c) => midnight(c.from)).filter((/** @type {number} */ f) => f <= midnight(day)));
+    /** @type {Map<string, string>} */
+    const shared = new Map();
+    for (let day = new Date(2024, 0, 1, 12); day <= new Date(2027, 11, 31, 12); day.setDate(day.getDate() + 1)) {
+        /** @type {Map<string, any[]>} */
+        const lines = new Map();
+        for (const m of teamMembers) {
+            if (m.managerOnly || isOtherStaff(m) || (m.startDate && midnight(day) < midnight(m.startDate))) continue;
+            const type = resolveMemberRoster(m, day).rosterType;
+            if (!ROTATING.has(type)) continue;
+            const key = `${type} week ${getWeekNumberForDate(day, m)}`;
+            lines.set(key, [...(lines.get(key) ?? []), m]);
+        }
+        for (const [key, rows] of lines) {
+            if (rows.length < 2) continue;
+            const current = rows.filter(m => !m.hidden);
+            const firstCurrent = Math.min(...current.map(m => arrived(m, day)));
+            const ok = current.length <= 1 && rows.every(m => !m.hidden || arrived(m, day) < firstCurrent);
+            const who = rows.map(m => m.name).join(' + ');
+            if (!ok && !shared.has(who)) shared.set(who, `${who}: the same ${key.split(' ')[0]} line, from ${formatISO(day)}`);
+        }
+    }
+    assert.deepEqual([...shared.values()], [],
+        'two rows draw the same turns — one of them carries the wrong anchor. A `currentWeek` is the line at\n'
+        + 'the REFERENCE Sunday, not the week the line shows on the start date (.claude/rules/roster-data.md).');
+});
+
+// ── Pinned roster transitions (live roster facts — June/July 2026) ─────────────
+// Pin the exact K. Jedlinski / S. Boyle / B. Khalil transitions so a future roster-data
+// edit can't silently shift them. getBaseShift / resolveMemberRoster take Date objects
+// (month 0-based). fixedRoster[2] = 09:00–16:00 Mon–Fri, RD weekends.
+
+test('K. Jedlinski: pre-start RD, fixed pattern 2 (3–27 Jun), main wk10 (28 Jun–21 Nov), then the CES link (22 Nov+)', () => {
+    const m = teamMembers.find(x => x.name === 'K. Jedlinski');
+    assert.ok(m, 'K. Jedlinski not found');
+    assert.equal(getBaseShift(m, new Date(2026, 5, 2)),  'RD');           // 2 Jun — before startDate (3 Jun)
+    assert.equal(getBaseShift(m, new Date(2026, 5, 10)), '09:00-16:00');  // Wed 10 Jun — fixed pattern 2
+    assert.equal(getBaseShift(m, new Date(2026, 5, 13)), 'RD');           // Sat 13 Jun — fixed pattern 2 weekend
+    const r = resolveMemberRoster(m, new Date(2026, 5, 28));              // 28 Jun onward
+    assert.equal(r.rosterType, 'main');
+    assert.equal(r.currentWeek, 10);
+    const last = resolveMemberRoster(m, new Date(2026, 10, 21));          // Sat 21 Nov — the last day on the main link
+    assert.equal(last.rosterType, 'main');
+    assert.equal(last.currentWeek, 10);
+    const ces = resolveMemberRoster(m, new Date(2026, 10, 22));           // Sun 22 Nov — a CES (owner, 13 Nov 2026)
+    assert.equal(ces.rosterType, 'ces');
+    assert.equal(ces.currentWeek, 9);
+});
+
+test('S. Boyle: main wk10 until 27 Jun, then the placeholder pattern 4 (28 Jun+) — whose bank holidays are rest days', () => {
+    const m = teamMembers.find(x => x.name === 'S. Boyle');
+    assert.ok(m, 'S. Boyle not found');
+    const before = resolveMemberRoster(m, new Date(2026, 5, 27));
+    assert.equal(before.rosterType, 'main');
+    assert.equal(before.currentWeek, 10);
+    const after = resolveMemberRoster(m, new Date(2026, 5, 28));
+    assert.equal(after.rosterType, 'fixed');
+    assert.equal(after.currentWeek, 4);
+    assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');  // Mon 29 Jun — the placeholder line
+    assert.equal(getBaseShift(m, new Date(2026, 6, 4)),  'RD');           // Sat 4 Jul — its weekend
+    // Until v26.01 she was on pattern 2, the same hours on a line that WORKS bank holidays (owner, 13 Nov 2026).
+    assert.equal(getBaseShift(m, new Date(2026, 7, 31)), 'RD', 'Mon 31 Aug 2026, the summer bank holiday: not worked on her line');
+    assert.equal(getBaseShift(m, new Date(2026, 8, 1)), '09:00-16:00', 'Tue 1 Sep 2026, the next day');
+    assert.equal(isChristmasLeaveDay(m, new Date(2026, 11, 25)), false,
+        'Fri 25 Dec 2026: Christmas Day is a bank holiday, so she was never due at work — a rest day, not Christmas leave');
+    assert.equal(getBaseShift(m, new Date(2026, 11, 28)), 'RD', 'Mon 28 Dec 2026 is a bank holiday: a rest day on her line');
+    assert.equal(getBaseShift(m, new Date(2026, 11, 29)), '09:00-16:00', 'Tue 29 Dec 2026 is an ordinary weekday');
+});
+
+// A CEA's leave is set by the CONTRACT, never the line: the same allowance on the line that works bank holidays
+// and the one that rests on them. (A Dispatcher's differs, by the days in lieu above.) A made-up member, so no
+// roster name sits beside a leave figure.
+test('a CEA on the placeholder line that rests on bank holidays keeps the allowance of the line that works them', () => {
+    const on = (/** @type {number} */ pattern) => ({ name: 'Test CEA', role: 'CEA', rosterType: 'fixed', currentWeek: pattern });
+    for (const year of [2026, 2027]) {
+        assert.equal(getALEntitlement(on(4), year, []), getALEntitlement(on(2), year, []), `${year}: the same on 2 and 4`);
+    }
+});
+
+// M. Campbell's training weeks are TRAINING WITH NO TIMES (owner, 6 Nov 2026: "show Other (Training
+// flavour) with no shift times from her start date Monday to Friday until Friday 6th of November").
+// The whole span is walked, not its two ends: a pattern that slipped by a day would pass both.
+// Her start is Sun 20 Sep, the clerks' workbook date (owner, 8 Nov 2026), so training begins Mon 21 Sep.
+test('M. Campbell: pre-start RD, Training with no times Mon–Fri 21 Sep–6 Nov, bilingual 8–21 Nov, then the main link from 22 Nov', () => {
+    const m = teamMembers.find(x => x.name === 'M. Campbell');
+    assert.ok(m, 'M. Campbell not found');
+    // Asserted by value: a weekend start shows nothing on the grid, so the walk cannot tell the
+    // workbook's Sunday from the Saturday before it or the Monday after.
+    assert.equal(m.startDate.getTime(), new Date(2026, 8, 20).getTime(), 'Sun 20 Sep, the workbook date');
+    assert.equal(getBaseShift(m, new Date(2026, 8, 18)), 'RD');            // Fri 18 Sep — a weekday before her start
+    for (const d = new Date(2026, 8, 20); d <= new Date(2026, 10, 7); d.setDate(d.getDate() + 1)) {
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : 'TRG', d.toDateString());
+    }
+    const after = resolveMemberRoster(m, new Date(2026, 10, 8));           // Sun 8 Nov — the link
+    assert.equal(after.rosterType, 'bilingual');
+    assert.equal(after.currentWeek, 7);
+    for (let day = 8; day <= 14; day++) {                                   // and no training on it
+        assert.notEqual(getBaseShift(m, new Date(2026, 10, day)), 'TRG', `${day} Nov`);
+    }
+    const lastBilingual = resolveMemberRoster(m, new Date(2026, 10, 21));  // Sat 21 Nov — the last day on it
+    assert.equal(lastBilingual.rosterType, 'bilingual');
+    const main = resolveMemberRoster(m, new Date(2026, 10, 22));           // Sun 22 Nov — the main link (owner, 13 Nov 2026)
+    assert.equal(main.rosterType, 'main');
+    assert.equal(main.currentWeek, 10);
+});
+
+// J. Bangi: the M. Campbell pattern for a Dispatcher (owner, 8 Nov 2026) — training with no times
+// Monday to Friday from her start, then the vacant Dispatcher line between A. Targanov and B. Toth.
+// The neighbours are asserted, not just the number: "between" is what the owner said, and a
+// reference-anchored value written as the line she is on that week would still look plausible.
+test('J. Bangi: pre-start RD, Training with no times Mon–Fri 5 Oct–6 Nov, then the Dispatcher line between A. Targanov and B. Toth from 8 Nov', () => {
+    const m = teamMembers.find(x => x.name === 'J. Bangi');
+    assert.ok(m, 'J. Bangi not found');
+    assert.equal(m.role, 'Dispatcher');
+    assert.equal(getBaseShift(m, new Date(2026, 9, 4)), 'RD');             // Sun 4 Oct — before her start
+    for (const d = new Date(2026, 9, 5); d <= new Date(2026, 10, 7); d.setDate(d.getDate() + 1)) {
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : 'TRG', d.toDateString());
+    }
+    const after = resolveMemberRoster(m, new Date(2026, 10, 8));           // Sun 8 Nov — the link
+    assert.equal(after.rosterType, 'dispatcher');
+    const byName = (/** @type {string} */ n) => teamMembers.find(x => x.name === n);
+    const len = CONFIG.DISPATCHER_ROSTER_WEEKS;
+    // On her first day and a whole cycle later: A. Targanov's row, then hers, then B. Toth's.
+    for (const when of [new Date(2026, 10, 8), new Date(2026, 10, 8 + 7 * len)]) {
+        const wk = (/** @type {any} */ x) => getWeekNumberForDate(when, x);
+        assert.equal(wk(m), wk(byName('A. Targanov')) % len + 1, `one row after A. Targanov, ${when.toDateString()}`);
+        assert.equal(wk(byName('B. Toth')), wk(m) % len + 1, `one row before B. Toth, ${when.toDateString()}`);
+    }
+    for (let day = 8; day <= 14; day++) {                                   // and no training on it
+        assert.notEqual(getBaseShift(m, new Date(2026, 10, day)), 'TRG', `${day} Nov`);
+    }
+});
+
+// A. Guinea takes A. Atkins's Dispatcher line on Sun 15 Nov 2026, the day A. Atkins moves onto a Mon–Fri
+// row of his own (owner, 12 Nov 2026). Before that, the J. Bangi pattern: training with no times Monday
+// to Friday from his 5 Oct start. "Takes his slot" is asserted as the same TURNS, day by day across two
+// whole cycles — what A. Atkins's row would have drawn — and as the same neighbours, S. Clarke above and
+// K. Yeboah below; a reference-anchored value written as the line he is on that week would still look
+// plausible. The handover leaves the line neither doubled nor empty, which the test above checks daily.
+test('A. Guinea: pre-start RD, Training with no times Mon–Fri 5 Oct–14 Nov, then A. Atkins\'s Dispatcher line from 15 Nov', () => {
+    const m = teamMembers.find(x => x.name === 'A. Guinea');
+    const atkins = teamMembers.find(x => x.name === 'A. Atkins');
+    assert.ok(m, 'A. Guinea not found');
+    assert.ok(atkins, 'A. Atkins not found');
+    assert.equal(m.role, 'Dispatcher');
+    assert.equal(m.startDate.getTime(), new Date(2026, 9, 5).getTime(), 'Mon 5 Oct');
+    assert.equal(getBaseShift(m, new Date(2026, 9, 4)), 'RD');             // Sun 4 Oct — before his start
+    for (const d = new Date(2026, 9, 5); d <= new Date(2026, 10, 14); d.setDate(d.getDate() + 1)) {
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : 'TRG', d.toDateString());
+    }
+    const after = resolveMemberRoster(m, new Date(2026, 10, 15));          // Sun 15 Nov — the link
+    assert.equal(after.rosterType, 'dispatcher');
+    // The row A. Atkins held, as it would have run on without the move.
+    const atkinsLine = { ...atkins, rosterChanges: undefined };
+    const len = CONFIG.DISPATCHER_ROSTER_WEEKS;
+    for (let i = 0; i < 7 * len * 2; i++) {
+        const d = new Date(2026, 10, 15 + i);
+        assert.equal(getBaseShift(m, d), getBaseShift(atkinsLine, d), `A. Atkins's turn, ${d.toDateString()}`);
+    }
+    const byName = (/** @type {string} */ n) => teamMembers.find(x => x.name === n);
+    for (const when of [new Date(2026, 10, 15), new Date(2026, 10, 15 + 7 * len)]) {
+        const wk = (/** @type {any} */ x) => getWeekNumberForDate(when, x);
+        assert.equal(wk(m), wk(byName('S. Clarke')) % len + 1, `one row after S. Clarke, ${when.toDateString()}`);
+        assert.equal(wk(byName('K. Yeboah')), wk(m) % len + 1, `one row before K. Yeboah, ${when.toDateString()}`);
+    }
+});
+
+test('A. Atkins: his Dispatcher line until Sat 14 Nov 2026, then the placeholder pattern 4 (Mon–Fri 09:00–16:00, weekends and bank holidays RD) from 15 Nov', () => {
+    const m = teamMembers.find(x => x.name === 'A. Atkins');
+    assert.ok(m, 'A. Atkins not found');
+    const before = resolveMemberRoster(m, new Date(2026, 10, 14));         // Sat 14 Nov
+    assert.equal(before.rosterType, 'dispatcher');
+    assert.equal(before.currentWeek, 9);
+    const after = resolveMemberRoster(m, new Date(2026, 10, 15));          // Sun 15 Nov
+    assert.equal(after.rosterType, 'fixed');
+    assert.equal(after.currentWeek, 4);
+    for (let day = 15; day <= 21; day++) {                                  // his first week on it
+        const d = new Date(2026, 10, day);
+        const weekend = d.getDay() === 0 || d.getDay() === 6;
+        assert.equal(getBaseShift(m, d), weekend ? 'RD' : '09:00-16:00', d.toDateString());
+    }
+    assert.equal(getBaseShift(m, new Date(2026, 11, 28)), 'RD', 'Mon 28 Dec 2026 is a bank holiday: a rest day on his line');
+    assert.equal(getBaseShift(m, new Date(2026, 11, 29)), '09:00-16:00', 'Tue 29 Dec 2026 is an ordinary weekday');
+});
+
+// ── SUN 22 NOV 2026: A PROMOTION, A MOVE INTO MANAGEMENT AND A LINE CHANGE (owner, 13 Nov 2026) ──────────────
+// K. Jedlinski goes from CEA to CES on W. Cummings's CES line; W. Cummings becomes a manager; M. Campbell leaves the
+// bilingual link for the main CEA line K. Jedlinski leaves. "Takes the line" is asserted as the same TURNS, day by
+// day across two whole cycles — what the row that held it would have drawn — and as the same neighbours: a
+// reference-anchored value written as the line somebody is on that week would still look plausible. The test that
+// no two rows hold one line runs daily above; these check each line taken is the RIGHT one.
+const byName = (/** @type {string} */ n) => /** @type {any} */ (teamMembers.find(x => x.name === n));
+
+test('22 Nov 2026: K. Jedlinski takes W. Cummings\'s CES line, between M. Bowler and S. Horsman', () => {
+    const k = byName('K. Jedlinski');
+    const w = byName('W. Cummings');
+    assert.ok(k && w, 'both rows are on the roster');
+    // W. Cummings's base fields ARE that line: the row keeps them so the weeks worked on it still read right.
+    assert.deepEqual([w.rosterType, w.currentWeek], ['ces', 9]);
+    const cummingsLine = { name: 'W. Cummings', role: 'CES', rosterType: w.rosterType, currentWeek: w.currentWeek };
+    const len = CONFIG.CES_ROSTER_WEEKS;
+    for (let i = 0; i < 7 * len * 2; i++) {
+        const d = new Date(2026, 10, 22 + i);
+        assert.equal(getBaseShift(k, d), getBaseShift(cummingsLine, d), `W. Cummings's turn, ${d.toDateString()}`);
+    }
+    for (const when of [new Date(2026, 10, 22), new Date(2026, 10, 22 + 7 * len)]) {
+        const wk = (/** @type {any} */ x) => getWeekNumberForDate(when, x);
+        assert.equal(wk(k), wk(byName('M. Bowler')) % len + 1, `one row after M. Bowler, ${when.toDateString()}`);
+        assert.equal(wk(byName('S. Horsman')), wk(k) % len + 1, `one row before S. Horsman, ${when.toDateString()}`);
+    }
+});
+
+test('22 Nov 2026: M. Campbell takes the main CEA line K. Jedlinski leaves, between O. Mylla and L. Atrakimaviciene', () => {
+    const m = byName('M. Campbell');
+    const k = byName('K. Jedlinski');
+    // The line K. Jedlinski held from 28 Jun, as it would have run on without the promotion.
+    const jedlinskiLine = { ...k, role: 'CEA', rosterChanges: k.rosterChanges.filter((/** @type {any} */ c) => c.rosterType === 'main') };
+    assert.equal(jedlinskiLine.rosterChanges.length, 1, 'one move onto the main link, on 28 Jun');
+    const len = CONFIG.MAIN_ROSTER_WEEKS;
+    for (let i = 0; i < 7 * len * 2; i++) {
+        const d = new Date(2026, 10, 22 + i);
+        assert.equal(getBaseShift(m, d), getBaseShift(jedlinskiLine, d), `K. Jedlinski's turn, ${d.toDateString()}`);
+    }
+    for (const when of [new Date(2026, 10, 22), new Date(2026, 10, 22 + 7 * len)]) {
+        const wk = (/** @type {any} */ x) => getWeekNumberForDate(when, x);
+        assert.equal(wk(m), wk(byName('O. Mylla')) % len + 1, `one row after O. Mylla, ${when.toDateString()}`);
+        assert.equal(wk(byName('L. Atrakimaviciene')), wk(m) % len + 1, `one row before L. Atrakimaviciene, ${when.toDateString()}`);
+    }
+});
+
+// A GRADE HAS NO DATE, so these hold from the release on: every list reads the grade as of today. The server's
+// copy (functions/roster-members.json) is what the roster import reads its names from and what Set up accounts
+// trusts; sw-asset-check.test.mjs holds it to the generator, and this says what it must contain.
+test('22 Nov 2026: each list holds the right three — the CES and CEA imports, the managers, and the active accounts', () => {
+    const w = byName('W. Cummings');
+    assert.equal(w.role, 'Management');
+    assert.equal(w.managerOnly, true, 'off every staff list, like every other manager');
+    assert.equal(w.hidden, true, 'and hidden, which keeps the row off the Calendar\'s member list');
+    assert.ok(CONFIG.MANAGER_NAMES.includes('W. Cummings'), 'manager access — granted when Set up accounts is next run');
+    const grade = (/** @type {string} */ g) => getMembersForGrade(g).map(x => x.name);
+    assert.ok(grade('CES').includes('K. Jedlinski') && !grade('CES').includes('W. Cummings'));
+    assert.ok(!grade('CEA').includes('K. Jedlinski') && grade('CEA').includes('M. Campbell'));
+    assert.ok(grade('Management').includes('W. Cummings'));
+    const server = JSON.parse(readFileSync(new URL('./functions/roster-members.json', REPO_ROOT_URL), 'utf8'));
+    assert.ok(server.ces.includes('K. Jedlinski') && !server.ces.includes('W. Cummings'),
+        'the CES import reads K. Jedlinski\'s row, and does not report W. Cummings missing');
+    assert.ok(!server.cea.includes('K. Jedlinski') && server.cea.includes('M. Campbell'), 'the CEA import reads M. Campbell');
+    assert.ok(server.roles.manager.includes('W. Cummings'));
+    // Left out of activeMembers, Set up accounts would treat the login as an orphan and disable it.
+    assert.ok(server.activeMembers.includes('W. Cummings'), 'W. Cummings keeps a working login');
+});
+
+// The leave each one keeps across that change. Selected by SHAPE, not by name — a leave test the Pages
+// mirror serves must not set a real name beside an allowance (payroll-anonymity.test.mjs) — and each
+// shape is asserted to exist, so a roster edit that removes it fails here rather than passing on nothing.
+test('22 Nov 2026: the leave each one keeps — the joining-year figures stand, and the grade sets the years after', () => {
+    // A joiner PROMOTED in their joining year: the clerks' joining-year figure stands through the
+    // promotion, and the new grade — not the old — sets the year after.
+    const promoted = teamMembers.find(m => m.proRatedAL && m.startDate instanceof Date && m.roleHistory?.length
+        && m.roleHistory.some((/** @type {any} */ h) => h.until.getFullYear() === m.startDate.getFullYear()));
+    assert.ok(promoted, 'premise: a joiner promoted in their joining year');
+    const y = promoted.startDate.getFullYear();
+    assert.equal(getALEntitlement(promoted, y), promoted.proRatedAL[y], 'the clerks\' joining-year figure, through the promotion');
+    const asBefore = { ...promoted, role: promoted.roleHistory[0].role, roleHistory: undefined };
+    assert.equal(allowanceRole(promoted, y + 1), promoted.role, 'the year after is judged by the new grade');
+    assert.notEqual(getALEntitlement(promoted, y + 1), getALEntitlement(asBefore, y + 1),
+        'the year after reads the new grade\'s figure, not the old one\'s');
+    // A CEA joiner moved through a BILINGUAL LINE without the bilingual contract: the CEA figure the
+    // year after, whatever line they were on.
+    const parked = teamMembers.find(m => m.role === 'CEA' && m.proRatedAL && m.bilingualContract !== true
+        && m.rosterChanges?.some((/** @type {any} */ c) => c.rosterType === 'bilingual'));
+    assert.ok(parked, 'premise: a CEA joiner who spent time on a bilingual line');
+    const py = Math.max(...Object.keys(parked.proRatedAL).map(Number));
+    assert.equal(getALEntitlement(parked, py), parked.proRatedAL[py]);
+    assert.equal(getALEntitlement(parked, py + 1), getALEntitlement({ role: 'CEA', rosterType: 'main' }),
+        'a CEA contract, not a bilingual one, on whichever line');
+});
+
+// ── A GRADE ON A DAY: roleHistory ────────────────────────────────────────────────────────────────
+// `role` is the grade NOW; `roleHistory` dates the grades before it, each with its LAST day. The Pay
+// Calculator prices each payslip by `roleOn`, so a wrong `until` reprices real payslips at the wrong
+// grade — the reason these pin the day either side of every change, not just one date inside each.
+test('roleHistory: every entry is a known grade with a midnight last day, oldest first, and each one is a real change', () => {
+    const GRADES = ['CEA', 'CES', 'Dispatcher', 'Management'];
+    for (const m of teamMembers) {
+        if (m.roleHistory === undefined) continue;
+        assert.ok(Array.isArray(m.roleHistory) && m.roleHistory.length > 0, `${m.name}: roleHistory is a non-empty list`);
+        m.roleHistory.forEach((/** @type {any} */ h, /** @type {number} */ i) => {
+            assert.deepEqual(Object.keys(h).sort(), ['role', 'until'], `${m.name}[${i}]: only role and until`);
+            assert.ok(GRADES.includes(h.role), `${m.name}[${i}]: ${h.role} is not a grade`);
+            assert.ok(h.until instanceof Date && h.until.getHours() === 0 && h.until.getMinutes() === 0,
+                `${m.name}[${i}]: until is a midnight-local Date — new Date(y, m-1, d)`);
+            const next = m.roleHistory[i + 1];
+            if (next) assert.ok(next.until > h.until, `${m.name}[${i}]: entries run oldest first`);
+            assert.notEqual(h.role, next ? next.role : m.role, `${m.name}[${i}]: a grade followed by the same grade is no change`);
+            if (m.startDate) assert.ok(h.until >= m.startDate, `${m.name}[${i}]: a grade that ended before the member started`);
+        });
+    }
+});
+
+test('roleOn: K. Jedlinski is a CEA up to and including Sat 21 Nov 2026, a CES from Sun 22 Nov; W. Cummings a CES, then a manager', () => {
+    const k = byName('K. Jedlinski');
+    const w = byName('W. Cummings');
+    assert.equal(roleOn(k, new Date(2026, 5, 3)), 'CEA', 'the day K. Jedlinski started');
+    assert.equal(roleOn(k, new Date(2026, 10, 21)), 'CEA', 'the last CEA day');
+    assert.equal(roleOn(k, new Date(2026, 10, 21, 23, 30)), 'CEA', 'late on the last CEA day is still that day');
+    assert.equal(roleOn(k, new Date(2026, 10, 22)), 'CES', 'the first CES day');
+    assert.equal(roleOn(k, new Date(2027, 0, 1)), 'CES');
+    assert.equal(roleOn(w, new Date(2026, 10, 21)), 'CES');
+    assert.equal(roleOn(w, new Date(2026, 10, 22)), 'Management');
+    assert.equal(roleOn(byName('M. Campbell'), new Date(2026, 10, 22)), 'CEA', 'no history: the grade now, on every day');
+    assert.equal(roleOn(null, new Date(2026, 10, 22)), undefined);
+});
+
+test('roleOn reads the history in any order: the earliest last-day on or after the date wins', () => {
+    const shuffled = { name: 'X', role: 'Management', roleHistory: [
+        { role: 'CES', until: new Date(2027, 2, 31) },
+        { role: 'CEA', until: new Date(2026, 10, 21) },
+    ] };
+    assert.equal(roleOn(shuffled, new Date(2026, 10, 21)), 'CEA');
+    assert.equal(roleOn(shuffled, new Date(2026, 10, 22)), 'CES');
+    assert.equal(roleOn(shuffled, new Date(2027, 2, 31)), 'CES');
+    assert.equal(roleOn(shuffled, new Date(2027, 3, 1)), 'Management');
+});
+
+test('rolesInRange: the 22 Nov 2026 promotion across the three 28-day periods around it — all CEA, then 7 days CEA and 21 CES, then all CES', () => {
+    const k = byName('K. Jedlinski');
+    // A period's shifts run from the day after the previous cut-off to its own cut-off, 28 days (paycalc-periods.js):
+    // paid 20 Nov 2026, 18 Dec 2026 and 15 Jan 2027.
+    assert.deepEqual(rolesInRange(k, new Date(2026, 9, 18), new Date(2026, 10, 14)), [{ role: 'CEA', days: 28 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 15), new Date(2026, 11, 12)), [{ role: 'CEA', days: 7 }, { role: 'CES', days: 21 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 11, 13), new Date(2027, 0, 9)), [{ role: 'CES', days: 28 }]);
+    assert.deepEqual(rolesInRange(byName('M. Campbell'), new Date(2026, 10, 15), new Date(2026, 11, 12)), [{ role: 'CEA', days: 28 }]);
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 22), new Date(2026, 10, 21)), [], 'an end before the start');
+    assert.deepEqual(rolesInRange(k, new Date(2026, 10, 21), new Date(2026, 10, 22)), [{ role: 'CEA', days: 1 }, { role: 'CES', days: 1 }]);
+});
+
+test('S. Faure: her Dispatcher line until Sun 28 Jun 2026, then the placeholder pattern 4 from Mon 29 Jun — whose bank holidays are rest days', () => {
+    const m = teamMembers.find(x => x.name === 'S. Faure');
+    assert.ok(m, 'S. Faure not found');
+    const before = resolveMemberRoster(m, new Date(2026, 5, 28));          // Sun 28 Jun
+    assert.equal(before.rosterType, 'dispatcher');
+    assert.equal(before.currentWeek, 4);
+    const after = resolveMemberRoster(m, new Date(2026, 5, 29));           // Mon 29 Jun
+    assert.equal(after.rosterType, 'fixed');
+    assert.equal(after.currentWeek, 4);
+    assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');   // Mon 29 Jun, her first day on it
+    assert.equal(getBaseShift(m, new Date(2026, 7, 31)), 'RD', 'Mon 31 Aug 2026, the summer bank holiday: not worked on her line');
+    assert.equal(getBaseShift(m, new Date(2026, 8, 1)), '09:00-16:00', 'Tue 1 Sep 2026, the next day');
+    assert.equal(isChristmasLeaveDay(m, new Date(2026, 11, 25)), false,
+        'Fri 25 Dec 2026: Christmas Day is a bank holiday, so she was never due at work — a rest day, not Christmas leave');
+});
+
+// A FIXED LINE THAT RESTS ON BANK HOLIDAYS (fixedRoster[4], v25.97). A Dispatcher earns a day in lieu for each
+// bank holiday the resolved shift says they worked, so a Mon–Fri line that WORKS them (pattern 2) earns one
+// for every weekday bank holiday, and the line that rests on them earns none — unless a day is RECORDED as
+// worked, which wins as it always has. A made-up member, so no roster name sits beside a leave figure.
+test('a Dispatcher on a fixed line that rests on bank holidays earns no day in lieu for them, unless one is recorded as worked', () => {
+    const on = (/** @type {number} */ pattern) => ({ name: 'Test Dispatcher', role: 'Dispatcher', rosterType: 'fixed', currentWeek: pattern });
+    const year = getBankHolidays(2027);
+    assert.equal(year.length, 8);
+    assert.ok(year.every(d => d.getDay() >= 1 && d.getDay() <= 5), 'every 2027 bank holiday falls on a weekday');
+    assert.equal(getALEntitlement(on(2), 2027, []), 22 + 8, 'pattern 2 works all eight');
+    assert.equal(getALEntitlement(on(4), 2027, []), 22, 'pattern 4 works none');
+    const worked = [{ memberName: 'Test Dispatcher', date: '2027-05-03', type: 'rdw', value: 'RDW', source: 'manual' }];
+    assert.equal(getALEntitlement(on(4), 2027, worked), 22 + 1, 'a bank holiday recorded as worked still earns its day');
+    // The rule is the bank holiday, not the weekday: the Monday after one is an ordinary working day.
+    assert.equal(getBaseShift(on(4), new Date(2027, 4, 3)), 'RD');
+    assert.equal(getBaseShift(on(4), new Date(2027, 4, 10)), '09:00-16:00');
+    assert.equal(getBaseShift(on(2), new Date(2027, 4, 3)), '09:00-16:00');
+});
+
+test('a ROTATING line\'s week 4 still works its bank holidays: the rest rule belongs to the fixed pattern, not the number', () => {
+    // Fixed pattern 4 and a rotating link's week 4 share only a number. Every rotating table, on every 2027
+    // bank holiday, put on its own week 4: each must read exactly as its table says, rest day or shift.
+    const DAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    let shifts = 0;
+    for (const [rosterType, table, len] of /** @type {[string, any, number][]} */ ([['main', weeklyRoster, CONFIG.MAIN_ROSTER_WEEKS],
+        ['bilingual', bilingualRoster, CONFIG.BILINGUAL_ROSTER_WEEKS], ['ces', cesRoster, CONFIG.CES_ROSTER_WEEKS],
+        ['dispatcher', dispatcherRoster, CONFIG.DISPATCHER_ROSTER_WEEKS]])) {
+        for (const bh of getBankHolidays(2027)) {
+            const currentWeek = Array.from({ length: len }, (_, i) => i + 1)
+                .find(c => getWeekNumberForDate(bh, { rosterType, currentWeek: c }) === 4);
+            const want = table[4][DAY[bh.getDay()]];
+            assert.equal(getBaseShift({ name: 'Test', role: 'CEA', rosterType, currentWeek }, bh), want, `${rosterType} week 4, ${bh.toDateString()}`);
+            if (want !== 'RD' && want !== 'OFF') shifts++;
+        }
+    }
+    assert.ok(shifts > 0, 'no rotating week 4 has a shift on a 2027 bank holiday, so this test checks nothing');
+});
+
+test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', () => {
+    const m = teamMembers.find(x => x.name === 'B. Khalil');
+    assert.ok(m, 'B. Khalil not found');
+    assert.equal(getBaseShift(m, new Date(2026, 5, 8)), 'RD');                       // 8 Jun — before startDate (9 Jun)
+    assert.equal(resolveMemberRoster(m, new Date(2026, 5, 9)).rosterType,  'ces');   // on start
+    const jul = resolveMemberRoster(m, new Date(2026, 6, 1));                        // across 1 Jul — still CES
+    assert.equal(jul.rosterType,  'ces');
+    assert.equal(jul.currentWeek, 4, 'the anchor of the line that was vacant — 5 is G. Rotaru\'s');
+});
+
+
+// ── parseSmartFloatOrNull — the null-preserving signed-field parser (v16.69) ──
+
+describe('parseSmartFloatOrNull', () => {
+    test('parses valid values incl. smart-punctuation and pasted payslip formats', () => {
+        assert.equal(parseSmartFloatOrNull('147.36'), 147.36);
+        assert.equal(parseSmartFloatOrNull('£23,456.78'), 23456.78);
+        assert.equal(parseSmartFloatOrNull('−5'), -5);      // U+2212 minus
+        assert.equal(parseSmartFloatOrNull('0'), 0);        // a REAL zero stays zero
+    });
+    test('empty / missing → null (not provided), never 0', () => {
+        assert.equal(parseSmartFloatOrNull(''), null);
+        assert.equal(parseSmartFloatOrNull('   '), null);
+        assert.equal(parseSmartFloatOrNull(null), null);
+        assert.equal(parseSmartFloatOrNull(undefined), null);
+    });
+    test('non-empty garbage → null — the £0-YTD tax-collapse guard (v16.69 review fix)', () => {
+        // parseSmartFloat floors these to 0; for the Year-to-Date fields that asserted "£0 taxable
+        // pay to date" and flipped computeTax into cumulative mode → Income Tax £0.00.
+        assert.equal(parseSmartFloatOrNull('.'), null);
+        assert.equal(parseSmartFloatOrNull('-'), null);
+        assert.equal(parseSmartFloatOrNull('abc'), null);
+        assert.equal(parseSmartFloatOrNull('£'), null);
+    });
+});
+
+// ── A JOINER'S RECORD IS COMPLETE, OR IT INVENTS A LEAVE BALANCE (3 Sep 2026) ───────────────────
+//
+// Adding a member is a hand-edit to `teamMembers` followed by a checklist, and the field most easily
+// left off is `proRatedAL`. Leaving it off is not an error anybody sees: `getALEntitlement` falls
+// through to the role's FULL-YEAR entitlement, so a member who joined in October is credited a whole
+// year's leave. The figure is plausible, it renders everywhere a real one would, and the only person
+// positioned to notice is the member — who has no reason to think it is wrong.
+//
+// `noProRate: true` is the deliberate opposite (a secondment return: mid-year start, full-year pay
+// and leave), so it satisfies the rule too. What the rule refuses is SILENCE: a start date with
+// neither answer beside it.
+//
+// Verified against the live roster when written — all five members carrying a start date declare one
+// or the other, so this pins the current state rather than describing an aspiration.
+describe('every mid-year joiner says what their leave should be', () => {
+    test('a startDate carries proRatedAL for that year, or noProRate', () => {
+        const missing = teamMembers
+            .filter(m => m.startDate)
+            .filter(m => !m.noProRate && m.proRatedAL?.[m.startDate.getFullYear()] === undefined)
+            .map(m => `${m.name} (${m.role}, started ${m.startDate.toISOString().slice(0, 10)})`);
+
+        assert.deepEqual(missing, [],
+            'these members joined mid-year with no leave entitlement recorded for that year, so '
+            + `getALEntitlement gives them a FULL year's:\n  ${missing.join('\n  ')}\n`
+            + 'Add proRatedAL: { <year>: N }, or noProRate: true if their leave really is full-year.');
+    });
+
+    test('and startDate is midnight, because the pay pro-rata depends on it', () => {
+        // `calcProRateFactor` subtracts a midnight start from a NOON cutoff and rounds the result,
+        // relying on the difference always landing on X.5. A time component breaks that by less than
+        // a day — which is exactly the size of error that changes one period's hours and nothing else,
+        // so it never looks like a bug in the date.
+        const notMidnight = teamMembers
+            .filter(m => m.startDate)
+            .filter(m => m.startDate.getHours() || m.startDate.getMinutes()
+                || m.startDate.getSeconds() || m.startDate.getMilliseconds())
+            .map(m => `${m.name} (${m.startDate.toISOString()})`);
+
+        assert.deepEqual(notMidnight, [],
+            `startDate must be midnight local — new Date(year, month-1, day):\n  ${notMidnight.join('\n  ')}`);
+    });
+});
+
+// ── THE MEMBER TABLE SAYS NOTHING ABOUT ANYBODY'S ABSENCE OR HEALTH (whole-app review, 10 Nov 2026) ─
+//
+// roster-member-data.js is served to anyone, from both origins, with no sign-in (its own header). A
+// roster MOVE is public — it is on the station's printed rosters — but whether somebody is away, and
+// why, is not: absences sit behind a claim in Firestore, and their reason is never recorded anywhere.
+// A row's comment once said more than the move, and payroll-anonymity.test.mjs could not see it — it
+// matches a name and a term on the SAME line, and that comment put them lines apart. So this reads
+// every comment in the file, whichever line its name is on. A failure names line numbers only, so the
+// text it caught is not repeated into a CI log.
+test('the member table\'s comments say nothing about anybody\'s absence or health', () => {
+    // The second line catches what implies an absence without naming one: "dated from her return"
+    // survived the first version of this test beside a named row (found 10 Nov 2026).
+    const PERSONAL = new RegExp([
+        /\babsen(ce|ces|t)\b|\bsick|\billness|\binjur|\bmedical|\bhealth|maternity|paternity|bereave|compassionate|pregnan|disabilit|\bGDPR\b|🪑|🤒/.source,
+        /\b(her|his|their) return\b|\breturn(s|ed|ing)? to work\b|\bback (at|to) work\b|\boff work\b|\bwhile (she|he|they) (is|are|was|were) away\b/.source,
+    ].join('|'), 'i');
+    const lines = readFileSync(new URL('./roster-member-data.js', REPO_ROOT_URL), 'utf8').split('\n');
+    const hits = lines
+        .map((line, i) => ({ at: i + 1, comment: line.includes('//') ? line.slice(line.indexOf('//')) : '' }))
+        .filter(({ comment }) => PERSONAL.test(comment))
+        .map(({ at }) => `roster-member-data.js:${at}`);
+    assert.ok(lines.length > 100, 'the member table was not read — this test is checking nothing');
+    assert.deepEqual(hits, [],
+        'a comment in the WORLD-READABLE member table speaks of absence or health. Say only the roster '
+        + 'move (the line, the pattern, the date); anything about why belongs nowhere in a served file.');
+});
+
+// ── A DISPATCHER'S LIEU DAYS SURVIVE PRO-RATING (v22.50, owner decision 3 Sep 2026) ─────────────
+//
+// A Dispatcher's entitlement is 22 plus one day for each bank holiday they actually work. Those two
+// halves mean different things: the 22 is an allowance for a year's service, so a part-year deserves
+// part of it; a lieu day is owed because a specific day was worked, and joining in June does not make
+// that day less worked.
+//
+// `proRatedAL` used to be checked before the Dispatcher branch and returned outright, so a mid-year
+// Dispatcher's joining year skipped the lieu count entirely — one was credited a flat joining-year figure against
+// two rostered bank holidays. Nothing errors when a leave balance is two days short: it renders, it
+// books against, and the only person who could notice is the member.
+describe('a Dispatcher who joined mid-year keeps the days they earned', () => {
+    const dispatcher = (extra = {}) => ({
+        name: 'T. Test', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1, ...extra,
+    });
+    // One override the counter must see as a worked bank holiday, and one it must not.
+    const workedBH = [{ memberName: 'T. Test', date: '2026-08-31', type: 'rdw' }];
+
+    test('proRatedAL scales the BASE — the lieu count is still added', () => {
+        const m = dispatcher({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } });
+        const lieu = getALEntitlement(dispatcher({ startDate: new Date(2026, 5, 29) }), 2026, workedBH) - 22;
+        assert.equal(getALEntitlement(m, 2026, workedBH), 12 + lieu,
+            'a pro-rated Dispatcher must still be credited the bank holidays they worked');
+        assert.notEqual(getALEntitlement(m, 2026, workedBH), 12,
+            'returning the pro-rated figure alone is the v22.50 defect — it discards earned days');
+    });
+
+    test('a year with no proRatedAL is unchanged — base 22 plus lieu', () => {
+        const m = dispatcher({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } });
+        const lieu = getALEntitlement(m, 2027, []) - 22;
+        assert.equal(getALEntitlement(m, 2027, []), 22 + lieu);
+    });
+
+    test('and no OTHER role gained a lieu component', () => {
+        // The fix reorders two checks. The risk in reordering is the branch you did not mean to move:
+        // for every other role proRatedAL is the whole answer, because there is nothing earned in it.
+        for (const [role, full] of [['CEA', 32], ['CES', 34]]) {
+            const joiner = { name: 'X', role, rosterType: 'main', currentWeek: 1, proRatedAL: { 2026: 19 } };
+            assert.equal(getALEntitlement(joiner, 2026, workedBH), 19, `${role} joiner keeps its pro-rated figure`);
+            assert.equal(getALEntitlement({ ...joiner, proRatedAL: undefined }, 2026, workedBH), full);
+        }
+    });
+
+    test('an unresolved member is still null, not a number', () => {
+        assert.equal(getALEntitlement(null, 2026, []), null);
+        assert.equal(getALEntitlement({ name: 'Y', role: 'Management' }, 2026, []), null);
+    });
+});
+
+// ── A MEMBER'S FIRST DAY IS THEIRS (the start-date boundary) ────────────────────────────────────
+//
+// `getBaseShift` hides everything BEFORE a member joins, and the whole of that rule is one
+// comparison. Move it by a day — `<` to `<=` — and the join day itself becomes a rest day. The two
+// directions of error are not remotely symmetrical, which is how this one survived:
+//
+//   SWALLOWING THE FIRST DAY is silent. 'RD' is a legitimate value, it renders as an ordinary rest
+//   day, and the one person positioned to notice is a new starter who does not yet know what their
+//   roster should look like. It also travels: `al-entitlement.js` never charges leave against a rest
+//   day, and the roster-import alignment detector correlates each parsed week against this same base
+//   pattern — so a wrong first day quietly weakens the only import witness the model cannot influence.
+//
+//   SHOWING A SHIFT BEFORE THEY JOINED is the older defect, and the loud one — a calendar full of
+//   turns for somebody who had not started. The tests below pin both edges of the same comparison.
+//
+// Every case is DERIVED from the live roster, and the expectation is always the SAME member with
+// `startDate` removed: that path skips the suppression branch entirely, so it states what the roster
+// holds for that day without asking the code under test to confirm itself. Measured when written:
+// six members carry a start date and four of them work their first day (three a real shift, one
+// SPARE), so the sweep has teeth today — and the constructed cases keep it having teeth on a roster
+// where nobody happens to.
+describe("a member's first day is theirs", () => {
+    const joiners = () => teamMembers.filter(m => m.startDate);
+    /** The roster's own answer for a date, with the join-date rule taken out of the picture. */
+    const unsuppressed = (m, date) => getBaseShift({ ...m, startDate: undefined }, date);
+    const dayOf = (m, offset = 0) => new Date(
+        m.startDate.getFullYear(), m.startDate.getMonth(), m.startDate.getDate() + offset);
+
+    describe('never swallows the join day', () => {
+        test('every joiner sees what the roster holds on the day they start', () => {
+            const wrong = joiners()
+                .map(m => ({ m, want: unsuppressed(m, dayOf(m)), got: getBaseShift(m, dayOf(m)) }))
+                .filter(({ want, got }) => want !== got)
+                .map(({ m, want, got }) =>
+                    `${m.name} starts ${m.startDate.toDateString()}: roster says ${want}, getBaseShift says ${got}`);
+
+            assert.deepEqual(wrong, [],
+                'the start date is INCLUSIVE — a member works the day they join:\n  ' + wrong.join('\n  '));
+        });
+
+        test('and the sweep above is not vacuous — somebody really does work their first day', () => {
+            // If this ever fails the roster has changed rather than the code: every current joiner
+            // would be starting on a rest day, so the sweep could no longer see the boundary move.
+            // The two constructed cases below cover it regardless.
+            const working = joiners().filter(m => unsuppressed(m, dayOf(m)) !== 'RD').map(m => m.name);
+            assert.ok(working.length,
+                'no live joiner works their first day, so the sweep can no longer detect an off-by-one '
+                + 'at the boundary — rely on the constructed cases below');
+        });
+    });
+
+    describe('and never shows a day before it', () => {
+        test('the day before a start date is suppressed for every joiner', () => {
+            const leaked = joiners()
+                .filter(m => getBaseShift(m, dayOf(m, -1)) !== 'RD')
+                .map(m => `${m.name}: ${getBaseShift(m, dayOf(m, -1))} on ${dayOf(m, -1).toDateString()}`);
+            assert.deepEqual(leaked, [], 'pre-start days must be RD:\n  ' + leaked.join('\n  '));
+        });
+
+        test('and suppression is doing work — at least one of those days is a shift on the roster', () => {
+            // Otherwise the test above would pass on a getBaseShift with no start-date rule at all.
+            const suppressed = joiners().filter(m => unsuppressed(m, dayOf(m, -1)) !== 'RD').map(m => m.name);
+            assert.ok(suppressed.length,
+                'every joiner is rostered off the day before they start, so the pre-start assertion '
+                + 'would hold with the suppression removed entirely');
+        });
+    });
+
+    // Constructed from the live roster rather than from a literal: pick a real member and a real
+    // date their pattern says they work, then make that date their start date. It asserts the same
+    // boundary as the sweep and cannot go vacuous while anybody on the roster works anything.
+    describe('a date made into a first day keeps its shift', () => {
+        /** First 2026 date for which `member`'s roster satisfies `want`, or null. */
+        const findDay = (member, want) => {
+            for (let i = 0; i < 400; i++) {
+                const date = new Date(2026, 0, 1 + i);
+                if (want(unsuppressed(member, date))) return date;
+            }
+            return null;
+        };
+
+        test('a worked turn is still a worked turn on the day it becomes a start date', () => {
+            const member = teamMembers.find(m => !m.hidden && !m.startDate && m.rosterType === 'main');
+            assert.ok(member, 'precondition: a main-roster member with no start date of their own');
+            const day = findDay(member, s => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(s));
+            assert.ok(day, 'precondition: that member works at least one day in 2026');
+
+            const joiner = { ...member, startDate: new Date(day.getFullYear(), day.getMonth(), day.getDate()) };
+            assert.equal(getBaseShift(joiner, day), unsuppressed(member, day),
+                'the join day keeps its rostered turn');
+            assert.equal(getBaseShift(joiner, new Date(day.getFullYear(), day.getMonth(), day.getDate() - 1)), 'RD',
+                'the day before it is still suppressed');
+        });
+
+        test('and so is a SPARE day, which is the quietest version of the same loss', () => {
+            // SPARE → RD reads as one more rest day rather than as anything missing, so nothing on
+            // the calendar distinguishes it from a correct week.
+            const member = teamMembers.find(m => !m.hidden && !m.startDate && findDay(m, s => s === 'SPARE'));
+            assert.ok(member, 'precondition: some live pattern carries a SPARE day');
+            const day = findDay(member, s => s === 'SPARE');
+            const joiner = { ...member, startDate: new Date(day.getFullYear(), day.getMonth(), day.getDate()) };
+            assert.equal(getBaseShift(joiner, day), 'SPARE', 'a first day spent on standby is still a SPARE day');
+        });
+    });
+});
+
+// ── SPARE IS STANDBY, NOT WORK ─────────────────────────────────────────────────────────────────
+//
+// `isWorkedShift` is one expression naming five values, and it is the single source CLAUDE.md's
+// "isWorkedDay: false for RD, OFF, SPARE, AL, SICK" line describes. Two consumers read it and both
+// fail quietly when a value falls out of the set:
+//
+//   THE LIEU-DAY COUNT is the expensive one. A Dispatcher earns a day in lieu for each bank holiday
+//   they WORK; counting a standby day as worked credits a day that was never earned, and an
+//   entitlement one day high is a plausible number that books against, renders everywhere a real one
+//   would, and is only ever discovered by the year running out a day early.
+//
+//   THE CALENDAR RENDERER draws a SPARE day for a permanent-shift member as an early or late shift
+//   instead of standby — pinned next door in calendar-renderer.test.mjs, which since this sweep
+//   consumes the REAL predicate rather than a copy of it.
+//
+// The entitlement cases drive `getALEntitlement`, not the predicate: the rule being right is not the
+// same fact as the count asking it.
+describe('SPARE is standby, not work', () => {
+    const NOT_WORKED = ['RD', 'OFF', 'SPARE', 'AL', 'SICK'];
+    const WORKED     = ['RDW', '06:00-14:00', '21:00-05:00', 'TRG', 'TRG RDW 09:00-17:00'];
+    const dispatcher = () => ({ name: 'T. Test', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1 });
+    const AUG_BH = '2026-08-31';   // the late-August bank holiday — a Monday, so a normal rostered day
+    const onBH = (value, type) => [{ memberName: 'T. Test', date: AUG_BH, value, type, source: 'manual' }];
+
+    describe('never counts a day nobody worked', () => {
+        test('a standby bank holiday earns no day in lieu, where the same day worked earns one', () => {
+            const spare = getALEntitlement(dispatcher(), 2026, onBH('SPARE', 'spare_shift'));
+            const rdw   = getALEntitlement(dispatcher(), 2026, onBH('RDW', 'rdw'));
+            assert.equal(rdw - spare, 1,
+                'the same bank holiday worked and spent on standby must differ by exactly one lieu day');
+        });
+
+        test('and no other non-worked value counts either — one figure for the whole set', () => {
+            const spare = getALEntitlement(dispatcher(), 2026, onBH('SPARE', 'spare_shift'));
+            for (const value of NOT_WORKED) {
+                assert.equal(getALEntitlement(dispatcher(), 2026, onBH(value, 'shift')), spare,
+                    `${value} on a bank holiday must not earn a day in lieu`);
+            }
+        });
+
+        test('the predicate itself says so for every value in the set', () => {
+            for (const value of NOT_WORKED) {
+                assert.equal(isWorkedShift(value), false, `${value} is not a worked day`);
+            }
+        });
+    });
+
+    describe('and never loses a day that was', () => {
+        test('a rest day worked, a rostered turn and an Other day all count', () => {
+            for (const value of WORKED) {
+                assert.equal(isWorkedShift(value), true, `${value} is a worked day`);
+            }
+        });
+
+        test('the lieu count agrees — a worked bank holiday is one day up on standby', () => {
+            const spare = getALEntitlement(dispatcher(), 2026, onBH('SPARE', 'spare_shift'));
+            for (const value of ['RDW', '06:00-14:00']) {
+                assert.equal(getALEntitlement(dispatcher(), 2026, onBH(value, 'shift')), spare + 1,
+                    `${value} on a bank holiday earns a day in lieu`);
+            }
+        });
+    });
+});

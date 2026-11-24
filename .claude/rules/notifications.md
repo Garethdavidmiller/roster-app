@@ -16,14 +16,14 @@ paths:
   - "notif.js"
   - "notif-card.js"
   - "notif-card-core.js"
-  - "notif-card*.test.mjs"
+  - "test/notif-card*.test.mjs"
   - "firebase-client.js"
-  - "push-transport.test.mjs"
-  - "notif.test.mjs"
-  - "sw-notification-tap.test.mjs"
-  - "sw-asset-check.test.mjs"
-  - "roster-parse-helpers.test.mjs"
-  - "error-log-*.test.mjs"
+  - "test/push-transport.test.mjs"
+  - "test/notif.test.mjs"
+  - "test/sw-notification-tap.test.mjs"
+  - "test/sw-asset-check.test.mjs"
+  - "test/roster-parse-helpers.test.mjs"
+  - "test/error-log-*.test.mjs"
 ---
 
 

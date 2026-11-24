@@ -1,0 +1,1439 @@
+/**
+ * overtime-format.test.mjs — the client's words and its clock.
+ * Run with: node scripts/run-tests.mjs test/overtime-format.test.mjs   (no mocks; part of test:hygiene)
+ *
+ * Two things are under test and only one of them looks important.
+ *
+ * The CLOCK is the important one. `clockOffset` and `submitDisposition` decide whether a member is
+ * offered a Submit button in the minutes around a noon deadline — and the failure mode is not an
+ * error, it is a button that quietly is not there.
+ *
+ * The WORDS matter for one specific reason: `countsCopy` is where "no response" and "not available"
+ * could be collapsed into each other. Everything else in the feature keeps them apart; a summary
+ * line that read "0 unavailable" would undo all of it in the one place a clerk actually looks.
+ */
+
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import {
+    clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
+    shortDate, longDate, weekLabel, weekSpan, weekDates, printedLabel, rowStateCopy, rosterBadge,
+    countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, isAvailableAnswer,
+    asAtLine,
+    modesFor, offersFullTwelve, submitFailureCopy, shiftSpanMinutes, sameAnswer, receiptLine,
+    declaredAgo, deriveHistory,
+    dayUnfinished, unfinishedDates, reconcileVerdict, conflictIsOurs,
+    weekAvailabilitySummary, reminderLine, putBackWindow, canRestoreNow, writeOutcomeUnknown,
+} from '../overtime-format.js';
+// WHERE THE WEEK STANDS lives in overtime-phase.js since v23.84 (extracted at the ratchet). Imported
+// from where it is defined, not through overtime-format.js's re-export, so the module is named by
+// the test estate and a rename or a dropped re-export fails here rather than in a browser.
+import { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from '../overtime-phase.js';
+
+// Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
+const REPO_ROOT_URL = new URL('../', import.meta.url);
+
+describe('the corrected clock', () => {
+    test('a zero-latency exchange gives the raw difference', () => {
+        // t=1000 out, t=1000 back, server said 5000 → we are 4000ms behind.
+        assert.equal(clockOffset(5000, 1000, 1000), 4000);
+    });
+
+    test('the ROUND TRIP is removed, not folded into the offset', () => {
+        // Sent at 1000, answered at 1400 (400ms round trip), server said 5000. The server generated
+        // that reading around t=1200 our time, so the offset is 3800 — not the naive 3600.
+        //
+        // 200ms of error is not pedantry here: it is the difference between a submission landing on
+        // either side of 12:00:00 for somebody who pressed the button at the last moment.
+        assert.equal(clockOffset(5000, 1000, 1400), 3800);
+    });
+
+    test('a clock running FAST yields a negative offset', () => {
+        assert.equal(clockOffset(1000, 5000, 5000), -4000);
+    });
+
+    test('a nonsense round trip cannot make the offset worse', () => {
+        // tReceive before tSend should not happen, but a device that adjusts its clock mid-request
+        // can produce it. Clamping keeps the answer merely wrong rather than wildly wrong.
+        assert.equal(clockOffset(5000, 2000, 1000), 4000);
+    });
+});
+
+describe('what the Submit button may do', () => {
+    const DEADLINE = 1_000_000;
+
+    test('before the deadline it is simply open', () => {
+        assert.equal(submitDisposition(DEADLINE - 1, DEADLINE), 'open');
+    });
+
+    test('AT the deadline, and through the grace band, it asks the server rather than refusing', () => {
+        // THE most important assertion in this file. A client that renders "closed" from its own
+        // clock has denied somebody who was in time, and left them no recourse at all — where a
+        // server rejection at least produces a true message they can act on.
+        assert.equal(submitDisposition(DEADLINE, DEADLINE), 'check-with-server');
+        assert.equal(submitDisposition(DEADLINE + SUBMIT_GRACE_MS - 1, DEADLINE), 'check-with-server');
+    });
+
+    test('well past the band it finally reads closed', () => {
+        assert.equal(submitDisposition(DEADLINE + SUBMIT_GRACE_MS, DEADLINE), 'closed');
+    });
+
+    test('the grace band is generous enough to cover real device clock skew', () => {
+        // Sized for skew first and round trip second. A one-minute band would be arithmetically
+        // tidy and would refuse a phone that is ninety seconds fast.
+        assert.ok(SUBMIT_GRACE_MS >= 10 * 60 * 1000);
+    });
+
+    test('the resync window is SHORTER than the grace band, and that ordering is deliberate', () => {
+        // Resync happens BEFORE the boundary so the page corrects itself while it still matters;
+        // the grace band is the wider net for the moment after. If resync were the wider of the two
+        // the page would refresh only after it had already gone stale.
+        assert.ok(DEADLINE_SYNC_WINDOW_MS < SUBMIT_GRACE_MS);
+    });
+});
+
+describe('when to re-ask the server', () => {
+    const D = 1_000_000;
+
+    test('it resyncs either side of a deadline', () => {
+        assert.equal(shouldResyncClock(D - 1000, [D]), true);
+        assert.equal(shouldResyncClock(D + 1000, [D]), true);
+    });
+
+    test('and not when every deadline is far away', () => {
+        assert.equal(shouldResyncClock(D - DEADLINE_SYNC_WINDOW_MS * 2, [D]), false);
+        assert.equal(shouldResyncClock(D, []), false);
+        assert.equal(shouldResyncClock(D, null), false);
+    });
+
+    test('a deadline that PASSED since the state on screen was read resyncs, however long ago', () => {
+        // Whole-app review, Nov 2026: a form opened at 11:50 and re-woken at 12:20 sat outside the
+        // ±5 minute window and went on saying "open". The question is whether a boundary was
+        // crossed since the read, not whether one is near now.
+        const read = D - 10 * 60_000;
+        assert.equal(shouldResyncClock(D + 20 * 60_000, [D], read), true, 'crossed while the page slept');
+        assert.equal(shouldResyncClock(D + 20 * 60_000, [D], D + 60_000), false, 'already read after it');
+        assert.equal(shouldResyncClock(D + 20 * 60_000, [D], null), false, 'no read time, the window alone');
+    });
+
+    test('ANY nearby deadline triggers it, not just the first', () => {
+        // A member can have two open weeks whose deadlines fall on the same Tuesday — one closing,
+        // one opening. Checking only the earliest would leave the page stale for the other.
+        assert.equal(shouldResyncClock(D, [D + 9_000_000, D]), true);
+    });
+});
+
+describe('counts — where no response could be lost', () => {
+    test('no response is stated as its own number, always', () => {
+        assert.equal(countsCopy(1, 1), '1 of 1 form received · 0 no response');
+        assert.equal(countsCopy(24, 21), '21 of 24 forms received · 3 no response');
+    });
+
+    test('a whole team that has not answered still reads as no response, never as unavailable', () => {
+        assert.equal(countsCopy(24, 0), '0 of 24 forms received · 24 no response');
+    });
+
+    test('the count never goes negative if received somehow exceeds expected', () => {
+        // Can only happen with stale data mid-refresh, but "-1 no response" would look like a bug in
+        // the figures rather than in the timing, and a clerk would rightly stop trusting the card.
+        assert.equal(countsCopy(1, 2), '2 of 1 form received · 0 no response');
+    });
+
+    test('the singular/plural agrees with the EXPECTED count, which is the beta case', () => {
+        // A restricted-beta window has one participant. "1 of 1 forms" reads as a bug.
+        assert.match(countsCopy(1, 0), /1 form received/);
+        assert.match(countsCopy(2, 0), /2 forms received/);
+    });
+});
+
+describe('answers in words', () => {
+    test('every stored mode has copy, and it names the concrete times', () => {
+        assert.equal(answerCopy({ mode: 'unavailable' }), 'Not available');
+        assert.equal(answerCopy({ mode: 'all_day' }), 'Available all day');
+        // "in total" is load-bearing (owner, Aug 2026): the declaration caps the member's WHOLE
+        // day at twelve hours, rostered duty included. The chip is the reviewer's only sight of
+        // this answer and carries no roster beside it, so the qualifier cannot be left implicit —
+        // without it, "up to 12 hours" against an 07:00–15:00 duty reads as either a 12-hour
+        // extension or a 12-hour total, and those differ by eight hours of somebody's day.
+        assert.equal(answerCopy({ mode: 'twelve_hours' }), 'Available for a full 12 hours in total');
+        assert.match(answerCopy({ mode: 'twelve_hours' }), /in total/);
+        // AND it says "a full", matching the button the member pressed (v21.23). v21.22 reworded the
+        // button and left the chip on "up to" — the broader claim — so a member declaring they would
+        // work the maximum was read as declaring any amount at most that. Both phrasings were pinned,
+        // which is how the two sides of one answer stayed apart while the suite was green.
+        assert.match(answerCopy({ mode: 'twelve_hours' }), /a full/);
+        assert.equal(/up to/.test(answerCopy({ mode: 'twelve_hours' })), false);
+        // It stays rendered although no client offers it any more (v21.24): revisions are immutable,
+        // so beta answers stored under it must keep reading back as what they were.
+        assert.equal(answerCopy({ mode: 'before', until: '07:00' }), 'Available before 07:00');
+        assert.equal(answerCopy({ mode: 'after', from: '15:00' }), 'Available after 15:00');
+        assert.equal(answerCopy({ mode: 'before_after', until: '07:00', from: '15:00' }),
+            'Available before 07:00 and after 15:00');
+        assert.equal(answerCopy({ mode: 'custom', start: '18:00', end: '23:00', nextDay: false }),
+            'Available 18:00–23:00');
+    });
+
+    test('an overnight period SAYS next day', () => {
+        // Without it, "22:00–02:00" reads as a four-hour gap in the middle of the night rather than
+        // as availability that crosses midnight.
+        assert.equal(answerCopy({ mode: 'custom', start: '22:00', end: '02:00', nextDay: true }),
+            'Available 22:00–02:00 next day');
+    });
+
+    test('an absent or unrecognised answer reads as NOT ANSWERED, never as unavailable', () => {
+        // The same invariant as the counts, one level down. Defaulting to "Not available" here
+        // would silently answer on somebody's behalf in a Manager's own view.
+        for (const bad of [null, undefined, {}, { mode: 'nonsense' }, 'all_day']) {
+            assert.equal(answerCopy(bad), 'Not answered');
+        }
+    });
+
+    test('isUnavailable is true only for an explicit unavailable answer', () => {
+        assert.equal(isUnavailable({ mode: 'unavailable' }), true);
+        assert.equal(isUnavailable({ mode: 'all_day' }), false);
+        assert.equal(isUnavailable(null), false, 'no answer is not an unavailable answer');
+    });
+
+    describe('how old is THIS day\'s answer? (v21.26, external review)', () => {
+        // ── THE DEFECT ──────────────────────────────────────────────────────────────────────────
+        //
+        // A submission has ONE `updatedAt`, and the reviewer's rows printed their age from it. So a
+        // member who answered the whole week a fortnight ago and edited only the Saturday this
+        // morning had all seven days reported as declared today — always in the FRESHER direction,
+        // which is the one that costs something when a clerk is arranging short-notice cover.
+        const A = { mode: 'all_day' };
+        const B = { mode: 'unavailable' };
+        const D1 = '2026-08-30';
+        const D2 = '2026-08-31';
+        const rev = (/** @type {number} */ n, /** @type {any} */ days, /** @type {number} */ at) =>
+            ({ revision: n, days, acceptedAt: at });
+        const changed = (/** @type {any[]} */ revs) =>
+            deriveHistory(revs, revs[revs.length - 1]?.days, 0).dayChangedAt;
+
+        test('an untouched day keeps its ORIGINAL instant while its neighbour moves', () => {
+            // The defect, stated directly. Both days were answered at 1000; only D2 changed at 9000.
+            const out = changed([
+                rev(1, { [D1]: A, [D2]: A }, 1000),
+                rev(2, { [D1]: A, [D2]: B }, 9000),
+            ]);
+            assert.equal(out[D1], 1000, 'an untouched day was reported as freshly declared');
+            assert.equal(out[D2], 9000);
+        });
+
+        test('a day that changes twice reports the LAST change, not the first', () => {
+            const out = changed([
+                rev(1, { [D1]: A }, 1000),
+                rev(2, { [D1]: B }, 5000),
+                rev(3, { [D1]: A }, 9000),
+            ]);
+            assert.equal(out[D1], 9000);
+        });
+
+        test('re-submitting the same answer is not a change', () => {
+            // Pressing Submit again with nothing altered must not make a fortnight-old declaration
+            // look like this morning's — which is the whole failure, reintroduced one level down.
+            const out = changed([
+                rev(1, { [D1]: A }, 1000),
+                rev(2, { [D1]: A }, 9000),
+            ]);
+            assert.equal(out[D1], 1000);
+        });
+
+        test('and a REORDERED answer is not a change either', () => {
+            // Structural, like `sameAnswer`: the two sides pass through different producers and key
+            // order is not a change of mind.
+            const out = changed([
+                rev(1, { [D1]: { mode: 'custom', start: '18:00', end: '23:00', nextDay: false } }, 1000),
+                rev(2, { [D1]: { nextDay: false, end: '23:00', start: '18:00', mode: 'custom' } }, 9000),
+            ]);
+            assert.equal(out[D1], 1000);
+        });
+
+        test('a day added in a later revision dates from that revision', () => {
+            const out = changed([rev(1, { [D1]: A }, 1000), rev(2, { [D1]: A, [D2]: B }, 9000)]);
+            assert.equal(out[D1], 1000);
+            assert.equal(out[D2], 9000);
+        });
+
+        test('no revisions gives an empty map, so the caller can fall back', () => {
+            // A revision read can fail while the head is perfectly readable. The row then prints the
+            // whole-form age — coarse, but no age at all would be worse.
+            assert.deepEqual(deriveHistory([], null, 0).dayChangedAt, {});
+            assert.deepEqual(deriveHistory(null, null, 0).dayChangedAt, {});
+        });
+
+        test('a malformed revision is skipped rather than throwing mid-render', () => {
+            const out = changed([
+                rev(1, null, 1000), rev(2, 'nonsense', 2000), rev(3, { [D1]: A }, 9000),
+            ]);
+            assert.equal(out[D1], 9000);
+        });
+    });
+
+    describe('the willingness flag on a reviewer\'s chip (v21.24)', () => {
+        // The reviewer's chip is their ONLY sight of this answer, and it now carries two independent
+        // statements: the window is where a duty may sit, the suffix is how far it may run. The
+        // external review of v21.22 made the point directly — a duration with no window cannot be
+        // built into a duty, and a window that hides a declared willingness wastes it.
+        test('it is APPENDED to the window, never shown in place of it', () => {
+            assert.equal(answerCopy({ mode: 'before_after', until: '07:00', from: '15:00', fullTwelve: true }),
+                'Available before 07:00 and after 15:00 · would work up to 12 hours');
+            // The window half is byte-identical to the same answer without the flag — the suffix
+            // adds, it does not rewrite.
+            assert.ok(answerCopy({ mode: 'all_day', fullTwelve: true })
+                .startsWith(answerCopy({ mode: 'all_day' })));
+        });
+
+        test('every window shape carries it', () => {
+            for (const day of [
+                { mode: 'all_day' },
+                { mode: 'before', until: '07:00' },
+                { mode: 'after', from: '15:00' },
+                { mode: 'custom', start: '18:00', end: '23:00', nextDay: false },
+            ]) {
+                assert.match(answerCopy({ ...day, fullTwelve: true }), /would work up to 12 hours/,
+                    `${day.mode} drops the willingness`);
+            }
+        });
+
+        test('and an answer WITHOUT it says nothing about duration', () => {
+            // The absence is not a declared "no", so the chip must not imply one — a reviewer
+            // reading "would not work 12 hours" against somebody who simply never ticked would be
+            // the same invention as reading silence as unavailable.
+            for (const day of [{ mode: 'all_day' }, { mode: 'all_day', fullTwelve: false }]) {
+                assert.equal(/12 hours/.test(answerCopy(day)), false);
+            }
+        });
+
+        test('it never attaches to "not available" or to no answer at all', () => {
+            // The server refuses the pairing, so it should be unreachable — but a chip that
+            // rendered it would be describing a state that cannot exist, which is worse than a
+            // wrong word: it would make a reviewer doubt the rest of the panel.
+            assert.equal(answerCopy({ mode: 'unavailable', fullTwelve: true }), 'Not available');
+            assert.equal(answerCopy({ mode: 'nonsense', fullTwelve: true }), 'Not answered');
+        });
+    });
+
+    // ── The roster moving under a saved answer ──────────────────────────────────────────────────
+    //
+    // The stored schema keeps concrete times so a roster change cannot re-point a declaration. That
+    // is right, and it means a saved answer can quietly stop describing the day it was made about.
+    // These pin the three ways of getting the detection wrong: missing it, inventing it, and
+    // claiming it when the roster is simply unknown.
+    describe('a saved answer whose shift has moved', () => {
+        const shift = (start, end) => ({ hasTime: true, start, end, shift: `${start}-${end}`, isRest: false });
+        const rest  = { hasTime: false, start: '', end: '', shift: 'RD', isRest: true };
+
+        test('a boundary that no longer matches the roster is flagged', () => {
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, shift('07:00', '20:00')), true);
+            assert.equal(answerAnchorStale({ mode: 'before', until: '07:00' }, shift('12:00', '20:00')), true);
+            assert.equal(answerAnchorStale(
+                { mode: 'before_after', until: '07:00', from: '15:00' }, shift('07:00', '20:00')), true,
+                'either half moving is enough');
+        });
+
+        test('a boundary that still matches is NOT flagged', () => {
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, shift('07:00', '15:00')), false);
+            assert.equal(answerAnchorStale({ mode: 'before', until: '07:00' }, shift('07:00', '15:00')), false);
+            assert.equal(answerAnchorStale(
+                { mode: 'before_after', until: '07:00', from: '15:00' }, shift('07:00', '15:00')), false);
+        });
+
+        test('a shift that has become a REST DAY is flagged — the anchor is gone entirely', () => {
+            // The tempting shortcut is to compare times and skip when there are none, which silently
+            // passes exactly the largest change a roster can make to somebody's day.
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, rest), true);
+        });
+
+        test('an answer carrying nothing from the roster is never flagged', () => {
+            // unavailable and all_day have no boundary; a custom range is the member's own times,
+            // which the roster never supplied and so cannot invalidate.
+            for (const day of [{ mode: 'unavailable' }, { mode: 'all_day' },
+                { mode: 'custom', start: '18:00', end: '23:00', nextDay: false }]) {
+                assert.equal(answerAnchorStale(day, shift('07:00', '15:00')), false, JSON.stringify(day));
+                assert.equal(answerAnchorStale(day, rest), false, JSON.stringify(day));
+            }
+        });
+
+        test('UNKNOWN roster is not a changed roster', () => {
+            // `null` is what the form holds when the context read failed. Telling a member their
+            // answer is out of date on the strength of a failed query would be the same invention
+            // this feature refuses everywhere else — and it would fire on all seven days at once.
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, null), false);
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, undefined), false);
+        });
+
+        test('no answer at all is not a stale answer', () => {
+            assert.equal(answerAnchorStale(null, shift('07:00', '15:00')), false);
+            assert.equal(answerAnchorStale({}, shift('07:00', '15:00')), false);
+        });
+    });
+
+    // ── The tone, which is the same invariant expressed in colour ───────────────────────────────
+    //
+    // `answerCopy` is careful never to render an absent answer as "Not available". `answerTone`
+    // decides what that chip LOOKS like, so it can undo that care without changing a word: paint
+    // `none` and `no` alike and a Manager scanning a column of chips cannot tell somebody who
+    // declined from somebody who never replied — which is precisely the distinction the day panel's
+    // three sections exist to preserve.
+    test('the three tones are three, and none of them collapses into another', () => {
+        assert.equal(answerTone({ mode: 'unavailable' }), 'no');
+        assert.equal(answerTone({ mode: 'all_day' }), 'yes');
+        assert.equal(answerTone(null), 'none');
+        assert.equal(new Set(['no', 'yes', 'none']).size, 3);
+    });
+
+    test('every mode that offers ANY time reads as available, not just all_day', () => {
+        // A partial offer is an offer. Toning "Available after 15:00" as `no` would hide real
+        // cover from the one view that exists to find it.
+        for (const day of [
+            { mode: 'all_day' },
+            { mode: 'before', until: '07:00' },
+            { mode: 'after', from: '15:00' },
+            { mode: 'before_after', until: '07:00', from: '15:00' },
+            { mode: 'custom', start: '18:00', end: '23:00' },
+        ]) assert.equal(answerTone(day), 'yes', JSON.stringify(day));
+    });
+
+    test('a malformed answer tones as NONE — the honest state, never as a decision', () => {
+        // Matches `answerCopy`'s "Not answered" for the same inputs. If these two ever disagreed,
+        // a chip would read "Not answered" in the colour of a definite answer.
+        //
+        // `{ mode: 'from' }` is the case this list did NOT have until v21.52, and it is the only one
+        // that can actually happen: a mode a LATER release adds, met by a browser still serving a
+        // cached older build. Every other entry here is a shape the server cannot produce. The
+        // invariant was right and the inputs stopped just short of it — which is how the reviewer's
+        // week came to draw an unreadable answer as a green "Not answered" under Available.
+        for (const bad of [undefined, {}, { mode: '' }, 'all_day', 7,
+            { mode: 'from', from: '15:00' }, { mode: 'a_mode_from_2027' }]) {
+            assert.equal(answerTone(bad), 'none', JSON.stringify(bad));
+            assert.equal(answerCopy(bad), 'Not answered', JSON.stringify(bad));
+        }
+    });
+});
+
+describe('isAvailableAnswer — the predicate a clerk rings people from', () => {
+    // Its own header has said "the answer must be a KNOWN mode that is not `unavailable`" since it
+    // was written; the code accepted any non-empty string. These pin the sentence rather than the
+    // implementation, and they are here rather than beside the tone tests because the cost is
+    // different: a wrong tone is a chip somebody misreads, a wrong verdict is a phone call to
+    // somebody who never said they were free — and a count that agrees with it.
+
+    test('every real availability mode is available', () => {
+        for (const day of [
+            { mode: 'all_day' },
+            { mode: 'twelve_hours' },
+            { mode: 'before', until: '07:00' },
+            { mode: 'after', from: '15:00' },
+            { mode: 'before_after', until: '07:00', from: '15:00' },
+            { mode: 'custom', start: '18:00', end: '23:00' },
+        ]) assert.equal(isAvailableAnswer(day), true, JSON.stringify(day));
+    });
+
+    test('a declined day is not available, and neither is a missing one', () => {
+        assert.equal(isAvailableAnswer({ mode: 'unavailable' }), false);
+        for (const none of [undefined, null, {}, { mode: '' }, 'all_day', 7]) {
+            assert.equal(isAvailableAnswer(none), false, JSON.stringify(none));
+        }
+    });
+
+    test('AN UNREADABLE MODE IS NOT AVAILABLE — the direction that costs somebody a phone call', () => {
+        // The shipped defect. Both halves matter: it must not COUNT as availability, and it must
+        // agree with the words and the colour, or the panel contradicts itself three ways.
+        for (const unknown of [{ mode: 'from', from: '15:00' }, { mode: 'split' }, { mode: 'AL' }]) {
+            assert.equal(isAvailableAnswer(unknown), false, JSON.stringify(unknown));
+            assert.equal(answerTone(unknown), 'none', JSON.stringify(unknown));
+            assert.equal(answerCopy(unknown), 'Not answered', JSON.stringify(unknown));
+        }
+    });
+
+    test('it agrees with isUnavailable: no day is BOTH, and an unknown day is neither', () => {
+        // The day panel asks these two in order and falls through to "No response". If they could
+        // both be true the row would silently take the first branch; if an unknown day answered
+        // true to either, it would leave "No response" — which is where it belongs.
+        for (const day of [{ mode: 'all_day' }, { mode: 'unavailable' }, { mode: 'nope' }, undefined]) {
+            assert.equal(isAvailableAnswer(day) && isUnavailable(day), false, JSON.stringify(day));
+        }
+        assert.equal(isAvailableAnswer({ mode: 'nope' }) || isUnavailable({ mode: 'nope' }), false,
+            'an unreadable answer belongs to neither section, so it falls through to No response');
+    });
+});
+
+describe('dates and deadlines', () => {
+    test('dates are named the way staff name them', () => {
+        assert.equal(shortDate('2026-09-05'), 'Sat 5 Sep');
+        assert.equal(longDate('2026-09-05'), 'Saturday 5 September 2026');
+        assert.equal(weekLabel('2026-09-05'), 'Week ending Saturday 5 September 2026');
+        assert.equal(weekSpan('2026-08-30', '2026-09-05'), 'Sun 30 Aug – Sat 5 Sep');
+    });
+
+    test('a deadline is shown in LONDON time, whatever the device is set to', () => {
+        // A phone left on holiday time must still show staff the deadline the roster office means.
+        // 11:00Z in August is 12:00 BST.
+        assert.equal(deadlineLabel(Date.parse('2026-08-18T11:00:00Z')), 'Tue 18 Aug · 12:00');
+        // …and 12:00Z in December is 12:00 GMT — the same words, a different instant.
+        assert.equal(deadlineLabel(Date.parse('2026-12-22T12:00:00Z')), 'Tue 22 Dec · 12:00');
+    });
+
+    test('a missing deadline renders as nothing rather than as 1970', () => {
+        assert.equal(deadlineLabel(0), '');
+        assert.equal(deadlineLabel(undefined), '');
+    });
+
+    // A PRINTED sheet is a physical object that outlives the screen — it goes in a folder, and the
+    // printed-at line exists so two sheets of the same week can be told apart. Across a year
+    // boundary a stamp with no year cannot do that, which is the same failure it was added to
+    // prevent. The pairing is what matters: printedLabel carries the year, deadlineLabel must not.
+    test('a printed sheet is stamped with its YEAR, and a deadline still is not', () => {
+        const ms = Date.parse('2026-09-08T13:07:00Z');   // 14:07 BST
+        // The WORD is part of the label as of v24.06, not supplied by the template — see
+        // roster-data.js → printedStamp. The four other printable surfaces used to supply their
+        // own, and three of them worded it differently.
+        assert.equal(printedLabel(ms), 'Printed Tue 8 September 2026 · 14:07');
+        assert.equal(deadlineLabel(ms), 'Tue 8 Sep · 14:07');
+        // Same words, a year apart — which is exactly what the deadline line may not distinguish
+        // and the printed line must.
+        assert.equal(printedLabel(Date.parse('2027-09-07T13:07:00Z')), 'Printed Tue 7 September 2027 · 14:07');
+    });
+
+    test('a printed sheet is in LONDON time, and neither line spells September ICU\'s way', () => {
+        // 12:00Z in December is 12:00 GMT. The September spelling is structural rather than trimmed —
+        // the deadline composes from MONTH_ABB, and the printed line, which carries its year, from
+        // MONTH_NAMES in full (owner, 22 Nov 2026) — and the repo-wide guard that nothing anywhere
+        // reaches for ICU's is `month-vocabulary-parity.test.mjs`. A WORD test, not a substring one:
+        // "September" contains "Sept", which is how this pair learnt the difference.
+        assert.equal(printedLabel(Date.parse('2026-12-22T12:00:00Z')), 'Printed Tue 22 December 2026 · 12:00');
+        assert.match(printedLabel(Date.parse('2026-09-08T13:07:00Z')), /\bSeptember\b/);
+        assert.doesNotMatch(printedLabel(Date.parse('2026-09-08T13:07:00Z')), /\bSept\b/);
+        assert.doesNotMatch(deadlineLabel(Date.parse('2026-09-08T13:07:00Z')), /\bSept\b/);
+        assert.match(deadlineLabel(Date.parse('2026-09-08T13:07:00Z')), /\bSep\b/);
+    });
+
+    test('a missing print stamp renders as nothing rather than as 1970', () => {
+        assert.equal(printedLabel(0), '');
+        assert.equal(printedLabel(undefined), '');
+    });
+
+    test('a roster week is its seven dates, Sunday to Saturday, across a month, a year and a clock change', () => {
+        // One copy now, for the form and the reviewer both (overtime-ui-17); the server's is authoritative.
+        assert.deepEqual(weekDates('2026-08-30'),
+            ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05']);
+        assert.deepEqual(weekDates('2026-12-27').slice(-2), ['2027-01-01', '2027-01-02']);
+        assert.deepEqual(weekDates('2026-10-25').slice(0, 2), ['2026-10-25', '2026-10-26'], 'the October clock change moves no date');
+    });
+
+    test('month and year boundaries do not shift the day name', () => {
+        assert.equal(shortDate('2027-01-01'), 'Fri 1 Jan');
+        assert.equal(shortDate('2028-02-29'), 'Tue 29 Feb');
+    });
+});
+
+/**
+ * The row states the SERVER can send, read out of `windowRowState`'s own return type.
+ *
+ * Hand-listing them here is what let `created-closed` sit unchecked: the loops below named four of
+ * the five states that existed, and their silence about the fifth was indistinguishable from
+ * success. A state added to the core without copy added here falls through `rowStateCopy`'s default
+ * and renders as "Missed · nobody was asked" — the loudest possible wrong answer.
+ */
+const ROW_STATES = (() => {
+    const src = readFileSync(new URL('./functions/overtime-core.js', REPO_ROOT_URL), 'utf8');
+    const m = src.match(/@returns \{('(?:[a-z-]+)'(?:\|'(?:[a-z-]+)')*)\}\s*\*\/\s*function windowRowState/);
+    assert.ok(m, 'could not read windowRowState\'s return type — has it been renamed?');
+    return m[1].split('|').map(x => x.replace(/'/g, ''));
+})();
+
+describe('the roster badge is ADMIN\'S badge (v23.85)', () => {
+    // Owner, with two screenshots side by side: "notice the difference in how shift times are
+    // handled?" Admin puts the time INSIDE the pill; this row put the classification word in the
+    // pill and the time beside it as plain text. One shift, two grammars. The row was modelled on
+    // admin's, so it takes admin's badge — the same `showTime` option on the same builder.
+    test('a timed shift carries its TIME in the pill, and nothing floats beside it', () => {
+        const html = rosterBadge({ shift: '06:20-14:20', hasTime: true, start: '06:20', end: '14:20' });
+        assert.match(html, /class="shift-badge badge-early"/);
+        assert.match(html, /06:20-14:20/, 'the time is in the badge');
+        // The WORD leaves the visible body and lands in the accessible label — so the test reads
+        // the body, not the whole string: a plain /early/i would fail on the aria-label that is
+        // there on purpose, which is exactly what the first draft of this assertion did.
+        const bodies = [...html.matchAll(/<span>([^<]*)<\/span>/g)].map(m => m[1]);
+        assert.deepEqual(bodies, ['06:20-14:20'], 'the visible body is the time and only the time');
+        assert.doesNotMatch(html, /ot-day-time/, 'no second object beside the pill');
+        // What the word said is still said — to a screen reader, on the badge itself.
+        assert.match(html, /aria-label="Early shift, 06:20 to 14:20"/);
+    });
+    test('an untimed day keeps its word — there is no time to trade for', () => {
+        assert.match(rosterBadge({ shift: 'RD', hasTime: false }), /REST/i);
+        assert.match(rosterBadge({ shift: 'SPARE', hasTime: false }), /SPARE/i);
+    });
+    test('an unreadable roster says so rather than drawing a badge', () => {
+        assert.match(rosterBadge(null), /Roster unavailable/);
+        assert.doesNotMatch(rosterBadge(null), /shift-badge/);
+    });
+});
+
+describe('states in words', () => {
+    test('each phase has calm, factual copy and no countdown', () => {
+        // Both open phases must SAY they are open — that is the one fact a member needs from this
+        // line, and it has to survive a rewrite of the rest of it.
+        assert.match(phaseCopy('INITIAL_OPEN'), /open/i);
+        assert.match(phaseCopy('FINAL_OPEN'), /open/i);
+        assert.equal(phaseCopy('CLOSED'), 'Closed');
+        for (const p of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            assert.equal(/!/.test(phaseCopy(p)), false, 'no exclamation marks — the app is calm');
+        }
+    });
+
+    test('the phase CHIP is two words at most, and agrees with the sentence it replaces (v23.84)', () => {
+        // The head wears the state as a badge now, the way admin does — so the chip has to stay
+        // short enough to be one, and must never disagree with `phaseCopy` about whether the
+        // week is open. Both open phases say open; closed says closed; nothing shouts.
+        for (const p of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            const chip = phaseChip(p);
+            assert.ok(chip.split(/\s+/).length <= 2, `"${chip}" is not a chip`);
+            assert.doesNotMatch(chip, /[!—]/, 'a chip carries no punctuation');
+            assert.equal(/open/i.test(chip), /open/i.test(phaseCopy(p)),
+                `chip and sentence disagree about "open" for ${p}`);
+        }
+        assert.equal(phaseChip('CLOSED'), 'Closed');
+        assert.notEqual(phaseChip('INITIAL_OPEN'), phaseChip('FINAL_OPEN'),
+            'the two open phases are different states and must read differently');
+    });
+
+    test('the phase TONE speaks the horizon\'s vocabulary, and only the final window warns', () => {
+        // ok / warn / done are the classes the reviewer's week rows already wear, so one week is
+        // coloured the same on both surfaces. `bad` is not reachable here: a missed week has no form.
+        assert.equal(phaseTone('INITIAL_OPEN'), 'ok');
+        assert.equal(phaseTone('FINAL_OPEN'), 'warn');
+        assert.equal(phaseTone('CLOSED'), 'done');
+    });
+
+    test('only the FINAL_OPEN sentence is a WARNING the head should print', () => {
+        // The ordinary open state is the chip; its sentence is a paragraph about the normal case
+        // and no longer reaches the head. The final-window sentence says a change may not fit,
+        // which is a warning, and a warning earns a line. Pinned so the asymmetry is deliberate.
+        const I = Date.parse('2026-08-18T11:00:00Z'), F = Date.parse('2026-08-25T11:00:00Z');
+        const prose = (/** @type {string} */ p) => deadlineLines(p, I, F).filter(l => !l.label);
+        assert.equal(prose('INITIAL_OPEN').length, 1);
+        assert.equal(prose('INITIAL_OPEN')[0].warn, undefined, 'the normal state does not warn');
+        assert.equal(prose('FINAL_OPEN').length, 1);
+        assert.equal(prose('FINAL_OPEN')[0].warn, true, 'the final window does');
+        assert.equal(prose('CLOSED').length, 0, 'a closed week has a note of its own, not a sentence here');
+    });
+
+    test('the printed sheet states when the data was READ, not when it was printed', () => {
+        // A sheet of names is acted on away from the screen, and availability keeps changing until
+        // the final deadline — so the one thing paper must carry is its own age. "As at" is the
+        // honest framing: it is stamped at render, and a page left open for an hour then printed
+        // would otherwise claim a freshness its contents do not have.
+        const line = asAtLine(Date.parse('2026-08-11T10:00:00Z'));
+        assert.match(line, /as at/i);
+        assert.match(line, /11 Aug/, 'it names the actual moment, not just "recently"');
+        assert.match(line, /11:00/, 'in London wall-clock, like every other time on the page');
+        assert.match(line, /final deadline/, 'and says what will make it stale');
+    });
+
+    test('and it carries no POSITIONAL word — it is written for a page it never sees', () => {
+        // It said "the final deadline above" and the deadline prints on the next line DOWN. Invisible
+        // while writing the sentence, obvious on the page. This copy is authored in a module with no
+        // layout, so directions are a standing hazard rather than a one-off slip.
+        assert.equal(/\b(above|below|left|right|opposite)\b/i.test(asAtLine(Date.now())), false);
+    });
+
+    test('and the two open phases are DISTINGUISHABLE, or the line is decoration', () => {
+        assert.notEqual(phaseCopy('INITIAL_OPEN'), phaseCopy('FINAL_OPEN'));
+    });
+
+    test('no phase names the DRAFT ROSTER — a document the member never receives', () => {
+        // The reported defect, pinned. "Open — the draft roster has been planned" was DATE-accurate
+        // (for a week ending Sat 22 Aug the draft really is Thu 6 Aug) and still wrong: the draft is
+        // an internal artefact of the roster office, and "the roster" to staff means the one that
+        // comes out on the Thursday. So the line announced that the thing they were waiting for had
+        // already happened, five days before they saw anything.
+        //
+        // Scoped to the member's phase line, not to the whole app: the REVIEWER's surfaces and the
+        // operations doc may say "draft roster" freely, because that is their document.
+        for (const p of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            assert.equal(/draft/i.test(phaseCopy(p)), false, `phaseCopy('${p}') names the draft roster`);
+        }
+    });
+
+    test('a missing window says nobody was ASKED, not that nobody was needed', () => {
+        // The wording is the whole guard. "No form" phrased neutrally invites the reading that none
+        // was required, which is exactly the conclusion this row exists to prevent.
+        const missed = rowStateCopy('missed');
+        assert.match(missed.label, /no form was opened/);
+        // WINDOW is our word for the stored record, never the reviewer's. The page calls it a
+        // form everywhere a person can see, and this label was the one place it leaked.
+        for (const st of ROW_STATES) {
+            assert.doesNotMatch(rowStateCopy(st).label, /window/i, st);
+        }
+        assert.equal(missed.tone, 'bad');
+    });
+
+    test('every state the server can send has its own label and a deliberate tone', () => {
+        // ROW_STATES is read from the server's own return type, so a state added there without copy
+        // here fails HERE rather than in production — where it would fall through to the `missed`
+        // default and tell a reviewer nobody was asked about a week that is perfectly healthy.
+        const TONES = {
+            'created':                    'ok',
+            'created-closed':             'done',
+            'not-created':                'warn',
+            'not-created-overdue':        'bad',
+            'not-created-initial-passed': 'bad',
+            'not-created-beyond-roster':  'bad',
+            'missed':                     'bad',
+        };
+        assert.deepEqual([...ROW_STATES].sort(), Object.keys(TONES).sort(),
+            'a row state exists that this suite has never been told about');
+        const labels = ROW_STATES.map(rowStateCopy);
+        assert.equal(new Set(labels.map(l => l.label)).size, ROW_STATES.length,
+            'two states sharing a label means one of them is invisible to a reviewer');
+        for (const st of ROW_STATES) assert.equal(rowStateCopy(st).tone, TONES[st], st);
+    });
+
+    test('a week the schedule failed to open stops promising that it will', () => {
+        // The B6 defect. `not-created` reassures — correctly, right up until an overnight run has
+        // been and gone without creating the week, after which the row repeats that reassurance
+        // every day for as long as the fault lasts. Two properties, and they are separable: the
+        // promise has to GO, and something has to replace it that a reviewer can act on.
+        const due  = rowStateCopy('not-created');
+        const stuck = rowStateCopy('not-created-overdue');
+        assert.match(due.label, /automatically/i, 'fixture no longer exercises this');
+        assert.doesNotMatch(stuck.label, /automatically|overnight will|will open/i,
+            'a stuck week must not keep promising the schedule will handle it');
+        assert.match(stuck.label, /create/i, 'and must point at the thing the reviewer CAN do');
+        assert.equal(stuck.tone, 'bad', 'warn is the tone of "no action needed" — this needs one');
+    });
+
+    test('a week past the app\'s roster says it cannot open, and promises nothing overnight (overtime-core-6)', () => {
+        // The server refuses to make it every night (`beyond-horizon`), so the old `not-created`
+        // reading — "Opens automatically overnight" — repeated a promise nothing would keep, daily,
+        // until the row turned "Missed". The cause is a year the admin has to raise, so say who.
+        const beyond = rowStateCopy('not-created-beyond-roster');
+        assert.match(beyond.label, /Cannot open/);
+        assert.match(beyond.label, /the admin/, 'it names who can fix it — an app matter goes to the admin');
+        assert.doesNotMatch(beyond.label, /automatically|overnight/i, 'no promise the schedule cannot keep');
+        assert.equal(beyond.tone, 'bad');
+    });
+
+    test('an unknown state falls back to the LOUDEST reading, not the quietest', () => {
+        // Fail noisy. An unrecognised state is a bug, and a bug that renders as "Created" hides
+        // itself; one that renders as "Missed" gets reported.
+        assert.equal(rowStateCopy('something-new').tone, 'bad');
+    });
+});
+
+describe('which modes a day may offer', () => {
+    // The rule lived in overtime-roster.js — which imports the Firebase SDK, so no test could
+    // reach it — and its untested branch was wrong in production shape: an overnight duty offered
+    // anchors the server refuses. Moving the rule here is what made this suite possible; these
+    // cases are why it was needed.
+    const timed     = { hasTime: true,  overnight: false, start: '06:00', end: '14:00', rosteredMinutes: 480 };
+    const night     = { hasTime: true,  overnight: true,  start: '22:00', end: '07:00', rosteredMinutes: 540 };
+    const rest      = { hasTime: false, overnight: false, start: '',      end: '', rosteredMinutes: 0 };
+
+    test('a plain timed duty offers the anchored set — and NOT all_day (v21.22)', () => {
+        // The fold: on a normal worked day "Any time around my shift" duplicated "Before & after
+        // duty" — same meaning to a clerk, two pills — so all_day is withheld wherever
+        // before_after can be offered. The one that stays is the one that stores what was said.
+        assert.deepEqual(modesFor(timed),
+            ['unavailable', 'before', 'after', 'before_after', 'custom']);
+    });
+
+    test('no context, or no duty time, offers only the unanchored three', () => {
+        assert.deepEqual(modesFor(null), ['unavailable', 'all_day', 'custom']);
+        assert.deepEqual(modesFor(rest), ['unavailable', 'all_day', 'custom']);
+    });
+
+    test('twelve_hours is offered NOWHERE — it stopped being a window (v21.24)', () => {
+        // The split. It answered HOW LONG in a control whose every other option answers WHEN, so it
+        // competed with them rather than combining; willingness is now `fullTwelve` beside a real
+        // window. Asserted across every shape of day, because "no longer offered" is only true if
+        // it is true everywhere — one surviving branch would put the old ambiguity back on the
+        // days that branch covers, which is exactly how it would go unnoticed.
+        for (const ctx of [timed, night, rest, null, { ...timed, rosteredMinutes: 720 }]) {
+            assert.equal(modesFor(ctx).includes('twelve_hours'), false,
+                `still offered for ${JSON.stringify(ctx)}`);
+        }
+    });
+
+    test('all_day survives exactly where before_after cannot be offered', () => {
+        // The fold must never leave a day without a both-sides answer. Overnight duties refuse
+        // before_after server-side (inverted pair), and rest/spare/unknown days have no boundary
+        // to anchor to — so each of those keeps all_day, and only the day where the two answers
+        // genuinely coexisted loses one.
+        assert.ok(modesFor(night).includes('all_day'), 'overnight keeps the roster-relative answer');
+        assert.ok(modesFor(rest).includes('all_day'));
+        assert.ok(modesFor(null).includes('all_day'));
+        assert.equal(modesFor(timed).includes('all_day'), false);
+    });
+
+    test('the WILLINGNESS question is withheld only where the day already reaches 12 rostered hours', () => {
+        // The old `twelve_hours` offer gate, inherited whole by `offersFullTwelve` (v21.24) —
+        // because that gate was never about the mode. A day already rostered 720 effective minutes
+        // has nothing left to give, so the question has no answer worth recording; a 12-hour RDW
+        // already agreed as extra gates it exactly as a 12-hour ordinary shift would. The boundary
+        // is exact: 719 minutes still leaves a minute to offer, which is silly in practice and
+        // correct on principle, and one minute either side is what pins the comparison operator.
+        assert.equal(offersFullTwelve({ ...timed, rosteredMinutes: 720 }), false);
+        assert.ok(offersFullTwelve({ ...timed, rosteredMinutes: 719 }));
+        // And the WINDOW list is untouched by it — the two are independent questions now, so the
+        // duration gate must not quietly reshape the choice of when.
+        assert.deepEqual(modesFor({ ...timed, rosteredMinutes: 720 }),
+            ['unavailable', 'before', 'after', 'before_after', 'custom']);
+    });
+
+    test('an UNKNOWN day length is not "already rostered 12 hours" — the question stands', () => {
+        // The gate needs a positive fact to fire. `rosteredMinutes` is null when the roster could
+        // not be read; withholding there would punish a failed Firestore query with a narrower
+        // form, which is the wrong direction — willingness anchors to no roster time, so it is safe
+        // to ask regardless (the same reasoning that keeps all_day and custom).
+        assert.ok(offersFullTwelve({ rosteredMinutes: null }));
+        assert.ok(offersFullTwelve({}), 'a context predating the field must behave as unknown, not as zero');
+        assert.ok(offersFullTwelve(null));
+    });
+
+    test('an overnight duty offers NO "after" and NO "before & after"', () => {
+        // Dispatchers are the only grade rostered across midnight. On a 22:00–07:00 day, `end`
+        // names the NEXT morning: "After 07:00" would store hours the member never declared, and
+        // "Before & after duty" stores until > from — which the server refuses outright
+        // (`before-after-inverted`), so the button was an offer that could never be saved.
+        // Verified end-to-end before the fix: the request carried {until:'22:00', from:'07:00'}
+        // and the real normaliseDay returned the refusal.
+        const modes = modesFor(night);
+        assert.equal(modes.includes('after'), false);
+        assert.equal(modes.includes('before_after'), false);
+        // The pre-duty gap that day is real, so "Before 22:00" survives — the fix narrows the
+        // offers to the ones that are TRUE, it does not gut the day.
+        assert.ok(modes.includes('before'));
+        assert.ok(modes.includes('custom'));
+    });
+});
+
+describe('how long a duty runs', () => {
+    test('a same-day duty is end minus start', () => {
+        assert.equal(shiftSpanMinutes('06:00', '14:00'), 480);
+        assert.equal(shiftSpanMinutes('15:15', '23:55'), 520);
+    });
+
+    test('an overnight duty crosses midnight rather than going negative', () => {
+        // 22:00–07:00 is how the roster writes every dispatcher night turn. Getting this wrong
+        // does not error — it returns minus-900, which is not >= 720, so the 12-hour pill would
+        // show on a day that might genuinely reach twelve hours. The failure would be an OFFER
+        // that should have been withheld, invisible in any log.
+        assert.equal(shiftSpanMinutes('22:00', '07:00'), 540);
+        assert.equal(shiftSpanMinutes('22:30', '09:00'), 630);
+    });
+
+    test('anything that is not a pair of times has no length', () => {
+        assert.equal(shiftSpanMinutes('', ''), null);
+        assert.equal(shiftSpanMinutes('SPARE', '14:00'), null);
+        assert.equal(shiftSpanMinutes(null, undefined), null);
+    });
+
+    test('equal times are malformed, not a 24-hour duty', () => {
+        // This returned 1440 until v20.86, sharing the overnight branch. Nothing else in the app
+        // reads equal times that way — the custom range refuses start === end outright, and the
+        // server treats a non-advancing before/after pair as transposed.
+        assert.equal(shiftSpanMinutes('08:00', '08:00'), null);
+        assert.equal(shiftSpanMinutes('00:00', '00:00'), null);
+    });
+
+    test('and null means the willingness question STANDS, which is the safe direction', () => {
+        // The consequence of the old 1440 was 1440 >= 720, so the question was WITHHELD on the
+        // strength of a garbage reading. `offersFullTwelve` needs a positive fact to withhold;
+        // asserting the null alone would not have caught that, because null is also what a rest
+        // day's unknown length looks like and the two must behave the same.
+        const malformed = { hasTime: true, overnight: false, start: '08:00', end: '08:00',
+            rosteredMinutes: shiftSpanMinutes('08:00', '08:00') };
+        assert.ok(offersFullTwelve(malformed),
+            'withholding a question costs the member something; asking one on a nonsense roster does not');
+    });
+});
+
+describe('the two deadlines a member has', () => {
+    const INITIAL = Date.parse('2026-08-18T11:00:00Z');
+    const FINAL   = Date.parse('2026-08-25T11:00:00Z');
+
+    test('both dates show, and they are different Tuesdays', () => {
+        // The whole defect: only the FINAL date was ever printed, so the one deadline that decides
+        // whether an answer is used was left to be inferred from a sentence.
+        const text = deadlineLines('INITIAL_OPEN', INITIAL, FINAL).map(l => l.text).join(' | ');
+        assert.match(text, /18 Aug/, 'the initial deadline must appear');
+        assert.match(text, /25 Aug/, 'so must the final one');
+    });
+
+    test('before the first deadline, the FIRST one leads', () => {
+        const lines = deadlineLines('INITIAL_OPEN', INITIAL, FINAL);
+        const lead = lines.filter(l => l.lead);
+        assert.equal(lead.length, 1, 'exactly one date is the one to act on');
+        assert.match(lead[0].text, /18 Aug/);
+    });
+
+    test('after it, the FINAL one leads and the first turns past-tense', () => {
+        const lines = deadlineLines('FINAL_OPEN', INITIAL, FINAL);
+        const lead = lines.filter(l => l.lead);
+        assert.equal(lead.length, 1);
+        assert.match(lead[0].text, /25 Aug/);
+        // The passed deadline STAYS. Dropping it would leave a member who missed it with no sign
+        // that they had, which is the same silence the whole change is undoing.
+        const past = lines.find(l => /18 Aug/.test(l.text));
+        assert.ok(past, 'the passed deadline is still stated');
+        assert.match(past.text, /were due/, 'and stated as passed');
+    });
+
+    test('a form that OPENED after the first deadline does not say answers "were due"', () => {
+        // The member was never asked before it, so "Answers were due Tue 18 Aug" names a deadline
+        // they could not have met. The line says when the form opened instead, and which date is live.
+        const lines = deadlineLines('FINAL_OPEN', INITIAL, FINAL, INITIAL + 3600_000);
+        const text = lines.map(l => l.text).join(' | ');
+        assert.doesNotMatch(text, /were due/);
+        assert.doesNotMatch(text, /18 Aug/, 'the deadline that passed before the form existed is not named');
+        const lead = lines.filter(l => l.lead);
+        assert.equal(lead.length, 1);
+        assert.match(lead[0].text, /25 Aug/);
+        assert.ok(lines.some(l => l.warn && /opened after the first deadline/.test(l.text)));
+        // …and a form open BEFORE it keeps the two-deadline head, unchanged.
+        assert.match(deadlineLines('FINAL_OPEN', INITIAL, FINAL, INITIAL - 1).map(l => l.text).join(' | '), /were due/);
+        assert.match(deadlineLines('FINAL_OPEN', INITIAL, FINAL).map(l => l.text).join(' | '), /were due/,
+            'and so does a window that does not say when it opened');
+    });
+
+    test('a closed week names one date and offers no deadline to act on', () => {
+        const lines = deadlineLines('CLOSED', INITIAL, FINAL);
+        assert.equal(lines.length, 1);
+        assert.match(lines[0].text, /Closed/);
+        assert.equal(lines.filter(l => l.lead).length, 0,
+            'nothing on a closed form is still to come');
+    });
+
+    test('no line names a document the member never sees', () => {
+        // The v20.70 rule, which these lines are the newest place to break: "the draft roster" is
+        // the roster office's own artefact and staff never receive it.
+        for (const phase of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            for (const l of deadlineLines(phase, INITIAL, FINAL)) {
+                assert.doesNotMatch(l.text, /draft/i, `"${l.text}" names the draft roster`);
+            }
+        }
+    });
+});
+
+describe('how old a declaration is', () => {
+    const NOW = Date.parse('2026-08-20T09:00:00Z');
+    const daysBefore = (n) => NOW - n * 86_400_000;
+
+    test('today, yesterday, then a count', () => {
+        // Relative and coarse on purpose. A clerk needs "recent" or "a while ago"; an exact
+        // timestamp reads as precision about something approximate and forces them to subtract.
+        assert.equal(declaredAgo(daysBefore(0), NOW), 'today');
+        assert.equal(declaredAgo(daysBefore(1), NOW), 'yesterday');
+        assert.equal(declaredAgo(daysBefore(19), NOW), '19 days ago');
+    });
+
+    test('the words are CALENDAR days in London, not elapsed 24-hour blocks', () => {
+        // Whole-app review, Nov 2026. Counting blocks labelled them with calendar words, and every
+        // error ran toward FRESHER — the direction the header calls costly.
+        const at = (iso) => Date.parse(iso);
+        assert.equal(declaredAgo(at('2026-08-19T22:30:00Z'), at('2026-08-20T07:00:00Z')), 'yesterday',
+            '23:30 one evening, read at 08:00 the next morning — eight and a half hours, but yesterday');
+        assert.equal(declaredAgo(at('2026-08-18T22:00:00Z'), at('2026-08-20T07:00:00Z')), '2 days ago',
+            '23:00 on the 18th, read on the morning of the 20th — 33 hours, and two days back');
+        assert.equal(declaredAgo(at('2026-08-19T23:30:00Z'), at('2026-08-20T22:30:00Z')), 'today',
+            '00:30 and 23:30 on the same London day — 23 hours, and still today');
+        // The clocks go back at 02:00 on Sun 25 Oct 2026: 00:30 BST that morning and 23:30 GMT that
+        // night are one London day apart from nothing — 24 hours elapsed, the same date.
+        assert.equal(declaredAgo(at('2026-10-24T23:30:00Z'), at('2026-10-25T23:30:00Z')), 'today');
+    });
+
+    test('an age no real declaration can have is a corrupt timestamp, and renders nothing', () => {
+        // Retention deletes a window ~13 weeks after its Saturday, so nothing real is much past
+        // 100 days. An epoch-zero millisecond value produced "20682 days ago" in a render — a
+        // number wearing certainty about data that is broken. Absent beats absurd (v21.60).
+        assert.equal(declaredAgo(1, NOW), null);
+        assert.equal(declaredAgo(daysBefore(121), NOW), null);
+        assert.equal(declaredAgo(daysBefore(100), NOW), '100 days ago',
+            'inside the retention horizon the count still renders');
+    });
+
+    test('nothing to date renders nothing, not "unknown"', () => {
+        // The caller omits the element entirely. An "unknown" would be a statement about the
+        // declaration where there is none to make.
+        assert.equal(declaredAgo(0, NOW), null);
+        assert.equal(declaredAgo(null, NOW), null);
+        assert.equal(declaredAgo(daysBefore(3), 0), null);
+    });
+
+    test('a timestamp in the FUTURE is refused rather than rendered as "today"', () => {
+        // Reachable: the row uses the corrected server clock and the stamp comes from the server,
+        // but a clock correction landing between the two can invert them by a few seconds. "In 0
+        // days" is meaningless and "today" would be a guess dressed as a fact.
+        assert.equal(declaredAgo(NOW + 60_000, NOW), null);
+    });
+});
+
+describe('the receipt for a submitted form', () => {
+    test('an unsubmitted form has no receipt at all', () => {
+        // Not an empty string — the caller renders nothing, so a form nobody has submitted must
+        // not carry hollow chrome that looks like a receipt with the words missing.
+        assert.equal(receiptLine(null), null);
+        assert.equal(receiptLine({ currentRevision: 0 }), null);
+    });
+
+    test('a submitted one says when it was last updated', () => {
+        const line = receiptLine({ currentRevision: 2, updatedAt: Date.parse('2026-08-18T08:42:00Z') });
+        assert.match(line, /Submitted/);
+        assert.match(line, /18 Aug/);
+    });
+
+    test('with no timestamp it still says submitted rather than nothing', () => {
+        // A head written by an older schema, or a partial read. "Submitted" is the fact worth
+        // keeping; the time is the detail. Losing the whole receipt over a missing minute would
+        // tell the member something false about the important half.
+        assert.equal(receiptLine({ currentRevision: 1 }), 'Submitted');
+    });
+});
+
+describe('are two stored answers the same declaration', () => {
+    test('key order does not make a change', () => {
+        // The two sides come from different producers — the form's buildAnswer and the server's
+        // canonicalised copy — whose key order may differ while the answer does not. A stringify
+        // comparison would paint an untouched day cream ("you are changing a saved answer").
+        assert.ok(sameAnswer({ mode: 'before', until: '15:15' }, { until: '15:15', mode: 'before' }));
+    });
+
+    test('a real difference is a difference, and absent is not equal to present', () => {
+        assert.equal(sameAnswer({ mode: 'all_day' }, { mode: 'unavailable' }), false);
+        assert.equal(sameAnswer({ mode: 'before', until: '15:15' }, { mode: 'before', until: '16:15' }), false);
+        assert.equal(sameAnswer({ mode: 'all_day' }, null), false);
+        assert.ok(sameAnswer(null, undefined), 'both absent IS the same (no declaration either side)');
+    });
+});
+
+describe('what a failed submit says', () => {
+    test('a refusal that names a day names the day — and never blames the connection', () => {
+        // The server returns which date it refused; until v20.75 the client threw that away and
+        // said "Check your connection and try again" — advice that cannot help, because a refusal
+        // IS a response: the connection provably works.
+        const copy = submitFailureCopy('bad-time', 'Wed 2 Sep');
+        assert.match(copy, /Wed 2 Sep/);
+        assert.doesNotMatch(copy, /connection/i);
+    });
+
+    test('no network before the send is the one case that DOES talk about the connection (overtime-core-3)', () => {
+        // `offline`: the sign-in token could not be refreshed, so nothing left the phone. It was
+        // worded as an expired sign-in, "Reload the page" — and a reload on a phone throws away every
+        // answer not yet submitted, where a second press once the signal is back simply works.
+        const copy = submitFailureCopy('offline', null);
+        assert.match(copy, /connection/i);
+        assert.match(copy, /nothing was sent/i, 'it says what happened to the answers');
+        assert.match(copy, /answers are still here/i, 'and that they are not lost');
+        assert.doesNotMatch(copy, /reload|sign in|offline/i, 'never the advice that loses them, nor the raw code');
+    });
+
+    test('an unknown server code no longer claims the connection is at fault', () => {
+        assert.doesNotMatch(submitFailureCopy('write-failed', null), /connection/i);
+        assert.doesNotMatch(submitFailureCopy('something-new', null), /connection/i);
+        // But it still shows the code — a member reporting "it says something-new" is diagnosable.
+        assert.match(submitFailureCopy('something-new', null), /something-new/);
+    });
+
+    // ── THE TWO PERMANENT REFUSALS (v21.20) ─────────────────────────────────────────────────────
+    //
+    // Every other code in this function describes something that might work next time, so the
+    // default branch ends "Try again in a moment" — correct for all of them and wrong for these
+    // two. A withdrawn member pressing Submit is refused by the server every single time, so
+    // "try again" is not merely unhelpful, it is a loop with no exit, and the member has no way to
+    // learn that from the app. Falling THROUGH to the default is the whole failure mode, which is
+    // why each case is pinned by what it must not say as well as what it must.
+    test('being stood down does not read as a retryable fault', () => {
+        const copy = submitFailureCopy('withdrawn', null);
+        assert.doesNotMatch(copy, /try again/i);
+        assert.doesNotMatch(copy, /connection/i);
+        // It has to say what to DO, and the wording rule is that a work matter goes to the
+        // manager — this is not a broken app, it is a decision somebody took. "your manager", the
+        // convention's words, not "a Manager" (whole-app check, 17 Nov 2026: this pinned the old form).
+        assert.match(copy, /your manager/);
+        // And it must never leak the raw code, which is what the default branch would print.
+        assert.doesNotMatch(copy, /withdrawn/);
+    });
+
+    test('never having been asked is a DIFFERENT sentence from having been stood down', () => {
+        const notAsked = submitFailureCopy('not-a-participant', null);
+        assert.doesNotMatch(notAsked, /try again/i);
+        assert.match(notAsked, /your manager/);
+        assert.doesNotMatch(notAsked, /not-a-participant/);
+        // Two codes exist so the member can be told which situation they are in. If these ever
+        // collapse to one string, the second code has stopped earning its place on the wire.
+        assert.notEqual(notAsked, submitFailureCopy('withdrawn', null));
+    });
+
+    // The form's own two closed lines (overtime-form.js) said "speak to a Manager" as well — a role,
+    // where the convention sends a work matter to the reader's own manager (whole-app check, 17 Nov 2026).
+    test('the closed form sends the member to their own manager, as the refusals do', () => {
+        const form = readFileSync('overtime-form.js', 'utf8');
+        assert.doesNotMatch(form, /to a Manager/i, 'overtime-form.js still sends the member to "a Manager"');
+        assert.equal((form.match(/If your circumstances have changed, speak to your manager\./g) ?? []).length, 2,
+            'the closed note and the line for a form that closed before the answers arrived');
+    });
+});
+
+
+describe('an answer the member did not give', () => {
+    // The form's first standing rule: an unanswered day stays unanswered. Both directions cost
+    // something, and they are not symmetrical — counting an unfinished day as ANSWERED submits a
+    // half-declaration about somebody's own life under their name, which is the failure that
+    // reaches the roster office; counting a finished one as outstanding only nags.
+    const DATES = ['2026-08-31', '2026-09-01', '2026-09-02'];
+
+    test('nothing at all is unanswered', () => {
+        assert.equal(dayUnfinished(undefined), true);
+        assert.equal(dayUnfinished(null), true);
+        assert.equal(dayUnfinished({}), true);
+    });
+
+    test('a mode with nothing behind it is STARTED, not answered', () => {
+        assert.equal(dayUnfinished({ mode: 'custom' }), true);
+        assert.equal(dayUnfinished({ mode: 'custom', start: '09:00' }), true);
+        assert.equal(dayUnfinished({ mode: 'custom', end: '17:00' }), true);
+    });
+
+    test('equal custom times are unfinished, not a 24-hour offer', () => {
+        // `shiftSpanMinutes` refuses the same pair for the same reason: a non-advancing range is
+        // malformed, and reading it as round-the-clock would submit an offer nobody made.
+        assert.equal(dayUnfinished({ mode: 'custom', start: '08:00', end: '08:00' }), true);
+        assert.equal(dayUnfinished({ mode: 'custom', start: '22:00', end: '07:00' }), false,
+            'an overnight range is finished — the roster writes night turns that way');
+    });
+
+    test('every non-custom mode is complete on its own', () => {
+        for (const mode of ['all_day', 'before', 'after', 'before_after', 'unavailable']) {
+            assert.equal(dayUnfinished({ mode }), false, mode);
+        }
+    });
+
+    test('the outstanding list is in WINDOW order, not answer order', () => {
+        // What it returns first is the day an error walks to, so the order is the behaviour.
+        const answers = { '2026-09-02': { mode: 'all_day' } };
+        assert.deepEqual(unfinishedDates(answers, DATES), ['2026-08-31', '2026-09-01']);
+        assert.equal(unfinishedDates(answers, DATES)[0], '2026-08-31');
+    });
+
+    test('the COUNT and the day it points at come from one traversal', () => {
+        // The v21.92 defect: the button counted a day as answered whenever an answer object
+        // existed, while the press-time check also required a sane custom pair — so the form said
+        // "Submit availability" and then refused to.
+        const answers = {
+            '2026-08-31': { mode: 'all_day' },
+            '2026-09-01': { mode: 'custom', start: '09:00' },   // started, not finished
+            '2026-09-02': { mode: 'unavailable' },
+        };
+        const outstanding = unfinishedDates(answers, DATES);
+        assert.deepEqual(outstanding, ['2026-09-01']);
+        assert.equal(outstanding.length, 1, 'the count is the length of the same list');
+    });
+
+    test('an answer for a date OUTSIDE the window does not complete it', () => {
+        const answers = { '2026-10-01': { mode: 'all_day' } };
+        assert.deepEqual(unfinishedDates(answers, DATES), DATES);
+    });
+
+    test('a fully answered week is an empty list, never a falsy nothing', () => {
+        const answers = Object.fromEntries(DATES.map(d => [d, { mode: 'all_day' }]));
+        assert.deepEqual(unfinishedDates(answers, DATES), []);
+        assert.deepEqual(unfinishedDates(undefined, DATES), DATES);
+    });
+});
+
+
+describe('what a timed-out submission can be said to have done', () => {
+    // Four outcomes and four sentences. Aborting stops us waiting; it does not stop the server
+    // writing — so the wrong answers cost different things. Saying "it did not save" when we cannot
+    // tell invites a second, contradictory submission that then legitimately conflicts; saying "it
+    // saved" when it did not leaves the member unrecorded and believing otherwise.
+    const OURS = 'mut-ours';
+
+    test('a week that has GONE is not a submission that failed', () => {
+        // A withdrawal landing in the seconds between the timeout and the re-read takes the whole
+        // window out of this member's state. Our id is then nowhere to be found — which reads
+        // exactly like a lost submission, and is not one. The instruction that follows differs
+        // completely: re-answer a form that no longer exists, or nothing at all.
+        assert.equal(reconcileVerdict(true, undefined, OURS, false), 'gone');
+        // Not-saved is reserved for a week that is STILL OURS and does not hold our answer.
+        assert.equal(reconcileVerdict(true, undefined, OURS, true), 'not-saved');
+        // And an unreadable state still outranks it: we cannot say the week has gone if we could
+        // not read anything at all.
+        assert.equal(reconcileVerdict(false, undefined, OURS, false), 'unknown');
+    });
+
+    test('a re-read that failed establishes NOTHING', () => {
+        assert.equal(reconcileVerdict(false, null, OURS), 'unknown');
+        // Even when a submission is somehow to hand, a failed read is not evidence about it.
+        assert.equal(reconcileVerdict(false, { lastMutationId: OURS }, OURS), 'unknown');
+    });
+
+    test('OUR id stored is the only thing that means it saved', () => {
+        assert.equal(reconcileVerdict(true, { lastMutationId: OURS }, OURS), 'saved');
+    });
+
+    test('somebody else’s write is not our write', () => {
+        // Every device a member owns shares one Firebase uid, so their other tab's submission is
+        // indistinguishable from ours by anything except this id.
+        assert.equal(reconcileVerdict(true, { lastMutationId: 'mut-other-tab' }, OURS), 'not-saved');
+    });
+
+    test('no submission at all did not save', () => {
+        assert.equal(reconcileVerdict(true, null, OURS), 'not-saved');
+        assert.equal(reconcileVerdict(true, undefined, OURS), 'not-saved');
+        assert.equal(reconcileVerdict(true, {}, OURS), 'not-saved');
+    });
+
+    test('a missing pending id never matches a missing stored one', () => {
+        // Both absent is the trap: `undefined === undefined` would report a phantom success on a
+        // week nobody submitted.
+        assert.equal(reconcileVerdict(true, {}, null), 'not-saved');
+        assert.equal(reconcileVerdict(true, { lastMutationId: undefined }, null), 'not-saved');
+        // And in the flavour that a bare `===` would let through. `pendingMutationId` is only ever
+        // null or a string today, so this case is not reachable from the form — it is pinned
+        // because the guard is what makes that safe to stop thinking about.
+        assert.equal(reconcileVerdict(true, {}, /** @type {any} */ (undefined)), 'not-saved');
+    });
+});
+
+
+describe('a write whose outcome nobody can know (overtime-ui-10)', () => {
+    test('a timeout, a cut-off answer and an error the server did not name are UNKNOWN, not failed', () => {
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'timeout' }), true);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'network' }), true);
+        // A function that runs out of its own time answers with a bare 5xx: it may have committed.
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-504', status: 504 }), true);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-500', status: 500 }), true);
+    });
+    test('an answer the server DID give is not unknown — it said what happened', () => {
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'write-failed', status: 500 }), false, 'named: the transaction failed');
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'closed', status: 409 }), false);
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'http-404', status: 404 }), false, 'a 4xx is a refusal');
+        assert.equal(writeOutcomeUnknown({ ok: false, code: 'offline' }), false, 'nothing was sent');
+        assert.equal(writeOutcomeUnknown({ ok: true, code: 'timeout' }), false);
+    });
+});
+
+describe('whose write the server is refusing', () => {
+    // Two opposite sentences hang off this: "your earlier submission did save, review it" against
+    // "we have not overwritten a newer version". Getting it backwards tells a member their own
+    // answers are somebody else's, or invites them to overwrite a colleague's.
+    test('our own late-landing write is ours', () => {
+        assert.equal(conflictIsOurs('mut-1', 'mut-1'), true);
+    });
+
+    test('a different id is somebody else', () => {
+        assert.equal(conflictIsOurs('mut-1', 'mut-2'), false);
+    });
+
+    test('with nothing pending it is never ours', () => {
+        assert.equal(conflictIsOurs(null, 'mut-2'), false);
+        assert.equal(conflictIsOurs(null, null), false, 'two absences are not a match');
+        assert.equal(conflictIsOurs(null, undefined), false);
+    });
+
+    test('a pending id the server did not name is not a match', () => {
+        assert.equal(conflictIsOurs('mut-1', undefined), false);
+        assert.equal(conflictIsOurs('mut-1', null), false);
+    });
+});
+
+// ── weekAvailabilitySummary (v22.05) — the clerk's clipboard text ──────────────────────────────
+// The one invariant that matters most: the three sections are ALWAYS NAMED, empty or not — a
+// summary without "No response" answers "anyone outstanding?" with silence, which reads as no.
+describe('weekAvailabilitySummary', () => {
+    const P = [{ memberName: 'A. Smith' }, { memberName: 'B. Jones' }, { memberName: 'C. Brown' }];
+    const subs = new Map([
+        ['A. Smith', { days: { '2026-09-09': { mode: 'after', from: '15:00' } } }],
+        ['B. Jones', { days: { '2026-09-09': { mode: 'unavailable' } } }],
+        // C. Brown never submitted — No response, and never Available.
+    ]);
+    const arg = { weekEnding: '2026-09-12', dates: ['2026-09-09'], participants: P, submissions: subs };
+
+    test('it opens by saying which grades it covers and when it was read (overtime-ui-1)', () => {
+        const AT = Date.parse('2026-09-08T08:30:00Z');
+        const [title, scope, asAt] = weekAvailabilitySummary({ ...arg, grade: 'CES', asAt: AT }).split('\n');
+        assert.match(title, /^Overtime availability — Week ending Saturday 12 September 2026$/);
+        assert.equal(scope, 'CES only');
+        assert.equal(asAt, asAtLine(AT), 'the sheet\'s own "as at" sentence, not a second wording');
+        assert.equal(weekAvailabilitySummary({ ...arg, asAt: AT }).split('\n')[1], 'All grades');
+    });
+
+    test('all three sections are named, with the right people under each', () => {
+        const text = weekAvailabilitySummary(arg);
+        assert.match(text, /Week ending/);
+        assert.match(text, /Available: A\. Smith \(/);
+        assert.match(text, /Not available: B\. Jones/);
+        assert.match(text, /No response: C\. Brown/);
+    });
+
+    test('an EMPTY section still appears and says nobody — absence must never look like all-clear', () => {
+        const text = weekAvailabilitySummary({ ...arg, participants: [{ memberName: 'B. Jones' }] });
+        assert.match(text, /Available: nobody/);
+        assert.match(text, /No response: nobody/);
+        assert.match(text, /Not available: B\. Jones/);
+    });
+
+    test('the day lens narrows to one date; ALL covers the whole week', () => {
+        const week = weekAvailabilitySummary({ ...arg, dates: ['2026-09-08', '2026-09-09'] });
+        assert.equal((week.match(/Available:/g) || []).length, 2);
+        const one = weekAvailabilitySummary({ ...arg, dates: ['2026-09-08', '2026-09-09'], day: '2026-09-09' });
+        assert.equal((one.match(/Available:/g) || []).length, 1);
+        assert.match(one, /9 Sep/);
+    });
+
+    test('a day the submission does not mention is No response — the positive-answer rule', () => {
+        const text = weekAvailabilitySummary({ ...arg, dates: ['2026-09-10'] });
+        assert.match(text, /No response: A\. Smith · B\. Jones · C\. Brown/);
+    });
+
+    // Whole-app review, Oct 2026: the screen flags a request to come off a rostered Sunday beside the
+    // member's answer, and the copied summary dropped it — the one request on the page about
+    // CONTRACTED work, lost on the way to the conversation where it is decided.
+    test('a Sunday release request is copied, on its OWN line, never folded into the answer', () => {
+        const sun = '2026-09-13';
+        const text = weekAvailabilitySummary({ ...arg, dates: [sun], submissions: new Map([
+            ['A. Smith', { days: { [sun]: { mode: 'unavailable', releaseRequested: true } } }],
+            ['B. Jones', { days: { [sun]: { mode: 'all_day' } } }],
+        ]) });
+        assert.match(text, /^ {2}Asked to come off this Sunday: A\. Smith$/m);
+        assert.match(text, /Not available: A\. Smith$/m, 'the overtime answer stands on its own');
+    });
+
+    test('every Sunday names the request line — "nobody" in words; another day only if somebody asked', () => {
+        const sun = weekAvailabilitySummary({ ...arg, dates: ['2026-09-13'] });
+        assert.match(sun, /Asked to come off this Sunday: nobody/);
+        const wed = weekAvailabilitySummary(arg);
+        assert.doesNotMatch(wed, /Asked to come off/, 'no request line on a weekday nobody asked about');
+    });
+
+    test('a release request outside the shown participants is not copied — the copy matches the screen', () => {
+        const sun = '2026-09-13';
+        const text = weekAvailabilitySummary({ ...arg, dates: [sun], participants: [{ memberName: 'B. Jones' }],
+            submissions: new Map([['A. Smith', { days: { [sun]: { mode: 'all_day', releaseRequested: true } } }]]) });
+        assert.match(text, /Asked to come off this Sunday: nobody/);
+    });
+});
+
+// ── "YOU CAN PUT THEM BACK …" — WHEN A STOP ASKING CAN BE UNDONE (overtime-ui-2) ────────────────
+// The confirmation, the panel note and the help all promised "while the form is open". Somebody
+// stopped before the first deadline can be put back only until it — after it, Ask again is refused
+// (the client hides it and the server answers `restore-window-passed`) although the form is open for
+// six more days. So the sentence is worked out from the same rule the button is.
+describe('putBackWindow — the promise a Stop asking makes', () => {
+    const INITIAL = Date.parse('2026-08-18T11:00:00Z');
+    const FINAL = Date.parse('2026-08-25T11:00:00Z');
+    test('before the first deadline, only until it — and it names the deadline', () => {
+        assert.equal(putBackWindow(INITIAL, INITIAL - 86_400_000), 'until the first deadline, Tue 18 Aug · 12:00');
+        assert.equal(putBackWindow(INITIAL, INITIAL), 'until the first deadline, Tue 18 Aug · 12:00',
+            'a stop AT the deadline is not "after" it, for the restore rule');
+    });
+    test('after it, for as long as the week is open', () => {
+        assert.equal(putBackWindow(INITIAL, INITIAL + 1), 'while the week is open');
+    });
+    test('an unknown deadline under-promises rather than over-promises', () => {
+        assert.equal(putBackWindow(NaN, INITIAL), 'until the first deadline');
+        assert.equal(putBackWindow(0, INITIAL), 'until the first deadline');
+    });
+    test('the help panel makes no unconditional promise either', async () => {
+        const { CARD_TIPS } = await import('../overtime-tips.js');
+        const help = JSON.stringify(CARD_TIPS);
+        assert.doesNotMatch(help, /always be undone|while the (form|week) is open\b(?![^.]*first deadline)/i);
+        assert.match(help, /undone until that deadline/, 'it says what the rule allows');
+    });
+
+    test('it agrees with the rule the Ask again button is drawn from, at every instant', () => {
+        for (const stoppedAt of [INITIAL - 86_400_000, INITIAL - 1, INITIAL, INITIAL + 1, FINAL - 60_000]) {
+            const promise = putBackWindow(INITIAL, stoppedAt);
+            // Just after the first deadline (or the stop, if later) — past the boundary that matters,
+            // and still before the week closes.
+            const laterInTheWeek = Math.max(stoppedAt, INITIAL) + 1;
+            const undoable = canRestoreNow(INITIAL, stoppedAt, laterInTheWeek, FINAL);
+            assert.equal(promise === 'while the week is open', undoable,
+                `stopped at ${new Date(stoppedAt).toISOString()}: "${promise}" but the button says ${undoable}`);
+        }
+    });
+});
+
+// ── reminderLine (v22.05) — the audit row's four states ────────────────────────────────────────
+describe('reminderLine', () => {
+    const DL = Date.UTC(2026, 8, 1, 11);
+    test('sent → stated with when, whatever the phase', () => {
+        for (const phase of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            const r = reminderLine(phase, DL, DL - 3 * 3600e3, 1, 1);
+            assert.equal(r?.tone, 'ok');
+            assert.match(r?.text || '', /sent/);
+        }
+    });
+    test('not yet sent while INITIAL_OPEN → expectation, not alarm', () => {
+        const r = reminderLine('INITIAL_OPEN', DL, null);
+        assert.equal(r?.tone, 'note');
+        assert.match(r?.text || '', /morning of the initial deadline/);
+    });
+    test('unsent past the deadline while the week is LIVE → a warning someone can act on', () => {
+        const r = reminderLine('FINAL_OPEN', DL, null);
+        assert.equal(r?.tone, 'warn');
+    });
+    test('unsent on a CLOSED week → silence — pre-feature history must not wear a false alarm', () => {
+        assert.equal(reminderLine('CLOSED', DL, null), null);
+        assert.equal(reminderLine('CLOSED', DL, undefined), null);
+    });
+
+    // ── WHAT THE REMINDER REACHED (overtime-core-4) ─────────────────────────────────────────────
+    // The stamp is CLAIMED before the send, so on its own it says a send was attempted. The server
+    // now records, after the send, how many had said nothing and how many devices took it — and the
+    // line said "sent", in the ok tone, on mornings that reached nobody.
+    const AT = DL - 7 * 3600e3;   // the 05:00 run
+    test('a send that reached nobody says so, while there is still time to ring round', () => {
+        const r = reminderLine('INITIAL_OPEN', DL, AT, 2, 0);
+        assert.match(r?.text || '', /reached nobody/);
+        assert.match(r?.text || '', /contact/i, 'and says what to do instead');
+        assert.doesNotMatch(r?.text || '', /\bsent\b/, 'a reminder nobody received was not "sent"');
+        assert.equal(r?.tone, 'warn');
+        // On a closed week it is the record, not a call to action.
+        const closed = reminderLine('CLOSED', DL, AT, 2, 0);
+        assert.match(closed?.text || '', /reached nobody/);
+        assert.doesNotMatch(closed?.text || '', /contact/i);
+        assert.equal(closed?.tone, 'note');
+    });
+    test('a morning with nobody to remind says no reminder was needed', () => {
+        const r = reminderLine('FINAL_OPEN', DL, AT, 0, 0);
+        assert.match(r?.text || '', /No reminder was needed/);
+        assert.doesNotMatch(r?.text || '', /reached nobody/, 'nobody waiting is not a failed send');
+        assert.equal(r?.tone, 'ok');
+    });
+    test('a send that reached a device is "sent" — only to people who have notifications on', () => {
+        const r = reminderLine('FINAL_OPEN', DL, AT, 3, 2);
+        assert.match(r?.text || '', /sent/);
+        assert.match(r?.text || '', /notifications/, 'a member with no subscribed device was not reached');
+        assert.equal(r?.tone, 'ok');
+    });
+    test('a stamp with no recorded outcome claims only the attempt — never "sent", never "nobody"', () => {
+        // Every stamp written before the outcome was recorded, and the seconds between the claim and
+        // the send. Unknown is not zero.
+        for (const [o, a] of [[null, null], [undefined, undefined], [2, null], [null, 0]]) {
+            const r = reminderLine('FINAL_OPEN', DL, AT, o, a);
+            assert.match(r?.text || '', /attempted/, `${o}/${a}`);
+            assert.equal(r?.tone, 'note', `${o}/${a}`);
+        }
+    });
+});
+
+// ── "STOPPED BY …, <DATE>" IS LONDON'S DATE (v24.23) ────────────────────────────────────────────
+// It took the date from `toISOString()`, which is UTC: a stop at 00:30 on a summer night read as the
+// previous day, on the one line that attributes a change to somebody else's record.
+describe('withdrawnLine — the date is the day it happened in London', async () => {
+    const { withdrawnLine } = await import('../overtime-format.js');
+    test('00:30 BST on Sat 12 Sep is Saturday, not Friday', () => {
+        const at = Date.UTC(2026, 8, 11, 23, 30);   // 23:30 UTC Fri = 00:30 BST Sat
+        assert.equal(withdrawnLine({ withdrawn: true, withdrawnBy: 'H. Croft', withdrawnAt: at }), 'Stopped by H. Croft, Sat 12 Sep');
+    });
+    test('and in winter London is UTC, so nothing shifts', () => {
+        const at = Date.UTC(2026, 11, 4, 23, 30);   // 23:30 GMT Fri 4 Dec
+        assert.equal(withdrawnLine({ withdrawn: true, withdrawnAt: at }), 'Stopped, Fri 4 Dec');
+    });
+});

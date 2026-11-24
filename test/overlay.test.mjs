@@ -1,0 +1,1129 @@
+/**
+ * Unit tests for overlay.js: trapFocus, initCardCollapse, lockBodyScroll,
+ * and unlockBodyScroll.
+ * Run with: node scripts/run-tests.mjs test/overlay.test.mjs
+ *
+ * overlay.js imports one module, card-collapse.js (re-exported, so initCardCollapse is tested here
+ * through it), and that imports nothing; otherwise only browser globals. A minimal stub is provided
+ * before the import so the module loads cleanly in Node.
+ */
+
+import { test, describe, beforeEach, afterEach, mock } from 'node:test';
+import assert from 'node:assert/strict';
+
+// ── Minimal browser-global stub (must be set before the import) ───────────────
+
+const _bodyClasses = new Set();
+const _bodyStyle   = new Map();
+let   _lastScrollTo = { x: 0, y: 0 };
+
+global.window = {
+    scrollY:             100,
+    scrollTo:            (x, y) => { _lastScrollTo = { x, y }; },
+    addEventListener:    () => {},
+    removeEventListener: () => {},
+    matchMedia:          () => ({ matches: false }),
+};
+global.history = { pushState: () => {}, back: () => {} };
+global.document = {
+    activeElement: null,
+    body: {
+        classList: {
+            add:      (...cls) => cls.forEach(c => _bodyClasses.add(c)),
+            remove:   (...cls) => cls.forEach(c => _bodyClasses.delete(c)),
+            contains: cls      => _bodyClasses.has(cls),
+        },
+        style: {
+            setProperty:    (k, v) => _bodyStyle.set(k, v),
+            removeProperty: k      => _bodyStyle.delete(k),
+        },
+    },
+    getElementById:      () => null,
+    addEventListener:    () => {},
+    removeEventListener: () => {},
+};
+// Run requestAnimationFrame callbacks synchronously so open() tests are simpler.
+global.requestAnimationFrame = fn => fn();
+
+const {
+    lockBodyScroll, unlockBodyScroll,
+    trapFocus, initCardCollapse, createLightbox, dismissOverlay,
+} = await import('../overlay.js');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Create a minimal focusable element stub. */
+function makeBtn({ disabled = false, ariaDisabled = null } = {}) {
+    const el = { disabled, wasFocused: false };
+    el.getAttribute = attr => (attr === 'aria-disabled' ? ariaDisabled : null);
+    el.focus = () => {
+        el.wasFocused = true;
+        global.document.activeElement = el;
+    };
+    return el;
+}
+
+/** Create a container whose querySelectorAll returns the given elements. */
+function makeContainer(children) {
+    return { querySelectorAll: () => children };
+}
+
+/** Create a minimal element stub for DOM-wiring tests. */
+function makeEl({ tagName = 'DIV', classes = [], attrs = {} } = {}) {
+    const classList = new Set(classes);
+    const _attrs    = { ...attrs };
+    const listeners = {};
+    const el = {
+        tagName,
+        classList: {
+            add:      (...cls) => cls.forEach(c => classList.add(c)),
+            remove:   (...cls) => cls.forEach(c => classList.delete(c)),
+            contains: cls      => classList.has(cls),
+            toggle: (cls, force) => {
+                if (force !== undefined) {
+                    force ? classList.add(cls) : classList.delete(cls);
+                    return !!force;
+                }
+                const had = classList.has(cls);
+                had ? classList.delete(cls) : classList.add(cls);
+                return !had;
+            },
+        },
+        getAttribute:    attr      => _attrs[attr] ?? null,
+        setAttribute:    (attr, v) => { _attrs[attr] = String(v); },
+        hasAttribute:    attr      => attr in _attrs,
+        addEventListener: (type, fn) => {
+            listeners[type] = listeners[type] || [];
+            listeners[type].push(fn);
+        },
+        removeEventListener: (type, fn) => {
+            listeners[type] = (listeners[type] || []).filter(f => f !== fn);
+        },
+        // An event is the element's OWN unless the test says otherwise (`{ target: child }`), as a browser's is:
+        // dismissOverlay finishes only on the overlay's own `transitionend`, never a bubbled child's.
+        _trigger: (type, evt = { target: el }) => (listeners[type] || []).slice().forEach(fn => fn(evt)),
+    };
+    return el;
+}
+
+// ── lockBodyScroll / unlockBodyScroll ─────────────────────────────────────────
+
+// lockBodyScroll/unlockBodyScroll are DEPTH-COUNTED (v16.16) via a module-level counter, so
+// drain any leaked depth between tests (10 unlocks is far more than any test nests).
+function _drainLock() { for (let i = 0; i < 10; i++) unlockBodyScroll(); }
+
+describe('lockBodyScroll', () => {
+    beforeEach(() => {
+        _drainLock();
+        _bodyClasses.clear();
+        _bodyStyle.clear();
+        global.window.scrollY = 100;
+    });
+
+    test('adds lb-open class to body', () => {
+        lockBodyScroll();
+        assert.equal(_bodyClasses.has('lb-open'), true);
+    });
+
+    test('sets --lb-scroll-y to the negative current scroll position', () => {
+        global.window.scrollY = 250;
+        lockBodyScroll();
+        assert.equal(_bodyStyle.get('--lb-scroll-y'), '-250px');
+    });
+});
+
+describe('unlockBodyScroll', () => {
+    beforeEach(() => {
+        _drainLock();
+        _bodyClasses.clear();
+        _bodyStyle.clear();
+        _lastScrollTo = { x: 0, y: 0 };
+        global.window.scrollY = 100;
+        lockBodyScroll(); // establish locked state (depth 0→1)
+    });
+
+    test('removes lb-open class from body', () => {
+        unlockBodyScroll();
+        assert.equal(_bodyClasses.has('lb-open'), false);
+    });
+
+    test('removes --lb-scroll-y property from body style', () => {
+        unlockBodyScroll();
+        assert.equal(_bodyStyle.has('--lb-scroll-y'), false);
+    });
+
+    test('restores the scroll position saved by lockBodyScroll', () => {
+        unlockBodyScroll();
+        assert.equal(_lastScrollTo.y, 100);
+    });
+});
+
+describe('lockBodyScroll — nesting (depth counter, v16.16)', () => {
+    beforeEach(() => {
+        _drainLock();
+        _bodyClasses.clear();
+        _bodyStyle.clear();
+        _lastScrollTo = { x: 0, y: 0 };
+        global.window.scrollY = 100;
+    });
+
+    test('a nested lock/unlock keeps the lock until the OUTERMOST unlock', () => {
+        lockBodyScroll();                 // outer: depth 0→1, captures scrollY=100
+        global.window.scrollY = 0;        // once .lb-open (position:fixed) is applied, scrollY reads 0
+        lockBodyScroll();                 // inner: depth 1→2, must NOT re-capture (would clobber to 0)
+        assert.equal(_bodyStyle.get('--lb-scroll-y'), '-100px', 'inner lock did not overwrite the baseline');
+
+        unlockBodyScroll();               // inner: depth 2→1, still locked
+        assert.equal(_bodyClasses.has('lb-open'), true, 'still locked after the inner unlock');
+
+        unlockBodyScroll();               // outer: depth 1→0, restores
+        assert.equal(_bodyClasses.has('lb-open'), false);
+        assert.equal(_lastScrollTo.y, 100, 'restored the ORIGINAL scroll position, not 0');
+    });
+
+    test('an UNBALANCED second unlock at depth 0 does NOT re-run scrollTo (v16.19 double-unlock guard)', () => {
+        lockBodyScroll();                 // depth 0→1, captures scrollY=100
+        unlockBodyScroll();               // depth 1→0, restores to 100
+        assert.equal(_lastScrollTo.y, 100);
+        // Reader scrolls away after the overlay closed; then a stray second unlock fires (Android
+        // Back closes the nav drawer mid doc-fetch, then the fetch's own close unlocks again). It
+        // must be a no-op — previously it re-ran scrollTo(0, staleOffset=100), yanking the reader back.
+        global.window.scrollY = 500;
+        _lastScrollTo = { x: 0, y: 0 };
+        unlockBodyScroll();               // depth already 0 → must NOT scroll
+        assert.equal(_lastScrollTo.y, 0, 'depth-0 unlock re-ran scrollTo with a stale offset');
+    });
+});
+
+// ── THE PAGE DOES NOT JUMP SIDEWAYS (lightbox review R1-13, 22 Nov 2026) ────────────────────────────
+// Fixing the body took a permanent scrollbar away (the Windows station PC), and the page behind moved right by its
+// width. The lock keeps its gutter — only where a scrollbar takes room now: a gutter on every desktop page moved the
+// pages that do not scroll, and a phone's scrollbar takes none. Shown with real scrollbars in Chromium (the browser
+// suites hide them): the page held still with the rule and moved 5px without it.
+describe('lockBodyScroll — the scrollbar\'s room is kept while locked, where it takes room', () => {
+    const rootClasses = new Set();
+    beforeEach(() => {
+        _drainLock(); _bodyClasses.clear(); rootClasses.clear();
+        /** @type {any} */ (global.document).documentElement = { clientWidth: 1270, classList: {
+            add: (/** @type {string} */ c) => rootClasses.add(c), remove: (/** @type {string} */ c) => rootClasses.delete(c) } };
+    });
+    afterEach(() => { delete (/** @type {any} */ (global.document)).documentElement; delete (/** @type {any} */ (global.window)).innerWidth; });
+
+    test('a scrollbar taking 10px: its gutter is kept until the outermost unlock', () => {
+        /** @type {any} */ (global.window).innerWidth = 1280;
+        lockBodyScroll();
+        assert.equal(rootClasses.has('lb-keep-gutter'), true, 'the page jumps sideways by the scrollbar\'s width');
+        lockBodyScroll(); unlockBodyScroll();
+        assert.equal(rootClasses.has('lb-keep-gutter'), true, 'a nested unlock gave the gutter up under the outer overlay');
+        unlockBodyScroll();
+        assert.equal(rootClasses.has('lb-keep-gutter'), false, 'the gutter outlived the lock');
+    });
+
+    test('no scrollbar taking room (a phone, a page too short to scroll): no gutter', () => {
+        /** @type {any} */ (global.window).innerWidth = 1270;
+        lockBodyScroll();
+        assert.equal(rootClasses.has('lb-keep-gutter'), false, 'a gutter appeared where there was no scrollbar, moving the page');
+        unlockBodyScroll();
+    });
+});
+
+// ── trapFocus ─────────────────────────────────────────────────────────────────
+
+describe('trapFocus', () => {
+    test('no-op when key is not Tab', () => {
+        const btn = makeBtn();
+        trapFocus(makeContainer([btn]), { key: 'Enter', shiftKey: false, preventDefault: () => {} });
+        assert.equal(btn.wasFocused, false);
+    });
+
+    test('no-op when container is null', () => {
+        assert.doesNotThrow(() =>
+            trapFocus(null, { key: 'Tab', shiftKey: false, preventDefault: () => {} }));
+    });
+
+    test('preventDefault and no focus change when container has no focusable elements', () => {
+        let prevented = false;
+        trapFocus(makeContainer([]), { key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; } });
+        assert.equal(prevented, true);
+    });
+
+    test('Tab forward from last element wraps focus to first', () => {
+        const first = makeBtn();
+        const last  = makeBtn();
+        global.document.activeElement = last;
+        let prevented = false;
+        trapFocus(makeContainer([first, last]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(first.wasFocused, true);
+        assert.equal(prevented, true);
+    });
+
+    test('Tab forward from a non-last element does not wrap', () => {
+        const first  = makeBtn();
+        const second = makeBtn();
+        const last   = makeBtn();
+        global.document.activeElement = second;
+        let prevented = false;
+        trapFocus(makeContainer([first, second, last]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(first.wasFocused, false);
+        assert.equal(prevented, false);
+    });
+
+    test('Shift+Tab from first element wraps focus to last', () => {
+        const first = makeBtn();
+        const last  = makeBtn();
+        global.document.activeElement = first;
+        let prevented = false;
+        trapFocus(makeContainer([first, last]), {
+            key: 'Tab', shiftKey: true, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(last.wasFocused, true);
+        assert.equal(prevented, true);
+    });
+
+    test('disabled element is excluded from the focusable list', () => {
+        const first    = makeBtn();
+        const disabled = makeBtn({ disabled: true });
+        const last     = makeBtn();
+        // Without disabled: focusable = [first, last]; Tab from last wraps to first
+        global.document.activeElement = last;
+        let prevented = false;
+        trapFocus(makeContainer([first, disabled, last]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(first.wasFocused, true);
+        assert.equal(prevented, true);
+    });
+
+    test('Shift+Tab from the CONTAINER itself wraps to last (panel-focus leak guard)', () => {
+        // Default open focus lands on the .lb-content panel (tabindex="-1"), which is outside the
+        // focusable set. Without the container-focus branch, Shift+Tab here fires no wrap and the
+        // browser walks focus out of the modal into the page behind. It must wrap to `last`.
+        const first     = makeBtn();
+        const last      = makeBtn();
+        const container = makeContainer([first, last]);
+        global.document.activeElement = container;
+        let prevented = false;
+        trapFocus(container, {
+            key: 'Tab', shiftKey: true, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(last.wasFocused, true);
+        assert.equal(first.wasFocused, false);
+        assert.equal(prevented, true);
+    });
+
+    test('Tab from the CONTAINER itself moves to first', () => {
+        const first     = makeBtn();
+        const last      = makeBtn();
+        const container = makeContainer([first, last]);
+        global.document.activeElement = container;
+        let prevented = false;
+        trapFocus(container, {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(first.wasFocused, true);
+        assert.equal(last.wasFocused, false);
+        assert.equal(prevented, true);
+    });
+
+    test('aria-disabled="true" element is excluded from the focusable list', () => {
+        const first        = makeBtn();
+        const ariaDisabled = makeBtn({ ariaDisabled: 'true' });
+        const last         = makeBtn();
+        global.document.activeElement = last;
+        let prevented = false;
+        trapFocus(makeContainer([first, ariaDisabled, last]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(first.wasFocused, true);
+        assert.equal(prevented, true);
+    });
+});
+
+// ── initCardCollapse ──────────────────────────────────────────────────────────
+
+describe('initCardCollapse', () => {
+    let header, body, chevron;
+
+    beforeEach(() => {
+        header  = makeEl({ tagName: 'DIV' });
+        body    = makeEl();
+        chevron = makeEl();
+        global.document.getElementById = id => {
+            if (id === 'hdr') return header;
+            if (id === 'bdy') return body;
+            if (id === 'chv') return chevron;
+            return null;
+        };
+    });
+
+    test('no-op without throwing when header is not found', () => {
+        assert.doesNotThrow(() => initCardCollapse('missing-hdr', 'bdy'));
+    });
+
+    test('no-op without throwing when body is not found', () => {
+        assert.doesNotThrow(() => initCardCollapse('hdr', 'missing-bdy'));
+    });
+
+    test('clicking header adds open class to body', () => {
+        initCardCollapse('hdr', 'bdy');
+        header._trigger('click');
+        assert.equal(body.classList.contains('open'), true);
+    });
+
+    test('clicking header twice returns body to closed state', () => {
+        initCardCollapse('hdr', 'bdy');
+        header._trigger('click');
+        header._trigger('click');
+        assert.equal(body.classList.contains('open'), false);
+    });
+
+    test('aria-expanded starts false and reflects toggle state', () => {
+        initCardCollapse('hdr', 'bdy');
+        assert.equal(header.getAttribute('aria-expanded'), 'false');
+        header._trigger('click');
+        assert.equal(header.getAttribute('aria-expanded'), 'true');
+        header._trigger('click');
+        assert.equal(header.getAttribute('aria-expanded'), 'false');
+    });
+
+    test('aria-expanded initialises to true when body already has open class', () => {
+        body = makeEl({ classes: ['open'] });
+        global.document.getElementById = id => id === 'hdr' ? header : id === 'bdy' ? body : null;
+        initCardCollapse('hdr', 'bdy');
+        assert.equal(header.getAttribute('aria-expanded'), 'true');
+    });
+
+    test('Enter key triggers toggle', () => {
+        initCardCollapse('hdr', 'bdy');
+        header._trigger('keydown', { key: 'Enter', preventDefault: () => {} });
+        assert.equal(body.classList.contains('open'), true);
+    });
+
+    test('Space key triggers toggle', () => {
+        initCardCollapse('hdr', 'bdy');
+        header._trigger('keydown', { key: ' ', preventDefault: () => {} });
+        assert.equal(body.classList.contains('open'), true);
+    });
+
+    test('other keys do not trigger toggle', () => {
+        initCardCollapse('hdr', 'bdy');
+        header._trigger('keydown', { key: 'ArrowDown', preventDefault: () => {} });
+        assert.equal(body.classList.contains('open'), false);
+    });
+
+    test('chevron gains open class when body opens', () => {
+        initCardCollapse('hdr', 'bdy', 'chv');
+        header._trigger('click');
+        assert.equal(chevron.classList.contains('open'), true);
+    });
+
+    test('chevron loses open class when body closes', () => {
+        initCardCollapse('hdr', 'bdy', 'chv');
+        header._trigger('click'); // open
+        header._trigger('click'); // close
+        assert.equal(chevron.classList.contains('open'), false);
+    });
+
+    test('onToggle callback receives the new open state', () => {
+        const states = [];
+        initCardCollapse('hdr', 'bdy', null, open => states.push(open));
+        header._trigger('click');
+        header._trigger('click');
+        assert.deepEqual(states, [true, false]);
+    });
+
+    test('non-button/anchor header receives role=button', () => {
+        initCardCollapse('hdr', 'bdy'); // header is DIV
+        assert.equal(header.getAttribute('role'), 'button');
+    });
+
+    test('non-button/anchor header receives tabindex=0', () => {
+        initCardCollapse('hdr', 'bdy');
+        assert.equal(header.getAttribute('tabindex'), '0');
+    });
+
+    test('button header does not receive role=button', () => {
+        header.tagName = 'BUTTON';
+        initCardCollapse('hdr', 'bdy');
+        assert.equal(header.getAttribute('role'), null);
+    });
+
+    test('header gets aria-controls pointing to body id', () => {
+        initCardCollapse('hdr', 'bdy');
+        assert.equal(header.getAttribute('aria-controls'), 'bdy');
+    });
+});
+
+// ── createLightbox — re-open during the close fade (review F1) ─────────────────
+
+describe('createLightbox — re-open during the close fade', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    function build() {
+        const overlay  = makeEl({ classes: [] });
+        const content  = makeEl({});
+        const closeBtn = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn });
+        return { overlay, content, lb };
+    }
+
+    test('re-opening while still fading out re-shows the overlay instead of silently no-opping', () => {
+        const { overlay, lb } = build();
+        lb.open();
+        assert.equal(overlay.classList.contains('visible'), true);
+        assert.equal(overlay.classList.contains('open'), true);
+        assert.equal(_bodyClasses.has('lb-open'), true, 'scroll locked while open');
+
+        lb.close();   // matchMedia matches:false → animated close: .open removed, .visible remains, finish pending
+        assert.equal(overlay.classList.contains('open'), false);
+        assert.equal(overlay.classList.contains('visible'), true, 'still visible mid-fade');
+
+        lb.open();    // re-open DURING the fade — must complete the pending close then re-show
+        assert.equal(overlay.classList.contains('open'), true, 're-opened, not dropped');
+        assert.equal(overlay.classList.contains('visible'), true);
+        assert.equal(_bodyClasses.has('lb-open'), true, 'still locked exactly once (balanced)');
+
+        // The ORIGINAL close's pending transitionend must now be an idempotent no-op — it must not
+        // hide the freshly re-opened overlay or double-unlock scroll.
+        overlay._trigger('transitionend');
+        assert.equal(overlay.classList.contains('visible'), true, 'stale finisher does not hide the re-opened overlay');
+        assert.equal(_bodyClasses.has('lb-open'), true, 'stale finisher does not release the lock');
+
+        // A real close now fully tears down and unlocks.
+        lb.close();
+        overlay._trigger('transitionend');
+        assert.equal(overlay.classList.contains('visible'), false, 'closed');
+        assert.equal(_bodyClasses.has('lb-open'), false, 'unlocked after the real close');
+    });
+
+    test('a normal open → transitionend-settled close → re-open still works (scroll balanced)', () => {
+        const { overlay, lb } = build();
+        lb.open();
+        lb.close();
+        overlay._trigger('transitionend');   // close settles normally
+        assert.equal(overlay.classList.contains('visible'), false);
+        assert.equal(_bodyClasses.has('lb-open'), false);
+        lb.open();                            // fresh open after a clean close
+        assert.equal(overlay.classList.contains('open'), true);
+        assert.equal(_bodyClasses.has('lb-open'), true);
+    });
+});
+
+// ── NESTED OVERLAYS AND A DOUBLE CLOSE (v21.86) ─────────────────────────────────────────────────
+//
+// `close()` is reachable from four controls at once — ✕, backdrop, Escape, Android Back — and the
+// fade lasts ~300ms. Two of them firing inside that window used to run the whole close body twice,
+// which meant a second `dismissOverlay` with its own `_done` flag, and therefore a second
+// `unlockBodyScroll()` for one `lockBodyScroll()`.
+//
+// With ONE overlay that is invisible: depth 1 → 0 either way. The damage needs a NESTED overlay,
+// where the depth counter is what keeps the outer one's lock alive: 2 → 1 → 0 leaves the page
+// behind a still-open modal scrollable. Reproduced by an external audit; this is that case.
+//
+// The fade is DRIVEN here (`_trigger('transitionend')`) rather than waited out. The first draft of
+// these tests did neither, so nothing had finished by the time they asserted — and they passed with
+// the bug still in, which is the failure mode this whole suite exists to avoid.
+describe('a double close does not unlock the page under an overlay that is still open', () => {
+    const makeLb = (onClose) => {
+        const overlay = makeEl({ classes: [] });
+        const content = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn: null, onClose });
+        return { ...lb, overlay, settle: () => overlay._trigger('transitionend') };
+    };
+
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    test('the outer overlay keeps the page locked', () => {
+        const outer = makeLb();
+        const inner = makeLb();
+        outer.open();
+        inner.open();
+        assert.equal(_bodyClasses.has('lb-open'), true, 'both open → locked');
+
+        inner.close();
+        inner.close();      // the second tap, mid-fade — this is the whole test
+        inner.settle();     // now let the fade finish
+
+        assert.equal(_bodyClasses.has('lb-open'), true,
+            'the outer overlay is still open, so the page behind it must stay locked');
+    });
+
+    test('and closing them both still unlocks it', () => {
+        // The opposite failure: a guard that swallowed too much would leave the page permanently
+        // locked, which is worse than the bug — the app would look frozen.
+        const outer = makeLb();
+        const inner = makeLb();
+        outer.open();
+        inner.open();
+        inner.close(); inner.settle();
+        outer.close(); outer.settle();
+        assert.equal(_bodyClasses.has('lb-open'), false);
+    });
+
+    test('a re-opened overlay still closes properly afterwards', () => {
+        // The guard must not latch. An overlay opened, closed and opened again is the ordinary
+        // life of every lightbox in the app.
+        const lb = makeLb();
+        lb.open(); lb.close(); lb.settle();
+        lb.open();
+        assert.equal(_bodyClasses.has('lb-open'), true);
+        lb.close(); lb.settle();
+        assert.equal(_bodyClasses.has('lb-open'), false);
+    });
+
+    test('onClose runs once per close, not once per tap', () => {
+        // A one-time notice archives itself and writes its seen-flag in onClose; running it twice
+        // is harmless there by luck rather than by design.
+        let calls = 0;
+        const lb = makeLb(() => { calls++; });
+        lb.open();
+        lb.close(); lb.close(); lb.close();
+        lb.settle();
+        assert.equal(calls, 1);
+    });
+
+    test('and the same holds under REDUCED MOTION, where the close finishes synchronously', () => {
+        // The path a `_pendingClose`-only guard misses: `dismissOverlay` completes immediately and
+        // returns null, so there is no pending finisher to test against. The overlay's own
+        // `visible` class is what says it has already gone.
+        const realMM = global.window.matchMedia;
+        global.window.matchMedia = () => ({ matches: true });
+        try {
+            const outer = makeLb();
+            const inner = makeLb();
+            outer.open();
+            inner.open();
+            inner.close();
+            inner.close();
+            assert.equal(_bodyClasses.has('lb-open'), true,
+                'the outer overlay is still open — one close must only unlock one depth');
+        } finally { global.window.matchMedia = realMM; }
+    });
+});
+
+// ── WHAT A CLOSE AND A TAB MUST STILL DO (test audit, 7 Nov 2026) ───────────────────────────────────
+// Three lines of this module could each be deleted with this file and the whole browser suite green:
+// the focus hand-back on close, the 500 ms fallback when `transitionend` never fires, and the focus
+// trap's skip of hidden controls. Every test above fires `transitionend` by hand, no stub here took
+// focus on open, and none had an `offsetParent` — so none of the three could be seen.
+describe('createLightbox — focus goes back to whatever opened it', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    test('closing returns focus to the opener, not to the panel that is going away', () => {
+        const opener  = makeBtn();
+        global.document.activeElement = opener;
+        const overlay = makeEl({});
+        const content = makeEl({});
+        content.focus = () => { global.document.activeElement = content; };   // the panel takes focus on open
+        const lb = createLightbox({ overlay, content, closeBtn: null });
+        lb.open();
+        assert.equal(global.document.activeElement, content, 'premise: focus moved into the dialog');
+        lb.close();
+        assert.equal(global.document.activeElement, opener,
+            'a keyboard or screen-reader user is left on a control that has just been hidden');
+        overlay._trigger('transitionend');
+    });
+});
+
+describe('createLightbox — an initial focus that cannot take focus falls back to the panel', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    // The Links ··· More sheet names its first row, which is DISABLED on an unsaved design. `focus()`
+    // on it does nothing, so focus stayed on the ··· button behind the dialog: Enter acted on the page,
+    // and a screen reader was never moved in. A target that refuses focus is treated as no target.
+    test('a disabled explicit target: focus goes to the panel, as if none were named', () => {
+        const opener = makeBtn();
+        global.document.activeElement = opener;
+        const content = makeEl({});
+        content.focus = () => { global.document.activeElement = content; };
+        const disabled = Object.assign(makeEl({ tagName: 'BUTTON' }), { disabled: true, focus() { /* a disabled control refuses focus */ } });
+        const overlay = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn: null, initialFocus: () => disabled });
+        lb.open();
+        assert.equal(global.document.activeElement, content, 'focus stayed on the control behind the dialog');
+        lb.close(); overlay._trigger('transitionend');
+    });
+
+    test('a target that takes focus keeps it', () => {
+        const content = makeEl({});
+        content.focus = () => { global.document.activeElement = content; };
+        const row = Object.assign(makeEl({ tagName: 'BUTTON' }), { focus() { global.document.activeElement = row; } });
+        const overlay = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn: null, initialFocus: () => row });
+        lb.open();
+        assert.equal(global.document.activeElement, row);
+        lb.close(); overlay._trigger('transitionend');
+    });
+});
+
+describe('createLightbox — a fade that never reports its end still finishes', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    // iOS suppresses `transitionend` on a backgrounded tab. Without the fallback the overlay stays
+    // `.visible` over the page with body scroll locked — the app looks frozen until a reload.
+    test('500 ms after a close with no transitionend, the overlay is gone and the page scrolls', () => {
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            const overlay = makeEl({});
+            const lb = createLightbox({ overlay, content: makeEl({}), closeBtn: null });
+            lb.open();
+            lb.close();
+            mock.timers.tick(499);
+            assert.equal(overlay.classList.contains('visible'), true, 'premise: still fading at 499 ms');
+            mock.timers.tick(1);
+            assert.equal(overlay.classList.contains('visible'), false, 'the overlay never left the screen');
+            assert.equal(_bodyClasses.has('lb-open'), false, 'the page behind stayed locked');
+        } finally { mock.timers.reset(); }
+    });
+});
+
+// ── A CHILD'S TRANSITION IS NOT THE OVERLAY'S FADE (lightbox review R1-4, 22 Nov 2026) ───────────
+// `transitionend` bubbles. A dialog button's press easing back (`.dialog-btn`, 120 ms) reached the
+// overlay's listener and finished its 200 ms fade early: the card vanished instead of fading out.
+describe('createLightbox — only the overlay\'s own transitionend finishes the close', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    test('a transitionend bubbling up from a button inside leaves the fade running', () => {
+        const overlay = makeEl({});
+        const button  = makeEl({ tagName: 'BUTTON' });
+        const lb = createLightbox({ overlay, content: makeEl({}), closeBtn: null });
+        lb.open();
+        lb.close();
+        overlay._trigger('transitionend', { target: button });
+        assert.equal(overlay.classList.contains('visible'), true, 'a child\'s transition ended the overlay\'s fade');
+        assert.equal(_bodyClasses.has('lb-open'), true, 'and released the page under a card still on screen');
+        overlay._trigger('transitionend', { target: overlay });
+        assert.equal(overlay.classList.contains('visible'), false, 'the overlay\'s own fade still finishes it');
+        assert.equal(_bodyClasses.has('lb-open'), false);
+    });
+});
+
+// ── THE BACKDROP AND A THROWING onClose (test audit, 7 Nov 2026) ─────────────────────────────────
+// Deleting the backdrop listener, inverting its target check, and removing the try/catch round
+// `onClose` each passed every suite: no test clicked a `createLightbox` backdrop, and no `onClose`
+// here had ever thrown.
+describe('createLightbox — a tap on the backdrop closes it, a tap on the panel does not', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    function build() {
+        const overlay  = makeEl({});
+        const content  = makeEl({});
+        const closeBtn = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn });
+        lb.open();
+        return { overlay, content, closeBtn, lb };
+    }
+
+    test('a click whose target is the overlay itself closes it', () => {
+        const { overlay } = build();
+        overlay._trigger('click', { target: overlay });
+        assert.equal(overlay.classList.contains('open'), false, 'the backdrop tap left the dialog open');
+        overlay._trigger('transitionend');
+        assert.equal(overlay.classList.contains('visible'), false);
+        assert.equal(_bodyClasses.has('lb-open'), false, 'and the page behind is unlocked');
+    });
+
+    test('a click that lands inside the panel — and bubbles up to the overlay — does not', () => {
+        const { overlay, content } = build();
+        overlay._trigger('click', { target: content });
+        assert.equal(overlay.classList.contains('open'), true,
+            'a tap on the panel\'s own text or a field closed the dialog under the reader');
+        assert.equal(_bodyClasses.has('lb-open'), true);
+    });
+
+    test('the ✕ closes it', () => {
+        const { overlay, closeBtn } = build();
+        closeBtn._trigger('click', { target: closeBtn });
+        assert.equal(overlay.classList.contains('open'), false);
+    });
+
+    // A mouse drag that starts in the card and ends on the backdrop — selecting a prompt's text — is a
+    // `click` on the overlay too: a click goes to the nearest element the press and release share.
+    test('a press that began inside the card and was released on the backdrop does not close it', () => {
+        const { overlay, content } = build();
+        overlay._trigger('pointerdown', { target: content });
+        overlay._trigger('click', { target: overlay });
+        assert.equal(overlay.classList.contains('open'), true, 'a text selection dragged out of the card closed the dialog');
+        overlay._trigger('click', { target: overlay });       // the next click, made in code with no press
+        assert.equal(overlay.classList.contains('open'), false, 'a press is forgotten at its click — one made in code still closes');
+    });
+
+    test('a press AND release on the backdrop still closes it', () => {
+        const { overlay } = build();
+        overlay._trigger('pointerdown', { target: overlay });
+        overlay._trigger('click', { target: overlay });
+        assert.equal(overlay.classList.contains('open'), false);
+    });
+});
+
+describe('createLightbox — an onClose that throws cannot strand the overlay', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    test('the overlay still closes, the page unlocks, and the error is reported', () => {
+        const errors = mock.method(console, 'error', () => {});
+        try {
+            const overlay = makeEl({});
+            const lb = createLightbox({ overlay, content: makeEl({}), closeBtn: null,
+                onClose: () => { throw new Error('a page bug in its own onClose'); } });
+            lb.open();
+            assert.doesNotThrow(() => { lb.close(); }, 'the throw escaped close() — the dismiss below it never ran');
+            assert.equal(overlay.classList.contains('open'), false, 'still .open — the overlay is stranded on screen');
+            overlay._trigger('transitionend');
+            assert.equal(overlay.classList.contains('visible'), false);
+            assert.equal(_bodyClasses.has('lb-open'), false, 'the page behind stayed locked');
+            assert.equal(errors.mock.callCount(), 1, 'the throw is reported, not swallowed');
+            assert.match(String(errors.mock.calls[0].arguments[0]), /onClose threw/);
+        } finally { errors.mock.restore(); }
+    });
+});
+
+describe('trapFocus — hidden controls are not tab stops', () => {
+    // The day-detail panel on an ordinary day: the ✕ is visible, its Leave link and Pay button are
+    // `hidden`. Counted as tab stops, the hidden button became "last", so Tab from the real last
+    // control did not wrap — focus walked out of the dialog into the page behind it.
+    test('Tab from the last VISIBLE control wraps to the first', () => {
+        const first  = makeBtn();
+        const last   = makeBtn();
+        const hidden = Object.assign(makeBtn(), { offsetParent: null });   // display:none / [hidden]
+        for (const b of [first, last]) Object.assign(b, { offsetParent: {} });
+        global.document.activeElement = last;
+        let prevented = false;
+        trapFocus(makeContainer([first, last, hidden]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Tab was let through to the page behind the dialog');
+        assert.equal(first.wasFocused, true);
+        assert.equal(hidden.wasFocused, false);
+    });
+});
+
+describe('trapFocus — a control with a negative tabindex is not a tab stop', () => {
+    // The date picker's month is ONE Tab stop (a roving tabindex: every other day is `tabindex="-1"`),
+    // and the sign-in card's username field is there only for the password manager. Tab never lands
+    // on either, so counted as the trap's ends the wrap never fired and focus walked out of the dialog.
+    const shown = () => Object.assign(makeBtn(), { offsetParent: {} });
+    const outOfOrder = () => Object.assign(shown(), { getAttribute: (/** @type {string} */ a) => (a === 'tabindex' ? '-1' : null) });
+
+    test('Tab from the day the keyboard is on wraps to the ✕, past the month\'s other days', () => {
+        const close = shown(), day = shown();
+        global.document.activeElement = day;
+        let prevented = false;
+        trapFocus(makeContainer([close, day, outOfOrder(), outOfOrder()]), {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Tab was let through — out of the dialog');
+        assert.equal(close.wasFocused, true);
+    });
+
+    test('Shift+Tab from the first real control wraps to the last, past the hidden field before it', () => {
+        const username = outOfOrder(), grade = shown(), back = shown();
+        global.document.activeElement = grade;
+        let prevented = false;
+        trapFocus(makeContainer([username, grade, back]), {
+            key: 'Tab', shiftKey: true, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(prevented, true, 'Shift+Tab was let through to the page behind the card');
+        assert.equal(back.wasFocused, true);
+        assert.equal(username.wasFocused, false);
+    });
+});
+
+// ── FOCUS THAT ARRIVES WITHOUT A KEY (iPhone audit, 7 Nov 2026) ─────────────────────────────────────
+// The ‹ › arrows over the iPhone keyboard move focus to the previous or next text field in the
+// DOCUMENT and fire no key event, so `trapFocus` never sees them: typing walked out of a prompt into
+// a field behind it. `createLightbox` now watches `focusin` while open. These drive the real factory
+// through a tiny node tree that can answer `contains`, and a document that records its `focusin`
+// listeners and dispatches to them the way a browser does — every `focus()` here fires the event.
+describe('createLightbox — focus that lands outside the open overlay is pulled back in', () => {
+    /** @type {Function[]} */ let focusin = [];
+    const realAdd = global.document.addEventListener;
+    const realRemove = global.document.removeEventListener;
+    beforeEach(() => {
+        _drainLock(); _bodyClasses.clear(); global.document.activeElement = null;
+        focusin = [];
+        global.document.addEventListener = (type, fn) => { if (type === 'focusin') focusin.push(fn); };
+        global.document.removeEventListener = (type, fn) => { if (type === 'focusin') focusin = focusin.filter(f => f !== fn); };
+        // No other modal surface on the page unless a test puts one there.
+        global.document.querySelectorAll = () => [];
+        global.getComputedStyle = () => ({ zIndex: 'auto' });
+    });
+    const restore = () => {
+        global.document.addEventListener = realAdd;
+        global.document.removeEventListener = realRemove;
+        delete global.document.querySelectorAll;
+        delete global.getComputedStyle;
+    };
+
+    /** A node in a little tree: `contains` walks `parent`, and `focus()` behaves like a browser's. */
+    function node(parent = null, tagName = 'DIV') {
+        const n = makeEl({ tagName });
+        Object.assign(n, { nodeType: 1, isConnected: true, parent, offsetParent: {} });
+        n.contains = (other) => { for (let x = other; x; x = x.parent) if (x === n) return true; return false; };
+        n.focus = () => {
+            global.document.activeElement = n;
+            focusin.slice().forEach(fn => fn({ target: n }));
+        };
+        return n;
+    }
+    /** An overlay with a panel holding a button, a text field and another button. */
+    function dialog() {
+        const overlay = node();
+        const content = node(overlay);
+        const first = node(content, 'BUTTON');
+        const field = node(content, 'INPUT');
+        const second = node(content, 'BUTTON');
+        content.querySelectorAll = () => [first, field, second];
+        const lb = createLightbox({ overlay, content, closeBtn: null });
+        return { overlay, content, first, field, second, lb };
+    }
+
+    test('back to the control last focused inside', () => {
+        try {
+            const { field, lb } = dialog();
+            lb.open();
+            field.focus();                 // the member is typing in the dialog
+            node().focus();                // the keyboard's ‹ arrow lands on a field behind it
+            assert.equal(global.document.activeElement, field,
+                'focus stayed behind the dialog, so the next keystrokes go somewhere nobody can see');
+        } finally { restore(); }
+    });
+
+    test('or, with nothing focused inside yet, to the first control', () => {
+        try {
+            const { first, content, lb } = dialog();
+            // The panel takes the default focus on open; strip that so "nothing inside yet" is real.
+            content.focus = () => {};
+            lb.open();
+            node().focus();
+            assert.equal(global.document.activeElement, first);
+        } finally { restore(); }
+    });
+
+    test('ONLY the topmost overlay pulls — a buried one never drags focus under the dialog on top', () => {
+        try {
+            const lower = dialog();
+            const upper = dialog();
+            lower.lb.open();
+            upper.lb.open();
+            upper.field.focus();
+            lower.field.focus();           // ‹ stepped into the overlay UNDERNEATH
+            assert.equal(global.document.activeElement, upper.field,
+                'the topmost dialog did not take focus back from the one buried under it');
+            // Close the top one: the lower one is now the top, and guards again.
+            upper.lb.close();
+            upper.overlay._trigger('transitionend');
+            lower.field.focus();
+            node().focus();
+            assert.equal(global.document.activeElement, lower.field,
+                'with the top dialog gone, the one beneath it must guard its own focus again');
+        } finally { restore(); }
+    });
+
+    test('a closing overlay lets go first — the focus hand-back to the opener is not pulled back', () => {
+        try {
+            const opener = node();
+            opener.focus();
+            const { field, lb, overlay } = dialog();
+            lb.open();
+            field.focus();
+            lb.close();
+            assert.equal(global.document.activeElement, opener,
+                'the guard fought the close: focus went back into a dialog that is going away');
+            assert.equal(focusin.length, 0, 'the closed overlay left its focusin listener behind');
+            overlay._trigger('transitionend');
+        } finally { restore(); }
+    });
+
+    test('it stands down for an UNSTACKED surface painted above it — the sign-in card over a dialog', () => {
+        // `#loginOverlay` is not on the overlay stack, and a lost session mounts it OVER whatever dialog
+        // was open. A guard that pulled focus back from it would leave the member unable to type a password.
+        try {
+            const { field, lb, overlay } = dialog();
+            lb.open();
+            field.focus();
+            const card = node();
+            card.getClientRects = () => [{}];
+            const z = new Map([[overlay, '8000'], [card, '9000']]);
+            global.document.querySelectorAll = () => [card];
+            global.getComputedStyle = (el) => ({ zIndex: z.get(el) ?? 'auto' });
+            const password = node(card, 'INPUT');
+            password.focus();
+            assert.equal(global.document.activeElement, password, 'the guard took focus from the card above it');
+
+            // The same card BELOW the dialog is just another thing behind it — pulled back as usual.
+            z.set(card, '7800');
+            password.focus();
+            assert.equal(global.document.activeElement, field);
+        } finally { restore(); }
+    });
+});
+
+// ── A TEXT FIELD IS FOCUSED INSIDE THE TAP (iPhone audit, 7 Nov 2026) ───────────────────────────────
+// iOS raises the keyboard only for a focus made synchronously inside the user's gesture, and the
+// frame `open()` defers its focus to is outside it. So the frames are HELD here and only run when the
+// test says: what is focused when `open()` returns is what the keyboard got.
+describe('createLightbox — a text field takes focus synchronously, everything else in the frame after', () => {
+    /** @type {Function[]} */ let frames = [];
+    const realRaf = global.requestAnimationFrame;
+    beforeEach(() => {
+        _drainLock(); _bodyClasses.clear(); global.document.activeElement = null;
+        frames = [];
+        global.requestAnimationFrame = (fn) => { frames.push(fn); return 0; };
+    });
+    const focusable = (tagName, type = '') => {
+        const el = makeEl({ tagName });
+        Object.assign(el, { type, focus: () => { global.document.activeElement = el; } });
+        return el;
+    };
+    const openWith = (initialFocus) => {
+        const lb = createLightbox({ overlay: makeEl({}), content: makeEl({}), closeBtn: null, initialFocus });
+        lb.open();
+        return lb;
+    };
+
+    for (const [tag, type] of [['INPUT', 'text'], ['INPUT', 'search'], ['INPUT', 'number'], ['TEXTAREA', '']]) {
+        test(`${tag.toLowerCase()}${type ? `[type=${type}]` : ''} — focused before open() returns`, () => {
+            try {
+                const field = focusable(tag, type);
+                openWith(() => field);
+                assert.equal(global.document.activeElement, field,
+                    'the field waits for the next frame, outside the tap — on an iPhone no keyboard comes up');
+                frames.forEach(fn => fn());
+                assert.equal(global.document.activeElement, field, 'and the frame leaves it there');
+            } finally { global.requestAnimationFrame = realRaf; }
+        });
+    }
+
+    for (const [tag, type] of [['BUTTON', ''], ['INPUT', 'checkbox'], ['SELECT', '']]) {
+        test(`${tag.toLowerCase()}${type ? `[type=${type}]` : ''} — still focused in the frame after`, () => {
+            try {
+                const control = focusable(tag, type);
+                openWith(control);
+                assert.equal(global.document.activeElement, null, 'a control that raises no keyboard moved early');
+                frames.forEach(fn => fn());
+                assert.equal(global.document.activeElement, control);
+            } finally { global.requestAnimationFrame = realRaf; }
+        });
+    }
+});
+
+// ── CLOSED BEFORE ITS FIRST FRAME (14 Nov 2026) ─────────────────────────────────────────────────────
+// The frame `open()` defers to fades the overlay in and moves focus into it, and a close can come
+// before it runs: an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run
+// late, it faded the closing panel back in and took focus into it, so focus fell to <body> as the panel
+// went. Found by calendar.spec.js's day panel closed over a rebuilt grid, which lost the race on headless
+// WebKit about one run in five. The frames are HELD so each test chooses when they run.
+describe('createLightbox — a close before the first frame retires that frame', () => {
+    /** @type {Function[]} */ let frames = [];
+    const realRaf = global.requestAnimationFrame;
+    beforeEach(() => {
+        _drainLock(); _bodyClasses.clear(); global.document.activeElement = null;
+        frames = [];
+        global.requestAnimationFrame = (fn) => { frames.push(fn); return 0; };
+    });
+    /** A lightbox whose panel takes focus and counts each time it does, beside a page control. */
+    const build = () => {
+        const overlay = makeEl({});
+        const content = makeEl({});
+        let panelFocused = 0;
+        Object.assign(content, { focus: () => { panelFocused++; global.document.activeElement = content; } });
+        const day = makeEl({});
+        Object.assign(day, { focus: () => { global.document.activeElement = day; } });
+        const lb = createLightbox({ overlay, content, closeBtn: null });
+        return { overlay, content, day, lb, panelFocused: () => panelFocused };
+    };
+
+    test('the late frame neither shows the closing panel again nor takes focus into it', () => {
+        try {
+            const { overlay, day, lb, panelFocused } = build();
+            day.focus();
+            lb.open();
+            assert.equal(overlay.classList.contains('open'), false, 'premise: the first frame has not run');
+            assert.equal(panelFocused(), 0, 'premise: nor moved focus');
+            lb.close();
+            assert.equal(global.document.activeElement, day, 'premise: the close gave focus back to the day');
+            // It never faded in, so there is no fade to wait for (15 Nov 2026): the close lands NOW,
+            // not after the 500 ms fallback with an invisible overlay over the page.
+            assert.equal(overlay.classList.contains('visible'), false, 'an overlay that never faded in waited to go');
+            assert.equal(_bodyClasses.has('lb-open'), false, 'and kept the page from scrolling while it waited');
+            frames.forEach(fn => fn());
+            assert.equal(overlay.classList.contains('open'), false, 'the closing panel was faded back in');
+            assert.equal(panelFocused(), 0, 'the late frame moved focus into a panel that is going');
+            assert.equal(global.document.activeElement, day, 'focus left the day it was given back to');
+        } finally { global.requestAnimationFrame = realRaf; }
+    });
+
+    test('opened again straight after that close, the NEW open keeps its frame', () => {
+        try {
+            const { overlay, content, day, lb, panelFocused } = build();
+            day.focus();
+            lb.open();
+            lb.close();
+            lb.open();   // before either frame has run
+            assert.equal(overlay.classList.contains('open'), false, 'premise: neither frame has run');
+            frames.forEach(fn => fn());
+            assert.equal(overlay.classList.contains('open'), true, 'the second open never faded in');
+            assert.equal(panelFocused(), 1, 'exactly one frame moved focus: the second open’s, not the first’s');
+            assert.equal(global.document.activeElement, content);
+            lb.close();
+            overlay._trigger('transitionend');
+            assert.equal(overlay.classList.contains('visible'), false);
+        } finally { global.requestAnimationFrame = realRaf; }
+    });
+
+    test('a frame nothing closed still runs, however late', () => {
+        try {
+            const { overlay, content, lb } = build();
+            lb.open();
+            frames.forEach(fn => fn());
+            assert.equal(overlay.classList.contains('open'), true);
+            assert.equal(global.document.activeElement, content);
+            lb.close();
+            assert.equal(overlay.classList.contains('visible'), true, 'a panel that faded in fades out: it waits');
+            overlay._trigger('transitionend');
+            assert.equal(overlay.classList.contains('visible'), false);
+        } finally { global.requestAnimationFrame = realRaf; }
+    });
+});
+
+// ── NO FADE TO WAIT FOR (15 Nov 2026) ───────────────────────────────────────────────────────────────
+// `dismissOverlay` waits for the fade-out, or 500 ms, before it removes `.visible`. An overlay without
+// `.open` is transparent already, so no transition runs and only the fallback ended it: half a second of
+// an invisible layer over the page, taking every tap. Both callers reach it, createLightbox and the Huddle
+// viewer, when a close beats the open's first frame.
+describe('dismissOverlay — an overlay that never faded in goes at once', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
+
+    test('without .open: hidden, unlocked and finished before it returns, with nothing left pending', () => {
+        const overlay = makeEl({ classes: ['visible'] });
+        lockBodyScroll();
+        let landed = 0;
+        const finisher = dismissOverlay(overlay, { backHandler: () => {}, afterClose: () => { landed++; } });   // a handler of its own: the shared Back stack is left alone
+        assert.equal(overlay.classList.contains('visible'), false);
+        assert.equal(_bodyClasses.has('lb-open'), false);
+        assert.equal(landed, 1);
+        assert.equal(finisher, null, 'a finisher returned for a close that has already finished');
+        overlay._trigger('transitionend');
+        assert.equal(landed, 1, 'a later transitionend finished it a second time');
+    });
+
+    test('with .open: it still waits for the fade, then finishes once', () => {
+        const overlay = makeEl({ classes: ['visible', 'open'] });
+        lockBodyScroll();
+        let landed = 0;
+        const finisher = dismissOverlay(overlay, { backHandler: () => {}, afterClose: () => { landed++; } });   // a handler of its own: the shared Back stack is left alone
+        assert.equal(overlay.classList.contains('open'), false);
+        assert.equal(overlay.classList.contains('visible'), true, 'a panel that faded in was cut off mid-fade');
+        assert.equal(landed, 0);
+        assert.equal(typeof finisher, 'function');
+        overlay._trigger('transitionend');
+        assert.equal(overlay.classList.contains('visible'), false);
+        assert.equal(_bodyClasses.has('lb-open'), false);
+        assert.equal(landed, 1);
+    });
+});
+

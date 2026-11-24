@@ -3,8 +3,8 @@ paths:
   - "paycalc.html"
   - "paycalc-*.js"
   - "paycalc.css"
-  - "paycalc.test.mjs"
-  - "paycalc-*.test.mjs"
+  - "test/paycalc.test.mjs"
+  - "test/paycalc-*.test.mjs"
 ---
 
 # Pay calculator — full reference

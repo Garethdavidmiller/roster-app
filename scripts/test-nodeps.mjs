@@ -36,7 +36,7 @@ const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url),
 
 /** Test files named anywhere in a package script — those are the ones with dependencies. */
 function namedIn(script) {
-    return [...(pkg.scripts?.[script] ?? '').matchAll(/[\w.-]+\.test\.mjs/g)].map(m => m[0]);
+    return [...(pkg.scripts?.[script] ?? '').matchAll(/test\/[\w.-]+\.test\.mjs/g)].map(m => m[0]);
 }
 
 /**
@@ -61,8 +61,9 @@ const selfSkips = (f) => {
 const NEEDS_DEPS = new Set(
     [...namedIn('test:functions'), ...namedIn('test:rules')].filter(f => !selfSkips(f)));
 
-const all = readdirSync(new URL('..', import.meta.url))
+const all = readdirSync(new URL('../test/', import.meta.url))
     .filter(f => f.endsWith('.test.mjs'))
+    .map(f => `test/${f}`)
     .sort();
 const runnable = all.filter(f => !NEEDS_DEPS.has(f));
 

@@ -1,0 +1,243 @@
+// @ts-check
+/**
+ * operations-attention.test.mjs — the pure decision behind the Needs-attention strip, organised by
+ * the two ways an INDEX can lie about its cards:
+ *
+ *  - CLAIMING TOO LITTLE is the quiet failure: an exceptional state filtered out, understated
+ *    ("100 unresolved" when the cap hid more), or silently dropped by a typo'd id — the admin
+ *    reads "nothing needs doing" off the strip's absence, which is exactly the reading the
+ *    disappear-when-clean design invites, so absence must be EARNED.
+ *  - CLAIMING TOO MUCH is the noisy one: a zero rendered as an item, or an unreported card
+ *    presented as clean/urgent — either teaches the admin to stop trusting the strip.
+ *
+ * The DOM half is thin and covered where only a browser can see it (e2e/operations.spec.js: real card
+ * loads feeding the strip, the jump opening the real card). Part of test:hygiene.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { buildAttentionItems, ATTENTION_CATALOGUE, attentionBadge } from '../operations-attention.js';
+
+test('a zero count renders nothing, and an UNREPORTED card is absent — unknown is not clean', () => {
+    assert.deepEqual(buildAttentionItems({}), []);
+    assert.deepEqual(buildAttentionItems({ resets: { count: 0 }, errors: { count: 0 } }), []);
+    // only one card has reported; the other must be neither claimed clean nor claimed urgent
+    const items = buildAttentionItems({ resets: { count: 2 } });
+    assert.deepEqual(items.map(i => i.id), ['resets']);
+});
+
+test('names lead with the pill, then say what the count is of — singular and plural', () => {
+    const one = buildAttentionItems({ resets: { count: 1 }, accountSetup: { count: 1 }, errors: { count: 1 } });
+    assert.deepEqual(one.map(i => i.text), ['Password resets: 1 waiting', 'Not set up: 1 member', 'Unresolved errors: 1']);
+    const many = buildAttentionItems({ resets: { count: 3 }, accountSetup: { count: 2 }, errors: { count: 12 } });
+    assert.deepEqual(many.map(i => i.text), ['Password resets: 3 waiting', 'Not set up: 2 members', 'Unresolved errors: 12']);
+    assert.deepEqual(many.map(i => i.hash), ['#reset-requests', '#login-accounts', '#error-log']);
+});
+
+// WCAG 2.5.3 Label in Name (v25.27; axe checks it from 4.14): a voice user says what the pill shows,
+// so every item's name must START with the pill's own words — its short label, then its badge. Read
+// off the catalogue, so an item added later is held to it without anyone remembering to.
+test('every item\'s name begins with exactly what its pill shows', () => {
+    const reports = Object.fromEntries(Object.keys(ATTENTION_CATALOGUE).map(id => [id, { count: 2 }]));
+    const items = buildAttentionItems(reports);
+    assert.equal(items.length, Object.keys(ATTENTION_CATALOGUE).length);
+    for (const item of items) {
+        assert.ok(item.text.startsWith(`${item.short}: ${item.badge}`),
+            `"${item.text}" does not begin with its pill, "${item.short} ${item.badge}"`);
+    }
+});
+
+test('a truncated error backlog says 100+ in BOTH voices, never the capped number', () => {
+    const [item] = buildAttentionItems({ errors: { count: 100, truncated: true } });
+    assert.equal(item.text, 'Unresolved errors: 100+');
+    assert.equal(item.badge, '100+');
+});
+
+// A TRUNCATED COUNT IS A FLOOR (Nov 2026 review). The Error Log's cap is shared with slow-save
+// diagnostics, which are listed and never counted, so "100+" stood over two real errors — and over a cap
+// holding none the chip was EMPTY while the strip said "100+". The count is how many errors were seen;
+// the "+" says entries were not loaded, and any of them may be an error.
+test('a truncated count says how many errors were SEEN, with "+" — never "100+" for two', () => {
+    const [two] = buildAttentionItems({ errors: { count: 2, truncated: true } });
+    assert.equal(two.badge, '2+');
+    assert.equal(two.text, 'Unresolved errors: 2+');
+    // None seen, more not loaded: still an item, because absence would read as "nothing to do".
+    const [none] = buildAttentionItems({ errors: { count: 0, truncated: true } });
+    assert.equal(none?.badge, '0+', 'a cap full of diagnostics is not a clean bill');
+});
+
+// The chip on the Error Log's header is spelled by the same function (operations-errors.js), so the
+// two voices are one rule rather than two copies that happen to agree.
+test('attentionBadge: empty only when known clean, a floor whenever entries were hidden', () => {
+    assert.equal(attentionBadge(0), '');
+    assert.equal(attentionBadge(3), '3');
+    assert.equal(attentionBadge(0, true), '0+');
+    assert.equal(attentionBadge(2, true), '2+');
+    assert.equal(attentionBadge(100, true), '100+');
+    for (const [count, truncated] of [[0, false], [3, false], [0, true], [2, true]]) {
+        const [item] = buildAttentionItems({ errors: { count, truncated } });
+        assert.equal(item?.badge ?? '', attentionBadge(count, truncated), `${count}/${truncated}: the strip and the chip disagree`);
+    }
+});
+
+test('the two voices state one fact: the badge is the count the sentence speaks', () => {
+    const [item] = buildAttentionItems({ resets: { count: 3 } });
+    assert.equal(item.badge, '3');
+    assert.equal(item.short, 'Password resets');
+    assert.equal(item.text, 'Password resets: 3 waiting');
+});
+
+test('items keep catalogue order regardless of report order', () => {
+    // Both ends are DERIVED from the catalogue. The first cut named two ids by hand and compared
+    // against every key, which was the same assertion only while the catalogue happened to hold
+    // exactly those two — it failed the moment a third arrived, having never tested ordering
+    // against anything but a snapshot of the file it was reading.
+    const ids = Object.keys(ATTENTION_CATALOGUE);
+    const reports = Object.fromEntries([...ids].reverse().map(id => [id, { count: 1 }]));
+    assert.deepEqual(buildAttentionItems(reports).map(i => i.id), ids);
+});
+
+// A RESET QUEUE THAT COULD NOT BE READ SAYS SO (owner, 10 Nov 2026). Withdrawing it left the strip
+// exactly as a clean queue leaves it, over a card that stays closed — and a member waiting on a reset
+// is the one backlog the admin has no other way to learn of. So an `unchecked` report renders, with
+// no count to show, and its name still begins with what its pill shows.
+test('an unchecked report renders "couldn’t check" — not a count, and not absent like a clean queue', () => {
+    const [item, ...rest] = buildAttentionItems({ resets: { count: 0, unchecked: true } });
+    assert.deepEqual(rest, []);
+    assert.equal(item.id, 'resets');
+    assert.equal(item.badge, 'couldn’t check');
+    assert.equal(item.text, 'Password resets: couldn’t check');
+    assert.equal(item.unchecked, true);
+    assert.ok(item.text.startsWith(`${item.short}: ${item.badge}`), 'Label in Name holds for the unchecked voice too');
+    // …and an ordinary count says it is one, so the page can tell the two apart
+    const [counted] = buildAttentionItems({ resets: { count: 2 } });
+    assert.equal(counted.unchecked, false);
+});
+
+test('every catalogue entry carries what a row needs — a half-declared id cannot half-render', () => {
+    for (const [id, entry] of Object.entries(ATTENTION_CATALOGUE)) {
+        assert.ok(entry.emoji && entry.hash.startsWith('#'), id);
+        assert.ok(entry.short, `${id}: pills need the short name`);
+        assert.equal(typeof entry.after(2), 'string', `${id}: names need what follows the count, even ''`);
+    }
+});
+
+// ── the DOM half, against a minimal fake document ───────────────────────────────────────────────
+// Enough DOM for render(): createElement with append/insertBefore/remove/textContent/setAttribute,
+// sibling and parent links (render inserts in catalogue order), and `hidden`.
+function fakeDocument() {
+    const el = (tag) => ({
+        tag, children: /** @type {any[]} */ ([]), attrs: {}, className: '', hidden: false, parent: null,
+        _text: '',
+        set textContent(v) { this._text = v; this.children = []; },
+        get textContent() { return this._text + this.children.map(c => typeof c === 'string' ? c : c.textContent).join(''); },
+        setAttribute(k, v) { this.attrs[k] = v; },
+        getAttribute(k) { return this.attrs[k]; },
+        append(...kids) { for (const k of kids) { if (typeof k === 'object') k.parent = this; this.children.push(k); } },
+        insertBefore(k, ref) {
+            k.parent = this;
+            const at = ref ? this.children.indexOf(ref) : -1;
+            if (at === -1) this.children.push(k); else this.children.splice(at, 0, k);
+        },
+        get firstChild() { return this.children[0] ?? null; },
+        get nextSibling() { const s = this.parent?.children; return s ? (s[s.indexOf(this) + 1] ?? null) : null; },
+        remove() { const s = this.parent?.children; if (s) s.splice(s.indexOf(this), 1); this.parent = null; },
+        addEventListener() {},
+        classList: {
+            set: new Set(),
+            toggle(c, on) { if (on) this.set.add(c); else this.set.delete(c); },
+            contains(c) { return this.set.has(c); },
+        },
+    });
+    return { createElement: el, _el: el };
+}
+
+/** The strip's links, in order, read off the fake tree. @param {any} host */
+const linksOf = (host) => host.children.find((c) => c.tag === 'ul')?.children.map((li) => li.children[0]) ?? [];
+
+// THE STRIP IS UPDATED IN PLACE (Nov 2026 review). Every report wiped and redrew it, and reports keep
+// coming — one on every return to the tab — so a link a keyboard user had tabbed to was destroyed and
+// focus fell to the page. A link must outlive any report that keeps its item, and a new item must be
+// INSERTED where the catalogue puts it, because moving an existing link would drop its focus too.
+test('a report keeps the SAME link for an item it keeps, and inserts a new one in catalogue order', async (t) => {
+    const doc = fakeDocument();
+    const container = doc._el('section');
+    globalThis.document = /** @type {any} */ (doc);
+    t.after(() => { delete (/** @type {any} */ (globalThis)).document; });
+    const { createAttentionStrip } = await import('../operations-attention.js');
+    const strip = createAttentionStrip({ container: /** @type {any} */ (container) });
+    strip.report('resets', 2);
+    strip.report('errors', 1);
+    const [resets, errors] = linksOf(container);
+    strip.report('resets', 3);                                   // the tab came back: a re-report
+    strip.report('accountSetup', 1);                             // a new item, between the two in the catalogue
+    const after = linksOf(container);
+    assert.equal(after[0], resets, 'the resets link was rebuilt — a focused link would have been destroyed');
+    assert.equal(after[2], errors, 'an existing link moved, or was rebuilt, to make room');
+    assert.deepEqual(after.map((a) => a.attrs['aria-label']), ['Password resets: 3 waiting', 'Not set up: 1 member', 'Unresolved errors: 1']);
+    assert.match(resets.textContent, /3/, 'the kept link says the new count');
+    strip.withdraw('accountSetup');
+    assert.deepEqual(linksOf(container), [resets, errors], 'withdrawing one item leaves the others where they are');
+    assert.equal(container.children.filter((c) => c.tag === 'h2').length, 1, 'one heading, however many reports');
+});
+
+test('report(): an unknown id THROWS — a typo cannot report into the void', async (t) => {
+    const doc = fakeDocument();
+    const container = doc._el('section');
+    globalThis.document = /** @type {any} */ (doc);
+    t.after(() => { delete (/** @type {any} */ (globalThis)).document; });
+    const { createAttentionStrip } = await import('../operations-attention.js');
+    const strip = createAttentionStrip({ container: /** @type {any} */ (container) });
+    assert.throws(() => strip.report('reset', 2), /unknown id/);          // singular typo of 'resets'
+    // …and a KNOWN id renders, then a zero re-report hides the strip again
+    strip.report('resets', 2);
+    assert.equal(container.hidden, false);
+    assert.match(container.textContent, /Password resets/);
+    assert.match(container.textContent, /2/);
+    strip.report('resets', 0);
+    assert.equal(container.hidden, true, 'back to clean → back to absent');
+});
+
+// A FAILED RELOAD TAKES ITS COUNT BACK (whole-app review, Oct 2026). The reset queue cleared its own
+// chip when a refresh failed and left the strip claiming the old number, over a card showing an error.
+test('withdraw(): a card whose reload failed takes its count back, to unknown rather than zero', async (t) => {
+    const doc = fakeDocument();
+    const container = doc._el('section');
+    globalThis.document = /** @type {any} */ (doc);
+    t.after(() => { delete (/** @type {any} */ (globalThis)).document; });
+    const { createAttentionStrip } = await import('../operations-attention.js');
+    const strip = createAttentionStrip({ container: /** @type {any} */ (container) });
+    strip.report('resets', 3);
+    assert.equal(container.hidden, false);
+    strip.withdraw('resets');
+    assert.equal(container.hidden, true, 'the stale 3 must not outlive the failed reload');
+});
+
+// The reset queue's failed load (owner, 10 Nov 2026): the item STAYS, says it couldn't check, and
+// drops the count's red; the next good read puts the number back in the same link.
+test('unchecked(): the item stays and says "couldn’t check" in neutral; a good read restores the count', async (t) => {
+    const doc = fakeDocument();
+    const container = doc._el('section');
+    globalThis.document = /** @type {any} */ (doc);
+    t.after(() => { delete (/** @type {any} */ (globalThis)).document; });
+    const { createAttentionStrip } = await import('../operations-attention.js');
+    const strip = createAttentionStrip({ container: /** @type {any} */ (container) });
+    strip.report('resets', 3);
+    const [link] = linksOf(container);
+    const count = () => link.children.find((c) => typeof c === 'object' && c.tag === 'span' && c.className.includes('attn-count'));
+    assert.equal(count().classList.contains('attn-count--unchecked'), false, 'premise: a real count wears the red');
+
+    strip.unchecked('resets');
+    assert.equal(container.hidden, false, 'a failed check must not look like a clean queue');
+    assert.equal(linksOf(container)[0], link, 'the same link — a focused one is not destroyed');
+    assert.equal(link.attrs['aria-label'], 'Password resets: couldn’t check');
+    assert.equal(count().textContent, 'couldn’t check', 'the stale 3 is gone from the pill');
+    assert.equal(count().classList.contains('attn-count--unchecked'), true, 'a gap in what the page knows is not dressed as a backlog');
+
+    strip.report('resets', 2);
+    assert.equal(link.attrs['aria-label'], 'Password resets: 2 waiting');
+    assert.equal(count().classList.contains('attn-count--unchecked'), false, 'the count is back, and its colour with it');
+    strip.unchecked('resets');
+    strip.report('resets', 0);
+    assert.equal(container.hidden, true, 'a good read of an empty queue is clean again');
+    assert.throws(() => strip.unchecked('reset'), /unknown id/, 'a typo cannot report into the void here either');
+});

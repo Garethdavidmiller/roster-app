@@ -1,0 +1,162 @@
+/**
+ * touch-gate-parity.test.mjs — A TOUCH-ONLY TEST MUST RUN ON EVERY TOUCH ENGINE.
+ *
+ * The failure this exists for is the quietest kind there is: a test that does not run reports as
+ * SKIPPED, and a skip is green. Nine day-panel tests were gated to `mobile-chrome` ALONE, so the
+ * app's only touch route to what a day IS never once ran on the engine every iPhone uses — while
+ * `mobile-safari` sat in CI the whole time as a full, paid-for job. Nothing failed, nothing warned,
+ * and the suite looked complete.
+ *
+ * It had already happened once and been fixed once: v22.12 found exactly the same shape in the
+ * 16px-focusable-field rule — *"the guard for an iOS behaviour never once ran on the iOS engine"* —
+ * and widened that one gate. What it did not do was stop the next one, and there were nine.
+ *
+ * ── WHAT IS ACTUALLY CHECKED ───────────────────────────────────────────────────────────────────
+ *
+ * Not "every test runs everywhere", which is false and would be noise. The rule is narrower: a test
+ * that gates ITSELF on being a touch device must use the shared list, so it cannot name one engine
+ * and quietly mean both. A test with a genuinely engine-neutral reason to stay narrow (WCAG tap
+ * targets are a standard, not a rendering behaviour) keeps its gate and says so HERE, by name —
+ * the `NO_INDICATOR_EXEMPT` idiom from focus-ring-parity, which makes a narrow gate a decision
+ * somebody made rather than a line somebody typed.
+ *
+ * Contract 3 is the one that will catch the next instance rather than this one: `TOUCH_PROJECTS` is
+ * checked against the mobile projects the Playwright configs actually declare. Adding a third
+ * mobile engine and forgetting the list is the same bug again, and it would otherwise be invisible
+ * until somebody counted skips.
+ *
+ * Part of test:hygiene — static, no browser, nothing installed.
+ */
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+
+const SPEC_DIR = './e2e';
+const SPECS = readdirSync(SPEC_DIR).filter(f => f.endsWith('.spec.js'));
+
+/**
+ * Gates that name ONE touch project on purpose, each with the reason it does not cross engines.
+ * A reason here must be about the RULE, never about the test being awkward to run elsewhere.
+ */
+const SINGLE_PROJECT_EXEMPT = [
+    {
+        // In three specs since pages.spec.js was split by page (3 Nov 2026): the sweep, and two
+        // page tests that size their own controls.
+        files: ['pages.spec.js', 'admin.spec.js', 'links.spec.js'],
+        match: "'a thumb, not a mouse'",
+        why: 'WCAG 2.2 SC 2.5.8 tap-target sizing. A standard about geometry, not about rendering — '
+           + 'the number is the same on both engines, so a second run would cost time and prove nothing.',
+    },
+    {
+        files: ['auth.spec.js'],
+        match: "'iOS has no install offer; the card shows steps instead'",
+        why: 'A PLATFORM rule, not a touch one: the test dispatches Chromium\'s `beforeinstallprompt`, '
+           + 'which iOS never fires, and on an iPhone the Device card shows the Home Screen steps with '
+           + 'the button hidden on purpose. Desktop WebKit keeps the run; only the iPhone is exempt.',
+    },
+];
+
+/** A line that compares the project's name with ONE touch project. Either quote, either order, loose
+ *  or strict (test audit, 7 Nov 2026): the name in double quotes walked straight past a pattern that
+ *  knew only `'mobile-chrome'`. */
+const NAMES_ONE_TOUCH_PROJECT =
+    /project\.name\s*[!=]==?\s*(['"`])mobile-(chrome|safari)\1|(['"`])mobile-(chrome|safari)\3\s*[!=]==?\s*[\w.]*project\.name/;
+
+describe('a touch-only test runs on every touch engine', () => {
+    test('the pattern sees every spelling of a one-engine gate, and not the shared helper', () => {
+        for (const gate of ["test.skip(info.project.name !== 'mobile-chrome', 'x')",
+                            'test.skip(info.project.name !== "mobile-safari", "x")',
+                            'if (testInfo.project.name === `mobile-chrome`) {',
+                            "test.skip('mobile-chrome' !== info.project.name, 'x')",
+                            "test.skip(info.project.name != 'mobile-safari')"]) {
+            assert.ok(NAMES_ONE_TOUCH_PROJECT.test(gate), `not seen: ${gate}`);
+        }
+        assert.ok(!NAMES_ONE_TOUCH_PROJECT.test("test.skip(!isTouchProject(info), 'needs a real coarse pointer')"));
+    });
+
+    test('the shared list is used — no spec names one touch project by hand', () => {
+        /** @type {string[]} */
+        const offenders = [];
+        for (const f of SPECS) {
+            const src = readFileSync(`${SPEC_DIR}/${f}`, 'utf8');
+            src.split('\n').forEach((line, i) => {
+                // Skip gates AND branches (whole-app review, I10). This read only `test.skip(` lines
+                // on the reasoning that a branch chooses a viewport, not whether the test runs — but
+                // a branch can decide whether an ASSERTION runs: the Links sticky-header test keyed
+                // its phone viewport and its phone expectations on 'mobile-chrome', so under
+                // mobile-safari it took the desktop branch and the phone half never ran on WebKit.
+                if (!NAMES_ONE_TOUCH_PROJECT.test(line)) return;
+                if (SINGLE_PROJECT_EXEMPT.some(e => e.files.includes(f) && line.includes(e.match))) return;
+                offenders.push(`${f}:${i + 1}  ${line.trim()}`);
+            });
+        }
+        assert.deepEqual(offenders, [],
+            'these tests decide whether to run by naming ONE touch project, so they cover one engine '
+          + 'and read as covering touch. Use `isTouchProject(info)` from e2e/helpers.js, or add a '
+          + 'NAMED exemption above with the reason the rule genuinely does not cross engines:\n  '
+          + offenders.join('\n  '));
+    });
+
+    test('every exemption still matches a real line — a stale one is a gate nobody is watching', () => {
+        for (const e of SINGLE_PROJECT_EXEMPT) {
+            for (const file of e.files) {
+                const src = readFileSync(`${SPEC_DIR}/${file}`, 'utf8');
+                assert.ok(src.includes(e.match),
+                    `${file} no longer contains ${e.match} — drop it from the exemption rather than `
+                  + 'leaving it to excuse something else later');
+            }
+            assert.ok(e.why && e.why.length > 40, `${e.match} needs a reason, not a placeholder`);
+        }
+    });
+
+    test('TOUCH_PROJECTS names every mobile project the configs declare', async () => {
+        // The contract that catches the NEXT instance rather than this one: a third mobile engine
+        // added to a config and not to the list would silently stop being covered by every gate
+        // above, and nothing else in the repo would notice.
+        const declared = new Set();
+        for (const cfg of ['playwright.config.mjs', 'playwright.webkit.mjs']) {
+            for (const m of readFileSync(`./${cfg}`, 'utf8').matchAll(/name:\s*'([\w-]+)'/g)) {
+                if (m[1].startsWith('mobile-')) declared.add(m[1]);
+            }
+        }
+        assert.ok(declared.size >= 2,
+            `expected the mobile projects to be found in the configs, got [${[...declared]}] — if the `
+          + 'naming convention changed, this scan must change with it');
+
+        // FROM `touch-projects.js`, NOT `helpers.js`. This suite is in the no-dependency lane, and
+        // helpers.js imports `@playwright/test` at module scope — so importing the list from there
+        // made the one suite whose header promises "nothing installed" the only suite in that lane
+        // that could not run without an install. Found by an external reviewer working from a ZIP,
+        // which is the only vantage point it was visible from.
+        const { TOUCH_PROJECTS } = await import('../e2e/touch-projects.js');
+        assert.deepEqual([...TOUCH_PROJECTS].sort(), [...declared].sort(),
+            'TOUCH_PROJECTS and the configs disagree about which projects are touch devices. Every '
+          + 'touch-gated test keys on that list, so a mobile project missing from it is a project '
+          + 'those tests silently stop running on.');
+    });
+});
+
+// ── THE SAME RULE FOR A STYLESHEET (css-admin-ops-14, Nov 2026) ─────────────────────────────────
+// A touch block gated on `(hover: none) and (pointer: coarse)` is the stylesheet's version of a test
+// gated on one engine: it reads as "touch" and quietly means "touch that reports no hover". Some
+// Android phones report `hover: hover` (CLAUDE.md → the hover rule), and Admin's main touch-sizing
+// block — Mon–Fri, Apply, the over-limit "Save anyway" — was the one gated that way, so on those
+// phones each of its controls kept its mouse size. A hover query is for a cosmetic `:hover`; a
+// touch block keys on the pointer alone, as every other one in the app does.
+describe('a touch-only style reaches every touch device', () => {
+    const sheets = readdirSync('.').filter(f => f.endsWith('.css'))
+        .map(f => [f, readFileSync(`./${f}`, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')]);
+
+    test('the scan reads the stylesheets\' touch blocks', () => {
+        const coarse = sheets.reduce((n, [, css]) => n + [...css.matchAll(/@media[^{]*pointer:\s*coarse/g)].length, 0);
+        assert.ok(coarse >= 10, `found ${coarse} coarse-pointer blocks — the scan below is reading nothing`);
+    });
+
+    test('no stylesheet gates anything on `hover: none`', () => {
+        const offenders = sheets.flatMap(([f, css]) =>
+            [...css.matchAll(/@media[^{]*\bhover:\s*none[^{]*/g)].map(m => `${f}: ${m[0].trim()}`));
+        assert.deepEqual(offenders, [],
+            'gate a touch block on `(pointer: coarse)` alone — `hover: none` drops every touch device '
+          + 'that reports hover:\n  ' + offenders.join('\n  '));
+    });
+});

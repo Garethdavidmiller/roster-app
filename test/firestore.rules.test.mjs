@@ -1,0 +1,3418 @@
+/**
+ * Firestore security rules integration tests.
+ *
+ * Run:  npm run test:rules
+ *       (firebase emulators:exec starts the Firestore emulator, runs these tests, stops it)
+ *
+ * Covers every top-level collection in firestore.rules — overrides, huddles, circulars,
+ * newsletters, linkDesigns, linkTargetSets, staffContact, passwordStatus, resetRequests,
+ * clientErrors, errorLogNotice, alUploads, pushSubscriptions, viewerAttempts, overtimeWindows and analytics. This said "all 9
+ * collections" over a list of ten while the rules held fourteen (test audit, 7 Nov 2026); the rules
+ * file is the authority, and a new collection there needs its own describe here.
+ *
+ * Each collection tests: auth boundaries, field validation, enum/format guards.
+ */
+import { test, describe, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { nameToEmail } from '../auth-identity.js';
+import { buildOverrideWrite } from '../override-utils.js';
+import { manualOverrideId } from '../override-id.js';
+import { teamMembers } from '../roster-member-data.js';
+import { buildAnalyticsClient } from '../analytics-client.js';
+import { APP_VERSION } from '../roster-data.js';
+import { monthKey, dayKey, originLabel } from '../usage-stats.js';
+import { targetSetPayload, MAX_SET_NAME, MAX_SET_SLOTS, SPARE_WEEKS_CAP } from '../links-target-sets.js';
+import { buildDocumentClient } from '../documents-client.js';
+import { resolveUploadCommit } from '../upload-commit.js';
+import { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath } from '../storage-utils.js';
+import {
+    setDoc, getDoc, getDocFromServer, addDoc, deleteDoc, updateDoc, getDocs,
+    collection, doc, serverTimestamp, increment, Timestamp,
+    query, where, limit, deleteField, FieldPath, orderBy, onSnapshot, runTransaction,
+} from 'firebase/firestore';
+
+// Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
+const REPO_ROOT_URL = new URL('../', import.meta.url);
+
+const __dir = fileURLToPath(REPO_ROOT_URL);
+
+let testEnv;
+
+before(async () => {
+    testEnv = await initializeTestEnvironment({
+        projectId: 'demo-myb-roster',
+        firestore: {
+            rules: readFileSync(join(__dir, 'firestore.rules'), 'utf8'),
+        },
+    });
+});
+
+after(async () => {
+    await testEnv?.cleanup();
+});
+
+// ── Context helpers ───────────────────────────────────────────────────────────
+
+/** Unauthenticated Firestore instance. */
+function anonDb()                      { return testEnv.unauthenticatedContext().firestore(); }
+/** Authenticated staff — no custom claims. */
+function staffDb(uid = 'uid_staff')    { return testEnv.authenticatedContext(uid).firestore(); }
+/** A token from the ANONYMOUS provider, which is still enabled on the project: anybody holding the
+ *  public web API key can mint one. `staffDb` models a claim-less session in general; this is the
+ *  exact shape that provider issues. */
+function anonymousSessionDb(uid = 'uid_anon') {
+    return testEnv.authenticatedContext(uid, { firebase: { sign_in_provider: 'anonymous' } }).firestore();
+}
+/** Authenticated admin (admin custom claim). */
+function adminDb()                     { return testEnv.authenticatedContext('uid_admin', { admin: true }).firestore(); }
+/** Authenticated user with a name claim (for staffContact + override isolation). */
+/**
+ * The claims a REAL member's token carries (v24.23, v24.27). A `name` is believed only when the
+ * session signed in with a password, its email is the one that name derives to, AND the server has
+ * stamped `member` with that name — see the header of the
+ * member helpers in firestore.rules. Every member-shaped context in this file goes through this, so
+ * a test that forgot the binding would be testing a token production never issues.
+ * @param {string} name @param {Record<string, any>} [extra]
+ */
+function memberClaims(name, extra = {}) {
+    return { name, member: name, email: nameToEmail(name), firebase: { sign_in_provider: 'password' }, ...extra };
+}
+/** A real member — the identity the telemetry and device collections ask for since v24.56. */
+function memberDb(uid = 'uid_staff') { return namedDb('S. Boyle', uid); }
+function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid, memberClaims(name)).firestore(); }
+/** Authenticated manager (manager + name claims) — writes overrides on behalf of any member (B2). */
+function managerDb(name, uid = 'uid_mgr') { return testEnv.authenticatedContext(uid, memberClaims(name, { manager: true })).firestore(); }
+/** Authenticated links designer (linksDesigner + name claims) — writes linkDesigns (H2). */
+function designerDb(name = 'S. Silva', uid = 'uid_designer') { return testEnv.authenticatedContext(uid, memberClaims(name, { linksDesigner: true })).firestore(); }
+/** The shared staff Calendar viewer (v20.12) — the identity the four-digit PIN mints. Exactly one
+ *  claim, no `name`: it is a CAPABILITY ("may read the Calendar"), not a person. Modelled with the
+ *  real uid so a rule that ever keyed on the uid rather than the claim would be caught here too. */
+function viewerDb() { return testEnv.authenticatedContext('calendar-viewer', { calendarViewer: true, firebase: { sign_in_provider: 'custom' } }).firestore(); }
+
+// ── Data builders ─────────────────────────────────────────────────────────────
+
+const VALID_OVERRIDE = () => ({
+    date: '2026-06-25', memberName: 'G. Miller',
+    type: 'annual_leave', value: 'AL', note: '', source: 'manual',
+    createdAt: serverTimestamp(),
+});
+
+const VALID_HUDDLE = () => ({
+    date: '2026-06-25',
+    storageUrl: 'https://storage.example.com/huddle.pdf',
+    storagePath: 'huddles/2026-06-25-abc123.pdf',
+    // Short form — matches what uploadHuddle() actually writes (not a MIME type).
+    fileType: 'pdf',
+    uploadedAt: serverTimestamp(), uploadedBy: 'G. Miller',
+});
+
+const VALID_CONTACT = (memberName) => ({
+    memberName,
+    workEmail: 'test@chilternrailways.co.uk',
+    updatedAt: serverTimestamp(),
+});
+
+const VALID_ERROR = () => ({
+    memberName: 'G. Miller', page: 'admin.html',
+    message: 'TypeError', stack: 'at foo (bar.js:1)',
+    appVersion: '13.93', userAgent: 'Mozilla/5.0',
+    timestamp: serverTimestamp(), resolved: false,
+});
+
+const VALID_CIRCULAR = (date = '2026-06-25') => ({
+    date, storageUrl: 'https://storage.example.com/doc.pdf',
+    fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy: 'G. Miller',
+});
+
+const VALID_SUB = () => ({
+    endpoint: 'https://fcm.googleapis.com/push/APA91b',
+    keys: { p256dh: 'abc123', auth: 'xyz789' },
+    subscribedAt: serverTimestamp(),
+});
+
+// ── Unique IDs (avoid cross-test interference) ────────────────────────────────
+let _seq = 0;
+function uid() { return `doc_${++_seq}`; }
+/** An id that no run has written — for a document that must NOT exist. `uid()` restarts at doc_1 in
+ *  every process, so against an emulator that outlived an earlier run its id may already be taken,
+ *  and an "already gone" case would quietly test a document that is there. */
+function goneId() { return `gone_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`; }
+
+// ── The REAL client writers (test audit, 7 Nov 2026) ──────────────────────────
+// Most cases in this file write a literal, so a field a client writer gained would pass all of them
+// and be refused in production. The telemetry writers SWALLOW that refusal by design, so the Error
+// Log and the Usage card would simply stop changing. These helpers let a test drive the real writer
+// against the emulator and still await the write the writer itself never reports.
+
+/** Wrap one SDK write so every promise it returns is kept for the test to await. */
+const recording = (/** @type {Function} */ fn, /** @type {Promise<unknown>[]} */ into) =>
+    (/** @type {any[]} */ ...a) => { const p = fn(...a); into.push(p); return p; };
+
+/** The real analytics-client.js on a test identity's Firestore, with the real SDK. */
+function realAnalyticsClient(/** @type {any} */ db, /** @type {Record<string, Function>} */ swap = {}) {
+    return buildAnalyticsClient({
+        db,
+        collections: { clientErrors: 'clientErrors', analytics: 'analytics' },
+        fs: {
+            doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, updateDoc, collection, query, where, limit,
+            serverTimestamp, increment, deleteField, FieldPath, ...swap,
+        },
+        writeWithClaimRetry: (/** @type {any} */ fn) => fn(),
+        appVersion: APP_VERSION,
+    });
+}
+
+/** The real documents-client.js upload engine on a test identity's Firestore, with the real SDK.
+ *  Storage is not what these rules judge, so it is a stand-in that keeps nothing and hands back a
+ *  URL; the Firestore write the engine builds is the real one. `swap` replaces Storage calls or path
+ *  helpers, so a test can fix the upload's path and play an interleaving between the file and the record. */
+function realDocumentClient(/** @type {any} */ db, /** @type {{ storage?: Record<string, any>, utils?: Record<string, any> }} */ swap = {}) {
+    return buildDocumentClient({
+        db,
+        collections: { huddles: 'huddles', circulars: 'circulars', newsletters: 'newsletters' },
+        fs: { doc, getDoc, getDocFromServer, setDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot, runTransaction, serverTimestamp },
+        getStorageSdk: async () => ({
+            storage: {},
+            ref: (/** @type {any} */ _s, /** @type {string} */ fullPath) => ({ fullPath }),
+            uploadBytes: async () => {},
+            getDownloadURL: async (/** @type {any} */ r) => `https://storage.example.com/${r.fullPath}`,
+            deleteObject: async () => {},
+            ...swap.storage,
+        }),
+        uploadBytesWithClaimRetry: (/** @type {any} */ upload, /** @type {any} */ ref, /** @type {any} */ body, /** @type {any} */ meta) => upload(ref, body, meta),
+        utils: { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath, ...swap.utils },
+        resolveUploadCommit,
+        pruneOldDocs: async () => {},
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// overrides
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('overrides', () => {
+    // ── READ (v20.12): a real member OR the shared staff-PIN viewer. Nobody else. ─────────────
+    //
+    // This collection was `allow read;` — no auth at all — until v20.12. These four tests are the
+    // proof that the door is shut, and the anonymous one is the substance of it: the Calendar used
+    // to sign every visitor in anonymously, so a rule written as `request.auth != null` would look
+    // closed and admit exactly the people it was meant to exclude (the trap linkDesigns fell into
+    // until v19.39).
+    // ── THE HOLD (v20.16) ────────────────────────────────────────────────────────────────────
+    //
+    // `firestore.rules` currently carries a `allow read;` line ABOVE the tightened rule, holding
+    // this collection public until the client that can satisfy the tightened rule has soaked in
+    // production (RECOVERY_RUNBOOK.md → "The Calendar PIN"; the three deploy workflows fire in
+    // parallel, so the ordering has to be made by hand).
+    //
+    // This constant states which of the two is deployed, and the three tests below assert the
+    // matching outcome rather than being skipped. That is deliberate: `assertSucceeds` here fails
+    // the moment the hold line is removed while this still says `true`, and `assertFails` fails if
+    // it is set to `false` while the hold line is still there — so the two cannot silently
+    // disagree in EITHER direction, which a skip or a deletion would allow.
+    //
+    // ENFORCED 26 Aug 2026, in the same commit that removed the `allow read;` line. These cases
+    // now assert what the rule has always SAID: unauthenticated reads are denied. Until today they
+    // asserted the opposite, on purpose — a test that passed BECAUSE the collection was public,
+    // which is the only honest way to pin a hold line while it is deliberately in place.
+    const OVERRIDES_READ_HELD_OPEN = false;
+    const readWhileHeld = OVERRIDES_READ_HELD_OPEN ? assertSucceeds : assertFails;
+
+    test('UNAUTHENTICATED cannot read the collection', async () => {
+        await readWhileHeld(getDocs(collection(anonDb(), 'overrides')));
+    });
+
+    test('UNAUTHENTICATED cannot read a specific document', async () => {
+        await readWhileHeld(getDoc(doc(anonDb(), 'overrides', uid())));
+    });
+
+    test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
+        await readWhileHeld(getDocs(collection(staffDb(), 'overrides')));
+        await readWhileHeld(getDoc(doc(staffDb(), 'overrides', uid())));
+    });
+
+    test('a NAMED member can read', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'overrides')));
+    });
+
+    test('the CALENDAR VIEWER can read', async () => {
+        await assertSucceeds(getDocs(collection(viewerDb(), 'overrides')));
+        await assertSucceeds(getDoc(doc(viewerDb(), 'overrides', uid())));
+    });
+
+    test('an ADMIN can read', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'overrides')));
+    });
+
+    test('anon cannot create', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'overrides', uid()), VALID_OVERRIDE()));
+    });
+
+    test('auth can create a valid override', async () => {
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), VALID_OVERRIDE()));
+    });
+
+    test('auth can create with all valid type+value combinations', async () => {
+        // These mirror the real client write contract — TYPES[*].fixedValue in
+        // admin-overrides.js (spare_shift→SPARE, annual_leave→AL, correction→RD,
+        // sick→SICK) and the plain HH:MM-HH:MM range that admin-roster-upload.js
+        // writes for the timed types. Do NOT model spare_shift as a time range:
+        // the app never writes that, and doing so masked a rule/app mismatch.
+        const TYPE_VALUE_MAP = {
+            spare_shift:  'SPARE',
+            shift:        '14:30-22:30',
+            rdw:          '22:00-06:00',
+            annual_leave: 'AL',
+            correction:   'RD',
+            sick:         'SICK',
+            other:        'TRG',
+        };
+        for (const [type, value] of Object.entries(TYPE_VALUE_MAP)) {
+            await assertSucceeds(
+                setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type, value })
+            );
+        }
+    });
+
+    test('auth cannot create a spare_shift with a time-range value (must be SPARE)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'spare_shift', value: '06:30-14:30' })
+        );
+    });
+
+    test('auth cannot create a correction with a non-RD value (e.g. OFF)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'correction', value: 'OFF' })
+        );
+    });
+
+    test('auth cannot create with mismatched type and value (shift type needs HH:MM-HH:MM)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'AL' })
+        );
+    });
+
+    test('auth cannot create with mismatched type and value (annual_leave needs AL)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'annual_leave', value: '09:00-17:00' })
+        );
+    });
+
+    test('auth cannot create with malformed time value for shift type', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'garbage' })
+        );
+    });
+
+    test('auth cannot create with invalid type', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'overtime' })
+        );
+    });
+
+    // ── training value grammar (OTHER_DAYS.md): FLAVOUR [" RDW"] [" HH:MM-HH:MM"] ──
+
+    test('training accepts every grammar form (flavours, RDW marker, actual times)', async () => {
+        for (const value of ['TRG', 'IND', 'ASSESS', 'TEAM', 'UNION', 'MEET', 'TRG RDW', 'ASSESS RDW', 'TEAM RDW',
+                             'UNION RDW', 'MEET RDW', 'IND 08:00-16:00', 'MEET 09:00-10:00', 'TRG RDW 08:00-16:00']) {
+            await assertSucceeds(
+                setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value })
+            );
+        }
+    });
+
+    test('training rejects a bare time value (flavour is mandatory)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value: '06:00-12:00' })
+        );
+    });
+
+    test('training rejects malformed grammar and impossible times', async () => {
+        for (const value of ['TRAINING', 'TRG BAD', 'ASS', 'TRG 25:00-30:00', 'RDW TRG', 'TRG RDW extra']) {
+            await assertFails(
+                setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value })
+            );
+        }
+    });
+
+    test('a training value on a NON-training type is rejected (shift needs a time)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'TRG' })
+        );
+    });
+
+    test('auth cannot create with invalid source', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), source: 'unknown' })
+        );
+    });
+
+    test('auth cannot create with date wrong length (not 10 chars)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-6-5' })
+        );
+    });
+
+    test('auth cannot create with missing required field', async () => {
+        const { note: _n, ...missing } = VALID_OVERRIDE();
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), missing));
+    });
+
+    test('auth can create with changedBy (manual / AL / sick path)', async () => {
+        await assertSucceeds(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), changedBy: 'G. Miller' })
+        );
+    });
+
+    test('auth cannot create with an unknown extra field (hasOnly)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), injected: 'x' })
+        );
+    });
+
+    test('auth cannot create with changedBy of the wrong type', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), changedBy: 123 })
+        );
+    });
+
+    test('auth cannot create with a 10-char but malformed date', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026/06/25' })
+        );
+    });
+
+    test('auth cannot create a shift with an impossible time (99:99)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: '99:99-10:00' })
+        );
+    });
+
+    test('auth can create a shift with a valid bounded time (overnight)', async () => {
+        await assertSucceeds(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: '23:00-05:30' })
+        );
+    });
+
+    test('auth cannot create with note over 499 chars', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), note: 'x'.repeat(500) })
+        );
+    });
+
+    test('auth cannot create with empty memberName', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), memberName: '' })
+        );
+    });
+
+    test('auth cannot create with empty value string', async () => {
+        await assertFails(
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), value: '' })
+        );
+    });
+
+    test('auth can delete', async () => {
+        const id = uid();
+        await setDoc(doc(namedDb('G. Miller'), 'overrides', id), VALID_OVERRIDE());
+        await assertSucceeds(deleteDoc(doc(namedDb('G. Miller'), 'overrides', id)));
+    });
+
+    test('anon cannot delete', async () => {
+        const id = uid();
+        await setDoc(doc(namedDb('G. Miller'), 'overrides', id), VALID_OVERRIDE());
+        await assertFails(deleteDoc(doc(anonDb(), 'overrides', id)));
+    });
+
+    // ── B2 date hardening: shape was validated but not real month/day ranges ──
+    test('auth cannot create with impossible month (2026-13-01)', async () => {
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-13-01' }));
+    });
+    test('auth cannot create with impossible date (2026-99-99)', async () => {
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-99-99' }));
+    });
+    test('auth cannot create with month 00 / day 00 (2026-00-00)', async () => {
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-00-00' }));
+    });
+    test('auth CAN create with a real edge date (2026-12-31)', async () => {
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-12-31' }));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// overrides — per-member write isolation (STRICT, B3)
+// namedDb(name) carries a `name` claim (models a real provisioned member, whose token's
+// `name` mirrors the memberName); managerDb carries manager:true; adminDb carries admin:true;
+// staffDb carries NO claim (models the legacy/anonymous session — DENIED under B3 strict).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('overrides — replacedType (v21.55)', () => {
+    // The field exists because a write is delete-then-set: recording annual leave DESTROYS the
+    // override that said what the day was, and on a swapped-in day that doc was the only evidence
+    // the member was contracted to work it. These pin the SERVER side of the client rule in
+    // override-utils.js — the client decides what to send, the rules decide what may land.
+    const WITH = (replacedType) => ({ ...VALID_OVERRIDE(), replacedType });
+
+    test('a valid replacedType is accepted', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), WITH('shift')));
+    });
+    test('a legacy type is accepted — those docs are still in the data', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), WITH('swap')));
+    });
+    test('the field stays OPTIONAL — most writes replace nothing', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), VALID_OVERRIDE()));
+    });
+    test('an unknown value is REFUSED — it names an override that could never have existed', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), WITH('not_a_type')));
+    });
+    test('a non-string is REFUSED', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), WITH(7)));
+    });
+    test('null is REFUSED, which is why the builders omit the key instead', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), WITH(null)));
+    });
+    test('a member may still only stamp it on their OWN override', async () => {
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()),
+            { ...WITH('shift'), memberName: 'G. Miller' }));
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────�
+// overrides — leaveYear (v25.18). A January leave day may come out of the PREVIOUS year's allowance
+// (owner, 3 Nov 2026). The rules hold the shape: annual leave, dated in January, naming the year
+// before as a whole number. Who may set it is the isolation the rest of the document already has —
+// a member on their own leave, a manager or the admin on anyone's — and these pin that it did not
+// widen or narrow. The cap ("no more than last year has left") is a count, which rules cannot take.
+// ────────────────────────────────────────────────────────────────────────�
+describe('overrides — leaveYear (v25.18)', () => {
+    const JAN = (over = {}) => ({ ...VALID_OVERRIDE(), date: '2027-01-04', leaveYear: 2026, ...over });
+
+    test('a member CAN put their own January leave day on last year\'s allowance', async () => {
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), JAN()));
+    });
+    test('a manager CAN do it on anyone\'s, and so can the admin', async () => {
+        await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), JAN()));
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), JAN()));
+    });
+    test('a member CANNOT do it on a colleague\'s leave', async () => {
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()), JAN()));
+    });
+    test('both ends of January are accepted', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ date: '2027-01-01' })));
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ date: '2027-01-31' })));
+    });
+    test('the field stays OPTIONAL — a January day with none counts against its own year', async () => {
+        const { leaveYear, ...plain } = JAN();
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), plain));
+    });
+    test('outside January it is REFUSED — 31 December and 1 February alike', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ date: '2026-12-31', leaveYear: 2025 })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ date: '2027-02-01' })));
+    });
+    test('on anything but annual leave it is REFUSED', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ type: 'sick', value: 'SICK' })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ type: 'shift', value: '06:30-14:30' })));
+    });
+    test('only the year BEFORE — not its own year, not two back, not a year ahead', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: 2027 })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: 2025 })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: 2028 })));
+    });
+    test('a string, a fraction or null is REFUSED — the builders omit the key instead', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: '2026' })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: 2026.5 })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: null })));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE APP'S OWN PAYLOADS MEET THE RULES (Oct 2026 review). Every other override test here writes a
+// hand-built object, so nothing tied the fields `buildOverrideWrite` produces to the rules' field
+// list: a builder change could add a key the rules refuse, and every write in production would be
+// denied with every suite green. These write the REAL builder's output, as each identity sends it.
+// They are also the proof for the provenance pins (who saved it, when, and how).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('overrides — the real builder, and provenance the writer cannot forge', () => {
+    /** A real admin: password sign-in, bound name — what Operations actually runs as. */
+    const namedAdminDb = () => testEnv.authenticatedContext('uid_admin_named', memberClaims('G. Miller', { admin: true })).firestore();
+    const build = (/** @type {any} */ f) => buildOverrideWrite({
+        memberName: 'G. Miller', date: '2026-06-25', type: 'shift', value: '06:30-14:30', source: 'manual', changedBy: 'G. Miller', ...f,
+    }, serverTimestamp());
+    const fixed = (/** @type {any} */ db, name = 'G. Miller') => doc(db, 'overrides', manualOverrideId(name, '2026-06-25'));
+
+    test('a member\'s own save, as the builder writes it — create, then the fixed-id UPDATE', async () => {
+        await assertSucceeds(setDoc(fixed(namedDb('G. Miller')), build({})));
+        await assertSucceeds(setDoc(fixed(namedDb('G. Miller')), build({ type: 'annual_leave', value: 'AL', replacedType: 'shift' })));
+    });
+    test('a manager on behalf, stamping their OWN name', async () => {
+        await assertSucceeds(setDoc(fixed(managerDb('S. Stewart')), build({ changedBy: 'S. Stewart' })));
+    });
+    test('a member moving their own January leave day between allowances, as the builder writes it (v25.18)', async () => {
+        const JAN = '2027-01-05';
+        const ref = doc(namedDb('G. Miller'), 'overrides', manualOverrideId('G. Miller', JAN));
+        const leave = (/** @type {any} */ f) => build({ date: JAN, type: 'annual_leave', value: 'AL', ...f });
+        await assertSucceeds(setDoc(ref, leave({})));                    // booked: its own year
+        await assertSucceeds(setDoc(ref, leave({ leaveYear: 2026 })));   // moved back
+        await assertSucceeds(setDoc(ref, leave({ leaveYear: null })));   // and forward again
+        assert.equal(leave({ leaveYear: 2026 }).leaveYear, 2026, 'the builder sends what the rules accept');
+    });
+    test('an admin\'s roster import, as the builder writes it', async () => {
+        await assertSucceeds(setDoc(doc(namedAdminDb(), 'overrides', uid()), build({ source: 'roster_import' })));
+    });
+    test('changedBy naming somebody else is REFUSED — "Last saved by" cannot be forged', async () => {
+        await assertFails(setDoc(fixed(namedDb('G. Miller')), build({ changedBy: 'S. Stewart' })));
+    });
+    test('a createdAt of the writer\'s choosing is REFUSED — newest-wins cannot be gamed', async () => {
+        const past = { ...build({}), createdAt: Timestamp.fromDate(new Date('2020-01-01T00:00:00Z')) };
+        await assertFails(setDoc(fixed(namedDb('G. Miller')), past));
+    });
+    test('source roster_import from anyone but the admin is REFUSED', async () => {
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), build({ source: 'roster_import' })));
+        await assertFails(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), build({ source: 'roster_import', changedBy: 'S. Stewart' })));
+    });
+
+    // ── THE LEAVE SHEET SAVE'S MARK (v26.14) ─────────────────────────────────────────────────
+    //
+    // `uploadId` names the Annual leave sheet Save that wrote a leave record, so that Save's Undo can
+    // tell its own writes from a later change (firestore.rules → overrides). Backend-first: these
+    // prove the rules ACCEPT what the Save will send — the builder's own output — before any client
+    // sends it, and refuse a mark anybody else could use to make their change look like the Save's.
+    describe('uploadId — the leave sheet Save\'s mark on its own writes (v26.14)', () => {
+        const ID = 'Ab3dEf6hIj9kLm2nOp5q';   // the shape of a Firestore auto-id, which the log's id is
+        const LEAVE = { memberName: 'S. Boyle', type: 'annual_leave', value: 'AL', changedBy: 'G. Miller' };
+        /** The Save's write of a day, exactly as the builder makes it. @param {any} [f] @param {any} [uploadId] */
+        const marked = (f = {}, uploadId = ID) => buildOverrideWrite({
+            memberName: 'G. Miller', date: '2026-06-25', type: 'shift', value: '06:30-14:30', source: 'manual', changedBy: 'G. Miller',
+            ...LEAVE, ...f,
+        }, serverTimestamp(), { uploadId });
+
+        test('the admin\'s leave, on behalf, carrying the log\'s id: created, and updated at the fixed id', async () => {
+            const ref = fixed(namedAdminDb(), 'S. Boyle');
+            assert.equal(marked().uploadId, ID, 'the builder sends the mark');
+            await assertSucceeds(setDoc(ref, marked()));
+            await assertSucceeds(setDoc(ref, marked({ replacedType: 'shift' })));   // the Save's "swapped" rewrite
+            const jan = doc(namedAdminDb(), 'overrides', manualOverrideId('S. Boyle', '2027-01-05'));
+            await assertSucceeds(setDoc(jan, marked({ date: '2027-01-05', leaveYear: 2026 })));   // a next-January day
+        });
+
+        test('any other save of the day replaces the record whole, and the mark goes with it', async () => {
+            const ref = fixed(namedAdminDb(), 'S. Boyle');
+            await assertSucceeds(setDoc(ref, marked()));
+            // The admin's own leave card, the same day, the same name: everything the Save wrote but the mark.
+            await assertSucceeds(setDoc(ref, build({ ...LEAVE })));
+            const after = (await assertSucceeds(getDoc(ref))).data();
+            assert.equal(after?.type, 'annual_leave', 'the day still holds leave');
+            assert.ok(after && !('uploadId' in after), 'a rewrite leaves no mark behind for the Undo to find');
+        });
+
+        test('only the admin may write one — never a member on their own leave, never a manager on behalf', async () => {
+            await assertFails(setDoc(fixed(namedDb('G. Miller')), marked({ memberName: 'G. Miller', changedBy: 'G. Miller' })));
+            await assertFails(setDoc(fixed(managerDb('S. Stewart'), 'S. Boyle'), marked({ changedBy: 'S. Stewart' })));
+            // Guard the guard: the same writes without the mark are the ordinary saves, and pass.
+            await assertSucceeds(setDoc(fixed(namedDb('G. Miller')), build({ ...LEAVE, memberName: 'G. Miller', changedBy: 'G. Miller' })));
+            await assertSucceeds(setDoc(fixed(managerDb('S. Stewart'), 'S. Boyle'), build({ ...LEAVE, changedBy: 'S. Stewart' })));
+        });
+
+        test('only on manual annual leave — the Save writes nothing else', async () => {
+            const ref = fixed(namedAdminDb(), 'S. Boyle');
+            await assertFails(setDoc(ref, marked({ type: 'shift', value: '06:30-14:30' })));
+            await assertFails(setDoc(ref, marked({ type: 'sick', value: 'SICK' })));
+            await assertFails(setDoc(doc(namedAdminDb(), 'overrides', uid()), marked({ source: 'roster_import' })));
+        });
+
+        test('only an id of the log\'s own shape: twenty letters and digits', async () => {
+            const ref = fixed(namedAdminDb(), 'S. Boyle');
+            for (const bad of [ID.slice(1), ID + 'x', 'Ab3dEf6hIj9kLm2nOp5-', 'Ab3dEf6hIj9kLm2nOp5_', 'Ab3dEf6hIj9kLm2n p5q']) {
+                await assertFails(setDoc(ref, marked({}, bad)));
+            }
+            // The builder sends anything truthy as given (override-utils.js), so these reach the rules too.
+            await assertFails(setDoc(ref, marked({}, 20262026)));
+            await assertFails(setDoc(ref, { ...marked(), uploadId: null }));
+            await assertFails(setDoc(ref, { ...marked(), uploadId: [ID] }));
+        });
+    });
+
+    // ── THE CHECK BEFORE A SAVE (v25.90) ─────────────────────────────────────────────────────
+    //
+    // Every online save now commits through ONE transaction that first READS each day it is about
+    // to write (`commitChecked`, admin-override-store.js), and on the first save of a day that
+    // document does not exist yet. So the read rule must let every identity that saves read a
+    // document that is NOT THERE. Today it can, because it never consults `resource`. A read rule
+    // that one day did — an owner check, say — would refuse that read for a missing document, and
+    // with it every first save of a day by every identity, reported as a permission failure rather
+    // than as a colleague's change. This runs the real shape for each identity that saves: read
+    // the empty day, then write it, inside one transaction.
+    test('every identity that saves may READ a day with no record yet, then write it, in one transaction (v25.90)', async () => {
+        const cases = [
+            { db: namedDb('G. Miller'), member: 'G. Miller', changedBy: 'G. Miller', who: 'a member, their own day' },
+            { db: managerDb('S. Stewart'), member: 'G. Miller', changedBy: 'S. Stewart', who: 'a manager, on behalf' },
+            { db: namedAdminDb(), member: 'S. Boyle', changedBy: 'G. Miller', who: 'the admin, on behalf' },
+        ];
+        for (const [i, c] of cases.entries()) {
+            const date = `2026-07-0${i + 1}`;
+            const ref = doc(c.db, 'overrides', manualOverrideId(c.member, date));
+            await assertSucceeds(runTransaction(c.db, async (tx) => {
+                const snap = await tx.get(ref);
+                assert.equal(snap.exists(), false, `${c.who}: the day starts empty — this is its first save`);
+                tx.set(ref, build({ memberName: c.member, date, changedBy: c.changedBy }));
+            }));
+        }
+    });
+});
+
+describe('overrides — per-member isolation (STRICT, B3)', () => {
+    const OWN = (name) => ({ ...VALID_OVERRIDE(), memberName: name });
+
+    test('named staff CAN write their OWN override', async () => {
+        await assertSucceeds(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()), OWN('S. Boyle')));
+    });
+    test('named staff CANNOT write another member\'s override', async () => {
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()), OWN('G. Miller')));
+    });
+    test('admin CAN write another member\'s override (on-behalf bypass)', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), OWN('G. Miller')));
+    });
+    test('manager CAN write another member\'s override (on-behalf bypass)', async () => {
+        await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), OWN('G. Miller')));
+    });
+    test('admin roster_import write for another member still saves', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()),
+            { ...OWN('G. Miller'), source: 'roster_import', type: 'shift', value: '06:30-14:30' }));
+    });
+    test('a name-less (legacy) session is DENIED create (permissive escape removed)', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), OWN('G. Miller')));
+    });
+    test('a name-less (legacy) session is DENIED delete (permissive escape removed)', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        await assertFails(deleteDoc(doc(staffDb(), 'overrides', id)));
+    });
+
+    // UPDATE must check the EXISTING doc's owner too, not just the new value (v16.80).
+    // Without it, a member could overwrite another member's override doc by writing their
+    // own name into it — the update twin of the delete-isolation check below.
+    test('named staff CANNOT overwrite another member\'s override (update-path isolation)', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        // S. Boyle tries to seize G. Miller's doc by relabelling it to themselves.
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle')));
+    });
+    test('named staff CAN update their OWN existing override', async () => {
+        const id = uid();
+        await setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle'));
+        await assertSucceeds(setDoc(doc(namedDb('S. Boyle'), 'overrides', id),
+            { ...OWN('S. Boyle'), note: 'edited' }));
+    });
+    test('manager CAN update another member\'s existing override (on-behalf)', async () => {
+        const id = uid();
+        await setDoc(doc(namedDb('G. Miller'), 'overrides', id), OWN('G. Miller'));
+        await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', id),
+            { ...OWN('G. Miller'), note: 'mgr edit' }));
+    });
+
+    // A FIXED manual id must name the record it holds (v24.56). Before it, a member could create a
+    // colleague's `m_` id under their OWN name, and the colleague's own save of that day became a
+    // denied update — one write locked them out of their own day.
+    const mId = (name, date) => `m_${date}_${encodeURIComponent(name)}`;
+    test('a member CANNOT squat a colleague\'s fixed id with their own name', async () => {
+        const id = mId('G. Miller', VALID_OVERRIDE().date);
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle')));
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', id), OWN('G. Miller')));
+    });
+    test('a fixed id whose date is not the record\'s date is refused', async () => {
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', mId('S. Boyle', '2026-01-02')),
+            { ...OWN('S. Boyle'), date: '2026-01-03' }));
+    });
+    test('a member, a manager and the admin CAN write the fixed id that names the record', async () => {
+        const d = VALID_OVERRIDE().date;
+        await assertSucceeds(setDoc(doc(namedDb('S. Boyle'), 'overrides', mId('S. Boyle', d)), OWN('S. Boyle')));
+        await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', mId('G. Miller', d)), OWN('G. Miller')));
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', mId('S. Silva', d)), OWN('S. Silva')));
+    });
+    test('even the admin cannot file a record under a fixed id naming somebody else', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', mId('G. Miller', VALID_OVERRIDE().date)), OWN('S. Silva')));
+    });
+
+    // deletes mirror the same three-tier check against the EXISTING doc's memberName
+    test('named staff CANNOT delete another member\'s override', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        await assertFails(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', id)));
+    });
+    test('named staff CAN delete an override that is already gone — a no-op (v25.07)', async () => {
+        // The replace path deletes ids from the member's cached overrides; a manager may have deleted
+        // one a moment earlier, and the null `resource` used to refuse the member's whole save.
+        await assertSucceeds(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', goneId())));
+    });
+    test('a session with no member name still CANNOT delete, even a missing override', async () => {
+        await assertFails(deleteDoc(doc(anonDb(), 'overrides', goneId())));
+        await assertFails(deleteDoc(doc(staffDb(), 'overrides', goneId())));
+    });
+    test('named staff CAN delete their OWN override', async () => {
+        const id = uid();
+        await setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle'));
+        await assertSucceeds(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', id)));
+    });
+    test('manager CAN delete another member\'s override', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        await assertSucceeds(deleteDoc(doc(managerDb('S. Stewart'), 'overrides', id)));
+    });
+    test('admin CAN delete another member\'s override', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'overrides', id)));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// huddles
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('huddles', () => {
+    // READ REQUIRES ACCESS (v23.18 — was `anon can read`). The same three doors as `overrides`;
+    // an anonymous session holds no claim and is refused, which is the substance of the change.
+    test('UNAUTHENTICATED cannot read', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'huddles')));
+    });
+    test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'huddles')));
+    });
+    test('a NAMED member can read', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'huddles')));
+    });
+    test('the CALENDAR VIEWER can read', async () => {
+        await assertSucceeds(getDocs(collection(viewerDb(), 'huddles')));
+    });
+    test('an ADMIN can read', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'huddles')));
+    });
+
+    test('anon cannot create', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'huddles', '2026-06-25'), VALID_HUDDLE()));
+    });
+
+    test('auth (non-admin) cannot create', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'huddles', '2026-06-25'), VALID_HUDDLE()));
+    });
+
+    test('admin can create a valid huddle', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'huddles', uid()), VALID_HUDDLE()));
+    });
+
+    test('admin cannot create with missing storageUrl', async () => {
+        const { storageUrl: _s, ...missing } = VALID_HUDDLE();
+        await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), missing));
+    });
+
+    test('admin can create huddle with optional htmlContent', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), htmlContent: '<p>Hello</p>' })
+        );
+    });
+
+    test('admin cannot create with an uploadedAt of their own choosing — it is the server\'s clock', async () => {
+        // pruneOldDocs (doc-retention.js) takes this field as its TRUSTED clock for a destructive
+        // six-month sweep, and only `== request.time` makes it one (whole-app fix, 10 Nov 2026).
+        for (const at of [Timestamp.fromDate(new Date('2099-01-01')), Timestamp.fromDate(new Date('2020-01-01'))]) {
+            await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), uploadedAt: at }));
+        }
+    });
+
+    test('admin cannot create with uploadedAt as string', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), uploadedAt: '2026-06-25' })
+        );
+    });
+
+    test('admin cannot create with extra field (hasOnly violation)', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), extra: 'field' })
+        );
+    });
+
+    test('admin cannot create with a malformed date (must be YYYY-MM-DD)', async () => {
+        // Parity with circulars/newsletters — a malformed date would break the string-range prune.
+        await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), date: '2026-6-5' }));
+        await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), date: '2026/06/25' }));
+        await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), date: '2026-13-01' }));
+    });
+
+    test('admin cannot create with an invalid fileType', async () => {
+        // A MIME type (the old fixture value) or anything outside ['pdf','docx'] is rejected.
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), fileType: 'application/pdf' })
+        );
+    });
+
+    // The same v24.18 binding on huddles. Both collections are checked because the rule is written
+    // out three times, once per collection — and a rule restated per collection is one that can be
+    // forgotten in one of them, silently, with the other two still passing.
+    test('admin cannot create a huddle whose storagePath belongs to another collection', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), storagePath: 'circulars/2026-06-25.pdf' })
+        );
+    });
+
+    test('admin cannot create a huddle whose storagePath traverses out of it', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), storagePath: 'huddles/../roster/x.pdf' })
+        );
+    });
+
+    test('admin cannot create with non-string uploadedBy', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), uploadedBy: 12345 })
+        );
+    });
+
+    test('admin cannot create with non-string htmlContent', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), htmlContent: 12345 })
+        );
+    });
+
+    test('admin can delete', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'huddles', id), VALID_HUDDLE());
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'huddles', id)));
+    });
+
+    test('auth (non-admin) cannot delete', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'huddles', id), VALID_HUDDLE());
+        await assertFails(deleteDoc(doc(staffDb(), 'huddles', id)));
+    });
+
+    // A COLLEAGUE AND A MANAGER, not only a claim-less session. Every refusal above used `staffDb`, a
+    // token that fails every identity check, so a rule widened to any named member, or to a manager,
+    // left this suite green — and any member could then have erased the day's Huddle record.
+    test('a named member and a manager can neither create nor delete a huddle — the admin alone', async () => {
+        for (const db of [namedDb('A. Person'), managerDb('Q. Example')]) {
+            await assertFails(setDoc(doc(db, 'huddles', uid()), VALID_HUDDLE()));
+            const id = uid();
+            await setDoc(doc(adminDb(), 'huddles', id), VALID_HUDDLE());
+            await assertFails(deleteDoc(doc(db, 'huddles', id)));
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// linkDesigns
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('linkDesigns — designer-write enforcement (H2)', () => {
+    const DESIGN = () => ({ name: 'Line 1', patterns: {}, updatedAt: serverTimestamp(), updatedBy: 'S. Silva' });
+
+    test('anon cannot read', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'linkDesigns')));
+    });
+    // READ tightened at v19.39. The old rule was `request.auth != null`, documented as "any
+    // authenticated session" — but calendar-app.js then signed EVERY visitor in anonymously (until
+    // v24.34), so that included anyone who could open the app URL. These cases pin the new line: a
+    // signed-in member is in, a claim-less (anonymous-equivalent) session is out, admin is in without
+    // a name claim, and a designer whose token predates the linksDesigner claim can still LOAD — which
+    // is the whole reason the read is not simply narrowed to isLinksWriter().
+    test('a NAMED member can READ', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('J. Davies'), 'linkDesigns')));
+    });
+    test('a name-less authenticated session CANNOT READ (the Calendar\'s old anonymous session)', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'linkDesigns')));
+    });
+    test('a designer on a token with `name` but NOT yet linksDesigner can still READ (self-heal path)', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('S. Silva', 'uid_stale'), 'linkDesigns')));
+    });
+    test('an admin can READ', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'linkDesigns')));
+    });
+    test('a designer can WRITE', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('an admin can WRITE (admin outranks)', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a plain authenticated user (name only, no designer/admin) CANNOT WRITE', async () => {
+        await assertFails(setDoc(doc(namedDb('J. Davies'), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a name-less authenticated session CANNOT WRITE', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('an anonymous session CANNOT WRITE', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+
+    // Shape validation (v17.02 — Finding #12): create/update are schema-checked.
+    test('a designer CANNOT write an extra field (hasOnly)', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), evil: true }));
+    });
+    test('a designer CANNOT write a missing name', async () => {
+        const { name, ...noName } = DESIGN();
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), noName));
+    });
+    test('a designer CANNOT write a non-string name', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), name: 42 }));
+    });
+    test('a designer CANNOT write an over-long name (>100)', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), name: 'x'.repeat(101) }));
+    });
+    test('a designer CANNOT write a non-map patterns', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), patterns: 'nope' }));
+    });
+    test('a designer CANNOT write a missing updatedAt timestamp', async () => {
+        const { updatedAt, ...noTs } = DESIGN();
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), noTs));
+    });
+    // `revision` — the v22.15 concurrency identity, shipped rules-first and now stamped on every save
+    // by links-design-store.js (this said "no client writes it yet" long after one did; test audit,
+    // 7 Nov 2026). Both directions matter and they are not symmetric: rejecting a legitimate revision
+    // would permission-deny every Links save, while accepting a bad one
+    // lets a value through that the co-editing guard then compares against. A design with NO
+    // revision must keep working, because every design that exists today is one.
+    test('a designer CAN write a revision', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: 1 }));
+    });
+    test('a design with NO revision still writes — every existing design is one', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a designer CANNOT write a revision of 0 — it would read as "no revision"', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: 0 }));
+    });
+    test('a designer CANNOT write a negative revision', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: -3 }));
+    });
+    test('a designer CANNOT write a non-integer revision', async () => {
+        // A float would break monotonic comparison; a string would compare as text.
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: 1.5 }));
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), revision: '2' }));
+    });
+    test('a revision survives alongside the soft-delete pair and the window', async () => {
+        // The four optional fields must be able to coexist — hasOnly is a ceiling, and a design in
+        // the bin that also carries a window and a revision is an ordinary state, not a corner.
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), {
+            ...DESIGN(), revision: 7, window: { monSat: {} },
+            deletedAt: serverTimestamp(), deletedBy: 'S. Silva',
+        }));
+    });
+
+    // A HARD DELETE IS ONLY LEGITIMATE AGAINST A DESIGN ALREADY IN THE BIN (v19.84, external
+    // review P1). This test used to assert the opposite — that a designer could hard-delete a LIVE
+    // design — which is exactly the hole that let a stale "Remove for good" destroy a design a
+    // colleague had just restored. The client now purges through a transaction; this is the
+    // defence in depth beneath it, so a future client with the same bug can only fail.
+    test('a designer CANNOT hard-delete a LIVE design', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertFails(deleteDoc(doc(designerDb(), 'linkDesigns', id)));
+    });
+    test('a designer CAN hard-delete a design that is in the bin', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+        await assertSucceeds(deleteDoc(doc(designerDb(), 'linkDesigns', id)));
+    });
+    // Soft delete (v19.41). `deletedAt`/`deletedBy` are OPTIONAL — the live documents that
+    // predate the field must keep working, which is the case the hasOnly change could break.
+    test('a designer CAN soft-delete (write deletedAt + deletedBy)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }, { merge: true }));
+    });
+    test('a LIVE design still writes with neither field (they are optional, not required)', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a designer CAN restore (a write carrying neither field is the restored shape)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+    });
+    test('a designer CANNOT write a non-timestamp deletedAt', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: 'yesterday' }));
+    });
+    test('a designer CANNOT write a non-string deletedBy', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 42 }));
+    });
+    test('a designer CANNOT write an over-long deletedBy (>100)', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'x'.repeat(101) }));
+    });
+    test('the widened hasOnly still rejects an unknown field', async () => {
+        // The soft-delete pair widened the allowlist; this pins that it widened by exactly two.
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), archived: true }));
+    });
+    test('a NON-designer cannot hard-delete a design in the bin — a member, a manager or a bare session', async () => {
+        // The bin check above is only half of the delete rule; the other half is WHO. A design in the
+        // bin is the one a hard delete is aimed at, so it is the one a non-designer must be refused.
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+        for (const db of [namedDb('A. Person'), managerDb('Q. Example'), staffDb()]) {
+            await assertFails(deleteDoc(doc(db, 'linkDesigns', id)));
+        }
+        await assertSucceeds(deleteDoc(doc(designerDb(), 'linkDesigns', id)));   // the control
+    });
+    test('a NON-designer cannot soft-delete either (same gate as a hard delete)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertFails(setDoc(doc(namedDb('J. Davies'), 'linkDesigns', id),
+            { deletedAt: serverTimestamp(), deletedBy: 'J. Davies' }, { merge: true }));
+    });
+
+    test('a designer CAN rename via merge:true (merge keeps patterns, so hasOnly still holds)', async () => {
+        // renameDesign writes only {name, updatedAt, updatedBy} with merge:true — request.resource.data
+        // is the full post-merge doc (existing patterns preserved), so the 4-field hasOnly passes.
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { name: 'Renamed', updatedAt: serverTimestamp(), updatedBy: 'S. Silva' }, { merge: true }));
+    });
+
+    // "SAVED BY" AND "DELETED BY" ARE THE WRITER'S, AT THE SERVER'S TIME (22 Nov 2026). The store's
+    // fallback conflict check trusts `updatedBy`, and the old-length move and Keep only the shortlist
+    // read `updatedAt`, so a pair a client could choose let one designer sign a colleague's name or
+    // backdate a design into the bin. Each refusal below has its legitimate twin beside it.
+    describe('the save and delete stamps', () => {
+        const M = () => designerDb('M. Robson', 'uid_robson');
+        const past = () => Timestamp.fromMillis(Date.UTC(2026, 0, 1));
+        test('a save signed with a colleague\'s name is refused; the writer\'s own is accepted', async () => {
+            await assertFails(setDoc(doc(M(), 'linkDesigns', uid()), { ...DESIGN(), updatedBy: 'S. Silva' }));
+            await assertSucceeds(setDoc(doc(M(), 'linkDesigns', uid()), { ...DESIGN(), updatedBy: 'M. Robson' }));
+        });
+        test('a backdated updatedAt is refused, on a create and on a save', async () => {
+            await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), updatedAt: past() }));
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            await assertFails(setDoc(doc(designerDb(), 'linkDesigns', id), { ...DESIGN(), updatedAt: past() }));
+        });
+        test('a colleague\'s soft delete carries the saver\'s pair through untouched', async () => {
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            await assertSucceeds(setDoc(doc(M(), 'linkDesigns', id),
+                { deletedAt: serverTimestamp(), deletedBy: 'M. Robson' }, { merge: true }));
+        });
+        test('a soft delete signed with someone else\'s name, or backdated, is refused', async () => {
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            await assertFails(setDoc(doc(M(), 'linkDesigns', id),
+                { deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }, { merge: true }));
+            await assertFails(setDoc(doc(M(), 'linkDesigns', id),
+                { deletedAt: past(), deletedBy: 'M. Robson' }, { merge: true }));
+        });
+        test('a rename on a stale baseline leaves the pair as it was, and is accepted', async () => {
+            // links-design-store.js writes only { name, revision } then, so the colleague's save is
+            // not signed as ours — the "unchanged" half of the rule.
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), { ...DESIGN(), revision: 1 }));
+            await assertSucceeds(setDoc(doc(M(), 'linkDesigns', id), { name: 'Renamed', revision: 2 }, { merge: true }));
+        });
+        test('a write that keeps the old time but swaps in another name is refused', async () => {
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            const env = testEnv;
+            let kept = null;
+            await env.withSecurityRulesDisabled(async ctx => {
+                kept = (await getDoc(doc(ctx.firestore(), 'linkDesigns', id))).data().updatedAt;
+            });
+            await assertFails(setDoc(doc(M(), 'linkDesigns', id), { updatedAt: kept, updatedBy: 'Q. Example' }, { merge: true }));
+        });
+        test('a restore stamps the restorer now and clears the deleter', async () => {
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+                { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+            await assertSucceeds(setDoc(doc(M(), 'linkDesigns', id),
+                { name: 'Line 1', patterns: {}, updatedAt: serverTimestamp(), updatedBy: 'M. Robson', revision: 2 }));
+        });
+        test('the restore the store writes — a merge clearing the deleter with deleteField() — is accepted, and only stamped now', async () => {
+            // links-design-store.js's restore is THIS write, not the full set above: a merge, so the
+            // rule sees the stored pattern and name plus the cleared pair.
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+                { ...DESIGN(), revision: 1, deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+            const restore = (/** @type {any} */ at, by = 'M. Robson') => setDoc(doc(M(), 'linkDesigns', id),
+                { deletedAt: deleteField(), deletedBy: deleteField(), revision: 2, updatedAt: at, updatedBy: by }, { merge: true });
+            await assertFails(restore(past()));                       // backdated
+            await assertFails(restore(serverTimestamp(), 'S. Silva'));  // signed as somebody else
+            await assertSucceeds(restore(serverTimestamp()));
+        });
+        test('the admin may stamp without a bound name — a break-glass token — but never another time', async () => {
+            // adminDb() carries `admin` and no memberName, so the name half is the admin's word; the TIME never is.
+            await assertSucceeds(setDoc(doc(adminDb(), 'linkDesigns', uid()), { ...DESIGN(), updatedBy: 'G. Miller' }));
+            await assertFails(setDoc(doc(adminDb(), 'linkDesigns', uid()), { ...DESIGN(), updatedBy: 'G. Miller', updatedAt: past() }));
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            await assertFails(setDoc(doc(adminDb(), 'linkDesigns', id),
+                { deletedAt: past(), deletedBy: 'G. Miller' }, { merge: true }));   // a backdated delete
+            await assertSucceeds(setDoc(doc(adminDb(), 'linkDesigns', id),
+                { deletedAt: serverTimestamp(), deletedBy: 'G. Miller' }, { merge: true }));
+        });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// staffContact
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('staffContact', () => {
+    const MEMBER = 'G. Miller';
+
+    test('anon cannot read', async () => {
+        await assertFails(getDoc(doc(anonDb(), 'staffContact', MEMBER)));
+    });
+
+    test('auth without name claim cannot read own doc', async () => {
+        await assertFails(getDoc(doc(staffDb(), 'staffContact', MEMBER)));
+    });
+
+    test('auth with matching name claim can read own doc', async () => {
+        await assertSucceeds(getDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER)));
+    });
+
+    test('auth with mismatched name claim cannot read another member doc', async () => {
+        await assertFails(getDoc(doc(namedDb('S. Silva'), 'staffContact', MEMBER)));
+    });
+
+    test('admin can read any doc', async () => {
+        await assertSucceeds(getDoc(doc(adminDb(), 'staffContact', MEMBER)));
+    });
+
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    // Staff are told "only you and the admin can see this email", so a manager reading it is a broken promise.
+    test("a manager cannot read a colleague's work email", async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'staffContact', MEMBER)));
+    });
+
+    // ON A MEMBER'S BEHALF (whole-app fix, 10 Nov 2026). Operations → Account status saves a work
+    // email for a member through the same `saveStaffContact` merge, and nothing pinned the admin's
+    // WRITE — the rule's comment said only that the admin "can read all records", so tidying the rule
+    // to match it would have broken that save with every case here green. The manager stays out.
+    test("the admin CAN save and replace a member's work email on their behalf; a manager cannot", async () => {
+        const save = (/** @type {any} */ db, /** @type {string} */ workEmail) => setDoc(doc(db, 'staffContact', 'S. Boyle'),
+            { memberName: 'S. Boyle', workEmail, updatedAt: serverTimestamp() }, { merge: true });
+        await assertSucceeds(save(adminDb(), 'first@chilternrailways.co.uk'));
+        await assertSucceeds(save(adminDb(), 'second@chilternrailways.co.uk'));
+        await assertFails(save(managerDb('D. Watts'), 'third@chilternrailways.co.uk'));
+    });
+
+    test('auth with name claim can create valid contact', async () => {
+        await assertSucceeds(
+            setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), VALID_CONTACT(MEMBER))
+        );
+    });
+
+    test('auth without name claim cannot create', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'staffContact', MEMBER), VALID_CONTACT(MEMBER))
+        );
+    });
+
+    test('cannot create with extra field (hasOnly violation)', async () => {
+        await assertFails(
+            setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                ...VALID_CONTACT(MEMBER), verified: true,
+            })
+        );
+    });
+
+    test('cannot create when memberName field does not match doc ID', async () => {
+        await assertFails(
+            setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                ...VALID_CONTACT(MEMBER), memberName: 'S. Silva',
+            })
+        );
+    });
+
+    test('cannot create with email lacking @', async () => {
+        await assertFails(
+            setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                ...VALID_CONTACT(MEMBER), workEmail: 'notanemail',
+            })
+        );
+    });
+
+    test('cannot create with a non-Chiltern domain', async () => {
+        for (const bad of [
+            'john@gmail.com',
+            'john@arriva.co.uk',
+            'x@evil-chilternrailways.co.uk',
+            'x@sub.chilternrailways.co.uk',
+            'x@chilternrailways.co.uk.evil.com',
+        ]) {
+            await assertFails(
+                setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                    ...VALID_CONTACT(MEMBER), workEmail: bad,
+                })
+            );
+        }
+    });
+
+    test('cannot create with whitespace in the local part (mirrors client no-whitespace rule)', async () => {
+        for (const bad of [
+            'john smith@chilternrailways.co.uk',
+            ' john@chilternrailways.co.uk',
+            'john\t@chilternrailways.co.uk',
+            'john\n@chilternrailways.co.uk',
+        ]) {
+            await assertFails(
+                setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                    ...VALID_CONTACT(MEMBER), workEmail: bad,
+                })
+            );
+        }
+    });
+
+    test('accepts the Chiltern domain in any case', async () => {
+        await assertSucceeds(
+            setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                ...VALID_CONTACT(MEMBER), workEmail: 'John.Smith@ChilternRailways.CO.UK',
+            })
+        );
+    });
+
+    test('cannot create with email shorter than 5 chars', async () => {
+        await assertFails(
+            setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                ...VALID_CONTACT(MEMBER), workEmail: 'a@b',
+            })
+        );
+    });
+
+    test('cannot create with updatedAt as string instead of timestamp', async () => {
+        await assertFails(
+            setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                ...VALID_CONTACT(MEMBER), updatedAt: '2026-06-25',
+            })
+        );
+    });
+
+    test('auth with name claim can delete own doc', async () => {
+        const member = 'T. Tester';
+        await setDoc(doc(namedDb(member, 'uid_tester'), 'staffContact', member), VALID_CONTACT(member));
+        await assertSucceeds(deleteDoc(doc(namedDb(member, 'uid_tester'), 'staffContact', member)));
+    });
+
+    test('admin can delete any doc', async () => {
+        const member = 'T. Admin';
+        await setDoc(doc(namedDb(member, 'uid_tadmin'), 'staffContact', member), VALID_CONTACT(member));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'staffContact', member)));
+    });
+
+    test('auth without claim cannot delete', async () => {
+        const member = 'T. Staff';
+        await setDoc(doc(namedDb(member, 'uid_tstaff'), 'staffContact', member), VALID_CONTACT(member));
+        await assertFails(deleteDoc(doc(staffDb(), 'staffContact', member)));
+    });
+
+    // A COLLEAGUE AND A MANAGER, not only a claim-less session: with `staffDb` the only refusal, the
+    // delete rule widened to any named member (`memberName() != null`) left every test here green,
+    // and any member could have erased a colleague's saved work email. The read rule had a manager
+    // test since the 7 Nov audit; the writes did not.
+    test('a colleague and a manager can neither delete nor replace another member\'s work email', async () => {
+        const owner = 'R. Sample';
+        await setDoc(doc(namedDb(owner, 'uid_rsample'), 'staffContact', owner), VALID_CONTACT(owner));
+        for (const db of [namedDb('A. Person', 'uid_aperson'), managerDb('Q. Example', 'uid_qexample')]) {
+            await assertFails(deleteDoc(doc(db, 'staffContact', owner)));
+            await assertFails(setDoc(doc(db, 'staffContact', owner), VALID_CONTACT(owner)));
+        }
+        // …nor create one for a member who has none yet.
+        await assertFails(setDoc(doc(namedDb('A. Person', 'uid_aperson'), 'staffContact', 'S. Nobody'), VALID_CONTACT('S. Nobody')));
+        // The owner still can (the control): the refusals above are about WHO, not the record.
+        await assertSucceeds(deleteDoc(doc(namedDb(owner, 'uid_rsample'), 'staffContact', owner)));
+    });
+});
+
+// ── resetRequests — the reset-request queue (PASSWORD_DESIGN.md, the request work) ─────────────────
+// This collection is written ONLY by the requestPasswordReset Cloud Function via the Admin SDK, which
+// bypasses rules — so the interesting assertions are that EVERY client write fails, including the
+// admin's. The reason is worth restating here because it looks over-tight: the member who needs this
+// has forgotten their password, so they have no Firebase identity at all and cannot be the writer.
+// Rather than open the collection to unauthenticated writes, the endpoint owns writing entirely.
+describe('resetRequests (the reset-request queue)', () => {
+    const NAME = 'G. Miller';
+
+    test('anon and ordinary members cannot read the queue', async () => {
+        await assertFails(getDoc(doc(anonDb(), 'resetRequests', NAME)));
+        await assertFails(getDoc(doc(namedDb(NAME), 'resetRequests', NAME)));
+    });
+
+    test('admin can read', async () => {
+        await assertSucceeds(getDoc(doc(adminDb(), 'resetRequests', NAME)));
+    });
+
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test('a manager cannot read the reset-request queue', async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'resetRequests', NAME)));
+    });
+
+    test('NO client may create — not anon, not the member, not even the admin', async () => {
+        const payload = { memberName: NAME, requestedAt: new Date(), count: 1, provisioned: true };
+        await assertFails(setDoc(doc(anonDb(), 'resetRequests', NAME), payload));
+        await assertFails(setDoc(doc(namedDb(NAME), 'resetRequests', NAME), payload));
+        await assertFails(setDoc(doc(adminDb(), 'resetRequests', NAME), payload));
+    });
+
+    test('NO client may update an existing row', async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'resetRequests', NAME), { memberName: NAME, count: 1 });
+        });
+        await assertFails(updateDoc(doc(anonDb(), 'resetRequests', NAME), { count: 99 }));
+        await assertFails(updateDoc(doc(namedDb(NAME), 'resetRequests', NAME), { count: 99 }));
+        await assertFails(updateDoc(doc(adminDb(), 'resetRequests', NAME), { count: 99 }));
+    });
+
+    test('the admin CAN delete — clearing a row they have actioned is the one client write', async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'resetRequests', NAME), { memberName: NAME, count: 1 });
+        });
+        await assertFails(deleteDoc(doc(namedDb(NAME), 'resetRequests', NAME)));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'resetRequests', NAME)));
+    });
+
+    // A manager may not read the queue (above), and may not clear a request from it either: a cleared
+    // row is a locked-out member the admin is no longer told about.
+    test('a manager cannot clear a reset request', async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'resetRequests', 'R. Sample'), { memberName: 'R. Sample', count: 1 });
+        });
+        await assertFails(deleteDoc(doc(managerDb('Q. Example'), 'resetRequests', 'R. Sample')));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'resetRequests', 'R. Sample')));
+    });
+});
+
+describe('passwordStatus (PASSWORD_DESIGN §6)', () => {
+    const NAME = 'G. Miller';
+    test('anon cannot read', async () => {
+        await assertFails(getDoc(doc(anonDb(), 'passwordStatus', NAME)));
+    });
+    test('the owner (name claim) reads their own record; admin reads any', async () => {
+        await assertSucceeds(getDoc(doc(namedDb(NAME), 'passwordStatus', NAME)));
+        await assertSucceeds(getDoc(doc(adminDb(), 'passwordStatus', NAME)));
+    });
+    test("a DIFFERENT named member cannot read someone else's record", async () => {
+        await assertFails(getDoc(doc(namedDb('S. Silva'), 'passwordStatus', NAME)));
+    });
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test("a manager cannot read a colleague's password record", async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'passwordStatus', NAME)));
+    });
+    test('the owner CREATEs with only passwordSetAt == server time', async () => {
+        await assertSucceeds(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
+    });
+    // EACH "CANNOT CREATE" TEST WRITES A RECORD THAT DOES NOT EXIST YET (test audit, 7 Nov 2026).
+    // The emulator is not cleared between tests, so once the test above had created G. Miller's
+    // record these two were exercising the UPDATE rule, and the CREATE rule's hasOnly and its
+    // server-time pin could be stripped with every rules test green.
+    const freshRecord = async (/** @type {string} */ name) => {
+        let exists = true;
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            exists = (await getDoc(doc(ctx.firestore(), 'passwordStatus', name))).exists();
+        });
+        assert.equal(exists, false, `fixture check: ${name}'s record must not exist, or this tests UPDATE`);
+        return name;
+    };
+    test('the owner CANNOT create with resetAt (a client can never set the reset flag)', async () => {
+        const who = await freshRecord('N. Sobers');
+        await assertFails(setDoc(doc(namedDb(who), 'passwordStatus', who), { passwordSetAt: serverTimestamp(), resetAt: serverTimestamp() }));
+    });
+    test('a fixed (non-server) passwordSetAt is rejected — must be pinned to request.time', async () => {
+        const who = await freshRecord('H. Croft');
+        await assertFails(setDoc(doc(namedDb(who), 'passwordStatus', who), { passwordSetAt: new Date('2020-01-01') }));
+    });
+    test("a non-owner cannot write another member's record", async () => {
+        await assertFails(setDoc(doc(namedDb('S. Silva'), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
+    });
+    test('the owner may UPDATE passwordSetAt without touching a server-written resetAt', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), 'passwordStatus', NAME), { resetAt: new Date('2026-01-01') });
+        });
+        await assertSucceeds(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }, { merge: true }));
+    });
+    test('the owner CANNOT change the server-written resetAt (immutable to clients)', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), 'passwordStatus', NAME), { resetAt: new Date('2026-01-01') });
+        });
+        await assertFails(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp(), resetAt: serverTimestamp() }, { merge: true }));
+    });
+    test('admin cannot write ANOTHER member\'s record from the client (resets go via the function)', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
+    });
+    test('the REAL admin token shape {admin,name} still cannot write another member\'s record', async () => {
+        // Production admins carry BOTH claims ({ admin: true, name: 'G. Miller' }) — setupRosterAuth's
+        // admin tier. The create/update rule keys off `token.name == memberName`, so an admin can only
+        // self-write; another member's doc still fails even WITH the admin claim (the `adminDb()` case
+        // above passes partly because it has no name claim — this proves the constraint on the real token).
+        const adminNamed = testEnv.authenticatedContext('uid_admin', memberClaims('G. Miller', { admin: true })).firestore();
+        await assertFails(setDoc(doc(adminNamed, 'passwordStatus', 'S. Silva'), { passwordSetAt: serverTimestamp() }));
+        // …and CAN still stamp their OWN record (an admin is also a member setting their own password).
+        // merge:true so it's an update touching ONLY passwordSetAt — this suite has no clearFirestore,
+        // so G. Miller's doc already carries a resetAt from earlier tests; a non-merge replace would
+        // (correctly) fail the affectedKeys().hasOnly(['passwordSetAt']) rule. Mirrors savePasswordSetAt.
+        await assertSucceeds(setDoc(doc(adminNamed, 'passwordStatus', 'G. Miller'), { passwordSetAt: serverTimestamp() }, { merge: true }));
+    });
+    test('no client delete', async () => {
+        await assertFails(deleteDoc(doc(namedDb(NAME), 'passwordStatus', NAME)));
+    });
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// clientErrors
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('clientErrors', () => {
+    // A MANAGER IS NOT AN ADMIN for this collection (test audit, 7 Nov 2026: adding `|| manager` to the
+    // read rule left every rules test green — managers were tested only on overrides and Overtime).
+    test('a manager cannot read the error log', async () => {
+        await assertFails(getDoc(doc(managerDb('D. Watts'), 'clientErrors', 'any')));
+    });
+
+    test('anon cannot create', async () => {
+        await assertFails(addDoc(collection(anonDb(), 'clientErrors'), VALID_ERROR()));
+    });
+
+    test('auth can create a valid error report', async () => {
+        await assertSucceeds(addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR()));
+    });
+
+    test('auth cannot create with resolved=true', async () => {
+        await assertFails(
+            addDoc(collection(memberDb(), 'clientErrors'), { ...VALID_ERROR(), resolved: true })
+        );
+    });
+
+    test('auth cannot create with message over 300 chars', async () => {
+        await assertFails(
+            addDoc(collection(memberDb(), 'clientErrors'), {
+                ...VALID_ERROR(), message: 'x'.repeat(301),
+            })
+        );
+    });
+
+    test('auth cannot create with stack over 800 chars', async () => {
+        await assertFails(
+            addDoc(collection(memberDb(), 'clientErrors'), {
+                ...VALID_ERROR(), stack: 's'.repeat(801),
+            })
+        );
+    });
+
+    test('auth cannot create with userAgent over 150 chars', async () => {
+        await assertFails(
+            addDoc(collection(memberDb(), 'clientErrors'), {
+                ...VALID_ERROR(), userAgent: 'u'.repeat(151),
+            })
+        );
+    });
+
+    test('auth cannot create with extra field (hasOnly violation)', async () => {
+        await assertFails(
+            addDoc(collection(memberDb(), 'clientErrors'), {
+                ...VALID_ERROR(), extra: 'field',
+            })
+        );
+    });
+
+    test('auth cannot create with timestamp as string', async () => {
+        await assertFails(
+            addDoc(collection(memberDb(), 'clientErrors'), {
+                ...VALID_ERROR(), timestamp: '2026-06-25',
+            })
+        );
+    });
+
+    test('auth (non-admin) cannot read clientErrors', async () => {
+        await assertFails(getDocs(collection(memberDb(), 'clientErrors')));
+    });
+
+    test('admin can read clientErrors', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'clientErrors')));
+    });
+
+    test('admin can update (resolve) an error', async () => {
+        const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
+        await assertSucceeds(
+            updateDoc(doc(adminDb(), 'clientErrors', ref.id), { resolved: true, resolvedAt: serverTimestamp() })
+        );
+    });
+
+    test('auth (non-admin) cannot update', async () => {
+        const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
+        await assertFails(
+            updateDoc(doc(memberDb(), 'clientErrors', ref.id), { resolved: true })
+        );
+    });
+
+    // DELETE had no test at all. The admin alone may remove an entry: a reporter who could delete
+    // theirs, or a manager, could empty the log the admin learns of a fault from.
+    test('only the admin may delete an error report — not its reporter, a manager or the staff PIN', async () => {
+        const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
+        for (const db of [memberDb(), managerDb('Q. Example'), viewerDb(), staffDb()]) {
+            await assertFails(deleteDoc(doc(db, 'clientErrors', ref.id)));
+        }
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'clientErrors', ref.id)));
+    });
+
+    // THE REAL WRITER (test audit, 7 Nov 2026). Every case above writes VALID_ERROR. This is the
+    // production `logClientError`, at the caps error-reporter.js slices to (message 300, stack 800,
+    // user agent 150), under BOTH identities that report: a member, and the staff PIN, for which the
+    // Calendar and Trains start the reporter too. A refusal here is one the reporter would swallow,
+    // leaving the Error Log empty exactly when something is wrong.
+    test('the real error writer is accepted at the reporter\'s caps, for a member and for the PIN', async () => {
+        for (const [db, memberName] of [[memberDb(), 'S. Boyle'], [viewerDb(), 'unknown']]) {
+            /** @type {Promise<unknown>[]} */ const writes = [];
+            realAnalyticsClient(db, { addDoc: recording(addDoc, writes) }).logClientError({
+                memberName, page: 'index.html', message: 'm'.repeat(300), stack: 's'.repeat(800),
+                appVersion: APP_VERSION, userAgent: 'u'.repeat(150),
+            });
+            assert.equal(writes.length, 1, 'the writer wrote');
+            await assertSucceeds(writes[0]);
+        }
+    });
+
+    test('the admin\'s real Resolve is accepted', async () => {
+        const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
+        await assertSucceeds(realAnalyticsClient(adminDb()).resolveClientError(ref.id));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// errorLogNotice — the admin's Error Log notification record (v26.04)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('errorLogNotice (the Error Log notification record)', () => {
+    // Written only by the scheduled function, through the Admin SDK. A client that could WRITE it could
+    // move the line past entries nobody has been told about, or hold the hourly gap shut for ever.
+    const RECORD = () => ({ announcedThrough: Timestamp.fromMillis(0), lastAttemptAt: null });
+
+    test('no client reads it — not even the admin, whose notification it is', async () => {
+        for (const db of [adminDb(), memberDb(), managerDb('D. Watts'), viewerDb(), anonDb()]) {
+            await assertFails(getDoc(doc(db, 'errorLogNotice', 'state')));
+        }
+    });
+
+    test('no client writes it — not even the admin', async () => {
+        for (const db of [adminDb(), memberDb(), managerDb('D. Watts'), viewerDb(), anonDb()]) {
+            await assertFails(setDoc(doc(db, 'errorLogNotice', 'state'), RECORD()));
+            await assertFails(deleteDoc(doc(db, 'errorLogNotice', 'state')));
+        }
+    });
+
+    test('the closed record closes nothing else: the admin still reads the Error Log itself', async () => {
+        // Guard the guard — every assertion above is an assertFails, which a rules file denying
+        // everything would also pass.
+        await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
+        await assertSucceeds(getDocs(collection(adminDb(), 'clientErrors')));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// alUploads — the annual leave uploader's log (v26.11, AL_UPLOADER_PLAN.md §4.6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('alUploads (the annual leave uploader\'s log)', () => {
+    // A log names colleagues against their leave days, so every person here is INVENTED, the admin
+    // included. `savedBy` must be the writer's own bound name (`memberName()`), so the admin is a
+    // member identity that also carries the admin claim, as the real admin's token does.
+    const ADMIN = 'A. Clerkson';
+    const loggingAdminDb = () => testEnv.authenticatedContext('uid_al_admin', memberClaims(ADMIN, { admin: true })).firestore();
+    const LOG = () => ({
+        year: 2026,
+        fileDigest: 'sha256:' + 'a1'.repeat(32),
+        workbookSha256: 'b2'.repeat(32),
+        clerksLastSaved: '2026-11-06T14:22:10Z',
+        lastSavedByClerk: true,
+        savedAt: serverTimestamp(),
+        savedBy: ADMIN,
+        appVersion: APP_VERSION,
+        inLine: ['B. Example|2026-03-02', 'B. Example|2026-03-03', 'C. Specimen|2026-07-14'],
+        added: ['B. Example|2026-03-03'],
+    });
+    const UNDO = () => ({ undoneAt: serverTimestamp(), undoneBy: ADMIN, undone: ['B. Example|2026-03-03'] });
+    /** `assertFails`, naming the case that got through — it takes no message of its own.
+     *  @param {Promise<any>} pr @param {string} what */
+    async function refused(pr, what) {
+        try { await assertFails(pr); } catch (e) { throw new Error(`${what}: ${e instanceof Error ? e.message : e}`, { cause: e }); }
+    }
+    /** A log the admin has written, for the tests that act on one. */
+    async function writtenLog() {
+        const ref = doc(collection(loggingAdminDb(), 'alUploads'));
+        await assertSucceeds(setDoc(ref, LOG()));
+        return ref.id;
+    }
+    /** @param {number} n */
+    const entries = (n) => Array.from({ length: n }, (_, i) => `D. Placeholder${i}|2026-05-01`);
+
+    test('the admin writes a log, reads it back, and finds the year\'s logs', async () => {
+        const id = await writtenLog();
+        const db = loggingAdminDb();
+        const snap = await assertSucceeds(getDoc(doc(db, 'alUploads', id)));
+        assert.equal(snap.data()?.savedBy, ADMIN);
+        await assertSucceeds(getDocs(query(collection(db, 'alUploads'), where('year', '==', 2026))));
+    });
+
+    test('nobody but the admin reads, writes, undoes or deletes one', async () => {
+        const id = await writtenLog();
+        const others = [
+            ['a manager', managerDb('E. Sample'), 'E. Sample'],
+            ['a member', namedDb('F. Example'), 'F. Example'],
+            ['the PIN viewer', viewerDb(), ADMIN],
+            ['a session with no claim', staffDb(), ADMIN],
+            ['an anonymous session', anonymousSessionDb(), ADMIN],
+            ['no session', anonDb(), ADMIN],
+        ];
+        for (const [who, db, name] of others) {
+            await refused(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), savedBy: name }), `${who} created a log`);
+            await refused(getDoc(doc(db, 'alUploads', id)), `${who} read a log`);
+            await refused(getDocs(collection(db, 'alUploads')), `${who} listed the logs`);
+            await refused(updateDoc(doc(db, 'alUploads', id), { ...UNDO(), undoneBy: name }), `${who} undid a log`);
+            await refused(deleteDoc(doc(db, 'alUploads', id)), `${who} deleted a log`);
+        }
+    });
+
+    test('a log says who made it: the admin is signed in as themselves, and savedBy is their own name', async () => {
+        await assertFails(setDoc(doc(collection(loggingAdminDb(), 'alUploads')), { ...LOG(), savedBy: 'B. Example' }));
+        // The admin claim on a token with no bound name: memberName() is null, so no name will do.
+        await assertFails(setDoc(doc(collection(adminDb(), 'alUploads')), LOG()));
+        await refused(setDoc(doc(collection(adminDb(), 'alUploads')), { ...LOG(), savedBy: null }),
+            'a log saying nobody made it, from an admin token with no bound name');
+    });
+
+    test('savedAt is the server\'s clock, never the device\'s', async () => {
+        await assertFails(setDoc(doc(collection(loggingAdminDb(), 'alUploads')), { ...LOG(), savedAt: Timestamp.now() }));
+    });
+
+    test('every field is required, and nothing else may ride in', async () => {
+        const db = loggingAdminDb();
+        for (const field of Object.keys(LOG())) {
+            const log = LOG();
+            delete log[field];
+            await refused(setDoc(doc(collection(db, 'alUploads')), log), `a log without ${field} was accepted`);
+        }
+        await assertFails(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), note: '' }));
+        // An undo's fields are the undo's: a log cannot be born undone.
+        await assertFails(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), ...UNDO() }));
+    });
+
+    test('each field holds the shape the leave file gives it', async () => {
+        const db = loggingAdminDb();
+        /** @type {Array<Record<string, any>>} each one changes the log in one way the rules must refuse */
+        const bad = [
+            { year: 2019 }, { year: 2101 }, { year: '2026' }, { year: 2026.5 },
+            { fileDigest: 'a1'.repeat(32) }, { fileDigest: 'sha256:' + 'A1'.repeat(32) },
+            { fileDigest: 'sha256:' + 'a'.repeat(63) }, { fileDigest: 'sha256:' + 'a'.repeat(65) },
+            { fileDigest: ['sha256:' + 'a1'.repeat(32)] },
+            { workbookSha256: 'sha256:' + 'b2'.repeat(32) }, { workbookSha256: 'B2'.repeat(32) }, { workbookSha256: 'b'.repeat(63) },
+            { clerksLastSaved: null }, { clerksLastSaved: '2026-11-06' }, { clerksLastSaved: '2026-11-06T14:22:10.000Z' },
+            { clerksLastSaved: Timestamp.fromMillis(Date.UTC(2026, 10, 6)) },
+            { lastSavedByClerk: 'yes' }, { lastSavedByClerk: 1 },
+            { savedBy: null },
+            { appVersion: '' }, { appVersion: 'x'.repeat(17) }, { appVersion: 26.11 }, { appVersion: ['26.11'] },
+            // One entry, not in a list: a string has a size too, so only the type check refuses it.
+            { inLine: 'B. Example|2026-03-02' },
+            { inLine: entries(40), added: 'B. Example|2026-03-03' },
+            // A Save that brought nothing into line has nothing to record.
+            { inLine: [], added: [] },
+        ];
+        for (const change of bad) {
+            await refused(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), ...change }),
+                `${JSON.stringify(change).slice(0, 80)} was accepted`);
+        }
+        // Guard the guard: the bounds themselves, and the other answers the file may give.
+        for (const change of [{ year: 2020 }, { year: 2100 }, { lastSavedByClerk: false }, { lastSavedByClerk: null }, { added: [] }]) {
+            await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), ...change }));
+        }
+    });
+
+    // v26.14, backend-first: a Save whose leave records carry its log's id says so, and its Undo then
+    // asks for the id. A log without the flag is still written — the release live before it sends none.
+    test('writesMarked: true is accepted, and nothing else; a log without it is still written', async () => {
+        const db = loggingAdminDb();
+        await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), writesMarked: true }));
+        await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), LOG()));
+        for (const writesMarked of [false, 'true', 1, null, ['true']]) {
+            await refused(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), writesMarked }),
+                `writesMarked ${JSON.stringify(writesMarked)} was accepted`);
+        }
+    });
+
+    test('an undo cannot add writesMarked to a log written without it', async () => {
+        const id = await writtenLog();
+        await assertFails(updateDoc(doc(loggingAdminDb(), 'alUploads', id), { ...UNDO(), writesMarked: true }));
+        await assertSucceeds(updateDoc(doc(loggingAdminDb(), 'alUploads', id), UNDO()));   // the undo alone still goes
+    });
+
+    test('the lists are capped: 4,000 days in line at most, and no more added than are in line', async () => {
+        const db = loggingAdminDb();
+        await assertSucceeds(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), inLine: entries(4000) }));
+        await assertFails(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), inLine: entries(4001) }));
+        await assertFails(setDoc(doc(collection(db, 'alUploads')), { ...LOG(), added: entries(4) }));
+    });
+
+    test('a first catch-up of a realistic size is written and undone', async () => {
+        // About what the 6 Nov copy holds: some 1,300 dated days in line, a few hundred of them new.
+        const db = loggingAdminDb();
+        const ref = doc(collection(db, 'alUploads'));
+        await assertSucceeds(setDoc(ref, { ...LOG(), inLine: entries(1300), added: entries(400) }));
+        await assertSucceeds(updateDoc(ref, { ...UNDO(), undone: entries(390) }));
+    });
+
+    test('the undo: once, at the server\'s clock, by the admin as themselves, and nothing else moves', async () => {
+        const db = loggingAdminDb();
+        const id = await writtenLog();
+        const ref = doc(db, 'alUploads', id);
+        await refused(updateDoc(ref, { ...UNDO(), undoneAt: Timestamp.now() }), 'an undo at the device\'s clock');
+        await refused(updateDoc(ref, { ...UNDO(), undoneBy: 'B. Example' }), 'an undo naming somebody else');
+        await refused(updateDoc(doc(adminDb(), 'alUploads', id), UNDO()), 'an undo by an admin with no bound name');
+        await refused(updateDoc(doc(adminDb(), 'alUploads', id), { ...UNDO(), undoneBy: null }),
+            'an undo saying nobody made it, from an admin token with no bound name');
+        await refused(updateDoc(ref, { undoneAt: serverTimestamp(), undoneBy: ADMIN }), 'an undo with no list of what it removed');
+        await refused(updateDoc(ref, { ...UNDO(), undone: entries(2) }), 'an undo removing more than the Save added');
+        await refused(updateDoc(ref, { ...UNDO(), inLine: ['B. Example|2026-03-02'] }), 'an undo that rewrote what was in line');
+        await refused(updateDoc(ref, { added: [] }), 'a rewrite with no undo at all');
+        await assertSucceeds(updateDoc(ref, UNDO()));
+        await refused(updateDoc(ref, { ...UNDO(), undone: [] }), 'a second undo');
+        const after = (await getDoc(ref)).data();
+        assert.deepEqual(after?.undone, ['B. Example|2026-03-03']);
+        assert.deepEqual(after?.inLine, LOG().inLine, 'what the Save brought into line is still on the log');
+        // What an undo removed is a list too: one entry as a string has a size, and would fit here.
+        const wide = doc(collection(db, 'alUploads'));
+        await assertSucceeds(setDoc(wide, { ...LOG(), inLine: entries(40), added: entries(40) }));
+        await refused(updateDoc(wide, { ...UNDO(), undone: 'B. Example|2026-03-03' }), 'an undo whose list is a string');
+    });
+
+    test('a create sent again is refused, so the Save writes its log in a transaction that reads first', async () => {
+        // When a create's answer is lost, the SDK sends it again. The copy finds the log already there,
+        // so it is an UPDATE, and its savedAt is a new server time: the undo-only rule refuses it.
+        const db = loggingAdminDb();
+        const ref = doc(collection(db, 'alUploads'));
+        await assertSucceeds(setDoc(ref, LOG()));
+        await assertFails(setDoc(ref, LOG()));
+        // The shape the Save will use instead: read inside the transaction, write only if absent.
+        const writeOnce = () => runTransaction(db, async (tx) => {
+            const there = await tx.get(ref);
+            if (there.exists()) return 'already written';
+            tx.set(ref, LOG());
+            return 'written';
+        });
+        const fresh = doc(collection(db, 'alUploads'));
+        const writeFresh = () => runTransaction(db, async (tx) => {
+            if ((await tx.get(fresh)).exists()) return 'already written';
+            tx.set(fresh, LOG());
+            return 'written';
+        });
+        assert.equal(await assertSucceeds(writeOnce()), 'already written');
+        assert.equal(await assertSucceeds(writeFresh()), 'written');
+        assert.equal(await assertSucceeds(writeFresh()), 'already written');
+    });
+
+    test('the admin deletes a log: it names people, so it is kept no longer than it is needed', async () => {
+        const id = await writtenLog();
+        await assertSucceeds(deleteDoc(doc(loggingAdminDb(), 'alUploads', id)));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// circulars
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('circulars', () => {
+    // READ REQUIRES ACCESS (v23.18 — was `anon can read`). The same three doors as `overrides`;
+    // an anonymous session holds no claim and is refused, which is the substance of the change.
+    test('UNAUTHENTICATED cannot read', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'circulars')));
+    });
+    test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'circulars')));
+    });
+    test('a NAMED member can read', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'circulars')));
+    });
+    test('the CALENDAR VIEWER can read', async () => {
+        await assertSucceeds(getDocs(collection(viewerDb(), 'circulars')));
+    });
+    test('an ADMIN can read', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'circulars')));
+    });
+
+    test('anon cannot create', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'circulars', '2026-06-25'), VALID_CIRCULAR()));
+    });
+
+    test('auth (non-admin) cannot create', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'circulars', uid()), VALID_CIRCULAR()));
+    });
+
+    test('admin can create a valid circular', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'circulars', uid()), VALID_CIRCULAR()));
+    });
+
+    test('admin can create a DOCX circular (Word uploads allowed)', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), fileType: 'docx' })
+        );
+    });
+
+    test('admin cannot create with an invalid fileType (not pdf/docx)', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), fileType: 'txt' })
+        );
+    });
+
+    test('admin cannot create with date not 10 chars', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), date: '2026-6-25' })
+        );
+    });
+
+    test('admin cannot create with impossible date (2026-13-01) — B2 date bounding', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), date: '2026-13-01' })
+        );
+    });
+
+    test('admin can create with storagePath field (v13.99+)', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), storagePath: 'circulars/2026-06-25-abc123.pdf' })
+        );
+    });
+
+    // ── storagePath is bound to its OWN collection (v24.18, external review of v24.17) ─────────
+    // Until v24.18 this field was in `hasOnly` and otherwise unchecked, which was defensible while
+    // a wrong value could only break a link. `getDocumentUrl` signs whatever path it reads, through
+    // the Admin SDK, which bypasses storage.rules — so a circulars document carrying another
+    // collection's path is a privileged read of a file this rule never meant to release. The
+    // endpoint refuses it too (`isSignablePathForKind`); this is the layer that stops it being
+    // STORED, which is the only one that helps for a document written before that check existed.
+    for (const [label, path] of [
+        ['a huddles path',           'huddles/2026-06-25-abc123.pdf'],
+        ['a newsletters path',       'newsletters/2026-06-25.pdf'],
+        ['an unrelated bucket path', 'roster/2026-06-25.pdf'],
+        ['a nested path',            'circulars/nested/thing.pdf'],
+        ['a traversing path',        'circulars/../huddles/x.pdf'],
+        ['an absolute path',         '/circulars/2026-06-25.pdf'],
+        ['a prefix-only path',       'circulars/'],
+        ['a lookalike collection',   'circularsX/2026-06-25.pdf'],
+        ['a non-string',             42],
+    ]) {
+        test(`admin cannot create a circular whose storagePath is ${label}`, async () => {
+            await assertFails(
+                setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), storagePath: path })
+            );
+        });
+    }
+
+    test('a circular with NO storagePath is still allowed — pre-v13.99 documents have none', async () => {
+        // The direction a tightening gets wrong, and it is not hypothetical: the first cut of this
+        // rule REQUIRED the field and failed eight existing tests, because `legacyDocPath` exists
+        // precisely for documents that do not carry one.
+        await assertSucceeds(setDoc(doc(adminDb(), 'circulars', uid()), VALID_CIRCULAR()));
+    });
+
+    test('the legacy unversioned path shape is still allowed', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), storagePath: 'circulars/2026-06-25.pdf' })
+        );
+    });
+
+    test('admin cannot create with extra field (hasOnly violation)', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), extra: 'field' })
+        );
+    });
+
+    test('admin cannot create with an uploadedAt of their own choosing — it is the server\'s clock', async () => {
+        for (const at of [Timestamp.fromDate(new Date('2099-01-01')), Timestamp.fromDate(new Date('2020-01-01'))]) {
+            await assertFails(setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), uploadedAt: at }));
+        }
+    });
+
+    test('admin cannot create with uploadedAt as string', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), uploadedAt: '2026-06-25' })
+        );
+    });
+
+    test('admin can delete', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'circulars', id), VALID_CIRCULAR());
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'circulars', id)));
+    });
+
+    test('auth (non-admin) cannot delete', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'circulars', id), VALID_CIRCULAR());
+        await assertFails(deleteDoc(doc(staffDb(), 'circulars', id)));
+    });
+
+    // A colleague and a manager, as for huddles above (whose comment says why `staffDb` was not enough).
+    test('a named member and a manager can neither create nor delete a circular — the admin alone', async () => {
+        for (const db of [namedDb('A. Person'), managerDb('Q. Example')]) {
+            await assertFails(setDoc(doc(db, 'circulars', uid()), VALID_CIRCULAR()));
+            const id = uid();
+            await setDoc(doc(adminDb(), 'circulars', id), VALID_CIRCULAR());
+            await assertFails(deleteDoc(doc(db, 'circulars', id)));
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// newsletters  (mirror of circulars rules — tests kept separate for regression safety)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('linkTargetSets — saved generator target sets, per-creator write (v21.04)', () => {
+    // The one promise: anyone may save a NEW set; only the creator (or admin) may overwrite or
+    // delete one. Every case here has a client-side twin in links-target-sets.test.mjs — that copy
+    // drives the Save button, THIS is the protection, and the two must answer alike.
+    const SET = (createdBy = 'G. Miller', updatedBy = createdBy) => ({
+        name: 'Set A',
+        slots: [{ time: '06:20-14:20', weekday: 1, sat: 1, sun: 0 }],
+        spareLines: 4,
+        createdBy, updatedBy,
+        updatedAt: serverTimestamp(),
+    });
+    /** A set already on the server, owned by G. Miller, written past the rules. */
+    async function seedSet(id, createdBy = 'G. Miller') {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'linkTargetSets', id),
+                { ...SET(createdBy), updatedAt: new Date() });
+        });
+    }
+    const designerAs = (name, uidSuffix) =>
+        testEnv.authenticatedContext('uid_' + uidSuffix, memberClaims(name, { linksDesigner: true })).firestore();
+
+    test('read matches linkDesigns: named yes, admin yes, anonymous and claim-less no', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('S. Silva'), 'linkTargetSets')));
+        await assertSucceeds(getDocs(collection(adminDb(), 'linkTargetSets')));
+        await assertFails(getDocs(collection(anonDb(), 'linkTargetSets')));
+        await assertFails(getDocs(collection(staffDb(), 'linkTargetSets')));
+    });
+
+    test('a designer can CREATE a set owned as THEMSELVES', async () => {
+        await assertSucceeds(setDoc(doc(designerAs('S. Silva', 'silva'), 'linkTargetSets', uid()),
+            SET('S. Silva')));
+    });
+
+    test('a designer CANNOT create a set owned as somebody else — ownership is not forgeable', async () => {
+        await assertFails(setDoc(doc(designerAs('S. Silva', 'silva'), 'linkTargetSets', uid()),
+            SET('G. Miller', 'S. Silva')));
+    });
+
+    test('THE PROMISE: a colleague cannot overwrite the creator\'s set', async () => {
+        const id = uid();
+        await seedSet(id, 'G. Miller');
+        await assertFails(setDoc(doc(designerAs('S. Silva', 'silva'), 'linkTargetSets', id),
+            { ...SET('G. Miller', 'S. Silva') }));
+    });
+
+    test('…and cannot delete it either — losing the set is the whole thing being prevented', async () => {
+        const id = uid();
+        await seedSet(id, 'G. Miller');
+        await assertFails(deleteDoc(doc(designerAs('S. Silva', 'silva'), 'linkTargetSets', id)));
+    });
+
+    test('the creator CAN overwrite and delete their own set', async () => {
+        const id = uid();
+        await seedSet(id, 'G. Miller');
+        const mine = designerAs('G. Miller', 'miller');
+        await assertSucceeds(setDoc(doc(mine, 'linkTargetSets', id), SET('G. Miller')));
+        await assertSucceeds(deleteDoc(doc(mine, 'linkTargetSets', id)));
+    });
+
+    test('the ADMIN can overwrite and delete anyone\'s set (break-glass, as the design bin has)', async () => {
+        const id = uid();
+        await seedSet(id, 'S. Silva');
+        const adminNamed = testEnv.authenticatedContext('uid_admin', memberClaims('G. Miller', { admin: true })).firestore();
+        await assertSucceeds(setDoc(doc(adminNamed, 'linkTargetSets', id), SET('S. Silva', 'G. Miller')));
+        await assertSucceeds(deleteDoc(doc(adminNamed, 'linkTargetSets', id)));
+    });
+
+    test('an overwrite may not MOVE createdBy — ownership is not transferable by editing', async () => {
+        const id = uid();
+        await seedSet(id, 'G. Miller');
+        // Even the creator cannot hand the set to somebody else (nor, more to the point, can a
+        // future client bug silently re-own every set it touches).
+        await assertFails(setDoc(doc(designerAs('G. Miller', 'miller'), 'linkTargetSets', id),
+            SET('S. Silva', 'G. Miller')));
+    });
+
+    test('a plain named member (no designer claim) cannot create', async () => {
+        await assertFails(setDoc(doc(namedDb('J. Davies'), 'linkTargetSets', uid()), SET('J. Davies')));
+    });
+
+    test('shape is validated: extra keys, bad types and empty tables are refused', async () => {
+        const db = designerAs('S. Silva', 'silva');
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), extra: 1 }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), slots: [] }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), slots: 'x' }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), spareLines: 2.5 }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), name: '' }));
+        await assertFails(setDoc(doc(db, 'linkTargetSets', uid()), { ...SET('S. Silva'), updatedAt: 'now' }));
+    });
+
+    // THE REAL PAYLOAD (test audit, 7 Nov 2026). Every case above writes SET(), a literal; the store
+    // writes `targetSetPayload`'s output exactly as built (`tx.set(ref, payload)`), so this drives the
+    // real builder at the module's OWN caps: the name it truncates to, the most slots it allows and
+    // the most spare lines. A cap raised on the client and not in the rules, or a field the builder
+    // gains, would permission-deny every save of a full table; it fails here instead.
+    test('the real payload builder is accepted at its own caps, on a create and an overwrite', async () => {
+        const db = designerAs('S. Silva', 'silva');
+        const id = uid();
+        const table = {
+            name: '  ' + 'n'.repeat(MAX_SET_NAME + 20),
+            slots: Array.from({ length: MAX_SET_SLOTS }, (_, i) => ({ time: '06:20-14:20', weekday: i % 3, sat: 1, sun: 0 })),
+            spareLines: SPARE_WEEKS_CAP,
+        };
+        await assertSucceeds(setDoc(doc(db, 'linkTargetSets', id),
+            targetSetPayload(table, 'S. Silva', 'S. Silva', serverTimestamp())));
+        // An overwrite passes the existing `createdBy` through, as links-generator-targets.js does.
+        await assertSucceeds(setDoc(doc(db, 'linkTargetSets', id),
+            targetSetPayload({ ...table, spareLines: 0 }, 'S. Silva', 'S. Silva', serverTimestamp())));
+    });
+});
+
+describe('newsletters', () => {
+    // READ REQUIRES ACCESS (v23.18 — was `anon can read`). The same three doors as `overrides`;
+    // an anonymous session holds no claim and is refused, which is the substance of the change.
+    test('UNAUTHENTICATED cannot read', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'newsletters')));
+    });
+    test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'newsletters')));
+    });
+    test('a NAMED member can read', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'newsletters')));
+    });
+    test('the CALENDAR VIEWER can read', async () => {
+        await assertSucceeds(getDocs(collection(viewerDb(), 'newsletters')));
+    });
+    test('an ADMIN can read', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'newsletters')));
+    });
+
+    test('anon cannot create', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'newsletters', uid()), VALID_CIRCULAR()));
+    });
+
+    test('auth (non-admin) cannot create', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'newsletters', uid()), VALID_CIRCULAR()));
+    });
+
+    test('admin can create a valid newsletter', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'newsletters', uid()), VALID_CIRCULAR()));
+    });
+
+    test('admin can create a DOCX newsletter (Word uploads allowed)', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), fileType: 'docx' }));
+    });
+
+    test('admin cannot create with wrong fileType', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), fileType: 'pdf2' })
+        );
+    });
+
+    test('admin cannot create with date not 10 chars', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), date: '2026-6-25' })
+        );
+    });
+
+    test('admin can create with storagePath field (v13.99+)', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), storagePath: 'newsletters/2026-06-25-abc123.pdf' })
+        );
+    });
+
+    test('admin cannot create with extra field', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), htmlContent: '<p>' })
+        );
+    });
+
+    test('admin cannot create with an uploadedAt of their own choosing — it is the server\'s clock', async () => {
+        for (const at of [Timestamp.fromDate(new Date('2099-01-01')), Timestamp.fromDate(new Date('2020-01-01'))]) {
+            await assertFails(setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), uploadedAt: at }));
+        }
+    });
+
+    test('admin cannot create with uploadedAt as string', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), uploadedAt: '2026-06-25' })
+        );
+    });
+
+    test('admin can delete', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'newsletters', id), VALID_CIRCULAR());
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'newsletters', id)));
+    });
+
+    test('auth (non-admin) cannot delete', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'newsletters', id), VALID_CIRCULAR());
+        await assertFails(deleteDoc(doc(staffDb(), 'newsletters', id)));
+    });
+
+    // A colleague and a manager, as for huddles (whose comment says why `staffDb` was not enough).
+    test('a named member and a manager can neither create nor delete a newsletter — the admin alone', async () => {
+        for (const db of [namedDb('A. Person'), managerDb('Q. Example')]) {
+            await assertFails(setDoc(doc(db, 'newsletters', uid()), VALID_CIRCULAR()));
+            const id = uid();
+            await setDoc(doc(adminDb(), 'newsletters', id), VALID_CIRCULAR());
+            await assertFails(deleteDoc(doc(db, 'newsletters', id)));
+        }
+    });
+});
+
+// ── A DOCUMENT'S STORED LINK MOVES ONLY WITH ITS FILE (13 Nov 2026) ──────────────────────────
+// The SDK sends an upload's record write again when its acknowledgement was lost, possibly hours
+// later. If Operations → Document links had moved the record onto a new key in between (the Admin
+// SDK, which these rules do not see), the re-send put the first link back, and once the run had taken
+// the old key away the stored link opened nothing. So a browser write that keeps the path may not
+// change the link. Every collection is checked, because the rule is CALLED once per block, and a call
+// left out of one block fails nothing in the other two. The record is seeded with the rules off, as
+// the server writes it.
+describe('huddles / circulars / newsletters — the stored link moves only with its file', () => {
+    const FIRST = 'https://storage.example.com/x?alt=media&token=first';
+    const REPLACED = 'https://storage.example.com/x?alt=media&token=after-replace';
+    const record = (/** @type {string} */ coll, /** @type {string|null} */ path, /** @type {string} */ url) => {
+        const { storagePath: _p, ...base } = coll === 'huddles' ? VALID_HUDDLE() : VALID_CIRCULAR();
+        return { ...base, ...(path === null ? {} : { storagePath: path }), storageUrl: url };
+    };
+    const seed = (/** @type {string} */ coll, /** @type {string} */ id, /** @type {any} */ data) =>
+        testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), coll, id), data));
+
+    for (const coll of ['huddles', 'circulars', 'newsletters']) {
+        const OURS = `${coll}/2026-06-25-ours.pdf`;
+        const NEXT = `${coll}/2026-06-25-next.pdf`;
+
+        test(`${coll}: the SAME path with a different link is refused — the re-send after Replace`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, REPLACED));
+            await assertFails(setDoc(doc(adminDb(), coll, id), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: the same path with the SAME link is allowed — a re-send with no run between`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, FIRST));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: a NEW path is allowed, with its own link — every real upload`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, REPLACED));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, NEXT, FIRST)));
+        });
+        test(`${coll}: a record from before v13.99, with no storagePath, can still be uploaded over`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, null, REPLACED));
+            await assertSucceeds(setDoc(doc(adminDb(), coll, id), record(coll, NEXT, FIRST)));
+        });
+        test(`${coll}: a create is unaffected — there is no record to compare`, async () => {
+            await assertSucceeds(setDoc(doc(adminDb(), coll, uid()), record(coll, OURS, FIRST)));
+        });
+        test(`${coll}: a non-admin is still refused, even writing exactly what is there`, async () => {
+            const id = uid();
+            await seed(coll, id, record(coll, OURS, FIRST));
+            await assertFails(setDoc(doc(namedDb('S. Boyle'), coll, id), record(coll, OURS, FIRST)));
+        });
+    }
+});
+
+// ── THE ADMIN'S REAL UPLOAD WRITER (whole-app fix, 10 Nov 2026) ──────────────────────────────
+// `uploadedAt` is pinned to the server's clock on all three document rules. The cases above write a
+// literal; this drives the real engine (documents-client.js) the Operations page uploads through, so
+// a field the engine gains, or a clock it stops taking from the server, fails here rather than as a
+// refused upload. Dates in 2025 keep these documents away from every other case's.
+describe('huddles / circulars / newsletters — the real upload writer', () => {
+    const pdf = () => new File([new TextEncoder().encode('%PDF-1.7 rules test')], 'doc.pdf', { type: 'application/pdf' });
+    const docx = () => new File([new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0x14, 0x00])], 'doc.docx',
+        { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+
+    test('every upload the admin can make is accepted, and stamped with the server\'s time', async () => {
+        const client = realDocumentClient(adminDb());
+        const before = Date.now();
+        await client.uploadHuddle('2025-03-03', pdf(), 'G. Miller');
+        await client.uploadHuddle('2025-03-04', docx(), 'G. Miller', '<p>The day plan</p>');
+        await client.uploadHuddle('2025-03-04', pdf(), 'G. Miller');   // a replacement: an UPDATE
+        await client.uploadCircular('2025-03-05', pdf(), 'G. Miller');
+        await client.uploadNewsletter('2025-03-06', docx(), 'G. Miller');
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            for (const [coll, date] of [['huddles', '2025-03-03'], ['huddles', '2025-03-04'],
+                ['circulars', '2025-03-05'], ['newsletters', '2025-03-06']]) {
+                const at = (await getDoc(doc(ctx.firestore(), coll, date))).data()?.uploadedAt;
+                assert.ok(at instanceof Timestamp && at.toMillis() >= before - 60_000,
+                    `${coll}/${date} carries the server's upload time`);
+            }
+        });
+    });
+
+    test('a non-admin\'s upload is still refused', async () => {
+        // …and reported as the refusal it is (13 Nov 2026): the engine reads a refused write back from
+        // the server before believing it, finds no record of its own, and lets the refusal stand.
+        await assert.rejects(realDocumentClient(namedDb('S. Boyle')).uploadCircular('2025-03-07', pdf(), 'S. Boyle'),
+            (/** @type {any} */ e) => e.code === 'permission-denied');
+    });
+
+    // THE SDK'S RE-SEND, END TO END (13 Nov 2026): the real engine, the real SDK and the real rules.
+    // Our first write committed and its answer was lost, Operations → Document links then moved the
+    // record onto a new key, and the SDK sent our write again. The rules must refuse it, and the engine
+    // must read that refusal as its own commit: Replace's link stays, and our file is not rolled back.
+    // A lost answer cannot be forced through the real SDK, so the commit and the run are played between
+    // the file and the record (`uploadBytes`), on a path fixed so the record can name it in advance.
+    test('a re-send refused because Replace moved its link is this upload\'s own commit — nothing is undone', async () => {
+        const date = '2025-03-08';
+        const OLD = `circulars/${date}-old.pdf`;
+        const OURS = `circulars/${date}-ours.pdf`;
+        const replaced = `https://storage.example.com/${OURS}?alt=media&token=after-replace`;
+        await testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'circulars', date),
+            { ...VALID_CIRCULAR(date), storagePath: OLD, storageUrl: `https://storage.example.com/${OLD}` }));
+        /** @type {string[]} */ const deleted = [];
+        const client = realDocumentClient(adminDb(), {
+            utils: { versionedDocPath: () => OURS },
+            storage: {
+                uploadBytes: () => testEnv.withSecurityRulesDisabled(ctx =>
+                    updateDoc(doc(ctx.firestore(), 'circulars', date), { storagePath: OURS, storageUrl: replaced })),
+                deleteObject: async (/** @type {any} */ r) => { deleted.push(r.fullPath); },
+            },
+        });
+        await client.uploadCircular(date, pdf(), 'G. Miller');
+        assert.deepEqual(deleted, [OLD], 'the file it superseded is swept, and ours is NOT rolled back');
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            const rec = (await getDoc(doc(ctx.firestore(), 'circulars', date))).data();
+            assert.equal(rec?.storagePath, OURS);
+            assert.equal(rec?.storageUrl, replaced, 'the re-send put the first link back');
+        });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// pushSubscriptions
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('pushSubscriptions', () => {
+    test('a signed-in member can create a valid subscription', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    });
+
+    test('unauthenticated cannot create subscription', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    });
+
+    // THE FIELD CHECKS ARE RUN AS A SIGNED-IN MEMBER (test audit, 7 Nov 2026). These five used
+    // `anonDb()`, which is refused by `request.auth != null` before any field is looked at, so the
+    // whole 13-condition validation block could be deleted with all 405 rules tests green. A member
+    // passes the sign-in check, so only the field rule can refuse them; the four after them cover the
+    // limits nothing tested at all.
+    test('a member cannot create with missing endpoint', async () => {
+        const { endpoint: _e, ...missing } = VALID_SUB();
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), missing));
+    });
+
+    test('a member cannot create with missing keys.p256dh', async () => {
+        await assertFails(
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), {
+                ...VALID_SUB(), keys: { auth: 'xyz789' },
+            })
+        );
+    });
+
+    test('a member cannot create with an extra field in the keys map (hasOnly)', async () => {
+        await assertFails(
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), {
+                ...VALID_SUB(), keys: { p256dh: 'abc123', auth: 'xyz789', injected: 'x' },
+            })
+        );
+    });
+
+    test('a member cannot create without subscribedAt', async () => {
+        const { subscribedAt: _s, ...missing } = VALID_SUB();
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), missing));
+    });
+
+    test('a member cannot create with empty endpoint string', async () => {
+        await assertFails(
+            setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), endpoint: '' })
+        );
+    });
+
+    test('a member cannot create with an extra top-level field (hasOnly)', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), injected: 'x' }));
+    });
+
+    test('a member cannot create with an endpoint of 2048 characters or more', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()),
+            { ...VALID_SUB(), endpoint: 'https://fcm.googleapis.com/' + 'x'.repeat(2048) }));
+    });
+
+    test('a member cannot create with an oversized p256dh or auth key, or keys that are not a map', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: { p256dh: 'p'.repeat(256), auth: 'a' } }));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: { p256dh: 'p', auth: 'a'.repeat(64) } }));
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), keys: 'p256dh:p,auth:a' }));
+    });
+
+    test('a member cannot create with a subscribedAt that is not a timestamp', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), subscribedAt: '2026-11-07' }));
+    });
+
+    test('anon cannot read', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'pushSubscriptions')));
+    });
+
+    test('auth cannot read (client read disabled — Cloud Function uses Admin SDK)', async () => {
+        await assertFails(getDocs(collection(memberDb(), 'pushSubscriptions')));
+    });
+
+    test('unauthenticated cannot delete', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb(), 'pushSubscriptions', id), VALID_SUB());
+        await assertFails(deleteDoc(doc(anonDb(), 'pushSubscriptions', id)));
+    });
+
+    test('auth can delete', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb(), 'pushSubscriptions', id), VALID_SUB());
+        await assertSucceeds(deleteDoc(doc(memberDb(), 'pushSubscriptions', id)));
+    });
+
+    // ── Per-owner ownership (A5, F-SEC-5) ───────────────────────────────────────────
+    test('can create with owner === own uid', async () => {
+        await assertSucceeds(
+            setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'uid_owner' })
+        );
+    });
+
+    test('cannot create claiming a FOREIGN owner uid', async () => {
+        await assertFails(
+            setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'someone_else' })
+        );
+    });
+
+    test('owner can delete their OWN (owner-stamped) subscription', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertSucceeds(deleteDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id)));
+    });
+
+    test('a DIFFERENT authed identity cannot delete an owner-stamped subscription', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertFails(deleteDoc(doc(memberDb('uid_intruder'), 'pushSubscriptions', id)));
+    });
+
+    test('legacy (no-owner) subscription stays deletable by any member (backward-compat escape)', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
+        await assertSucceeds(deleteDoc(doc(memberDb('uid_other'), 'pushSubscriptions', id)));
+    });
+
+    // THE DELETE HALF OF THE v24.56 SWEEP (whole-app fix, 10 Nov 2026). Create and update asked for a
+    // known identity from v24.56; delete still asked only for a session, so a token from the
+    // anonymous provider (still enabled on the project) could delete any owner-less record by id.
+    test('an ANONYMOUS session cannot delete a legacy (no-owner) subscription', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
+        await assertFails(deleteDoc(doc(anonymousSessionDb(), 'pushSubscriptions', id)));
+        await assertFails(deleteDoc(doc(staffDb(), 'pushSubscriptions', id)));
+    });
+
+    // A SIGN-OUT AFTER AN EARLIER SIGN-OUT (whole-app fix, 10 Nov 2026). Signing out deletes this
+    // device's record and keeps the browser subscription, and only a signed-in Calendar load saves the
+    // record again. A member who next signs in on another page and signs out again deletes a record
+    // that is not there: `resource` is null, `resource.data` was an error, the delete was refused, and
+    // `releaseDevicePush` (notif.js) read the refusal as "not the owner" and dropped the browser
+    // subscription — notifications off, with nobody having switched them off. Same shape, and same
+    // remedy, as deleting an override that is already gone (v25.07).
+    test('a member or the admin CAN delete a subscription that is already gone — a no-op', async () => {
+        await assertSucceeds(deleteDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', goneId())));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'pushSubscriptions', goneId())));
+    });
+
+    test('…but a session that could not delete a real one cannot delete a missing one either', async () => {
+        await assertFails(deleteDoc(doc(anonDb(), 'pushSubscriptions', goneId())));
+        await assertFails(deleteDoc(doc(anonymousSessionDb(), 'pushSubscriptions', goneId())));
+        await assertFails(deleteDoc(doc(viewerDb(), 'pushSubscriptions', goneId())));
+    });
+
+    test('owner can UPDATE their own owner-stamped subscription', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertSucceeds(
+            setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' })
+        );
+    });
+
+    test('a DIFFERENT identity cannot OVERWRITE an owner-stamped subscription by re-labelling it (update owner re-check)', async () => {
+        // Mirrors the per-owner DELETE rule: update must re-check the EXISTING doc's owner, not just
+        // the incoming value — otherwise a session that knew the doc id could hijack another user's
+        // subscription by stamping its own uid as owner.
+        // Since Oct 2026 the SAME BROWSER may take its record over (same endpoint and keys, below), so
+        // the intruder modelled here is the one the rule exists for: they know the document but not
+        // the keys, which live only in the victim's browser and in this unreadable record.
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertFails(
+            setDoc(doc(memberDb('uid_intruder'), 'pushSubscriptions', id),
+                { ...VALID_SUB(), keys: { p256dh: 'guessed', auth: 'guessed' }, owner: 'uid_intruder' })
+        );
+    });
+
+    test('the SAME browser may take its record over when the device changes hands (Oct 2026)', async () => {
+        // A session that ended without a sign-out left the record owned by the last member; the next
+        // member on that phone re-saves the identical endpoint and keys, and now may.
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertSucceeds(
+            setDoc(doc(memberDb('uid_next'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_next' })
+        );
+    });
+
+    test('…but not by pointing it at another endpoint', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertFails(setDoc(doc(memberDb('uid_next'), 'pushSubscriptions', id),
+            { ...VALID_SUB(), endpoint: 'https://fcm.googleapis.com/fcm/send/elsewhere', owner: 'uid_next' }));
+    });
+
+    test('a legacy (no-owner) subscription can still be CLAIMED by the same device (re-subscribe hardening path)', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
+        await assertSucceeds(
+            setDoc(doc(memberDb('uid_other'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_other' })
+        );
+    });
+    test('a legacy (no-owner) subscription CANNOT be repointed at another endpoint (v24.56)', async () => {
+        // Anybody could otherwise rewrite a colleague's record to a URL of their own, and the
+        // colleague's notifications would stop with nothing to say why.
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB());
+        await assertFails(setDoc(doc(memberDb('uid_other'), 'pushSubscriptions', id),
+            { ...VALID_SUB(), endpoint: 'https://fcm.googleapis.com/fcm/send/somebody-else', owner: 'uid_other' }));
+    });
+    test('an ANONYMOUS session cannot write a subscription, an error report or a counter (v24.56)', async () => {
+        // The anonymous provider is still enabled on the project, so anybody with the public API
+        // key can mint one of these. `staffDb` is exactly that: a uid and no claims.
+        await assertFails(setDoc(doc(staffDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+        await assertFails(setDoc(doc(staffDb(), 'clientErrors', uid()), VALID_ERROR()));
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: {} }));
+    });
+});
+
+// ── A SIGN-IN FROM BEFORE THE MEMBER'S LAST RESET SAVES NO RECORD (13 Nov 2026) ──────────────────
+// A reset revokes the member's sessions, but a token still inside its hour passed this rule, so a lost
+// phone opened in that hour saved its record again — after a lost-phone reset had deleted it — and went
+// on receiving the member's targeted notices. The rule compares the token's `auth_time` (the sign-in it
+// descends from, in whole seconds) with `passwordStatus/{member}.resetAt`. The test library builds each
+// token from the claims it is handed, over its own defaults, so `auth_time` is set here exactly as
+// Firebase Auth sets it; `iat` is the same moment, so each token is one minted at that sign-in and still
+// inside its hour. Every case has its own member: the emulator keeps documents for the whole run.
+describe('pushSubscriptions — a sign-in from before the member\'s last reset saves no record', () => {
+    // A reset ten minutes ago, at .300 of its second, so the same second has room on either side of it.
+    const SEC = Math.floor(Date.now() / 1000) - 600;
+    const RESET_MS = SEC * 1000 + 300;
+    const uidOf = (/** @type {string} */ name) => `uid_${name.replace(/\W/g, '')}`;
+    /** A member's Firestore as a sign-in at `authTimeSec` (whole seconds) gives it, under its own uid. */
+    const signedInAt = (/** @type {string} */ name, /** @type {number} */ authTimeSec) =>
+        testEnv.authenticatedContext(uidOf(name), memberClaims(name, { auth_time: authTimeSec, iat: authTimeSec })).firestore();
+    /** The member's push record saved from that sign-in — a new one, or the re-save of `id`. */
+    const save = (/** @type {string} */ name, /** @type {number} */ authTimeSec, id = uid()) =>
+        setDoc(doc(signedInAt(name, authTimeSec), 'pushSubscriptions', id), { ...VALID_SUB(), owner: uidOf(name) });
+    /** What the server writes: `resetAt` on a reset, a new account, a take-back or a re-enable. */
+    const status = (/** @type {string} */ name, /** @type {Record<string, any>} */ data) =>
+        testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'passwordStatus', name), data));
+    const resetAt = (/** @type {string} */ name, ms = RESET_MS) => status(name, { resetAt: Timestamp.fromMillis(ms) });
+    /** The member's own record, already saved — the daily re-save is an UPDATE of it. */
+    const ownRecord = async (/** @type {string} */ name) => {
+        const id = uid();
+        await testEnv.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'pushSubscriptions', id),
+            { ...VALID_SUB(), owner: uidOf(name) }));
+        return id;
+    };
+
+    test('signed in BEFORE the reset: a new record is refused — the lost phone in its last hour', async () => {
+        await resetAt('R. Before');
+        await assertFails(save('R. Before', SEC - 1800));
+    });
+    test('signed in BEFORE the reset: the re-save of its own record is refused too', async () => {
+        await resetAt('R. Resave');
+        await assertFails(save('R. Resave', SEC - 1800, await ownRecord('R. Resave')));
+    });
+    test('signed in AFTER the reset: a new record and a re-save are both allowed', async () => {
+        await resetAt('R. After');
+        await assertSucceeds(save('R. After', SEC + 300));
+        await assertSucceeds(save('R. After', SEC + 300, await ownRecord('R. After')));
+    });
+    test('no passwordStatus record, or one with no resetAt: allowed, however old the sign-in', async () => {
+        await assertSucceeds(save('R. Nostatus', SEC - 86400));
+        await status('R. Ownpassword', { passwordSetAt: Timestamp.fromMillis(RESET_MS) });
+        await assertSucceeds(save('R. Ownpassword', SEC - 86400));
+    });
+    test('the reset\'s own second reads as before it; a second later is always after it', async () => {
+        // `auth_time` is whole seconds and `resetAt` is finer: a sign-in in second SEC may have been
+        // before the reset at SEC.300 or after it, and is refused either way — the safe direction.
+        await resetAt('R. Second');
+        await assertFails(save('R. Second', SEC));
+        await assertSucceeds(save('R. Second', SEC + 1));
+    });
+    test('a reset on a whole second: a sign-in in that second is at or after it, and allowed', async () => {
+        await resetAt('R. Whole', SEC * 1000);
+        await assertSucceeds(save('R. Whole', SEC));
+        await assertFails(save('R. Whole', SEC - 1));
+    });
+    test('a token bound to no member is judged by the other clauses, as before', async () => {
+        // An admin-only token: no member to look a reset up for, so nothing to compare — and no error.
+        // No record is consulted for it at all. Without the `memberName() == null` guard the rule would
+        // look one up under the null name, which a path reads as the word "null" (measured: a mutation
+        // dropping the guard passed every other case here), so a record of that name is planted to show
+        // that it is never read.
+        await resetAt('null');
+        const adminOnly = testEnv.authenticatedContext('uid_admin_only', { admin: true, auth_time: 1, iat: 1 }).firestore();
+        await assertSucceeds(setDoc(doc(adminOnly, 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'uid_admin_only' }));
+        // …and the staff-PIN viewer is still refused by its own clause, reset or none.
+        await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    });
+    test('the delete is unchanged: a sign-in from before the reset may still remove its own record', async () => {
+        // Sign-out, and a session the reset refuses, RELEASE the record (`releaseDevicePush`); a refusal
+        // there would leave exactly the record this rule is keeping from coming back.
+        await resetAt('R. Release');
+        const id = await ownRecord('R. Release');
+        await assertSucceeds(deleteDoc(doc(signedInAt('R. Release', SEC - 1800), 'pushSubscriptions', id)));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// analytics (anonymous usage counters)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('analytics', () => {
+    // ── THE MONTH IS THE PRESENT ONE (whole-app fix, 10 Nov 2026) ─────────────────────────────
+    // The rules accept a `pv_`/`perf_` document only for this month or one either side, by the
+    // SERVER's clock (UTC), so every case here writes a month computed at the moment it runs, never a
+    // literal. These cases used twelve different months purely to stay out of each other's way; with
+    // three writable months, `beforeEach` clears those documents instead, so each case still starts
+    // from a document that does not exist.
+    /** "YYYY-MM", `offset` months from now by UTC — the clock the rules read. */
+    const monthAt = (offset = 0) => {
+        const now = new Date();
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    };
+    const pvId = (offset = 0) => `pv_${monthAt(offset)}`;
+    const perfId = (offset = 0) => `perf_${monthAt(offset)}`;
+    const VALID_PV = () => ({ month: monthAt(), counts: { calendar: 1, paycalc: 1 } });
+    const VALID_ACTIVE = () => ({ months: { '2026-06': 3 }, daily: { '2026-06-25': 2 } });
+    const VALID_PERF = () => ({ month: monthAt(), samples: { '14_88|calendar|ttfb|lt500ms|browser|4g': 3 } });
+
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            for (const offset of [-1, 0, 1]) {
+                await deleteDoc(doc(ctx.firestore(), 'analytics', pvId(offset)));
+                await deleteDoc(doc(ctx.firestore(), 'analytics', perfId(offset)));
+            }
+        });
+    });
+
+    test('admin can read', async () => {
+        await assertSucceeds(getDoc(doc(adminDb(), 'analytics', pvId())));
+    });
+
+    test('staff (non-admin) cannot read', async () => {
+        await assertFails(getDoc(doc(memberDb(), 'analytics', pvId())));
+    });
+
+    test('anon cannot read', async () => {
+        await assertFails(getDoc(doc(anonDb(), 'analytics', pvId())));
+    });
+
+    test('auth can write a page-view counter doc', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), VALID_PV()));
+    });
+
+    test('auth can write the Trains page-view counter (v24.71)', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(), counts: { trains: 1 },
+        }));
+    });
+
+    test('auth can write the new link page-view counter (v25.06), and only as a number', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(), counts: { newlink: 1 },
+        }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId(1)), {
+            month: monthAt(1), counts: { newlink: 'one' },
+        }));
+    });
+
+    test('auth can write the seven document/guide OPEN counters (v18.20; all four guides v19.95)', async () => {
+        // Huddle/Circular/Newsletter opens + all four guide opens share the pv_ counts map.
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(),
+            counts: { huddle: 1, circular: 2, newsletter: 3,
+                      'guide-staff': 4, 'guide-paycalc': 5, 'guide-railcard': 6, 'guide-fip': 7 },
+        }));
+    });
+
+    test('an UNKNOWN counts key is still rejected (open-id allowlist has teeth)', async () => {
+        // This used 'guide-staff' until v19.95, when that became a real id — a teeth test whose
+        // example is promoted to legal quietly stops having teeth, and would have gone green here
+        // for the wrong reason. The key below is deliberately not on any roadmap.
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(), counts: { 'guide-nonexistent': 1 },
+        }));
+    });
+
+    test('an open counter must be an int', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), {
+            month: monthAt(), counts: { huddle: 'lots' },
+        }));
+    });
+
+    // A RETIRED ID (whole-app fix, 10 Nov 2026). Rules judge the RESULTING document, and the allowlist
+    // used to be applied to every key in it. So an id taken off the list — which the parity test
+    // demands as soon as no client writes it — left this month's document holding a key the list
+    // refused, and every later page view, on every page, was refused until the month ended (the
+    // writer swallows the refusal, so the Usage card just stopped). The list now judges what a
+    // write ADDS or CHANGES; a key the document already holds is left alone.
+    // Both this UTC month and the month the real writer names by the local clock (the same month
+    // except near a boundary); `beforeEach` clears either.
+    const seedWithRetiredId = () => testEnv.withSecurityRulesDisabled(async ctx => {
+        for (const month of new Set([monthAt(), monthKey(new Date())])) {
+            await setDoc(doc(ctx.firestore(), 'analytics', `pv_${month}`),
+                { month, counts: { calendar: 4, 'retired-page': 2 } });
+        }
+    });
+
+    test('an id retired from the allowlist mid-month does not stop the month\'s other counters', async () => {
+        await seedWithRetiredId();
+        for (const db of [memberDb(), viewerDb()]) {
+            await assertSucceeds(setDoc(doc(db, 'analytics', pvId()),
+                { month: monthAt(), counts: { calendar: increment(1) } }, { merge: true }));
+        }
+        // …and the real writer, which is what every page calls.
+        /** @type {Promise<unknown>[]} */ const writes = [];
+        const client = realAnalyticsClient(memberDb(), { setDoc: recording(setDoc, writes) });
+        client.recordPageView('admin');
+        client.recordPageView('huddle');
+        assert.equal(writes.length, 2, 'each call wrote once');
+        for (const w of writes) await assertSucceeds(w);
+    });
+
+    test('…but no write may add an id that is not on the list, or change a retired one', async () => {
+        await seedWithRetiredId();
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { 'retired-page': increment(1) } }, { merge: true }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { 'guide-nonexistent': increment(1) } }, { merge: true }));
+        await assertFails(setDoc(doc(adminDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { 'retired-page': 9 } }, { merge: true }));
+    });
+
+    // A MONTH NOBODY IS IN (whole-app fix, 10 Nov 2026). The id was pinned to a YYYY-MM SHAPE and
+    // not to the present, so any member or PIN session could create a document for any of 120,000
+    // months in each family — documents no client can delete. One month either side stays open: the
+    // client names the month by its own clock, which runs ahead of UTC in London summer time.
+    test('a counter for this month or one either side is accepted', async () => {
+        for (const offset of [-1, 0, 1]) {
+            await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId(offset)),
+                { month: monthAt(offset), counts: { calendar: increment(1) } }, { merge: true }));
+            await assertSucceeds(setDoc(doc(memberDb(), 'analytics', perfId(offset)),
+                { month: monthAt(offset), samples: { k: increment(1) } }, { merge: true }));
+        }
+    });
+
+    test('a counter for any other month is REFUSED — to a member, the PIN viewer and the admin alike', async () => {
+        const far = [monthAt(-2), monthAt(2), monthAt(-120), '2001-01', '9999-12'];
+        for (const db of [memberDb(), viewerDb(), adminDb()]) {
+            for (const month of far) {
+                await assertFails(setDoc(doc(db, 'analytics', `pv_${month}`),
+                    { month, counts: { calendar: increment(1) } }, { merge: true }));
+                await assertFails(setDoc(doc(db, 'analytics', `perf_${month}`),
+                    { month, samples: { k: increment(1) } }, { merge: true }));
+            }
+        }
+    });
+
+    test('auth can write an active-accounts doc', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'activeAccounts'), VALID_ACTIVE()));
+    });
+
+    test('auth can write an active-accounts doc with only one bucket present', async () => {
+        // Seed a months-only state via admin first (this suite has no clearFirestore, so a prior test
+        // may have left a `daily` bucket — and since B4 the anti-wipe guard blocks a non-admin write
+        // that DROPS `daily`; admin may). The point of this test is the shape (one optional bucket is
+        // valid), so seed clean, then the non-admin months-only write preserves keys → allowed.
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
+    });
+
+    test('auth can write a perf-latency doc (Project 0)', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', perfId()), VALID_PERF()));
+    });
+
+    // ── THE REAL WRITER, NOT A HAND-WRITTEN EXAMPLE (App Speed review, Oct 2026) ──────────────────
+    // Every case here writes a literal. A field the client added would pass all of them and then be
+    // refused in production — and the client SWALLOWS that refusal (analytics is best-effort), so the
+    // App Speed card would simply stop changing, with nothing anywhere to say why. This drives the
+    // real `recordPerfSample` → batcher → merged `setDoc`, with the real SDK, against the emulator: a
+    // first write, and a merge onto it, which is the write every later open of the month makes.
+    test('the real speed-sample writer is accepted — a first write and the merge onto it', async () => {
+        /** @type {Promise<unknown>[]} */ const writes = [];
+        const client = buildAnalyticsClient({
+            db: memberDb(),
+            collections: { clientErrors: 'clientErrors', analytics: 'analytics' },
+            fs: {
+                doc, getDoc, getDocs, addDoc, deleteDoc, updateDoc, collection, query, where, limit,
+                serverTimestamp, increment, deleteField, FieldPath,
+                setDoc: (/** @type {any[]} */ ...a) => { const p = /** @type {any} */ (setDoc)(...a); writes.push(p); return p; },
+            },
+            writeWithClaimRetry: (/** @type {any} */ fn) => fn(),
+            appVersion: '24.98',
+        });
+        const flushed = async (/** @type {number} */ n) => {
+            for (let i = 0; i < 60 && writes.length < n; i++) await new Promise(r => setTimeout(r, 100));
+            assert.equal(writes.length, n, 'the batcher wrote');
+        };
+        // The shapes perf-reporter.js writes: a page metric, and sign-in time under the page id `login`.
+        client.recordPerfSample({ page: 'calendar', metric: 'ready', bucket: 'lt500ms', mode: 'standalone', conn: '4g' });
+        client.recordPerfSample({ page: 'login', metric: 'loginTotal', bucket: '1-3s', mode: 'browser', conn: 'unknown' });
+        await flushed(1);
+        await assertSucceeds(writes[0]);
+        client.recordPerfSample({ page: 'calendar', metric: 'readyUpdate', bucket: 'lt500ms', mode: 'standalone', conn: '4g' });
+        await flushed(2);
+        await assertSucceeds(writes[1]);
+    });
+
+    // THE REAL USAGE-COUNTER WRITERS (test audit, 7 Nov 2026). The "real increment()" cases below
+    // COPY the payloads these build; this CALLS them, with arguments shaped the way usage-reporter.js
+    // shapes them: page and document ids, a first month and day, a rolling count MOVED from an
+    // earlier day (-1 there and +1 today in one merged write), and the per-address visit and
+    // installed counts, moved the same way.
+    test('the real usage-counter writers are accepted — a first count, and a moved day', async () => {
+        const now = new Date();
+        const today = dayKey(now);
+        const earlier = dayKey(new Date(now.getTime() - 10 * 86_400_000));
+        const origin = originLabel('myb-roster.web.app');
+        // The cases around this one share these documents, and nothing clears activeAccounts or
+        // origins, so whatever they held is put back afterwards: this test leaves no state behind.
+        const ids = [`pv_${monthKey(now)}`, 'activeAccounts', 'origins'];
+        /** @type {Map<string, any>} */ const before = new Map();
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            for (const id of ids) {
+                const snap = await getDoc(doc(ctx.firestore(), 'analytics', id));
+                before.set(id, snap.exists() ? snap.data() : null);
+            }
+        });
+        /** @type {Promise<unknown>[]} */ const writes = [];
+        try {
+            const client = realAnalyticsClient(memberDb(), { setDoc: recording(setDoc, writes) });
+            client.recordPageView('calendar');
+            client.recordPageView('guide-fip');
+            client.recordActiveAccount({ month: monthKey(now), day: earlier, fromDay: null });
+            client.recordActiveAccount({ month: null, day: today, fromDay: earlier });
+            client.recordOriginUse({ day: earlier, origin, countVisit: true, fromDay: null, installed: true, fromPwaDay: null });
+            client.recordOriginUse({ day: today, origin, countVisit: true, fromDay: earlier, installed: true, fromPwaDay: earlier });
+            assert.equal(writes.length, 6, 'each call wrote once');
+            for (const w of writes) await assertSucceeds(w);
+        } finally {
+            // Every write landed or was refused BEFORE the documents go back. A refusal throws above
+            // with the later writes still in flight, and a restore racing them left their keys behind
+            // for the next case to trip over (seen while proving this test, 7 Nov 2026).
+            await Promise.allSettled(writes);
+            await testEnv.withSecurityRulesDisabled(async ctx => {
+                for (const [id, data] of before) {
+                    const ref = doc(ctx.firestore(), 'analytics', id);
+                    if (data) await setDoc(ref, data); else await deleteDoc(ref);
+                }
+            });
+        }
+    });
+
+    // ── B4: anti-wipe guard — a non-admin overwrite may not REMOVE existing keys (destructive wipe),
+    //    but incrementing (adding/preserving keys) stays open, and admin may prune. (Each month
+    //    document starts absent — `beforeEach` above.)
+    test('B4: a non-admin increment that preserves keys is allowed (update)', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { calendar: 1 } }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { calendar: 2, admin: 1 } }));
+    });
+    test('B4: a non-admin CANNOT wipe pv counts (removes existing keys)', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { calendar: 5, admin: 2 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: {} }));
+    });
+    test('B4: a non-admin CANNOT wipe perf samples (removes existing keys)', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', perfId()), { month: monthAt(), samples: { 'k1': 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', perfId()), { month: monthAt(), samples: {} }));
+    });
+    test('B4: a non-admin CANNOT wipe activeAccounts, but admin CAN prune a daily key', async () => {
+        // Seed a known state via admin (admin may set/remove any valid shape).
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-25': 2, '2026-05-01': 1 } }));
+        // A non-admin overwrite dropping keys is a WIPE → blocked.
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'activeAccounts'), { months: {}, daily: {} }));
+        // The admin prune removes the stale daily bucket → allowed.
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-25': 2 } }));
+    });
+
+    // ── Per-address migration counters (v19.23, analytics/origins) ─────────────────────────────
+    test('auth can write the origins doc', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'origins'),
+            { daily: { '2026-06-25|web': 3, '2026-06-25|web|pwa': 2 } }));
+    });
+
+    test('auth cannot add a field beyond daily to the origins doc', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'),
+            { daily: { '2026-06-25|web': 1 }, memberName: 'G. Miller' }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'),
+            { daily: { '2026-06-25|web': 1 }, months: { '2026-06': 1 } }));
+    });
+
+    test('auth cannot write a non-map daily on the origins doc', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'), { daily: 'all of them' }));
+    });
+
+    test('the origins doc is admin-read only', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 1 } }));
+        await assertFails(getDoc(doc(memberDb(), 'analytics', 'origins')));
+        await assertSucceeds(getDoc(doc(adminDb(), 'analytics', 'origins')));
+    });
+
+    test('B4: a non-admin CANNOT wipe origins, but admin CAN prune a stale key', async () => {
+        // Same anti-wipe posture as the other analytics docs — the counters are the only record of
+        // the migration, and a wipe would be indistinguishable from "nobody has moved".
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'),
+            { daily: { '2026-06-25|web': 4, '2026-05-01|pages': 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'), { daily: {} }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 4 } }));
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 4 } }));
+    });
+
+    test('an unknown analytics doc id is still refused', async () => {
+        // The clause is pinned to the exact id — `origins` must not have opened a general escape.
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origin'), { daily: {} }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins_2026-06'), { daily: {} }));
+    });
+
+    test('auth cannot write a perf doc with an extra field', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', perfId()), { ...VALID_PERF(), memberName: 'G. Miller' }));
+    });
+
+    test('auth cannot write a perf doc whose month != the doc id', async () => {
+        // Both months are open ones, so only the mismatch can refuse it.
+        await assertFails(setDoc(doc(memberDb(), 'analytics', perfId()), { month: monthAt(1), samples: {} }));
+    });
+
+    test('auth cannot write a perf doc whose id is not perf_YYYY-MM', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'perf_2026-6'), { month: '2026-6', samples: {} }));
+    });
+
+    test('anon (no Firebase session) cannot write a perf doc', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'analytics', perfId()), VALID_PERF()));
+    });
+
+    test('anon (no Firebase session) cannot write', async () => {
+        // No session at all is refused before the shape is read. (The Calendar stopped signing its
+        // visitors in anonymously at v24.34; an anonymous token is refused too, since v24.56.)
+        await assertFails(setDoc(doc(anonDb(), 'analytics', pvId()), VALID_PV()));
+    });
+
+    test('auth cannot write a page-view doc with an extra field', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { ...VALID_PV(), memberName: 'G. Miller' }));
+    });
+
+    test('auth cannot write a page-view doc with non-string month', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: 6, counts: { calendar: 1 } }));
+    });
+
+    test('auth cannot write a doc with unrecognised shape', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'whatever'), { foo: 'bar' }));
+    });
+
+    test('auth cannot write a page-view doc whose id is not pv_YYYY-MM', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-6'), { month: '2026-6', counts: { calendar: 1 } }));
+    });
+
+    test('auth cannot write a page-view doc whose month != the doc id', async () => {
+        // Both months are open ones, so only the mismatch can refuse it.
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(1), counts: { calendar: 1 } }));
+    });
+
+    test('auth cannot write a page-view doc with an unknown counts key', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { hacker: 1 } }));
+    });
+
+    test('auth cannot write a page-view doc with a non-int count value', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', pvId()), { month: monthAt(), counts: { calendar: 'evil' } }));
+    });
+
+    test('auth cannot write an active-accounts shape under any other doc id', async () => {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'aa_2026'), VALID_ACTIVE()));
+    });
+
+    test('client cannot delete an analytics doc', async () => {
+        const ref = doc(adminDb(), 'analytics', pvId());
+        await assertSucceeds(setDoc(ref, VALID_PV()));
+        await assertFails(deleteDoc(doc(memberDb(), 'analytics', pvId())));
+        await assertFails(deleteDoc(doc(adminDb(), 'analytics', pvId())));
+    });
+
+    // These exercise the EXACT FieldValue.increment() payloads the app writes
+    // (recordPageView / recordActiveAccount), not plain numbers — so the rule is
+    // validated against the real client contract, not an invented stand-in.
+    test('real increment() page-view write (merge create) is allowed', async () => {
+        await assertSucceeds(setDoc(
+            doc(memberDb(), 'analytics', pvId()),
+            { month: monthAt(), counts: { calendar: increment(1) } },
+            { merge: true },
+        ));
+    });
+
+    test('real increment() page-view write (merge update onto existing) is allowed', async () => {
+        const ref = doc(memberDb(), 'analytics', pvId());
+        await assertSucceeds(setDoc(ref, { month: monthAt(), counts: { calendar: increment(1) } }, { merge: true }));
+        await assertSucceeds(setDoc(ref, { month: monthAt(), counts: { paycalc: increment(1) } }, { merge: true }));
+    });
+
+    test('real increment() active-account write (both buckets) is allowed', async () => {
+        await assertSucceeds(setDoc(
+            doc(memberDb(), 'analytics', 'activeAccounts'),
+            { months: { '2026-06': increment(1) }, daily: { '2026-06-25': increment(1) } },
+            { merge: true },
+        ));
+    });
+
+    test('real increment() active-account write (month bucket only) is allowed', async () => {
+        await assertSucceeds(setDoc(
+            doc(memberDb(), 'analytics', 'activeAccounts'),
+            { months: { '2026-06': increment(1) } },
+            { merge: true },
+        ));
+    });
+
+    // v25.00: a rolling count MOVES to the latest active day (usage-stats.rollingMove) — +1 on today
+    // and -1 on the day it left, in ONE merged write. The rules never enforced increment-only, so
+    // this needs no rules change; what it must not do is trip the anti-wipe guard (it removes no
+    // key), and it has to work for the PIN viewer too, because the station PC records usage.
+    test('real MOVED-count write (+1 today, -1 on the old day) is allowed for a member and the PIN viewer', async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-20': 2 } });
+            await setDoc(doc(ctx.firestore(), 'analytics', 'origins'), { daily: { '2026-06-20|web': 2, '2026-06-20|web|pwa': 1 } });
+        });
+        for (const db of [memberDb(), viewerDb()]) {
+            await assertSucceeds(setDoc(doc(db, 'analytics', 'activeAccounts'),
+                { daily: { '2026-06-25': increment(1), '2026-06-20': increment(-1) } }, { merge: true }));
+            await assertSucceeds(setDoc(doc(db, 'analytics', 'origins'),
+                { daily: { '2026-06-25|web': increment(1), '2026-06-20|web': increment(-1),
+                           '2026-06-25|web|pwa': increment(1), '2026-06-20|web|pwa': increment(-1) } }, { merge: true }));
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Calendar viewer — privilege isolation (v20.12)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// A new authenticated identity widens every `request.auth != null` in the rules file at once, so
+// this block walks the whole surface rather than only the collection the feature is about. The
+// question at each one is the same: does the viewer get something that was meant for members?
+//
+// The viewer is a CAPABILITY — one claim, no `name` — and everything below is an assertion about
+// what a capability is not. If any of these ever flips to `assertSucceeds`, a shared code known to
+// the whole station has become a member credential.
+describe('calendar viewer — read-only, and only the Calendar', () => {
+
+    test('it CANNOT create an override', async () => {
+        await assertFails(setDoc(doc(viewerDb(), 'overrides', uid()), VALID_OVERRIDE()));
+    });
+
+    test('it CANNOT update an existing override', async () => {
+        const id = uid();
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'overrides', id), VALID_OVERRIDE());
+        });
+        await assertFails(setDoc(doc(viewerDb(), 'overrides', id), { ...VALID_OVERRIDE(), value: 'SICK', type: 'sick' }));
+    });
+
+    test('it CANNOT delete an override', async () => {
+        const id = uid();
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'overrides', id), VALID_OVERRIDE());
+        });
+        await assertFails(deleteDoc(doc(viewerDb(), 'overrides', id)));
+    });
+
+    test('it CANNOT write on behalf of a named member', async () => {
+        // The on-behalf path is the manager/admin bypass. A viewer reaching it would mean anyone
+        // with the staff code could book somebody else's leave.
+        await assertFails(setDoc(doc(viewerDb(), 'overrides', uid()),
+            { ...VALID_OVERRIDE(), memberName: 'S. Silva' }));
+    });
+
+    test('it CANNOT read a work email — its own, or anybody\'s', async () => {
+        const name = 'G. Miller';
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'staffContact', name), VALID_CONTACT(name));
+        });
+        await assertFails(getDoc(doc(viewerDb(), 'staffContact', name)));
+        await assertFails(getDocs(collection(viewerDb(), 'staffContact')));
+    });
+
+    test('it CANNOT write a work email', async () => {
+        await assertFails(setDoc(doc(viewerDb(), 'staffContact', 'G. Miller'), VALID_CONTACT('G. Miller')));
+    });
+
+    test('it CANNOT read or write password status', async () => {
+        await assertFails(getDoc(doc(viewerDb(), 'passwordStatus', 'G. Miller')));
+        await assertFails(setDoc(doc(viewerDb(), 'passwordStatus', 'G. Miller'),
+            { memberName: 'G. Miller', passwordSetAt: serverTimestamp() }));
+    });
+
+    test('it CANNOT read link designs — the v19.39 `name`-claim rule holds against it', async () => {
+        // linkDesigns read was tightened from `request.auth != null` to a `name` claim precisely
+        // because the anonymous calendar session satisfied the old rule. The viewer is the new
+        // identity in that shape, so this is the same test re-run against it.
+        await assertFails(getDocs(collection(viewerDb(), 'linkDesigns')));
+    });
+
+    test('it CANNOT write a link design', async () => {
+        await assertFails(setDoc(doc(viewerDb(), 'linkDesigns', uid()),
+            { name: 'Proposal', patterns: {}, updatedAt: serverTimestamp(), updatedBy: 'x' }));
+    });
+
+    test('it CANNOT read reset requests', async () => {
+        await assertFails(getDocs(collection(viewerDb(), 'resetRequests')));
+    });
+
+    test('it CANNOT read the error log, only add to it', async () => {
+        // Deliberate asymmetry: an office PC that hits a bug should still be able to report it, and
+        // the log is admin-read. So write succeeds and read fails, and both halves are the design.
+        await assertSucceeds(setDoc(doc(viewerDb(), 'clientErrors', uid()), VALID_ERROR()));
+        await assertFails(getDocs(collection(viewerDb(), 'clientErrors')));
+    });
+
+    test('it CANNOT read usage analytics, only increment them', async () => {
+        // Same asymmetry, same reason: usage from a shared PC is real usage, the counters carry no
+        // identity, and reading them is an admin surface. This month by UTC: the only months open.
+        const month = new Date().toISOString().slice(0, 7);
+        await assertSucceeds(setDoc(doc(viewerDb(), 'analytics', `pv_${month}`),
+            { month, counts: { calendar: increment(1) } }, { merge: true }));
+        await assertFails(getDoc(doc(viewerDb(), 'analytics', `pv_${month}`)));
+    });
+
+    test('it CANNOT write a push subscription — every office PC shares this uid', async () => {
+        // The one rule TIGHTENED for this feature rather than merely audited. A subscription written
+        // here would be `owner`ed by an identity fifty people share: any of them could delete any
+        // other's, and it would sit on a shared machine pushing one person's Huddle for ever.
+        await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+        await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()),
+            { ...VALID_SUB(), owner: 'calendar-viewer' }));
+    });
+
+    test('it CANNOT delete a push subscription', async () => {
+        const id = uid();
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'pushSubscriptions', id), VALID_SUB());
+        });
+        await assertFails(deleteDoc(doc(viewerDb(), 'pushSubscriptions', id)));
+    });
+
+    test('a signed-in member can still write a push subscription', async () => {
+        // The anonymous bootstrap this once allowed for was retired at v24.34, and since v24.56 an
+        // anonymous token is refused here outright (see pushSubscriptions above).
+        await assertSucceeds(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    });
+
+    test('it CANNOT upload or alter a Huddle, Circular or Newsletter', async () => {
+        await assertFails(setDoc(doc(viewerDb(), 'huddles', '2026-08-12'), VALID_HUDDLE()));
+        await assertFails(setDoc(doc(viewerDb(), 'circulars', '2026-08-12'), VALID_CIRCULAR('2026-08-12')));
+        await assertFails(setDoc(doc(viewerDb(), 'newsletters', '2026-08-12'), VALID_CIRCULAR('2026-08-12')));
+    });
+
+    test('it CANNOT read or write the PIN throttle store', async () => {
+        // A client that can READ this learns how close a source is to being blocked, which is how an
+        // automated traversal paces itself under the limit; one that can WRITE it clears its own
+        // failure count between guesses, which removes the limit altogether.
+        await assertFails(getDoc(doc(viewerDb(), 'viewerAttempts', 'abc')));
+        await assertFails(setDoc(doc(viewerDb(), 'viewerAttempts', 'abc'), { failures: 0 }));
+        await assertFails(getDoc(doc(adminDb(), 'viewerAttempts', 'abc')));
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'viewerAttempts', 'abc'), { failures: 0 }));
+    });
+
+    test('a member is unaffected — the isolation rules still work exactly as before', async () => {
+        // Guard the guard. Every assertion above is a `assertFails`, and a rules file that denied
+        // everything to everybody would satisfy all of them.
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), VALID_OVERRIDE()));
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'overrides')));
+        await assertSucceeds(setDoc(doc(managerDb('S. Silva'), 'overrides', uid()), VALID_OVERRIDE()));
+    });
+});
+
+// ── overtimeWindows — Overtime Availability ───────────────────────────────────
+//
+// The smallest ruleset in the file, so the smallest suite: reviewers read, nobody writes. Its
+// value is entirely in the NEGATIVES — every path a client might reach for, tried by name — plus
+// one positive, because a rules file that denied everything to everybody would satisfy the rest.
+//
+// The nested paths are tested individually rather than trusted to the recursive wildcard. A
+// wildcard is exactly the kind of rule that looks like it covers a subtree and does not, and
+// `revisions` is two levels down: a member's whole history of declarations sits there.
+describe('overtimeWindows', () => {
+    const WEEK = '2026-09-05';
+    const PATHS = [
+        ['the window itself',   ['overtimeWindows', WEEK]],
+        ['a participant',       ['overtimeWindows', WEEK, 'participants', 'G. Miller']],
+        ['a submission head',   ['overtimeWindows', WEEK, 'submissions', 'G. Miller']],
+        ['an immutable revision', ['overtimeWindows', WEEK, 'submissions', 'G. Miller', 'revisions', '000001']],
+    ];
+
+    /** Seed the tree behind the rules, the way the Admin SDK does in production. */
+    async function seed() {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'overtimeWindows', WEEK), {
+                weekEnding: WEEK, weekStart: '2026-08-30', audience: 'restricted', policyVersion: 1,
+            });
+            await setDoc(doc(db, 'overtimeWindows', WEEK, 'participants', 'G. Miller'),
+                { memberName: 'G. Miller', grade: 'CEA', rosterOrder: 2 });
+            await setDoc(doc(db, 'overtimeWindows', WEEK, 'submissions', 'G. Miller'),
+                { memberName: 'G. Miller', currentRevision: 1, days: {} });
+            await setDoc(doc(db, 'overtimeWindows', WEEK, 'submissions', 'G. Miller', 'revisions', '000001'),
+                { revision: 1, days: {} });
+        });
+    }
+
+    test('an admin can read every level of the tree', async () => {
+        await seed();
+        for (const [what, path] of PATHS) {
+            await assertSucceeds(getDoc(doc(adminDb(), ...path)), what);
+        }
+    });
+
+    test('a manager can read every level of the tree', async () => {
+        // Managers are the operational readers — the Manager workspace listens to participants and
+        // submission heads directly. If this ever fails the whole feature is blind to its reviewer.
+        await seed();
+        for (const [what, path] of PATHS) {
+            await assertSucceeds(getDoc(doc(managerDb('H. Croft'), ...path)), what);
+        }
+    });
+
+    test('an ordinary named member reads NOTHING, not even their own submission', async () => {
+        // Deliberate: members read through getMyOvertimeState, never Firestore. A participant-based
+        // read rule that no production client exercises would rot, so it is not written.
+        await seed();
+        for (const [, path] of PATHS) {
+            await assertFails(getDoc(doc(namedDb('G. Miller'), ...path)));
+        }
+        await assertFails(getDocs(collection(namedDb('G. Miller'), 'overtimeWindows')));
+    });
+
+    test('a member cannot read a COLLEAGUE\'s submission either', async () => {
+        await seed();
+        await assertFails(getDoc(doc(namedDb('S. Silva', 'uid_silva'), 'overtimeWindows', WEEK, 'submissions', 'G. Miller')));
+    });
+
+    test('the Calendar viewer and an anonymous session read nothing', async () => {
+        // The viewer holds `calendarViewer` and no name/admin/manager, so it fails the same way an
+        // anonymous session does — but assert it by name, because "it obviously has no access" is
+        // what the v20.12 audit found to be wrong about several collections.
+        await seed();
+        for (const [, path] of PATHS) {
+            await assertFails(getDoc(doc(viewerDb(), ...path)));
+            await assertFails(getDoc(doc(anonDb(), ...path)));
+        }
+    });
+
+    test('NOBODY writes — not a member, not a manager, not an admin', async () => {
+        // Every mutation is server-owned through the Admin SDK, because deadline, revision and
+        // identity decisions cannot be expressed as a client write rule. An admin write path here
+        // would also be an impersonation path: the submission identity must always be the caller's.
+        for (const db of [namedDb('G. Miller'), managerDb('H. Croft'), adminDb(), viewerDb(), anonDb()]) {
+            await assertFails(setDoc(doc(db, 'overtimeWindows', WEEK), { weekEnding: WEEK }));
+            await assertFails(setDoc(doc(db, 'overtimeWindows', WEEK, 'participants', 'G. Miller'), { memberName: 'G. Miller' }));
+            await assertFails(setDoc(doc(db, 'overtimeWindows', WEEK, 'submissions', 'G. Miller'), { currentRevision: 9 }));
+            await assertFails(setDoc(doc(db, 'overtimeWindows', WEEK, 'submissions', 'G. Miller', 'revisions', '000002'), { revision: 2 }));
+        }
+    });
+
+    test('an admin cannot rewrite history by deleting a revision', async () => {
+        // The immutability of the audit trail is a rules property, not a convention: `allow write`
+        // covers delete, and a deletable revision would make "changed since initial" forgeable.
+        await seed();
+        await assertFails(deleteDoc(doc(adminDb(), 'overtimeWindows', WEEK, 'submissions', 'G. Miller', 'revisions', '000001')));
+        await assertFails(deleteDoc(doc(managerDb('H. Croft'), 'overtimeWindows', WEEK)));
+    });
+
+    test('a manager can LIST participants and submissions, which the workspace depends on', async () => {
+        // Guard the guard, and the specific capability the Manager view needs: not a get of a known
+        // path, but a query over the collection. A rule that only satisfied single-document reads
+        // would pass every assertion above and leave the workspace empty.
+        await seed();
+        await assertSucceeds(getDocs(collection(managerDb('H. Croft'), 'overtimeWindows', WEEK, 'participants')));
+        await assertSucceeds(getDocs(collection(managerDb('H. Croft'), 'overtimeWindows', WEEK, 'submissions')));
+    });
+});
+
+// ── A `name` IS BELIEVED ONLY FROM THE MEMBER'S OWN ACCOUNT (v24.23 — critical) ────────────────────
+//
+// Firebase fills a token's `name` from the account's DISPLAY NAME, which any session may set for
+// itself. Until v24.23 every member rule trusted that field on sight, and the audit proved in the
+// emulator that an anonymous session calling itself "G. Miller" could read every override, read his
+// work email and write annual leave into his record. Each case below is one of the four ways a
+// `name` can arrive WITHOUT being the member, and every one must now be refused — while the real
+// member, whose token is the same name on the account that name derives to, still gets through.
+describe('a name claim is believed only from the member\'s own account (v24.23)', () => {
+    const as = (/** @type {string} */ uid, /** @type {Record<string, any>} */ claims) =>
+        testEnv.authenticatedContext(uid, claims).firestore();
+    const alFor = (/** @type {string} */ who) => ({
+        date: '2026-10-05', memberName: who, type: 'annual_leave', value: 'AL', note: '',
+        source: 'manual', createdAt: serverTimestamp(), changedBy: who,
+    });
+    const IMPOSTORS = {
+        // An anonymous session that set its own display name — the route the audit exploited.
+        'anonymous + self-set name': { name: 'G. Miller', firebase: { sign_in_provider: 'anonymous' } },
+        // The shared PIN account: a custom-token session. Its display name must never count.
+        'PIN session + a name': { name: 'G. Miller', calendarViewer: true, firebase: { sign_in_provider: 'custom' } },
+        // A password account somebody registered for themselves, renamed to a member.
+        'password account, wrong email': { name: 'G. Miller', email: 'attacker@myb-roster.local', firebase: { sign_in_provider: 'password' } },
+        // The right email but not a password sign-in (e.g. a federated provider, were one enabled).
+        'right email, wrong provider': { name: 'G. Miller', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'google.com' } },
+        // A name with no email at all.
+        'no email': { name: 'G. Miller', firebase: { sign_in_provider: 'password' } },
+        // v24.27 — the door the binding alone left open. Somebody registered the member's DERIVED
+        // email before Set up accounts reached it: right email, password sign-in, a self-set name —
+        // everything v24.23 checked. Only the server-set `member` claim tells them apart.
+        'self-registered at the derived email': { name: 'G. Miller', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'password' } },
+        // A `member` claim that names somebody else — no single stamp may be read as another person.
+        'member claim for someone else': { name: 'G. Miller', member: 'S. Silva', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'password' } },
+    };
+
+    for (const [label, claims] of Object.entries(IMPOSTORS)) {
+        test(`${label}: cannot write another member's annual leave`, async () => {
+            await assertFails(setDoc(doc(as('uid_x', claims), 'overrides', uid()), alFor('G. Miller')));
+        });
+        test(`${label}: cannot read that member's work email`, async () => {
+            await assertFails(getDoc(doc(as('uid_x', claims), 'staffContact', 'G. Miller')));
+        });
+        test(`${label}: cannot read link designs through the member door`, async () => {
+            await assertFails(getDocs(collection(as('uid_x', claims), 'linkDesigns')));
+        });
+    }
+
+    test('an anonymous self-named session cannot read overrides at all', async () => {
+        await assertFails(getDocs(collection(as('uid_x', IMPOSTORS['anonymous + self-set name']), 'overrides')));
+    });
+
+    test('the REAL member still reads, and still writes their own leave', async () => {
+        const real = namedDb('G. Miller');
+        await assertSucceeds(getDocs(collection(real, 'overrides')));
+        await assertSucceeds(setDoc(doc(real, 'overrides', uid()), alFor('G. Miller')));
+    });
+
+    test('the real member of a hyphenated name is bound the same way', async () => {
+        // nameToEmail strips the hyphen; the rules copy must too, or this member is locked out.
+        const real = namedDb('C. Francisco-Charles');
+        await assertSucceeds(setDoc(doc(real, 'overrides', uid()), alFor('C. Francisco-Charles')));
+    });
+
+    test('EVERY name on the roster is recognised on its own account — nobody is locked out', async () => {
+        // The rules derive the expected email from the name (`memberEmailFor`), and the app derives
+        // the account's real email the same way (`nameToEmail`). If the two ever disagree for one
+        // name, that member's every read and write is refused — a lockout of one person that no
+        // other test in this file would notice. So this runs the rules' derivation, in the real
+        // rules engine, against the app's, for every name the roster holds, hidden rows included.
+        const names = teamMembers.map(m => m.name);
+        assert.ok(names.length > 40, `expected the whole roster, got ${names.length} names`);
+        for (const name of names) {
+            await assertSucceeds(getDocs(collection(namedDb(name, 'uid_' + name.replace(/\W/g, '')), 'overrides')))
+                .catch(err => { throw new Error(`${name} (${nameToEmail(name)}) is locked out: ${err.message}`); });
+        }
+    });
+
+    test('a real member still cannot write somebody else\'s leave', async () => {
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), alFor('S. Silva')));
+    });
+
+    // LETTERS OUTSIDE A–Z, not a person (whole-app fix, 10 Nov 2026). The roster holds plain A–Z
+    // names today (the case above), so nothing exercised them. The rules engine's lower() lowers A–Z
+    // only, while JavaScript's toLowerCase() is full Unicode, and in JavaScript exactly two letters
+    // lower to a plain one: İ (U+0130 → "i̇") and the Kelvin sign K (U+212A → "k"). `nameToEmail`
+    // lowers the SURNAME before stripping it, so it kept an "i" or "k" the rules dropped — "A. İnce"
+    // was locked out of everything. The initials pin the other half: both copies strip an initial to
+    // A–Z before the difference could matter.
+    test('the rules derive the email exactly as the app does, for letters outside A–Z too', async () => {
+        for (const name of ['İ. Test', 'K. Test', 'É. Test', 'A. İnce', 'A. Kay', 'A. Éclair']) {
+            await assertSucceeds(getDocs(collection(namedDb(name, 'uid_probe'), 'overrides')))
+                .catch(err => { throw new Error(`${name} (${nameToEmail(name)}) is locked out: ${err.message}`); });
+        }
+    });
+});
+
+// ── THE VIEWER CLAIM IS BELIEVED ONLY ON A PIN SESSION (Sep 2026 review) ─────────────────────────
+//
+// `calendarViewer` is a custom claim on the SHARED `calendar-viewer` account, and a PIN session holds
+// a custom-token sign-in on it. Any PIN holder could link an email/password to that account; every
+// later PASSWORD sign-in on it would then carry `calendarViewer: true` for good — surviving a PIN
+// rotation, which is the one lever the admin has. So the claim counts only when the session is the
+// custom-token one the unlock function mints.
+describe('the calendarViewer claim is believed only on a custom-token session', () => {
+    const as = (/** @type {Record<string, any>} */ claims) =>
+        testEnv.authenticatedContext('calendar-viewer', claims).firestore();
+    const LINKED = {
+        'a password sign-in on the viewer account': { calendarViewer: true, email: 'x@example.com', firebase: { sign_in_provider: 'password' } },
+        'an anonymous session carrying the claim': { calendarViewer: true, firebase: { sign_in_provider: 'anonymous' } },
+    };
+    for (const [label, claims] of Object.entries(LINKED)) {
+        for (const coll of ['overrides', 'huddles', 'circulars', 'newsletters']) {
+            test(`${label}: cannot read ${coll}`, async () => {
+                await assertFails(getDocs(collection(as(claims), coll)));
+            });
+        }
+    }
+    test('the real PIN session still reads all four', async () => {
+        for (const coll of ['overrides', 'huddles', 'circulars', 'newsletters']) {
+            await assertSucceeds(getDocs(collection(viewerDb(), coll)));
+        }
+    });
+});
+
+// ── THE COUNTER WINDOW AT ANY DATE (sign-in check, 11 Nov 2026) ─────────────────────────────────────
+// isCounterMonth (v25.65) reads `int(month[5:7])`, and every month it has met so far is 10, 11 or 12:
+// nothing has yet asked it about a zero-padded month, or about a window across a year end, and the
+// emulator's clock cannot be set. So the REAL function is lifted out of firestore.rules and run against a
+// clock the test supplies. The one substitution is `request.time` → a field of the written document.
+describe('isCounterMonth at any date — zero-padded months and the year end', () => {
+    /** @type {any} */ let probeEnv;
+    before(async () => {
+        const fn = readFileSync(join(__dir, 'firestore.rules'), 'utf8').match(/function isCounterMonth\(month\) \{[\s\S]*?\n\s*\}/)?.[0];
+        assert.ok(fn, 'isCounterMonth was not found in firestore.rules');
+        const lifted = fn.replaceAll('request.time', 'request.resource.data.at');
+        assert.notEqual(lifted, fn, 'isCounterMonth no longer reads request.time — update this probe');
+        probeEnv = await initializeTestEnvironment({ projectId: 'demo-counter-month', firestore: { rules:
+            `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{db}/documents {\n${lifted}\n` +
+            `    match /probe/{id} { allow write: if isCounterMonth(request.resource.data.m); }\n  }\n}\n` } });
+    });
+    after(async () => { await probeEnv?.cleanup(); });
+    const write = (/** @type {string} */ m, /** @type {string} */ at) =>
+        setDoc(doc(probeEnv.unauthenticatedContext().firestore(), 'probe', 'x'), { m, at: Timestamp.fromDate(new Date(at)) });
+
+    test('a zero-padded month is read as its number', async () => {
+        await assertSucceeds(write('2027-01', '2027-01-15T12:00:00Z'));
+        await assertSucceeds(write('2027-09', '2027-08-15T12:00:00Z'));   // next month
+        await assertSucceeds(write('2027-08', '2027-09-15T12:00:00Z'));   // last month
+        await assertFails(write('2027-03', '2027-01-15T12:00:00Z'));      // two ahead
+        await assertFails(write('2027-06', '2027-08-15T12:00:00Z'));      // two behind
+    });
+
+    test('the window crosses a year end in both directions', async () => {
+        await assertSucceeds(write('2027-01', '2026-12-15T12:00:00Z'));   // next month, next year
+        await assertSucceeds(write('2026-12', '2027-01-15T12:00:00Z'));   // last month, last year
+        await assertFails(write('2026-11', '2027-01-15T12:00:00Z'));
+        await assertFails(write('2027-02', '2026-12-15T12:00:00Z'));
+    });
+});

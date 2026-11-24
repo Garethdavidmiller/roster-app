@@ -1,0 +1,147 @@
+/**
+ * Static guard for the canonical card-header conventions across the five card-bearing app pages
+ * (v18.86). No emulator, no browser — it reads the served HTML.
+ *
+ * Three conventions — the first two had already drifted unnoticed because nothing enforced them:
+ *
+ *   1. A card title is an `h2`. operations.html marked all nine of its cards up as `h3` while the
+ *      other four pages used `h2`; `shared.css` styled both identically, so it LOOKED right while
+ *      the page's heading outline ran h1 → h3 with no h2 at all. axe's heading-order rule is tagged
+ *      best-practice rather than WCAG A/AA, so the accessibility gate never saw it.
+ *
+ *   2. Every card title carries a leading emoji. "Change a Shift" — the Admin page's primary card —
+ *      was the ONLY one in the app without one, so the odd one out was also the most prominent.
+ *
+ *   3. That emoji is the heading's FIRST element, as `<span aria-hidden="true">` (v25.14). shared.css
+ *      hangs a wrapped title's words from it — every line starting at one x, beside the emoji — and
+ *      hooks on exactly that shape. `:first-child` cannot see text, so a bare emoji would leave its
+ *      title to wrap back under it, and a span placed after the words would hang the wrong thing.
+ *      (It hooked the page-colour icon tile from v25.14 to v25.15; the tile went at v25.16, the
+ *      hanging layout and this shape stayed.)
+ *
+ * Part of `npm run test:hygiene`.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { cardPageFiles } from '../scripts/app-pages.mjs';
+
+// Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
+const REPO_ROOT_URL = new URL('../', import.meta.url);
+
+/** The app pages that carry `.card-header` cards — scripts/app-pages.mjs (v24.52). index.html has none (the calendar is a grid). */
+const PAGES = cardPageFiles();
+
+// Comments are stripped BEFORE matching: a long explanatory comment between the `.card-header` and
+// its title would otherwise push the heading past the search window and silently skip that card —
+// the guard would then pass by not looking, which is worse than not existing.
+const read = p => readFileSync(new URL(`./${p}`, REPO_ROOT_URL), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+
+/**
+ * Every `.card-header` block, paired with the first heading that follows it (null if there is none).
+ *
+ * Class matching is TOKEN-exact (v18.91). The old `\bcard-header\b` test also matched
+ * `class="card-header-actions"` — `-` is a non-word character, so `\b` happily sits between
+ * `header` and `-actions` — which made every actions cluster look like a second card header that
+ * then paired with the NEXT card's title. Splitting the class attribute on whitespace can't do that.
+ */
+function cardHeaderBlocks(html) {
+    // Index every class attribute once, so each header's search window can be bounded by the START
+    // OF THE NEXT CARD rather than a fixed character count. A fixed window was the real gap: a
+    // header with no heading simply scanned on and adopted the NEXT card's title, so the guard
+    // passed by not looking. Nothing inside a header block carries a bare `card`/`card-header`
+    // token (the children are card-header-actions, btn-card-tips, collapse-chevron, hint), so the
+    // next such token is reliably the next card.
+    /** @type {Array<{ index: number, tokens: string[] }>} */
+    const attrs = [];
+    const re = /class="([^"]*)"/g;
+    let m;
+    while ((m = re.exec(html)) !== null) attrs.push({ index: m.index, tokens: m[1].split(/\s+/) });
+
+    const isBoundary = (/** @type {string[]} */ t) => t.includes('card') || t.includes('card-header');
+
+    /** @type {Array<{ tag: string|null, text: string }>} */
+    const out = [];
+    attrs.forEach((a, i) => {
+        if (!a.tokens.includes('card-header')) return;
+        const next = attrs.slice(i + 1).find(b => isBoundary(b.tokens));
+        const end  = Math.min(next ? next.index : html.length, a.index + 4000);
+        const h = /<(h[1-6])\b[^>]*>([\s\S]*?)<\/\1>/.exec(html.slice(a.index, end));
+        out.push(h ? { tag: h[1], text: h[2] } : { tag: null, text: '' });
+    });
+    return out;
+}
+
+/** Only the blocks that actually have a heading — for the tag/emoji conventions. */
+const cardHeadings = html =>
+    /** @type {Array<{ tag: string, text: string }>} */
+    (cardHeaderBlocks(html).filter(b => b.tag !== null));
+
+/** Strip tags/entities and any HTML comment, leaving the visible title text. */
+const visible = t => t.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]*>/g, '').replace(/&[a-z]+;/g, ' ').trim();
+
+// The conventions below only inspect headings that EXIST, so a `.card-header` carrying no heading at
+// all slipped through both of them (v18.91). A titleless card is the worst case for the outline the
+// h2 rule protects — assert every header block has one before asserting anything about it.
+test('every .card-header block actually has a heading', () => {
+    for (const page of PAGES) {
+        const blocks = cardHeaderBlocks(read(page));
+        assert.ok(blocks.length > 0, `${page}: expected at least one .card-header block`);
+        const missing = blocks.filter(b => b.tag === null).length;
+        assert.equal(missing, 0,
+            `${page}: ${missing} of ${blocks.length} .card-header blocks have no heading — every card needs a title`);
+    }
+});
+
+test('every card title is an h2 (no skipped heading levels)', () => {
+    for (const page of PAGES) {
+        const headings = cardHeadings(read(page));
+        assert.ok(headings.length > 0, `${page}: expected at least one .card-header heading`);
+        const wrong = headings.filter(h => h.tag !== 'h2').map(h => `${h.tag}: ${visible(h.text)}`);
+        assert.deepEqual(wrong, [], `${page} must use h2 for card titles, found → ${wrong.join(' · ')}`);
+    }
+});
+
+test('every card title leads with an emoji', () => {
+    // Pictographic + regional-indicator ranges; the flag emoji used by the guides is a pair of
+    // regional indicators, so include those too.
+    const LEADING_EMOJI = /^(\p{Extended_Pictographic}|\p{Regional_Indicator})/u;
+    for (const page of PAGES) {
+        const bare = cardHeadings(read(page))
+            .map(h => visible(h.text))
+            .filter(t => t && !LEADING_EMOJI.test(t));
+        assert.deepEqual(bare, [],
+            `${page}: card titles must lead with an emoji (the app-wide convention) → ${bare.join(' · ')}`);
+    }
+});
+
+test('every card title\'s emoji is its FIRST element, wrapped as the hanging layout expects', () => {
+    // shared.css hangs a wrapped title from `.card-header h2 > span[aria-hidden="true"]:first-child`.
+    // A title that misses this shape is not broken on one line — it is the one card on its page whose
+    // second line runs back under its emoji, the odd-one-out convention 2 above was written against.
+    const WRAPPED = /^\s*<span\b[^>]*\baria-hidden="true"[^>]*>\s*(\p{Extended_Pictographic}|\p{Regional_Indicator})[^<]*<\/span>/u;
+    for (const page of PAGES) {
+        const bad = cardHeadings(read(page)).filter(h => !WRAPPED.test(h.text)).map(h => visible(h.text));
+        assert.deepEqual(bad, [],
+            `${page}: a card title must begin <span aria-hidden="true">EMOJI</span>, or a wrapped title runs back under it → ${bad.join(' · ')}`);
+    }
+});
+
+// THE GROUP LABELS ON THE PAGE CANVAS ARE HEADINGS WHEREVER THEY APPEAR (v26.24). Settings' three ("Your account",
+// "This device", "Your data") were h2s and Operations' three ("Publish", "Roster & accounts", "Monitoring") were
+// <p>s, though one recipe draws both — so a screen reader's list of headings named the groups on one page and none
+// of them on the other. Both are h2s now, at the level of the card titles beside them.
+test('the group labels on the page canvas are h2 headings, on every page that has them', () => {
+    // Walked by CLASS across the card pages, never by page name: page-contract-parity refuses a page
+    // list typed into this suite. Settings' and Operations' labels look alike, so they read alike.
+    const LABELS = ['settings-section-label', 'ops-group-label'];
+    const found = Object.fromEntries(LABELS.map(cls => [cls, 0]));
+    for (const page of PAGES) {
+        for (const cls of LABELS) {
+            const tags = [...read(page).matchAll(new RegExp(`<(\\w+)[^>]*\\bclass="[^"]*\\b${cls}\\b[^"]*"`, 'g'))].map(m => m[1]);
+            found[cls] += tags.length;
+            assert.deepEqual(tags.filter(tag => tag !== 'h2'), [], `${page}: every .${cls} is an h2`);
+        }
+    }
+    for (const cls of LABELS) assert.ok(found[cls] >= 3, `premise — the .${cls} labels are found (${found[cls]})`);
+});

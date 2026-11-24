@@ -1,0 +1,1325 @@
+/**
+ * Unit tests for calendar-renderer.js — pure helpers and grid builder.
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-renderer.test.mjs
+ *
+ * Pure-function tests (createCalendarHeader, createDayCell, getSwipeDirection) need
+ * no DOM. buildCalendarContainer tests use a minimal hand-rolled DOM factory so the
+ * cell objects' classes, attributes and datasets can be inspected directly.
+ */
+import { test, describe, mock, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+// Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
+const REPO_ROOT_URL = new URL('../', import.meta.url);
+
+// ── Mock-controllable state ───────────────────────────────────────────────────
+
+const _overrideCache = new Map();
+let _mockGetBaseShift    = () => 'RD';
+let _mockIsBeforeMember  = () => false;
+let _mockIsPayday        = () => false;
+let _mockIsCutoffDate    = () => false;
+let _mockIsSameDay       = () => false;
+let _mockIsBH            = () => false;
+let _mockIsXmas          = () => false;
+let _mockIsEaster        = () => false;
+// The roster the header names: a week number per date, and the descriptor. Pinned (not real) so the
+// header assertions describe a fixed label; swappable so one test can make a month wrap the cycle.
+const _defaultWeek   = () => 3;
+const _defaultRoster = () => ({ weekPrefix: 'CEA Week' });
+let _mockWeekNumber  = _defaultWeek;
+let _mockRoster      = _defaultRoster;
+// Real Sunday check — avoid timezone drift by pinning noon.
+const _realIsSunday = dateStr => new Date(dateStr + 'T12:00:00').getDay() === 0;
+let _mockIsSunday = _realIsSunday;
+
+const FAKE_MEMBER = { name: 'G. Miller', currentWeek: 1, rosterType: 'main' };
+// Swappable so a test can exercise a rosterChanges transition member; getCurrentMember reads it live.
+let _member = FAKE_MEMBER;
+
+// ── The REAL worked-day predicate, reached past the mock below ────────────────
+//
+// `mock.module` keys on the resolved module URL, so `?real` is a different module and is NOT
+// intercepted — and this import runs BEFORE any mock is registered, so `roster-data.js` links
+// against the real `override-utils.js` rather than the stub further down.
+//
+// It matters because this entry used to be a hand-written COPY of the predicate, which made the
+// renderer's consumer blind to the real one BY CONSTRUCTION: deleting `'SPARE'` from
+// `roster-data.js` left all 71 tests here green (measured), while a SPARE day for a permanent-shift
+// member silently drew as an early or late shift. That is "a harness that discards is a harness
+// that cannot see" in its other shape — a harness that RESTATES. The remaining faithful copies in
+// this mock are copies because their originals are not reachable this way (`override-utils.js` is
+// itself mocked below, and a whole-module mock has no partial form); this one had no such excuse.
+const { isWorkedShift: realIsWorkedShift } = await import('../roster-data.js?real');
+
+// ── The REAL override-utils, reached the same way ────────────────────────────
+//
+// `override-utils.js` imports nothing, so it loads in Node exactly as it ships. It used to be
+// mocked as a page of hand-written COPIES — `resolveEffectiveShift`, `isOverrideDisplaySuppressed`,
+// `isOtherValue`, `parseOtherValue`, `OTHER_FLAVOURS` and `isRestShift` — which is the failure mode
+// CLAUDE.md names: a harness that RESTATES the rule cannot see the rule change. Two things it was
+// already hiding, both measured:
+//   · `OTHER_FLAVOURS` listed three flavours. The shipped table has six — Team Day, Union course
+//     and Meeting were added between v15.51 and v18.61 and never reached the copy, so every
+//     renderer test involving one was asserting against a table the app stopped having.
+//   · `resolveEffectiveShift` reaches the Calendar, Team Week View AND the Overtime roster context
+//     (CLAUDE.md's change-impact table). A copy here made this suite blind to all three.
+const realOverrideUtils = await import('../override-utils.js?real');
+const realRosterData = await import('../roster-data.js?real');
+
+// ── Mocks ─────────────────────────────────────────────────────────────────────
+
+mock.module('../roster-data.js', {
+    namedExports: {
+        // The SHIPPED module, then the seams. Everything a test needs to put a DAY into a given
+        // state is injected below; everything that turns a shift VALUE into words, a class, a badge
+        // or a roster is the real thing. The difference matters: injecting state is a harness doing
+        // its job, restating a rule is a harness that cannot see the rule change.
+        ...realRosterData,
+        // ── Injected state, one per thing a test needs to decide about a DATE ────────────────
+        isSameDay:      (a, b) => _mockIsSameDay(a, b),
+        isBankHoliday:  d  => _mockIsBH(d),
+        isChristmasDay: d  => _mockIsXmas(d),
+        isEasterSunday: d  => _mockIsEaster(d),
+        isPayday:       d  => _mockIsPayday(d),
+        isCutoffDate:   d  => _mockIsCutoffDate(d),
+        getBaseShift:   (m, d) => _mockGetBaseShift(m, d),
+        isSunday:       dateStr => _mockIsSunday(dateStr),
+        // The roster the header names. Pinned rather than real so the header assertions describe a
+        // fixed week label instead of whatever week the real cycle maths puts today in.
+        getWeekNumberForDate: (d, m) => _mockWeekNumber(d, m),
+        getRosterForMember:   (m, d) => _mockRoster(m, d),
+        paydayForCutoff:      () => null,
+    },
+});
+
+mock.module('../calendar-member.js', {
+    namedExports: { getCurrentMember: () => _member },
+});
+
+mock.module('../calendar-overrides.js', {
+    namedExports: {
+        rosterOverridesCache: _overrideCache,
+        // The real one — the renderer looks a month's KNOWLEDGE up under this key, so a stubbed
+        // format here would make every lookup miss and the grid would be withheld in every test
+        // for a reason no assertion would name.
+        monthKey: (year, month) => `${year}-${String(month + 1).padStart(2, '0')}`,
+    },
+});
+
+mock.module('../override-utils.js', {
+    namedExports: {
+        ...realOverrideUtils,
+        // The ONE injected seam: a test decides whether a date falls before the member joined.
+        // Everything else above is the shipped module — see the note on `realOverrideUtils`.
+        isBeforeMemberStart: (m, d) => _mockIsBeforeMember(m, d),
+    },
+});
+
+// NOT mocked — pure, no imports of its own, and the renderer's grid/no-grid decision comes from it.
+// Stubbing it would mean these tests assert against a model that is not the shipped one.
+const { noteKnowledge, _reset: _resetKnowledge } = await import('../calendar-data-state.js');
+
+const { createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer } =
+    await import('../calendar-renderer.js');
+
+/** The month every grid test builds. Since v20.40 a container is only POPULATED when the month's
+ *  overrides are known, so the shift-class/marker/structure suites below have to say so — otherwise
+ *  they would all pass against a withheld grid, asserting nothing. */
+const TEST_MONTH = { month: 0, year: 2026 };
+function knowTestMonth() { noteKnowledge('2026-01', 'authoritative'); }
+
+// ── Minimal DOM factory ───────────────────────────────────────────────────────
+
+function makeEl(tag) {
+    const _classes = new Set();
+    const _attrs   = {};
+    const _children = [];
+    const el = {
+        _tag: tag, _classes, _children,
+        dataset: {},
+        innerHTML: '', textContent: '', style: {},
+        disabled: false, type: '',
+        setAttribute(k, v) { _attrs[k] = String(v); },
+        getAttribute(k)    { return _attrs[k] !== undefined ? _attrs[k] : null; },
+        appendChild(c)     { _children.push(c); return c; },
+        remove()           { this._removed = true; },
+        focus()            {},
+        // Records handlers so a test can FIRE one. A no-op listener meant a button's behaviour was
+        // untestable — the suite could assert a control existed and never that pressing it worked.
+        _listeners: {},
+        addEventListener(type, fn) { this._listeners[type] = fn; },
+        querySelectorAll(sel) {
+            // Supports '.class' and '.class:not(.other)' patterns.
+            const notMatch = sel.match(/^\.([^:]+):not\(\.([^)]+)\)$/);
+            const results = [];
+            if (notMatch) {
+                const [, cls, notCls] = notMatch;
+                const walk = n => {
+                    if (n._classes?.has(cls) && !n._classes?.has(notCls)) results.push(n);
+                    n._children?.forEach(walk);
+                };
+                this._children.forEach(walk);
+            } else {
+                const cls = sel.startsWith('.') ? sel.slice(1) : null;
+                const walk = n => {
+                    if (cls && n._classes?.has(cls)) results.push(n);
+                    n._children?.forEach(walk);
+                };
+                this._children.forEach(walk);
+            }
+            return results;
+        },
+        classList: {
+            add(...cls)    { cls.forEach(c => _classes.add(c)); },
+            remove(...cls) { cls.forEach(c => _classes.delete(c)); },
+            contains:  c  => _classes.has(c),
+        },
+    };
+    Object.defineProperty(el, 'className', {
+        get() { return [..._classes].join(' '); },
+        set(v) { _classes.clear(); String(v).split(/\s+/).filter(Boolean).forEach(c => _classes.add(c)); },
+        enumerable: true, configurable: true,
+    });
+    return el;
+}
+
+beforeEach(() => {
+    _resetKnowledge();
+    knowTestMonth();
+    _overrideCache.clear();
+    // Reset here, with every other knob (test audit, 7 Nov 2026): four tests put the member back on
+    // their LAST line, so one failed assertion left a permanent-shift member in place for every test
+    // after it and turned one real failure into a run of unrelated ones.
+    _member = FAKE_MEMBER;
+    _mockGetBaseShift   = () => 'RD';
+    _mockIsBeforeMember = () => false;
+    _mockIsPayday       = () => false;
+    _mockIsCutoffDate   = () => false;
+    _mockIsSameDay      = () => false;
+    _mockIsBH           = () => false;
+    _mockIsXmas         = () => false;
+    _mockIsEaster       = () => false;
+    _mockIsSunday       = _realIsSunday;
+    _mockWeekNumber     = _defaultWeek;
+    _mockRoster         = _defaultRoster;
+
+    global.document = { createElement: tag => makeEl(tag), getElementById: () => null };
+    global.window   = { matchMedia: () => ({ matches: false }) };
+});
+
+// ── Helper: find an in-month day cell by day number (January 2026) ────────────
+// January 2026 starts on Thursday → 4 leading other-month cells.
+
+// By the cell's DATE, not its name. The name led with the date until v25.27, when it began to lead
+// with what the cell shows (Label in Name) and "1 January 2026" stopped being a phrase in it.
+function getDayCell(container, dayNum) {
+    const grid = container._children[1];
+    return grid._children.find(c => new RegExp(`\\b${dayNum} January 2026\\b`).test(c.dataset?.detailDay || ''));
+}
+
+// ── createCalendarHeader ──────────────────────────────────────────────────────
+
+describe('createCalendarHeader', () => {
+    test('renders month name and year', () => {
+        const html = createCalendarHeader(3, 3, 'CEA Week', 0, 2026);
+        assert.ok(html.includes('January 2026'));
+    });
+
+    test('single week → singular label', () => {
+        const html = createCalendarHeader(3, 3, 'CEA Week', 0, 2026);
+        assert.ok(html.includes('CEA Week 3'));
+        assert.ok(!html.includes('CEA Weeks'));
+    });
+
+    test('multiple weeks → plural label with range', () => {
+        const html = createCalendarHeader(3, 5, 'CEA Week', 0, 2026);
+        assert.ok(html.includes('CEA Weeks 3–5')); // en-dash range (v18.19)
+    });
+
+    test('empty weekPrefix → no week-info-text span', () => {
+        const html = createCalendarHeader(3, 3, '', 0, 2026);
+        assert.ok(!html.includes('week-info-text'));
+    });
+
+    test('aria-label on month-year div includes Jump to month and month/year', () => {
+        const html = createCalendarHeader(3, 3, 'CEA Week', 0, 2026);
+        assert.ok(html.includes('Jump to month'));
+        assert.ok(html.includes('January 2026'));
+    });
+
+    test('BL Week prefix pluralises correctly → BL Weeks', () => {
+        const html = createCalendarHeader(1, 3, 'BL Week', 0, 2026);
+        assert.ok(html.includes('BL Weeks 1–3')); // en-dash range (v18.19)
+    });
+
+    // A MONTH THAT WRAPS THE CYCLE (17 Nov 2026). Starting in week 19 of a 20-week cycle it ends in
+    // week 3, and "CEA Weeks 19–3" read as a range run backwards — in about a third of member-months
+    // over the winter. It is the end of one cycle and the start of the next, so it says both.
+    test('a range that wraps the cycle says both ends of it — never a range run backwards', () => {
+        for (const [first, last, cycle, want] of /** @type {const} */ ([
+            [19, 3, 20, 'CEA Weeks 19–20, 1–3'],
+            [20, 4, 20, 'CEA Weeks 20, 1–4'],
+            [17, 1, 20, 'CEA Weeks 17–20, 1'],
+            [8, 3, 8, 'CEA Weeks 8, 1–3'],
+        ])) {
+            const html = createCalendarHeader(first, last, 'CEA Week', 0, 2026, cycle);
+            assert.ok(html.includes(want), `weeks ${first} to ${last} of ${cycle}: expected "${want}" in ${html}`);
+            assert.ok(!html.includes(`${first}–${last}`), `a backwards range is back: ${first}–${last}`);
+        }
+        assert.ok(createCalendarHeader(3, 5, 'CEA Week', 0, 2026, 20).includes('CEA Weeks 3–5'), 'an ordinary range changed');
+    });
+});
+
+// ── buildCalendarContainer — the grid is WITHHELD until the month is known (v20.40) ───────────────
+//
+// These are the tests the shipped bug would have failed. Everything else in this file asserts what a
+// day cell looks like; none of it could tell you whether the cells should have been drawn at all.
+
+describe('buildCalendarContainer — "As rostered" is a CLAIM, so it has to be earned', () => {
+    // The rule lives in calendar-data-state.js and is tested exhaustively there. What nothing could
+    // see is whether the renderer ASKS it — and a flag that is written unconditionally passes every
+    // test of the rule while telling a member on a stale month that their roster is confirmed.
+    // These drive the real module: `knowledgeOf` and `decideDisplay` are deliberately not mocked.
+    test('an unchanged day on an AUTHORITATIVE month carries the flag', () => {
+        _resetKnowledge();
+        knowTestMonth();
+        _mockGetBaseShift = () => '06:00-14:00';   // and no override, so base === effective
+        // Scoped to THIS month's own days: the grid is padded with adjacent-month cells, which
+        // carry no dataset at all and would make `every` pass or fail for the wrong reason.
+        const cells = [...buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-day')].filter(c => c.dataset.detailDay);
+        assert.ok(cells.length, 'precondition: the grid rendered');
+        assert.ok(cells.every(c => c.dataset.detailAsRostered === '1'),
+            'a settled month with nothing changed is the one state that may say so');
+    });
+
+    test('the SAME day on a CACHED month does NOT — silence is not the opposite claim', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'cached');
+        _mockGetBaseShift = () => '06:00-14:00';
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        const cells = [...container.querySelectorAll('.calendar-day')].filter(c => c.dataset.detailDay);
+        assert.equal(container.dataset.overrideState, 'stale');
+        assert.ok(cells.length,
+            'precondition: a cached month still DRAWS its grid — that is what makes this the ' +
+            'dangerous state. The member is reading a roster; the app just cannot promise it is ' +
+            'current, and an override recorded since could be missing from exactly this cache.');
+        assert.ok(cells.every(c => !c.dataset.detailAsRostered),
+            'a last-known-good month must not confirm that nothing was changed');
+    });
+
+    test('a CHANGED day never carries it, settled month or not', () => {
+        _resetKnowledge();
+        knowTestMonth();
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+        const cell = [...buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-day')].find(c => (c.dataset.detailDay || '').includes(' 2 January'));
+        _overrideCache.clear();
+        assert.ok(cell, 'precondition: found the changed day');
+        assert.ok(cell.dataset.detailBaseShift, 'precondition: it rendered as a change');
+        assert.ok(!cell.dataset.detailAsRostered,
+            'the two are one slot in the panel and must never both be true');
+    });
+
+    test('a day BEFORE the member joined carries neither the flag nor a change', () => {
+        // The fourth way the claim is unearned, and the only one that is not about knowledge.
+        // `getBaseShift` suppresses every shift before `startDate`, so base and effective are both
+        // 'RD' and the day falls into the unchanged branch — on a settled month, which is the one
+        // state allowed to speak. The panel then said "\u2713 As rostered" over a rest day nobody was
+        // ever rostered for, on a month a new starter can reach by pressing Prev.
+        //
+        // "We do not know" and "there is nothing to know" are different silences, and only the first
+        // was covered: every knowledge state above is about a read that may yet arrive, where this is
+        // a date the roster has no opinion on at all.
+        _resetKnowledge();
+        knowTestMonth();
+        _mockGetBaseShift   = () => 'RD';     // what start-date suppression actually returns
+        _mockIsBeforeMember = () => true;
+        const cells = [...buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-day')].filter(c => c.dataset.detailDay);
+        _mockIsBeforeMember = () => false;
+        assert.ok(cells.length, 'precondition: the grid still renders — the cells are drawn, just empty');
+        assert.ok(cells.every(c => !c.dataset.detailAsRostered),
+            'a date before the member started is not a roster the app can confirm; the rest day ' +
+            'shown there is suppression, not a rostered rest day');
+    });
+
+    test('the roster week is written onto every cell', () => {
+        _resetKnowledge();
+        knowTestMonth();
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cells = [...buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-day')].filter(c => c.dataset.detailDay);
+        assert.ok(cells.length, 'precondition: the grid rendered');
+        assert.ok(cells.every(c => c.dataset.detailWeek === 'CEA Week 3'),
+            'the panel reads this straight off the cell; which members HAVE a week is weekContext\'s ' +
+            'call, and is tested against the real roster table in day-detail-explains.test.mjs');
+    });
+});
+
+describe('buildCalendarContainer — withheld grid', () => {
+    test('an UNKNOWN month draws no day cells — the base roster is not a fact yet', () => {
+        _resetKnowledge();                          // nobody has read this month
+        _mockGetBaseShift = () => '06:00-14:00';    // and the base roster would happily show a shift
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.equal(container.querySelectorAll('.calendar-day').length, 0,
+            'a month nobody has read must not paint a single day');
+        assert.equal(container.querySelectorAll('.calendar-grid').length, 0);
+        assert.equal(container.dataset.overrideState, 'loading');
+    });
+
+    test('the month HEADER survives — it holds the label and the sync chip mounts on it', () => {
+        _resetKnowledge();
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        const header = container.querySelectorAll('.calendar-header')[0];
+        assert.ok(header, 'header must exist in the withheld state');
+        assert.ok(header.innerHTML.includes('January 2026'));
+    });
+
+    test('a FAILED month says so, and offers the retry — where unknown only offers a wait', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'error');
+        let retried = null;
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year, {
+            onRetryMonth: (y, m) => { retried = [y, m]; },
+        });
+        assert.equal(container.dataset.overrideState, 'unavailable');
+        const panel = container.querySelectorAll('.calendar-pending')[0];
+        assert.ok(panel, 'a failed month still gets a panel');
+        assert.ok(panel.classList.contains('calendar-pending--failed'));
+        assert.equal(panel.getAttribute('role'), 'alert');
+        const btn = container.querySelectorAll('.calendar-pending-retry')[0];
+        assert.ok(btn, 'a failure the user can act on must carry the action');
+        // The panel reports the month it was BUILT for, not whatever is on display — the swipe
+        // carousel builds panels for adjacent months, so passing the wrong one would retry the
+        // wrong month and look like the button did nothing.
+        btn._listeners.click();
+        assert.deepEqual(retried, [2026, 0]);
+    });
+
+    test('the withheld month speaks to whoever is reading — never "your" (17 Nov 2026)', () => {
+        // The panel stands over a colleague's calendar and the staff PIN's as often as the reader's
+        // own, so "your annual leave" told a station PC, or a colleague's reader, it was theirs. And
+        // the failure ended "the rota underneath it may be out of date", which does not parse.
+        for (const state of ['unknown', 'error']) {
+            _resetKnowledge();
+            if (state === 'error') noteKnowledge('2026-01', 'error');
+            const panel = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+                .querySelectorAll('.calendar-pending')[0];
+            assert.ok(panel, `premise: an ${state} month draws the panel`);
+            assert.doesNotMatch(panel.innerHTML, /\byour\b/i, `the ${state} panel addresses the reader as the member`);
+            assert.match(panel.innerHTML, /annual leave, absences and shift changes/i);
+        }
+        assert.match(buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year).querySelectorAll('.calendar-pending')[0].innerHTML,
+            /without them it could show the wrong shifts/, 'the failure no longer says why the month is held back');
+    });
+
+    test('no retry callback ⇒ no button — an inert control is worse than none', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'error');
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.equal(container.querySelectorAll('.calendar-pending-retry').length, 0);
+    });
+
+    test('a wait state is role=status, not alert — it must not interrupt on every load', () => {
+        _resetKnowledge();
+        const panel = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-pending')[0];
+        assert.equal(panel.getAttribute('role'), 'status');
+        assert.ok(!panel.classList.contains('calendar-pending--failed'));
+    });
+
+    test('a CACHED month DOES draw its grid — hiding good data is its own failure', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'cached');
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.ok(container.querySelectorAll('.calendar-day').length > 0,
+            'a device holding cached data must not be reduced to a spinner');
+        assert.equal(container.dataset.overrideState, 'stale');
+        assert.equal(container.querySelectorAll('.calendar-pending').length, 0);
+    });
+
+    // A CACHED month is "Saved copy — couldn't check for changes" only once a check has actually not
+    // happened. While the first read is still running it has not failed (v25.06): the note was drawn
+    // over every returning member's cache paint, red, until the 800ms sync chip arrived to hide it.
+    test('a cached month says "couldn\'t check" — but not while the first check is still running', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'cached');
+        const after = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.equal(after.querySelectorAll('.calendar-stale-note').length, 1,
+            'precondition: once nothing is checking, the saved copy is labelled');
+        const during = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year, { checking: true });
+        assert.equal(during.querySelectorAll('.calendar-stale-note').length, 0,
+            'a check in flight has not failed, so the grid must not say it has');
+        assert.ok(during.querySelectorAll('.calendar-day').length > 0, 'and the cached grid still shows');
+    });
+
+    test('an authoritative month renders as current', () => {
+        knowTestMonth();
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.ok(container.querySelectorAll('.calendar-day').length > 0);
+        assert.equal(container.dataset.overrideState, 'render');
+    });
+
+    test('knowledge is per MONTH — knowing January says nothing about February', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'authoritative');
+        assert.ok(buildCalendarContainer(0, 2026).querySelectorAll('.calendar-day').length > 0);
+        assert.equal(buildCalendarContainer(1, 2026).querySelectorAll('.calendar-day').length, 0,
+            'February was never read — swiping to it must not inherit January\'s confidence');
+    });
+});
+
+// ── buildCalendarContainer — rosterChanges transition month (week label suppressed) ───────────────
+
+describe('buildCalendarContainer — transition-month week label', () => {
+    test('a member crossing a rosterChanges boundary mid-month shows NO week range (not "Weeks 3–3")', () => {
+        // main → fixed from the 15th: firstDay (main) and lastDay (fixed) resolve to different rosters,
+        // so a numeric "Weeks X–Y" range would be nonsensical — the label must be suppressed instead.
+        _member = { name: 'S. Test', currentWeek: 3, rosterType: 'main',
+            rosterChanges: [{ from: new Date(2026, 0, 15), rosterType: 'fixed', currentWeek: 2 }] };
+        try {
+            const container = buildCalendarContainer(0, 2026);   // January 2026
+            const header = /** @type {any} */ (container).querySelectorAll('.calendar-header')[0];
+            const html = header.innerHTML;
+            assert.ok(html.includes('January 2026'), 'month/year still shown');
+            assert.ok(!/Week/.test(html), 'no "Week"/"Weeks" label in a transition month');
+        } finally {
+            _member = FAKE_MEMBER;   // restore for the other buildCalendarContainer tests
+        }
+    });
+
+    test('the month header is told the cycle\'s length, so a wrapping month says both ends', () => {
+        // The wiring half of the header test above: the length comes from the roster the month is on.
+        _mockRoster = () => ({ weekPrefix: 'CEA Week', cycleLength: 20 });
+        _mockWeekNumber = (/** @type {Date} */ d) => (d.getDate() === 1 ? 19 : 3);
+        const header = /** @type {any} */ (buildCalendarContainer(0, 2026)).querySelectorAll('.calendar-header')[0];
+        assert.ok(header.innerHTML.includes('CEA Weeks 19–20, 1–3'), `the header read: ${header.innerHTML}`);
+    });
+
+    test('a normal (non-transition) member still shows the week label', () => {
+        _member = FAKE_MEMBER;
+        const container = buildCalendarContainer(0, 2026);
+        const header = /** @type {any} */ (container).querySelectorAll('.calendar-header')[0];
+        assert.ok(/CEA Week/.test(header.innerHTML), 'week label present for a non-transition month');
+    });
+});
+
+// ── createDayCell ─────────────────────────────────────────────────────────────
+
+describe('createDayCell', () => {
+    const JAN_1 = new Date(2026, 0, 1);
+
+    test('RD shift → rest badge, no shift-time div', () => {
+        const html = createDayCell(JAN_1, 'RD', undefined, false);
+        assert.ok(html.includes('badge-rest'));
+        assert.ok(!html.includes('shift-time'));
+    });
+
+    test('AL shift → AL badge', () => {
+        const html = createDayCell(JAN_1, 'AL', undefined, false);
+        assert.ok(html.includes('badge-al'));
+    });
+
+    test('SICK shift → absence badge', () => {
+        const html = createDayCell(JAN_1, 'SICK', undefined, false);
+        assert.ok(html.includes('badge-sick'));
+    });
+
+    test('RDW → RDW badge and rdwTime in output', () => {
+        const html = createDayCell(JAN_1, 'RDW', undefined, true, '09:00-17:00');
+        assert.ok(html.includes('badge-rdw'));
+        assert.ok(html.includes('09:00-'));
+    });
+
+    // Each over a time of the OTHER kind (test audit, 7 Nov 2026). Over an early time 'early', and
+    // over a late time 'late', is what the time's own badge says anyway — so dropping either word
+    // from the permanent-shift branch left both tests green, across six Calendar suites.
+    test('worked shift with permanentShift=early → early badge overrides getShiftBadge', () => {
+        const html = createDayCell(JAN_1, '14:00-22:00', 'early', true);
+        assert.ok(html.includes('badge-early'), 'a late time, drawn as the member\'s permanent Early');
+        assert.ok(!html.includes('badge-late'));
+    });
+
+    test('worked shift with permanentShift=late → late badge overrides getShiftBadge', () => {
+        const html = createDayCell(JAN_1, '06:00-14:00', 'late', true);
+        assert.ok(html.includes('badge-late'), 'an early time, drawn as the member\'s permanent Late');
+        assert.ok(!html.includes('badge-early'));
+    });
+
+    test('a permanent-shift member\'s cell tells the day panel the kind it forces (17 Nov 2026)', () => {
+        // The cell's badge wears the member's kind whatever the time (above); the day panel built its
+        // glyph and its change pair from the time alone, so a 🌙 Late cell opened a ☀️ panel. The panel
+        // can only agree if the cell says so.
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main', permanentShift: 'late' };
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 6);
+        assert.equal(cell?.dataset.detailShiftValue, '06:00-14:00', 'premise: an early time on the day');
+        assert.equal(cell?.dataset.detailPermanentShift, 'late');
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main' };
+        assert.equal(getDayCell(buildCalendarContainer(0, 2026), 6)?.dataset.detailPermanentShift, undefined,
+            'a member without one must not hand the panel a kind');
+    });
+
+    test('worked shift with no permanentShift → shift-time div present', () => {
+        const html = createDayCell(JAN_1, '06:00-14:00', undefined, true);
+        assert.ok(html.includes('shift-time'));
+        assert.ok(html.includes('06:00-'));
+    });
+
+    test('training → 🏷️ badge with the flavour word, side-channel time in the hours slot', () => {
+        // A rostered-day training: shift is the training value, the hours slot shows the
+        // BASE shift time passed via the rdwTime side-channel (same mechanism as RDW).
+        const html = createDayCell(JAN_1, 'TRG', undefined, true, '06:00-14:00');
+        assert.ok(html.includes('badge-other'), 'training badge');
+        assert.ok(html.includes('>Train<'), 'short flavour word');
+        assert.ok(html.includes('06:00-'), 'base time in the hours slot');
+    });
+
+    test('training rest-day → hours slot reads RDW', () => {
+        const html = createDayCell(JAN_1, 'TRG RDW', undefined, true, 'RDW');
+        assert.ok(html.includes('badge-other'));
+        assert.ok(html.includes('<div class="shift-time">RDW</div>'), 'RDW in the hours slot');
+    });
+
+    test('training always gets its own badge even when permanentShift is set (no early/late misfire)', () => {
+        const html = createDayCell(JAN_1, 'IND', 'early', true, '09:00-16:00');
+        assert.ok(html.includes('badge-other'), 'training badge wins');
+        assert.ok(html.includes('>Ind<'), 'Induction short word');
+        assert.ok(!html.includes('badge-early'), 'permanentShift badge must not override training');
+    });
+
+    test('training hours slot shows for permanentShift members too (RDW/training exempt from the gate)', () => {
+        // Fixed-roster members (permanentShift) normally show no time line — but for training
+        // the hours slot is the only cell-level carrier of the times/RDW detail.
+        const html = createDayCell(JAN_1, 'TRG RDW', 'early', true, 'RDW');
+        assert.ok(html.includes('<div class="shift-time">RDW</div>'), 'hours slot visible despite permanentShift');
+        const html2 = createDayCell(JAN_1, 'RDW', 'early', true, '09:00-17:00');
+        assert.ok(html2.includes('09:00-'), 'RDW time also visible despite permanentShift (consistency fix)');
+    });
+
+    test('training never leaks its raw value into the hours slot', () => {
+        // Spare-week training: no base time to show → side-channel empty → badge only.
+        const html = createDayCell(JAN_1, 'TRG', undefined, true, '');
+        assert.ok(!html.includes('shift-time'), 'no hours line when the side-channel is blank');
+    });
+
+    test('RDW always gets its own badge even when permanentShift is set', () => {
+        const html = createDayCell(JAN_1, 'RDW', 'early', true, '09:00-17:00');
+        assert.ok(html.includes('badge-rdw'), 'should use RDW badge');
+        assert.ok(!html.includes('badge-early'), 'permanentShift early badge should not override RDW');
+    });
+
+    test('day number is rendered inside day-number div', () => {
+        const html = createDayCell(JAN_1, 'RD', undefined, false);
+        assert.ok(html.includes('<div class="day-number">1</div>'));
+    });
+});
+
+// ── getSwipeDirection ─────────────────────────────────────────────────────────
+
+describe('getSwipeDirection', () => {
+    test('horizontal left swipe over threshold → "left"', () => {
+        // 120px left in 300ms → distance > 75, mostly horizontal
+        assert.equal(getSwipeDirection(200, 100, 80, 100, 300), 'left');
+    });
+
+    test('horizontal right swipe over threshold → "right"', () => {
+        assert.equal(getSwipeDirection(80, 100, 200, 100, 300), 'right');
+    });
+
+    test('below distance threshold AND below velocity threshold → null', () => {
+        // 50px in 300ms = 0.167 px/ms < 0.4; 50px < 75px threshold
+        assert.equal(getSwipeDirection(100, 100, 50, 100, 300), null);
+    });
+
+    test('diagonal swipe (45°) → null', () => {
+        // Equal x and y — 45° from horizontal, > 30° limit
+        assert.equal(getSwipeDirection(0, 0, 100, 100, 300), null);
+    });
+
+    test('fast flick: below distance threshold but velocity ≥ 0.4 → commits', () => {
+        // 50px in 50ms = 1.0 px/ms > 0.4 — fast flick to left
+        assert.equal(getSwipeDirection(100, 100, 50, 100, 50), 'left');
+    });
+
+    test('zero elapsed → velocity treated as 0; distance alone decides', () => {
+        // 100px left, elapsed=0 → velocity=0 but distance(100) > threshold(75)
+        assert.equal(getSwipeDirection(200, 100, 100, 100, 0), 'left');
+    });
+
+    test('small distance with zero elapsed → null', () => {
+        // 30px left, elapsed=0 → velocity=0, distance(30) < threshold(75)
+        assert.equal(getSwipeDirection(100, 100, 70, 100, 0), null);
+    });
+});
+
+// ── buildCalendarContainer — shift class rendering ────────────────────────────
+
+// ── A DAY CELL'S NAME CONTAINS WHAT IT SHOWS (WCAG 2.5.3 Label in Name, v25.27) ────────────────────
+//
+// axe checks this word by word from 4.14: the words a cell prints must appear in its name, in order
+// and side by side, because somebody driving the phone by voice says what they see. The gate scans a
+// few states and so meets four kinds of day. This walks every kind the renderer can draw — each
+// badge, with a time and without, all six Other flavours and their three time slots ("RDW", a time,
+// nothing), a value nobody recognises, the two permanent-shift members, and the markers — through
+// the real renderer, reading what each cell PRINTS.
+//
+// The word rule is axe's, restated small: case-folded, a bracketed aside dropped, anything not a
+// letter or a digit a gap — emoji and the dash between two times included.
+const nameWords = (/** @type {string} */ s) => s.normalize('NFKD').toLowerCase().replace(/\([^()]*\)/g, ' ')
+    .split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+const containsInOrder = (/** @type {string} */ name, /** @type {string} */ shown) => {
+    const n = nameWords(name), v = nameWords(shown);
+    return v.length === 0 || n.some((_, i) => v.every((w, j) => n[i + j] === w));
+};
+/** What a cell prints: its HTML with the tags out. */
+const shownText = (/** @type {any} */ cell) => cell.innerHTML.replace(/<[^>]+>/g, ' ');
+
+describe('buildCalendarContainer — a day cell\'s name contains what it shows (Label in Name)', () => {
+    // January 2026: Thursday the 1st; Sundays the 4th, 11th, 18th and 25th, which these days avoid.
+    const BASE = { 2: '06:20-14:00', 3: '14:00-22:30', 5: '22:00-06:00', 6: 'RD', 7: 'SPARE', 8: 'OFF', 9: 'SEE NATHAN' };
+    const OVERRIDES = {
+        12: { type: 'annual_leave', value: 'AL' },          13: { type: 'sick', value: 'SICK' },
+        14: { type: 'rdw', value: '09:00-17:00' },          15: { type: 'other', value: 'TRG 09:00-17:00' },
+        16: { type: 'other', value: 'IND' },                19: { type: 'other', value: 'ASSESS RDW' },
+        20: { type: 'other', value: 'TEAM' },               21: { type: 'other', value: 'UNION' },
+        22: { type: 'other', value: 'MEET 10:00-12:00' },   23: { type: 'shift', value: '07:15-15:45' },
+        26: { type: 'spare_shift', value: 'SPARE' },        27: { type: 'correction', value: 'RD' },
+    };
+    const build = () => {
+        _mockGetBaseShift = (_m, /** @type {Date} */ d) => BASE[d.getDate()] ?? '07:00-15:00';
+        for (const [day, ov] of Object.entries(OVERRIDES)) {
+            _overrideCache.set(`G. Miller|2026-01-${String(day).padStart(2, '0')}`, { note: '', source: 'manual', ...ov });
+        }
+        _mockIsBH = (/** @type {Date} */ d) => d.getDate() === 1;
+        _mockIsCutoffDate = (/** @type {Date} */ d) => d.getDate() === 17;
+        _mockIsPayday = (/** @type {Date} */ d) => d.getDate() === 23;
+        _mockIsSameDay = (/** @type {Date} */ a) => a.getDate() === 21;
+        return buildCalendarContainer(0, 2026);
+    };
+    const days = (/** @type {any} */ container) => container._children[1]._children.filter((/** @type {any} */ c) => c.dataset?.detailDay);
+
+    for (const permanentShift of [undefined, 'early', 'late']) {
+        test(`every cell, ${permanentShift ? `a permanent-${permanentShift} member` : 'a rotating member'}`, () => {
+            _member = { ...FAKE_MEMBER, ...(permanentShift ? { permanentShift } : {}) };
+            try {
+                const cells = days(build());
+                assert.equal(cells.length, 31);
+                for (const cell of cells) {
+                    const name = cell.getAttribute('aria-label');
+                    assert.ok(containsInOrder(name, shownText(cell)),
+                        `${cell.dataset.detailDay} prints "${shownText(cell).replace(/\s+/g, ' ').trim()}" but is named "${name}"`);
+                    assert.match(name, / — January 2026$/, 'the month still closes the name');
+                }
+            } finally { _member = FAKE_MEMBER; }
+        });
+    }
+
+    test('the words a badge abbreviates still follow it, and nothing is said twice', () => {
+        const byDay = Object.fromEntries(days(build()).map((/** @type {any} */ c) => [c.dataset.detailDay.split(' ')[1], c.getAttribute('aria-label')]));
+        assert.equal(byDay[2],  'Friday 2 — Early 06:20-14:00 — January 2026');
+        assert.equal(byDay[6],  'Tuesday 6 — Rest day — January 2026');
+        assert.equal(byDay[12], 'Monday 12 — AL, Annual leave — January 2026');
+        assert.equal(byDay[14], 'Wednesday 14 — RDW 09:00-17:00, Rest day working — January 2026');
+        assert.equal(byDay[15], 'Thursday 15 — Train 09:00-17:00, Training — January 2026');
+        assert.equal(byDay[23], 'Friday 23 — Early 07:15-15:45 — Payday — January 2026');
+    });
+});
+
+describe('buildCalendarContainer — shift classes', () => {
+    test('base RD shift → rest-day class on cell', () => {
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 1);
+        assert.ok(cell, 'day 1 cell should exist');
+        assert.ok(cell._classes.has('rest-day'));
+    });
+
+    test('AL override → al-day class', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        // Jan 2 2026 is a Friday — not a Sunday
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 2);
+        assert.ok(cell?._classes.has('al-day'), 'AL override → al-day');
+    });
+
+    test('SICK override on a worked weekday → sick-day class', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        // Jan 2 2026 is a Friday
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'sick', value: 'SICK', note: '', source: 'manual' });
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 2);
+        assert.ok(cell?._classes.has('sick-day'), 'SICK on weekday → sick-day');
+    });
+
+    test('SICK override on a Sunday is suppressed — base shift class kept', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        // Jan 4 2026 is a Sunday — _realIsSunday returns true
+        _overrideCache.set('G. Miller|2026-01-04', { type: 'sick', value: 'SICK', note: '', source: 'manual' });
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 4);
+        assert.ok(cell, 'day 4 cell should exist');
+        assert.ok(!cell._classes.has('sick-day'), 'SICK on Sunday must be suppressed');
+        assert.ok(cell._classes.has('early-shift'), 'base worked-shift class should remain');
+    });
+
+    test('SICK override when base shift is RD is suppressed — rest-day kept', () => {
+        // Default _mockGetBaseShift returns 'RD'
+        // Jan 2 is Friday, but base is RD so sick is invalid
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'sick', value: 'SICK', note: '', source: 'manual' });
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 2);
+        assert.ok(!cell?._classes.has('sick-day'), 'SICK on base RD must be suppressed');
+        assert.ok(cell?._classes.has('rest-day'), 'rest-day class should remain');
+    });
+
+    test('RDW override → rdw-day class and tooltip includes shift time', () => {
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'rdw', value: '09:00-17:00', note: '', source: 'manual' });
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 2);
+        assert.ok(cell?._classes.has('rdw-day'), 'RDW override → rdw-day');
+        assert.ok(cell?.dataset.tooltip?.includes('09:00-17:00'), 'tooltip should include RDW time');
+    });
+
+    test('override suppressed before member startDate', () => {
+        _mockIsBeforeMember = () => true;
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 2);
+        assert.ok(!cell?._classes.has('al-day'), 'override before startDate should be suppressed');
+        assert.ok(cell?._classes.has('rest-day'), 'base class should be kept');
+    });
+
+    // THE CONSUMER OF `isWorkedShift`, WHICH IS WHY THAT MOCK ENTRY IS THE REAL FUNCTION.
+    // A permanent-shift member's worked days are forced to their one badge class; the guard that
+    // keeps standby, rest, leave and absence out of that branch is `isWorkedShift` alone. Drop a
+    // value from it and the cell silently gains `early-shift`/`late-shift` — a colour and a name
+    // that say the member is on duty. SPARE is the quiet one: it is the only value in the set with
+    // no override of its own on a normal roster week, so nothing else on the day contradicts it.
+    test('a SPARE day on a permanent-shift member draws as standby, not as their shift', () => {
+        _member = { name: 'G. Miller', currentWeek: 1, rosterType: 'main', permanentShift: 'early' };
+        _mockGetBaseShift = () => 'SPARE';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('spare-day'), 'SPARE keeps its own class');
+        assert.ok(!cell?._classes.has('early-shift'),
+            'the permanent-shift branch is for WORKED days — standby is not one');
+    });
+
+    test('and a rest day likewise — the same branch, the other end of the set', () => {
+        _member = { name: 'G. Miller', currentWeek: 1, rosterType: 'main', permanentShift: 'late' };
+        _mockGetBaseShift = () => 'RD';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('rest-day'));
+        assert.ok(!cell?._classes.has('late-shift'));
+    });
+
+    test('while a real turn DOES take the permanent-shift class', () => {
+        // Otherwise the two above would pass on a renderer that had lost the branch entirely.
+        // Deliberately `late` over an EARLY-classified time: `getShiftClass` answers 'early-shift'
+        // for any time value, so asserting 'early-shift' here passes with the branch gone — a
+        // tautology this test had on its first cut, found by mutating `isWorkedDay` to `false`.
+        // Only the permanent-shift branch can put 'late-shift' on a 06:00 turn.
+        _member = { name: 'G. Miller', currentWeek: 1, rosterType: 'main', permanentShift: 'late' };
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('late-shift'), 'a worked day still follows the permanent shift');
+    });
+});
+
+// ── WHAT THE RESTATED MOCK COULD NOT SEE (v23.63) ───────────────────────────────────────────────
+//
+// `override-utils.js` and `roster-data.js` were mocked as hand-written copies until the modules
+// themselves were imported above. A copy answers correctly for as long as somebody keeps copying,
+// and these two had stopped — so the cases below could not be written at all, because the harness
+// would have answered them from a rule the app no longer has.
+//
+// Organised by what each wrong answer costs a member reading the grid. The Sunday one is the
+// expensive direction and it is silent: a worked Sunday drawn as an ordinary turn tells somebody
+// their overtime is rostered time, and the rate it is worth is nowhere on the day.
+describe('buildCalendarContainer — the real resolver, against values the copy had no branch for', () => {
+    test('a legacy WORKED override on a Sunday draws as RDW, not as a turn', () => {
+        // `SUNDAY_RDW_DISPLAY_TYPES` in override-utils.js. Sundays are non-contracted for every
+        // grade, so work on one is always overtime; new writes are blocked at six places, but a
+        // hand-written or legacy `shift` document on a Sunday still has to DISPLAY honestly. The
+        // mocked resolver had no branch for this at all — it returned the raw value, so the cell
+        // took a worked-shift class and the badge read as an ordinary early turn.
+        _mockGetBaseShift = () => 'RD';
+        // Jan 4 2026 is a Sunday — `_realIsSunday` says so, and the renderer asks `isSunday`.
+        _overrideCache.set('G. Miller|2026-01-04', { type: 'shift', value: '09:00-17:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 4);
+        assert.ok(cell, 'precondition: the Sunday cell exists');
+        assert.ok(cell._classes.has('rdw-day'), 'a worked Sunday is Rest Day Working');
+        assert.ok(!cell._classes.has('early-shift'), 'it was drawn as an ordinary rostered turn');
+        assert.ok(cell.dataset.tooltip?.includes('09:00-17:00'), 'the hours are still stated');
+    });
+
+    test('the SAME override on a weekday is an ordinary turn — the rule is the Sunday, not the type', () => {
+        // Otherwise the case above would pass on a resolver that had simply started calling
+        // everything RDW.
+        _mockGetBaseShift = () => 'RD';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'shift', value: '09:00-17:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(!cell?._classes.has('rdw-day'), 'a Friday turn was promoted to overtime');
+    });
+
+    test('a MEETING shows its badge and NO time — it is not tied to a rostered shift', () => {
+        // `OTHER_FLAVOURS[...].hideBaseTime`. The mocked table listed three flavours; the shipped
+        // one has six, and Meeting and Union course were two of the three it never gained. Under
+        // the copy a MEET value did not even parse as an Other day, so it fell through to the
+        // unrecognised branch — a leaf-green Other day rendered as a shift the app cannot read.
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'other', value: 'MEET', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('other-day'), 'a Meeting is an Other day');
+        assert.ok(cell?.innerHTML.includes('>Meet<'), 'the flavour word');
+        assert.ok(!cell?.innerHTML.includes('06:00-'),
+            'a Meeting borrowed the rostered shift time it is not tied to');
+    });
+
+    test('a TEAM DAY keeps the base time — it happens DURING the shift', () => {
+        // The other side of `hideBaseTime`, and the reason the flag exists rather than a blanket
+        // rule. Team Day was also absent from the copied table.
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'other', value: 'TEAM', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.ok(cell?._classes.has('other-day'));
+        assert.ok(cell?.innerHTML.includes('>Team<'), 'the flavour word');
+        assert.ok(cell?.innerHTML.includes('06:00-'), 'a Team Day runs during the rostered turn');
+    });
+});
+
+// ── buildCalendarContainer — special day markers ──────────────────────────────
+
+// ── WHAT THE ROSTER SAID BEFORE THE CHANGE (v22.64) ─────────────────────────────────────────────
+//
+// Reported from a phone: the day panel said "Early shift 07:00-16:00" and nothing said the week
+// underneath was a SPARE week. Those are different weeks of somebody's life — a spare week is one
+// with no assigned duties, so being given a turn on it is not the same fact as a rostered turn
+// being moved — and the panel had no way to tell them apart.
+//
+// Organised by what a wrong answer COSTS. Saying nothing when the roster DID change is the reported
+// defect and is silent. Claiming a change that did not happen is worse in a different way: it
+// invites a member to query a shift with their manager that nobody ever altered.
+// A CHAINED CHANGE — WHAT THE PAIR CAN SAY, AND WHAT IT CANNOT (v22.79, external review).
+//
+// The left badge is `getBaseShift`: the member's own pattern, with start-date suppression, the
+// Christmas rules and any scheduled roster change applied. It is NOT the value that was on the day
+// immediately before the current one, and overrides chain — a rest day can be given an allocated
+// turn, and that turn can later be replaced by annual leave. The AL document keeps `replacedType`
+// so the entitlement maths stays right, but it does not keep the turn's VALUE, so the previous
+// shift is genuinely unrecoverable from what the calendar holds.
+//
+// Labelled only "Changed", the panel therefore stated a change that never happened — rest day
+// straight to annual leave — for somebody who was due to work 07:00-16:00 the moment before. The
+// data was never wrong; the sentence around it was, and it is the sentence a member reads.
+//
+// THE TWO HALVES ARE ONE TEST ON PURPOSE. Asserting the data is base-derived, and asserting the
+// label says so, are each true of the shipped defect when checked alone — which is exactly how the
+// `proposeCopyName` bug survived in the naming suite. They only mean something together.
+describe('a chained change says which value it is showing', () => {
+    test('the left badge is the BASE ROSTER, and the panel names it as that', () => {
+        // Base roster: a rest day. Somebody allocated 07:00-16:00 on it; annual leave then replaced
+        // that turn, which is why the winning document carries `replacedType: 'shift'`.
+        _mockGetBaseShift = () => 'RD';
+        _overrideCache.set('G. Miller|2026-01-02', {
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual',
+            changedBy: 'S. Silva', replacedType: 'shift',
+        });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+
+        assert.equal(cell?.dataset.detailBaseShift, 'RD',
+            'the left badge is the base roster — it is NOT 07:00-16:00, the value that was actually '
+            + 'on the day before the leave, which nothing in the calendar still holds');
+        assert.equal(cell?.dataset.detailNowShift, 'AL');
+
+        const html = readFileSync(new URL('./index.html', REPO_ROOT_URL), 'utf8');
+        const eyebrow = html.match(/<span class="ddc-eyebrow"[^>]*>([^<]*)<\/span>/)?.[1] ?? '';
+        assert.match(eyebrow, /base roster/i,
+            `the panel labels that pair "${eyebrow}". The left badge is the base roster and the `
+            + 'right one is now; a label that does not say so reads as "what it was immediately '
+            + 'before", which on a chained change is a change that never happened');
+    });
+
+    test('the ordinary single change is unharmed — the base IS the previous value there', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02',
+            { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'S. Silva' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBaseShift, '06:00-14:00');
+        assert.equal(cell?.dataset.detailNowShift, 'AL');
+    });
+});
+
+describe('who changed the day', () => {
+    // The owner asked for the person's name (Sep 2026). Two answers, and they are NOT the same
+    // shape: a roster upload is the weekly roster arriving, and its `changedBy` is whoever ran the
+    // upload — naming them would say they chose the shift.
+    test('a manual change names the person who made it', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02',
+            { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'S. Silva' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBy, 'Last saved by S. Silva');
+    });
+
+    test('a ROSTER UPLOAD does not name the uploader — it names the roster', () => {
+        _mockGetBaseShift = () => 'SPARE';
+        _overrideCache.set('G. Miller|2026-01-02',
+            { type: 'shift', value: '07:00-16:00', note: '', source: 'roster_import', changedBy: 'G. Miller' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBy, 'From the weekly roster',
+            'the uploader is named as though they chose the shift. They ran an import; the roster '
+            + 'is what decided the day, and the member would ask the wrong person about it');
+    });
+
+    test('a document that cannot say says NOTHING — it never guesses a colleague', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02',
+            { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });   // legacy: no changedBy
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBy, undefined,
+            'a row with no changedBy produced a provenance line anyway — this line names a real '
+            + 'colleague, so an absent one is the only honest answer');
+    });
+});
+
+describe('buildCalendarContainer — the base-roster line', () => {
+    test('an override over a SPARE week says so — the reported case', () => {
+        _mockGetBaseShift = () => 'SPARE';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'shift', value: '07:00-16:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBaseShift, 'SPARE',
+            'the raw base VALUE is not carried, so the panel cannot derive the badge colour from '
+            + 'the same function the grid uses');
+        assert.equal(cell?.dataset.detailNowShift, '07:00-16:00');
+        assert.equal(cell?.dataset.detailBase, 'Spare day',
+            'a shift given on a spare week does not say the week was spare — the panel reads exactly '
+            + 'like an ordinary rostered turn, which is the defect this was written for');
+        assert.match(String(cell?.dataset.detailShift), /Early shift 07:00-16:00/);
+    });
+
+    test('no override → NO base line, because nothing changed', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBaseShift, undefined,
+            'an unchanged day carries the badge pair, so the panel draws a transition that did not '
+            + 'happen');
+        assert.equal(cell?.dataset.detailBase, undefined,
+            'an unchanged day claims a change. "Changed from Early shift" under "Early shift" is '
+            + 'both noise and an invitation to query a shift nobody altered');
+    });
+
+    test('an override that resolves BACK to the base claims no change', () => {
+        // A SICK override on a Sunday is display-suppressed, so the effective shift IS the base.
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-04', { type: 'sick', value: 'SICK', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 4);   // Jan 4 2026 is a Sunday
+        assert.equal(cell?.dataset.detailBase, undefined,
+            'a suppressed override produced a base line, so the panel announces a change the rest of '
+            + 'the app has deliberately decided not to show');
+    });
+
+    test('AL over a rostered turn names the turn it replaced', () => {
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBase, 'Early shift 06:00-14:00');
+    });
+
+    test('a permanent-shift member still gets the TIME on the base line', () => {
+        // Their badge never varies, so the effective label omits the time by design. The base line
+        // is the one place the time is the whole answer: without it a 06:20 changed to 07:00 reads
+        // "Changed from Early shift", which states that something changed and not what.
+        _member = { name: 'G. Miller', currentWeek: 1, rosterType: 'main', permanentShift: 'early' };
+        _mockGetBaseShift = () => '06:20-14:20';
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'shift', value: '07:00-16:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailBase, 'Early shift 06:20-14:20');
+    });
+
+    test('…and the SPOKEN new side carries its time too — a change that is only a time is still said', () => {
+        // The headline leaves the time out for such a member (`detailShift`); the panel's one spoken
+        // sentence reads `detailNowSaid`, so it heard "changed to Early shift" and not what changed.
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main', permanentShift: 'early' };
+        _mockGetBaseShift = () => '06:20-14:20';
+        _overrideCache.set('A. Person|2026-01-02', { type: 'shift', value: '07:00-16:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailShift, 'Early shift', 'premise: the headline omits the time by design');
+        assert.equal(cell?.dataset.detailNowSaid, 'Early shift 07:00-16:00');
+    });
+
+    test('every day carries WHOSE day it is — the member the grid was drawn for — for the panel to name', () => {
+        // The day panel names the member under the date (18 Nov 2026): the Calendar shows a
+        // colleague's days as readily as the reader's own, and on a phone the glass hides the picker.
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main' };
+        const cells = buildCalendarContainer(0, 2026)._children[1]._children.filter(c => c.dataset?.detailDay);
+        assert.equal(cells.length, 31, 'premise: every day of January was drawn');
+        assert.deepEqual([...new Set(cells.map(c => c.dataset.detailWho))], ['A. Person']);
+    });
+
+    test('an ordinary change: the spoken new side is the headline\'s words, and the left badge is the base roster', () => {
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main' };
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('A. Person|2026-01-02', { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailNowSaid, cell?.dataset.detailShift);
+        assert.equal(cell?.dataset.detailFromChristmas, undefined, 'a day outside Christmas was captioned as Christmas leave');
+    });
+});
+
+describe('buildCalendarContainer — special markers', () => {
+    test('payday cell → payday class and data-payday-iso set', () => {
+        _mockIsPayday = () => true;
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 1);
+        assert.ok(cell?._classes.has('payday'));
+        assert.equal(cell?.dataset.paydayIso, '2026-01-01');
+    });
+
+    test('cutoff cell → cutoff class and data-cutoff-iso set', () => {
+        _mockIsCutoffDate = () => true;
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 1);
+        assert.ok(cell?._classes.has('cutoff'));
+        assert.equal(cell?.dataset.cutoffIso, '2026-01-01');
+    });
+
+    test('today cell → today class and tabindex=0', () => {
+        // Only Jan 15 counts as today
+        _mockIsSameDay = (a) => a.getDate() === 15;
+        const container = buildCalendarContainer(0, 2026);
+        const todayCell = getDayCell(container, 15);
+        assert.ok(todayCell?._classes.has('today'));
+        assert.equal(todayCell?.getAttribute('tabindex'), '0');
+    });
+
+    test('non-today cells have tabindex=-1 (except the roving anchor)', () => {
+        // No today → first cell is the roving anchor at tabindex=0; all others at -1
+        const container = buildCalendarContainer(0, 2026);
+        const cell5 = getDayCell(container, 5);
+        assert.equal(cell5?.getAttribute('tabindex'), '-1');
+    });
+
+    test('bank holiday cell → bank-holiday class', () => {
+        _mockIsBH = () => true;
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 1);
+        assert.ok(cell?._classes.has('bank-holiday'));
+    });
+
+    test('payday aria-label includes Payday', () => {
+        _mockIsPayday = d => d.getDate() === 1;
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 1);
+        assert.ok(cell?.getAttribute('aria-label')?.includes('Payday'));
+    });
+
+    // The INVERSE of what this asserted until v22.69, and it is a privacy guard rather than a
+    // tidy-up. `note` is free text about a named colleague; no save path has ever offered a field
+    // for it and no override in production carries one, so its only effect was that a value
+    // arriving from anywhere — a hand-written doc, an old import, a future writer — would be
+    // painted onto the calendar. The field is still WRITTEN (firestore.rules requires it present),
+    // so a value can still reach this renderer; what must not happen is that it reaches the DOM.
+    // Asserted across the tooltip AND every data-* attribute, because the day-detail panel reads
+    // the cell's dataset and a note re-added to either surface would be invisible to the other.
+    test('a stored note reaches NEITHER the tooltip nor any data-* attribute', () => {
+        _overrideCache.set('G. Miller|2026-01-02', { type: 'annual_leave', value: 'AL', note: 'Annual holiday', source: 'manual' });
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 2);
+        assert.ok(cell, 'the day cell should exist');
+        assert.ok(!cell.dataset.tooltip?.includes('Annual holiday'), 'the note must not be in the tooltip');
+        for (const [k, v] of Object.entries(cell.dataset)) {
+            assert.ok(!String(v).includes('Annual holiday'),
+                `the note must not be carried in data-${k} (it read "${v}")`);
+        }
+        // ...and the override itself still renders, so this is a removed FIELD, not a removed day.
+        assert.ok(cell.dataset.tooltip?.includes('Annual leave'), 'the AL day itself should still render');
+    });
+});
+
+// ── buildCalendarContainer — grid structure ───────────────────────────────────
+
+describe('buildCalendarContainer — grid structure', () => {
+    test('container has calendar-container class', () => {
+        const container = buildCalendarContainer(0, 2026);
+        assert.ok(container._classes.has('calendar-container'));
+    });
+
+    test('exactly 31 in-month day cells built for January 2026', () => {
+        const container = buildCalendarContainer(0, 2026);
+        const grid = container._children[1];
+        const inMonthCells = grid._children.filter(c =>
+            !c._classes.has('other-month') && (c.getAttribute?.('aria-label') || '').includes('January 2026')
+        );
+        assert.equal(inMonthCells.length, 31);
+    });
+
+    test('4 leading other-month cells for January 2026 (starts Thursday)', () => {
+        // Jan 2026 starts Thursday (day-index 4) → 4 leading filler cells
+        const container = buildCalendarContainer(0, 2026);
+        const grid = container._children[1];
+        // Skip 7 day-header divs; next 4 should be other-month
+        const leading = grid._children.slice(7, 11);
+        leading.forEach((c, i) => {
+            assert.ok(c._classes.has('other-month'), `leading cell ${i} should be other-month`);
+            assert.equal(c.getAttribute('aria-hidden'), 'true', `leading cell ${i} should be aria-hidden`);
+        });
+    });
+
+    test('7 day-header columns present', () => {
+        const container = buildCalendarContainer(0, 2026);
+        const grid = container._children[1];
+        const headers = grid._children.slice(0, 7);
+        assert.equal(headers.length, 7);
+        assert.ok(headers.every(h => h._classes.has('day-header')));
+    });
+
+    test('day cells have role=button', () => {
+        const container = buildCalendarContainer(0, 2026);
+        const cell = getDayCell(container, 1);
+        assert.equal(cell?.getAttribute('role'), 'button');
+    });
+});
+
+// ── Christmas leave (v25.37) — the renderer draws what christmas-leave.js decides ───────────────
+//
+// The rules are tested in christmas-leave.test.mjs. What only this file can see is the WIRING: that
+// the grid asks them at all, that the day panel's "changed from" pair names what the member was
+// ROSTERED (not the rest day `getBaseShift` makes both days), and that a worked Boxing Day carries
+// the year its day in lieu is added to. A real member, so "due at work" is the real pattern.
+describe('Christmas leave — due at work on 25/26 December shows as leave that is never counted', () => {
+    const XMAS = new Date(2026, 11, 25), BOXING = new Date(2026, 11, 26);
+    // Due at work = a shift on the pattern; never a spare day there (owner, 19 Nov 2026).
+    const due = (/** @type {any} */ m, /** @type {Date} */ d) => !['RD', 'OFF', 'SPARE'].includes(realRosterData.getPatternShift(m, d));
+    const MEMBER = realRosterData.teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate
+        && due(m, XMAS) && due(m, BOXING));
+    const RESTER = realRosterData.teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !due(m, BOXING));
+    const cellFor = (/** @type {any} */ container, /** @type {number} */ day) =>
+        container._children[1]._children.find(c => new RegExp(`\\b${day} December 2026\\b`).test(c.dataset?.detailDay || ''));
+    const build = (/** @type {any} */ member) => {
+        noteKnowledge('2026-12', 'authoritative');
+        _member = member;
+        try { return buildCalendarContainer(11, 2026); } finally { _member = FAKE_MEMBER; }
+    };
+
+    test('the fixtures exist on the real roster', () => {
+        assert.ok(MEMBER, 'needs a CEA due at work on both days in 2026');
+        assert.ok(RESTER, 'needs a CEA resting on Boxing Day 2026');
+    });
+
+    test('nothing recorded: annual leave, said to be Christmas leave, changed from what was ROSTERED', () => {
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailShiftValue, 'AL');
+        assert.equal(cell.dataset.detailChristmas, '25');
+        assert.match(cell.getAttribute('aria-label'), /Annual leave \(Christmas, not counted\)/);
+        // The pair must not read "Rest → Annual leave" about somebody rostered a turn that day.
+        assert.equal(cell.dataset.detailBaseShift, realRosterData.getPatternShift(MEMBER, XMAS));
+        assert.notEqual(cell.dataset.detailBaseShift, 'RD');
+        assert.equal(cell.dataset.detailBy, undefined, 'Christmas leave is nobody\'s change');
+        assert.equal(cell.dataset.detailFromChristmas, undefined, 'the left badge is the pattern, the base roster');
+    });
+
+    test('a worked Boxing Day is work, and carries the year its day in lieu is added to: the NEXT one', () => {
+        // The day is valid for a year (the roster clerk, 15 Nov 2026), so it is in 2027's allowance.
+        _overrideCache.set(`${MEMBER.name}|2026-12-26`, { type: 'rdw', value: '06:00-14:00', note: '', source: 'manual' });
+        const cell = cellFor(build(MEMBER), 26);
+        assert.equal(cell.dataset.detailShiftValue, 'RDW');
+        assert.equal(cell.dataset.detailChristmas, undefined);
+        assert.equal(cell.dataset.detailBoxingLieu, '2027');
+    });
+
+    test('a Dispatcher whose Boxing Day is a bank holiday: the day is that year\'s, from the bank-holiday rule (2028)', () => {
+        const BOXING_2028 = new Date(2028, 11, 26);   // a Tuesday, and a bank holiday
+        const disp = realRosterData.teamMembers.find(m => m.role === 'Dispatcher' && !m.hidden && !m.startDate && due(m, BOXING_2028));
+        assert.ok(disp, 'needs a Dispatcher due at work on Boxing Day 2028');
+        _overrideCache.set(`${disp.name}|2028-12-26`, { type: 'rdw', value: '06:00-14:00', note: '', source: 'manual' });
+        _mockIsBH = (/** @type {Date} */ d) => realRosterData.isBankHoliday(d);   // the real calendar (beforeEach resets it)
+        noteKnowledge('2028-12', 'authoritative');
+        _member = disp;
+        /** @type {any} */ let container;
+        try { container = buildCalendarContainer(11, 2028); } finally { _member = FAKE_MEMBER; }
+        const cell = container._children[1]._children.find(c => /\b26 December 2028\b/.test(c.dataset?.detailDay || ''));
+        assert.equal(cell.dataset.detailBoxingLieu, '2028');
+    });
+
+    test('an absence hidden under the leave lends it no "changed by" line', () => {
+        // An absence on a rest day is suppressed on every date (isOverrideDisplaySuppressed), so the
+        // day shows Christmas leave — which comes from the roster, and is nobody's change.
+        _overrideCache.set(`${MEMBER.name}|2026-12-25`, { type: 'sick', value: 'SICK', note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailChristmas, '25');
+        assert.equal(cell.dataset.detailBy, undefined);
+    });
+
+    test('a Spare saved on Boxing Day before Save refused one is not drawn — the day is what it would be without it (owner, 20 Nov 2026)', () => {
+        for (const [m, shows] of [[RESTER, (/** @type {any} */ c) => c.dataset.detailShiftValue !== 'SPARE'],
+                                  [MEMBER, (/** @type {any} */ c) => c.dataset.detailShiftValue === 'AL' && c.dataset.detailChristmas === '26']]) {
+            _overrideCache.set(`${m.name}|2026-12-26`, { type: 'spare_shift', value: 'SPARE', note: '', source: 'roster_import' });
+            const cell = cellFor(build(m), 26);
+            assert.ok(shows(cell), `${m === MEMBER ? 'due at work' : 'resting'}: drew ${cell.dataset.detailShiftValue}`);
+            assert.doesNotMatch(cell.getAttribute('aria-label') ?? '', /Spare/, 'the day\'s name still said Spare');
+        }
+        // …and the day before is untouched: a Spare on 24 December is still a Spare day.
+        _overrideCache.set(`${RESTER.name}|2026-12-24`, { type: 'spare_shift', value: 'SPARE', note: '', source: 'roster_import' });
+        assert.equal(cellFor(build(RESTER), 24).dataset.detailShiftValue, 'SPARE');
+    });
+
+    test('not due at work: a rest day, and nothing about Christmas leave or a day in lieu', () => {
+        _overrideCache.set(`${RESTER.name}|2026-12-26`, { type: 'rdw', value: '06:00-14:00', note: '', source: 'manual' });
+        const cell = cellFor(build(RESTER), 26);
+        assert.equal(cell.dataset.detailChristmas, undefined);
+        assert.equal(cell.dataset.detailBoxingLieu, undefined, 'overtime from a rest day earns no day in lieu');
+    });
+
+    test('worked on the pattern\'s own times: changed from the LEAVE, and says who by (6 Nov 2026 review)', () => {
+        // Unrecorded, the day is annual leave; a record made it work. Compared with the pattern, the
+        // same times read "As rostered" with no "changed by" line, on a day worked only because of it.
+        const times = realRosterData.getPatternShift(MEMBER, XMAS);
+        _overrideCache.set(`${MEMBER.name}|2026-12-25`, { type: 'shift', value: times, note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailShiftValue, times);
+        assert.equal(cell.dataset.detailBaseShift, 'AL', 'the pair reads Annual leave → the shift');
+        assert.equal(cell.dataset.detailAsRostered, undefined, 'not "As rostered": a record changed the day');
+        assert.ok(cell.dataset.detailBy, 'and the record says who made it');
+        // …and the panel names that left badge as the Christmas leave it is (18 Nov 2026). Called the
+        // "base roster", it said the turn on the right was not this member's roster — it was.
+        assert.equal(cell.dataset.detailFromChristmas, '1', 'the panel would caption Christmas leave as the base roster');
+    });
+
+    test('a correction to rest on a Christmas day the member was due to work: changed from the leave, and says so', () => {
+        _overrideCache.set(`${MEMBER.name}|2026-12-25`, { type: 'correction', value: 'RD', note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailNowShift, 'RD', 'premise: the record applies');
+        assert.equal(cell.dataset.detailBaseShift, 'AL', 'the pair starts at the leave the record changed');
+        assert.equal(cell.dataset.detailFromChristmas, '1', 'and the panel says it is Christmas leave, not the base roster');
+    });
+
+    test('leave RECORDED on a Christmas day the member was due to work: from the pattern, with who (7 Nov 2026 review)', () => {
+        // Leave booked there before v25.37, or by a roster import. Compared with the leave the day
+        // would have had anyway, it read "As rostered" beside a line saying leave was recorded here.
+        _overrideCache.set(`${MEMBER.name}|2026-12-25`, { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailShiftValue, 'AL');
+        assert.equal(cell.dataset.detailBaseShift, realRosterData.getPatternShift(MEMBER, XMAS), 'the pair reads the rostered turn → Annual leave');
+        assert.equal(cell.dataset.detailAsRostered, undefined, 'not "As rostered": a record is on the day');
+        assert.ok(cell.dataset.detailBy, 'and the record says who made it');
+        assert.equal(cell.dataset.detailChristmasRecorded, '25');
+        assert.equal(cell.dataset.detailFromChristmas, undefined, 'the left badge is the pattern, the base roster');
+    });
+
+    test('leave RECORDED on a Christmas day is not counted either, and says so (6 Nov 2026 review)', () => {
+        // Not due at work, so this is not the pattern's leave: a stored record, which
+        // consumesEntitlement does not charge. It was labelled plain "Annual leave".
+        _overrideCache.set(`${RESTER.name}|2026-12-26`, { type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(RESTER), 26);
+        assert.equal(cell.dataset.detailShiftValue, 'AL');
+        assert.match(cell.getAttribute('aria-label'), /Annual leave \(Christmas, not counted\)/);
+        assert.equal(cell.dataset.detailChristmas, undefined, 'it is not the pattern\'s Christmas leave');
+        assert.equal(cell.dataset.detailChristmasRecorded, '26');
+        assert.ok(cell.dataset.detailBy, 'somebody recorded it, so the panel still says who');
+    });
+});
