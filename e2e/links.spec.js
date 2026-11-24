@@ -5700,7 +5700,7 @@ test('links: a first save refused online leaves the working copy as it was named
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('#linksSaveStatus')).toHaveClass(/\berr\b/);
     await expect(activeDesignName(page), 'the name of a save that made nothing').toHaveText(before);
-    await expect(page.locator('#designStatusLong')).toHaveText('Not saved yet');
+    await expect(page.locator('#designStatusLong'), 'still the proposal\'s unsaved copy').toHaveText('Unsaved changes — save a copy to keep them');
     await expect(page.locator('#winMonSatEnd'), 'the work is still on screen').toHaveValue('23:25');
 });
 
