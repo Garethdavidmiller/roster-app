@@ -213,3 +213,18 @@ test('spareWeekDaysOf counts the base week, not the record, and leaves a Dispatc
     assert.deepEqual(spareWeekDaysOf({ ...SPARE_M, role: 'Dispatcher' }, SPARE_WEEK, ov), { dates: [], weeks: 0 });
     assert.deepEqual(spareWeekDaysOf(null, SPARE_WEEK, ov), { dates: [], weeks: 0 });
 });
+
+// ── DAYS ALREADY BOOKED ARE NOT CHARGED AGAIN (external review of v26.58) ──────────────────────────
+// The headline counts them apart, so the line's figure is the new days'. The real card is
+// admin-range-booking.test.mjs block P; this is the sentence on its own.
+test('with days already booked, the line\'s figure is the new days\', and a re-booking charges none', () => {
+    assert.equal(spareShiftNote(6, 6, 0, { days: 6, weeks: 1, held: 4 }),
+        '📋 6 of these days are Spare days — on standby, with the shift not yet assigned. A Spare week uses at most 4 days of annual leave, counting the days already booked that week, so the 2 new days use none.');
+    assert.match(spareShiftNote(6, 6, 0, { days: 6, weeks: 1, held: 5 }), /so the new day uses none\.$/);
+    assert.equal(spareShiftNote(1, 1, 0, { days: 1, weeks: 1, held: 1 }),
+        '📋 This is a Spare day — on standby, with the shift not yet assigned. It is already booked, so booking it again uses no more annual leave.');
+    assert.match(spareShiftNote(6, 6, 0, { days: 6, weeks: 1, held: 6 }), /They are already booked, so booking them again uses no more annual leave\.$/);
+    assert.equal(spareShiftNote(0, 1, 0, { days: 1, weeks: 1, held: 1 }), '', 'an assigned day already booked: nothing to explain');
+    assert.equal(spareShiftNote(3, 6, 1, { days: 3, weeks: 1, held: 2 }), spareShiftNote(3, 6), 'the new day charged in full reads as before');
+    assert.equal(spareShiftNote(6, 6, 4, { days: 6, weeks: 1, held: 0 }), spareShiftNote(6, 6, 4, { days: 6, weeks: 1 }), 'none held reads as before');
+});

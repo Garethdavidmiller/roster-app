@@ -1269,3 +1269,75 @@ describe('O. the Absence card names a rest day it leaves as it is, and records n
         assert.ok(el('sickFeedback').textContent.includes(line), el('sickFeedback').textContent);
     });
 });
+
+// P. EVERY SPARE FIGURE IS THE BOOKING'S REAL CHARGE (external review of v26.58). The REAL AL card, an INVENTED member.
+// Three ways the Spare line or the receipt said a figure the booking does not charge:
+//   · a Spare week with Wednesday to Saturday booked, booked Monday to Saturday: the line said "they use 2 days" (the
+//     week uses 4, the booking none), and the receipt "No new days" over Monday and Tuesday, newly written;
+//   · one Spare day already booked, booked again: "It still uses 1 day" under "No days";
+//   · a Spare turn saved on a working day beside a Spare week: the line counted it and capped it at four.
+describe('P. the Spare line and the receipt say what the booking charges', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    /** A Monday to Saturday all Spare on the base roster, the Monday after it a worked day, from February 2027. */
+    const spareWeekAfter = (/** @type {any} */ m) => {
+        for (let i = 0; i < 400; i++) {
+            const mon = new Date(2027, 1, 1 + i);
+            if (mon.getDay() !== 1) continue;
+            const week = Array.from({ length: 6 }, (_, k) => iso10(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + k)));
+            const next = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 7);
+            if (week.every(d => getBaseShift(m, parseISODate(d)) === 'SPARE') && works(m, iso10(next)) && !isBankHoliday(next)) {
+                return { week, nextMon: iso10(next), sun: iso10(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6)) };
+            }
+        }
+        return null;
+    };
+    const QS = inventedCea(m => spareWeekAfter(m) !== null);
+    const W = /** @type {any} */ (spareWeekAfter(QS));
+    onRosterForEachTest(QS);
+    const leave = (/** @type {string} */ date) => ({ id: `p-${date}`, memberName: QS.name, date, type: 'annual_leave', value: 'AL',
+        replacedType: 'spare_shift', source: 'manual', createdAt: { seconds: 1_790_000_000 } });
+    /** The real card on `QS`, `saved` on record, the range `from`–`to` picked. @param {any[]} saved */
+    const card = (/** @type {string} */ from, /** @type {string} */ to, saved) => {
+        _allOv = saved; _ovMap = new Map(saved.map(o => [o.date, o]));
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ ({ alMember: memberSelect(QS.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
+        el('alFrom').value = from; el('alTo').value = to;
+        for (const fn of el('alTo')._on.change ?? []) fn();
+        return el('alPreview').innerHTML;
+    };
+
+    test('premise: a Spare week with a worked Monday after it on the main line', () => { assert.ok(W); });
+
+    test('Wednesday to Saturday booked, Monday to Saturday booked again: the line\'s figure is the new days\', none', () => {
+        const html = card(W.week[0], W.week[5], W.week.slice(2).map(leave));
+        assert.match(html, /<strong>No days<\/strong>/, 'premise: the headline charges nothing');
+        assert.match(html, /4 already booked, 2 days recorded at no cost/);
+        assert.ok(html.includes('A Spare week uses at most 4 days of annual leave, counting the days already booked that week, so the 2 new days use none.'), html);
+        assert.doesNotMatch(html, /use 2 days/);
+    });
+
+    test('…and the receipt says the two new days were recorded, at no cost', async () => {
+        card(W.week[0], W.week[5], W.week.slice(2).map(leave));
+        _record = async () => ({ workingCount: 6, sundayCount: 0 });
+        await save();
+        assert.equal(_writes.length, 1, 'premise: the booking was saved');
+        assert.match(el('alFeedback').textContent, new RegExp(`Recorded 2 new days of Annual Leave for ${QS.name} at no cost \\(4 already booked\\)`));
+        assert.doesNotMatch(el('alFeedback').textContent, /No new days/);
+    });
+
+    test('one Spare day already booked, booked again: the line does not say it still uses a day', () => {
+        const html = card(W.week[0], W.week[0], [leave(W.week[0])]);
+        assert.match(html, /<strong>No days<\/strong>/, 'premise: the headline charges nothing');
+        assert.ok(html.includes('This is a Spare day — on standby, with the shift not yet assigned. It is already booked, so booking it again uses no more annual leave.'), html);
+        assert.doesNotMatch(html, /still uses 1 day/);
+    });
+
+    test('a Spare turn saved on the worked Monday after the week is charged one, uncapped, in the line as in the headline', () => {
+        const turn = { id: 'p-turn', memberName: QS.name, date: W.nextMon, type: 'spare_shift', value: 'SPARE', source: 'manual', createdAt: { seconds: 1_790_000_000 } };
+        const html = card(W.week[0], W.nextMon, [turn]);
+        assert.match(html, /<strong>5 days<\/strong>/, 'premise: the week\'s four and the turn\'s one');
+        assert.ok(html.includes('7 of these days are Spare days — on standby, with the shift not yet assigned. A Spare week uses at most 4 days of annual leave, so they use 5 days.'), html);
+    });
+});
