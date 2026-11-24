@@ -256,10 +256,12 @@ export function updateRosterHint() {
     const cats = [
       { cat: 'sat',  icon: '🗓️', label: 'Rostered Sat',           h: s.satH,  m: s.satM,  count: s.satCount,  fromOv: s.satFromOv },
       { cat: 'sun',  icon: '☀️', label: 'Sunday',                h: s.sunH,  m: s.sunM,  count: s.sunCount,  fromOv: s.sunFromOv },
-      { cat: 'bh',   icon: '🏦', label: 'Bank holiday',          h: s.bhH,   m: s.bhM,   count: s.bhCount,   fromOv: s.bhFromOv  },
-      { cat: 'bhOt', icon: '🏦', label: 'Bank holiday overtime', h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true        },
+      // The Hours rows' own emoji and titles, so a row here names the box it fills (whole-app review, 24 Nov 2026):
+      // 🏦 is the ? panel's pension, and "RDW" / "BH overtime" were words the Hours card does not use.
+      { cat: 'bh',   icon: '🏛️', label: 'Bank holiday',          h: s.bhH,   m: s.bhM,   count: s.bhCount,   fromOv: s.bhFromOv  },
+      { cat: 'bhOt', icon: '🏛️', label: 'Bank Holiday Overtime', h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true        },
       { cat: 'ot',   icon: '⏰', label: 'Overtime',             h: s.otH,   m: s.otM,   count: s.otCount,   fromOv: true        },
-      { cat: 'rdw',  icon: '💼', label: 'RDW',                  h: s.rdwH,  m: s.rdwM,  count: s.rdwCount,  fromOv: true        },
+      { cat: 'rdw',  icon: '💼', label: 'Rest Day Working',     h: s.rdwH,  m: s.rdwM,  count: s.rdwCount,  fromOv: true        },
       { cat: 'box',  icon: '🎁', label: 'Boxing Day',           h: s.boxH,  m: s.boxM,  count: s.boxCount,  fromOv: s.boxFromOv },
     ].filter(r => r.count > 0);
 
@@ -560,8 +562,8 @@ function _suggestionOrNone(p, member) {
 
 /** Staff-facing names for the fill categories, for the fill feedback line. */
 const _CAT_LABELS = /** @type {Record<string,string>} */ ({
-  sat: 'Saturday', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'BH overtime',
-  ot: 'Overtime', rdw: 'RDW', box: 'Boxing Day',
+  sat: 'Saturday', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'Bank Holiday Overtime',
+  ot: 'Overtime', rdw: 'Rest Day Working', box: 'Boxing Day',
 });
 
 /**

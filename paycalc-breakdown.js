@@ -98,7 +98,7 @@ export function buildSummaryRows(d) {
           : `<div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>`}
         ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension contribution</span><span class="val">−${fmt(pension)}</span></div>` : ''}
         ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
-        <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}${_refundNote(taxRefund)}${codeNote}</span><span class="val">−${fmt(tax)}</span></div>
+        <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span class="sum-est">adjusted from payslip</span>' : ''}${_refundNote(taxRefund)}${codeNote}</span><span class="val">−${fmt(tax)}</span></div>
         <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
         ${slLines}
         <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_netNote(d) ? `<span class="sum-net-sub">${_netNote(d)}</span>` : ''}</span><span class="val">${fmt(net)}</span></div>
@@ -267,11 +267,11 @@ export function buildBreakdownRows(d) {
     // It names the payslip the deductions STOPPED on, as the summary row does (whole-app review, 24 Nov 2026):
     // "from this payslip onwards" was said on every payslip after that one too, each claiming to be the first.
     if (slPaidOff && (plan !== 'none' || pgLoan))
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan — not deducted from your ${paidOffDay ? `${paidOffDay} payslip` : 'chosen payslip'} onwards</span><span class="b-val"></span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl bd-note-lbl">Student Loan — not deducted from your ${paidOffDay ? `${paidOffDay} payslip` : 'chosen payslip'} onwards</span><span class="b-val"></span></div>`;
     else if (slSkip && (plan !== 'none' || pgLoan))
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl bd-note-lbl">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
     if (usingCumulative)
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your ${ytdFrom ? `${ytdFrom} payslip` : 'last payslip'}</span><span class="b-val"></span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl bd-note-lbl">Tax adjusted using Year to Date figures from your ${ytdFrom ? `${ytdFrom} payslip` : 'last payslip'}</span><span class="b-val"></span></div>`;
     if (_bpThisPeriod > 0)
         bd += `<div class="bd-row bd-extra"><span class="b-lbl">Back pay lump sum (pay award${_bpIsEstimate ? ' — estimate' : ''})</span><span class="b-val">+${fmt(_bpThisPeriod)}</span></div>`;
     if (_hppForPeriod > 0)

@@ -285,6 +285,9 @@
     .sum-row.sum-sl-zero .lbl { color: var(--text-light); font-size: var(--type-small); }
     .sum-row.sum-sl-zero .val { color: var(--text-light); }
     .sum-est { font-size: var(--type-micro); font-weight: 400; color: var(--text-faint); margin-left: 4px; }
+    /* The estimate set under a payslip's actual figures: a quieter row after a hairline. Classes, not
+       inline styles in built markup (whole-app review, 24 Nov 2026). */
+    .sum-row.sum-compare { border-top: 1px solid var(--border-light); margin-top: 6px; padding-top: 6px; font-size: var(--type-small); color: var(--text-faint); }
     /* Green "included on this payslip" banners — back pay (on its paid-in period) and HPP (on the
        January period it lands). Shared styling so the two read as one pattern. */
     .bp-active-banner, .hpp-active-banner {
@@ -357,6 +360,8 @@
     }
     .bd-row:last-child { border-bottom: none; }
     .bd-row .b-lbl { color: var(--text-light); flex: 1; }
+    /* A breakdown line that is a note, not a figure (a loan not deducted, tax from Year to Date figures). */
+    .bd-row .b-lbl.bd-note-lbl { font-style: italic; color: var(--text-faint); }
     .bd-row .b-val {
       color: var(--text-mid); font-weight: 600; white-space: nowrap;
       font-variant-numeric: tabular-nums;
@@ -701,9 +706,11 @@
       background-color: var(--field-bg);
       transition: border-color var(--dur-base), box-shadow var(--dur-base), background-color var(--dur-base);
     }
+    /* The outline AND the ring, as every other field on the page (`.field input`) — not the ring alone
+       (whole-app review, 24 Nov 2026). */
     .check-actual input:not([type="checkbox"]):not([type="radio"]):focus-visible {
       border-color: var(--primary-blue); box-shadow: var(--focus-ring);
-      background-color: white; outline: none;
+      background-color: white; outline: var(--focus-outline); outline-offset: 2px;
     }
     .check-actual-line {
       font-size: var(--type-small); line-height: 1.5; margin: 8px 0 12px; color: var(--text-mid);

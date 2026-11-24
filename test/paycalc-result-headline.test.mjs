@@ -113,6 +113,7 @@ describe('an estimate is never called an actual, and an actual is never called a
         assert.equal(els.netDisplay.textContent, '£3,200.00');
         assert.equal(els.stickyAmount.textContent, '£3,200.00', 'the strip must not carry the estimate under an actual label');
         assert.match(els.summary.innerHTML, /Calculator estimate.*£2,900\.00/s, 'and the estimate is shown as the comparison');
+        assert.match(els.summary.innerHTML, /<div class="sum-row sum-compare">/, 'a class, not an inline style (whole-app review, 24 Nov 2026)');
     });
 });
 

@@ -278,7 +278,7 @@ export function _setSelectPeriod(/** @type {any} */ sel, /** @type {any} */ pNum
 }
 
 /**
- * Append one option per payslip to `sel`, grouped by tax year, date first: "Paid 31 Jul 2026 · P20".
+ * Append one option per payslip to `sel`, grouped by tax year, date first: "Paid 31 July 2026 · P20".
  * EVERY payslip list on the page is built here — the period picker, the Year to Date source, the
  * back-pay paid-in, the pension opt-out, the student-loan stop and a chosen grade's first payslip
  * (paycalc-grade-setting.js) — so a member meets one way of naming a payslip: staff remember

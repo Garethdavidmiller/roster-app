@@ -1966,7 +1966,7 @@ for (const width of [390, 320]) {
         await page.addInitScript(LUMP_QUIET);
         await page.goto('/paycalc.html');
         await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
-        await page.locator('#periodSelect').selectOption('55');   // Paid 28 Aug 2026 · P24
+        await page.locator('#periodSelect').selectOption('55');   // Paid 28 August 2026 · P24
         await page.evaluate(() => document.getElementById('backPayHeader')?.click());
         // The include tick lives in the card's paid-in wrap; set it the way its change handler hears it.
         await page.evaluate(() => {
@@ -2141,7 +2141,7 @@ test('paycalc: a back-pay lump typed from the payslip is not told to fill in hou
     await page.addInitScript(LUMP_QUIET);
     await page.goto('/paycalc.html');
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
-    await page.locator('#periodSelect').selectOption('55');   // Paid 28 Aug 2026 · P24 — carries the 2026/27 award
+    await page.locator('#periodSelect').selectOption('55');   // Paid 28 August 2026 · P24 — carries the 2026/27 award
     await expect(page.locator('#bpActiveBanner')).toBeVisible();
     // Paid in August, so the lump IS on it — never "will land", ten weeks after it did (17 Nov 2026).
     await expect(page.locator('#bpBannerText')).toContainText('is on this payslip — not added to this estimate');
@@ -2365,7 +2365,9 @@ test('paycalc: stepping back to a year not yet checked says what is true, and no
     await expect(page.locator('#settingsHint')).toHaveText(/^✓ 2026\/27 — £/);
     await view(47);   // paid 16 Jan 2026 — 2025/26, after its award
     await expect(page.locator('#setupBanner')).toBeVisible();
-    await expect(page.locator('#setupBannerBody')).toContainText('Your settings apply to every payslip');
+    // What is single and what is per payslip, named — "Your settings apply to every payslip" sat beside
+    // "pension saves per payslip" (whole-app review, 24 Nov 2026).
+    await expect(page.locator('#setupBannerBody')).toContainText('Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date');
     await expect(page.locator('#setupBannerBody')).not.toContainText('only');
     await expect(page.locator('#settingsHint'), 'no ✓ over a year not yet checked').toHaveText('Check once per tax year — pension saves per payslip');
     await expect(page.locator('#settingsNewYearNotice'), 'a year that is over is not a new one').toBeHidden();
@@ -3600,7 +3602,7 @@ test('paycalc: the calendar fill names what it filled', async ({ page }) => {
     await page.locator('#fillFromRosterBtn').click();
     // The toast must name the categories it wrote — an unnamed "✓ Filled" is how a member
     // expecting weekday hours reads a working button as broken.
-    await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled .*(Saturday|Sunday|RDW|Overtime|Bank holiday)/);
+    await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled .*(Saturday|Sunday|Rest Day Working|Overtime|Bank holiday)/);
     expect(errors, 'Uncaught JS exceptions on calendar fill').toHaveLength(0);
 });
 
@@ -3622,7 +3624,7 @@ test('paycalc: a calendar fill shows two-digit minutes and saves the same number
     await page.goto('/paycalc.html');
     await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
     await page.locator('#fillFromRosterBtn').click();
-    await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled .*RDW/);
+    await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled .*Rest Day Working/);
     await expect(page.locator('#rdwH')).toHaveValue('16');
     await expect(page.locator('#rdwM'), 'a filled zero-minute box reads "00", like its placeholder').toHaveValue('00');
 
