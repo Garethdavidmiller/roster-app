@@ -27,7 +27,7 @@
 # sentence across. A sentence left as Even Step wrote it has the figures it quotes checked equal for the two designs.
 # deck-check.mjs reads the finished decks' tables back, as it does the shortlist's.
 #
-# Run AFTER Even Step's decks are built and polished (README → "Rebuild after any change to the rota"), from anywhere:
+# Run AFTER Even Step's decks are built and polished (HISTORY.md → "Rebuild after any change to the rota"), from anywhere:
 #   python3 docs/links-26/tooling/common-ground-decks.py && node docs/links-26/tooling/deck-check.mjs
 # then export the PDFs beside them (LibreOffice):
 #   soffice --headless --convert-to pdf --outdir docs/links-26/presentations docs/links-26/presentations/Common-Ground-for-*.pptx

@@ -585,7 +585,7 @@ stop condition: it means the experiment has no failure criterion, so it can only
 **Track E is the missing precondition for Track C5 — on the route the plan currently takes.** The forced
 password-set only reaches people who sign in somewhere; `PASSWORD_DESIGN.md` records that a pure
 roster-viewer is never compelled. So the ≥90% migration metric gating retirement of the surname default
-**cannot converge** without E3/E5. `CREDENTIAL_LIFECYCLE.md` §7 records a second route (C6) that would
+**cannot converge** without E3/E5. `PASSWORD_DESIGN.md` → credential lifecycle L7 records a second route (C6) that would
 answer the credential question without E3 — **not adopted**; the owner decides.
 
 **The GitHub Pages mirror is a second public front door.** Level 2 rules protect the data on both origins

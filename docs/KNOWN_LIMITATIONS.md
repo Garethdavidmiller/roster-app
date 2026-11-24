@@ -115,158 +115,117 @@ while the app's own answers landed in under 40 ms. It became two tests with the 
 
 ## Two editors on one day: warned whenever the server can be asked
 
-Every manual record has one fixed id per member and date (`manualOverrideId` in `override-id.js`), so
-two editors saving one day leave one record, and a read served from the offline cache is refused as
-incomplete (`admin-override-store.js`) rather than shown as "no saved changes".
+**How it works.** Every manual record has one fixed id per member and date (`manualOverrideId` in
+`override-id.js`), so two editors saving one day leave one record, and a read served from the offline
+cache is refused as incomplete (`admin-override-store.js`) rather than shown as "no saved changes".
+Every Admin save of a day — the week grid's, and a leave or absence range's — reads each day it writes
+in the same transaction as the write (`commitChecked` in `admin-override-store.js`) and refuses the
+whole save, writing nothing, unless the day still holds what the page showed; a delete compares every
+field and the record's revision (`sameOverrideRecord`, `override-compare.js`). The refusal names the
+days ("Someone else has changed Tue 16 Jun since the page loaded, so nothing was saved. Reload the
+page to see the latest, then try again."). A commit whose answer is lost is re-run by Firestore and
+recognised as the save's own records, never called a colleague's. Every check first waits for this
+device's own unsent saves (`whenOwnWritesSent`), because the server does not hold them yet.
 
-**Since v25.90 the second editor is told.** Every Admin save of a day — the week grid's, and a leave
-or absence range's — reads each day it writes in the same transaction as the write (`commitChecked`
-in `admin-override-store.js`) and refuses the whole save, writing nothing, unless the day still holds
-what the page showed: the record its row was drawn from, unchanged, and nothing at the day's fixed id
-unless that record is the one shown. The refusal names the days — "Someone else has changed Tue 16
-Jun since the page loaded, so nothing was saved. Reload the page to see the latest, then try again."
-A delete has been checked the same way since v25.89, comparing every field and the record's
-revision (`sameOverrideRecord`, `override-compare.js`); before that the check was a separate re-read
-before a separate batch, and an edit landing between the two was deleted anyway (external review,
-Nov 2026). A commit whose answer is lost is re-run by Firestore and recognised as the save's own
-records, never called a colleague's.
+**The weekly roster import** (`saveRosterWrites`, `roster-import-save.js`): a manual record always
+outranks an import, so only a record the import DELETES can lose a colleague's edit. Each deleting
+part of the import's Save is one transaction that refuses — writing nothing, naming the days — unless
+each record is still what the review loaded, or already gone; Operations then redraws the review from
+a re-read of the week, keeping every other row's answer. A deleting part needs the server; one that
+fails without reaching it closes the review as a partial save does, because whether it landed is
+unknown. A part that only adds is a plain batch, held offline.
 
-**What remains, deliberately — offline, the later save still wins.** A transaction needs the server.
-A save made while the device says it is offline, or whose check could not reach the server at all
-(Firestore has tried five times over about eight seconds by then), is held on the device as a batch
-and sent unchecked when the signal returns — exactly as every save was before v25.90. Offline-first
-is the older promise, and a device that cannot reach the server cannot ask it anything. A save that
-REMOVES a day is never held that way: with no server it is refused, writing nothing, as it has been
-since v25.89. Every check first waits for this device's own saves still in its queue (v25.95,
-`whenOwnWritesSent`), because the server does not hold them yet: when they have not gone in eight
-seconds the save is treated as offline — held behind them, or, for a removal, refused.
+**What is still open — each deliberate, each to revisit if a lost edit is ever reported from it:**
 
-**Also deliberate.** A colleague who made exactly the same change is still a colleague — their name
-is on the record — so the save is refused rather than counted as done. A range booking long enough
-to need more than one commit (only a long absence: a commit holds about 450 writes) checks each part
-as it goes; a later part refused after earlier ones landed stops there, says some days are saved,
-and refreshes the saved list. And what a range booking compares with is what the page had loaded
-when the booking started, so a read landing between the card's preview and its save is the one
-window in which it compares with newer data than the reader saw. Revisit if a lost edit is ever
-reported from either.
+- **Offline, the later save still wins.** A transaction needs the server. A save made offline, or
+  whose check could not reach the server (Firestore tries for about eight seconds), or whose own
+  earlier saves have not gone within eight seconds, is held on the device as a batch and sent
+  unchecked when the signal returns. A save that REMOVES a day is never held: with no server it is
+  refused, writing nothing.
+- **A colleague who made exactly the same change is still a colleague** — their name is on the record
+  — so the save is refused rather than counted as done.
+- **A long range booking** (only a long absence needs more than one commit, about 450 writes each)
+  checks each part as it goes; a later part refused after earlier ones landed stops there, says some
+  days are saved, and refreshes the saved list. A range booking compares with what the page had
+  loaded when the booking started, so a read landing between the preview and the save is compared
+  with newer data than the reader saw.
+- **The week grid does not see an import that arrives after its row was drawn.** An import record sits
+  at an id of its own, so a change staged on that day before the import arrived is saved over it
+  without a warning — except a rest day whose swapped-day question was answered before such a record
+  settled it, which `planAlWeekSave` (`admin-al-week-save.js`) names as changed.
+- **Two imports of the same week at the same time** are not seen by each other: import records take
+  random ids, which a transaction cannot look up without a query. Only the admin imports, so that is
+  two tabs of one person.
+- **Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
+  saved or deleted from Admin — the week editor, a leave/absence range, either Saved Changes delete,
+  or the ✕ on a Recorded Annual Leave or Recorded Absence dates row. Each path clears the MANUAL
+  copies Admin has loaded for that member and day; an import is never treated as a duplicate. On the
+  capped All-staff list a very old day may not be loaded, so selecting the member first is the
+  complete route. None has been counted; nothing in the app reports them (see also "Duplicate
+  Firestore override documents", below).
 
-**What the week grid's check does not see (review, Nov 2026).** A roster import that reaches a day
-after its row was drawn sits at an id of its own, not the day's fixed one, and the check compares it
-with the copy the page has read since — so a change staged on that day before the import arrived is
-saved over it without a warning. One case is refused instead: a rest day whose swapped-day question
-was answered before such a record settled it (`planAlWeekSave`, `admin-al-week-save.js`, names the
-day as changed). Revisit if an import is ever reported lost under a manager's change.
-
-**The weekly roster import is covered differently, since v25.92** (`saveRosterWrites`,
-`roster-import-save.js`). A manual record always outranks an import, so a record the import ADDS can
-never hide a colleague's day; what can lose their edit is a record the import DELETES ("Use new
-roster" over a manual change, a stale import cleared). So each part of the import's Save that
-deletes is one transaction that re-reads the records it deletes and refuses — writing nothing,
-naming the days — unless each is still what the review loaded, or already gone. Operations then
-re-reads the week and redraws the review, so the changed days show as they are now, without a second
-read of the PDF; the admin's choices on those days have to be made again, and every other row keeps
-its answer, Skip all included (v25.94 — before that, every row went back to its default and a second
-Save wrote rows the admin had unticked). A deleting part that is slow says to keep the page open, never
-that it is held on the device (v25.94). A part that only adds is a
-plain batch, held offline as before; a part that deletes needs the server, and one that fails
-without reaching it closes the review as a partial save does, because whether it landed is unknown.
-It first waits for this device's own unsent saves (v25.95); one that gives up has sent nothing, so
-the review stays open.
-**What it does not see:** a second import of the same week running at the same time — import
-records take random ids, which a transaction cannot look up without a query. Only the admin imports,
-so that is two tabs of one person.
-
-**Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
-saved or deleted from Admin — the week editor, a leave/absence range, either Saved Changes delete, or
-the ✕ on a Recorded Annual Leave or Recorded Absence dates row.
-Each path clears the MANUAL copies Admin has loaded for that member and day; an import is never
-treated as a duplicate. On the capped All-staff list a very old day may not be loaded, so selecting
-the member first is the complete route. None has been counted; nothing in the app reports them (see
-also "Duplicate Firestore override documents", below).
+How this arrived, release by release: git, and `ROADMAP_HISTORY.md`.
 
 ## Admin saves are slow on iPhones — one cause found, others still being measured
 
-Reported 5 Oct 2026, then said to be on every iPhone: each Admin week-grid save sat on "Saving…" past
-the 8-second notice with full signal, and the change then arrived. What is known:
-- The time is spent waiting for Firestore's server to confirm the commit. Nothing the app does
-  before the write is waiting: the gate, the session wait and the override load are all bounded.
-- The service worker is not involved. It handles only GET requests — same-origin, plus the Firebase
-  SDK files from gstatic.
-- The notice names the signal only when the browser reports being offline.
+**The symptom** (reported Oct 2026, on iPhones and since seen once on Android): an Admin week-grid
+save sits on "Saving…" past the 8-second notice with full signal, and the change then arrives. The
+time is spent waiting for Firestore's server to confirm the commit — the gate, the session wait and
+the override load are all bounded, and the service worker handles only GET requests. The notice names
+the signal only when the browser reports being offline.
 
-**Long-polling on iPhones was prepared and NOT shipped** (5 Oct 2026). App Speed's own data for
-October contradicted the premise: on opening the Calendar, the "Not reported" connection class
-(mostly iPhones) was no slower than 4G-like Android at the sign-in step, and faster over the whole
-load. A transport change made for every iPhone, on a hypothesis the data argued against, was
-withdrawn.
+**The cause found: another account's unsent write.** A checked save first waits up to
+`OWN_WRITES_WAIT_MS` for this device's earlier saves to reach the server, and is sent unchecked when
+they have not — or, if it removes something, refused as offline. That wait NEVER ends while **another
+account's** unsent write is still in Firestore's on-device queue, because the SDK's IndexedDB queue
+looks up the highest unsent batch without bounding the search to the signed-in account (the SDK's
+getHighestUnacknowledgedBatchId, `@firebase/firestore` 4.19, still in 4.20 — reproduced on the
+emulators on both engines). Every checked save on that device then takes over eight seconds, and every
+checked removal is refused with a false "You appear to be offline", until that other account is next
+signed in online. The usual source was the **staff PIN** (retired 23 Nov 2026): its page views and
+speed samples still queued when opening Admin ended it. Whether a member is affected depends on how their account id sorts
+against the viewer's, which is why it looks like a few people's phones and not everybody's.
 
-**What will settle it:** every "Slow save (diagnostic)" entry in the Error Log carries the save's
-time, how much of that time the app spent **in the background**, and a **sign-in token** time
-measured while the save was slow. Read them in that order:
-- **the background time first** (v25.87). iOS freezes an installed app it has put in the background,
-  and the clock runs on through the freeze, so a save made just before the phone was locked or the
-  app was left reads as slow when nothing was wrong. Take the background time away from the total:
-  what is left is how long the save waited with the app on screen. If little is left, the wait was
-  the phone's, and no transport change would shorten it. "On screen throughout" means all of it is
-  left;
-- if the token took seconds, auth is the bottleneck;
-- if the token arrived in milliseconds and the on-screen wait was still long, it is the connection to
-  Firestore — with one caveat: timing starts at the 8-second mark, so a token refresh that held the
-  save and then finished before it reads as milliseconds too. Milliseconds rules out auth as what is
-  STILL holding the save, not as what held it earlier.
+**What the app does about it:**
 
-Entries from before v25.87 carry no background figure, so they cannot tell a frozen app from a slow
-connection. One from an installed iPhone app on 11 Nov 2026 (81.8s, token 0.0s) could not, and is
-why the figure was added.
+- **A sign-out that ends a leftover PIN session first gives the viewer's queued writes up to
+  `VIEWER_WRITES_GRACE_MS` to leave** (`letViewerWritesGo`, firebase-client.js — transition code, kept
+  until the cleanup release): the sign-out a Calendar or Trains load gives a PIN session since the PIN
+  was retired, and the clean-up of an identity that outlived its session. So a new leftover is not made
+  while online. `clearSession()` does not wait.
+- **The diagnostic line says how the wait went** (`trackOwnWritesWaits`, slow-save.js): "own-saves
+  wait 8.0s, ran out" means the eight seconds were spent there; "drained" with a small figure means
+  the wait was not the cause; no field means the save did not wait. **When two saves overlap, the
+  figure can be the OTHER save's wait**: the line reports the waits that ended while this save ran, so
+  "(2 waits)" counts waits heard, not saves made.
 
-**Readings so far that carry every figure:**
-- 19 Nov 2026, v26.36, Admin, **Android** (Edge, in the browser, not installed): 8.2s, online, on
-  screen throughout, token 0.0s. So the slowness is not iPhone-only. By the order above it points
-  at the connection to Firestore, with the token caveat. One reading 0.2s past the notice is not a
-  case for a change; add each new one here before choosing.
-- 22 Nov 2026, v26.48–26.51, Admin, **installed iPhone app**: four readings, each 8.1s, online, on
-  screen throughout, token 0.0s. Exactly the own-saves limit below — which is what found the cause.
+**What is still open:**
 
-**A cause found: another account's unsent write (22 Nov 2026).** A checked save first waits up to
-eight seconds (`OWN_WRITES_WAIT_MS`) for this device's earlier saves to reach the server, and is sent
-unchecked when they have not — or, if it removes something, refused as offline. Reproduced on the
-emulators on both engines, with the real SDK: that wait NEVER ends while **another account's** unsent
-write is still in Firestore's on-device queue, because the SDK's IndexedDB queue looks up the highest
-unsent batch without bounding the search to the signed-in account (the SDK's getHighestUnacknowledgedBatchId,
-`@firebase/firestore` 4.19, still in 4.20). Every checked save on that device then takes over eight
-seconds, and every checked removal is refused with a false "You appear to be offline", until that
-other account is next signed in online. The usual source is the **staff PIN** (retired 23 Nov 2026):
-its page views and speed samples still queued when opening Admin ended it. Whether a member is affected depends on how
-their account id sorts against the viewer's, which is why it looked like a few people's phones and
-not everybody's. Fresh pages, offline-then-online, two tabs and reloads were all fast.
-
-- **The diagnostic line now says how that wait went** (v26.52): "own-saves wait 8.0s, ran out" means
-  the eight seconds were spent there; "drained" with a small figure means the wait was not the cause;
-  no field means the save did not wait (`trackOwnWritesWaits`, slow-save.js). **When two saves
-  overlap, the figure can be the OTHER save's wait**: the line reports the waits that ended while
-  this save ran, so "(2 waits)" counts waits heard, not saves made.
-- **A sign-out that ends a leftover PIN session first gives the viewer's queued writes up to two
-  seconds to leave** (v26.52, `letViewerWritesGo`, firebase-client.js — transition code, kept until
-  the cleanup release): the sign-out a Calendar or Trains load gives a PIN session since the PIN was
-  retired, and the clean-up of an identity that outlived its session. So a new leftover is not made
-  while online. It does nothing for a device that already holds one, or for a viewer ended offline.
-  `clearSession()` does not wait.
-- **On a device that already holds another account's leftover, ending the PIN can take the whole two
-  seconds** (`VIEWER_WRITES_GRACE_MS`): the viewer's own wait meets the same SDK fault. Accepted: the
-  bound is kept.
-- **To clear an affected device:** this used to be "enter the staff PIN once with a signal". With the
-  PIN retired nobody can sign that account in to send its queue, so the remedy is to clear the site's
-  stored data in the browser (or remove and re-add the installed app) and sign in again. Not yet
-  tried on an affected phone.
+- **A device that already holds another account's leftover is not rescued.** The grace does nothing
+  for it, or for a viewer ended offline; ending a leftover PIN session there can take the whole grace,
+  because the viewer's own wait meets the same SDK fault. Accepted. **To clear an affected device:**
+  this used to be "enter the staff PIN once with a signal"; with the PIN retired nobody can sign that
+  account in to send its queue, so clear the site's stored data in the browser (or remove and re-add
+  the installed app) and sign in again. Not yet tried on an affected phone.
 - **Not done (owner, 22 Nov 2026):** falling back to a per-record check when the wait runs out, which
   would rescue affected devices at the cost of a sixteen-second wait on a save with no data
-  connection. Revisit if readings show "ran out" persisting after v26.52.
+  connection. Revisit if readings show "ran out" persisting.
+- **Whether anything else is slow is unmeasured.** Long-polling on iPhones was prepared and NOT
+  shipped (5 Oct 2026): App Speed's data contradicted the premise. Every "Slow save (diagnostic)"
+  entry in the Error Log carries the save's time, how much of it the app spent **in the background**,
+  and a **sign-in token** time measured while the save was slow. Read them in that order: take the
+  background time away first (iOS freezes a backgrounded installed app and the clock runs on, so
+  little left means the wait was the phone's); then a token taking seconds means auth is the
+  bottleneck; a token in milliseconds with a long on-screen wait points at the connection to
+  Firestore — with the caveat that timing starts at the 8-second mark, so milliseconds rules out auth
+  as what is STILL holding the save, not as what held it earlier. Entries from before v25.87 carry no
+  background figure. The readings so far with every figure (Nov 2026) were each just past eight
+  seconds, on screen, token 0.0s — the own-saves limit above, which is what found the cause.
 
 These entries are listed in the Error Log but not counted as unresolved errors (`DIAGNOSTIC_PREFIX`
 in `client-errors.js`), so the Operations strip leaves them out. The admin's Error Log notification
-(v26.04) does announce them, counted apart from errors, so a new reading no longer waits to be
-noticed (OPERATIONS_REFERENCE.md → "The Error Log notification"). Read the entries from iPhones
-before choosing a fix.
+announces them, counted apart from errors (OPERATIONS_REFERENCE.md → "The Error Log notification").
+Read the entries from iPhones before choosing a fix.
 
 ## Until the server release, anybody can hold the retired staff PIN shut — and nobody needs it
 
@@ -436,65 +395,38 @@ Safari's engine. The reproduction is in `ROADMAP_HISTORY.md`.
 > | **Still deferred** | **App Check** (Track D — declined as immediate, retained; see its entry below) · **password retirement** (Track C5, gated on the migration reaching ≥90% **and** on Track E — `MAINTENANCE_CALENDAR.md` → Trigger points) |
 
 ### The document FILES are protected by a bearer URL, not by auth
-`storage.rules` gates direct Storage SDK reads, but staff never read Huddles, Circulars or Newsletters
-that way — they open a URL that carries its own access token and **bypasses the rules entirely**
-(documented in `storage.rules` itself: "Don't store confidential files here unless the delivery
-model changes"). The direct reads are **admin-only**.
 
-**Which URL depends on one IAM grant.** The three opening surfaces ask `getDocumentUrl` for a
-short-lived signed URL, used only when it names the file the page is holding
-(`resolveDocumentOpenUrl`). Without `roles/iam.serviceAccountTokenCreator` on the runtime service
-account every call answers 503 and they fall back to the **permanent tokenised `storageUrl`** in the
-Firestore document — kept as the fallback by owner decision, so a member can open the document either
-way (DECISIONS.md). The grant is very probably in place: the retired staff PIN's `unlockCalendarViewer`,
-which worked in production, runs as the same account and depends on the same grant (RECOVERY_RUNBOOK.md → 5b). Confirm by opening a document and
-looking for `storage.googleapis.com` rather than `firebasestorage` in the opened address.
+**The deployed exception, and what closes it, is `ARCHITECTURE.md` → EXC-007** — not restated here.
+What stays true while that row is open:
 
-**That fallback can go dead, and Check says so.** A document's stored link can come to name a key its
-file no longer carries: a document saved more than a day after its file can miss the key a run took
-away. Members still open the document through the 15-minute link; only the fallback above is broken.
-Document links → Check counts such documents and says so, and Replace gives each one a working link
-and says how many it mended (`functions/doc-link-rotation.js`). A browser's upload write re-sent after its acknowledgement was lost
-used to be a second way: it put the upload's first link back over the one a run had given it. Since
-13 Nov 2026 the rules refuse a browser write that keeps a document's file and changes its link, and the
-upload reads that refusal as its own commit (`documents-client.js`). A re-send that arrives after
-ANOTHER upload for the same date is not refused — no rule can tell it from a re-upload — and leaves the
-document naming a file that upload deleted; Check counts it among the documents whose file is gone, and
-uploading that date again mends it.
-
-**Tightening the Firestore read rules does not put these documents behind authentication.** It
-changes who can *discover* a URL; anyone who has ever held a permanent one — a forwarded link,
-browser history, a synced bookmark — keeps access until the object is deleted or rotated, and
-revocation means rewriting the object, not editing a rule. Rotating the objects already in
-circulation is the open step — built as Operations → Document links, not yet run (ARCHITECTURE.md →
-EXC-007).
-
-**Document retention bounds it, but is not a guarantee.** Both retention sweeps DELETE the Storage
-object, which is what kills a bearer URL: **Huddles at 3 months** (`pruneOldHuddles`, server-side,
-`functions/huddle-retention.js`), **Circulars and Newsletters at 6 months** (`pruneOldDocs` in
-`doc-retention.js`, browser-side). Three things stop that being a guarantee, and they are the
-residual risk:
-
-- **Neither sweep is scheduled.** The Huddle sweep runs inside `ingestHuddle`, so only when an emailed
-  Huddle arrives; the Circular and Newsletter sweep runs fire-and-forget after an upload of that kind
-  (`documents-client.js`). If uploads stop, nothing prunes, and "6 months" becomes "6 months after
-  somebody next uploads". The right long-term home is a scheduled Function.
-- **No server time, no sweep.** `doc-retention.js` refuses to run on a client clock, deliberately —
-  correct, and it means the sweep can silently not happen.
-- **A partial failure ORPHANS the Storage object.** Both sweeps delete Firestore first, then Storage,
-  because the reverse leaves a user-facing broken link. The accepted cost is an orphaned object —
-  invisible to staff, unreferenced by any document, and **still serving its bearer URL**. Since v25.89
-  the Huddle sweep tries again in the same run (`sweepHuddleOrphans`), but no later run returns to a
-  date whose document has gone, and the Circular and Newsletter sweep has no such step. That is the
-  one genuinely unbounded case. Operations → Document links counts such files among those "no longer
-  used by the app", and a run there is the only step that switches their links off.
-
-**And there is a second reader nobody authorised.** Word circulars and newsletters open via
-`officeViewerUrl` (`storage-utils.js`), which passes the URL to **Microsoft's Office Online viewer** —
-Microsoft fetches the document **server-side**. So these documents reach a third party today, which
-is worth knowing independently of any auth work, and Microsoft cannot fetch an auth-gated URL. The
-viewer is handed the SIGNED URL, so it was kept by owner decision (AUTH_PLAN.md §5, 19 Sep 2026)
-rather than replaced.
+- **A permanent tokenised URL bypasses the rules.** Staff never read a Huddle, Circular or Newsletter
+  through the Storage SDK (direct reads are admin-only, `storage.rules`); they open a URL that carries
+  its own token. The opening surfaces ask `getDocumentUrl` for a short-lived signed one, used only when
+  it names the file on screen (`resolveDocumentOpenUrl`), and fall back to the stored permanent
+  `storageUrl` on a refusal (owner decision, DECISIONS.md). Anyone who ever held a permanent URL keeps
+  access until the object is deleted or rotated; a rule change only alters who can DISCOVER one.
+  Rotation is built (Operations → Document links) and not yet run.
+- **The signed URL depends on one IAM grant** (`roles/iam.serviceAccountTokenCreator` on the runtime
+  service account, on itself — RECOVERY_RUNBOOK.md → 5b). Without it every call answers 503 and every
+  open uses the permanent link. Confirm by opening a document and looking for `storage.googleapis.com`
+  rather than `firebasestorage` in the address.
+- **A stored link can go dead** (a document saved more than a day after its file can miss the key a
+  run took away), and **a re-sent upload write arriving after another upload for the same date** leaves
+  the document naming a deleted file. Members still open through the signed link; Document links →
+  Check counts both, and Replace (or uploading that date again) mends them (`functions/doc-link-rotation.js`).
+- **Document retention bounds the exposure, but is not a guarantee.** Both sweeps delete the Storage
+  object, which kills its URL — Huddles at 3 months (`pruneOldHuddles`, `functions/huddle-retention.js`),
+  Circulars and Newsletters at 6 months (`pruneOldDocs` in `doc-retention.js`). **Neither is
+  scheduled**: the Huddle sweep runs inside `ingestHuddle`, the other after an upload of its kind, so
+  if uploads stop nothing prunes (the right long-term home is a scheduled Function). The browser sweep
+  refuses to run without server time, so it can silently not happen. And **a partial failure orphans
+  the Storage object** — Firestore is deleted first, so an orphan is invisible to staff and still
+  serves its URL; the Huddle sweep retries once in the same run (`sweepHuddleOrphans`), nothing
+  returns later, and the Circular and Newsletter sweep has no such step. A Document links run is the
+  only step that switches an orphan's link off.
+- **Microsoft reads the Word documents.** `officeViewerUrl` (`storage-utils.js`) hands the URL to
+  Microsoft's Office Online viewer, which fetches it server-side, so these documents reach a third
+  party. It is handed the SIGNED URL and was kept by owner decision (AUTH_PLAN.md §5, 19 Sep 2026).
 
 ### Real payslip figures stay in git HISTORY (owner decision, recorded not accepted)
 
@@ -729,20 +661,10 @@ clears one of them"**, beside the iPhone status bar entry near the top of this f
 ### The four v11 security tasks — task #1 still binds; the other three are history
 
 **Task #1 — every domain the app is served from must be in the GCP API-key referrer allowlist.** The
-Firebase web API key is visible in page source (normal for client-side Firebase) and is restricted
-to HTTP referrers in GCP Console → APIs & Services → Credentials → Firebase web API key. The
-allowlist must include:
-- `myb-roster.firebaseapp.com/*`
-- `myb-roster.web.app/*`
-- `garethdavidmiller.github.io/*`
-
-**A missing domain fails without naming the cause:** every Firebase Auth call from it is refused
-(`auth/requests-from-referer-...-are-blocked`), so every Firestore write fails for every user on that
-domain. Nothing in the app says why: a typed sign-in says only "Couldn’t sign you in. Try again — if it
-keeps happening, ask the admin." This is what happened in May 2026, when the domain most staff use was
-left out, and then the app showed no error at all. If a custom domain is ever added, add it to the
-allowlist in the same change.
-CLAUDE.md carries the same rule.
+rule, the current allowlist and the symptom of a missing domain are `CLAUDE.md` → Project identity
+(the ⚠️ referrer note) — the one copy; a domain added there goes into `ADMIN_FUNCTION_ORIGINS` in
+`functions/index.js` in the same change. It stays here because it still binds: a missing domain
+fails every Firebase Auth call from it with nothing on screen naming the cause, as it did in May 2026.
 
 **Tasks #2–#4** — per-member write isolation (shipped strict; the v10.94 outage post-mortem), the HPP
 variable-pay split (#3: London Allowance and basic pay accrue no HPP — the rule is now
@@ -1720,15 +1642,10 @@ feature deliberately does NOT do yet, so that a reader stops looking for them.
   `CONFIG.OVERTIME_BETA` plus `npm run generate:roster-members` — the server reads its own copy, so
   an un-regenerated list gives somebody a page with no form on it.
 
-- **An open window's population can GROW — and only before its first deadline.** Populations are
-  frozen against removal and against late addition, but automatic creation would make "existing
-  windows never change" mean "an invitation never takes effect": by the time anybody is invited, every
-  week they could usefully answer already exists. So the nightly scheduler tops up windows that are
-  still in `INITIAL_OPEN` — not every open window. Somebody added between the two deadlines would be
-  reported as **No response** for a deadline that pre-dates their invitation, and the moment they
-  submitted `deriveHistory` would label them **submitted after the initial deadline**; both describe a
-  person who was asked and did not answer. The remedy is the phase, not a kinder label: they join from
-  the next week whose first deadline is still ahead of them.
+- **An open window's population can GROW — and only before its first deadline.** The rule and its
+  reasoning are `OVERTIME_AVAILABILITY.md` → "The audience is release policy, not an operational
+  choice" (the phase table). The gap that stays: somebody invited after a week's first deadline is
+  not asked for that week, and joins from the next week whose first deadline is still ahead of them.
 
 - **Name-keyed documents.** Participants and submissions are keyed by canonical member name for
   legibility. A rename would orphan them; the participant `uid`, stamped on first submission, is the

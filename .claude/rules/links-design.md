@@ -455,7 +455,7 @@ one distinct time correctly gets a one-chip bar. Pinned by
   beside it (`links-fatigue.js` re-exports it). The heat map counts such a duty on both days, Saturday
   spilling round to Sunday. Only legacy or imported data can reach this, which is why it must stay
   correct: nothing else exercises it.
-- **Shift lists:** `EARLY_SHIFTS`/`LATE_SHIFTS` are derived at load from the MAIN roster
+- **Shift lists:** `EARLY_SHIFTS`, `EARLY_OPTIONS` and `LATE_OPTIONS` (`shiftOptionLists`) are derived at load from the MAIN roster
   (`weeklyRoster`) only — never a static list, and never the bilingual roster, whose times no line in
   this design can work. The cell sheet's options (`EARLY_OPTIONS`/`LATE_OPTIONS`) add
   `DEFAULT_SHIFT_TIMES`; the brush bar uses the design's own times. **Custom…** is validated by

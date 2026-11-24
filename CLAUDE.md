@@ -180,14 +180,16 @@ only that area; a decision that binds more than one area stays in this file.
 | `admin.md` | the Admin page — the pill types, "Recording for", AL on a rest day, Sunday corrections, checked saves, the range picker | `admin.*` · `admin-*` · `al-*` · `e2e/admin.spec.js` |
 | `nav-drawer.md` | the drawer, About and the header logo, sign-out, the bell, App Notices, Android Back, the topmost overlay | `nav-panel.js` · `nav-destinations.js` · `nav-guide-search.js` · `overlay.js` · `about-lightbox.js` and their tests |
 | `pwa.md` | the service worker's caching and update lifecycle, the offline fallback, the manifest, Firestore's local cache | `service-worker.js` · `sw-register.js` · `sw-*.test.mjs` · `manifest.json` · `firebase-client.js` · the offline lane |
-| `sessions.md` | one local session, re-establishing Firebase on load, strict write isolation, the claim tiers, `normaliseSurname` | `session.js` · `silent-sign-in.js` · `page-session.js` · `login-overlay.js` · `auth-*` · `claim-retry.js` · `password-force.js` · `own-password.js` · `firebase-client.js` · `firestore.rules` · the functions' auth and identity files |
+| `sessions.md` | one local session, re-establishing Firebase on load, strict write isolation, the claim tiers, `normaliseSurname` | `session.js` · `silent-sign-in.js` · `page-session.js` · `login-overlay.js` · `login-core.js` · `auth-*` · `claim-retry.js` · `password-force.js` · `own-password.js` · `firebase-client.js` · `firestore.rules` · the functions' auth and identity files |
 | `roster-data.md` | the member fields, `rosterChanges`, the cycles and fixed patterns, `APP_VERSION` | `roster-data.js` · `roster-cycle-data.js` · `roster-member-data.js` · `roster-roles.js` |
 | `roster-import.md` | the weekly roster import, and every defence against a week written onto the wrong days | the import modules and `functions/roster-*` |
 | `paycalc.md` | the Pay Calculator — rates, payroll rules, state, layout, the real-payslip net | `paycalc*` |
 | `links-design.md` | the Links workspace | `links*` |
 | `css-tokens.md` | surfaces, colour, type, motion, spacing, focus, the app-drawn controls | every `*.css` |
 | `guide-pages.md` | the guide pages' shell, design principles and factual standards | the guide pages |
-| `notifications.md` | the push notification language and the single builder | the push senders, `notif.js`, `service-worker.js` |
+| `notifications.md` | the push notification language and the single builder | the push senders, `notif.js`, `notif-card*.js`, `service-worker.js` |
+| `operations.md` | the Operations page — who opens it, the "Needs attention" strip, unknown is never "none", Reset, Document links, the upload cards, the Annual leave sheet | `operations*` · `al-leave-*` · `e2e/operations.spec.js` |
+| `staff-copy.md` | the owner's standard for words that teach (Plain English that TEACHES, in full) | every page's HTML · `*-words.js` · `*-tips.js` · `*-render.js` · the notices |
 
 ---
 
@@ -226,7 +228,7 @@ regression somewhere the author was not looking.
 | the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects were both invisible to behaviour | `e2e/calendar.spec.js` (the `day detail:` block) · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
 | `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
 | `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on the Calendar, Team Week, the legend, Overtime's roster and Admin's week grid, the leave records, the allowance (`entitlementFor`) and Admin's save checks | `christmas-leave.test.mjs` · `admin-al-projection.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
-| `session.js` · `silent-sign-in.js` · `login-overlay.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` (the overlay on every sign-in page) · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
+| `session.js` · `silent-sign-in.js` · `login-overlay.js` · `login-core.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` (the overlay on every sign-in page) · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
 | `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, what it reports when its outcome is unknown, and when any page may reload for an update | `claim-retry.test.mjs` · `sw-register.test.mjs` · `e2e/admin.spec.js` · `e2e/operations.spec.js` |
 | a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` — it runs the REAL writers of `overrides` (`buildOverrideWrite`), `analytics`, `clientErrors`, `linkTargetSets` and the three documents, and `al-leave-save.test.mjs` pins the `alUploads` writer to the rule's own list; for `staffContact`, `passwordStatus`, `pushSubscriptions` and `linkDesigns` check the writer's keys against the rule's `hasOnly()` BY HAND (`firestore-contract-parity.test.mjs` checks ids and allowlists, not field sets) |
 | `firestore.rules` | client and server together — the client copies of ownership rules only drive BUTTONS | `npm run test:rules` **and** `firestore-contract-parity.test.mjs` |
@@ -235,7 +237,7 @@ regression somewhere the author was not looking.
 | any `overlay.js` lifecycle | every lightbox in the app, including the one-time notices | `overlay.test.mjs` · `overlay-history.test.mjs` |
 | adding a PAGE | ONE entry in `scripts/app-pages.mjs` — the test suites read their pages from it — plus the app's own lists (SW, auth policy, nav pill, rules analytics id, report names, guide back-arrow), which stay hand-written because there is no build step | `page-contract-parity.test.mjs` — it names each app-side list the page has not joined, and checks the page list against the files on disk |
 | adding a MODULE or changing its exports | `docs/FILE_INDEX.md` + `docs/AI_MAP.md`, same commit | `githooks/pre-commit` · `doc-parity.test.mjs` |
-| `CONFIG.ADMIN_NAMES` / `MANAGER_NAMES` / `LINKS_DESIGNERS` / `OVERTIME_BETA` / `OVERTIME_ENABLED` / `MAX_YEAR` | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
+| `CONFIG.ADMIN_NAMES` / `MANAGER_NAMES` / `LINKS_DESIGNERS` / `OVERTIME_BETA` / `OVERTIME_ENABLED` / `MAX_YEAR`, or any `teamMembers` row (`signInMembers()` is the server's sign-in list since v26.59) | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
 | a Firebase SDK bump (`firebase-client.js`) | `FIREBASE_SDK_VERSION` in `service-worker.js` | `sw-asset-check.test.mjs` |
 | the VAPID key | `functions/index.js` **and** `notif.js` — a mismatch is silent AND permanent | `sw-asset-check.test.mjs` |
 
@@ -342,17 +344,15 @@ These bind more than one area. A decision that binds only one area is in that ar
 | `isBeforeMemberStart(member, date)` in `override-utils.js` | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | **Sundays are non-contracted — AL and Absent cannot be recorded on Sundays** | Sundays are uncontracted for all grades. The forbidden write types are declared ONCE, as `SUNDAY_FORBIDDEN_TYPES` in `override-utils.js` — `annual_leave`, `sick`, `other` and plain `shift` (a worked Sunday is `rdw`, deliberately absent). **Do not restate the list in prose or in a new call site**; consult it, or be pinned to it by `override-utils.test.mjs`. **SEVEN enforcement layers, none removable alone** — numbered in the code comments, so APPEND rather than renumber: (1) week-grid disables the AL/Absent pills on Sunday rows and the Shift pill too; (2) bulk-apply skips Sunday rows; (3) `recordRangeOverrides` filters Sundays out of `workingDates`; (4) roster upload normalises a Sunday `AL`/`SICK` to `RD`; (5) display — `isOverrideDisplaySuppressed` hides a leave, absence or Other override on a Sunday, so legacy data never renders; (6) the single-row save (`collectWeekRows`, `admin-week-collect.js`), a different answer per type (`shift` → `rdw`; `other` refused unless Spare; leave and absence refused), so pinned to the list by a test; (7) the leave sheet's Save never writes one (`writableDate`, `al-leave-plan.js`). A worked Sunday time is always RDW, never AL/Absent. |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
-| `touch-only` CSS class in `shared.css` | `display:none` by default; revealed via `@media (pointer: coarse)`. Use for touch-only UI. Do not use inline `display:none`. **Gesture-tutorial UI must only show on touch devices** — guard it with `window.matchMedia('(pointer: coarse)')`, as `initSwipeHint()` in `calendar-app.js` does. |
-| **Do not gate layout on `(hover: hover) and (pointer: fine)` alone** | Some Android devices misreport `hover: hover`. For layout breakpoints, always use `min-width`. Hover/pointer queries are only safe for cosmetic `:hover` transitions. |
 | `lsGet` / `lsSet` / `lsDel` / `lsKeys` from `ls.js` | iOS Safari private mode throws `SecurityError` on any `localStorage` access. **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers. `lsKeys()` is for code that must enumerate storage. |
-| Per-member paycalc localStorage namespacing | On a shared device two staff must not read each other's pay data. **Never read/write a paycalc key without `pcPrefix()`/`SK`, never namespace a device-level flag** (`DEVICE_KEYS`), and **a retired device flag stays declared** (`RETIRED_DEVICE_KEYS`) — deleting one fires the ownership prompt at people with none. Legacy data is claimed by a one-time prompt, never silently. Detail: `.claude/rules/paycalc.md` invariant 3. |
+| Per-member paycalc localStorage namespacing | On a shared device two staff must not read each other's pay data: **never a paycalc key without `pcPrefix()`/`SK`**, never a namespaced device flag, and a retired device flag stays declared. The rules and why: `.claude/rules/paycalc.md` invariant 3. |
 | 3-digit time input auto-correction — `formatClockInput` / `finaliseClockInput` in `clock-input.js` | While typing, three digits whose FIRST is 3–9 take a leading `'0'` (`"630"` → `"06:30"`, never `"63:0"`). A first pair of 24–29 (`"240"`) may be the start of `"2400"`, so it waits for the box to be LEFT; every consumer calls both. One rule for every text clock box — no page keeps its own copy. |
 | **Calendar access: a named session only** | The shared staff PIN is RETIRED (owner, 23 Nov 2026): the Calendar and Trains open only to a person signed in by name, and somebody with no roster of their own gets an **Other Staff** login (OPERATIONS_REFERENCE.md → "Adding an Other Staff login"). `overrides` reads need a bound member (`isMember()`) or `admin` (and the retired `calendarViewer` claim until the server release). **Anonymous grants nothing**: the Calendar used to sign every visitor in anonymously, so `request.auth != null` would re-admit exactly the people it closes out — ask for a CLAIM, never a session. The removal ships in three releases (client, server, cleanup) — DECISIONS.md → "The staff PIN retired", which says what each removes. **The invariants are NOT restated here**: `CALENDAR_DATA.md` 3/4/11/12 and `AUTH_AND_SESSIONS.md` 8/9/17/19. Before the grant, a member may see their own stored roster, labelled (owner, 5 Oct 2026 — `CALENDAR_DATA.md` 17). |
 | `cors: ADMIN_FUNCTION_ORIGINS` on every endpoint the browser calls | Each restricts CORS to the explicit origin allowlist `ADMIN_FUNCTION_ORIGINS` in `functions/index.js` — defence-in-depth on top of the real control, each endpoint's own check (an ID token and claim for all but the public ones). Add any new hosting domain to that array, with the API key allowlist (Project identity). `ingestHuddle` keeps `cors: false` (server-to-server). |
 | Canonical lightbox lifecycle | Every `.lb-overlay` lightbox is built with **`createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` in `overlay.js`** — do NOT hand-write the lifecycle in a page module. It owns focus save/restore, the scroll lock, Android Back, Escape (the topmost overlay only), the Tab trap, backdrop/close-button close and the mandatory `transitionend` fallback. Close controls are `<button class="lb-close">`, never `<span>` — not keyboard-focusable. **A one-time notice opens through `openNoticeIfClear(lightbox)`, never `lightbox.open()`.** **A link that leaves the page from inside a lightbox goes through `followLinkOutOf(lightbox, click)`**, which replaces the lightbox's history entry, so Back never lands on a step nothing answers. **Three exceptions, each with its reason: `createLightbox`'s JSDoc in `overlay.js`** — the drawer's two lightboxes (they share the drawer's history entry, which is why they hand-roll it) and the huddle viewer (a full-bleed panel). The mechanism: `.claude/rules/nav-drawer.md`. |
 | Page chrome — the header and the drawer | Every app page has the burger `#navMenuBtn` and the shared drawer (`initNavPanel`), spreading its pill gates from `navGatesFor` (`auth-policy.js`), `onLogoClick: () => openAboutLightbox?.()` and its `onSignOut`. Sign-out lives only in the drawer footer and About opens from the drawer head. A sub-page's header logo goes back to the calendar (`wireHeaderLogo`, `about-lightbox.js`) and there is no header back button; the Calendar's own header logo opens About and must not navigate. Detail: `.claude/rules/nav-drawer.md`. |
 | Overtime page — the two audiences | **PAUSED**: `CONFIG.OVERTIME_ENABLED` false closes it to all, admin included (OVERTIME_AVAILABILITY.md → Paused). **Reviewing** (`isOvertimeReviewer`, the `admin`/`manager` claim) sees everybody's declarations; **participating** (a name in `CONFIG.OVERTIME_BETA` — **regenerate in the same commit**) answers only for oneself. The pill and the page policy gate on `canOpenOvertime` (either). **Never widen `isOvertimeReviewer` to make the pill work** — it hands a beta tester everybody's availability (AUTH_AND_SESSIONS.md 14). |
-| Huddle notification → `#huddle` hash pattern | The viewer opens **only** via the `#huddle` hash (`calendar-huddle-viewer.js`; `calendar-doc-viewer.js` for `#circular`/`#newsletter`), from the drawer link and a notification tap alike. **Two viewer paths — do not unify, and never revert to a direct `window.open`/`location.href`:** DOCX `htmlContent` renders inline; without it the in-overlay "📄 Open Huddle" button supplies the real gesture a hash-open lacks. **The three documents are behind a sign-in (owner, 7 Sep 2026; PIN retired 23 Nov 2026)**: viewers and drawer links consult `calendar-doc-access.js`, and a locked tap issues no read. Why: **OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour"**. |
+| Huddle notification → `#huddle` hash pattern | The three documents' viewers open **only** via their hash (`#huddle`, `#circular`, `#newsletter`), from the drawer and a notification tap alike; two viewer paths that must not be unified, and the sign-in gate. In full: `.claude/rules/calendar.md` → "The document viewers open by hash". |
 | `initErrorReporter()` call pattern | It writes to Firestore `clientErrors`, so a valid auth token is required. **Never call it bare** — without an auth context every write is silently rejected by the rules, so the error log looks HEALTHY because it is broken. **Three canonical call sites**, differing because the pages establish identity differently: the Calendar (`calendarAuthReady`, which resolves only once access is granted — a locked Calendar starts no reporter), the pages with `sessionReady`, and the Pay Calculator (which has none). The exact shapes: the header of **`error-reporter.js`**; the rule: `AUTH_AND_SESSIONS.md` invariant 13. |
 
 ---
@@ -520,59 +520,15 @@ Applies to **all user-visible copy** (cards, hints, tips, lightboxes, error bann
 - **Tone:** calm and factual — no exclamation marks, no marketing voice (mirrors `.claude/rules/notifications.md`).
 
 **Plain English that TEACHES — write for the colleague who has never heard the term** (owner, 3 Sep 2026).
-Many colleagues do not know what HPP is, how back pay works, or how to use a FIP card or coupon. The
-app's job is to let them use and discover these things without asking anyone — and without being
-overwhelmed. "For dummies" is the standard, not an insult. The rules, each learned the hard way:
-- **Audience first.** Every staff-facing surface must work for someone who does not yet know the
-  word. Expand a term on first sight within a surface (HPP → "Holiday Pay Premium"); never assume
-  the abbreviation is understood because it is on the payslip.
-- **Educate in place, at the point of use.** The guides are for depth; the row, card header or `?`
-  panel is where the learning happens. The pattern that works is already in the app: *name → one
-  sentence on what it is → where you see it in the real world* — "Paid once a year on a January
-  payslip — look for the green note on that payslip"; "Shows as 'RDW Sun 1.5' on your payslip".
-- **A collapsed header is a teaching surface, not unused space.** The title + hint of a collapsed
-  card is persistent micro-documentation; ask what its collapsed state is communicating before
-  hiding, grouping or shortening it. This nearly went wrong once: DECISIONS.md → "More pay tools …
-  DECLINED", and `.claude/rules/paycalc.md` → invariant 16.
-- **Discovery must not depend on data the member has not supplied yet.** A contextual prompt gated
-  on a stored figure reaches only people who already know. Before relying on one, check the
-  "new member, nothing entered" cohort still has a route — that cohort is who the education is for.
-- **Not overwhelming means fewer DECISIONS at once, not fewer words or pixels.** Simplify by
-  reducing what the reader must decide, and by sequencing; never by removing the explanation. Page
-  height is not a UX metric. The question is where staff spend effort for little value.
-- **Educational is not chatty.** The calm tone above still applies; one idea per line.
-- **Test it on the reader, not the owner.** The check for a new surface is a colleague who does not
-  know the term using it from the app alone. And score two things separately, because they are not
-  the same: **usability** (can somebody who understands the subject work the screen?) and
-  **learnability** (can somebody who does not yet understand it learn enough here to act correctly?).
-  A colleague can be a fluent phone user and still have no idea how a FIP coupon works.
-
-**The four things a surface owes a member, in order.** This is not an imported UX model — it is the
-app's own best pattern, named. Every Hours row already does all four:
-**Discover** it exists (*"Rest Day Working"*) → **Understand** it in one sentence (*"Came in on a
-rest day as extra work — a Saturday off included"*) → **Act** (*"Shows as 'RDW 1.25' on your
-payslip"*) → **Deep dive** on demand (the card body, the `?` panel, the guide).
-**Progressive disclosure may hide the fourth. It may never hide the first.** That single line is what
-separates good hiding (*"Holiday Pay Premium — paid once a year on a January payslip"* with the
-calculation fields collapsed beneath it) from bad (*"More pay tools ▾"*, where the member cannot know
-a premium is in there).
-
-**One question decides any hiding proposal: *what knowledge disappears if this is hidden?*** If the
-answer is "none, it is depth" — hide it. If a member could stop knowing the thing exists, do not.
-
-**Searchability is not discoverability.** The cross-guide search is genuinely good and does not solve
-this: a member who has never heard of an International Coupon cannot search for one, and a member who
-does not know they receive a Holiday Pay Premium cannot search "HPP". Orientation, headings and
-signposting come first; search serves the member who already knows what they are looking for. Do not
-answer a discovery gap with "it is findable".
-
-**Challenge both extremes.** *"This is too complicated, hide it"* and *"the information is technically
-present somewhere, so discovery is solved"* are the same failure from opposite ends, and this app has
-now produced one of each. Neither is good enough, because there is frequently **nobody to ask**: a
-colleague on a late turn wondering about January's payslip has no manager, no colleague and no
-helpdesk at 22:00. The app is the source. See ROADMAP.md → "Plain-English education pass".
-
----
+Many colleagues do not know what HPP is, how back pay works, or how a FIP coupon is used, and at 22:00 on a
+late turn there is nobody to ask: the app is the source. So every surface works for somebody who does not
+yet know the word, and teaches in place — **Discover** it exists → **Understand** it in one sentence →
+**Act** → **Deep dive** on demand. Progressive disclosure may hide the fourth, never the first; one
+question decides any hiding: *what knowledge disappears if this is hidden?* Searchability is not
+discoverability. The rules in full, each learned the hard way — audience first, educate at the point of
+use, a collapsed header is a teaching surface, fewer decisions not fewer words, test it on the reader —
+are **`.claude/rules/staff-copy.md`**, which loads with every file that carries staff-facing words.
+See ROADMAP.md → "Plain-English education pass".
 
 ## Huddle ingest
 
@@ -593,7 +549,7 @@ wrong days, or nearly was. Full request/response format and review pipeline: **s
 
 ---
 
-## Firebase Auth (complete — v7.94)
+## Firebase Auth
 
 All staff have Firebase Auth accounts. **Firestore writes need a claim, never a bare
 `request.auth != null`** (AUTH_AND_SESSIONS 9). The contract is `docs/AUTH_AND_SESSIONS.md`; the
@@ -607,18 +563,22 @@ working notes are `.claude/rules/sessions.md`, which loads with the session and 
   (AUTH_AND_SESSIONS 3). **The `manager` tier is load-bearing** (on-behalf edits, daily); **do NOT
   grant managers `admin: true`.** A newly listed manager needs `npm run generate:roster-members` in the same
   commit, then — once Deploy Firebase Functions has finished — Set up accounts and a token refresh.
+- **An "Other staff" login** (v26.59) is a named sign-in with the staff PIN's view: only pages whose
+  `PAGE_POLICIES` entry says `otherStaff: true` admit it (`auth-policy.js` — the Calendar, Settings and
+  Trains). The owner's direction is to phase the PIN out; this is the first step (DECISIONS.md → "An
+  'Other staff' login").
 
 **New starter:** invoke `/new-starter` — the skill has the full checklist, in the order it must run (the account step comes only after the roster change has deployed), the mid-year field reference and the pro-rata formula invariant.
 
-**The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave, allowance or days remaining. It is a TRIGGER, not a checklist — it sends you to `docs/AL_WORKBOOK.md` §0 and requires the learnings to be written back in the same session. **Read §0 before answering from the spreadsheet** — answering first has gone wrong twice, on the same person, in sessions that had the document: a person's `AL over depot quota` days are real leave, invisible in the calendar grid, and belong in any list of their annual leave. The sheet is checked against the app with a sealed leave file (`scripts/make-leave-file.mjs`; AL_WORKBOOK.md, OPERATIONS_REFERENCE.md). **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
+**The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave. **Read `docs/AL_WORKBOOK.md` §0 before answering from the spreadsheet** — answering first has gone wrong twice: `AL over depot quota` days are real leave, invisible in the calendar grid. **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
 
-**Removing a staff member:** invoke `/leaver` — the ordered checklist, including the step everybody gets wrong (**upload their final roster PDF FIRST**: `hidden` also drops them from the AI-parsing name list, and a later upload then reports their row as `missingMembers`, which reads exactly like a genuine absence) and the verification step that closes it (the Staff Login Accounts audit — every other failure in the sequence is silent). Reasoning: OPERATIONS_REFERENCE.md → "Removing a staff member".
+**Removing a staff member:** invoke `/leaver` — the ordered checklist. The step everybody gets wrong: **upload their final roster PDF FIRST** (`hidden` drops them from the import's name list). Reasoning: OPERATIONS_REFERENCE.md → "Removing a staff member".
 
 Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 
 ---
 
-## Pay calculator — current reality (v8.21+)
+## Pay calculator
 
 Manual-entry: staff enter hours, and the calculator computes tax, NI, pension and take-home.
 **The pay rates, London Allowance and pension defaults — and how a mid-year award step and the opt-in
@@ -632,6 +592,6 @@ repository — what it is, why it is gitignored, and what `npm run test:payslip-
 
 ---
 
-## Guide pages (railcard, FIP, guide shell)
+## Guide pages
 
 The guide pages — one per `NAV_GUIDES` entry in `nav-destinations.js` — share `guide-shell.css` (sticky header, back/PDF buttons, print rules, brand palette tokens). Each has its own CSS file. No `shared.css` import. No inline scripts or `onclick` (CSP blocks them). Full design principles, factual accuracy notes, and shell spec in `.claude/rules/guide-pages.md`.

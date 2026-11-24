@@ -31,7 +31,7 @@
 - [ ] New logic has a unit test, or the gap is noted in `KNOWN_LIMITATIONS.md`
 
 ### Documentation
-- [ ] A new module is listed in `docs/FILE_INDEX.md` and `docs/AI_MAP.md` (the pre-commit hook enforces both); an architecture decision is recorded in `CLAUDE.md`
+- [ ] A new module is listed in `docs/FILE_INDEX.md` and `docs/AI_MAP.md` (the pre-commit hook enforces both); a decision that binds one area is recorded in that area's `.claude/rules/` file, and only one that binds several areas in `CLAUDE.md` (it is size-capped)
 - [ ] `npm run generate:ai-map` run if any module's exports changed (doc-parity fails a stale export line)
 - [ ] `OPERATIONS_REFERENCE.md` updated if a new admin workflow was added
 - [ ] Every stamped doc current to the latest 0.10 milestone (`sw-asset-check.test.mjs` lists them)

@@ -140,6 +140,15 @@ NET=300 node run.mjs         # 300 ms on every auth request
 Step 1 fetches whatever `firebase-client.js` loads. **The figures above were measured on SDK 12.16.0
 and have not been re-run since the app moved on** (it loads 13.1.0 on 10 November 2026).
 
+**`arm.js` also copies a start-up the app no longer has.** It builds Auth with `getAuth(app)`, as
+`firebase-client.js` did when this was measured; since v24.65 the app calls `initializeAuth` with an
+explicit persistence list instead (`firebase-client.js` → `auth`, which says why: `getAuth` adds the
+popup/redirect resolver, which the SDK initialises and waits for on mobile, Safari and iOS before it
+restores the user). So "mirrors `firebase-client.js`'s module body" under *Method* holds for the code
+as it was, not as it is. Change `arm.js` to `initializeAuth` before re-running it, or its figures
+describe somebody else's boot — `../viewer-persistence-proof/README.md` gives its harness the same
+warning.
+
 ## Two ways this could have measured the wrong thing
 
 - **A profile reused between runs caches the SDK and the sign-in**, so the second arm looks faster

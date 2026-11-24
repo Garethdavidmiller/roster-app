@@ -551,44 +551,18 @@ Written by: `functions/overtime.js`. Read by: `getMyOvertimeState` (members) and
 
 ### Authentication — what the rules above depend on
 
-Not a collection, so only the facts the collections lean on are here, each pointing at its home.
+Not a collection. One fact the collections lean on is stated here; everything else about sign-in
+lives in its own home and is linked, not restated.
 
-- **Sign-in** is a name (dropdown) and a password. The **default** password is the member's surname
-  (lowercase, no spaces or special characters); a member can set their own in Settings → Password,
-  and sign-in tries the typed password, or, when it spells the surname, the surname default first
-  and then the typed password (`credentialCandidatesFor` in `auth-identity.js` builds the ordered
-  list, `ensureFirebaseSession` tries each). An admin reset returns an account to the default (Operations → Account status →
-  Reset, the `resetMemberPassword` Cloud Function). The default is not a secret: protection rests on
-  Firebase Auth's rate-limiting and on rules that believe a member only on their own password account
-  — `ARCHITECTURE.md` EXC-005, and `PASSWORD_DESIGN.md` for the design and phasing.
-- **Sessions expire 60 days after sign-in, full stop** (`SESSION_MS` in `session.js` —
-  `AUTH_AND_SESSIONS.md` invariant 2). Everything that genuinely REVOKES access is immediate: an
-  explicit sign-out (which signs Firebase out too), a disabled or deleted account, revoked Firebase
-  credentials, and the claim-epoch sweep.
 - **Every member rule above keys on a bound identity** — `isMember()` / `memberName()` in
   `firestore.rules`, `AUTH_AND_SESSIONS.md` invariant 19. The `admin`, `manager` and `linksDesigner`
   claims come from `CONFIG.ADMIN_NAMES`, `CONFIG.MANAGER_NAMES` and `CONFIG.LINKS_DESIGNERS` in
   `roster-data.js`, stamped by `setupRosterAuth` from the generated `functions/roster-members.json`.
-- **The login dropdown** groups members by grade in the order of `CONFIG.GRADE_ORDER` in
-  `roster-data.js` (shared by `login-overlay.js` and `admin-app.js`). `managerOnly: true` members
-  appear **only** in the Management group and are hidden from the calendar's member selector — they
-  have login access but no roster of their own.
-- **Forced migration.** `CONFIG.FORCE_PASSWORD_SET` (a kill switch, currently `true`) makes
-  `password-force.js` compel a member still on the surname default to choose their own password **at
-  their next sign-in**. Nobody is signed out to accelerate it: the 60-day cap completes coverage on
-  its own, staggered by each member's own expiry. It shows only for a `named` identity — never a
-  soft-failed Pay Calculator one, where `updatePassword` cannot succeed and
-  the block would be unsatisfiable — and fails open on any failure it cannot recover from. Since the staff PIN
-  was retired (23 Nov 2026) everybody who reads the roster signs in, so nobody is out of its reach. **It is the ONLY post-login overlay.** If a second one is ever added, read the note above
-  `_show` in `password-force.js` first — anything that must happen when an overlay OPENS has to fire
-  before the await, never after it.
-- **The staff Calendar PIN — RETIRED 23 Nov 2026** (owner). The Calendar and Trains open only for a
-  named session; somebody with no roster of their own gets an Other Staff login, a plain member account
-  (`{ name, member }`), so no collection gained a field or a rule. Until the server release the
-  `calendarViewer` claim, the `CALENDAR_VIEWER_PIN` secret and `viewerAttempts` remain; what goes when,
-  and the manual steps: OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
-- **The Firebase SDK version** is the one `firebase-client.js` imports — check it before any new
-  Firebase work. **An SDK bump must also update `FIREBASE_SDK_VERSION` in `service-worker.js`** (the
-  SDK offline cache is keyed on it) — `sw-asset-check.test.mjs` fails the build if they diverge.
+
+**Linked, not restated:** session lifetime, claim tiers and what a member may write — `AUTH_AND_SESSIONS.md` (invariants 2, 3, 7, 18, 20); passwords, the surname
+default, the admin reset and the forced migration — `PASSWORD_DESIGN.md` and `ARCHITECTURE.md`
+EXC-005; the retired staff PIN and what the server release still removes — OPERATIONS_REFERENCE.md → "The staff PIN (retired)"; the Firebase SDK version and
+its service-worker twin — `CLAUDE.md` → Change impact; the sign-in list's grade groups (`CONFIG.GRADE_ORDER`
+in `roster-data.js`) and the login-only `managerOnly` rows — `.claude/rules/roster-data.md`.
 
 ---

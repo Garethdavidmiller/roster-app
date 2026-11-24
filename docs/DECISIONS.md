@@ -17,6 +17,10 @@ that evidence arrives, and that arguing it again without the evidence is re-work
 **If something here reopens, MOVE it back to `ROADMAP.md` rather than copying it.** Two live copies
 of a decision is the drift the v19.97 history split was made to stop.
 
+**Order.** The two categorised lists come first, then two standing references (the no-build trade
+and the version-bump incidents), then the dated entries, oldest first — append a new one at the end.
+A superseded entry is deleted once its replacement records what it superseded.
+
 ---
 
 ## Declined features
@@ -399,23 +403,6 @@ shown that yet.
   stop). **The full argument, including why the key is `head_ref || ref_name` and why the obvious
   `github.ref` recipe silently does nothing, lives in `e2e.yml` beside the config.**
 
-- **WebKit stays OUT of the deploy gate — SUPERSEDED 17 Nov 2026** by "A few Safari tests gate the
-  release" (below), which keeps the whole suite out and lets a small part in. As first decided (owner, 8 Sep 2026) · **Trigger to revisit: a
-  Safari-only regression actually reaching production, or the work-phone install being permitted (a
-  second engine running the INSTALLED app changes the exposure, not just the browser mix).** The
-  question was re-opened the same day the platform premise was corrected to *two platforms served
-  equally* — Chromium gates every release (`npm run check`, the Chromium smoke suite, the deployed-CSP
-  proof) and `npm run test:webkit` runs on branches only, so equal service sits behind an unequal
-  gate. The exposure is real but NARROW: every normal change reaches main through a branch, where
-  WebKit does run, so what ships un-gated on Safari is a direct-to-main push or a manual dispatch.
-  Against that, a full WebKit run took 13.2 minutes when last timed, against a deploy of roughly
-  eleven and a half — **so gating on it roughly doubles time-to-live for every release, an emergency
-  fix included**, which is the cost the owner weighed and declined. The subset option (gate on part
-  of the suite) was available and not taken: a hand-picked list is the shape this repo keeps finding
-  stale. **Nothing here says Safari matters less** — the platform rule in CLAUDE.md is unchanged and
-  both engines stay first class; this is a decision about where the check runs, not about whether it
-  matters.
-
 - **The Hosting deploy's gate runs as parallel jobs** (owner, 10 Nov 2026). The tests and the upload
   were one job, so the two Chrome projects ran back to back: v25.68's and v25.69's deploys took 38m24s
   and 37m10s of a 40-minute limit, and #1737 doubled the limit to 80 so the next release could not be
@@ -435,7 +422,11 @@ shown that yet.
   run against 16 to 18. `fullyParallel` came with it, so a shard is a count of tests, not of files.
 
 - **A few Safari tests gate the release** (owner, 17 Nov 2026). Supersedes "WebKit stays OUT of the
-  deploy gate" (above). Every branch ran the WebKit suite, but the tree `main` RELEASES — two branches,
+  deploy gate" (owner, 8 Sep 2026), which kept every WebKit test out of the release: a full WebKit run
+  then took 13.2 minutes against a deploy of about eleven and a half, so gating on it would have
+  roughly doubled time-to-live for every release, an emergency fix included; and a hand-picked subset
+  was refused as the shape this repo keeps finding stale. Its trigger was a Safari-only regression
+  reaching production or the work-phone install being permitted; its full text is in git. Every branch ran the WebKit suite, but the tree `main` RELEASES — two branches,
   each green on its own, merged — was tested on Chromium alone, though the app serves iPhone and
   Android equally (owner, 8 Sep 2026). **What
   gates now:** one job, `safari` in `deploy-hosting.yml`, on the iPhone's engine: every page, guide and
@@ -601,6 +592,98 @@ shown that yet.
   to, or a reason a member's own shifts should no longer be on their own device.
 
 ---
+
+## No build step — the trade, and the two things that would reopen it
+
+**Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither
+has fired.** Moved here from `CLAUDE.md` on 15 Sep 2026, where it had grown into the table's
+third-longest row. The rule stays there in one line; the argument is here, because this is a
+decision with a trigger and that is what this file is for.
+
+The no-build rule buys three things — zero toolchain, direct debuggability, and no
+build-supply-chain — and pays for them in hand-maintained work a bundler would do for free:
+
+- the `modulepreload` lists (index, paycalc and links have the deepest graphs; the other six pages
+  carry only the three fixed gstatic SDK tags every page has, which name one URL each and so cannot
+  fall behind a graph). CI-locked by `sw-asset-check.test.mjs`.
+- the service worker's precache list,
+- the two-location version bump,
+- the `generate-*` codegen,
+- the CSP `*-boot.js` shims,
+- the pure-helper splits that keep `firebase-client.js` testable in Node,
+- and the `normaliseSurname` browser/functions duplication.
+
+**The cost side is COUNTED FROM THE FILESYSTEM, never written down.** `doc-parity.test.mjs` derives
+those totals and fails on a stale figure. It has to: at v21.62 all five written figures were wrong,
+two by about 80%, and **every one of them understated the cost** — that is, all five errors ran in
+the direction that makes this trade look cheaper than it is. A threshold that nobody re-measures
+decays toward the day it was written, and this is precisely the row where being wrong changes an
+architectural decision.
+
+**Revisit — do not auto-adopt — when either:**
+
+1. **You want real TypeScript types.** `tsc --noEmit` already runs the checker without the emit, so
+   this is about types in the source, not about checking. Note the scope limit: not over `functions/`
+   or the service worker (`typecheck-scope.test.mjs`).
+2. **A bug is traced to drift in a hand-maintained list.** That is the failure the lists' CI locks
+   exist to prevent; one getting through is evidence the locks are not enough.
+
+Until one of those, the trade favours no build.
+
+**A third input, measured, and deliberately NOT a trigger.** The Calendar's cold parse-and-execute
+cost under 6× CPU throttling is in `LATENCY.md` → Phase 3, beside the ladder reading that would
+justify acting on it. It is not a reason to adopt a bundler by itself: the assets are
+service-worker-cached and the cost is one-off per version.
+
+## Version bumping and merging — the incidents behind the rules (moved from CLAUDE.md, 7 Nov 2026)
+
+`CLAUDE.md` → *Version bumping* states each rule with a one-line reason. These are the incidents
+that wrote them, kept here so the rules stay short where every session reads them. Every rule below
+is still in force; nothing here reopens one.
+
+- **Bump against `main` — because v22.29 shipped twice.** Two sessions branched from the same
+  version and both bumped to the same next one: the logo change (#1311) and the Huddle table fix
+  (#1312). The second merge did not conflict, because `roster-data.js` and `service-worker.js`
+  already said the value the incoming commit wanted. `service-worker.js` was then BYTE-IDENTICAL
+  across the two releases, so a browser byte-comparing it installed no new worker — no activate, no
+  new cache, no precache — and a device that took the first 22.29 kept serving the first release's
+  assets. Nothing heals it: the worker never re-fetches a cached file, so those devices kept the first
+  release's files until the next bump. Hence the re-check of `origin/main` immediately before merging.
+- **A gap is the rule working — there is no v23.22.** Two branches held it at once on 8 Sep 2026;
+  both re-checked `main` before merging and both re-bumped, to 23.23 and 23.24. A skipped number is
+  what a caught collision looks like from afterwards, which is why it is never reused to close the gap.
+- **Exactly 0.01 per change — after the v15.70 → 15.80 → 15.90 slip**, where a batch was bumped by
+  0.10 at a time and burned the version space. The "every 0.10 version" rule only ever governed when
+  the docs are re-stamped.
+- **"Both runs green" is usually one run green and one cancelled** (measured 15 Sep 2026). The two
+  runs share a concurrency group, so the `push` run is normally cancelled within seconds of the
+  `pull_request` run starting on the same commit: on v23.82's head the pull-request run carried every
+  job green and the push run was cancelled after four seconds. That is the design (the entry on the
+  cancelled `push` run, above). What the rule guards against is reporting green off a run that did
+  not include the `version` job.
+- **The two-runs trap on the `version` job** (6 Sep 2026, twice). Merge promptly and the run fired
+  when the pull request was OPENED compares the branch against a `main` which by then CONTAINS it —
+  "main is v22.99 . this branch is v22.99", failed, and an email about a release that was correct.
+  The job now detects an already-landed branch by CONTENT and skips; ancestry cannot tell you, because
+  `main` squash-merges. The second lesson cost more: the first of those two went unnoticed because the
+  merge was reported fully green off the `push` run alone.
+- **Do not stack branches — it cost three branches and a pull request.** `main` squash-merges, so a
+  child branch cannot be rebased once its parent lands; every commit replays and conflicts, and the
+  only way out is a fresh branch from `main` and a cherry-pick. That cost three branches and one
+  pull request closed as superseded across v23.79 → v23.82.
+- **One Playwright run at a time.** Two concurrent runs produced a false red (14 Sep 2026), and
+  checking out another branch mid-run invalidated a 13-minute e2e pass that then had to be redone.
+- **The Documentation milestone row names the milestone, not the version.** It used to state the
+  current version, and it rotted on every release — it read 23.23 while the app shipped 23.24, then
+  23.25, then 23.26 — because bumping it is not part of shipping. What the stamp guard actually
+  requires is the 0.10 milestone, so that is what the row states; `APP_VERSION` is the only place to
+  read the version.
+- **Who uses which phone is an OWNER FACT** (owner, 8 Sep 2026). `CLAUDE.md`'s platform line was
+  wrong twice in one day, in opposite directions: it said "all staff use Android phones", was
+  corrected to "the installed app is mainly iPhone", and neither was right. The owner's own phone is
+  an Android (a Galaxy S26), the personal-phone population is mixed, and the work phone is Android
+  with the install not yet permitted — so both platforms are served equally, and no screenshot, bug
+  report or single device decides which one matters more.
 
 ## The dropdowns that stay native (8 Sep 2026, v23.33 — completed and enforced v23.38)
 
@@ -1027,35 +1110,6 @@ has no time, so the first launch with this release opens on today, whatever was 
 **What would reopen it:** the owner finding half an hour too short or too long in use. It is one
 constant.
 
-## Christmas Day and Boxing Day are never spare days (owner, 19 Nov 2026)
-
-**Decided (owner, 19 Nov 2026):** "Christmas days and Boxing days cannot be spare days even if they
-fall in a usually spare week." Asked what a spare week's 25 or 26 December should then be, the owner
-chose a REST DAY over Christmas leave. So from Christmas 2026:
-
-- A member whose pattern is SPARE on either day is not due at work there (`isChristmasLeaveDay`,
-  `christmas-leave.js`): the Calendar shows Rest, no Christmas leave is listed, and working Boxing Day
-  from a spare week is overtime from a rest day, earning no day in lieu. A SHIFT on the pattern still
-  gets the leave and the day in lieu, as before. That was 9 people on 25 December 2026 and 7 on the 26th.
-- A Spare turn cannot be recorded on either day, in any year: Admin's week grid turns the Spare chip
-  off (and on Boxing Day, which already refused Other days, the whole Other pill), and the Save
-  refuses one (`checkDayRules`). The roster import shows a SPARE printed there as a row that records
-  nothing (`christmas-spare`, `normaliseCellValue`), never as a change to tick — over an earlier
-  import, an unticked "Clear old" row instead (20 Nov 2026).
-- **A Spare saved there before Save refused one is not drawn** (owner, 20 Nov 2026: "Fix"), in any
-  year: the day shows what it would be without it — Rest, or Christmas leave for somebody due at work
-  (`isOverrideDisplaySuppressed`, whose `christmasDay` input every caller must pass, so the typecheck
-  fails one that forgets). Admin still draws the record, so it can be removed: its pill, off on that
-  day, is on for that one act (`_onToRemove`, `admin-week-row-state.js`), as for any saved record a
-  day no longer takes — and on 25/26 December the Other chips behind it are off too, a kept draft cannot
-  put a choice back on it, and the row says the Calendar does not show the record.
-
-**It replaced** the 5 Nov 2026 rule that a spare day counted as due at work there, and it answered the
-ROADMAP question of whether a Spare turn on a Boxing Day earns a day in lieu: there can be no such
-turn. **What holds it:** `christmas-leave.test.mjs`, `roster-cell-rules.test.mjs`,
-`admin-roster-upload.test.mjs`, `admin-shift-rules.test.mjs` and `admin-day-pills.test.mjs`; deleting
-each guard line fails them.
-
 ## The Boxing Day day in lieu goes into the next year's allowance (owner, 15 Nov 2026)
 
 **Decided (owner, 15 Nov 2026):** the day of annual leave in lieu for working a Boxing Day the member
@@ -1249,6 +1303,73 @@ guide's own top margin, two pay columns, a print size removed, the button at 12p
 `<p>` label, the table's word-break rule removed, the tips' grid taken out of the stacking rule, and the
 Railcard guide's screen sizes reaching paper — each failed its test.
 
+## The 55-hour row takes a cover week at its worst, as every run does (17 Nov 2026)
+
+**Decided (17 Nov 2026, under the owner's "do all" on a whole-app review):** the Links fatigue row "More
+than 55 hours worked in any 7-day period" takes its verdict on a cover week's WORST case, as every run
+rule in the panel already does ("A cover week is an unknown, not a no", `.claude/rules/links-design.md`).
+It took it on the FLOOR — a cover week counted as no hours — so Balanced V6 read CLEAR at 50.9 hours
+while one of its cover weeks falling badly comes to over 60, and Links' Design checks counted 3 factors
+present where the New link page, built from the pack's worst case, counted 4. Members can read both
+during the consultation.
+
+**What the worst case is.** Each worked day of a cover week counts as a quarter of the contracted week,
+8h 45m (`COVER_DUTY_MINUTES`, links-fatigue.js): the app already counts a cover week as the contracted
+week (the hours row, owner), and it is worked as four duties. The four fall on Monday to Saturday,
+placed as badly as each seven days allows, and the Sunday is worked as overtime on top — the bounds the
+run rules keep. The Sunday counts the same 8h 45m: one stated assumption rather than two.
+
+**What the row shows.** The worst case is the figure, and the sentence gives both — "61.2 hours in the
+worst case, and 50.9 on the duties the rota fixes" — with the assumption. It is never CLEAR while the
+worst case crosses 55. With no cover week the two figures are one, and nothing is said.
+
+**The New link page and the pack.** The page's counts now match the Design checks for all three
+shortlisted designs (Balanced V6 4, Level Crossing 0, Middle Ground 1). The pack's own worst case takes
+a cover duty as 8 hours (with 8h 45m and an 8-hour Sunday beside it), so its printed figures are a
+little lower than the app's — 58h 35m and 60h 30m where Links says 61.2 for Balanced V6 — and the two
+agree on every verdict. The pack was NOT regenerated: its tables keep their own split, the duties the
+rota fixes and then "up to", so `report-data.mjs` reads the row at its floor for them, and every sheet,
+deck and figure on the page is what it was.
+
+**What it costs:** a design with a cover week shows one more factor present wherever its worst case
+crosses 55 — Balanced V6 and Middle Ground on the shortlist. The "today's link" row is unchanged: today's
+main cycle is over 55 on its fixed duties already.
+
+**What holds it:** `links-fatigue.test.mjs` (four of Monday to Saturday and never six, the Sunday on top,
+the placement the pack's blocks reach, each week's own four across a lap, both figures in the
+sentence) and `newlink-data.test.mjs` (every count the page states is the Design checks' count for the
+same rota). Taking the verdict on the floor again fails both; dropping the pack's floor reading makes
+the generator count the week twice, which the same file's first test catches.
+
+## Christmas Day and Boxing Day are never spare days (owner, 19 Nov 2026)
+
+**Decided (owner, 19 Nov 2026):** "Christmas days and Boxing days cannot be spare days even if they
+fall in a usually spare week." Asked what a spare week's 25 or 26 December should then be, the owner
+chose a REST DAY over Christmas leave. So from Christmas 2026:
+
+- A member whose pattern is SPARE on either day is not due at work there (`isChristmasLeaveDay`,
+  `christmas-leave.js`): the Calendar shows Rest, no Christmas leave is listed, and working Boxing Day
+  from a spare week is overtime from a rest day, earning no day in lieu. A SHIFT on the pattern still
+  gets the leave and the day in lieu, as before. That was 9 people on 25 December 2026 and 7 on the 26th.
+- A Spare turn cannot be recorded on either day, in any year: Admin's week grid turns the Spare chip
+  off (and on Boxing Day, which already refused Other days, the whole Other pill), and the Save
+  refuses one (`checkDayRules`). The roster import shows a SPARE printed there as a row that records
+  nothing (`christmas-spare`, `normaliseCellValue`), never as a change to tick — over an earlier
+  import, an unticked "Clear old" row instead (20 Nov 2026).
+- **A Spare saved there before Save refused one is not drawn** (owner, 20 Nov 2026: "Fix"), in any
+  year: the day shows what it would be without it — Rest, or Christmas leave for somebody due at work
+  (`isOverrideDisplaySuppressed`, whose `christmasDay` input every caller must pass, so the typecheck
+  fails one that forgets). Admin still draws the record, so it can be removed: its pill, off on that
+  day, is on for that one act (`_onToRemove`, `admin-week-row-state.js`), as for any saved record a
+  day no longer takes — and on 25/26 December the Other chips behind it are off too, a kept draft cannot
+  put a choice back on it, and the row says the Calendar does not show the record.
+
+**It replaced** the 5 Nov 2026 rule that a spare day counted as due at work there, and it answered the
+ROADMAP question of whether a Spare turn on a Boxing Day earns a day in lieu: there can be no such
+turn. **What holds it:** `christmas-leave.test.mjs`, `roster-cell-rules.test.mjs`,
+`admin-roster-upload.test.mjs`, `admin-shift-rules.test.mjs` and `admin-day-pills.test.mjs`; deleting
+each guard line fails them.
+
 ## An "Other staff" login: the staff PIN's view under a person's own name (owner, 23 Nov 2026)
 
 **Decided:** a grade for people with no roster of their own and no manager or admin rights. They sign in
@@ -1309,133 +1430,3 @@ not worth doing; shipping release 2 is.
 for one page is still a shared code to rotate. **Not chosen either:** removing everything in one
 release. A device holding a PIN session when the rules stopped accepting it would show a roster under
 a "Couldn't update" chip, and a cached app would keep offering a PIN box that could not work.
-
-## The 55-hour row takes a cover week at its worst, as every run does (17 Nov 2026)
-
-**Decided (17 Nov 2026, under the owner's "do all" on a whole-app review):** the Links fatigue row "More
-than 55 hours worked in any 7-day period" takes its verdict on a cover week's WORST case, as every run
-rule in the panel already does ("A cover week is an unknown, not a no", `.claude/rules/links-design.md`).
-It took it on the FLOOR — a cover week counted as no hours — so Balanced V6 read CLEAR at 50.9 hours
-while one of its cover weeks falling badly comes to over 60, and Links' Design checks counted 3 factors
-present where the New link page, built from the pack's worst case, counted 4. Members can read both
-during the consultation.
-
-**What the worst case is.** Each worked day of a cover week counts as a quarter of the contracted week,
-8h 45m (`COVER_DUTY_MINUTES`, links-fatigue.js): the app already counts a cover week as the contracted
-week (the hours row, owner), and it is worked as four duties. The four fall on Monday to Saturday,
-placed as badly as each seven days allows, and the Sunday is worked as overtime on top — the bounds the
-run rules keep. The Sunday counts the same 8h 45m: one stated assumption rather than two.
-
-**What the row shows.** The worst case is the figure, and the sentence gives both — "61.2 hours in the
-worst case, and 50.9 on the duties the rota fixes" — with the assumption. It is never CLEAR while the
-worst case crosses 55. With no cover week the two figures are one, and nothing is said.
-
-**The New link page and the pack.** The page's counts now match the Design checks for all three
-shortlisted designs (Balanced V6 4, Level Crossing 0, Middle Ground 1). The pack's own worst case takes
-a cover duty as 8 hours (with 8h 45m and an 8-hour Sunday beside it), so its printed figures are a
-little lower than the app's — 58h 35m and 60h 30m where Links says 61.2 for Balanced V6 — and the two
-agree on every verdict. The pack was NOT regenerated: its tables keep their own split, the duties the
-rota fixes and then "up to", so `report-data.mjs` reads the row at its floor for them, and every sheet,
-deck and figure on the page is what it was.
-
-**What it costs:** a design with a cover week shows one more factor present wherever its worst case
-crosses 55 — Balanced V6 and Middle Ground on the shortlist. The "today's link" row is unchanged: today's
-main cycle is over 55 on its fixed duties already.
-
-**What holds it:** `links-fatigue.test.mjs` (four of Monday to Saturday and never six, the Sunday on top,
-the placement the pack's blocks reach, each week's own four across a lap, both figures in the
-sentence) and `newlink-data.test.mjs` (every count the page states is the Design checks' count for the
-same rota). Taking the verdict on the floor again fails both; dropping the pack's floor reading makes
-the generator count the week twice, which the same file's first test catches.
-
-## No build step — the trade, and the two things that would reopen it
-
-**Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither
-has fired.** Moved here from `CLAUDE.md` on 15 Sep 2026, where it had grown into the table's
-third-longest row. The rule stays there in one line; the argument is here, because this is a
-decision with a trigger and that is what this file is for.
-
-The no-build rule buys three things — zero toolchain, direct debuggability, and no
-build-supply-chain — and pays for them in hand-maintained work a bundler would do for free:
-
-- the `modulepreload` lists (index, paycalc and links have the deepest graphs; the other six pages
-  carry only the three fixed gstatic SDK tags every page has, which name one URL each and so cannot
-  fall behind a graph). CI-locked by `sw-asset-check.test.mjs`.
-- the service worker's precache list,
-- the two-location version bump,
-- the `generate-*` codegen,
-- the CSP `*-boot.js` shims,
-- the pure-helper splits that keep `firebase-client.js` testable in Node,
-- and the `normaliseSurname` browser/functions duplication.
-
-**The cost side is COUNTED FROM THE FILESYSTEM, never written down.** `doc-parity.test.mjs` derives
-those totals and fails on a stale figure. It has to: at v21.62 all five written figures were wrong,
-two by about 80%, and **every one of them understated the cost** — that is, all five errors ran in
-the direction that makes this trade look cheaper than it is. A threshold that nobody re-measures
-decays toward the day it was written, and this is precisely the row where being wrong changes an
-architectural decision.
-
-**Revisit — do not auto-adopt — when either:**
-
-1. **You want real TypeScript types.** `tsc --noEmit` already runs the checker without the emit, so
-   this is about types in the source, not about checking. Note the scope limit: not over `functions/`
-   or the service worker (`typecheck-scope.test.mjs`).
-2. **A bug is traced to drift in a hand-maintained list.** That is the failure the lists' CI locks
-   exist to prevent; one getting through is evidence the locks are not enough.
-
-Until one of those, the trade favours no build.
-
-**A third input, measured, and deliberately NOT a trigger.** The Calendar's cold parse-and-execute
-cost under 6× CPU throttling is in `LATENCY.md` → Phase 3, beside the ladder reading that would
-justify acting on it. It is not a reason to adopt a bundler by itself: the assets are
-service-worker-cached and the cost is one-off per version.
-
-## Version bumping and merging — the incidents behind the rules (moved from CLAUDE.md, 7 Nov 2026)
-
-`CLAUDE.md` → *Version bumping* states each rule with a one-line reason. These are the incidents
-that wrote them, kept here so the rules stay short where every session reads them. Every rule below
-is still in force; nothing here reopens one.
-
-- **Bump against `main` — because v22.29 shipped twice.** Two sessions branched from the same
-  version and both bumped to the same next one: the logo change (#1311) and the Huddle table fix
-  (#1312). The second merge did not conflict, because `roster-data.js` and `service-worker.js`
-  already said the value the incoming commit wanted. `service-worker.js` was then BYTE-IDENTICAL
-  across the two releases, so a browser byte-comparing it installed no new worker — no activate, no
-  new cache, no precache — and a device that took the first 22.29 kept serving the first release's
-  assets. Nothing heals it: the worker never re-fetches a cached file, so those devices kept the first
-  release's files until the next bump. Hence the re-check of `origin/main` immediately before merging.
-- **A gap is the rule working — there is no v23.22.** Two branches held it at once on 8 Sep 2026;
-  both re-checked `main` before merging and both re-bumped, to 23.23 and 23.24. A skipped number is
-  what a caught collision looks like from afterwards, which is why it is never reused to close the gap.
-- **Exactly 0.01 per change — after the v15.70 → 15.80 → 15.90 slip**, where a batch was bumped by
-  0.10 at a time and burned the version space. The "every 0.10 version" rule only ever governed when
-  the docs are re-stamped.
-- **"Both runs green" is usually one run green and one cancelled** (measured 15 Sep 2026). The two
-  runs share a concurrency group, so the `push` run is normally cancelled within seconds of the
-  `pull_request` run starting on the same commit: on v23.82's head the pull-request run carried every
-  job green and the push run was cancelled after four seconds. That is the design (the entry on the
-  cancelled `push` run, above). What the rule guards against is reporting green off a run that did
-  not include the `version` job.
-- **The two-runs trap on the `version` job** (6 Sep 2026, twice). Merge promptly and the run fired
-  when the pull request was OPENED compares the branch against a `main` which by then CONTAINS it —
-  "main is v22.99 . this branch is v22.99", failed, and an email about a release that was correct.
-  The job now detects an already-landed branch by CONTENT and skips; ancestry cannot tell you, because
-  `main` squash-merges. The second lesson cost more: the first of those two went unnoticed because the
-  merge was reported fully green off the `push` run alone.
-- **Do not stack branches — it cost three branches and a pull request.** `main` squash-merges, so a
-  child branch cannot be rebased once its parent lands; every commit replays and conflicts, and the
-  only way out is a fresh branch from `main` and a cherry-pick. That cost three branches and one
-  pull request closed as superseded across v23.79 → v23.82.
-- **One Playwright run at a time.** Two concurrent runs produced a false red (14 Sep 2026), and
-  checking out another branch mid-run invalidated a 13-minute e2e pass that then had to be redone.
-- **The Documentation milestone row names the milestone, not the version.** It used to state the
-  current version, and it rotted on every release — it read 23.23 while the app shipped 23.24, then
-  23.25, then 23.26 — because bumping it is not part of shipping. What the stamp guard actually
-  requires is the 0.10 milestone, so that is what the row states; `APP_VERSION` is the only place to
-  read the version.
-- **Who uses which phone is an OWNER FACT** (owner, 8 Sep 2026). `CLAUDE.md`'s platform line was
-  wrong twice in one day, in opposite directions: it said "all staff use Android phones", was
-  corrected to "the installed app is mainly iPhone", and neither was right. The owner's own phone is
-  an Android (a Galaxy S26), the personal-phone population is mixed, and the work phone is Android
-  with the install not yet permitted — so both platforms are served equally, and no screenshot, bug
-  report or single device decides which one matters more.

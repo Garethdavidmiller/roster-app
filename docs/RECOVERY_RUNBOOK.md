@@ -38,7 +38,7 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Firebase project ID | `myb-roster` |
 | Region | `europe-west2` (London) |
 | Firestore database | `(default)` |
-| Firestore collections | `overrides`, `huddles`, `circulars`, `newsletters`, `staffContact`, `passwordStatus`, `pushSubscriptions`, `clientErrors`, `analytics`, `linkDesigns`, `linkTargetSets`, `resetRequests`, `viewerAttempts` (the retired staff PIN's throttle — purged after the server release), `errorLogNotice` (two timestamps; losing it costs nothing, the next check starts afresh), `alUploads` (the annual leave uploader's log, from v26.11; losing it makes the next upload behave like the first, with no memory of leave an earlier Save brought in and the app has since cancelled), `overtimeWindows` (a TREE — `participants`/`submissions`/`revisions` subcollections; an export that takes the parent alone restores an empty week). **The authority is `firestore.rules`** — every top-level `match` is a collection to scope, so check this row against it before scoping a backup from it: a backup scoped from a short list silently omits whole features |
+| Firestore collections | **Do not keep a list here — read the `match /<collection>/…` blocks at the top level of `firestore.rules`** (`grep -n '^    match /' firestore.rules`): every one is a collection to scope, and a backup scoped from a hand-kept list silently omits whole features. What a scope gets wrong: `overtimeWindows` is a TREE (`participants`/`submissions`/`revisions` subcollections — an export that takes the parent alone restores an empty week); losing `alUploads` makes the next annual-leave upload behave like the first, with no memory of leave an earlier Save brought in and the app has since cancelled; losing `errorLogNotice` costs nothing (the next check starts afresh). What each collection holds: `DATA_MODEL.md` |
 | Storage paths | `huddles/…`, `circulars/…`, `newsletters/…` |
 | Cloud Functions (europe-west2) | **Do not keep a second list here.** `functions-surface.test.mjs` pins the whole deploy surface in CI and is the only copy that cannot fall behind — read it. A rollback scoped from a hand-kept list misses whatever the list forgot. While Overtime is paused its five endpoints and daily creator are not exported (`OVERTIME_AVAILABILITY.md` → Paused) |
 | Live site (primary) | `https://myb-roster.web.app` (Firebase Hosting) |
@@ -550,22 +550,47 @@ of the new app offers the sign-in card. If members lose the roster after the rul
 playbook F: revert the rules push. Nobody needs the PIN back to recover — a member's own password
 never went near it.
 
-### Tightening a read rule — the order
+### Tightening a read rule — the order is the whole safety story
 
-The PIN's rollout (Aug 2026) is where this order was learned, and code still cites its step 4. A
-client that cannot satisfy a tightened read rule shows every staff phone the base roster under a
-"Couldn't update" chip — a roster that is *wrong*, not obviously broken — and the three deploy
-workflows fire in parallel from one push, so the order has to be made by hand, as separate pushes:
+**The PIN's own rollout is closed** (rules step 4 on 26 Aug 2026, verified in production on 27 Aug),
+and its client switch is retired, so rolling it back now means reverting the release or step 4's
+rules push — never flipping a flag. Its narrative — the brakes, the 10 Aug failure, the go/no-go
+readings — is `ROADMAP_HISTORY.md` → "The Calendar PIN rollout (moved from RECOVERY_RUNBOOK.md,
+24 Nov 2026)". **What stays here is the playbook it proved, for any change that TIGHTENS a read
+rule**; the step numbers are cited elsewhere, so they are kept.
 
-1. **Server pieces the client needs** (a function, a secret — set a secret BEFORE the merge: a deploy
-   with an empty bound secret fails the whole Functions deploy).
-2. **Prove the success path in production by hand** where only a real call exercises it (the PIN's
-   first attempt failed on 10 Aug 2026 because a wrong-input 401 had been taken as proof).
-3. **Client** — hosting only — and let it **soak** while the rule is still permissive.
-4. **Rules**, in a push with nothing else in it. Go/no-go: Operations → App Speed → By app version
-   (the share of loads still on an older client) and Operations → Usage page views; the rules
-   workflow green. Postponing costs little.
-5. **Verify** in a fresh private window, then on a phone.
+**Never deploy the rules first.** A client that cannot satisfy a tightened read rule shows every staff
+phone a roster that is *wrong*, not obviously broken (the base roster with a "Couldn't update" chip).
+**The three deploy workflows fire in parallel from one push**, so a merge carrying the function, the
+client and the rules runs steps 2, 3 and 4 simultaneously. Ship them as separate pushes, and hold the
+old rule open with a declared hold line that a parity test pins (the PIN's was `allow read;` beside
+`OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`, held to it by
+`calendar-viewer-parity.test.mjs`), so the hold cannot outlive the rollout quietly.
 
-The mixed-version window at step 4 is one page load wide: the service worker reloads onto the new
-client by the device's next open.
+1. **Secrets — BEFORE the merge.** `firebase deploy --only functions` throws if any secret bound to a
+   deploying endpoint has no version, and the check covers the WHOLE deploy: one unset secret ships no
+   function code at all (the live revisions keep serving). Recoverable — set it, then Actions → Deploy
+   Firebase Functions → Run workflow on `main` — but set it first.
+2. **Merge; the server side goes live dark**, with the brakes on, proving the rest of the release on
+   real devices while the feature is invisible.
+2b. **Prove the SUCCESS path in production, by hand, BEFORE step 3.** Probes that stop short of the
+   work (a `GET`, a deliberately wrong credential) prove nothing — the 10 Aug 2026 failure passed both.
+   Read the function log on failure; the known candidate is the IAM gap in the project-facts table.
+3. **Client.** Release the client that can satisfy the new rule — hosting only, no rules change — and
+   **let it soak** while the rule is still permissive, so a stale cached client keeps working.
+4. **Rules.** Remove the hold line and its declared twin in the same commit; push with nothing else in
+   it. From this moment an old cached client cannot read, and the rollback is this push's revert.
+   **The soak decides go/no-go**, and it measures how many devices still run a client that cannot
+   satisfy the rule — count from the version that actually carried it, not one rolled back. Pre-flight,
+   in order: (1) Operations → App Speed → "A closer look" → By app version — the share of loads still
+   older than the cutover (a month's aggregate, so pessimistic); (2) Operations → Usage → page views
+   against the period before the client shipped — for an unauthenticated surface the only soak signal
+   there is, because a failure never reaches the Error Log; (3) the function's own log; (4) a green
+   rules deploy path. **Be free to postpone.**
+5. **Verify in production**, in a fresh private window and then on a phone and at office-desktop
+   width: every path the rule now guards, including a reload, a sub-page that must demand a member
+   sign-in, and a browser close. A person, not a job, for step 2b's reason.
+
+**The mixed-version window at step 4** is one page load wide: the service worker claims on activate
+and reloads, so a device is on the new client by its next open, and within that load an old client
+shows the base roster plus "Couldn't update — try again". Step 3's soak keeps it to one load.

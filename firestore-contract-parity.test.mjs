@@ -121,8 +121,8 @@ test('the firestore.rules sweep line is not older than any version the file cite
 });
 
 // ── 2. The "Other" day-family flavour grammar ───────────────────────────────────────────────────
-// OTHER_FLAVOURS in override-utils.js is the documented single source (OTHER_DAYS.md → "grammar
-// single-source"), and the CLIENT already derives its own accept-set from it (v18.91). But the
+// OTHER_FLAVOURS in override-utils.js is the documented single source (`_OTHER_RE` there is built
+// from it; OTHER_DAYS.md → Phase B, step 1), and the CLIENT already derives its own accept-set from it (v18.91). But the
 // rules restate the alternation as a literal. A seventh flavour would therefore compose fine on the
 // client and be REJECTED by the rules — a failed save with a permission error, which reads like a
 // claim problem rather than a grammar one. Not hypothetical: this family gained Union at v18.56 and

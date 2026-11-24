@@ -244,6 +244,27 @@ describe('a failed deploy is announced, whenever it fails', () => {
         assert.match(action, /^ {8}RESULT: \$\{\{ inputs\.result \}\}[ \t]*$/m, 'the action must read how the deploy ended');
     });
 
+    test('the mirror waits until GitHub lists its upload before deploy-pages looks for it', () => {
+        // 24 Nov 2026: deploy-pages listed the run's artifacts 0.3 seconds after the upload, found
+        // none, twice running, and the mirror kept the previous release. A re-run cannot recover (it
+        // finds both attempts' uploads and refuses), so the wait has to be in the job.
+        const src = readFileSync(join(WF_DIR, 'deploy-mirror.yml'), 'utf8');
+        const from = src.search(/^ {2}deploy:[ \t]*$/m);
+        const rest = src.slice(from + 1);
+        const job = rest.slice(0, rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m));
+        const upload = job.indexOf('uses: actions/upload-pages-artifact@');
+        const wait = job.indexOf('name: Wait until GitHub lists the upload');
+        const deploy = job.indexOf('uses: actions/deploy-pages@');
+        assert.ok(upload > -1 && deploy > -1, 'the mirror deploy job uploads and deploys');
+        assert.ok(wait > upload && wait < deploy,
+            'the wait must sit between the upload and deploy-pages, or deploy-pages can look before GitHub lists the upload');
+        const step = stepScript(src, 'Wait until GitHub lists the upload');
+        assert.match(step, /actions\/runs\/\$GITHUB_RUN_ID\/artifacts\?name=github-pages/,
+            'the wait must read the list deploy-pages reads: this run\'s artifacts, by the name it looks for');
+        assert.match(step, /exit 1/, 'a wait that gives up must fail by name, not hand an empty list to deploy-pages');
+        assert.match(job, /^ {6}actions: read\b/m, 'listing a run\'s artifacts needs actions: read');
+    });
+
     test('a post-deploy read cannot hang until the job runs out of time', () => {
         // A curl with no --max-time against an origin that accepts and never answers waits until
         // the job's own limit cancels it — the silent ending the reporter now catches, but a step

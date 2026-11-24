@@ -452,14 +452,10 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     // both exactly the shape CONTRACT 2b was written to forbid. Adding the files is the fix; the
     // figures were removed rather than corrected, which is that contract's own rule.
     './docs/FILE_INDEX.md',
-    './.claude/rules/paycalc.md', './.claude/rules/roster-import.md',
-    './.claude/rules/notifications.md', './.claude/rules/guide-pages.md',
-    './.claude/rules/roster-data.md',
-    // THE FIVE AREA FILES SPLIT OUT OF CLAUDE.md's ARCHITECTURE TABLE (7 Nov 2026), on the day they
-    // were made, by the argument above: every row in them was under this guard yesterday as part of
-    // CLAUDE.md, and a split that silently drops a guard is how the estate loses coverage.
-    './.claude/rules/calendar.md', './.claude/rules/admin.md', './.claude/rules/nav-drawer.md',
-    './.claude/rules/pwa.md', './.claude/rules/sessions.md'];
+    // EVERY `.claude/rules/*.md`, READ FROM THE FOLDER (24 Nov 2026). The list was written out by hand, and
+    // grew by whoever remembered — "a list that grew by whoever remembered" is the line above. Read from the
+    // folder, a new rule file (operations.md, that day) is under this guard the moment it exists.
+    ...readdirSync('./.claude/rules').filter(f => f.endsWith('.md')).sort().map(f => `./.claude/rules/${f}`)];
 
 // ── CONTRACT 1c: AI_MAP's export lines ARE the code's exports — generated, never hand-kept ──────
 //
@@ -1467,4 +1463,24 @@ test('the roster-parse example obeys the week contract it illustrates', () => {
     for (const date of Object.keys(example.parsed?.[0]?.shifts || {})) {
         assert.ok(example.dates.includes(date), `${date} is not one of the week's own dates`);
     }
+});
+
+// ── CONTRACT 9: every rule file's `paths:` globs match files that exist (24 Nov 2026) ───────────────────
+// A rule file loads only when a file its `paths:` front matter names is opened, so a glob that names a file
+// that has moved or gone silently stops the rules loading — and nothing failed. A docs review found four
+// such: the sign-in rules did not name `login-core.js`, where the sign-in deadline lives; the
+// notification rules missed the two `notif-card` modules; five roster-import globs named root files that
+// live in `functions/`. Every glob must match at least one tracked file.
+test('every .claude/rules file names a paths: list, and every glob in it matches a file in the tree', () => {
+    const { execFileSync } = createRequire(import.meta.url)('node:child_process');
+    const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean);
+    const path = createRequire(import.meta.url)('node:path');
+    const dead = [];
+    for (const f of readdirSync('./.claude/rules').filter(n => n.endsWith('.md'))) {
+        const front = /^---\n([\s\S]*?)\n---/.exec(readFileSync(`./.claude/rules/${f}`, 'utf8'))?.[1] ?? '';
+        const globs = [...front.matchAll(/^\s*-\s*"([^"]+)"/gm)].map(m => m[1]);
+        assert.ok(globs.length > 0, `${f} has no paths: globs, so it never loads`);
+        for (const g of globs) if (!tracked.some(t => path.matchesGlob(t, g))) dead.push(`${f}: "${g}"`);
+    }
+    assert.deepEqual(dead, [], `globs that match nothing — the rules never load for them:\n${dead.join('\n')}`);
 });

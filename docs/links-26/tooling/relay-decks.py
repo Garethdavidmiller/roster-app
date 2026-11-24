@@ -4,7 +4,7 @@
 # the shortlist (Balanced V6, Level Crossing, Middle Ground), not on it, as Balanced V10's are (shortlist-decks.py, BESIDE).
 #
 # WHY FROM THE PARENT'S DECKS. Each design is its parent's duties, rest days, cover weeks and early and late weeks, every one; only
-# which week works which shift time moved (README.md -> "Clockface and Short Working"). setup() checks all four on the grids, that
+# which week works which shift time moved (HISTORY.md -> "Clockface and Short Working"). setup() checks all four on the grids, that
 # the figures deck-check.mjs reads (deck-check.mjs --print) differ from the parent's in DIFFERS alone, and that the grid facts the
 # decks quote (weeks mixing earlies and lates, switches, single rest days, six-day weeks, long breaks, cover weeks) are the
 # parent's. So every sentence of the parent's FINISHED decks stays true of the new design but three kinds, each rewritten here:
