@@ -105,7 +105,7 @@
    bold word beside a narrow ragged column. The same defect `.steps li` in guide-doc.css fixed for
    the numbered steps at v18.80 — here the markup, not the layout, is the right place for it. */
 
-/* ── Feature cards (AL / Admin / Menu / Pay / Team) ──── */
+/* ── Feature cards (📍 Today / Team / AL / Admin / Pay) ──── */
 .feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .feature-card {
     border: 1px solid var(--border);

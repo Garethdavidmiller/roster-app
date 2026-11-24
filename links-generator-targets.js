@@ -65,6 +65,9 @@ import { createTargetSetStore } from './links-target-sets-store.js';
 import { isOfflineFailure } from './links-design-store.js';
 import { checkName } from './links-design-naming.js';
 
+/** What a Custom… prompt ASKS — one sentence for both prompts, the grid's (links-app.js) and this table's. */
+export const CUSTOM_SHIFT_PROMPT = 'Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.';
+
 /**
  * What a Custom… prompt says when `normaliseCustomShift` refuses what was typed. Two prompts ask for a shift time —
  * the grid's (links-app.js) and this table's — and this one dropped a refused time as it did a Cancel (17 Nov 2026).
@@ -349,8 +352,8 @@ export function createTargetPanel(deps) {
     /**
      * Show the active design's remembered targets, or the DEFAULT table when it has none.
      *
-     * The default stopped being the roster seed at v21.00. Those duties pay 16 working lines and
-     * this rotation has 19, so since v20.98 the generator refuses them — a designer opening the
+     * The default stopped being the roster seed at v21.00. At the time those duties paid 16 working
+     * lines and the rotation had 19, so the generator refused them (v20.98) — a designer opening the
      * card met a refusal before typing anything, which is a poor way to be told that widening a
      * link needs more work in it. `links-default-targets.js` pays the contract exactly, so Generate
      * works on arrival; the roster seed is one button away and is still the answer to a different
@@ -406,7 +409,7 @@ export function createTargetPanel(deps) {
             const slot = genSlots[+(select.dataset.slot ?? '')];
             if (!slot) return;
             if (select.value === '__custom__') {
-                const raw = await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.', defaultValue: slot.time, placeholder: '09:30-17:30', confirmLabel: 'Set' });
+                const raw = await promptDialog({ title: 'Custom shift', message: CUSTOM_SHIFT_PROMPT, defaultValue: slot.time, placeholder: '09:30-17:30', confirmLabel: 'Set' });
                 const typed = normaliseCustomShift(raw);
                 // A REFUSED time says why, as the grid's Custom… does (17 Nov 2026): it closed exactly as Cancel did, so a
                 // refusal could not be told from a slip. The sentence is `customShiftRefusal`'s, written once; it goes on the

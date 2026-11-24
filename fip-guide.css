@@ -49,7 +49,7 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
 /* Its look is guide-shell.css's — one heading on all five guides (v25.84). Only the spacing is this page's. */
 .section-label { margin: 24px 0 12px; }
 /* Jump/finder links scroll to section + #country-* anchors — clearance for the sticky header +
-   chip-bar. fip-guide.js refines this to the measured height; this is the pre-JS / JS-off fallback. */
+   chip-bar. guide-chips.js refines this to the measured height; this is the pre-JS / JS-off fallback. */
 .section-label[id], details[id], div[id] { scroll-margin-top: 100px; }
 
 /* Section chip-bar (.chip-bar / .chip, incl. .chip[aria-current]) is defined in
@@ -601,7 +601,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     }
 
     /* ── PRINT THIS COUNTRY (v24.06) ──────────────────────────────────────────────────────
-       The print review, item 1 (ROADMAP_HISTORY). One country's card instead of the 25-sheet book, because that is
+       The print review, item 1 (ROADMAP_HISTORY). One country's card instead of the 27-sheet book, because that is
        what a traveller checking a coupon before a trip is after.
 
        A CSS STATE rather than a DOM edit: `fip-guide.js` marks the chosen card and stamps

@@ -16,22 +16,16 @@
  * install-prompt.js already takes. Moving it BEFORE the next Calendar rule arrives is the ratchet
  * working as designed; moving it under the pressure of that rule would have been the alternative.
  *
- * ── THE TWO ACCESS RULES, AND THE ONE THAT WOULD NOT OCCUR TO YOU ───────────────────────────────
+ * ── THE TWO ACCESS RULES ─────────────────────────────────────────────────────────────────────────
  *
- * Both halves run for `named` access only, and NEVER for the shared Calendar viewer:
- *   1. RENEWAL re-stamps the subscription's `owner` with the current Firebase uid — and under the
- *      staff-PIN viewer that uid is the SAME on every office PC in the building. One machine's
- *      renewal would overwrite the owner of a real member's subscription, and any viewer anywhere
- *      could then delete it. Skipping is write-free, so an existing subscription is left exactly as
- *      it was; the only loss is VAPID-rotation self-healing during a viewer session, on a machine
- *      that should not be carrying anybody's notifications.
- *   2. THE PROMPT is offered to named sessions only, because a subscription made under the viewer
- *      is owned by an identity fifty people share — it would sit on a shared PC pushing one person's
- *      Huddle into the mess room indefinitely, with nobody able to turn it off. Somebody who wants
- *      notifications wants them on their own phone, where they are signed in.
+ * Both halves run for `named` access only (v20.12):
+ *   1. RENEWAL re-stamps the subscription's `owner` with the current Firebase uid, so it runs only
+ *      as a member whose own subscription it is.
+ *   2. THE PROMPT is offered to a member signed in by name: somebody who wants notifications wants
+ *      them on their own phone, where they are signed in.
  * Both are gated on AUTH rather than access: a lapsed subscription re-subscribes, which is a
- * Firestore write. (Until v24.34 an anonymous `open` mode — the staff PIN switched off — also ran
- * both, and there access resolved before the session existed; that switch was retired.)
+ * Firestore write. (The rule was written for the retired staff PIN's shared viewer, whose uid was
+ * the same on every office PC; an anonymous `open` mode went at v24.34.)
  *
  * ── TWO ORDERINGS THAT MUST SURVIVE AN EDIT ─────────────────────────────────────────────────────
  *
@@ -98,17 +92,11 @@ export function initNotifPrompt({ authReady, getAccessType }) {
     // Already granted — getNotifState() handles VAPID rotation and keeps the
     // subscription fresh. Early-return avoids showing the prompt.
     if (Notification.permission === 'granted') {
-        // NAMED sessions only (v20.12). This renews the subscription and re-stamps its `owner` with
-        // the current Firebase uid, and under a shared Calendar viewer that uid is the SAME for
-        // every office PC in the building — so one machine's renewal would overwrite the owner of a
-        // real member's subscription, and any viewer anywhere could then delete it. Skipping is a
-        // no-op write-wise, so an existing subscription is left exactly as it was; the only thing
-        // lost is VAPID-rotation self-healing during a viewer session, which is a rare manual event
-        // on a machine that should not be carrying somebody's notifications anyway.
+        // NAMED sessions only (v20.12): this renews the subscription and re-stamps its `owner` with
+        // the current Firebase uid (the header says why).
         authReady
             // Gated on AUTH rather than access: a lapsed subscription re-subscribes, which is a
-            // Firestore write. (An anonymous `open` mode was also admitted here until the staff-PIN
-            // switch that produced it was retired at v24.34.)
+            // Firestore write.
             .then(() => { if (getAccessType() === 'named') return getNotifState(); })
             .catch((/** @type {any} */ err) => console.warn('[Notifications] Renewal failed:', err.message));
         return;
@@ -123,12 +111,8 @@ export function initNotifPrompt({ authReady, getAccessType }) {
     if (!prompt || !enableBtn || !dismissBtn) return;
     const _prompt = /** @type {HTMLElement} */ (prompt);
 
-    // Offered to NAMED sessions only, and only once access is settled (v20.12). Two reasons, and
-    // the second is the one that would not occur to you: a subscription made under the shared
-    // viewer is owned by an identity fifty people share, so it can be deleted by any of them — and
-    // it would sit on a shared office PC pushing one person's Huddle to a machine in the mess room
-    // indefinitely, with nobody who could turn it off. A staff member who wants notifications wants
-    // them on their own phone, where they are signed in.
+    // Offered to NAMED sessions only, and only once access is settled (v20.12): a staff member who
+    // wants notifications wants them on their own phone, where they are signed in.
     authReady.then(() => {
         // Same rule as the renewal above: a named member only — and not once the install notice has
         // taken this visit's ask (it hides this strip when it yields; this keeps the strip from

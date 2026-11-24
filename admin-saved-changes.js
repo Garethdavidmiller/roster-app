@@ -25,8 +25,6 @@
 import { escapeHtml, teamMembers } from './roster-data.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
 import { planAlDelete } from './admin-al-week-save.js';
-
-const BULK_DELETE_CHUNK = 200;   // per transaction — under Firestore's 500, as the range booking
 import { TYPES, rowValueText } from './admin-shift-types.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates,
          asShown, deleteIfUnchanged, deleteChunks, staleDeleteVerdict, DELETE_REFUSED, hasOverrideAuthorityFor, loadFailedFor } from './admin-override-store.js';
@@ -36,6 +34,8 @@ import { withSlowSaveNotice } from './slow-save.js';
 import { withClearedDays } from './admin-own-write.js';
 // The two-tap ✕ and the feedback line's fade, shared with the Recorded-dates lists (their header says why).
 import { twoTap, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
+
+const BULK_DELETE_CHUNK = 200;   // per transaction — under Firestore's 500, as the range booking's are
 
 /** The receipt's account of a duplicate cleared alongside: said, never silent. @param {number} n */
 const _olderCopies = (n) => n > 0 ? `, and ${n} earlier entr${n === 1 ? 'y' : 'ies'} for that day` : '';

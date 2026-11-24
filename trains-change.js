@@ -43,6 +43,7 @@
  */
 
 import { WEEKDAYS, runsOn } from './trains-weekdays.js';
+import { MONTH_NAMES, DAY_NAMES_FULL } from './date-format.js';
 
 /** The largest retiming still reported as "the same train, moved". See the header. */
 export const MAX_SHIFT_MIN = 20;
@@ -583,11 +584,9 @@ export function timetablePhase(today, { change, festiveUntil, validUntil }, cale
 export function dateWords(iso, offset = 0, { short = false, weekday = false } = {}) {
     const [y, m, d] = iso.split('-').map(Number);
     const at = new Date(Date.UTC(y, m - 1, d + offset));
-    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const month = MONTHS[at.getUTCMonth()];
+    const month = MONTH_NAMES[at.getUTCMonth()];
     const words = `${at.getUTCDate()} ${short ? month.slice(0, 3) : month}`;
-    return weekday ? `${DAYS[at.getUTCDay()]} ${words}` : words;
+    return weekday ? `${DAY_NAMES_FULL[at.getUTCDay()]} ${words}` : words;
 }
 
 /**

@@ -478,7 +478,7 @@ export function guardNamedSession({ page, pageLabel, member, established, before
     // flashing inside it. After the one reload the overlay stays, and it can still sign them in.
     // The reload can land in the middle of a sign-in typed on that card — Firebase announces the user
     // before the attempt answers. The forced set-password step's marker is already written by then: the
-    // card writes it as the attempt starts (login-overlay.js → `holdPasswordMarker`), so the reloaded page
+    // card writes it as the attempt starts (login-core.js `holdPasswordMarker`), so the reloaded page
     // still asks a member on the surname default to choose their own (review, 24 Nov 2026).
     const holdForLateIdentity = () => {
         showSignIn(false);
@@ -488,7 +488,7 @@ export function guardNamedSession({ page, pageLabel, member, established, before
             stop();
             const may = lateReloadAllowed(Date.now());
             if (may === 'reload') window.location.reload();
-            else if (may === 'no-memory') showSignIn(false, true);   // asks; a page's own card stays as it is
+            else if (may === 'no-memory') showSignIn(false, true);   // asks
         });
     };
     return Promise.resolve(established).then(() => {

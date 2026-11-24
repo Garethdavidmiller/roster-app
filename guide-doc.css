@@ -5,8 +5,8 @@
    in-document banner, numbered steps, info boxes, tables,
    shift-badge chips, and footer.
 
-   NOT linked by railcard-guide.html or fip-guide.html — those are single-column
-   card pages with their own structure.
+   NOT linked by railcard-guide.html, fip-guide.html or rangers-guide.html — those
+   are single-column card pages with their own structure.
 
    Load order per page: guide-shell.css → guide-doc.css → page CSS
    (staff-guide.css / paycalc-guide.css). The page CSS is linked LAST so its

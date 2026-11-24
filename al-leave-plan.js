@@ -245,8 +245,8 @@ export function saveTotals(plans) {
 /**
  * A member's records as they would be after this person's part of the Save — for the "after"
  * figures (plan §4.7). Every field the write carries is kept, `replacedType` and `leaveYear`
- * included, which `overridesAfterSave` (admin-al-projection.js) drops: there a swapped rest day would
- * read as free. The new records are stamped with the device's clock, as the page's own copies are,
+ * included — as `overridesAfterSave` (admin-al-projection.js) now keeps them too (`writtenRecord`,
+ * 21 Nov 2026), so the two agree: dropped, a swapped rest day would read as free. The new records are stamped with the device's clock, as the page's own copies are,
  * which `shouldReplaceOverride` ranks newest.
  * @param {any[]} records @param {PersonPlan} plan @param {Date} [now]
  * @returns {any[]}

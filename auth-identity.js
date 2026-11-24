@@ -250,11 +250,13 @@ export function isCredentialRejection(code) {
  * session it is re-establishing. A session created by typing a password after the reset is newer, and
  * passes; every older device has to type one.
  *
- * FAILS CLOSED when the reset time is UNKNOWN (`null`: the read failed, timed out or came from the
- * offline cache). The surname sign-in it guards has just reached the server, so an unknown answer is
- * rare, and its cost is one typed password — the alternative cost is the hole this closes.
+ * AN UNKNOWN RESET TIME (`null`: the read failed, timed out or came from the offline cache) returns
+ * true here, which a caller would read as "refuse and wipe". It is safe only because the caller holds
+ * first: session.js returns on `null` (and `'throttled'`) before it asks this, so an unknown answer
+ * holds the silent sign-in and wipes nothing. A new caller must do the same.
  *
- * @param {number|null} sessionCreatedMs  when this device's local session was created (device clock)
+ * @param {number|null} sessionCreatedMs  when this device's local session began (the server's sign-in
+ *   time where known — `sessionStartMs`, silent-sign-in.js)
  * @param {number|null} resetAtMs         server `resetAt` in ms; 0 = never reset; null = unknown
  * @returns {boolean} true = refuse the silent sign-in
  */

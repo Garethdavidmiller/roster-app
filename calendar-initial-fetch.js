@@ -60,10 +60,10 @@ const RETRY_TIMEOUT_MS = SYNC_TIMEOUT_MS;
  *   `calendarAccessReady`). Defaults to already-resolved, so callers and tests that don't care are
  *   unaffected. Phase 2 waits on it; phase 1 deliberately does NOT.
  *   onAccessLost — called when a read is refused because Calendar ACCESS has gone (v20.12), rather
- *   than because the network is poor. The distinction is the whole reason it exists: an expired
- *   viewer session produces `permission-denied`, and left in the generic retry state that is a loop
+ *   than because the network is poor. The distinction is the whole reason it exists: a lapsed
+ *   session produces `permission-denied`, and left in the generic retry state that is a loop
  *   the member cannot win — tap, denied, tap, denied — from which they reasonably conclude the app
- *   is broken. Handing it to the access layer re-opens the unlock card instead, which they CAN act
+ *   is broken. Handing it to the access layer re-opens the sign-in card instead, which they CAN act
  *   on. Optional, so tests and any future caller without an access layer behave exactly as before.
  *   renderTeamView — re-renders the Team Week View grid from the (now-populated) cache
  *   WITHOUT re-fetching (v18.21). Without it, a user in team view when this fetch resolved
@@ -150,7 +150,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   }
 
   // Show "↻ Updating shifts…" chip after 800 ms if Firestore hasn't responded yet. NEUTRAL, NOT
-  // "your" (17 Nov 2026): the same chip stands over a colleague's calendar and the staff PIN's.
+  // "your" (17 Nov 2026): the same chip stands over a colleague's calendar.
   // Through setChipState like every other chip state (v25.06): a hand-built chip was the one state a
   // header rebuild could take away for good, and with it went the only label on a cached grid — the
   // renderer withholds its own while this check runs, so a swipe left the grid saying nothing at all.

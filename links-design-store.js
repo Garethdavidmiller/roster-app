@@ -283,7 +283,6 @@ export function createDesignStore(deps) {
     };
 
     return {
-        /** Every design in the collection, split live vs binned. Raw docs — mapping stays outside. */
         /** Every document in the collection, and whether the answer came from this device's CACHE — which
          *  cannot tell "no designs" from "never read here" (links-design-load.js `readCannotAnswer`).
          *  @returns {Promise<{ docs: Array<{ id: string, data: any }>, fromCache: boolean }>} */

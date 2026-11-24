@@ -262,7 +262,7 @@ export function initAdminWeekSwipe({
     document.addEventListener('pointerup', abandonUncaptured);
     document.addEventListener('pointercancel', abandonUncaptured);
 
-    // Button handlers inside IIFE so they share the swipeCooldown closure variable
+    // Button handlers in this function's scope, so they share the swipeCooldown closure variable
     /** @type {HTMLElement} */ (prevWeekBtn).addEventListener('click', () => { if (!swipeCooldown) shiftWeek(-1); });
     /** @type {HTMLElement} */ (nextWeekBtn).addEventListener('click', () => { if (!swipeCooldown) shiftWeek(+1); });
 }

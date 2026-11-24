@@ -341,7 +341,7 @@
     });
     // Re-sync the sticky stack whenever the header's box changes after the one-shot measurement (late
     // font swap, font-scale change, rotation) — else the chip-bar's sticky `top` goes stale and page
-    // content shows through the gap (v18.82; mirrors fip-guide.js). The BAR is watched as well: a bar
+    // content shows through the gap (v18.82). The BAR is watched as well: a bar
     // that wraps (guide-shell.css) gains or loses a row without the header changing at all — a window
     // made taller or shorter across 600px — and margins measured for one row landed a jump under the
     // second. Only the lit chip's colours change, never its size, so this cannot feed itself.

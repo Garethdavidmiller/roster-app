@@ -20,13 +20,13 @@
     --shift-spare-fill: color-mix(in oklch, var(--purple) 16%, transparent);
     --shift-spare-text: var(--purple);
     --shift-night-text: var(--text-dark);
-    --unfilled-flag:    #7a3800;
+    --unfilled-flag:    #7a3800;   /* amber line-number flag for an all-rest (undesigned) row */
     /* THE RIGHT-EDGE CUE for a sideways-scrolling table. CSS only: `local` masks the fade at the end,
        `scroll` pins the shadow to the wrapper, so no scroll listener can go stale. It shows only
        through TRANSLUCENT cells, which is why the heat map uses its sticky day column instead. */
     --scroll-cue:
         linear-gradient(to left, var(--surface), rgba(255, 255, 255, 0)) right 0 top 0 / 28px 100% no-repeat local,
-        radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.18), rgba(0, 30, 60, 0)) right 0 top 0 / 12px 100% no-repeat scroll;   /* amber line-number flag for an all-rest (undesigned) row */
+        radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.18), rgba(0, 30, 60, 0)) right 0 top 0 / 12px 100% no-repeat scroll;
 }
 
 body {
@@ -637,7 +637,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .shift-cell-btn.type-night { background: var(--night-cell-bg); color: var(--shift-night-text); box-shadow: inset 0 0 0 1px var(--night-cell-border); }
 
 /* Unfilled row — a line that is still all rest days needs designing, not
-   muting. A faint amber line-number cell flags it without hiding the cells. */
+   muting. A dark amber line-number cell flags it without hiding the cells. */
 .links-grid tr.row-unfilled .pos-num {
     background: var(--unfilled-flag);
     color: white;
@@ -1305,7 +1305,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .dm-status--new    { color: var(--gold-text); }     .dm-status--new::before    { background: var(--accent-gold-dark); }
 .dm-status--proposal { color: var(--primary-blue); } .dm-status--proposal::before { background: var(--primary-blue); }
 /* An untouched proposal on a phone: the ★ mark, "Shortlisted" and Save a copy… already say read-only,
-   and "Read-only" truncated beside them. Back from 760px; an edited copy shows "Unsaved". */
+   and "Built in" truncated beside them. Back from 760px; an edited copy shows "Unsaved". */
 .dm-status--proposal { display: none; }
 .dm-status--saving::before { animation: dm-pulse 1s infinite; }
 @keyframes dm-pulse { 50% { opacity: 0.3; } }

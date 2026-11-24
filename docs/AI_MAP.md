@@ -331,7 +331,7 @@ The mandatory "set your own password" overlay (PASSWORD_DESIGN.md Phase 2), run 
 
 ### `session.js`
 The one local session and the Firebase sign-in every protected page and the Calendar's member card go through, the expired-identity teardown (which also signs a leftover staff-PIN session out, on every page), and the bridge that feeds the auth store. The contract is `AUTH_AND_SESSIONS.md`; the working notes `.claude/rules/sessions.md`. Capped by `coordinator-ratchet.test.mjs`. Tested by `session.test.mjs`.
-- **Exports:** `shedCalendarViewer` · `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `authGeneration` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `signedInAs` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS`
+- **Exports:** `shedCalendarViewer` · `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `signedInAs` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS`
 
 ### `viewer-shed.js`
 Signs the shared Calendar viewer out before a member signs in, in the one order that keeps it out of long-lived storage (`AUTH_AND_SESSIONS.md` 8). `session.js` is its one caller and re-exports `shedCalendarViewer`. Tested through `session.js` by `session.test.mjs`.
@@ -438,7 +438,7 @@ What a read of the design collection means — which designs are live, which bin
 
 ### `links-generator-targets.js`
 The generator card's target table: the numbers Generate runs against, where they came from (the default, today's roster, this design's own memory or a saved staffing setup) and what may replace them, including the "Saved staffing setups" row and the two reset buttons. The four rules easy to undo are in its header. Bound by `.claude/rules/links-design.md` → The default table and the roster seed, and Saved staffing setups. Tested by `links-generator-targets.test.mjs` and the `links sets:` cases in `e2e/links.spec.js`.
-- **Exports:** `customShiftRefusal` · `createTargetPanel`
+- **Exports:** `CUSTOM_SHIFT_PROMPT` · `customShiftRefusal` · `createTargetPanel`
 
 ### `select-sheet.js`
 The app's own dropdown: every `<select>` a reader reads opens this sheet instead of the OS popup, and the `<select>` stays as the value holder, so consumers are untouched. `enhanceSelect` backs a real select; `openOptionSheet` is the same sheet for a caller that holds the value itself (the Links cell editor). Bound by CLAUDE.md → "No native `<select>` POPUP". Tested by `select-sheet.test.mjs` and `select-sheet-pick.test.mjs`; coverage by `select-sheet-parity.test.mjs`; the wiring by `e2e/calendar.spec.js`.
@@ -750,7 +750,7 @@ The app's own single-date picker, replacing the native date popup the app cannot
 
 ### `date-format.js`
 ONE spelling of a date in words, everywhere the app writes one: the name tables (re-exported by `roster-data.js`), the composers, the "Printed …" stamp and the London zone shim, because `Intl`'s short month spells September "Sept". Pure, and imports nothing. Tested by `date-format.test.mjs`; `month-vocabulary-parity.test.mjs` fails on a new local fix.
-- **Exports:** `DAY_NAMES` · `MONTH_ABB` · `MONTH_NAMES` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
+- **Exports:** `DAY_NAMES` · `DAY_NAMES_FULL` · `MONTH_ABB` · `MONTH_NAMES` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
 
 ### `huddle.js`
 The Daily Huddle upload on Operations (admin only), wired through `initDocUploadCard` with the Huddle's differences (PDF or Word, a date cap of tomorrow, a Mammoth DOCX→HTML transform). Guarded by `upload-cap-parity.test.mjs` (the inline-HTML cap) and `dependency-pin-parity.test.mjs` (the Mammoth version, which the CSP names). The Settings Notifications card is `notif-card.js`.

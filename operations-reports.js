@@ -34,9 +34,8 @@ import { formatDayMonth, formatClock } from './date-format.js';
  * appears reads as approximate. Exclusion first, anonymity last, so both cards close on the
  * stronger claim.
  */
-// "while signed in as admin" since v25.00: both cards now leave out only a SIGNED-IN admin. A device
-// nobody is signed in to (the station PC) counts whichever row is selected — excluding on that
-// dropped real staff opens — so "your own opens" would have promised more than either card does.
+// "while signed in as admin" since v25.00: both cards leave out only a SIGNED-IN admin, never a selected
+// row (usage-reporter.js header says why), so "your own opens" alone would promise more than either does.
 const PRIVACY_FOOTER = 'Your own opens while signed in as admin are excluded. Anonymous — we never record who.';
 
 /**

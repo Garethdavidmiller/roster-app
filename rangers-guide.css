@@ -162,7 +162,7 @@ h2.section:first-of-type { margin-top: 4px; }
 .rr-card--conflict { background: linear-gradient(0deg, color-mix(in srgb, var(--red) 6%, white) 0%, var(--white) 26%); }
 /* The tint is for WHITE cards. The gotcha is already amber and the notes block carries its own
    fill, so they take the marker class (the register test requires it on every Draft-anchored
-   block) but keep their own background — their `to confirm` pill is what carries the state. */
+   block) but keep their own background — their "Draft · source not yet verified" pill is what carries the state. */
 .gotcha.rr-card--draft { background: var(--amber-bg); }
 .rr-notes.rr-card--draft { background: var(--white); }
 

@@ -14,48 +14,33 @@
  *
  * Call once per page from the coordinator, at the same point initErrorReporter() is
  * called (after the Firebase Auth session is being established) so the writes satisfy
- * the analytics rule, which needs a member or the admin (`isKnownIdentity`, v24.56 — the retired staff
- * PIN's viewer was accepted too, until the PIN's server release removed that claim from the rules).
+ * the analytics rule, which needs a member or the admin (`isKnownIdentity`, v24.56).
  *
- * ── ONE IDENTITY ARGUMENT, AND ANONYMOUS VISITS COUNT (v19.95) ─────────────────────
+ * ── ONE IDENTITY FOR BOTH ACCOUNT COUNTS (v19.95) ───────────────────────────────────
  *
- * There used to be two: `member` (the SIGNED-IN name, which gated the account metric)
- * and `identity` (whoever is acting on this device, for the admin exclusion and the
- * address counters). The calendar passed `member: null` with a real `identity`, so a
- * member who only ever looks at the roster — never signing in anywhere — incremented
- * the page counter and nothing else. That is most of the staff: `password-force.js`
- * only reaches people who sign in, and AUTH_PLAN.md's whole Track E premise is that a
- * roster-only viewer is never compelled to. "Accounts active" was therefore counting
- * the minority who happen to visit an authenticated page, and reading as though it
- * counted everybody.
+ * The account metric and the address counters (`_recordOrigin`) key on the same identity:
+ * whoever is acting on this device. Until v19.95 the account metric keyed on a separate
+ * signed-in-only argument, so it counted only the minority who visited a page you had to
+ * sign in for. Two arguments that must always hold the same value is the drift this
+ * codebase writes parity tests about.
  *
- * `_recordOrigin` had already worked around exactly this (v19.23) by keying on
- * `identity` instead — its comment says so in as many words. Rather than leave one
- * metric compensating for a gate the one above it still applied, the gate now keys on
- * `identity` too, and the two parameters collapse into one. Two arguments that must
- * always hold the same value is the drift this codebase writes parity tests about.
+ * WHAT THE FIGURES MEAN. "Accounts active" means "accounts that used the app"; the history
+ * before v19.95 is not comparable, and the Usage card says so. The Calendar opens only to a
+ * named session, so the gap between it and "Accounts that have signed in" (Firebase Auth's
+ * exact count) is mostly members on a session whose sign-in is older than that count's
+ * 30-day window (functions/account-reads.js, "WHAT IT DOES NOT MEASURE").
  *
- * WHAT IT CHANGES ABOUT THE FIGURES. "Accounts active" steps UP from v19.95 and the
- * history either side of it is not comparable — it now means "accounts that used the
- * app", where before it meant "accounts that used a page you must sign in for". The
- * Usage card says so, and the gap between it and "Accounts that have signed in"
- * (Firebase Auth's exact count) becomes readable: roughly the staff who use the roster
- * without ever holding an account session.
- *
- * WHAT STILL CANNOT COUNT. A device on FIRST RUN has no identity to dedup on — the
- * "selection" is only CONFIG.DEFAULT_MEMBER_NAME (an admin) — so it records a page
- * view and no account, exactly as the address counters do. That is one load per
- * device, immediately before a member is chosen.
+ * WHAT CANNOT COUNT. A device on FIRST RUN has no identity to dedup on, so the Calendar
+ * passes no selection and, with nobody signed in, it records a page view and no account,
+ * exactly as the address counters do.
  *
  * ── ONLY A SIGNED-IN ADMIN IS LEFT OUT (v25.00, Usage card review) ──────────────────
  *
- * The admin exclusion used to key on the same single identity, so on a device where nobody
- * is signed in it keyed on the SELECTED member. The station PC opened the roster on the staff
- * PIN (retired 23 Nov 2026) with whichever row was picked last, and the default selection is an
- * admin — so every staff open there could be dropped, while the admin's own PIN opens counted
- * whenever another row was selected. A selection says whose roster is on screen, not who is looking at it.
- * The identity is therefore two arguments again, with one job each: `signedIn` is the only
- * one trusted to exclude, and `selected` is only ever a dedup key. An admin SELECTION still
+ * A selection says whose roster is on screen, not who is looking at it. The exclusion once
+ * keyed on it, and while the station PC opened the roster on the staff PIN (retired 23 Nov
+ * 2026) with an admin as the default row, that dropped real staff opens. So the identity is
+ * two arguments with one job each: `signedIn` is the only one trusted to exclude, and
+ * `selected` is only ever a dedup key, used when nobody is signed in. An admin SELECTION
  * records the page view — somebody opened the page — but no member-device and no address,
  * because there is no member to name.
  *

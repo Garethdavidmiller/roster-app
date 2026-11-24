@@ -115,7 +115,15 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *
  * And one more subset of `writing`, because a day can be written and change nothing:
  *
- * And two answers about the whole save (review, 21 Nov 2026):
+ *   `alreadyBooked` — a day that already HOLDS leave, which the save only writes again at the same
+ *                  cost it had (both costing a day, or both free). Counted in `consuming` or
+ *                  `freeWritten` as before, so the over-allowance check is unchanged (it never
+ *                  charged an existing day twice); named so the preview and the receipt can say
+ *                  "2 new days, 3 already booked" where they said "5 days" and the balance fell by 2
+ *                  (review, Nov 2026). A rest day's free leave answered "swapped" is NOT in it: its
+ *                  cost changes, so it is a new day spent.
+ *
+ * And the answers about the whole save (review, 21 Nov 2026):
  *
  *   `charged` — how far the balance moves: the cost of every day it can change, after less before.
  *                  The new days charged, except where a Spare week's four moved between days already
@@ -127,14 +135,6 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *                  freed a day of the same Spare week already booked: new days charged less `charged`.
  *                  Said "at no cost" with the days written free, so no surface charges them twice.
  *   `writes`  — the leave records as the save will write them, with `swapped`, for `overridesAfterSave`.
- *
- *   `alreadyBooked` — a day that already HOLDS leave, which the save only writes again at the same
- *                  cost it had (both costing a day, or both free). Counted in `consuming` or
- *                  `freeWritten` as before, so the over-allowance check is unchanged (it never
- *                  charged an existing day twice); named so the preview and the receipt can say
- *                  "2 new days, 3 already booked" where they said "5 days" and the balance fell by 2
- *                  (review, Nov 2026). A rest day's free leave answered "swapped" is NOT in it: its
- *                  cost changes, so it is a new day spent.
  *
  * @param {object} args
  * @param {any} args.member the team-member object; without it nothing can be judged
@@ -174,14 +174,12 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
     /** @type {Set<string>} */ const swappedSet = new Set();
 
     for (const date of all) {
-        let swapped = false;
         if (askedSet.has(date)) {
             const answer = swapAnswers && typeof swapAnswers.get === 'function' ? swapAnswers.get(date) : undefined;
             if (answer === undefined) { unanswered.push(date); continue; }
             // "rest day — free": not written, by either surface. `answeredFree` is the half of
             // `skipped` that is an ANSWER rather than a range rule — see the block comment above.
             if (answer !== true) { skipped.push(date); answeredFree.push(date); continue; }
-            swapped = true;
             swappedSet.add(date);
         } else if (isBeforeMemberStart(member, parseISODate(date)) || !isWorkingDate(member, date, ovByDate)) {
             // Not asked and not worked: a Sunday, a rest day the record already settled, or a day before
@@ -191,15 +189,10 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
             if (isChristmasClosureDate(date)) { answeredFree.push(date); christmas.push(date); }
             continue;
         }
-        // ONE expression decides whether the day costs anything, for an answered swap and an
-        // ordinary working day alike — `willConsume` is the rule, and there is no second copy of it.
+        // What each written day COSTS is decided below, once, on the leave as it will stand.
         writing.push(date);
-        const consumes = willConsume({ member, date, ovByDate, swapped });
-        (consumes ? consuming : freeWritten).push(date);
         // The work that day is what earns the day in lieu, and the leave replaces it.
         if (lowersAllowance(member, date, ovByDate)) lieuLost.push(date);
-        // Leave already there, written again at the cost it already had (the block comment above).
-        if (ovByDate.get(date)?.type === 'annual_leave' && consumesEntitlement(member, date, ovByDate) === consumes) alreadyBooked.push(date);
     }
 
     // EVERY DAY IS COSTED ON THE LEAVE AS IT WILL STAND (review, 21 Nov 2026). Each day above was costed

@@ -1540,44 +1540,44 @@ const XMAS_2026     = new Date(2026, 11, 25, 12, 0, 0); // Dec 25
 const PLAIN_WEEKDAY = new Date(2026, 5, 17, 12, 0, 0);  // Jun 17 (Wednesday, no special day)
 
 test('getSpecialDayBadges: plain weekday returns empty array', () => {
-    const badges = getSpecialDayBadges(PLAIN_WEEKDAY, '2026-06-17');
+    const badges = getSpecialDayBadges(PLAIN_WEEKDAY);
     assert.deepEqual(badges, []);
 });
 
 test('getSpecialDayBadges: payday includes 💷 badge', () => {
-    const badges = getSpecialDayBadges(PAYDAY_2026, '2026-02-13');
+    const badges = getSpecialDayBadges(PAYDAY_2026);
     assert.ok(badges.some(b => b.icon === '💷'), 'Expected payday badge');
 });
 
 test('getSpecialDayBadges: cutoff date includes ✂️ badge', () => {
-    const badges = getSpecialDayBadges(CUTOFF_2026, '2026-02-07');
+    const badges = getSpecialDayBadges(CUTOFF_2026);
     assert.ok(badges.some(b => b.icon === '✂️'), 'Expected cutoff badge');
 });
 
 test('getSpecialDayBadges: Good Friday is a bank holiday — includes ⭐ badge', () => {
     const goodFriday = new Date(2026, 3, 3, 12, 0, 0); // Apr 3 2026
-    const badges = getSpecialDayBadges(goodFriday, '2026-04-03');
+    const badges = getSpecialDayBadges(goodFriday);
     assert.ok(badges.some(b => b.icon === '⭐'), 'Expected bank holiday badge');
 });
 
 test('getSpecialDayBadges: Easter Sunday includes 🐣 badge', () => {
-    const badges = getSpecialDayBadges(EASTER_2026, '2026-04-05');
+    const badges = getSpecialDayBadges(EASTER_2026);
     assert.ok(badges.some(b => b.icon === '🐣'), 'Expected Easter Sunday badge');
 });
 
 test('getSpecialDayBadges: Christmas Day includes 🎄 badge', () => {
-    const badges = getSpecialDayBadges(XMAS_2026, '2026-12-25');
+    const badges = getSpecialDayBadges(XMAS_2026);
     assert.ok(badges.some(b => b.icon === '🎄'), 'Expected Christmas Day badge');
 });
 
 test('getSpecialDayBadges: Christmas Day is also a bank holiday — includes both 🎄 and ⭐', () => {
-    const badges = getSpecialDayBadges(XMAS_2026, '2026-12-25');
+    const badges = getSpecialDayBadges(XMAS_2026);
     assert.ok(badges.some(b => b.icon === '🎄'), '🎄 badge missing');
     assert.ok(badges.some(b => b.icon === '⭐'), '⭐ badge missing');
 });
 
 test('getSpecialDayBadges: returns objects with icon and title fields', () => {
-    const badges = getSpecialDayBadges(PAYDAY_2026, '2026-02-13');
+    const badges = getSpecialDayBadges(PAYDAY_2026);
     for (const b of badges) {
         assert.ok(typeof b.icon  === 'string', 'icon should be a string');
         assert.ok(typeof b.title === 'string', 'title should be a string');
@@ -1617,11 +1617,11 @@ describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surface
         { flag: 'isEaster', date: EASTER_2026,                iso: '2026-04-05', title: 'Easter Sunday' },
     ];
 
-    for (const { flag, date, iso, title } of SHARED) {
+    for (const { flag, date, title } of SHARED) {
         test(`${title} wears the same icon on the day panel as on an admin day row`, () => {
             const panel = dayMarkers({ [flag]: true });
             assert.equal(panel.length, 1, `dayMarkers({${flag}}) should produce exactly one chip`);
-            const admin = getSpecialDayBadges(date, iso).find(b => b.title === title);
+            const admin = getSpecialDayBadges(date).find(b => b.title === title);
             assert.ok(admin, `getSpecialDayBadges no longer produces a ${title} badge`);
             assert.equal(panel[0].icon, admin.icon,
                 `${title}: the day panel says ${panel[0].icon} and the admin row says ${admin.icon} `
@@ -1644,7 +1644,7 @@ describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surface
         const [today] = dayMarkers({ isToday: true });
         assert.equal(today.label, 'Today');
         assert.ok(today.icon && today.icon.length > 0, 'the Today chip lost its glyph');
-        assert.equal(getSpecialDayBadges(PLAIN_WEEKDAY, '2026-06-17').length, 0,
+        assert.equal(getSpecialDayBadges(PLAIN_WEEKDAY).length, 0,
             'the admin row has no Today badge — if it gains one, these two must agree');
     });
 
@@ -1653,7 +1653,7 @@ describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surface
     // not the other is exactly the drift this block exists to catch, so the absence is pinned too.
     test('Boxing Day is marked on neither surface, deliberately', () => {
         const boxing = new Date(2026, 11, 26, 12);
-        assert.deepEqual(getSpecialDayBadges(boxing, '2026-12-26'), [],
+        assert.deepEqual(getSpecialDayBadges(boxing), [],
             'Boxing Day gained an admin badge — index.css leaves the cell plain on purpose');
         // The sliced FUNCTION, with comments stripped — the module's header explains at length why
         // Boxing Day is absent, so scanning the whole file matches its own explanation and this

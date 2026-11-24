@@ -38,7 +38,7 @@
  * Privacy: NO member identity is ever recorded — only coarse dimensions (version, page, metric,
  * duration BUCKET, PWA display mode, connection class). Call once per page from the coordinator at
  * the same point recordUsage() runs (after the Firebase Auth session is being established) so the
- * write satisfies the analytics rule (`isKnownIdentity` — a member, the admin or the PIN viewer, v24.56).
+ * write satisfies the analytics rule (`isKnownIdentity` — a member or the admin, v24.56).
  *
  * Retired at the same review, writes and all, because the card stopped reading them: the boot
  * phases, the start ladder's other rungs, the saved-copy/server split, `ttfb`, and the service

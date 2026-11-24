@@ -11,7 +11,7 @@
  *   summaries are `usage-stats.js` and `perf-stats.js`; who counts as a new account is
  *   `usage-reporter.js`. This module is the wiring between those rules and the database.
  *
- * ── TWO PROPERTIES EVERY FUNCTION HERE KEEPS ───────────────────────────────────────────────────
+ * ── THREE PROPERTIES EVERY FUNCTION HERE KEEPS ─────────────────────────────────────────────────
  *
  *   NO IDENTITY IN A COUNTER. Every `analytics/*` write is an integer increment under a key built
  *     from non-identifying dimensions. A member name may appear in an ERROR record (the admin needs

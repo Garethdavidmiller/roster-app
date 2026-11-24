@@ -55,7 +55,7 @@ import { splitDesignDocs, binOldOnLoad, binOldOnRefresh, readCannotAnswer, migra
 import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { PROPOSALS, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
-import { createTargetPanel, customShiftRefusal } from './links-generator-targets.js';
+import { createTargetPanel, customShiftRefusal, CUSTOM_SHIFT_PROMPT } from './links-generator-targets.js';
 import { assessTargetHours } from './links-target-hours.js';
 import { overCapacityLine, refusalLine, buildConfirm, withSurplusLines, createBuildCounter, builtStatusLine } from './links-build-press.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
@@ -942,8 +942,6 @@ export function init() {
         });
     }
 
-    /** What Custom… asks, from the paint bar and the cell sheet alike. */
-    const CUSTOM_SHIFT_PROMPT = 'Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.';
     /**
      * A Custom… shift time for the paint bar and the cell sheet: the tidy time, or null. A REFUSED time says so, in
      * `customShiftRefusal`'s words (links-app-7): closing as a Cancel does, it read as the app losing input.

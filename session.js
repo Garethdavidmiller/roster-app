@@ -159,8 +159,6 @@ let _authGen = 0;
 let _clearedGen = -1;
 /** The attempt whose surname recheck got no answer — see the recheck in ensureFirebaseSession. */
 let _recheckUnansweredGen = -1;
-/** The current sign-in/sign-out generation: a watcher armed at one value stands down once it moves. */
-export const authGeneration = () => _authGen;
 /** The member the CURRENT generation is signing in — see the same check. @type {string|null} */
 let _genName = null;
 
@@ -860,6 +858,6 @@ export async function releasePushForEndingHold() {
     }
 }
 
-/** The whole access decision's deadline, in ms — the Calendar's (`resolveAccess`). It lives here
- *  since v24.96, when Trains' staff-PIN check shared it; calendar-access.js imports it from here. */
+/** The whole access decision's deadline, in ms — the Calendar's (`resolveAccess`), and Trains' wait
+ *  for its own; it lives here so calendar-access.js and trains-app.js share one value. */
 export const ACCESS_DECISION_BUDGET_MS = 6500;

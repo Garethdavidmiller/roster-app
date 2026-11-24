@@ -16,6 +16,7 @@ import { getPeriods, currentPeriodNum } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getContr } from './paycalc-settings.js';
 import { getRosterSuggestion, getOverridesFetchState, fetchOverridesForPeriod } from './paycalc-roster-suggestions.js';
 import { escapeHtml } from './roster-data.js';
+import { formatWeekdayDate } from './date-format.js';
 import { lsGet, lsSet } from './ls.js';
 import { pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
 import { fdLong, minutesFieldText } from './paycalc-format.js';
@@ -72,8 +73,6 @@ export function _confBadge(cat, fromOv, estimateHours = 0) {
   return null;
 }
 
-const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const _DAY_CHIP_LABELS = {
   sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday',
   bhOt: 'Bank holiday overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW',
@@ -88,8 +87,7 @@ function renderRosterDayList(days) {
   if (!list) return;
   if (!days || !days.length) { list.innerHTML = ''; return; }
   list.innerHTML = days.map(/** @param {any} d */ d => {
-    const dt      = d.date;
-    const dateStr = `${_DAY_ABBS[dt.getDay()]} ${dt.getDate()} ${_MON_ABBS[dt.getMonth()]}`;
+    const dateStr = formatWeekdayDate(d.date);
     const chipLabel = (/** @type {Record<string, any>} */ (_DAY_CHIP_LABELS))[d.type] || '';
     return `<div class="roster-day-row">` +
       `<span class="roster-day-date">${dateStr}</span>` +

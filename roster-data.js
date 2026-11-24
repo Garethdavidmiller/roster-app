@@ -38,7 +38,7 @@ export const CONFIG = {
     MIN_YEAR:                         2024,                                      // Earliest navigable year
     MAX_YEAR:                         2030,                                      // Latest navigable year — extend to 2032+ by end of 2028: check SPECIAL_BANK_HOLIDAYS for the new years first, and run `npm run generate:roster-members` in the same commit. A Boxing Day worked in this year earns a day in the NEXT year's allowance, which no screen opens until this is raised; past 2032, see the payday note above getPaydaysAndCutoffs
     EARLY_START_THRESHOLD:            4,                                         // Shifts starting 04:00–10:59 are Early
-    EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
+    EARLY_SHIFT_THRESHOLD:            11,                                        // The hour Late BEGINS (Early ends): shifts starting 11:00–20:59 are Late
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
@@ -528,8 +528,8 @@ export function isCutoffDate(date) {
 // ============================================
 // Returns an array of { icon, title } objects for the given date.
 
-/** @param {any} date @param {any} _dateStr */
-export function getSpecialDayBadges(date, _dateStr) {
+/** @param {any} date */
+export function getSpecialDayBadges(date) {
     const badges = [];
     // WORDED EXACTLY AS `dayMarkers` WORDS THEM (calendar-renderer.js). These are the same five
     // markers on two surfaces, and both pairs had drifted: the Calendar said "Bank holiday" and
@@ -1063,9 +1063,10 @@ export function workEmailFrom(v) {
  * @param {Date} d
  * @returns {string}  e.g. "2026-03-18"
  */
-// Small LRU on date.getTime() — formatISO is called per-cell during calendar render and in
+// Small FIFO cache on date.getTime() — formatISO is called per-cell during calendar render and in
 // tight loops by isBankHoliday/isPayday/isCutoffDate. Most invocations within a render share
-// the same Date instances, so a tiny cache hits often without ever growing memory.
+// the same Date instances, so a tiny cache hits often without ever growing memory. Full, it drops
+// the OLDEST entry it holds (a hit does not refresh one), which is all a render loop needs.
 // _isoCache declared near the top of the file to avoid TDZ during module load.
 export function formatISO(d) {
     const k = d.getTime();

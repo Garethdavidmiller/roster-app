@@ -18,7 +18,7 @@
 //   name           {string}  Display name
 //   currentWeek    {number}  Week number this member is on as of the reference date for their rosterType
 //   rosterType     {string}  'main' | 'bilingual' | 'fixed' | 'ces' | 'dispatcher'
-//   role           {string}  'CEA' | 'CES' | 'Dispatcher' | 'Management' — the grade NOW; controls dropdown grouping
+//   role           {string}  'CEA' | 'CES' | 'Dispatcher' | 'Management' | 'Other Staff' — the grade NOW; controls dropdown grouping
 //   roleHistory    {Array}   Optional. Earlier grades, oldest first: { role, until: Date } — `until` is the
 //                            LAST day (midnight, inclusive). Read through roleOn/rolesInRange
 //                            (roster-roles.js); a year's leave through allowanceRole (al-contract.js).

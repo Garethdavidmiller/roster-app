@@ -26,8 +26,11 @@
 
 import { isSunday } from './roster-data.js';
 import { TYPES } from './admin-shift-types.js';
-import { composeOtherValue } from './override-utils.js';
+import { composeOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { composeTimedValue } from './clock-input.js';
+
+/** "Training, Induction, …, Meeting or Spare": every Other flavour, read from `OTHER_FLAVOURS`, then Spare. */
+const OTHER_DAY_KINDS = `${Object.values(OTHER_FLAVOURS).map(f => f.full).join(', ')} or Spare`;
 
 /**
  * What the week grid's Save would write, from its rows.
@@ -113,7 +116,7 @@ export function collectWeekRows({ rows, memberName, formatDate }) {
             // An explicit flavour choice — no silent Training default (owner decision).
             if (!flavour) {
                 row.classList.add('row-error');
-                errors.push(`${formatDate(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day, Union, Meeting or Spare)`);
+                errors.push(`${formatDate(date)}: choose the type of Other day (${OTHER_DAY_KINDS})`);
                 return;
             }
             if (flavour === 'SPARE') {

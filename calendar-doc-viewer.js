@@ -267,13 +267,11 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // BOUNDED, not plain (v19.08). This awaited `authReady` with no deadline, and the comment
             // that used to sit here argued the visible "Loading…" made that acceptable. It does not:
             // a loading state tells you something is happening, it does not make an unbounded wait
-            // RECOVERABLE. On a stalled connection where persistence setup or signInAnonymously never
-            // settles, the fetch was never attempted and the viewer sat on "Loading…" forever — from
+            // RECOVERABLE. On a stalled connection where the session never settles, the fetch was never attempted and the viewer sat on "Loading…" forever — from
             // an explicit user action (a notification tap), with no failure ever announced to a
             // screen reader. Same shape as the nav-drawer path and the calendar retry: wait a moment
             // for a session, then read anyway. Reads DO require access (firestore.rules, since v23.18
-            // — a member's claim or `admin`; the PIN's `calendarViewer` until its server release), so a read without a
-            // session fails into the catch below, which offers a retry, rather than stalling first.
+            // — a bound member or `admin`), so a read without a session fails into the catch below, which offers a retry, rather than stalling first.
             const authOrSoon = _orAfter(authReady, DOC_AUTH_WAIT_MS);
             // The short-lived url is requested ALONGSIDE the document read (v24.23), not after it:
             // the server picks the latest document itself, so the request needs nothing the read
