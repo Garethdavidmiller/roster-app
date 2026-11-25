@@ -3,8 +3,8 @@
  * links-grid-input.js — how the design grid on links.html is OPERATED: from a keyboard, one Tab stop
  * and the arrow keys; with a mouse, a press-and-drag that paints every cell it crosses.
  *
- * The coordinator (`links-app.js`) still decides what a cell MEANS — paint it with the armed brush, or
- * open the shift sheet over it. This module decides only which cell an input lands on, and keeps focus
+ * links-grid.js decides what a cell MEANS — paint it with the armed brush, or open the shift sheet
+ * over it. This module decides only which cell an input lands on, and keeps focus
  * where a keyboard user left it. It reaches for no id of its own, so its rule, `cellAfterKey`, is
  * tested in Node (links-grid-input.test.mjs) and the wiring in a browser (e2e/links.spec.js).
  *
@@ -31,8 +31,8 @@
  *   2. THE CLICK THAT ENDS A STROKE BELONGS TO IT. The press has already painted, so that click must
  *      neither paint again nor — after Escape disarmed the brush mid-stroke — open the sheet. A
  *      keyboard's click (`detail` 0) never belongs to a stroke.
- *   3. EVERY CELL GOES THROUGH THE COORDINATOR'S `paint` — `applyShift`, which owns the dirty flag and
- *      "the same value is not a change". A stroke is only a faster way of clicking.
+ *   3. EVERY CELL GOES THROUGH THE GRID'S `paint` — `applyShift` (links-grid.js), which marks the design
+ *      dirty and owns "the same value is not a change". A stroke is only a faster way of clicking.
  *
  * ── THE PAINT BAR STAYS IN REACH ──────────────────────────────────────────────────────────────────
  *

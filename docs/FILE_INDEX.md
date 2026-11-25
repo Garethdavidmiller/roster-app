@@ -278,7 +278,7 @@ roster-app/
 ├── pdf-viewer-core.js      ← the PDF viewer's pure rules, including never offering to open a file inside an installed app's scope
 ├── links.html              ← the link design workspace (visible to `CONFIG.LINKS_DESIGNERS` only)
 ├── links.css               ← CSS for links.html
-├── links-app.js            ← coordinator for links.html: the working copy, grid-cell meaning, the Build press and wiring; no Firestore I/O of its own. Body is `init()`, run by links-boot.js. See also coordinator-ratchet.test.mjs.
+├── links-app.js            ← coordinator for links.html: the working copy and `dirty`, the save conversation and the wiring; no Firestore I/O of its own. Body is `init()`, run by links-boot.js. See also coordinator-ratchet.test.mjs.
 ├── links-boot.js           ← two-line bootstrap for links.html (CSP blocks inline module scripts)
 ├── links-design-library.js ← the design library's panels: import and the Recently deleted bin. Its header. See also links-design-library.test.mjs.
 ├── links-design-store.js ← the design collection's persistence lifecycle and concurrency protocol; the four rules it makes unwritable: its header. Tested by links-design-store.test.mjs
@@ -289,6 +289,7 @@ roster-app/
 ├── links-adjacency.js ← the ORDER the lines sit in, and its scoring. Its header. Tested by links-adjacency.test.mjs
 ├── links-demand.js ← the service a design has to cover (trains per hour at Marylebone); never scores a design. Tested by links-demand.test.mjs. See also links.spec.js.
 ├── links-window.js ← the OPERATING WINDOW of a design, stored per design. Tested by links-window.test.mjs. See also links.spec.js.
+├── links-window-editor.js ← the staffed-window editor on the Coverage card; an edit goes back to the coordinator, which marks it dirty. Tested by links-window-editor.test.mjs and e2e/links.spec.js
 ├── links-deletion.js ← the PURE rules behind "Recently deleted". **The bin is PERMANENT** (owner decision; its header). Tested by links-deletion.test.mjs. See also doc-parity.test.mjs.
 ├── links-generator-targets.js ← the generator's target table on screen, its memory and provenance. Rule 4 in its header. Tested by links-generator-targets.test.mjs. See also links.spec.js.
 ├── links-design.js ← pure link-design maths, including `ROTATING_LINES` — the ONE declaration of the rotation length, and `restBetween`, the one reading of a turnaround. Imports nothing. **Read its header before touching the hours maths.** Tested by links-design.test.mjs
@@ -308,12 +309,15 @@ roster-app/
 ├── links-analysis.js ← links.html's read-only analysis panels. Tested by links-analysis.test.mjs
 ├── links-compare-analysis.js ← compare mode's analysis for two designs. Pure; rendered by links-compare.js. See also links-compare.test.mjs.
 ├── links-compare.js        ← links.html compare mode; single source of truth for the compare state. Tested by links-compare.test.mjs
-├── links-grid-input.js ← how the design grid is operated (keyboard, mouse strokes); what a cell means stays in links-app.js. Tested by links-grid-input.test.mjs and e2e/links.spec.js
+├── links-grid-input.js ← how the design grid is operated (keyboard, mouse strokes); what a cell means is links-grid.js's. Tested by links-grid-input.test.mjs and e2e/links.spec.js
 ├── links-print.js ← preparing the Links page for paper and putting it back (iOS sends no `afterprint`). Tested by links-print.test.mjs
 ├── links-analyse.js ← ONE reading of a Links design for every panel that reports on it. Pure; tested by links-analyse.test.mjs
 ├── links-grid-cells.js ← what one cell of a Links grid SAYS, and the cell markup. Pure; tested by links-grid-cells.test.mjs
+├── links-grid.js ← the design grid on screen: drawing it or its empty state, what a cell press MEANS, the totals and the Cover footer. Tested by links-grid.test.mjs and e2e/links.spec.js
+├── links-brush-bar.js ← the paint bar and the armed brush: its chips are the design's own times. Tested by links-brush-bar.test.mjs and e2e/links.spec.js
 ├── links-today.js ← what the Links workspace reads from today's roster. Pure; tested by links-today.test.mjs
 ├── links-build-press.js ← what the "Build the link" press says and remembers. Pure; tested by links-build-press.test.mjs
+├── links-build-button.js ← the "Build the link" press end to end: generate, reorder, hand the design to the coordinator, hold the button still. Tested by links-build-button.test.mjs and e2e/links.spec.js
 ├── links-tips.js ← CARD_TIPS for links.html's `?` panels; its "The default table" section has to change with `links-default-targets.js`'s header
 ├── shared.css              ← CSS shared by every app page — NOT the guides
 ├── guide-shell.css         ← shared chrome for every guide page, including the Inter @font-face and `--font-sans`
@@ -393,6 +397,7 @@ roster-app/
 │   ├── links-design-load.test.mjs ← the two design readers in sequence, the legacy migration and which design opens. Part of test:hygiene
 │   ├── links-compare-analysis.test.mjs ← compare analysis on two real proposal sheets. Part of test:hygiene
 │   ├── links-grid-input.test.mjs ← the grid's keyboard rule and a mouse stroke's bookkeeping. Part of test:hygiene
+│   ├── links-grid.test.mjs / links-brush-bar.test.mjs / links-build-button.test.mjs / links-window-editor.test.mjs ← the grid's shift list, totals and footer; the paint bar's times; the Build press's box reading; the window editor through its listeners. Part of test:hygiene
 │   ├── operations-attention.test.mjs ← the strip's pure decision, against claiming too little or too much. Part of test:hygiene
 │   ├── operations-doc-links.test.mjs ← what Document links says and sends. Part of test:hygiene
 │   ├── operations-reset.test.mjs ← every sentence Account status's Reset says, held to what the answer reports. Part of test:hygiene

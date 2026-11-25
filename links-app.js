@@ -2,14 +2,16 @@
 /**
  * links-app.js — Coordinator for links.html.
  *
- * Owns: the page gate, the working copy and its `dirty` state, what a grid cell MEANS and the paint
- *   bar's brush (links-grid-input.js operates the grid), every path that can replace or discard the
- *   working copy and the question each one asks, the Build press, and the wiring of the modules
- *   below. It makes no Firestore read or write of its own: designs go through links-design-store.js.
+ * Owns: the page gate, the working copy and its `dirty` state, every path that can replace or discard
+ *   the working copy and the question each one asks, the save conversation, and the wiring of the
+ *   modules below. It makes no Firestore read or write of its own: designs go through
+ *   links-design-store.js.
  * Does NOT own: the masthead and its sheets (links-design-header.js), compare mode (links-compare.js),
- *   the analysis panels (links-analysis.js), the generator's targets (links-generator-targets.js), the
+ *   the analysis panels (links-analysis.js), the grid and what a cell press means (links-grid.js), the
+ *   paint bar and its brush (links-brush-bar.js), the staffed-window editor (links-window-editor.js),
+ *   the Build press (links-build-button.js), the generator's targets (links-generator-targets.js), the
  *   bin, import and shortlist (links-design-library.js), or any of the maths (links-design.js and its
- *   siblings — no DOM, no Firebase there). The module table is .claude/rules/links-design.md.
+ *   siblings — no DOM, no Firebase there). The module list is FILE_INDEX.md's `links-*.js` rows.
  */
 
 import { CONFIG, escapeHtml } from './roster-data.js';
@@ -21,7 +23,6 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
-import { openOptionSheet, readGroups } from './select-sheet.js';
 import { MAX_DESIGN_NAME, checkDesignName, proposeCopyName } from './links-design-naming.js';
 import { createDesignHeader, proposeNewDesignName, lastSaveTime } from './links-design-header.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -34,33 +35,23 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { lsGet, lsSet, lsAvailable } from './ls.js';
 import {
-    DAYS,
     ROTATING_LINES,
-    DEFAULT_MAX_RUN,
-    classifyShift,
     normaliseCustomShift, normalisePatterns,
-    calcCoverage,
-    hmFromHours, hoursFigure,
-    lineTotals,
-    weeklyHours,
     MIN_REST_MINUTES,
     SPARE_WORKED_DAYS,
 } from './links-design.js';
-import { generateLink } from './links-generate.js';
+import { createWindowEditor } from './links-window-editor.js';
+import { createBrushBar } from './links-brush-bar.js';
+import { createDesignGrid, shiftOptionsHtml } from './links-grid.js';
+import { initBuildButton, STILL_LOADING } from './links-build-button.js';
 import { initLinksAnalysis } from './links-analysis.js';
-import { createGridInput, trackPaintBarHeight } from './links-grid-input.js';
-import { DAY_LABELS, shiftLabel, cellName, cellAriaName, emptyPattern, isUnfilledPattern, editCellHtml, coverCellsHtml } from './links-grid-cells.js';
 import { deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
 import { splitDesignDocs, binOldOnLoad, binOldOnRefresh, readCannotAnswer, migratesLegacy, byDesignName, designToOpen, emptyStateFor } from './links-design-load.js';
 import { createDesignLibrary } from './links-design-library.js';
-import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { PROPOSALS, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
 import { createTargetPanel, customShiftRefusal, CUSTOM_SHIFT_PROMPT } from './links-generator-targets.js';
-import { assessTargetHours } from './links-target-hours.js';
-import { overCapacityLine, refusalLine, buildConfirm, withSurplusLines, createBuildCounter, builtStatusLine } from './links-build-press.js';
-import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
-import { normaliseWindow, formatWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
-import { shapeClockBox, settleClockBox } from './clock-input.js';
+import { withSurplusLines } from './links-build-press.js';
+import { normaliseWindow, formatWindow, isDefaultWindow } from './links-window.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { createPrintPrep } from './links-print.js';
 import { shiftOptionLists, currentLinkBaseline } from './links-today.js';
@@ -190,7 +181,9 @@ export function init() {
     /** @type {any} */ let loadedUpdatedAt = null;
     let baselineUnknown = false;
 
-    /** @type {any} */ let brush = null;   // the armed paint shift, or null
+    // The paint bar OWNS the armed brush (links-brush-bar.js); the grid and the Escape key only ask for it.
+    const brushBar = createBrushBar({ getDesign: () => design, isComparing: () => compare.isCompareMode(), askCustomShift, customPrompt: CUSTOM_SHIFT_PROMPT });
+    const { render: renderBrushBar, dearm: dearmBrush } = brushBar;
     /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, savedAt?:Date, updatedBy:string, revision?:number|null}>} */
     let designs         = [];
     /** @type {any} */ let activeDesignId  = null;   // null while unsaved
@@ -203,81 +196,16 @@ export function init() {
     const _bin = () => library ? library.binList() : [];   // newest first, the library's
 
     /**
-     * The staffed-window editor on the Coverage card. An edit marks the design DIRTY — the window is part of the
-     * proposal — and an invalid pair is REFUSED, never coerced: a coerced window prints as one the designer chose.
+     * An accepted edit of the staffed window (links-window-editor.js). It marks the design DIRTY — the window is part
+     * of the proposal. @param {any} next
      */
-    function initWindowEditor() {
-        const box = /** @type {HTMLElement|null} */ (document.getElementById('windowEditor'));
-        if (!box) return () => {};
-        const els = {
-            monSat: { start: /** @type {HTMLInputElement|null} */ (document.getElementById('winMonSatStart')),
-                      end:   /** @type {HTMLInputElement|null} */ (document.getElementById('winMonSatEnd')) },
-            sun:    { start: /** @type {HTMLInputElement|null} */ (document.getElementById('winSunStart')),
-                      end:   /** @type {HTMLInputElement|null} */ (document.getElementById('winSunEnd')) },
-        };
-        const status = document.getElementById('winStatus');
-        const moved  = /** @type {HTMLElement|null} */ (document.getElementById('winMoved'));
-        const reset  = document.getElementById('winReset');
-        // A phone's numeric keypad has no colon, so a time is shaped as it is typed; and it commits on BLUR as well as
-        // change, because setting `.value` from `input` resets WebKit's change baseline (admin-week-editor.js) and
-        // `change` never fired on an iPhone. `commit` is idempotent.
-        for (const row of /** @type {const} */ (['monSat', 'sun'])) {
-            for (const el of [els[row].start, els[row].end]) {
-                el?.addEventListener('input', e => { el.value = shapeClockBox(el, /** @type {InputEvent} */ (e)); });
-                el?.addEventListener('blur', () => commit(row));
-            }
-        }
-
-        function paint() {
-            if (!box) return;
-            box.hidden = !design;
-            if (!design) return;
-            const w = normaliseWindow(design.window);
-            for (const row of /** @type {const} */ (['monSat', 'sun'])) {
-                if (els[row].start) els[row].start.value = w[row].start;
-                if (els[row].end)   els[row].end.value   = w[row].end;
-            }
-            // The moved flag sits beside the "Staffed window" label; `.win-status` is for a refusal only.
-            if (moved) moved.hidden = isDefaultWindow(w);
-            if (status) status.textContent = '';
-        }
-
-        /** @param {'monSat'|'sun'} row */
-        function commit(row) {
-            if (!design) return;
-            const typed = [els[row].start, els[row].end].map(el => (el ? settleClockBox(el) : ''));   // "240" left as typed is 02:40
-            const refused = windowEditRefusal(typed[0], typed[1]);   // the reason that applies, or null
-            if (refused) {
-                // Put the stored value back and say why — AFTER paint(), which clears the status line.
-                paint();
-                if (status) status.textContent = refused;
-                return;
-            }
-            const start = canonicaliseWindowTime(typed[0]) || '', end = canonicaliseWindowTime(typed[1]) || '', candidate = { start, end };
-            const next = normaliseWindow(design.window);
-            if (next[row].start === start && next[row].end === end) return;
-            next[row] = candidate;
-            design = { ...design, window: next };
-            dirty = true;
-            updateSaveBtn();
-            renderCoverageCard();   // repaints the editor, so the moved flag follows the change
-            compare.renderCompare();   // the column heads and the analysis read the window too (v24.25)
-        }
-
-        for (const row of /** @type {const} */ (['monSat', 'sun'])) {
-            els[row].start?.addEventListener('change', () => commit(row));
-            els[row].end?.addEventListener('change', () => commit(row));
-        }
-        reset?.addEventListener('click', () => {
-            if (!design) return;
-            if (isDefaultWindow(design.window)) return;
-            design = { ...design, window: normaliseWindow(null) };
-            dirty = true;
-            updateSaveBtn();
-            renderCoverageCard();   // repaints the editor too — no separate paint() needed
-            compare.renderCompare();
-        });
-        return paint;
+    function setWindow(next) {
+        if (!design) return;
+        design = { ...design, window: next };
+        dirty = true;
+        updateSaveBtn();
+        renderCoverageCard();   // repaints the editor, so the moved flag follows the change
+        compare.renderCompare();   // the column heads and the analysis read the window too (v24.25)
     }
 
     /** @type {() => void} */ let paintWindowEditor = () => {};
@@ -290,36 +218,12 @@ export function init() {
         // A thunk: `compare` owns compare mode and is declared below.
         isComparing: () => compare.isCompareMode(),
     });
-    paintWindowEditor = initWindowEditor();
+    paintWindowEditor = createWindowEditor({ getDesign: () => design, setWindow });
 
-    /**
-     * The options of any shift list: the cell sheet's (`includeRdSpare`) or the generator's time selects. CEAs work
-     * no nights, so no night time is offered; `normaliseCustomShift` refuses one typed.
-     * @param {string|null} currentVal @param {boolean} includeRdSpare
-     */
+    /** The options of any shift list — the cell sheet's (`includeRdSpare`) or the generator's time selects — on the
+     *  times this page offers (links-grid.js). @param {string|null} currentVal @param {boolean} includeRdSpare */
     function buildShiftOptions(currentVal, includeRdSpare = false) {
-        const opt = (/** @type {any} */ val, /** @type {any} */ label) => {
-            const sel = val === currentVal ? ' selected' : '';
-            return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
-        };
-        const known = new Set([...EARLY_OPTIONS, ...LATE_OPTIONS]);
-        const isUnknown = currentVal && currentVal !== 'RD' && currentVal !== 'SPARE' && !known.has(currentVal);
-        return [
-            ...(includeRdSpare ? [opt('RD', 'RD — Rest Day'), opt('SPARE', 'SPARE — Standby')] : []),
-            ...(isUnknown ? (includeRdSpare
-                ? ['<optgroup label="Current">', opt(currentVal, `${currentVal} (current)`), '</optgroup>']
-                : [opt(currentVal, currentVal)]) : []),
-            ...(EARLY_OPTIONS.length ? [
-                `<optgroup label="Early${includeRdSpare ? ' (starting before 11:00)' : ''}">`,
-                ...EARLY_OPTIONS.map(s => opt(s, s)), '</optgroup>',
-            ] : []),
-            ...(LATE_OPTIONS.length ? [
-                `<optgroup label="Late${includeRdSpare ? ' (starting 11:00 or after)' : ''}">`,
-                ...LATE_OPTIONS.map(s => opt(s, s)), '</optgroup>',
-            ] : []),
-            // The paint chip's own label: longer text cut itself mid-word in the phone's narrow 16px column.
-            opt('__custom__', 'Custom…'),
-        ].join('');
+        return shiftOptionsHtml(currentVal, includeRdSpare, { early: EARLY_OPTIONS, late: LATE_OPTIONS });
     }
 
     // Compare mode OWNS its state (links-compare.js); the coordinator only asks for it or resets it.
@@ -846,102 +750,7 @@ export function init() {
         refreshGenTargetsForDesign();
     }
 
-    // ── PAINT BRUSH ──
-
-    /** @param {any} shift */
-    function armBrush(shift) {
-        brush = shift;
-        document.querySelectorAll('.brush-chip').forEach(c => {
-            const on = /** @type {HTMLElement} */ (c).dataset.shift === shift;
-            c.classList.toggle('brush-chip--active', on);
-            c.setAttribute('aria-pressed', String(on));
-        });
-    }
-
-    function dearmBrush() {
-        brush = null;
-        document.querySelectorAll('.brush-chip').forEach(c => {
-            c.classList.remove('brush-chip--active');
-            c.setAttribute('aria-pressed', 'false');
-        });
-    }
-
-    /**
-     * The paint chips: the times THIS DESIGN is made of (v21.14). A fixed list painted shifts the design did not contain
-     * and could not paint the ones it did — measured once, an overlap of zero — and still looked as if it worked. The
-     * armed brush is unioned in, so a chip cannot vanish mid-paint, and an empty design falls back to the default table.
-     */
-    function brushTimes() {
-        const out = new Set();
-        for (const row of Object.values(design?.patterns || {})) {
-            for (const s of Object.values(/** @type {any} */ (row) || {})) {
-                if (s && s !== 'RD' && s !== 'OFF' && s !== 'SPARE' && normaliseCustomShift(s)) out.add(s);   // never a night or past-midnight duty
-            }
-        }
-        if (!out.size) for (const t of DEFAULT_SHIFT_TIMES) out.add(t);
-        if (brush && brush !== 'RD' && brush !== 'SPARE') out.add(brush);
-        const early = [], late = [];
-        for (const s of [...out].sort()) {
-            const cls = classifyShift(s);
-            if (cls === 'late') late.push(s); else early.push(s);
-        }
-        return { early, late };
-    }
-
-    /** What the bar WOULD show, as one comparable string — see the guard in `applyShift`. */
-    let _lastBrushSig = '';
-    function _brushSig() {
-        const { early, late } = brushTimes();
-        return early.join(',') + '|' + late.join(',');
-    }
-
-    function renderBrushBar() {
-        const bar = document.getElementById('brushBar');
-        if (!bar) return;
-        if (!design || compare.isCompareMode()) { bar.style.display = 'none'; return; }
-        bar.style.display = '';
-        const { early: barEarly, late: barLate } = brushTimes();
-        _lastBrushSig = barEarly.join(',') + '|' + barLate.join(',');
-
-        // A chip shows BOTH times, as the cell it paints does: several shifts share a start, and start-only chips were
-        // identical pairs painting different shifts (v19.43). Its name is `cellName`'s, what it shows first.
-        const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '', /** @type {any} */ spokenLabel = null) => {
-            const say = spokenLabel ?? label;
-            return `<button class="brush-chip type-${typeClass}${extra}" data-shift="${escapeHtml(shift)}" ` +
-                `aria-pressed="false" aria-label="Paint: ${escapeHtml(say)}">${escapeHtml(label)}</button>`;
-        };
-
-        bar.innerHTML = [
-            '<span class="brush-bar-label">Paint:</span>',
-            chip('RD',    'RD',     'rd',    '', cellName('RD')),
-            chip('SPARE', 'SP',     'spare', '', cellName('SPARE')),
-            ...barEarly.map(s => chip(s, shiftLabel(s), 'early', '', cellName(s))),
-            ...barLate.map(s  => chip(s, shiftLabel(s), 'late',  '', cellName(s))),
-            `<button class="brush-chip brush-chip--custom" data-shift="__custom__" aria-pressed="false">Custom…</button>`,
-        ].join('');
-        // The chips are new elements: re-light the armed one, or the brush stays armed with nothing lit.
-        if (brush) armBrush(brush);
-
-        bar.querySelectorAll('.brush-chip').forEach(c => {
-            c.addEventListener('click', async () => {
-                const custom = /** @type {HTMLElement} */ (c).dataset.shift === '__custom__';
-                let shift = /** @type {HTMLElement} */ (c).dataset.shift;
-                if (custom) {
-                    const typed = await askCustomShift(CUSTOM_SHIFT_PROMPT);
-                    if (!typed) return;
-                    shift = typed;
-                }
-                if (brush === shift) dearmBrush();
-                else armBrush(shift);
-                // A Custom… time is usually not on the bar, so arming it lit nothing (links-app-6): the bar is drawn again
-                // with it, and focus goes to its chip, the Custom… button having been replaced.
-                if (custom) {
-                    renderBrushBar();
-                    /** @type {HTMLElement|null} */ (bar.querySelector(`.brush-chip[data-shift="${CSS.escape(brush ?? '__custom__')}"]`))?.focus();
-                }
-            });
-        });
-    }
+    // ── CUSTOM SHIFT TIMES ──
 
     /**
      * A Custom… shift time for the paint bar and the cell sheet: the tidy time, or null. A REFUSED time says so, in
@@ -970,246 +779,17 @@ export function init() {
         }
     }
 
-    /** The grid card's hint, which must not describe a grid that is not on screen (v19.66). @param {boolean} hasDesign */
-    function _setGridHint(hasDesign) {
-        const el = document.getElementById('linksGridHint');
-        if (el) el.textContent = hasDesign
-            ? 'Choose any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.'
-            : `A link is ${TOTAL_POS} lines — everyone works line 1 one week, line 2 the next, all the way round.`;
-    }
-
-    /**
-     * A design holding MORE lines than the rotation (v19.98). Nothing about opening one looks wrong — the grid and every
-     * panel read the rotation's lines, and the next save writes the rest back — so it is assessed as one thing and stored
-     * as another. The data is left alone (dropped on load or on save, it is somebody's work gone) and the fact is said.
-     * A statement, not a `confirm()`: there is no decision to take now.
-     */
-    function _renderOverLengthNotice() {
-        const el = document.getElementById('linksOverLengthNotice');
-        if (!el) return;
-        const held = Object.keys(/** @type {Record<string, any>} */ (design?.patterns || {})).length;
-        if (!design || held <= TOTAL_POS) { el.style.display = 'none'; el.textContent = ''; return; }
-        el.style.display = '';
-        el.textContent = `This design holds ${held} lines and the rotation is now ${TOTAL_POS}. `
-            + `Lines ${TOTAL_POS + 1}–${held} are not shown and are not counted in Coverage or Design `
-            + `checks, but they are still stored and are saved with the design. It was built for the `
-            + `${held}-line link; build the new one fresh rather than editing this.`;
-    }
-
-    function renderGrid() {
-        const tbody      = document.getElementById('linksGridBodyRows');
-        const tfoot      = document.getElementById('linksCoverageFoot');
-        const wrapper    = document.getElementById('linksGridWrapper');
-        const emptyState = document.getElementById('linksEmptyState');
-        const saveRow    = document.getElementById('linksSaveRow');
-
-        if (!design) {
-            renderSummary();   // hidden with the save row, but a stale strip would flash on the next design
-            // FOUR states, and only the last two may offer to make a design — the words and the rule are
-            // `emptyStateFor` (links-design-load.js); this only puts them on the card.
-            const empty = emptyStateFor({ listLoading, loadFailed, binnedOnLoad, binSize: _bin().length, loading: LOADING_COPY });
-            const offers = empty.offers;
-            const emptyMsg   = document.getElementById('linksEmptyMsg');
-            const emptyTitle = document.querySelector('#linksEmptyState .links-empty-title');
-            const emptyActs  = /** @type {HTMLElement|null} */ (document.querySelector('#linksEmptyState .links-empty-actions'));
-            const retry      = document.getElementById('linksEmptyRetry');
-            if (emptyTitle) emptyTitle.textContent = empty.title;
-            if (emptyMsg) emptyMsg.innerHTML = empty.msg;
-            if (emptyActs) emptyActs.style.display = offers ? '' : 'none';
-            if (retry) retry.style.display = empty.retry ? '' : 'none';
-            _setGridHint(false);
-            _renderOverLengthNotice();   // `design` is null here, so this hides it
-            if (wrapper)    wrapper.style.display    = 'none';
-            if (emptyState) emptyState.style.display = '';
-            if (saveRow)    saveRow.style.display    = 'none';
-            if (tbody)      tbody.innerHTML          = '';
-            if (tfoot)      tfoot.innerHTML          = '';
-            document.body.classList.remove('links-compare-on');
-            if (offers) _openGenerator();
-            renderBrushBar();
-            renderCoverageCard();
-            renderDesignChecks();
-            return;
-        }
-
-        if (emptyState) emptyState.style.display = 'none';
-        if (saveRow)    saveRow.style.display    = '';
-        const emptyStatus = document.getElementById('linksEmptyStatus'); if (emptyStatus) emptyStatus.textContent = '';   // done with
-        _setGridHint(true);
-
-        // In compare mode the grid is hidden on SCREEN only (body class): print always outputs the open design.
-        if (wrapper) wrapper.style.display = '';
-        document.body.classList.toggle('links-compare-on', compare.isCompareMode());
-
-        const totals = lineTotals(design.patterns, TOTAL_POS);
-        const rows = [];
-        for (let pos = 1; pos <= TOTAL_POS; pos++) {
-            const posStr  = String(pos);
-            const p        = (/** @type {Record<string, any>} */ (design.patterns))[posStr] || emptyPattern();
-            const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : '';
-
-            const dayCells = DAYS.map(d => editCellHtml(posStr, d, p[d] ?? 'RD', classifyShift)).join('');
-
-            rows.push(
-                `<tr class="${rowClass}" data-pos="${posStr}">` +
-                `<td class="pos-num">${posStr}</td>` +
-                dayCells +
-                _totalCells(totals.rows[pos - 1]) +
-                `</tr>`
-            );
-        }
-        grid.render(rows.join(''));   // one Tab stop among the cells, and focus kept if a cell held it
-        _renderOverLengthNotice();
-
-        const cov = calcCoverage(design.patterns);
-        renderFooter(cov, totals);
-        renderCoverageCard();
-    }
-
-    // The grid's input is links-grid-input.js's; what a cell MEANS — paint it, or open the sheet — is here.
-    const grid = createGridInput(document.getElementById('linksGridBodyRows'), {
-        lines: TOTAL_POS, days: DAYS, ready: () => !!design, armed: () => brush !== null,
-        paint: (pos, day) => applyShift(pos, day, brush), edit: openCellEdit,
+    // The grid on screen, and what a cell press MEANS (links-grid.js); the working copy and `dirty` stay here.
+    const designGrid = createDesignGrid({
+        getDesign: () => design,
+        markEdited: () => { dirty = true; updateSaveBtn(); },
+        // FOUR empty states, and only the last two may offer to make a design (`emptyStateFor`, links-design-load.js).
+        describeEmpty: () => emptyStateFor({ listLoading, loadFailed, binnedOnLoad, binSize: _bin().length, loading: LOADING_COPY }),
+        isComparing: () => compare.isCompareMode(),
+        brushBar, askCustomShift, customPrompt: CUSTOM_SHIFT_PROMPT, shiftOptions: buildShiftOptions,
+        renderCoverageCard, renderDesignChecks, renderSummary, openGenerator: _openGenerator,
     });
-    trackPaintBarHeight(document.getElementById('brushBar'), document.getElementById('linksGridTable'));
-
-    /** Paint one cell and repaint what reads it. @param {any} pos @param {any} day @param {any} shift */
-    function applyShift(pos, day, shift) {
-        if (!design) return;
-        const pats = /** @type {Record<string, any>} */ (design.patterns);
-        if (!pats[pos]) pats[pos] = emptyPattern();
-        // The value it already holds is not a change, or a stray tap arms every unsaved-work question (v19.38).
-        if (pats[pos][day] === shift) return;
-        pats[pos][day] = shift;
-        dirty = true;
-        updateSaveBtn();
-
-        const tbody = document.getElementById('linksGridBodyRows');
-        const btn = /** @type {HTMLElement|null} */ (tbody?.querySelector(`.shift-cell-btn[data-pos="${pos}"][data-day="${day}"]`) ?? null);
-        if (btn) repaintCellBtn(btn, pos, day, shift);
-
-        const tr = tbody?.querySelector(`tr[data-pos="${pos}"]`);
-        if (tr) tr.classList.toggle('row-unfilled', isUnfilledPattern(pats[pos]));
-
-        const cov = calcCoverage(design.patterns);
-        // Only the EDITED row's totals: a whole-grid render would tear out the cell under the pointer.
-        const totals = lineTotals(design.patterns, TOTAL_POS);
-        if (tr) {
-            tr.querySelectorAll('.tot-cell').forEach(el => el.remove());
-            tr.insertAdjacentHTML('beforeend', _totalCells(totals.rows[Number(pos) - 1]));
-        }
-        renderFooter(cov, totals);
-        // The bar is the design's times, so it is redrawn only when they change: a drag paints cell by cell.
-        const sig = _brushSig();
-        if (sig !== _lastBrushSig) renderBrushBar();
-        renderCoverageCard();
-        renderDesignChecks();
-    }
-
-    /**
-     * One line's three totals (v21.09). A COVER week shows the contracted week, muted, because it is a convention and
-     * not a reading; its days are a dash — unknown, not none. An unfilled line is dashes, not "0h 00m" noise.
-     * @param {{exSundayMinutes: number, allMinutes: number, days: number|null, assumed: boolean,
-     *          unreadable: number, loneSpare?: number, unfilled: boolean}|undefined} t
-     */
-    function _totalCells(t) {
-        // The reason ADDS to the figure (links-app-15): a cell's name replaces its content, and the total went unread.
-        const cell = (/** @type {string} */ text, /** @type {string} */ extra = '', /** @type {string} */ why = '') =>
-            `<td class="tot-cell${extra}"${why ? ` aria-label="${escapeHtml(`${text === '—' ? 'Not known' : text}. ${why}`)}"` : ''}>${escapeHtml(text)}</td>`;
-        if (!t || t.unfilled) return cell('—') + cell('—') + cell('—');
-        if (t.assumed) {   // a timed Sunday overtime turn is real hours on top, and the footer counts it
-            const h = hmFromHours(t.exSundayMinutes / 60), all = hmFromHours(t.allMinutes / 60);
-            const why = 'Cover week — counted as the contracted week; it carries no stored times';
-            return cell(h, ' tot-assumed', why) + cell(all, ' tot-assumed', all === h ? why : 'Cover week — the contracted week, plus its Sunday overtime')
-                + cell('—', ' tot-assumed', 'A cover week does not record which days it works');
-        }
-        // A floor — an unreadable duty, or a lone spare day with no times (lineTotals) — is orange and ends in "+".
-        const floor = t.unreadable + (t.loneSpare ?? 0);
-        const flag = floor ? ' tot-uncertain' : '';
-        // A line with no Sunday duty has the same figure twice; muting the repeat lets the Sunday lines stand out.
-        const same = !floor && t.allMinutes === t.exSundayMinutes ? ' tot-same' : '';
-        const why  = floor ? [
-            t.unreadable ? `${t.unreadable} duty time${t.unreadable === 1 ? '' : 's'} on this line could not be read` : '',
-            t.loneSpare ? `${t.loneSpare} spare day${t.loneSpare === 1 ? '' : 's'} on this line carr${t.loneSpare === 1 ? 'ies' : 'y'} no times` : '',
-        ].filter(Boolean).join(', and ') + ', so these totals are a floor' : '';
-        return cell(hmFromHours(t.exSundayMinutes / 60), flag, why)
-            + cell(hmFromHours(t.allMinutes / 60), flag + same, same ? 'No Sunday duty on this line' : why)
-            + cell(String(t.days ?? '—'), flag, why);
-    }
-
-    /**
-     * @param {any} cov
-     * @param {any} [totals]  from lineTotals — the per-line rows this footer averages
-     */
-    function renderFooter(cov, totals) {
-        const tfoot = document.getElementById('linksCoverageFoot');
-        if (!tfoot || !design || !cov) return;
-        const cells = coverCellsHtml(cov);
-        // The hours averages are `weeklyHours`', as the checks row and the strip read them; only the DAYS average is the
-        // footer's own, over the WORKING lines (invariant 7), so both divisors are printed.
-        const wh  = weeklyHours(design.patterns, TOTAL_POS);
-        // "(partial)" says what `hoursFigure` says on the checks row and the strip, on a line of its own under the
-        // figure: beside it, it widened the last columns past the card at 769px. Not a "+" floor — a line with no
-        // readable time is LEFT OUT of the average, which can then be high as well as low.
-        const avg = (/** @type {number|null} */ v, /** @type {string} */ text, /** @type {string} */ note, partial = false) =>
-            `<td class="tot-cell tot-avg">` +
-            (v === null ? `<span class="tot-avg-num">—</span>`
-                : `<span class="tot-avg-num">${escapeHtml(text)}</span>`) +
-            (partial && v !== null ? `<span class="tot-avg-note tot-avg-partial">(partial)</span>` : '') +
-            `<span class="tot-avg-note">${escapeHtml(note)}</span></td>`;
-        const lineWord = (/** @type {number} */ n, /** @type {string} */ w) => `over ${n} ${w}${n === 1 ? '' : 's'}`;
-        const avgCells = totals
-            ? avg(wh.exSunday, hoursFigure(wh).hm ?? '—', lineWord(TOTAL_POS, 'line'), hoursFigure(wh).partial)
-            + avg(wh.all, hoursFigure(wh, 'all').hm ?? '—', lineWord(TOTAL_POS, 'line'), hoursFigure(wh, 'all').partial)
-            + avg(totals.daysAverage, String(totals.daysAverage ?? ''), lineWord(totals.daysLines, 'working line'))
-            : '';
-        tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}${avgCells}</tr>`;
-    }
-
-    /**
-     * The app's own sheet over one cell — never a native `<select>`, whose popup the OS draws (v23.38). The button stays
-     * put, so a dismissed sheet has changed nothing. The options are `buildShiftOptions`', read off a detached select by
-     * the sheet's `readGroups`: one producer, its `<optgroup>`s the sheet's headings.
-     * @param {any} btn
-     */
-    function openCellEdit(btn) {
-        if (!design) return;
-        const pos      = btn.dataset.pos;
-        const day      = btn.dataset.day;
-        const dayLabel = DAY_LABELS[DAYS.indexOf(day)];
-        const current  = (/** @type {Record<string, any>} */ (design.patterns))[pos]?.[day] ?? 'RD';
-
-        const holder = document.createElement('select');
-        holder.innerHTML = buildShiftOptions(current, true);
-
-        openOptionSheet({
-            title: `Line ${pos} · ${dayLabel}`,
-            searchLabel: 'Search shift times',
-            groups: readGroups(holder),
-            current,
-            createLightbox,
-            onPick: async value => {
-                let newVal = value;
-                if (newVal === '__custom__') {
-                    const typed = await askCustomShift(CUSTOM_SHIFT_PROMPT, current.includes('-') ? current : '');
-                    if (!typed) return;   // cancelled or refused: the cell was never taken apart
-                    newVal = typed;
-                }
-                // `applyShift` alone decides whether this is a change (v19.38).
-                applyShift(pos, day, newVal);
-            },
-        });
-    }
-
-    /**
-     * Repaint a cell's button IN PLACE: replaced, it dropped focus to `<body>` after every keyboard edit.
-     * @param {HTMLElement} btn @param {any} pos @param {any} day @param {any} shift
-     */
-    function repaintCellBtn(btn, pos, day, shift) {
-        btn.className = `shift-cell-btn type-${classifyShift(shift)}`;
-        btn.setAttribute('aria-label', cellAriaName(pos, day, shift));
-        btn.textContent = shiftLabel(shift);
-    }
+    function renderGrid() { designGrid.render(); }
 
     // ── BUILD THE LINK ──
 
@@ -1222,124 +802,28 @@ export function init() {
         defaultSlotTime: EARLY_SHIFTS[0] || '06:20-14:20',
     });
     const refreshGenTargetsForDesign = targets.refreshForDesign;
-    /** Build the link's answer while the designs are still loading; the load clears it when it lands. */
-    const STILL_LOADING = 'Your saved designs are still loading — build the link once they are in.';
-
-    (function initGenerator() {
-        if (!document.getElementById('genSlotRows')) return;
-        // Which build of these inputs this is (links-build-press.js rule 5): one per page life.
-        const builds = createBuildCounter();
-
-        document.getElementById('genApplyBtn')?.addEventListener('click', async () => {
-            const errEl = document.getElementById('genError');
-            if (errEl) errEl.textContent = '';
-            // A failed press must not leave the previous success under the button, beside a fresh error.
-            const _mirrorEl = document.getElementById('genStatus');
-            if (_mirrorEl) { _mirrorEl.hidden = true; _mirrorEl.textContent = ''; }
-            // Not until the designs are in (links-app-1): the load replaces the working copy when it lands.
-            if (listLoading) { if (errEl) errEl.textContent = STILL_LOADING; return; }
-
-            const { slots: genSlots, spareLines: genSpareLines } = targets.getTable();
-            if (genSlots.length === 0) { if (errEl) errEl.textContent = 'Add at least one shift row first.'; return; }
-            const overCapacity = overCapacityLine(targets.totals(), TOTAL_POS);
-            if (overCapacity) { if (errEl) errEl.textContent = overCapacity; return; }
-
-            const built = generateLink({ slots: genSlots, spareLines: genSpareLines, lines: ROTATING_LINES });
-            const generated = built.patterns;
-            if (!generated) {
-                if (errEl) errEl.textContent = refusalLine(built, { lines: TOTAL_POS, spareLines: genSpareLines,
-                    hoursPerLine: assessTargetHours(genSlots, { spareLines: genSpareLines, totalLines: TOTAL_POS }).hoursPerLine });
-                return;
-            }
-
-            const _hasWork = !!design && Object.values(/** @type {Record<string, any>} */ (design.patterns || {}))
-                .some(p => DAYS.some(d => { const v = p?.[d]; return v && v !== 'RD' && v !== 'OFF'; }));
-            // Read BEFORE the confirm: the button's position (the dialog locks the scroll), and whether the build opens a
-            // NEW design, as the question said — a copy's first save landing meanwhile made a proposal a saved design.
-            const _btnEl = document.getElementById('genApplyBtn');
-            const _btnViewTop = _btnEl?.getBoundingClientRect().top;
-            const _asNew = !design || !!activeProposalId;
-            if (!await confirmDialog(buildConfirm({ lines: TOTAL_POS, name: design?.name ?? '', proposal: !!activeProposalId, dirty, hasWork: _hasWork }))) return;
-
-            // SAY IT, THEN DO IT (links-app-21): the line-order search runs on the main thread after the confirm,
-            // about 0.2–0.7 s on a desktop and several times that on a phone. So the button is HELD and says so,
-            // a frame is given to paint that, and the release is booked BEFORE the search, so a tap during it is
-            // dropped and nothing the search throws can leave the button held.
-            if (_mirrorEl) { _mirrorEl.textContent = 'Building the link…'; _mirrorEl.hidden = false; }
-            _designActionStatus('Building the link…', '');
-            if (_btnEl) /** @type {HTMLButtonElement} */ (_btnEl).disabled = true;
-            await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
-            requestAnimationFrame(() => { if (_btnEl) /** @type {HTMLButtonElement} */ (_btnEl).disabled = false; });
-            const _chk = (/** @type {string} */ id) =>
-                !!(/** @type {HTMLInputElement|null} */ (document.getElementById(id))?.checked);
-            const _on = {
-                variety: _chk('objVariety'), maxRun: _chk('objMaxRun'), gentle: _chk('objGentle'),
-                weekends: _chk('objWeekends'), longWeekends: _chk('objLongWeekends'),
-            };
-            // A box's own figure, never a falsy one swapped for the default (links-app-8): "at least 0" is a real
-            // answer. Only a box holding no number falls back; one under its minimum is raised to it. Either way
-            // the box is written back, so it never shows a figure the build did not use.
-            const _num = (/** @type {string} */ id, /** @type {number} */ dflt, min = 0) => {
-                const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
-                const typed = parseInt(el?.value ?? '', 10);
-                const n = Number.isFinite(typed) ? Math.max(min, typed) : dflt;
-                if (el && el.value !== String(n)) el.value = String(n);
-                return n;
-            };
-            const _target = _num('objLongTarget', 4);
-            const _blockTarget = _num('objBlockTarget', DEFAULT_BLOCK_TARGET, 1);
-            const _maxRunTarget = _num('objMaxRunTarget', DEFAULT_MAX_RUN, 1);
-            // The fingerprint is the whole input surface, so a nudged headcount starts again at the canonical build.
-            const attempt = builds.next(JSON.stringify([genSlots, genSpareLines, _on, _target, _blockTarget, _maxRunTarget]));
-            const _ord = reorderLines(generated, {
-                on: _on, longWeekendTarget: _target, blockTarget: _blockTarget,
-                maxRunTarget: _maxRunTarget, attempt,
-            });
-            const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
-
-            if (_asNew || !design) {
+    // The press itself is links-build-button.js's; what it does to the working copy is here.
+    initBuildButton({
+        targets,
+        isLoading: () => listLoading,
+        getDesign: () => design,
+        getProposalId: () => activeProposalId,
+        isDirty: () => dirty,
+        actionStatus: _designActionStatus,
+        applyBuilt: (final, asNew) => {
+            if (asNew || !design) {
                 // A proposal is not yours to overwrite: a NEW unsaved design, named on its first save.
-                _setWorkingCopy(null, { copy: { id: null, name: '', patterns: _final, window: design?.window } });
+                _setWorkingCopy(null, { copy: { id: null, name: '', patterns: final, window: design?.window } });
             } else {
                 // Lines past the rotation an older, longer design holds are kept, as its notice promises (rule 6).
-                design = { ...design, patterns: withSurplusLines(_final, design.patterns, TOTAL_POS) };
+                design = { ...design, patterns: withSurplusLines(final, design.patterns, TOTAL_POS) };
             }
-
             dirty = true;
             compare.resetCompare();
             dearmBrush();
             _renderAll();
-            // HOLD THE BUTTON STILL THROUGH THE REFLOW (v20.54): the first build grows the card above by a whole
-            // grid. The dialog's unlock ends in `window.scrollTo(0, saved)` after this handler, so the loop
-            // VERIFIES rather than trusts — measure, shift, repeat to 1px — with two budgets, one to wait for the
-            // unlock and one to converge (v21.83: one budget was spent waiting on a loaded runner).
-            if (_btnEl && _btnViewTop !== undefined) {
-                const _waitUntil = performance.now() + 3000;
-                const _workUntil = performance.now() + 5000;
-                const _reanchor = () => {
-                    if (document.body.classList.contains('lb-open')) {
-                        if (performance.now() > _waitUntil) return;
-                        requestAnimationFrame(_reanchor); return;
-                    }
-                    if (performance.now() > _workUntil) return;
-                    const shift = _btnEl.getBoundingClientRect().top - /** @type {number} */ (_btnViewTop);
-                    if (Math.abs(shift) <= 1) return;
-                    window.scrollBy(0, shift);
-                    requestAnimationFrame(_reanchor);
-                };
-                _reanchor();
-            }
-
-            const _statusText = builtStatusLine(built, _ord, { attempt, maxRunOn: _on.maxRun, maxRunTarget: _maxRunTarget,
-                explore: builds.explore(_ord.order.join(','), cost(_ord.after, _on, _target, _blockTarget)) });
-            // Written where the pressing happens as well as where the saving does (v20.54): the save row is a card
-            // above the button. The save row's copy carries the aria-live; the mirror is aria-hidden.
-            const status = document.getElementById('linksSaveStatus');
-            if (status) { status.textContent = _statusText; status.className = 'links-save-status ok'; }
-            const mirror = document.getElementById('genStatus');
-            if (mirror) { mirror.textContent = _statusText; mirror.hidden = false; }
-        });
-    })();
+        },
+    });
 
     // ── SAVE / LOAD ──
 
@@ -1773,7 +1257,7 @@ export function init() {
     for (const b of _saveBtns()) b.addEventListener('click', saveChanges);
 
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && brush !== null) dearmBrush();
+        if (e.key === 'Escape' && brushBar.armed() !== null) dearmBrush();
     });
 
     // ── UNSAVED WORK ──

@@ -167,7 +167,8 @@ const CAPS = {
     // 2750 → 2550: brought DOWN with what left (Nov 2026): the Build press's words and bookkeeping (links-build-press.js) and what the page reads from today's roster (links-today.js), 2,744 measured lines to 2,483; the measured size plus 50, rounded up.
     // 2550 → 2400: brought DOWN again (Nov 2026): the grid's cells (links-grid-cells.js), the one working-copy setter, one read of the collection and the print net (links-print.js), 2,483 measured lines to 2,348; the measured size plus 50, rounded.
     // 2400 → 1950: brought DOWN (Nov 2026), by cutting comments to their reasons: the changelog went — git log keeps it — and every why an edit could break stayed, 2,348 measured lines to 1,860; the measured size plus 50, rounded up. The next Links rule still goes in a domain module.
-    'links-app.js':            1950,   // ← Nov 2026, extractions and comment cuts (2750 on 18 Nov 2026)
+    // 1950 → 1450 on 25 Nov 2026, brought DOWN with what left (the maintainability split): the grid and what a cell press means (links-grid.js), the paint bar and its brush (links-brush-bar.js), the staffed-window editor (links-window-editor.js) and the Build press (links-build-button.js), 1,872 measured lines to 1,356; the measured size plus 50, rounded up.
+    'links-app.js':            1450,   // ← 25 Nov 2026, the maintainability split (1950 earlier in Nov 2026)
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap

@@ -71,7 +71,7 @@ below, and run `npm run generate:ai-map`.
 | Usage card (ops page) — anonymous page popularity + active-account counts | `usage-reporter.js`, `firebase-client.js`, `usage-stats.js` (date/aggregation maths), `operations-usage.js`, `operations.css`, `firestore.rules` (`analytics`) |
 | Document links card (ops page) — a new key for every stored Huddle, Circular and Newsletter file, so every old copy of a link stops working | `operations-doc-links.js` (the card) · `functions/documents.js` (`rotateDocumentLinks`, the endpoint) · `functions/doc-link-rotation.js` (the rules) |
 | Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · plan of record `docs/AL_UPLOADER_PLAN.md` |
-| Links design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `links-app.js` + `links.html` + `links.css` |
+| Links design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `links-app.js` + `links.html` + `links.css`; the grid `links-grid.js`, the paint bar `links-brush-bar.js`, the window editor `links-window-editor.js`, the Build press `links-build-button.js` |
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), the rest between two duties, design quality checks | `links-design.js` (pure — no DOM/Firebase, imports nothing; tested by `links-design.test.mjs`) |
 | The link generator — the two constructions, the contract gate, the minimum-rest repair | `links-generate.js` (pure; imports its constants from `links-design.js`; tested by `links-design.test.mjs` and `links-contract.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |
@@ -352,6 +352,18 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 
 ### `links-grid-cells.js`
 - **Exports:** `DAY_LABELS` · `shiftLabel` · `cellName` · `emptyPattern` · `isUnfilledPattern` · `cellAriaName` · `editCellHtml` · `compareCellHtml` · `coverCellsHtml`
+
+### `links-grid.js`
+- **Exports:** `shiftOptionsHtml` · `totalCellsHtml` · `coverFootHtml` · `createDesignGrid`
+
+### `links-brush-bar.js`
+- **Exports:** `brushTimes` · `brushSig` · `createBrushBar`
+
+### `links-window-editor.js`
+- **Exports:** `createWindowEditor`
+
+### `links-build-button.js`
+- **Exports:** `STILL_LOADING` · `boxFigure` · `initBuildButton`
 
 ### `links-analyse.js`
 - **Exports:** `readAgainstService` · `analyse`
