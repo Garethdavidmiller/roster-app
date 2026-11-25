@@ -171,8 +171,9 @@ function _hiddenText(ms) {
  * eight-second limit; since 24 Nov 2026 it says what the save's own records then showed
  * (`ownWritesSentFor`): "its records clear" — the save went on to the server, so a removal was not
  * refused — or "a record still queued" / "records unreadable", when it was held, or refused if it
- * removed something. Nothing
- * at all when no wait ended during the save — a save that checks nothing never waits — so the
+ * removed something. Since 25 Nov 2026 a phone known to hold another account's leftover write asks
+ * its records FIRST: "skipped, its records clear" is a save that went straight on, the wait not spent.
+ * Nothing at all when no wait ended during the save — a save that checks nothing never waits — so the
  * field's absence is a finding too. Begins with its own separator for that reason.
  * @param {unknown} w  `{ ms, outcome, count, overlapped? }`, or null
  */

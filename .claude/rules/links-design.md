@@ -1193,7 +1193,12 @@ authority on the reasoning, and owns six rules:
    was undone, and a binned design came back. If the queue has not drained in time, the transaction
    never starts and fails as it would offline (`unavailable`): a save, a rename or a delete queues
    behind the earlier writes, and a restore, a purge or the automatic bin is refused. `ownWritesSent`
-   is a REQUIRED dependency, so a store built without the wait throws rather than run unguarded.
+   is a REQUIRED dependency, so a store built without the wait throws rather than run unguarded. **It
+   is handed the design's own record** (`runTx([ref], …)`, 25 Nov 2026), and the page passes it to
+   `whenOwnWritesSentFor`: a phone whose queue holds ANOTHER account's leftover write is answered by
+   that record instead of an eight-second wait for a queue that never drains (KNOWN_LIMITATIONS.md →
+   "Admin saves are slow on iPhones"). Never call `runTx` without the record the transaction reads —
+   handed none, the records always read clear.
 6. **A queued save says how it ENDED** (v26.03). A queued create or save carries `settled`, which
    resolves `'acked'` (the server has it), `'held'` (signed out with it queued) or `'failed'` (the
    server refused it), and never rejects. "Queued" is not "saved": in a SECOND tab Firestore's cache is

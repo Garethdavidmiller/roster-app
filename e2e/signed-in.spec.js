@@ -601,6 +601,30 @@ test('another account\'s leftover write: a checked delete still goes through, it
     await del.click();
     await expect(page.locator('#listFeedback')).toContainText(`Deleted: ${signedIn}`, { timeout: 30_000 });
     expect(await overridesFor(signedIn, day), 'the delete was refused, or did not reach the database').toHaveLength(0);
+
+    // 4 · This browser now KNOWS (25 Nov 2026): a checked write's wait ran out online with its records
+    // clear, so it noted the leftover — and the next checked write asks its records first rather than
+    // spend the eight seconds again (claim-retry.js → "A PHONE KNOWN TO HOLD A LEFTOVER").
+    expect(await page.evaluate(() => Number(localStorage.getItem('myb_queue_leftover'))),
+        'the wait ran out on a leftover, online, and this browser did not note it').toBeGreaterThan(0);
+    await page.evaluate(() => import('/claim-retry.js').then((m) => {
+        /** @type {any} */ (window).__ownWaits = [];
+        m.watchOwnWritesWaits((w) => /** @type {any} */ (window).__ownWaits.push(w.outcome));
+    }));
+    await stageDay(page, day, 'annual_leave');
+    await page.locator('#saveBtn').click();
+    await expect.poll(async () => (await overridesFor(signedIn, day)).length, { timeout: 30_000,
+        message: 'the second save never reached the database' }).toBe(1);
+    await expect(del).toBeVisible();
+    await del.click();
+    await expect(del).toHaveText('Delete?');
+    await pastDoubleTap(page);
+    await del.click();
+    await expect.poll(async () => (await overridesFor(signedIn, day)).length, { timeout: 30_000,
+        message: 'the second delete never reached the database' }).toBe(0);
+    const waits = await page.evaluate(() => /** @type {any} */ (window).__ownWaits);
+    expect(waits, 'a checked write on a browser known to hold a leftover waited for it again').toContain('skipped, its records clear');
+    expect(waits.filter((/** @type {string} */ o) => o.startsWith('ran out')), 'no checked write should spend the wait again').toEqual([]);
     expectNothingLeftForGoogle(page);
 });
 

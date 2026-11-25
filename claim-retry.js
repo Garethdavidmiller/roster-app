@@ -294,27 +294,101 @@ export async function recordsClearOfOwnWrites(readFromCache, refs) {
 /** What the diagnostic says after "ran out", per answer. @type {Record<RecordsState, string>} */
 const RECORDS_WORDS = { clear: 'its records clear', queued: 'a record still queued', unknown: 'records unreadable' };
 
+// ── A PHONE KNOWN TO HOLD A LEFTOVER ASKS THE RECORDS FIRST (25 Nov 2026) ──────────────────────────
+//
+// The fallback above rescued the save but not the eight seconds: an affected phone still spent them on
+// EVERY checked save before asking its records, and reported each one as a slow save (five reports in
+// four minutes from one installed iPhone on 25 Nov 2026, each "own-saves wait 8.0s, ran out, its
+// records clear"). The leftover never leaves — nobody can sign that account in to send it — so the
+// wait cannot drain on that phone, and waiting for it again tells the save nothing it did not learn
+// the first time.
+//
+// So a phone REMEMBERS (owner's choice, 25 Nov 2026): the first time the wait runs out WHILE ONLINE and
+// the records then come back clear, it notes that it holds a queue it cannot send. From then on, while
+// online, a checked save asks its records FIRST, and goes straight to the server when they are clear —
+// the same per-record answer the fallback already accepts, eight seconds sooner. A record of this
+// account's still queued, or one the cache cannot answer, still waits exactly as before.
+//
+// THREE BOUNDS keep the note from outliving what it describes:
+//   · ONLINE ONLY, both ways. Offline the wait runs out for a reason that is not a leftover (this
+//     account's own queued writes to OTHER records, which the signal will send), so running out offline
+//     is never noted, and an offline save never skips: it waits and is held or refused as before.
+//   · IT FORGETS when the wait drains: an empty queue means the leftover has gone.
+//   · IT EXPIRES after LEFTOVER_NOTE_MS. A skipping phone never waits, so it can never see the queue
+//     drain; once a week it waits again, and either notes the leftover afresh or finds it gone.
+// The price, accepted with the fallback on 24 Nov 2026: on a phone with the note, this account's own
+// unsent write to a record the save does NOT touch is not waited for. The records it touches are.
+// What a phone holds is device state, not an account's: the note is one key, whoever is signed in.
+
+/** How long a phone trusts its note that it holds a queue it cannot send, before it waits once more to check. */
+export const LEFTOVER_NOTE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * @typedef {{ known: (nowMs: number) => boolean, remember: (nowMs: number) => void, forget: () => void }} LeftoverNote
+ *   This device's note that its queue holds a write it can never send (another account's leftover).
+ */
+
+/**
+ * The note, kept in one storage key through the given accessors (the browser's are `lsGet`/`lsSet`/
+ * `lsDel`, which never throw). A value it cannot read as a time is no note.
+ * @param {{ get: (k: string) => (string|null), set: (k: string, v: string) => void, del: (k: string) => void }} store
+ * @param {string} key
+ * @param {number} [ttlMs]
+ * @returns {LeftoverNote}
+ */
+export function leftoverNote(store, key, ttlMs = LEFTOVER_NOTE_MS) {
+    return {
+        known(nowMs) {
+            const at = Number(store.get(key));
+            return Number.isFinite(at) && at > 0 && nowMs - at >= 0 && nowMs - at < ttlMs;
+        },
+        remember(nowMs) { store.set(key, String(nowMs)); },
+        forget() { store.del(key); },
+    };
+}
+
 /**
  * `ownWritesSent`, and when it runs out, the per-record check above: true when the queue drained in
  * time, or when it did not but none of `refs` has this account's own write queued. Told ONCE how it
- * ended — "drained", "failed", or "ran out, <what the records said>" — so the slow-save line shows
- * which way a save went.
+ * ended — "drained", "failed", "ran out, <what the records said>", or, on a phone whose `leftover`
+ * note is set, "skipped, its records clear" — so the slow-save line shows which way a save went.
  * @param {() => Promise<void>} waitForPendingWrites
  * @param {(ref: any) => Promise<any>} readFromCache
  * @param {Iterable<any>} refs
  * @param {number} [ms]
- * @param {{ onSettled?: (w: OwnWritesWait) => void, now?: () => number }} [diag]
+ * @param {{ onSettled?: (w: OwnWritesWait) => void, now?: () => number, leftover?: LeftoverNote|null, online?: () => boolean }} [diag]
+ *        `leftover`: this device's note (above); without one, every save waits as it did before
+ *        25 Nov 2026. `online`: whether the device says it is online.
  * @returns {Promise<boolean>}
  */
-export async function ownWritesSentFor(waitForPendingWrites, readFromCache, refs, ms = OWN_WRITES_WAIT_MS, { onSettled = _announceOwnWritesWait, now = Date.now } = {}) {
+export async function ownWritesSentFor(waitForPendingWrites, readFromCache, refs, ms = OWN_WRITES_WAIT_MS,
+    { onSettled = _announceOwnWritesWait, now = Date.now, leftover = null, online = () => true } = {}) {
     const started = now();
+    const list = [...refs];
     // A holder, not a `let`: the wait reports into it from a callback, which a type check cannot follow.
     const heard = { wait: /** @type {OwnWritesWait|null} */ (null) };
     const tell = (/** @type {OwnWritesWait} */ w) => { try { onSettled(w); } catch { /* a diagnostic never disturbs the save */ } };
+    const isOnline = () => { try { return online() !== false; } catch { return true; } };
+    const noted = (() => { try { return !!leftover?.known(now()); } catch { return false; } })();
+    if (noted && isOnline()) {
+        // Records first: a phone known to hold a queue it cannot send does not wait on it again.
+        if (await recordsClearOfOwnWrites(readFromCache, list) === 'clear') {
+            tell({ ms: Math.max(0, now() - started), outcome: 'skipped, its records clear' });
+            return true;
+        }
+        // One of ours is still on its way, or unreadable: wait for it, exactly as before.
+    }
     const drained = await ownWritesSent(waitForPendingWrites, ms, { onSettled: w => { heard.wait = w; }, now })
         .catch(err => { tell(heard.wait ?? { ms: Math.max(0, now() - started), outcome: 'failed' }); throw err; });
-    if (drained) { tell(heard.wait ?? { ms: Math.max(0, now() - started), outcome: 'drained' }); return true; }
-    const records = await recordsClearOfOwnWrites(readFromCache, refs);
+    if (drained) {
+        try { leftover?.forget(); } catch { /* the note is a speed-up; losing it costs eight seconds, never a save */ }
+        tell(heard.wait ?? { ms: Math.max(0, now() - started), outcome: 'drained' });
+        return true;
+    }
+    const records = await recordsClearOfOwnWrites(readFromCache, list);
+    if (records === 'clear' && isOnline()) {
+        try { leftover?.remember(now()); } catch { /* as above */ }
+    }
     tell({ ms: heard.wait?.ms ?? Math.max(0, now() - started), outcome: `ran out, ${RECORDS_WORDS[records]}` });
     return records === 'clear';
 }
@@ -332,7 +406,7 @@ export async function ownWritesSentFor(waitForPendingWrites, readFromCache, refs
 // writes it on the diagnostic line. A plain in-module list rather than a DOM event: both modules
 // import this one, and Node can run it.
 
-/** @typedef {'drained'|'ran out'|'failed'|`ran out, ${string}`} OwnWritesOutcome  'failed': the SDK abandoned the wait (the account changed); "ran out, …" adds what the per-record check found (`ownWritesSentFor`) */
+/** @typedef {'drained'|'ran out'|'failed'|`ran out, ${string}`|`skipped, ${string}`} OwnWritesOutcome  'failed': the SDK abandoned the wait (the account changed); "ran out, …" adds what the per-record check found (`ownWritesSentFor`); "skipped, …": a phone known to hold a leftover asked its records first and did not wait */
 /** @typedef {{ ms: number, outcome: OwnWritesOutcome }} OwnWritesWait */
 
 /** @type {Set<(w: OwnWritesWait) => void>} */
