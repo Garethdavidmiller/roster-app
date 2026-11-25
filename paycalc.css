@@ -53,6 +53,50 @@
        shared.css draws no disabled state for it. */
     .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
+    /* ── HELP BUTTON — the ? circle on this page's cards (paycalc.html and paycalc-lightboxes.js); the
+       other card pages use shared.css's `.btn-card-tips`, the same size. This page is its only user, so it
+       left shared.css for here on 25 Nov 2026 (the stylesheet ratchet's MOVE), ahead of every rule below
+       that refines it, as it was. */
+    .help-btn {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--bg-faint); border: 1.5px solid var(--border-mid);
+      color: var(--text-light); font-size: var(--type-small); font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0; touch-action: manipulation;
+      font-family: inherit; line-height: 1;
+      transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
+      vertical-align: middle; margin-left: 5px; position: relative;
+    }
+    .help-btn::before {
+      content: '';
+      position: absolute;
+      inset: -12px;
+    }
+    .help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+    .help-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); } /* navy ring — the ? button sits on light card headers, where gold (~1.5:1) was near-invisible */
+    @media (hover: hover) and (pointer: fine) {
+      .help-btn:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+    }
+
+    /* ── PRIVACY NOTE in the About panel — below the main content, separated by a faint rule. This page
+       is its only user, so it left shared.css for here on 25 Nov 2026 (the stylesheet ratchet's MOVE). */
+    .lightbox-privacy {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      width: 100%;
+      font-size: var(--type-badge);
+      line-height: 1.5;
+      color: rgba(255,255,255,0.6);
+      /* CENTRED by default (v18.91 — v18.89 left-aligned all of them). Its one consumer now is the
+         paycalc ABOUT panel, where the note is 2 lines among entirely centred siblings (version,
+         status chip, badge, buttons, and the print caption right below it), so left-aligning it alone
+         left "never shared." hanging flush-left in a centred column. A 3-line welcome-dialog instance
+         once opted out of this below, for the ~2-line rule; the dialog and its rule have since gone. */
+      text-align: center;
+      text-wrap: pretty;
+    }
+
     /* ── PERIOD SELECTOR (controls card) ── */
     .period-controls {
       background: var(--surface); padding: 10px 16px;
@@ -146,7 +190,7 @@
     .clear-btn:active       { color: var(--error-red); }
     .clear-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     /* THE SMALL TEXT CONTROLS GET THE APP'S INVISIBLE HIT AREA under a thumb — the `.help-btn`
-       pattern (shared.css). Drawn 13–16px tall they fail the tap-target ratchet (e2e/pages.spec.js),
+       pattern (above). Drawn 13–16px tall they fail the tap-target ratchet (e2e/pages.spec.js),
        and "Clear all entries", destructive, was the smallest control on the page. The region grows
        vertically (each sits on its own line, ≥24px from the next control) and only a little sideways,
        so it never reaches a neighbour and the layout does not move. Coarse pointers only. */
