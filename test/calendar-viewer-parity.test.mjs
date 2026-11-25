@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * calendar-viewer-parity.test.mjs — the staff-PIN feature's STATIC contracts, through its retirement.
  * Run: node scripts/run-tests.mjs test/calendar-viewer-parity.test.mjs   (part of `npm run test:hygiene`)

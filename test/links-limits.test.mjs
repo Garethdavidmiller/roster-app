@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-limits.test.mjs — the HARD limits (v19.80).
  * Run: node scripts/run-tests.mjs test/links-limits.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane hygiene
 // Tests for links-analysis.js — the read-only analysis panels (Coverage heat map + Design checks)
 // extracted from links-app.js. Fake DOM, no module mocks → runs in `npm run test:hygiene`.
 // The pure maths is covered by links-design.test.mjs; here we prove the RENDER + the getDesign seam.

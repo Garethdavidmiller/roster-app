@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * pdf-viewer-core.test.mjs — the in-app PDF viewer's rules (pdf-viewer-core.js): how big a page is drawn, the zoom
  * steps, when a file may be opened outside the app, which clicks the viewer takes, and what a failure says.

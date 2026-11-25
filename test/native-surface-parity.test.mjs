@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * native-surface-parity.test.mjs — THE OS DRAWS NOTHING THE APP CAN DRAW ITSELF.
  *

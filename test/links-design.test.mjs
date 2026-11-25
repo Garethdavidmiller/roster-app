@@ -1,3 +1,4 @@
+// @lane hygiene
 // Tests for links-design.js — pure link-design maths (no DOM, no Firebase).
 // Run: node scripts/run-tests.mjs test/links-design.test.mjs
 

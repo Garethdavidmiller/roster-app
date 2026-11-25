@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * nav-gates.test.mjs — the pills the drawer DRAWS for a person are the pages the page policy LETS THEM
  * OPEN, in both directions, for every name on the roster and for nobody (signed out).

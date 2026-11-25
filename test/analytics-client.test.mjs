@@ -1,3 +1,4 @@
+// @lane hygiene
 // @ts-nocheck
 /**
  * analytics-client.test.mjs — the error log and the usage/speed counters, EXECUTED against a fake

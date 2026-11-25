@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * newlink-render.test.mjs — every surface the new link page can show, built in Node.
  * Run: node scripts/run-tests.mjs test/newlink-render.test.mjs   (part of `npm run test:hygiene`)

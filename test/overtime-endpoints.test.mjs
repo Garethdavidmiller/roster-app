@@ -1,3 +1,4 @@
+// @lane functions
 /**
  * overtime-endpoints.test.mjs — the Overtime endpoints, actually EXECUTED.
  * Run with: npm run test:functions   (needs firebase-admin/firebase-functions from functions/node_modules)

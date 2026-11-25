@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * al-leave-file.test.mjs — what a valid leave file is, and that a changed one is refused
  * (al-leave-file.js; docs/AL_UPLOADER_PLAN.md §3).

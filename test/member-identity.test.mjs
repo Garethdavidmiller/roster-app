@@ -1,3 +1,4 @@
+// @lane hygiene
 // member-identity.test.mjs — the server's copy of "which member does this token speak for" (v24.23).
 //
 // functions/member-identity.js and `isMember()` in firestore.rules are two copies of one rule; the

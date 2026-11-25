@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * paycalc-result-headline.test.mjs — the headline figure and the words beside it must agree.
  * Run: node scripts/run-tests.mjs test/paycalc-result-headline.test.mjs   (part of `npm run test:hygiene`)

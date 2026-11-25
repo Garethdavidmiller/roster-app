@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for perf-reporter.js — what a page open records, and above all what it must NOT.
  *

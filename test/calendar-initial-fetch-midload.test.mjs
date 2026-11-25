@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * calendar-initial-fetch.js — the page coming back into view WHILE the first load is still out.
  *

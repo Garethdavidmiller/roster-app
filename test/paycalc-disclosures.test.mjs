@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * paycalc-disclosures.test.mjs — the Pay page's disclosures (paycalc-disclosures.js).
  * Run: node scripts/run-tests.mjs test/paycalc-disclosures.test.mjs   (part of `npm run test:hygiene`)

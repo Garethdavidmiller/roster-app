@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * overtime-manager.test.mjs — the reviewer's by-day view, rendered.
  * Run: node scripts/run-tests.mjs test/overtime-manager.test.mjs   (part of `npm run test:hygiene`)

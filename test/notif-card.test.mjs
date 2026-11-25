@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * notif-card.test.mjs — the Settings Notifications card's WIRING, through the real `initNotificationsCard`.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/notif-card.test.mjs   (part of `npm run test:unit`)

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * operations-reset.test.mjs — every sentence Operations → Account status → Reset says, held to what the
  * server's answer reports (operations-reset.js). The page drives these through the real button in

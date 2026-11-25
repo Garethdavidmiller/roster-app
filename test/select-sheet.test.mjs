@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * THE DROPDOWN THAT REPLACED THE OS ONE — organised by what a wrong answer COSTS.
  *

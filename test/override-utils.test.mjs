@@ -1,3 +1,4 @@
+// @lane unit
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PILL_TYPES, TYPES } from '../admin-shift-types.js';

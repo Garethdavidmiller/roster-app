@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * csp-meta-parity.test.mjs (v17.63; the copies generated since 25 Nov 2026) — the RULE by which every served page's
  * <meta http-equiv="Content-Security-Policy"> follows the firebase.json CSP HEADER.

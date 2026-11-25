@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * rdw-term-parity.test.mjs — RDW has one name on screen: "Rest Day Working".
  * Run: node scripts/run-tests.mjs test/rdw-term-parity.test.mjs   (part of `npm run test:hygiene`)

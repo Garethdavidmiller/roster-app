@@ -201,7 +201,7 @@ regression somewhere the author was not looking.
 | the Mammoth version (`huddle.js`) | the CSP `script-src` in `firebase.json` and every page's `<meta>`, which name that version's folder | `dependency-pin-parity.test.mjs` |
 | any `overlay.js` lifecycle | every lightbox in the app, including the one-time notices | `overlay.test.mjs` · `overlay-history.test.mjs` |
 | adding a PAGE | ONE entry in `scripts/app-pages.mjs`, plus the app's own hand-written lists (SW, auth policy, nav pill, rules analytics id, report names, guide back-arrow) | `page-contract-parity.test.mjs` names each list the page has not joined |
-| adding a MODULE or changing its exports | `docs/FILE_INDEX.md` + `docs/AI_MAP.md`, same commit | `githooks/pre-commit` · `doc-parity.test.mjs` |
+| adding a MODULE or changing its exports | `docs/FILE_INDEX.md` + `docs/AI_MAP.md`, same commit; `npm run generate:copies` | `githooks/pre-commit` · `doc-parity.test.mjs` |
 | `CONFIG.ADMIN_NAMES` / `MANAGER_NAMES` / `LINKS_DESIGNERS` / `OVERTIME_BETA` / `OVERTIME_ENABLED` / `MAX_YEAR` / `FIRST_PAYDAY` / `PAYDAY_INTERVAL_DAYS`, or any `teamMembers` row | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
 | a Firebase SDK bump (`firebase-client.js`) | `FIREBASE_SDK_VERSION` in `service-worker.js` and every page's SDK preloads — run `npm run generate:copies`, which writes both | `generated-copies.test.mjs` |
 | the VAPID key | `functions/index.js` **and** `notif.js` — a mismatch is silent AND permanent | `sw-asset-check.test.mjs` |

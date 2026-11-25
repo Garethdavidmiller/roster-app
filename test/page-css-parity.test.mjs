@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * page-css-parity.test.mjs — a page may only use classes its OWN stylesheets define (v20.09).
  * Run: node scripts/run-tests.mjs test/page-css-parity.test.mjs   (part of `npm run test:hygiene`)

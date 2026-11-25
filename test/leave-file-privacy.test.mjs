@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * leave-file-privacy.test.mjs — A LEAVE FILE NEVER ENTERS THE TREE.
  * Run: node scripts/run-tests.mjs test/leave-file-privacy.test.mjs   (part of `npm run test:hygiene`)

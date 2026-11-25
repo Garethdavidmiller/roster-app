@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Parity tests for the surname-derivation rule that is DELIBERATELY duplicated
  * across the ESM/CommonJS boundary:

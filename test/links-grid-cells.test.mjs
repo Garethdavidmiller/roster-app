@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * links-grid-cells.test.mjs — what one cell of a Links grid says (links-grid-cells.js).
  * Run: node scripts/run-tests.mjs test/links-grid-cells.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * paycalc-backpay.test.mjs — the back-pay lump sum, ASSEMBLED.
  *

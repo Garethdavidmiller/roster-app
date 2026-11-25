@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * guide-index-parity.test.mjs — the generated search index is TRUE of the guide pages, and the
  * wiring that serves it cannot silently detach.

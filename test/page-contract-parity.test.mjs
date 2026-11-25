@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * page-contract-parity.test.mjs — a new app page joins EVERY contract, or fails here.
  * Run: node scripts/run-tests.mjs test/page-contract-parity.test.mjs   (part of `npm run test:hygiene`)

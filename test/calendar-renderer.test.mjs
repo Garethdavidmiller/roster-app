@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for calendar-renderer.js — pure helpers and grid builder.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-renderer.test.mjs

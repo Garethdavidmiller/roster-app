@@ -1,3 +1,4 @@
+// @lane hygiene
 // guide-colour-parity.test.mjs — guards the guide palettes' contract with the app.
 //
 // The guide pages deliberately do NOT import shared.css and run their own hardcoded hex

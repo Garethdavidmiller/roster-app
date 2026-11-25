@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * admin-bulk-apply.test.mjs — what the week card's bulk Apply waits for, and the words that say so.
  * Run: node scripts/run-tests.mjs test/admin-bulk-apply.test.mjs   (part of `npm run test:hygiene`)

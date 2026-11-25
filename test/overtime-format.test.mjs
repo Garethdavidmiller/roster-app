@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * overtime-format.test.mjs — the client's words and its clock.
  * Run with: node scripts/run-tests.mjs test/overtime-format.test.mjs   (no mocks; part of test:hygiene)

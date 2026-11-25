@@ -1,3 +1,4 @@
+// @lane hygiene
 // Tests for the pure `monthCells` helper in date-picker.js (the DOM-driven picker
 // itself is exercised by the Playwright e2e drive, not here). Part of test:hygiene —
 // importing date-picker.js is side-effect-free (all DOM access is inside functions).

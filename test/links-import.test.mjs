@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-import.test.mjs — the design importer, which is a TRUST BOUNDARY.
  * Run: node scripts/run-tests.mjs test/links-import.test.mjs   (no mocks; part of `npm run test:hygiene`)

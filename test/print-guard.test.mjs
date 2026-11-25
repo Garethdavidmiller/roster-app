@@ -1,3 +1,4 @@
+// @lane hygiene
 import { describe, it, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { printIsBlocked, printOrExplain, PRINT_UNAVAILABLE_TEXT, explainNoPrint } from '../print-guard.js';

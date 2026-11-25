@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * pre-commit-parity.test.mjs — the enforced hook must be able to READ what it claims to check.
  * Run: node scripts/run-tests.mjs test/pre-commit-parity.test.mjs   (part of `npm run test:hygiene`)

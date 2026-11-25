@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * links-design-header.test.mjs — the design masthead, organised by what a wrong answer COSTS.
  *

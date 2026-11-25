@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * about-markup-parity.test.mjs — every app page's About panel carries the ids about-lightbox.js reads.
  * Run: node scripts/run-tests.mjs test/about-markup-parity.test.mjs   (part of `npm run test:hygiene` — needs nothing installed)

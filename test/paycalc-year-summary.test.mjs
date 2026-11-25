@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for computeYearSoFar (paycalc-year-summary.js) — the "This tax year so far"
  * aggregation in the Year to Date card (v18.41, review item 11).

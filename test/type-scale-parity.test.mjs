@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * type-scale-parity.test.mjs — the typography scale must actually BE the typography scale.
  *

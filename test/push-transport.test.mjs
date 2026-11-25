@@ -1,3 +1,4 @@
+// @lane functions
 /**
  * push-transport.test.mjs — the two SENDERS, driven for real (v21.85).
  *

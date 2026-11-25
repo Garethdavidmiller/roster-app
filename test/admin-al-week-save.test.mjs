@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * admin-al-week-save.test.mjs — what one week-grid save does about the leave in it.
  * Run: node scripts/run-tests.mjs test/admin-al-week-save.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Static (text-level) guards for storage.rules.
  *

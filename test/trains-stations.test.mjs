@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * trains-stations.test.mjs — the Trains page seen from a station, and the words it shows.
  * Run with: node scripts/run-tests.mjs test/trains-stations.test.mjs   (no mocks; part of test:hygiene)

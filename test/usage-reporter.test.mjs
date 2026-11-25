@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for usage-reporter.js — specifically the WRITE-TIME ADMIN EXCLUSION and the recordOpen
  * gate, which keep the developer's own sessions out of the anonymous analytics. The pure maths

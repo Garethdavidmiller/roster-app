@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for notif.js — the shared Web Push state machine + subscribe/unsubscribe.
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/notif.test.mjs

@@ -1,3 +1,4 @@
+// @lane functions
 /**
  * functions-surface.test.mjs — the deploy surface of functions/index.js, pinned.
  * Run with: npm run test:functions   (not part of `npm test` — it loads firebase-admin and

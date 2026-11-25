@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for the money-critical grade lookups in paycalc-settings.js:
  *   gradeForRole (which pay grade a member's ROLE is — see its own block at the foot of this file),

@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for calendar-member.js — team member selection logic.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-member.test.mjs

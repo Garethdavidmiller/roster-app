@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * al-leave-plan.test.mjs — what one Save of the Annual leave sheet writes, what its log says, and
  * what an Undo may take back (al-leave-plan.js; docs/AL_UPLOADER_PLAN.md §4.5–4.10).

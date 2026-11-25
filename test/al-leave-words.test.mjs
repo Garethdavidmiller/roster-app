@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * al-leave-words.test.mjs — every sentence the Annual leave sheet card says (al-leave-words.js).
  * Run: node scripts/run-tests.mjs test/al-leave-words.test.mjs   (part of `npm run test:hygiene`)

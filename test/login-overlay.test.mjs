@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for the login-overlay.js sign-in CORE: runNamedSignIn().
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/login-overlay.test.mjs

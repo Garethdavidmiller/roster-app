@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for auth-policy.js — the page-authorisation layer (Phase 3).
  * `requirePageAuth` is pure (explicit roles); `requirePage`/`rolesFor` read the real CONFIG.

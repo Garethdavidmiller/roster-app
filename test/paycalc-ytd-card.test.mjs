@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * paycalc-ytd-card.test.mjs — the Year to Date card's anchor on the page (paycalc-ytd-card.js).
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/paycalc-ytd-card.test.mjs

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * trains-change.test.mjs — what the Trains page says changes in December.
  * Run with: node scripts/run-tests.mjs test/trains-change.test.mjs   (no mocks; part of test:hygiene)

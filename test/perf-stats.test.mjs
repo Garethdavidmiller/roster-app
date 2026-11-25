@@ -1,3 +1,4 @@
+// @lane hygiene
 // Unit tests for perf-stats.js — the pure latency maths (Project 0 instrumentation).
 // Run with: node scripts/run-tests.mjs test/perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';

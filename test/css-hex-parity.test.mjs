@@ -1,3 +1,4 @@
+// @lane hygiene
 // @ts-nocheck
 /**
  * css-hex-parity.test.mjs — "never hardcode hex" was an architecture decision with nothing behind it.

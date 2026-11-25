@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * newlink-config.test.mjs — the new link page's settings, and the one switch that must not be flipped alone.
  * Run: node scripts/run-tests.mjs test/newlink-config.test.mjs   (part of `npm run test:hygiene`)

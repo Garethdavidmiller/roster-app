@@ -1,3 +1,4 @@
+// @lane hygiene
 // run-tests-script.test.mjs — scripts/run-tests.mjs, tested by running it, and every npm script
 // that runs Node's test runner held to it, and every test file's own run line.
 //
@@ -98,6 +99,35 @@ describe('the wrapper\'s verdicts', () => {
             'with the flag given to the wrapper, the suite must see module mocking');
         assert.equal(runWrapped(t, body).status, 1,
             'without it the same suite fails — so the pass above is the flag arriving, not luck');
+    });
+});
+
+// ── A LANE IS READ FROM ITS FILES (25 Nov 2026) ─────────────────────────────────────────────────────
+// Each npm test script names a lane, and the files that run are those whose `// @lane` line names it
+// (scripts/test-lanes.mjs). A lane that resolved to nothing would run nothing and pass, so the wrapper
+// refuses it — as it refuses a lane that does not exist.
+describe('--lane', () => {
+    test('reads a file\'s lanes from its own `// @lane` line, one or several, near its top only', async () => {
+        const { laneTags } = await import('../scripts/test-lanes.mjs');
+        assert.deepEqual(laneTags('// @ts-check\n// @lane unit\nimport x;'), ['unit']);
+        assert.deepEqual(laneTags('// @lane unit payslip-local\n'), ['unit', 'payslip-local']);
+        assert.deepEqual(laneTags('/**\n * the // @lane hygiene line is described here\n */'), [], 'prose about the tag is not a tag');
+        assert.deepEqual(laneTags('\n'.repeat(20) + '// @lane unit\n'), [], 'a tag buried in the file is not read');
+    });
+
+    test('a lane that does not exist fails the run, naming the lanes that do', () => {
+        const r = spawnSync(process.execPath, [WRAPPER, '--lane', 'no-such-lane'], { encoding: 'utf8' });
+        assert.equal(r.status, 1);
+        assert.match(r.stderr, /no test lane "no-such-lane" — the lanes are hygiene, unit/);
+    });
+
+    test('a real lane resolves to its files, and only them', async () => {
+        const { filesInLane } = await import('../scripts/test-lanes.mjs');
+        const parse = filesInLane(fileURLToPath(new URL('../', import.meta.url)), 'parse');
+        assert.deepEqual(parse, ['test/module-parse.test.mjs']);
+        const unit = filesInLane(fileURLToPath(new URL('../', import.meta.url)), 'unit');
+        assert.ok(unit.includes('test/paycalc.test.mjs') && !unit.includes('test/clock-input.test.mjs'),
+            'the unit lane holds its own files and none of the hygiene lane\'s');
     });
 });
 

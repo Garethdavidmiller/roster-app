@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * paycalc-sticky-total.test.mjs — the bar that keeps the take-home figure on screen.
  * Run: node scripts/run-tests.mjs test/paycalc-sticky-total.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane hygiene
 // paycalc-breakdown.test.mjs — tests for the two pure HTML builders extracted from calculate()
 // (review item 20). These lock the result-card markup so a future edit to the summary/breakdown
 // can't silently change what staff see. No mocks, no DOM; part of test:hygiene.

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for storage-utils.js — the pure Storage helpers extracted from firebase-client.js.
  * Run (no mocks): node scripts/run-tests.mjs test/storage-utils.test.mjs

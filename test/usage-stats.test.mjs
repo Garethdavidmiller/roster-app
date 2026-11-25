@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * Unit tests for usage-stats.js — the pure date-bucketing + aggregation core of the
  * anonymous usage analytics. No DOM, no Firebase, no mocks (runs in test:hygiene).

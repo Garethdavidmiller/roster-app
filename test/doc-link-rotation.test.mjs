@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * doc-link-rotation.test.mjs — the rotation of the documents' permanent links
  * (functions/doc-link-rotation.js; ARCHITECTURE.md EXC-007), against a fake bucket that keeps each

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * status-glyph-parity.test.mjs — a decorative glyph stays out of the announcement (v21.85).
  *

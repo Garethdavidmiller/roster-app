@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for calendar-doc-viewer.js — the #circular / #newsletter notification viewer.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-doc-viewer.test.mjs

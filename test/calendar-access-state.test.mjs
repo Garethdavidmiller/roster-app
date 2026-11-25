@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * calendar-access-state.test.mjs — whether Calendar access is held, kept ONCE (Calendar step 2, v25.74).
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-access-state.test.mjs   (part of `test:unit`)

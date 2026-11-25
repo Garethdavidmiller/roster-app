@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * calendar-legend.test.mjs — A KEY TO A GRID THAT IS NOT THERE.
  * Run with: node scripts/run-tests.mjs test/calendar-legend.test.mjs

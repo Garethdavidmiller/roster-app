@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * touch-gate-parity.test.mjs — A TOUCH-ONLY TEST MUST RUN ON EVERY TOUCH ENGINE.
  *

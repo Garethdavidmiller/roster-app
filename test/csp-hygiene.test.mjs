@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * csp-hygiene.test.mjs (v16.81) — keep firebase.json's CSP in step with what the app actually
  * loads. The installed PWA masks CSP breakage, and a stale directive is invisible until an outage:

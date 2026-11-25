@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * overlay-parity.test.mjs — the lightbox lifecycle rules, enforced (v22.38).
  *

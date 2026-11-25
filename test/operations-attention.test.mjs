@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * operations-attention.test.mjs — the pure decision behind the Needs-attention strip, organised by
  * the two ways an INDEX can lie about its cards:

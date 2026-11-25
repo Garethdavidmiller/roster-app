@@ -1,3 +1,4 @@
+// @lane hygiene
 // mutation-sweep-script.test.mjs — scripts/mutation-sweep.mjs, run, and its manifest, held to its lanes.
 // Run: node scripts/run-tests.mjs test/mutation-sweep-script.test.mjs   (part of `npm run test:hygiene`)
 //
@@ -35,9 +36,12 @@ const sweep = (/** @type {string[]} */ ...args) =>
 
 describe('the real manifest', async () => {
     const { MUTATIONS } = await import('../scripts/mutation-manifest.mjs');
-    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
-    /** The test files an npm script names. @param {string} name */
-    const filesOf = (name) => new Set(String(pkg.scripts[name] ?? '').match(/test\/[\w.-]+\.test\.mjs/g) ?? []);
+    const { LANES: LANE_SCRIPTS, filesInLane } = await import('../scripts/test-lanes.mjs');
+    /** The test files an npm script runs — its lane's (scripts/test-lanes.mjs). @param {string} name */
+    const filesOf = (name) => {
+        const lane = Object.entries(LANE_SCRIPTS).find(([, script]) => script === name)?.[0];
+        return new Set(lane ? filesInLane(ROOT, lane) : []);
+    };
     const LANES = /** @type {const} */ ([
         ['test:unit', ['--experimental-test-module-mocks']],
         ['test:hygiene', []],

@@ -1,3 +1,4 @@
+// @lane hygiene
 // al-swapped-days.test.mjs — which days need the swap question, and what gets written.
 //
 // The rule this protects is the one the owner set on 14 Sep 2026: ASK ONLY WHEN A DAY IS AFFECTED,

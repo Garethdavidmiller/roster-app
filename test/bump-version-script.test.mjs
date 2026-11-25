@@ -1,3 +1,4 @@
+// @lane hygiene
 // bump-version-script.test.mjs — scripts/bump-version.mjs, tested by RUNNING it on a scratch copy.
 //
 // Nothing ran the bump script, and every version-ordering test fed it canonical NN.NN strings only.

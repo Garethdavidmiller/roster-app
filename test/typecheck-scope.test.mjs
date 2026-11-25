@@ -1,3 +1,4 @@
+// @lane hygiene
 // @ts-nocheck
 /**
  * typecheck-scope.test.mjs — what `npm run typecheck` actually covers, and what it does not.

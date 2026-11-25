@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-target-hours.test.mjs — the generator card's verdict on a target table.
  * Run: node scripts/run-tests.mjs test/links-target-hours.test.mjs   (part of `npm run test:hygiene`)

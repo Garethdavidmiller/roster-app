@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * focus-ring-parity.test.mjs — the focus indicator is the app's only INVISIBLE design system.
  *

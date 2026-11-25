@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * roster-prompt-parity.test.mjs — the roster-parse PROMPT is code, and nothing was checking it.
  * Run: node scripts/run-tests.mjs test/roster-prompt-parity.test.mjs   (part of `npm run test:hygiene`)

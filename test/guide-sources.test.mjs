@@ -1,3 +1,4 @@
+// @lane hygiene
 // guide-sources.test.mjs — structural guard for the GUIDE_SOURCES.md source register.
 //
 // The app enforces its CODE governance in CI; this test extends the same discipline to the

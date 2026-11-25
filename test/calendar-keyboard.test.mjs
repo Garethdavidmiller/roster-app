@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * calendar-keyboard.test.mjs — the Calendar's keyboard grammar: the roving tabindex, the month jump
  * and the swipe-cooldown guard.

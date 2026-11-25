@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * calendar-access.test.mjs — the Calendar's access gate: the decision, the cards, the grant and the loss.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-access.test.mjs

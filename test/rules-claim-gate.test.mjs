@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * rules-claim-gate.test.mjs — ANONYMOUS GRANTS NOTHING, checked over every rule (AUTH_AND_SESSIONS 9).
  * Run: node scripts/run-tests.mjs test/rules-claim-gate.test.mjs   (part of `npm run test:hygiene`)

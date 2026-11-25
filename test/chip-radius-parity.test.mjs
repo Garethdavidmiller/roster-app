@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * chip-radius-parity.test.mjs — a chip must not wear the lightbox/panel corner.
  *

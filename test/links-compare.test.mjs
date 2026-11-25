@@ -1,3 +1,4 @@
+// @lane hygiene
 // Tests for links-compare.js — compare mode extracted from links-app.js. Fake DOM, no module mocks
 // → runs in `npm run test:hygiene`. Proves the OWNED compare state (toggle/select/reset) + the
 // render (both grids, headers, diff cells) + the injected-getter seam.

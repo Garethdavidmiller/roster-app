@@ -1,3 +1,4 @@
+// @lane functions
 /**
  * index-endpoints.test.mjs — the handler that stayed in `functions/index.js`, EXECUTED.
  * Run with: npm run test:functions   (needs firebase-admin/firebase-functions from functions/node_modules)

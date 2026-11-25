@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for nav-panel.js — the drawer. The App Notices archive's rules are notice-archive.js's, and
  * are tested in notice-archive.test.mjs (they moved there with the pages' imports, Nov 2026).

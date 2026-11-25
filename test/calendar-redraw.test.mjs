@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * calendar-redraw.test.mjs — when the Calendar page may draw, and what its next draw owes (Calendar step 3, v25.75).
  * Run: node scripts/run-tests.mjs test/calendar-redraw.test.mjs   (part of `npm run test:hygiene`)

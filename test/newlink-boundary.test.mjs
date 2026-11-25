@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * newlink-boundary.test.mjs — a proposal never reaches a roster surface.
  * Run: node scripts/run-tests.mjs test/newlink-boundary.test.mjs   (part of `npm run test:hygiene`)

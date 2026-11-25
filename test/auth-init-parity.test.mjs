@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * auth-init-parity.test.mjs — Firebase Auth is initialised WITHOUT the popup/redirect resolver
  * (Oct 2026 production review).

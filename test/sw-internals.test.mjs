@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // sw-internals.test.mjs — unit tests for the PURE helper functions inside service-worker.js.
 //
 // service-worker.js is a CLASSIC service worker (registered without { type: 'module' } — see

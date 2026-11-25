@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * paycalc-fill-year.test.mjs — the bulk fill, organised by what a bulk write against PAY DATA can
  * destroy. The four rules in the module header each get their violation shown to fail:

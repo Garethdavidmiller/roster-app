@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * overflow-hint.test.mjs — the "swipe the table" line shows only while its table really scrolls.
  * Run: node scripts/run-tests.mjs test/overflow-hint.test.mjs   (part of `npm run test:hygiene`)

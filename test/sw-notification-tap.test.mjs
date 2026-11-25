@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // sw-notification-tap.test.mjs — the service worker's `notificationclick`, run as the real worker script
 // (Oct 2026 review: "a notification tap navigates the first app window it finds, with no check for
 // unsaved or in-flight work", and "notificationclick is untested").

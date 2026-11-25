@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * runner-parity.test.mjs — AN OPT-IN SPEC MUST NOT RUN IN THE BEHAVIOURAL LANES.
  * Run: node scripts/run-tests.mjs test/runner-parity.test.mjs   (part of `npm run test:hygiene`)

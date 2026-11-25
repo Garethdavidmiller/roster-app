@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for client-errors.js (pure error-log ordering/retention).
  * Run with: node scripts/run-tests.mjs test/client-errors.test.mjs

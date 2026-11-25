@@ -1,3 +1,4 @@
+// @lane hygiene
 // Tests for paycalc-inputs.js — the DOM-pure form-field readers + live decimal hint extracted
 // from paycalc-app.js (v18.60, review item 10). No module mocks: the helpers read a global
 // `document`, so we install a minimal fake DOM. Part of test:hygiene.

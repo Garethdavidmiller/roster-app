@@ -1,3 +1,4 @@
+// @lane unit
 // @ts-nocheck
 /**
  * admin-week-editor.test.mjs — the week grid, by what a wrong answer COSTS.

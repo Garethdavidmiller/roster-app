@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for calendar-initial-fetch.js — initial 3-month fetch and sync-chip state machine.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-initial-fetch.test.mjs

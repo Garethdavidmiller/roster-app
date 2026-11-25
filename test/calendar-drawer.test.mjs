@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * calendar-drawer.test.mjs — the Calendar's menu is built for the session saved when it is built, and
  * a rebuild takes the old one down first and builds it for the session saved NOW.

@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * calendar-access-gate.test.mjs — no access, no override data. Ever.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-access-gate.test.mjs

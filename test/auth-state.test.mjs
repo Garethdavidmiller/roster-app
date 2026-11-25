@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for auth-state.js — the auth STORE (Phase 2).
  * Pure (the store imports only the pure reducer); no mocks. Part of test:hygiene.

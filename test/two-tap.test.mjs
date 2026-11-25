@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * two-tap.test.mjs — the two-tap destructive control (two-tap.js), and a feedback line's one fade
  * (feedback-line.js), driven directly.

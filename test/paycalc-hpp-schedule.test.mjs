@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for paycalc-hpp-schedule.js — the payslip ↔ tax-year relation for the Holiday Pay
  * Premium (v18.85).

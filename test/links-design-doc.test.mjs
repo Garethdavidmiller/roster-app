@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-design-doc.test.mjs — the design doc ↔ object mapping (v19.94).
  * Run: node scripts/run-tests.mjs test/links-design-doc.test.mjs   (part of `npm run test:hygiene`)

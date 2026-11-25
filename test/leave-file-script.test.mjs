@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * leave-file-script.test.mjs — STAGE 1 of the annual leave uploader, run against a workbook built at
  * test time: the reader (scripts/xlsx-read.mjs), the method (scripts/make-leave-file.mjs →

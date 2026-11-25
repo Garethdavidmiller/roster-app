@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * admin-day-pills.test.mjs — which changes one week-grid day takes, at its pills.
  * Run: node scripts/run-tests.mjs test/admin-day-pills.test.mjs   (part of `npm run test:hygiene`)

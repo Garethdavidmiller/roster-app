@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * THE ENTRY ANIMATION MUST NOT BE FROZEN BY SPECIFICITY (v22.64).
  *

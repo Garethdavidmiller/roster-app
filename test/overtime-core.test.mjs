@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * overtime-core.test.mjs — the rules behind Overtime Availability.
  * Run with: node scripts/run-tests.mjs test/overtime-core.test.mjs   (no mocks; part of test:hygiene)

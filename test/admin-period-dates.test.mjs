@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * admin-period-dates.test.mjs — the four pure answers behind the Recorded-dates lists.
  * Run: node scripts/run-tests.mjs test/admin-period-dates.test.mjs   (part of `npm run test:hygiene`)

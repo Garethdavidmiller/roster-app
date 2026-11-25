@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * css-var-parity.test.mjs — every `var(--x)` a page can reach is DEFINED on that page (v23.13).
  * Run: node scripts/run-tests.mjs test/css-var-parity.test.mjs   (part of `npm run test:hygiene`)

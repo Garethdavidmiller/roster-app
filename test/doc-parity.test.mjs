@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * doc-parity.test.mjs — the documentation is checked, not merely reviewed (v20.11).
  * Run: node scripts/run-tests.mjs test/doc-parity.test.mjs   (part of `npm run test:hygiene`)
@@ -258,13 +259,23 @@ test('every e2e spec is routed in CLAUDE.md', () => {
 // their own", but that home is an npm script too — `test:rules` names the two rules suites and
 // `test:functions` the three Functions suites — and every `test*` script is read here. So each
 // exemption only stopped this check looking: drop a suite from `test:functions` and it went green.
-test('every root TEST file is actually RUN by one of the npm scripts', () => {
-    const pkg = read('./package.json');
-    const scripts = JSON.parse(pkg).scripts;
-    const wired = Object.entries(scripts)
-        .filter(([name]) => name.startsWith('test'))
-        .map(([, cmd]) => cmd).join(' ');
-    const unrun = tests.filter(f => !listed(wired, f));
+// EACH FILE NAMES ITS OWN LANE (25 Nov 2026): `// @lane <lane>` near its top (scripts/test-lanes.mjs), and each
+// lane's npm script runs `--lane <lane>`. So a file is RUN when it names a lane that exists and that lane's script
+// asks for it; a file with no tag, or a misspelt one, is the suite that passes by never executing.
+test('every root TEST file is actually RUN by one of the npm scripts', async () => {
+    const { LANES, laneTags } = await import('../scripts/test-lanes.mjs');
+    const scripts = JSON.parse(read('./package.json')).scripts;
+    const unrun = [];
+    for (const f of tests) {
+        const tags = laneTags(read(`./test/${f}`));
+        if (!tags.length) unrun.push(`${f} — no \`// @lane\` line`);
+        for (const t of tags) {
+            if (!Object.hasOwn(LANES, t)) unrun.push(`${f} — names lane "${t}", which does not exist`);
+        }
+    }
+    for (const [lane, script] of Object.entries(LANES)) {
+        if (!new RegExp(`--lane ${lane}(?![\\w-])`).test(scripts[script] ?? '')) unrun.push(`npm run ${script} does not run --lane ${lane}`);
+    }
     assert.deepEqual(unrun, [],
         'these test files exist but no npm script runs them — they pass by never executing:\n  ' +
         unrun.join('\n  '));
@@ -1231,7 +1242,10 @@ test('no doc writes down a repo-derived count that grows with the repo', () => {
     const sw = read('./service-worker.js');
     const listLen = (name) => {
         const block = (sw.match(new RegExp(`${name} = \\[([\\s\\S]*?)\\];`)) || ['', ''])[1];
-        return (block.match(/"\.\//g) || []).length;
+        // A list that spreads the generated APP_MODULES as paths counts each of them too.
+        const spread = /\.\.\.APP_MODULES\.map\(/.test(block)
+            ? ((sw.match(/APP_MODULES = \[([\s\S]*?)\];/) || ['', ''])[1].match(/'[^']+'/g) || []).length : 0;
+        return (block.match(/"\.\//g) || []).length + spread;
     };
     const actual = {
         bootShims:  root.filter(f => /-boot\.js$/.test(f)).length,

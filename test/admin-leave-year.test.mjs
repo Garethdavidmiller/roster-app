@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * admin-leave-year.test.mjs — the Annual Leave card's "which year's allowance" panel (v25.18).
  * Run: node scripts/run-tests.mjs test/admin-leave-year.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * overtime-sunday-release.test.mjs — asking to be taken off a rostered Sunday.
  * Run: node scripts/run-tests.mjs test/overtime-sunday-release.test.mjs   (part of `npm run test:hygiene`)

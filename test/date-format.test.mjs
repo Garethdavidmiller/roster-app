@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * date-format.test.mjs — the app's date vocabulary, composer by composer.
  *

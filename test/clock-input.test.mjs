@@ -1,3 +1,4 @@
+// @lane hygiene
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClockTime, formatClockInput, finaliseClockInput, shapeClockBox, settleClockBox } from '../clock-input.js';

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-rotation-parity.test.mjs — the rotation LENGTH is declared once and stated nowhere (v19.98).
  * Run: node scripts/run-tests.mjs test/links-rotation-parity.test.mjs   (part of `npm run test:hygiene`)

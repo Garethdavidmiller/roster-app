@@ -1,3 +1,4 @@
+// @lane hygiene
 // guide-app-parity.test.mjs — the Staff & Admin Guide restates lists the app keeps in ONE place.
 //
 // ── WHY THIS EXISTS (v25.82) ────────────────────────────────────────────────────────────────────

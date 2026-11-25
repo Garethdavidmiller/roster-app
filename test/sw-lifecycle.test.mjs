@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // sw-lifecycle.test.mjs — the service worker's UPDATE steps, run as the real worker script.
 //
 // WHY THIS EXISTS (test audit, 7 Nov 2026). Six mutations of the update path left every suite that

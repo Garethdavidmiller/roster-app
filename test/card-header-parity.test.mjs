@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Static guard for the canonical card-header conventions across the five card-bearing app pages
  * (v18.86). No emulator, no browser — it reads the served HTML.

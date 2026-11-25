@@ -1,3 +1,4 @@
+// @lane hygiene
 // import-graph.test.mjs — detects circular imports across root ES modules.
 // Uses regex-based import extraction (no dynamic execution), so it works without
 // a build step and runs in the plain node:test runner.

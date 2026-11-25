@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * newsletter-recency.test.mjs — the ☰ menu offers the Marylebone Newsletter only while its latest
  * issue is under six weeks old (newsletter-recency.js, owner, 14 Nov 2026).

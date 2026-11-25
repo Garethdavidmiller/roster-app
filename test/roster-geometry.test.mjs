@@ -1,3 +1,4 @@
+// @lane functions
 /**
  * roster-geometry.test.mjs — the PDF's own grid as a witness, organised by what a wrong answer COSTS.
  *

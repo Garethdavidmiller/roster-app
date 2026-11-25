@@ -1,3 +1,4 @@
+// @lane functions
 /**
  * roster-cell-read.test.mjs — the geometry-first read: the grid places the cell, the model only
  * says what it means. Run: node scripts/run-tests.mjs test/roster-cell-read.test.mjs   (part of `npm run test:functions`)

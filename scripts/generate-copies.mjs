@@ -38,6 +38,14 @@
  *              the version firebase-client.js imports. A worker on the old name would warm the old
  *              SDK's files while every page imports the new one's.
  *
+ *   sw-modules
+ *              `APP_MODULES` in service-worker.js — every local module an app page can load: its
+ *              static imports, its `import('./…')` calls and its <script src>, walked from each
+ *              scripts/app-pages.mjs entry — minus what SUPPLEMENTARY_ASSETS lists (the guides'
+ *              scripts and DOMPurify, warmed after the core). Both the network-first match set and
+ *              the core precache spread it. It was two hand-kept lists, and every merge of two
+ *              branches that each added a module conflicted in them (25 Nov 2026). One module per
+ *              line, sorted, so two such branches seldom touch the same line.
  *   welcome-emails
  *              the four ready-made welcome emails in .claude/skills/new-starter/ (one per grade a
  *              colleague signs in under), below each one's own hand-written header, from the general
@@ -209,6 +217,61 @@ function sdkVersion(read) {
     return [['service-worker.js', out]];
 }
 
+// ── sw-modules ───────────────────────────────────────────────────────────────────────────────────
+
+/** The LIVE body of `const <name> = [ … ];` in the worker, comments removed. @param {string} sw @param {string} name */
+function workerArray(sw, name) {
+    const m = new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`).exec(sw);
+    if (!m) throw new Error(`service-worker.js has no \`const ${name} = [ … ];\` — the reading is wrong`);
+    return m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
+/**
+ * Every local module an app page can load, sorted: the static graph (`staticLocalGraph`) widened to
+ * `import('./…')` calls and to the page's own <script src>. A computed `import(url)` cannot be read —
+ * PDF.js's folder and the Firebase Storage SDK are the two, and neither is an app module.
+ * @param {Reader} read @returns {string[]}
+ */
+export function appModules(read) {
+    const seen = new Set();
+    /** @param {string} file */
+    const walk = (file) => {
+        if (seen.has(file)) return;
+        let src;
+        try { src = read(file); } catch { return; }
+        seen.add(file);
+        src = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+        const deps = [
+            ...[...src.matchAll(/\bfrom\s*["']([^"']+)["']/g)].map(m => m[1]),
+            ...[...src.matchAll(/^\s*import\s*["']([^"']+)["']/gm)].map(m => m[1]),
+            ...[...src.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)].map(m => m[1]),
+        ];
+        for (const p of deps) if (p.startsWith('./') && /\.m?js$/.test(p)) walk(p.slice(2));
+    };
+    for (const page of APP_PAGES) {
+        walk(page.coordinator);
+        if (page.boot) walk(page.boot);
+        for (const m of read(page.file).matchAll(/<script[^>]*\bsrc="\.\/([^"]+\.m?js)"/g)) walk(m[1]);
+    }
+    return [...seen].sort();
+}
+
+const SW_MODULES_BEGIN = '// GENERATED app modules: npm run generate:copies writes every line down to the END marker, from each '
+    + 'app page\'s imports (scripts/app-pages.mjs). Never edit them by hand.';
+const SW_MODULES_END = '// END GENERATED app modules';
+
+/** @param {Reader} read @returns {Owned} */
+function swModules(read) {
+    const sw = read('service-worker.js');
+    const later = new Set([...workerArray(sw, 'SUPPLEMENTARY_ASSETS').matchAll(/["']\.\/([^"']+)["']/g)].map(m => m[1]));
+    const modules = appModules(read).filter(f => !later.has(f));
+    const out = replaceOne(sw,
+        /^\/\/ GENERATED app modules[^\n]*\n[\s\S]*?^\/\/ END GENERATED app modules$/m,
+        () => [SW_MODULES_BEGIN, 'const APP_MODULES = [', ...modules.map(f => `    '${f}',`), '];', SW_MODULES_END].join('\n'),
+        'service-worker.js', 'GENERATED app modules region');
+    return [['service-worker.js', out]];
+}
+
 // ── welcome-emails ──────────────────────────────────────────────────────────────────────────────
 
 /** Where the welcome emails live: the general template and its ready-made copies. */
@@ -323,6 +386,7 @@ export const COPIES = Object.freeze(/** @type {Array<[string, (read: Reader) => 
     ['csp-meta', cspMeta],
     ['module-preloads', modulePreloads],
     ['sdk-version', sdkVersion],
+    ['sw-modules', swModules],
     ['welcome-emails', welcomeEmails],
 ]));
 

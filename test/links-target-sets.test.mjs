@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-target-sets.test.mjs — saved generator target sets: the trust boundary and the ownership rule.
  * Run: node scripts/run-tests.mjs test/links-target-sets.test.mjs   (no mocks; part of `npm run test:hygiene`)

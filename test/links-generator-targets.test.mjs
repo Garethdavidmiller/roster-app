@@ -1,3 +1,4 @@
+// @lane unit
 // links-generator-targets.test.mjs — the generator card's target table and its saved staffing setups,
 // driven through the REAL module: its listeners, its state and the sentences it writes.
 //

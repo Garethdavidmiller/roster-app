@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * calendar-notices.test.mjs — WHO A NOTICE IS ADDRESSED TO, AND WHETHER IT ASKS.
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-notices.test.mjs

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * upload-cap-parity.test.mjs — the 20 MB document upload cap is declared in THREE places, on three
  * sides of two boundaries, and nothing made them agree.

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-design-store.test.mjs — the concurrency protocol, driven against a fake Firestore.
  *

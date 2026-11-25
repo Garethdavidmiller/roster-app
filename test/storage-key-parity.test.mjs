@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * storage-key-parity.test.mjs — a cross-file storage key has ONE spelling, and it is in
  * `storage-keys.js` (v23.46).

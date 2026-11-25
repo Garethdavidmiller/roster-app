@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * overtime-parity.test.mjs — the client and the server must agree about a submission's history.
  * Run: node scripts/run-tests.mjs test/overtime-parity.test.mjs   (part of `npm run test:hygiene`)

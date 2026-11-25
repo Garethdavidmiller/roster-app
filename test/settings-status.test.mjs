@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * settings-status.test.mjs — the one line at the top of Settings, and which cards open themselves.
  *

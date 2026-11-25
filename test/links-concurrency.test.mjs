@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-concurrency.test.mjs — the Links workspace's co-editing rules.
  * Run: node scripts/run-tests.mjs test/links-concurrency.test.mjs   (part of `npm run test:hygiene`)

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * WHEN A PICK IS APPLIED — organised by what a wrong answer COSTS.
  *

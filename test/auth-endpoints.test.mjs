@@ -1,3 +1,4 @@
+// @lane functions
 /**
  * auth-endpoints.test.mjs — the ACCOUNT-AND-CREDENTIAL handlers, driven for real (v21.83, v21.85).
  *

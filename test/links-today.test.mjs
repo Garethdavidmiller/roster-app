@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * links-today.test.mjs — what the Links workspace reads from today's roster (links-today.js).
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/links-today.test.mjs   (part of `npm run test:unit`)

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-seed.test.mjs — the generator's target seed (v19.92).
  * Run: node scripts/run-tests.mjs test/links-seed.test.mjs   (part of `npm run test:hygiene`)

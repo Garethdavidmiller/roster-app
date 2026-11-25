@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Tests for admin-override-coverage.js — what the Admin override cache knows.
  *

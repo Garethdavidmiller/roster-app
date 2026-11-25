@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for session.js: constants, getSession, saveSession, clearSession,
  * resolveSession/sessionReady, and the Firebase sign-in lifecycle.

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * status-text.test.mjs — the decorative-glyph rule, from both sides.
  *

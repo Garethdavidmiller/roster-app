@@ -1,3 +1,4 @@
+// @lane hygiene
 // admin-al-spare-note.test.mjs — the AL preview's Spare-day line.
 //
 // Two things are pinned here and they fail for different reasons: the SENTENCES have to be English

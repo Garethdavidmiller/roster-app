@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * links-grid-input.test.mjs — the design grid's keyboard rule, and a mouse stroke's bookkeeping.
  * Run: node scripts/run-tests.mjs test/links-grid-input.test.mjs   (part of `npm run test:hygiene`)

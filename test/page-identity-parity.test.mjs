@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * page-identity-parity.test.mjs — each page's colour is declared ONCE, and everything that wears it
  * agrees (v25.14). No browser: it reads the served stylesheets and the drawer's page list.

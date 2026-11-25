@@ -1,4 +1,5 @@
 // @ts-check
+// @lane functions
 /**
  * documents-endpoints.test.mjs — the DOCUMENT domain's handlers EXECUTED, against a fake
  * Firestore, a fake Storage and a recording push transport.

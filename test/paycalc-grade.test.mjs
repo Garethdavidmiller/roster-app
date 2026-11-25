@@ -1,3 +1,4 @@
+// @lane hygiene
 // Tests for paycalc-grade.js — which grade each of a payslip's days was worked under.
 // Run: node scripts/run-tests.mjs test/paycalc-grade.test.mjs
 //

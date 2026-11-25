@@ -1,3 +1,4 @@
+// @lane hygiene
 // slow-save.test.mjs — the "waiting for signal" watcher (slow-save.js, v24.21).
 // Pure: timers are injected, so nothing here waits eight real seconds.
 import { test } from 'node:test';

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-deletion.test.mjs — the "Recently deleted" rules for the Links workspace.
  * Run: node scripts/run-tests.mjs test/links-deletion.test.mjs   (part of `npm run test:hygiene`)

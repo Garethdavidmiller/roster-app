@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * paycalc-backpay-state.test.mjs — the back-pay card's figure decisions (v19.93).
  * Run: node scripts/run-tests.mjs test/paycalc-backpay-state.test.mjs   (part of `npm run test:hygiene`)

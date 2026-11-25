@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * admin-booked-periods.test.mjs — WHICH YEAR OF SOMEBODY'S LEAVE IS ON SCREEN.
  *

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * uk-english-parity.test.mjs — the app speaks UK English (owner, 3 Nov 2026).
  * Run: node scripts/run-tests.mjs test/uk-english-parity.test.mjs   (part of `npm run test:hygiene`)
