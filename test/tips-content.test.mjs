@@ -443,8 +443,9 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
 
     test('the generator names its custom option by the label the option carries', async () => {
         const { CARD_TIPS } = await import('../links-tips.js');
-        const label = src('links-app.js').match(/opt\('__custom__', '([^']+)'\)/)?.[1];
-        assert.ok(label, 'the custom option\'s label was not found in links-app.js');
+        // The shift list is links-grid.js's since 25 Nov 2026 (`shiftOptionsHtml`, out of links-app.js).
+        const label = src('links-grid.js').match(/opt\('__custom__', '([^']+)'\)/)?.[1];
+        assert.ok(label, 'the custom option\'s label was not found in links-grid.js');
         const tip = words(CARD_TIPS, 'links-generator');
         assert.ok(tip.includes(`choose ${label}`), `the tip should send the designer to "${label}"`);
         assert.doesNotMatch(tip, /Custom time/);
