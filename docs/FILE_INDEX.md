@@ -52,7 +52,12 @@ roster-app/
 ├── calendar-huddle-viewer.js    ← the Huddle viewer overlay (`#huddle`), including the per-table scroll boxes. See also calendar-huddle-viewer.test.mjs.
 ├── huddle-table-grid.js ← which Huddle cells are really in COLUMN 1, walking the grid as the browser does. Pure. Tested by huddle-table-grid.test.mjs. See also pages.spec.js.
 ├── calendar-doc-viewer.js  ← the Circular/Newsletter in-app viewer (`#circular` / `#newsletter`), separate from the Huddle viewer. See also calendar-doc-viewer.test.mjs.
-├── nav-panel.js            ← the shared nav drawer; renders what nav-destinations.js lists. See also nav-panel.test.mjs, nav-bell.test.mjs, nav-guide-fold.test.mjs, coordinator-ratchet.test.mjs.
+├── nav-panel.js            ← the shared nav drawer's COORDINATOR: open/close, its one history entry, the delegated click, the Tab trap, sign-out, the reset; wires the five below. See also nav-panel.test.mjs, coordinator-ratchet.test.mjs.
+├── nav-panel-markup.js     ← the drawer's HTML, drawn from what nav-destinations.js lists. See also nav-panel.test.mjs, firestore-contract-parity.test.mjs.
+├── nav-drawer-lightboxes.js ← the drawer's info panel and App Notices, and the one lifecycle they share (never createLightbox). See also nav-panel.test.mjs.
+├── nav-latest-doc.js       ← the drawer's Circular and Newsletter rows: open the latest issue in one tap. See also nav-panel.test.mjs.
+├── nav-bell.js             ← the drawer footer's notification bell; the push logic is notif.js's. See also nav-bell.test.mjs.
+├── nav-guide-fold.js       ← the drawer's Reference fold and the guide search's lazy load. See also nav-guide-fold.test.mjs, guide-index-parity.test.mjs.
 ├── nav-destinations.js     ← the drawer's destinations and pill gates as DATA; imports nothing
 ├── newsletter-recency.js   ← whether the ☰ menu offers the Marylebone Newsletter (latest issue under six weeks old). See also calendar.spec.js, operations.spec.js.
 ├── notice-archive.js       ← the App Notices archive's rules and its never-throwing read. See also notice-archive.test.mjs.
@@ -68,7 +73,10 @@ roster-app/
 ├── text-scale.js ← how much larger the phone draws text than the stylesheet asks, and the tier the Calendar's rows key on (`data-text-scale`). Its header. Tested by text-scale.test.mjs. See also calendar.spec.js.
 ├── notif.js                ← shared Web Push: support and state, enable/disable, sign-out release, and the platform reads (iOS, standalone, Pages mirror). See also notif.test.mjs.
 ├── select-sheet.js ← the app's OWN dropdown in place of the OS's; the native `<select>` stays as the value holder. The rules an edit can break: its header and select-sheet-parity.test.mjs. Tested by select-sheet.test.mjs and select-sheet-pick.test.mjs. See also calendar.spec.js.
-├── overlay.js              ← shared overlay helpers: `createLightbox`, the scroll lock, focus trap, overlay history, and the in-app confirm/prompt dialogs; re-exports card-collapse.js. See also overlay.test.mjs, overlay-history.test.mjs.
+├── overlay.js              ← the overlay layer's front door: `createLightbox`, the scroll lock, `openNoticeIfClear` and the in-app confirm/prompt dialogs; re-exports the four below, so every import comes from here. See also overlay.test.mjs, overlay-history.test.mjs.
+├── overlay-history.js      ← the Android Back stack, `whenHistorySettled` and `followLinkOutOf`; re-exported by overlay.js. Tested by overlay-history.test.mjs
+├── overlay-focus.js        ← the Tab trap and the guard for focus moves no key reports; re-exported by overlay.js. See also overlay.test.mjs.
+├── overlay-panel-scroll.js ← a scrolling panel's "more below" fade and its pinned ✕; re-exported by overlay.js. See also overlay.test.mjs.
 ├── card-collapse.js        ← a card's collapsible header and the deep link that opens a collapsed card by name; re-exported by overlay.js
 ├── date-picker.js          ← the brand-styled single-date picker over a hidden native `<input type="date">`. **Its CSS is in `shared.css`**
 ├── date-format.js          ← the app's OWN date vocabulary and month/day tables (roster-data.js re-exports `DAY_NAMES`, `MONTH_ABB` and `MONTH_NAMES`). Pure. Tested by date-format.test.mjs and month-vocabulary-parity.test.mjs

@@ -976,7 +976,7 @@ export function parseSmartFloatOrNull(v) {
  * Derive up-to-two-letter initials from a member display name, for the
  * initials badge shown beside their name in the nav-panel footer.
  * "G. Miller" → "GM"; "C. Francisco-Charles" → "CF"; single-word names → first
- * letter only. Used by nav-panel.js (footer badge).
+ * letter only. Used by nav-panel-markup.js (footer badge).
  * @param {string} name
  * @returns {string} 1–2 uppercase letters, or "?" if none can be derived
  */

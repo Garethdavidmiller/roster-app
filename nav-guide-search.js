@@ -53,11 +53,11 @@ const PAGE_EVIDENCE_LABELS = {
 const RESULT_LIMIT = 8;
 
 /**
- * Wire the search box. Called once per drawer BUILD, by nav-panel.js on the box's first focus — a
+ * Wire the search box. Called once per drawer BUILD, by nav-guide-fold.js on the box's first focus — a
  * rebuilt drawer (`resetNavPanel` then `initNavPanel`) has a fresh box and wires it again.
  *
  * @param {{ guides: ReadonlyArray<{icon: string, label: string, url: string, openId: string}> }} cfg
- *   `guides` is the drawer's NAV_GUIDES (nav-destinations.js), handed over by nav-panel.js, so the
+ *   `guides` is the drawer's NAV_GUIDES (nav-destinations.js), handed over by nav-guide-fold.js, so the
  *   results can only ever name a guide the drawer lists.
  */
 export function initGuideSearch({ guides }) {
@@ -149,7 +149,7 @@ export function initGuideSearch({ guides }) {
         // and a second copy in nav-panel.js would disagree the first time somebody typed a comma.
         // One writer here, one reader there.
         results.dataset.gsActive = active ? '1' : '';
-        // Every message this writes is an ordinary one: drop the error tone nav-panel.js gives the
+        // Every message this writes is an ordinary one: drop the error tone nav-guide-fold.js gives the
         // "Search is unavailable" line, should this element ever have carried it.
         delete status.dataset.state;
         if (!active) {
@@ -211,7 +211,7 @@ export function initGuideSearch({ guides }) {
             wasOpen = open;
         }).observe(panel, { attributes: true, attributeFilter: ['class'] });
     }
-    // Folding Reference hides the box (nav-panel.js's toggle), so search mode follows it both ways.
+    // Folding Reference hides the box (nav-guide-fold.js's toggle), so search mode follows it both ways.
     if (zone && typeof MutationObserver === 'function') {
         new MutationObserver(syncSearchMode).observe(zone, { attributes: true, attributeFilter: ['hidden'] });
     }

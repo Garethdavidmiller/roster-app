@@ -5,10 +5,10 @@
  *
  * Owns: the #docViewer lightbox, opened from a #circular / #newsletter deep link — a notification tap
  *   (see .claude/rules/notifications.md and the onCircularCreated / onNewsletterCreated Cloud Function
- *   triggers), or the drawer handing over to it when no new tab came back (nav-panel.js, v24.61).
+ *   triggers), or the drawer handing over to it when no new tab came back (nav-latest-doc.js, v24.61).
  * Does NOT own: the Huddle viewer (calendar-huddle-viewer.js — the Huddle has its
  *   own full-bleed panel and DOCX inline-render path), uploads (operations-app.js),
- *   or the nav-drawer links (nav-panel.js still opens these in a new tab).
+ *   or the nav-drawer links (nav-latest-doc.js still opens these in a new tab).
  *
  * The viewer shows an explicit "Open" button rather than rendering inline or
  * calling window.open() at open time: a notification tap carries no user

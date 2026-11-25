@@ -1072,7 +1072,7 @@ Every dialog traps Tab/Shift+Tab — the nav panel and every lightbox through `c
 ### The drawer does not pull back focus the iPhone keyboard's arrows move out of it
 The ‹ › arrows above the iPhone keyboard move focus to the previous or next text field in the document
 and fire no key event, so a Tab trap never sees them. Since 7 Nov 2026 every `createLightbox` dialog
-pulls such focus back (`_guardFocus`, `overlay.js`); the nav drawer, its two lightboxes and the Huddle
+pulls such focus back (`_guardFocus`, `overlay-focus.js`); the nav drawer, its two lightboxes and the Huddle
 viewer keep their own Tab traps and have no guard, so the arrows can leave the drawer's *Search the
 guides* box for a field behind it. Not built yet; since v26.25 `nav-panel.js` has room under its cap
 (`coordinator-ratchet.test.mjs`). The device check

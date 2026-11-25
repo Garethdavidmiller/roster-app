@@ -463,12 +463,22 @@ const CAPS = {
     // 1250 → 1150 (21 Nov 2026, at 1,099), a LOWER: the drawer's destinations and the pill filter left for
     // nav-destinations.js (imported by the tests rather than read as text), its two lightboxes became one
     // lifecycle (`_drawerLightbox`), the archive re-export and the dead `comingSoon` extension point went.
-    'nav-panel.js':            1150,
+    // 1150 → 530 (25 Nov 2026, at 499 of 1,100), a SPLIT: the drawer's HTML left for nav-panel-markup.js, its two
+    // lightboxes and their one lifecycle for nav-drawer-lightboxes.js, the document rows' open for nav-latest-doc.js,
+    // the bell for nav-bell.js and the Reference fold for nav-guide-fold.js. What stays is the coordinator — open and
+    // close, the one history entry, the delegated click, the Tab trap, sign-out and the reset. Measured plus about 30,
+    // so the next part of the drawer brings its own module rather than a raise.
+    'nav-panel.js':             530,
     // overlay.js crossed 900 on 18 Nov 2026, 892 → 953: `followLinkOutOf`, the rule for a link that leaves the page
     // from inside an open lightbox, and the argument for it. One subject (the overlay layer's history), and the rule
     // needs the PRIVATE handler stack, so it cannot leave without exporting that; it is held without a DOM in
     // overlay-history.test.mjs. 953 measured, plus 50, to the next 50.
-    'overlay.js':              1050,
+    // 1050 → 690 (25 Nov 2026, at 654 of 1,016), a SPLIT that did what the note above said needed an export: the
+    // Back stack and `followLinkOutOf` left for overlay-history.js, the Tab trap and focus guard for overlay-focus.js,
+    // the scroll fade and pinned ✕ for overlay-panel-scroll.js — all re-exported, so no import moved. The scroll lock,
+    // createLightbox and the dialogs built on it stay (overlay.js's header says why the dialogs cannot leave). Measured
+    // plus about 35.
+    'overlay.js':               690,
     // settings-app.js crossed 900 on 18 Nov 2026, 900 → 908: the Work Email card's slow-load branch now marks the card
     // saved as an ordinary load does. Wiring, not a rule. 908 measured, plus 50, to the next 50.
     // 1000 → 580 (25 Nov 2026, at 552 of 1,000), a SPLIT at the cap: the `?` panels' content left for

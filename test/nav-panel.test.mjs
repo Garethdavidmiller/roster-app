@@ -989,3 +989,75 @@ describe('a refusal from the server asks for a sign-in, and never for a PIN, on 
         });
     }
 });
+
+// ── The drawer's parts, driven through what nav-panel.js hands them (the split of 25 Nov 2026) ────────────
+// The document rows' open left for nav-latest-doc.js and the two lightboxes for nav-drawer-lightboxes.js.
+// Every flag stays nav-panel.js's, so each part reaches the drawer only through what it is handed: a getter
+// for the open flag, three moves on the history entry. The suites above drive both through the real
+// `initNavPanel`; these hold the hand-over itself, which a part reading the wrong collaborator would break.
+
+describe('nav-latest-doc.js — a late answer acts only while the drawer is the open surface', () => {
+    test('a refused gate explains itself in the info panel, through the drawer\'s own two calls, and opens no tab', async () => {
+        const { createLatestDocOpener } = await import('../nav-latest-doc.js');
+        for (const open of [true, false]) {
+            /** @type {any[]} */ const calls = [];
+            let tabs = 0;
+            global.window = /** @type {any} */ ({ open: () => { tabs += 1; return null; } });
+            const opener = createLatestDocOpener({
+                panel: /** @type {any} */ ({ isConnected: true }), isPanelOpen: () => open,
+                closePanel: () => calls.push('close'), _closePanelVisualOnly: () => calls.push('visual close'),
+                _openComingSoon: (/** @type {any} */ _t, /** @type {any} */ body) => calls.push(body),
+                _onCalendarPage: () => false, canReadDocuments: () => false, authReady: Promise.resolve(), _usageId: null,
+            });
+            const trigger = /** @type {any} */ ({ dataset: { csTitle: 'Weekly Retail Circular' } });
+            opener(trigger, async () => { calls.push('read'); return null; }, 'circular');
+            assert.equal(tabs, 0, 'a refused tap opened a tab');
+            assert.deepEqual(calls, open ? ['visual close', 'Sign in to read the Weekly Retail Circular.'] : [],
+                open ? 'the refusal was not explained over the drawer' : 'with the drawer shut, nothing may open over the page');
+        }
+    });
+});
+
+describe('nav-drawer-lightboxes.js — the two lightboxes share the drawer\'s ONE history entry', () => {
+    /** Build both over a fake page; `log` records every move on the entry, every Back and the focus's return. */
+    async function build({ pushed = false } = {}) {
+        const { createDrawerLightboxes } = await import('../nav-drawer-lightboxes.js');
+        /** @type {Map<string, any>} */ const els = new Map();
+        global.document = /** @type {any} */ ({
+            getElementById: (/** @type {string} */ id) => { if (!els.has(id)) els.set(id, fakeEl()); return els.get(id); },
+            addEventListener() {}, removeEventListener() {}, querySelectorAll: () => [],
+        });
+        /** @type {string[]} */ const log = [];
+        global.window = /** @type {any} */ ({ matchMedia: () => ({ matches: false }) });
+        global.history = /** @type {any} */ ({ pushState() {}, back() { log.push('back'); } });
+        global.requestAnimationFrame = /** @type {any} */ (() => 0);
+        let entry = pushed, csOpen = false, noticesOpen = false;
+        const lbs = createDrawerLightboxes({
+            burger: /** @type {any} */ ({ focus: () => log.push('burger focus') }),
+            entry: { isPushed: () => entry, push: () => { entry = true; log.push('push'); }, forget: () => { entry = false; log.push('forget'); } },
+            comingSoon: { isOpen: () => csOpen, setOpen: v => { csOpen = v; } },
+            notices: { isOpen: () => noticesOpen, setOpen: v => { noticesOpen = v; } },
+        });
+        return { lbs, els, log, isOpen: () => csOpen };
+    }
+
+    test('opened from the open drawer it reuses the entry; its ✕ pops that entry once and gives focus back to the burger', async () => {
+        const { lbs, els, log, isOpen } = await build({ pushed: true });
+        lbs.openComingSoon(undefined, 'Couldn’t connect');
+        assert.equal(isOpen(), true);
+        assert.equal(els.get('navComingSoonBody').textContent, 'Couldn’t connect');
+        assert.deepEqual(log, [], 'an entry was already there: none may be pushed');
+        els.get('navComingSoonClose').on.click();
+        els.get('navComingSoonClose').on.click();   // a second tap during the fade
+        assert.deepEqual(log, ['forget', 'back', 'burger focus'], 'one close, one Back');
+        assert.equal(isOpen(), false);
+    });
+
+    test('with no entry it pushes one; Back closes it without popping another', async () => {
+        const { lbs, log } = await build({ pushed: false });
+        lbs.openComingSoon(undefined, 'x');
+        assert.deepEqual(log, ['push']);
+        lbs.csLb.closeFromBack();
+        assert.deepEqual(log, ['push', 'forget', 'burger focus'], 'the browser already popped it: no history.back()');
+    });
+});
