@@ -676,7 +676,7 @@ describe('5 · the install notice: a phone browser, third in line, and the right
         // Two more lines since the iPhone audit (7 Nov 2026): an email or chat app cannot add it, and the
         // Home Screen app's storage is its own. Android shares one storage, so its routes carry neither.
         // "Already on your home screen?" is folded into the iPhone's own line (22 Nov 2026), so the card fits an SE.
-        [{ how: 'ios', mirror: false }, ['installNoticeIos', 'installNoticePayIos', 'installNoticePayLead', 'installNoticeSafari'],
+        [{ how: 'ios', mirror: false }, ['installNoticeIos', 'installNoticeIosStore', 'installNoticePayIos', 'installNoticePayLead', 'installNoticeSafari'],
             'an iPhone or iPad: Share, then Add to Home Screen — and what does not come with it'],
         // The mirror gets no steps of its own: the main address shows them once the member is there,
         // and with them the card ran past a phone's screen and hid its one button.
@@ -706,6 +706,8 @@ describe('5 · the install notice: a phone browser, third in line, and the right
             await settleAccess();
             opened()._cfg.onOpen();
             assert.deepEqual(showing().filter(id => /Pay/.test(id)), [], 'no line about pay figures');
+            // …but the iPhone's sign-in fact is everybody's (review of v26.67): it went with the pay words.
+            if (route.how === 'ios' && !route.mirror) assert.ok(showing().includes('installNoticeIosStore'), 'the Home Screen app needs its own sign-in');
             const filed = _archived.find(n => n.id === 'install-app-2026');
             assert.ok(filed, 'archived on open');
             assert.doesNotMatch(filed.body, /pay|Pay Calculator/i, `App Notices keeps no pay words either: "${filed.body}"`);
@@ -830,7 +832,7 @@ describe('5 · the install notice: a phone browser, third in line, and the right
         assert.match(lineText('installNoticeIos'), /Already there\? Open it from your home screen: notifications work only there/,
             'the iPhone line carries "already installed" and where notifications work — there is no separate line for them on this route');
         assert.match(lineText('installNoticeSafari'), /email or a chat\? Open it in Safari first/);
-        const pay = lineText('installNoticePayIos');
+        const pay = lineText('installNoticeIosStore');
         assert.match(pay, /keeps its own storage/, 'it must say WHY the figures do not follow');
         assert.match(pay, /sign in there once/, 'the member is signed out in the Home Screen app, and is not told');
         assert.match(pay, /copy them first with 💾 Move Your Pay Data on the Pay page/, 'and the card that carries them across');

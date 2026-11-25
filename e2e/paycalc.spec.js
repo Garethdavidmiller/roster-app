@@ -2367,7 +2367,7 @@ test('paycalc: stepping back to a year not yet checked says what is true, and no
     await expect(page.locator('#setupBanner')).toBeVisible();
     // What is single and what is per payslip, named — "Your settings apply to every payslip" sat beside
     // "pension saves per payslip" (whole-app review, 24 Nov 2026).
-    await expect(page.locator('#setupBannerBody')).toContainText('Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date');
+    await expect(page.locator('#setupBannerBody')).toContainText('Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date unless you choose one');
     await expect(page.locator('#setupBannerBody')).not.toContainText('only');
     await expect(page.locator('#settingsHint'), 'no ✓ over a year not yet checked').toHaveText('Check once per tax year — pension saves per payslip');
     await expect(page.locator('#settingsNewYearNotice'), 'a year that is over is not a new one').toBeHidden();

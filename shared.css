@@ -1006,10 +1006,10 @@ html.lb-keep-gutter { scrollbar-gutter: stable; }
 
    A mask rather than an overlaid gradient: on a scroll container the mask is applied to the border
    box, so it stays pinned at the bottom edge instead of scrolling away with the content. `has-more`
-   is toggled by overlay.js, so a panel that fits is never faded — fading the last line of a SHORT
-   panel would invent the very ambiguity this removes. The drawer's body and Admin's side column too. */
+   is toggled by overlay.js, so a panel that fits is never faded. The drawer's body and Admin's side column too.
+   Never over a FOCUS RING: a mask clips all outside the border box, and the App Notices list is a Tab stop. */
 .lb-content.has-more,
-.nav-panel-body.has-more, .col-side.has-more, .nav-notices-list.has-more {
+.nav-panel-body.has-more, .col-side.has-more, .nav-notices-list.has-more:not(:focus-visible) {
     -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
             mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
 }

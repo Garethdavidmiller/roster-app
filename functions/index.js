@@ -123,7 +123,7 @@ const _isRetriableFirestoreError = (err) => _RETRIABLE_FIRESTORE_CODES.has(err &
 const PARSE_MODEL_DEADLINE_MS = 100_000;
 
 /**
- * The raw base64 request body, size-capped at MAX_RAW_BODY_BYTES while it streams (`readRawBody`,
+ * The raw base64 request body, size-capped at MAX_RAW_BODY_BYTES before it is decoded (`readRawBody`,
  * ./request-helpers.js, where the reasoning is). Shared by ingestHuddle and parseRosterPDF; on a
  * failure it has sent the 413/400 itself and answers null.
  * @param {import('express').Request} req @param {import('express').Response} res @param {string} logTag

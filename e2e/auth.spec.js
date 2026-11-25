@@ -1434,6 +1434,10 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await expect(page.locator('#adminRoleCard')).toBeVisible();
         await expect(page.locator('#adminRoleCard .role-card-title')).toHaveText('Admin is for staff on the roster');
         await expect(page.locator('#adminRoleCard .role-card-why')).toContainText('ask your manager');
+        // …and the page still starts its session (review of v26.72): the early return skipped resolveSession, so the
+        // visit was never counted and the Error Log never started. The visit count is the write a test can see.
+        await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+            .some((/** @type {any} */ w) => String(w.path).startsWith('analytics/'))), 'the visit is counted').toBe(true);
         await expect(page).toHaveURL(/admin\.html/);
         for (const hidden of ['.member-context-bar', '#change-shift', '#book-annual-leave', '#record-sick-days', '#overridesCard']) {
             await expect(page.locator(hidden), `${hidden} shows behind the card`).toBeHidden();

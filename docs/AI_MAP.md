@@ -646,7 +646,7 @@ Which days in an annual-leave booking need the swapped-day question, and what to
 
 ### `admin-al-projection.js`
 What an Annual Leave booking WILL do, decided once so the preview, the over-entitlement warning and the write cannot disagree — for the AL range card, the week grid, the Absence card's allowance check and the leave sheet check. Pure. Also home to the range cards' Sunday rule (`rangeSundayCorrections`), stated here so a preview can name the days the writer will set. Bound by `.claude/rules/admin.md` → "AL on a rest day is ASKED about"; the allowance is read through `entitlementFor` (CLAUDE.md → AL entitlement). Tested by `admin-al-projection.test.mjs` and `admin-overrides.test.mjs`.
-- **Exports:** `willConsume` · `projectAlBooking` · `yearShiftWords` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `overridesAfterSave` · `projectAlOverage`
+- **Exports:** `projectAlBooking` · `yearShiftWords` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `overridesAfterSave` · `projectAlOverage`
 
 ### `admin-time-inputs.js`
 The Admin week grid's time boxes: two delegated `document` listeners that format each keystroke through `clock-input.js`, move focus once a time is complete, and flag an unfinished or impossible time. The typing rules are `clock-input.js`'s (CLAUDE.md → 3-digit time input); the `_formatting` re-entry guard is load-bearing on iOS Safari (header). Exercised by `e2e/admin.spec.js`.

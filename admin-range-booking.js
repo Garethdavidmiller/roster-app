@@ -427,10 +427,15 @@ export function createRangeBookingSection(cfg) {
             const free = (Array.isArray(proj?.freeWritten) ? proj.freeWritten.filter((/** @type {string} */ d) => !heldSet.has(d) && !lieu.has(d)).length : 0) + capFreed;
             // The years that RISE, a day given back to another year apart (`spent`, external review of v26.55).
             const charged = typeof proj?.spent === 'number' ? proj.spent : proj?.charged;
-            const recorded = proj && typeof charged === 'number' ? charged + held : workingCount;
-            const shift = proj ? yearShiftWords(proj.byYear) : '';
             // The days written that take a day in lieu back: recorded, and said (whole-app review, 24 Nov 2026).
             const lieuWritten = [...lieu].filter(d => !heldSet.has(d));
+            // …counted ONCE (review of v26.72): a Dispatcher's worked bank holiday also costs a day, so it is in
+            // `charged` already and "Recorded 2 days" said two for one. Only a lieu day the booking does not charge
+            // — leave over a worked Boxing Day — is added, or the receipt would say "Recorded 0 days".
+            const charging = new Set(proj?.consuming ?? []);
+            const recorded = proj && typeof charged === 'number'
+                ? charged + held + lieuWritten.filter(d => !charging.has(d)).length : workingCount;
+            const shift = proj ? yearShiftWords(proj.byYear) : '';
             _say('success');
             // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
             // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).

@@ -136,7 +136,7 @@ const ingestHuddle = onRequest(
 
         // ---- Read raw body ----
         // The file arrives as a base64 plain-text body (bypasses the JSON body-size limit);
-        // readRawBody streams + size-caps it (rejecting oversized uploads mid-stream).
+        // readRawBody size-caps it — a length check on the already-buffered body (request-helpers.js says why).
         let base64Content = await readRawBody(req, res, 'ingestHuddle');
         if (base64Content === null) return;   // helper already sent the 413/400 response
 

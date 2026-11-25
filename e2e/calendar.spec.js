@@ -1923,7 +1923,7 @@ test.describe('install notice — in an Android browser', () => {
         await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         await expect(page.locator('#installNoticeInstall')).toBeVisible();
         for (const id of ['#installNoticeMenu', '#installNoticeIos', '#installNoticeMirror', '#installNoticeGo', '#installNoticeHave',
-                          '#installNoticeSafari', '#installNoticePayIos']) {
+                          '#installNoticeSafari', '#installNoticeIosStore']) {
             await expect(page.locator(id), `${id} is another browser's answer`).toBeHidden();
         }
         // The browser's offer would have put the strip up too. One ask at a time: it has stood down.
@@ -1951,7 +1951,7 @@ test.describe('install notice — in an Android browser', () => {
         // Android keeps ONE storage for the browser and the installed app, so the iPhone's storage
         // lines (sign in again, the figures stay behind) would tell an Android member something false.
         await expect(page.locator('#installNoticeSafari')).toBeHidden();
-        await expect(page.locator('#installNoticePayIos')).toBeHidden();
+        await expect(page.locator('#installNoticeIosStore')).toBeHidden();
         await page.locator('#installNoticeClose').click();
         await expect(notice).not.toHaveClass(/\bopen\b/);
         expect(await page.evaluate(() => [localStorage.getItem('myb_notice_install_app_2026_done'),
@@ -2000,9 +2000,9 @@ test.describe('install notice — on an iPhone', () => {
         await expect(page.locator('#installNoticeIos')).toContainText('on iOS 26 or later, Share is under •••');
         await expect(page.locator('#installNoticeSafari')).toBeVisible();
         await expect(page.locator('#installNoticeSafari')).toContainText('Open it in Safari first');
+        await expect(page.locator('#installNoticeIosStore')).toContainText('sign in there once');
         const pay = page.locator('#installNoticePayIos');
         await expect(pay).toBeVisible();
-        await expect(pay).toContainText('sign in there once');
         await expect(pay).toContainText('Move Your Pay Data');
         await expect(page.locator('#installNoticePay'), 'the mirror\'s line, which says the figures stay at an ADDRESS').toBeHidden();
         await expect(notice).not.toContainText('your saved pay figures are far less likely');

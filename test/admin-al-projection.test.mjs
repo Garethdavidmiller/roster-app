@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, getBankHolidays, isBankHoliday } from '../roster-data.js';
-import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections, projectAbsenceRange, yearShiftWords } from '../admin-al-projection.js';
+import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections, projectAbsenceRange, yearShiftWords } from '../admin-al-projection.js';
 import { consumesEntitlement, countedAlDates, entitlementFor } from '../al-entitlement.js';
 import { isRestShift } from '../override-utils.js';
 import { planAlWeekSave } from '../admin-al-week-save.js';
@@ -133,18 +133,6 @@ describe('alreadyBooked — leave written again is not a new day (review, Nov 20
         const ovByDate = new Map([[MON, { ...leave(MON), type: 'shift', value: '12:00-19:00' }]]);
         const p = projectAlBooking({ member: fixedCea, dates: [MON, TUE], ovByDate });
         assert.deepEqual(p.alreadyBooked, []);
-    });
-});
-
-describe('willConsume — the one rule both surfaces ask', () => {
-    test('a declared swap consumes; the same day without the answer does not', () => {
-        assert.equal(willConsume({ member: fixedCea, date: SAT, ovByDate: NO_OV, swapped: true }), true);
-        assert.equal(willConsume({ member: fixedCea, date: SAT, ovByDate: NO_OV }), false);
-    });
-
-    test('a working day consumes with or without the flag', () => {
-        assert.equal(willConsume({ member: fixedCea, date: MON, ovByDate: NO_OV }), true);
-        assert.equal(willConsume({ member: fixedCea, date: MON, ovByDate: NO_OV, swapped: true }), true);
     });
 });
 
@@ -270,7 +258,7 @@ describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, exte
 
     // NOT EVERY UNASKED REST DAY IS SKIPPED, which is the other half of the distinction. A rest day
     // carrying an `rdw` override is voluntary work, so the question is never asked (al-swapped-days.js)
-    // — but it IS a worked day, so both surfaces write the leave, and `willConsume` is what stops it
+    // — but it IS a worked day, so both surfaces write the leave, and `consumesEntitlement` is what stops it
     // costing anything. A grid that dropped its write would make a deliberate tap do nothing.
     test('a rest day carrying rdw is WRITTEN and costs nothing — asked about by nobody, skipped by nobody', () => {
         const ov = new Map([[SAT, { type: 'rdw', value: '08:00-16:00', date: SAT }]]);

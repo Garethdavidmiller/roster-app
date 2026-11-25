@@ -80,6 +80,15 @@ describe('assemble.py joins a continued train to exactly one continuation', { sk
         }
     });
 
+    test('a continuation that is continued AGAIN names the train, not its third column as an orphan', () => {
+        // Over three pages: page 1 → page 2 (itself continued, 'e') → page 3. Only one break is joined (review of v26.69).
+        const middle = column(2, 1, [cell('', 'f'), cell('HDM', '0745'), cell('AYS', '0800'), cell('', 'e')]);
+        const last = column(3, 1, [cell('', 'f'), cell('AYS', '0800'), cell('HDM', '0815')]);
+        const r = assemble([continued(1, '0700', '0745'), middle, last]);
+        assert.notEqual(r.status, 0);
+        assert.match(r.stderr, /its continuation \(page\/column 2\/1\) is continued again — a train over three pages, which assemble\.py does not join — met book, page 1, column 1/);
+    });
+
     test('a continuation no train reaches stops the build — its stops would be lost', () => {
         const r = assemble([continued(1, '0700', '0745'), overleaf(1, '0745', '0800'), overleaf(2, '0915', '0930')]);
         assert.notEqual(r.status, 0);
