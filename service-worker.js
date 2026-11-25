@@ -288,6 +288,7 @@ const APP_MODULES = [
     'overtime-tips.js',
     'own-password.js',
     'page-session.js',
+    'page-start.js',
     'password-force.js',
     'pay-audience.js',
     'paycalc-app.js',

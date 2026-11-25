@@ -15,11 +15,11 @@
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, DISCARD_QUESTION, continueAfterSignIn } from './page-session.js';
+import { askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
+import { startPage } from './page-start.js';
 import { createDraftSlot, weekRestoredLine } from './unsaved-draft.js';
-import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { requirePage, navGatesFor } from './auth-policy.js';
+import { getSession, clearSession, sessionReady, reconcileExpiredIdentity } from './session.js';
+import { navGatesFor } from './auth-policy.js';
 import { deleteIfUnchanged } from './admin-override-store.js';
 import { PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
@@ -38,7 +38,6 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { SELECTED_MEMBER } from './storage-keys.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse, createLightbox, confirmDialog, watchScrollFade } from './overlay.js';
-import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './admin-tips.js';
@@ -51,9 +50,7 @@ import { createBookedPeriods } from './admin-booked-periods.js';
 import { createPeriodDelete } from './admin-period-delete.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
-import { initErrorReporter } from './error-reporter.js';
-import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { markPageReady } from './perf-reporter.js';
 
 
 import { setStatus } from './status-text.js';
@@ -98,7 +95,6 @@ function openCollapsibleCard(body, chevron) {
  * in-place sign-in calls the nested initAuthorised(), NOT init(), so module wiring happens once.
  */
 export function init() {
-    reloadIfRestoredForSomeoneElse();
     /** Where an `admin.html#…` arrival scrolls to, and the one-shot state behind its second scroll.
      *  Inside init() deliberately: at module scope it would be a bare `window` reference in the one
      *  coordinator whose stated property is that importing it runs nothing. */
@@ -119,35 +115,9 @@ export function init() {
     // `let`: an in-place sign-in refreshes these inside initAuthorised(). The AL and Absence sections
     // read currentUser through a live getter, so a later save still stamps the right `changedBy`.
     let currentSession = getSession();
-    let isAuthenticated = !!currentSession;
     let currentUser     = currentSession?.name ?? null;
     let currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
     let currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
-
-    // ---- Login overlay (shared in-place sign-in; see login-overlay.js) ----
-    /** Show the shared sign-in overlay configured for Admin.
-     *  NOTHING may be awaited on this path (the login freeze, PASSWORD_DESIGN.md §3.6): the first read after a fresh sign-in
-     *  can take seconds, and it froze people on the overlay. Keep post-login work fire-and-forget. */
-    function showAdminLogin() {
-        initLoginOverlay({
-            pageLabel: 'Admin',
-            about: ADMIN_SIGN_IN_ABOUT,
-            // A first sign-in initialises in place (`continueAfterSignIn`). A session lost LATER is the
-            // shared card's (`guardNamedSession`), which reloads: sessionReady is one-shot.
-            // …and re-decided for whoever signed in (24-hour review, 25 Nov 2026): the gate below ran signed OUT, so an
-            // Other Staff login made on THIS card got the whole page — and its leave and absence cards under their own
-            // name — instead of the role card the same login gets when it opens Admin (owner, 24 Nov 2026).
-            onSuccess: continueAfterSignIn(() => {
-                currentUser = getSession()?.name ?? null;
-                if (requirePage({ status: 'named', member: currentUser }, 'admin').decision === 'forbidden') {
-                    dismissLoginOverlay();
-                    refuseThisLogin();
-                    return;
-                }
-                initAuthorised();
-            }),
-        });
-    }
 
     // ---- About lightbox (about-lightbox.js) — opened from the drawer logo; the header logo goes back ----
     /** @type {any} */
@@ -1065,42 +1035,28 @@ export function init() {
 
     // Admin does not print: printing shows a "use the Calendar" notice (admin.css @media print).
 
-    // Page access (auth-policy.js): "any named user" — the admin/manager split gates ACTIONS
-    // (applyPermissions), not the page. 'login' iff no local session; 'forbidden' only for an "Other Staff"
-    // login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague to record it for.
-    const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
-    if (_access.decision === 'forbidden') { refuseThisLogin(); return; }
-
     /** The page for a login it is not for: the role card, on both routes here — the page loaded for that login,
-     *  or that login made on this page's own sign-in card (`showAdminLogin`). */
-    function refuseThisLogin() {
+     *  or that login made on this page's own sign-in card (the start-up decides again after it, page-start.js).
+     *  @param {string|null} member */
+    function refuseThisLogin(member) {
+        currentUser = member;   // the drawer and About name whoever this page refused, not the nobody it loaded for
         // NOT FOR THIS LOGIN (owner, 24 Nov 2026): the page says why, as the Pay Calculator's role card does,
         // instead of sending them back to the Calendar with nothing said — its 📝 Admin button and "Record
         // leave" both land here. The card replaces the page (admin.css → `body.role-unsupported`), and the
         // drawer and About are wired as on every page, so it is a refusal with a way out, not a dead end.
+        // Its session is the start-up's (`refusalKeepsSession`): re-established, guarded and counted, as for
+        // the page itself — `sessionReady` once went unfulfilled on this path (review of v26.72).
         document.body.classList.add('auth-ready', 'role-unsupported');
         document.getElementById('adminRoleCard')?.classList.remove('hidden');
         wireNavPanel();
         markPageReady();
-        // The session is re-established HERE too (review of v26.72): `sessionReady` is fulfilled only by
-        // resolveSession, which this early return skipped, so the Error Log and the visit count never started
-        // and the drawer's documents waited out their timeout. And the page takes an update like any other.
-        resolveSession(ensureNamedSession(currentUser));
-        registerServiceWorker();
-        sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); });
-    }
-    if (_access.decision === 'login') {
-        // Not signed in → show login overlay; do not load any Firestore data. On a confirmed sign-in,
-        // showAdminLogin's onSuccess runs initAuthorised() in place.
-        showAdminLogin();
-    } else {
-        // _access.decision === 'allow' (a named user; Admin requires no role).
-        initAuthorised();
     }
 
     /**
      * Authorised (signed-in) init body — AUTH_ARCHITECTURE.md Phase 9. Runs exactly once per page life:
-     * directly on a normal already-signed-in load, or from showAdminLogin's onSuccess on the in-place path.
+     * directly on a normal already-signed-in load, or from the start-up's continuation on the in-place path
+     * (page-start.js), which has already re-established, fulfilled and guarded the member's own Firebase
+     * session — without it every Firestore write fails — and run the forced set-password step.
      */
     function initAuthorised() {
         // Refresh identity — on the in-place path the module loaded signed-out, so re-read the just-saved
@@ -1109,20 +1065,6 @@ export function init() {
         currentUser     = currentSession?.name ?? null;
         currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
         currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
-        isAuthenticated = !!currentSession;
-        // In-place: remove the still-mounted overlay to reveal the page. No-op on a normal load.
-        dismissLoginOverlay();
-        // A returning member never passes the sign-in, so re-establish the Firebase session here —
-        // without it every Firestore write fails. resolveSession() fulfils the sessionReady the
-        // feature modules await.
-        const _adminAuth = ensureNamedSession(currentUser);
-        resolveSession(_adminAuth);
-        // A session that cannot be confirmed as this member's OWN — now, or LATER (claim-retry.js) — is
-        // cleared and shown the shared sign-in, with Admin's explanation, which RELOADS on success:
-        // sessionReady is one-shot. The shared card is what says "signed in again" and offers Try again on a
-        // tab that cannot reload by itself (external review of v26.67); Admin's own never heard it.
-        guardNamedSession({ page: 'admin', pageLabel: 'Admin', member: currentUser, established: _adminAuth,
-            about: ADMIN_SIGN_IN_ABOUT });
         // All dropdowns are now populated — apply permissions then load data
         document.body.classList.add('auth-ready');
         // The page's content is on screen from this line (`.container` is hidden until `auth-ready`).
@@ -1216,10 +1158,8 @@ export function init() {
             for (const f of _deepLink.folds) openCollapsibleCard(f.body, f.chevron);
             _landing.arrive(_deepLink);
         }
-        // Forced password migration — fire-and-forget, NOT on the sign-in's critical path (showAdminLogin).
-        initPasswordForce(currentUser, { ready: sessionReady });
-        // Nav panel — deferred here on the in-place login path so it renders with the signed-in identity
-        // (deduped by initNavPanel's navPanelInit guard if already wired on a normal load).
+        // Nav panel — here, on both paths, so it renders once with the signed-in identity (the full-screen
+        // card covers the burger while a sign-in is up).
         wireNavPanel();
     }
 
@@ -1231,7 +1171,6 @@ export function init() {
         beforeReload: () => reloadWhenNotBusy(() => hasUnsavedChanges() || writesInFlight() > 0),
         isBusy: () => hasUnsavedChanges() || writesInFlight() > 0,   // a notification tap asks too
     });
-    sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); recordPageLatency('admin', currentUser); });
 
     // ── Navigation panel ─────────────────────────────────────────────────────────
     function wireNavPanel() {
@@ -1258,8 +1197,17 @@ export function init() {
             });
         }
     }
-    // Wire the nav now EXCEPT on the login path, where initAuthorised() defers it so it renders with the
-    // signed-in identity (the full-screen overlay covers the burger meanwhile).
-    if (_access.decision !== 'login') wireNavPanel();
 
+    // The start-up every card-opening page shares (page-start.js), LAST, once everything above is wired: the Back
+    // guard, the policy ("any named user" — the admin/manager split gates ACTIONS, in applyPermissions, not the
+    // page), decided at load from the LOCAL session and again for whoever signs in on this page's own card. 'login'
+    // iff no local session: the shared card with Admin's explanation, and nothing loaded from Firestore until a
+    // confirmed sign-in runs initAuthorised() in place. NOTHING may be awaited on that path (the login freeze,
+    // PASSWORD_DESIGN.md §3.6). 'forbidden' only for an "Other Staff" login (owner, 23 Nov 2026), who has no roster
+    // to record leave against and no colleague to record it for — on both routes (24-hour review, 25 Nov 2026: the
+    // gate ran signed OUT, so that login made on THIS card got the whole page). The drawer is wired by
+    // initAuthorised() and by the refusal, so it renders once, with the signed-in identity.
+    startPage({ page: 'admin', label: 'Admin', about: ADMIN_SIGN_IN_ABOUT, refusalKeepsSession: true,
+        run: initAuthorised,
+        refuse: (_decision, { member }) => refuseThisLogin(member) });
 }

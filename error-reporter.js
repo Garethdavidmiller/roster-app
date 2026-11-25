@@ -29,9 +29,9 @@
  *      one on this page (`CALENDAR_PIN_ACCESS`, its `open` mode) was retired v24.34. The access
  *      decision runs `reconcileExpiredIdentity()` first, so a valid named identity is PRESERVED
  *      rather than raced or replaced.
- *   2. **Authenticated pages that expose `sessionReady`** — `admin-app.js`, `settings-app.js`,
- *      `operations-app.js`, `links-app.js`, `overtime-app.js`, `trains-app.js`,
- *      `newlink-app.js`: `sessionReady.then(() => initErrorReporter())`.
+ *   2. **Authenticated pages that expose `sessionReady`** — Admin, Settings, Operations, Links,
+ *      Overtime, Trains and New link, all through ONE call site: the start-up's session step
+ *      (`startSession`, page-start.js), `sessionReady.then(() => { initErrorReporter(); … })`.
  *   3. `paycalc-app.js`, which has no `sessionReady`:
  *      `ensureNamedSession(name).catch(() => {}).finally(afterAuth)`, where `afterAuth` runs this
  *      alongside `recordUsage`/`recordPageLatency`. The no-member `else` branch calls `afterAuth()`

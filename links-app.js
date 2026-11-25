@@ -19,9 +19,9 @@ import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js'
 import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry, whenOwnWritesSentFor } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { archiveNotice } from './notice-archive.js';
-import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, navGatesFor } from './auth-policy.js';
+import { getSession, sessionReady, reconcileExpiredIdentity } from './session.js';
+import { navGatesFor } from './auth-policy.js';
+import { startPage } from './page-start.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { MAX_DESIGN_NAME, checkDesignName, proposeCopyName } from './links-design-naming.js';
 import { createDesignHeader, proposeNewDesignName, lastSaveTime } from './links-design-header.js';
@@ -29,10 +29,7 @@ import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './links-tips.js';
 import { registerServiceWorker, reloadForUpdate } from './sw-register.js';
-import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce } from './password-force.js';
-import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { markPageReady } from './perf-reporter.js';
 import { lsGet, lsSet, lsAvailable } from './ls.js';
 import {
     ROTATING_LINES,
@@ -61,7 +58,7 @@ import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { createQueuedSaves, stillUnsaved, refusedMakeLine } from './links-queued-saves.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, leaveAfterAsking, continueAfterSignIn } from './page-session.js';
+import { askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, keepDraftWhenHidden, leaveAfterAsking } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
     sortByDeleted, deleteOutcomeLine, renameRefusedLine,
@@ -77,7 +74,6 @@ import {
 let _isDirty = () => false;
 
 export function init() {
-    reloadIfRestoredForSomeoneElse();
     // Before the access gate: a signed-out visit returns below and would otherwise never update the SW.
     registerServiceWorker({
         isBusy: () => _isDirty() || hasUnconfirmedWrite(),   // a notification tap asks first
@@ -97,30 +93,15 @@ export function init() {
     reconcileExpiredIdentity().catch(() => {});   // it logs its own failures
 
     // ── SESSION: Links designers only ──
+    // The start-up every card-opening page shares (page-start.js): the Back guard, the policy decided from the LOCAL
+    // session, the in-place sign-in — after which this init() runs again, once, and is decided afresh — and, for a
+    // designer, their OWN named session re-established (or every write fails) and guarded, the set-password step and
+    // the error reporter. A signed-in non-designer goes to Admin.
+    if (!startPage({ page: 'links', label: 'Links', again: init,
+        refuse: () => window.location.replace('./admin.html') })) return;
     const currentSession  = getSession();
     const currentUser     = currentSession?.name ?? null;
     const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);
-
-    // The local session decides the first render (auth-policy.js); the named session confirms it below.
-    const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'links');
-    if (_access.decision === 'login') {
-        // The in-place sign-in runs init() again, once, with the new session. Never resolveSession(false) here: the
-        // one-shot sessionReady would be spent before that pass. The rest is `continueAfterSignIn`'s.
-        initLoginOverlay({ pageLabel: 'Links', onSuccess: continueAfterSignIn(init) });
-        return;
-    }
-    if (_access.decision === 'forbidden') {
-        window.location.replace('./admin.html');
-        return;
-    }
-    dismissLoginOverlay();   // re-entered from the in-place sign-in
-
-    // The designer's OWN named session, re-established on every load, or every write fails.
-    const _linksAuth = ensureNamedSession(currentUser);
-    resolveSession(_linksAuth);
-    // An own session that cannot be confirmed signs in again now; one revoked LATER does too
-    // (page-session.js — the same follow-up every named page runs).
-    guardNamedSession({ page: 'links', pageLabel: 'Links', member: currentUser, established: _linksAuth });
 
     document.body.classList.add('auth-ready');   // the page is on screen from here
     markPageReady();
@@ -1335,10 +1316,7 @@ export function init() {
         openNoticeIfClear(welcome);
     })();
 
-    sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); recordPageLatency('links', currentUser); });
-    // The forced set-password overlay, called NOW with the session as its barrier, so the sign-in's one-shot marker is
-    // spent as the page opens: behind `sessionReady.then` a designer who left first met it on a later load.
-    initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});   // it fails open itself
+    // The error reporter, the usage and latency counts and the forced set-password step are the start-up's (page-start.js).
 
     // ── BOOT ──
     // A kept draft is offered once the list is in, never over a FAILED load: its design is not there to restore onto.

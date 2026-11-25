@@ -368,12 +368,29 @@ test('every coordinator that signs a member in also runs the forced set-password
     // next — or, on the Calendar (which had no login until v23.19), to nobody: the member signs in
     // on the app's front door and is never asked to choose a password. Found at v23.19 by review,
     // when the front door became the place most members sign in.
+    // A page that starts through page-start.js with its session step on has the step run FOR it, on the allowed path
+    // and on a refusal that keeps the session; the module itself is held to running it below.
     const coordinators = APP_PAGE_ENTRIES.map(p => p.coordinator);
-    const signsIn = coordinators.filter(f => existsSync(new URL(f, REPO_ROOT_URL)) && /initLoginOverlay\(/.test(read(f)));
+    const signsIn = coordinators.filter(f => existsSync(new URL(f, REPO_ROOT_URL)) && /initLoginOverlay\(|\bstartPage\(\{/.test(read(f)));
     assert.ok(signsIn.length >= 6, `expected every protected page's coordinator to mount the sign-in; found ${signsIn.length}`);
-    const missing = signsIn.filter(f => !/initPasswordForce\(/.test(read(f)));
+    const missing = signsIn.filter(f => !/initPasswordForce\(/.test(read(f)) && !sessionStepOf(codeOnly(read(f))));
     assert.deepEqual(missing, [], 'coordinators that sign a member in but never run initPasswordForce');
+    assert.match(sessionStepSource(), /initPasswordForce\(member, \{ ready: sessionReady \}\)/,
+        'page-start.js\'s session step no longer runs the forced set-password step, with the session as its barrier');
 });
+
+/** The options a coordinator passes to `startPage`, or '' when it does not start through it. @param {string} code */
+function startPageOptions(code) { return optionsObjectAfter(code, 'startPage({'); }
+/** Those options when the start-up's SESSION STEP is on (it is unless `establish: false`), else ''. @param {string} code */
+function sessionStepOf(code) {
+    const opts = startPageOptions(code);
+    return opts && !/\bestablish:\s*false\b/.test(opts) ? opts : '';
+}
+/** The body of page-start.js's session step, comments and strings blanked. */
+function sessionStepSource() {
+    const code = codeOnly(read('./page-start.js'));
+    return optionsObjectAfter(code, 'function startSession(spec, member, withLatency) {');
+}
 
 // ── The after-auth wiring: the calls whose failure is INVISIBLE ────────────────────────────────
 //
@@ -482,14 +499,26 @@ function callSites(/** @type {string} */ code, /** @type {string} */ name) {
     return hits;
 }
 
+/**
+ * Where a page's after-auth writer is called: the coordinator itself, or — for a page that starts through
+ * page-start.js with its session step on — the start-up, which calls all three for it (the latency sample
+ * stays the page's when it passes `recordLatency: false`, as Overtime does: its content needs two round trips).
+ * @param {string} file the coordinator @param {string} fn @returns {{ file: string, barrier: string }}
+ */
+function writerHome(file, fn, /** @type {string} */ barrier) {
+    const step = sessionStepOf(codeOnly(read(`./${file}`)));
+    const own = fn === 'recordPageLatency' && /\brecordLatency:\s*false\b/.test(step);
+    return step && !own ? { file: 'page-start.js', barrier: 'sessionReady' } : { file, barrier };
+}
+
 test('every app page coordinator installs the error reporter and both telemetry writers', () => {
     /** @type {string[]} */ const missing = [];
     for (const page of APP_PAGES) {
         const file = coordinatorFor(page);
         assert.ok(existsSync(new URL(file, REPO_ROOT_URL)), `${page} has no coordinator ${file}`);
-        const code = codeOnly(read(`./${file}`));
         for (const fn of WIRED_AFTER_AUTH) {
-            if (!callSites(code, fn).length) missing.push(`${file} never calls ${fn}()`);
+            const home = writerHome(file, fn, '');
+            if (!callSites(codeOnly(read(`./${home.file}`)), fn).length) missing.push(`${home.file} never calls ${fn}()${home.file === file ? '' : ` (for ${file})`}`);
         }
     }
     assert.deepEqual(missing, [], 'coordinators missing a fire-and-forget writer whose absence nothing else can detect');
@@ -507,14 +536,15 @@ test('each after-auth writer runs INSIDE its page\'s auth barrier, never bare', 
         const file    = coordinatorFor(page);
         const barrier = COORDINATOR_AUTH_BARRIER[/** @type {keyof typeof COORDINATOR_AUTH_BARRIER} */ (page)];
         assert.ok(barrier, `${page} declares no auth barrier — add one to COORDINATOR_AUTH_BARRIER with its reason`);
-        const code = codeOnly(read(`./${file}`));
         for (const fn of WIRED_AFTER_AUTH) {
+            const home = writerHome(file, fn, barrier);
+            const code = codeOnly(read(`./${home.file}`));
             const inside = callSites(code, fn).some((at) => {
                 const brace = enclosingBrace(code, at);
                 if (brace === -1) return false;                       // module scope: bare by definition
-                return statementHead(code, brace - 1).includes(barrier);
+                return statementHead(code, brace - 1).includes(home.barrier);
             });
-            if (!inside) bare.push(`${file}: ${fn}() never runs inside ${barrier}`);
+            if (!inside) bare.push(`${home.file}: ${fn}() never runs inside ${home.barrier}${home.file === file ? '' : ` (for ${file})`}`);
         }
     }
     assert.deepEqual(bare, [], 'after-auth writers called outside the page\'s auth barrier — every write they make will be rejected by the rules, silently');
@@ -558,19 +588,17 @@ test('no page asks for the staff PIN or keeps a PIN viewer — it is retired (ow
 
 // ── TRAINS SIGNS A LEFTOVER PIN SESSION OUT BEFORE ITS SIGN-IN (owner, 23 Nov 2026) ──────────────────────
 // Until the retirement a browser with no member was asked `holdsStaffPin` here and kept a PIN session. Now
-// the signed-out branch runs the bare teardown, WAITS for it, and only then offers the sign-in — whose card
-// says the PIN is retired once the teardown has signed one out. The signed-in branch calls it too, so a
-// count of calls alone cannot see this one go.
+// the teardown runs as the page starts and the start-up's `beforeCard` WAITS for it — within a budget — so the
+// sign-in is offered only after it, and its card says the PIN is retired once the teardown has signed one out.
+// That the card waits for a promise `beforeCard` returns is page-start.test.mjs's.
 test('Trains: the signed-out branch tears a leftover PIN session down, then offers the sign-in', () => {
     const code = codeOf('trains-app.js');
-    const at = code.indexOf("access.decision === 'login'");
-    assert.ok(at > -1, 'trains-app.js no longer has its signed-out branch where this test looks');
-    const branch = code.slice(at, code.indexOf("access.decision === 'forbidden'", at));
-    const teardown = branch.search(/\breconcileExpiredIdentity\(\)/);
-    const card = branch.indexOf('initLoginOverlay(');
-    assert.ok(teardown > -1, 'a signed-out visitor to Trains is offered a sign-in with a PIN session still live');
-    assert.ok(card > teardown && /\.then\(/.test(branch.slice(teardown, card)), 'the sign-in is offered before the teardown has finished');
-    assert.doesNotMatch(branch, /holdsStaffPin|preserveCalendarViewer|start\(null\)/, 'Trains keeps the staff PIN again');
+    assert.match(code, /const teardown = reconcileExpiredIdentity\(\)/, 'trains-app.js no longer starts the teardown where this test looks');
+    const before = optionsObjectAfter(code, 'startPage({').match(/beforeCard:[\s\S]*?\.then\(/)?.[0] ?? '';
+    assert.ok(before, 'a signed-out visitor to Trains is offered a sign-in with nothing waited for first');
+    assert.match(before, /\bteardown\b/, 'the sign-in is offered before the teardown has finished');
+    assert.match(before, /ACCESS_DECISION_BUDGET_MS/, 'the wait is no longer bounded — a wedged auth store would leave no way to sign in');
+    assert.doesNotMatch(code, /holdsStaffPin|preserveCalendarViewer|start\(null\)/, 'Trains keeps the staff PIN again');
 });
 
 test('a role-gated pill is gated from EVERY coordinator, not just its own page', () => {
@@ -959,24 +987,48 @@ test('a legacy redirect page is a redirect, and points somewhere real', () => {
 const codeOf = (/** @type {string} */ f) => read(`./${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 test('every page reloads when Back restores it for a different member', () => {
-    const missing = APP_PAGE_ENTRIES.filter(p => !/\breloadIfRestoredForSomeoneElse\(\)/.test(codeOf(p.coordinator)));
+    // A page that starts through page-start.js has it installed FIRST, by the start-up (page-start.test.mjs
+    // holds the order); the Calendar installs it itself.
+    const missing = APP_PAGE_ENTRIES.filter(p => !/\breloadIfRestoredForSomeoneElse\(\)|\bstartPage\(\{/.test(codeOf(p.coordinator)));
     assert.deepEqual(missing.map(p => p.coordinator), [],
         'coordinators that never install page-session.js\'s back/forward-cache guard');
+    const body = optionsObjectAfter(codeOnly(read('./page-start.js')), 'export function startPage(spec) {');
+    const guard = body.indexOf('reloadIfRestoredForSomeoneElse()'), decide = body.indexOf('decideAndRoute(');
+    assert.ok(guard > -1 && decide > guard, 'page-start.js no longer installs the Back guard before startPage decides anything');
 });
 
-// …AND SIGNS IN IN PLACE THROUGH ONE RECIPE (extraction review, Nov 2026). Eight pages each wrote the
-// sign-in card's `onSuccess` by hand, and four of them had lost the step that tells the Back guard the
-// page is now the signed-in member's — a Back to it reloaded and lost the reader's place. The recipe is
-// `continueAfterSignIn` (page-session.js); what it DOES is page-session.test.mjs. The Calendar is not a
-// card-opening coordinator: its lock cards sign in through `finishSignIn`, which rebuilds the month.
-test('every page that opens the sign-in card continues through continueAfterSignIn', () => {
-    const opening = APP_PAGE_ENTRIES.map(p => p.coordinator).filter(f => /\binitLoginOverlay\(/.test(codeOf(f)));
-    assert.ok(opening.length >= 8, `expected the eight card-opening pages, found ${opening.join(', ')}`);
-    for (const f of opening) {
+// …AND STARTS THROUGH ONE START-UP (extraction review, then the maintainability review, Nov 2026). Eight pages
+// each wrote the sign-in card's `onSuccess` by hand, and four of them had lost the step that tells the Back guard
+// the page is now the signed-in member's; then `continueAfterSignIn` gave them one onSuccess, and Admin still
+// decided "not for this login" only at load, so an Other Staff login made on its own card got the whole page
+// (v26.85). The skeleton is `startPage` (page-start.js): the Back guard, the decision at load AND after an in-place
+// sign-in, the card, the refusal, the session step. What it DOES is page-start.test.mjs; this holds every page
+// whose policy needs a named session — every one that opens the card — to it. The Calendar is not one: its policy
+// is public, and its lock cards sign in through `finishSignIn`, which rebuilds the month.
+test('every page that opens the sign-in card starts through startPage — and decides nothing by hand', () => {
+    const opening = APP_PAGE_ENTRIES.filter(p => PAGE_POLICIES[/** @type {keyof typeof PAGE_POLICIES} */ (p.id)]?.requireNamed);
+    assert.ok(opening.length >= 8, `expected the eight card-opening pages, found ${opening.map(p => p.coordinator).join(', ')}`);
+    for (const p of opening) {
+        const f = p.coordinator;
         const code = codeOf(f);
-        assert.match(code, /onSuccess(:\s*|\s*=\s*)continueAfterSignIn\(/, `${f}: the sign-in card's onSuccess must be continueAfterSignIn(…)`);
-        assert.doesNotMatch(code, /rebaseRestoreGuard\(/, `${f} rebases the Back guard by hand — continueAfterSignIn does it`);
+        assert.match(code, new RegExp(`\\bstartPage\\(\\{\\s*page:\\s*'${p.id}'`), `${f}: never starts through startPage({ page: '${p.id}', … })`);
+        assert.equal((code.match(/\bstartPage\(/g) ?? []).length, 1, `${f}: one start-up per page`);
+        // The skeleton's steps, written by hand again — each is how a page came to differ from the rest.
+        for (const [re, why] of /** @type {[RegExp, string][]} */ ([
+            [/\binitLoginOverlay\(/, 'opens the sign-in card itself — the card, and what happens after it, are startPage\'s'],
+            [/\bcontinueAfterSignIn\b|\brebaseRestoreGuard\(/, 'continues after a sign-in by hand'],
+            [/\breloadIfRestoredForSomeoneElse\(/, 'installs the Back guard itself — startPage installs it before any decision'],
+            [/\bdismissLoginOverlay\(/, 'takes the card down itself'],
+            [/\brequirePage\(\s*\{\s*status:/, 'decides its access from the local session by hand — the decision at load and after a sign-in is startPage\'s'],
+            [/\bguardNamedSession\(/, 'guards its session by hand — the session step does'],
+        ])) assert.doesNotMatch(code, re, `${f} ${why}`);
+        // A page written as one long init carries on only when the start-up says so.
+        const opts = startPageOptions(code);
+        if (/\bagain:/.test(opts)) assert.match(code, /if \(!startPage\(\{/, `${f}: an \`again\` page must carry on only when startPage returns true`);
+        else assert.match(opts, /\brun:/, `${f}: hands its start to startPage as neither run nor again`);
+        assert.match(opts, /\brefuse:/, `${f}: says nothing about a login it is not for — a refusal must be written, never fall open`);
     }
+    assert.doesNotMatch(codeOf('calendar-app.js'), /\bstartPage\(/, 'the Calendar is not a card-opening page in this sense');
 });
 
 test('every page signs out through signOutAndLeave — never a hand-rolled clear-and-navigate', () => {
@@ -1028,9 +1080,12 @@ test('every page with a named sign-in follows it with guardNamedSession', () => 
         const code = codeOf(p.coordinator);
         assert.doesNotMatch(code, /\bwatchIdentityLoss\(/, `${p.coordinator} watches for session loss itself — use guardNamedSession`);
         if (EXEMPT.has(p.coordinator)) continue;
-        assert.match(code, new RegExp(`guardNamedSession\\(\\{\\s*page:\\s*'${p.id}'`),
+        // Through the start-up's session step, which guards the page it is started for (page-start.test.mjs).
+        const viaStart = new RegExp(`\\bstartPage\\(\\{\\s*page:\\s*'${p.id}'`).test(code) && !!sessionStepOf(codeOnly(read(`./${p.coordinator}`)));
+        assert.ok(viaStart || new RegExp(`guardNamedSession\\(\\{\\s*page:\\s*'${p.id}'`).test(code),
             `${p.coordinator} never runs guardNamedSession for its own page`);
     }
+    assert.match(sessionStepSource(), /guardNamedSession\(\{ page: spec\.page,/, 'page-start.js\'s session step no longer guards the page it starts');
 });
 
 // ── THE CONTENT STARTS BELOW THE iOS STATUS BAR, ON EVERY PAGE (v24.60) ──────────────────────────

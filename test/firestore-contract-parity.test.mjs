@@ -47,8 +47,10 @@ test('every analytics id the client can write is allowed by firestore.rules', ()
         'the pv_ rule no longer checks the ids a write changes against pvCountIds()');
     const allowed = new Set([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
 
-    // Page views: the id each coordinator passes to recordUsage().
-    const pageIds = new Set([...APP_JS.matchAll(/recordUsage\('([a-z-]+)'/g)].map(x => x[1]));
+    // Page views: the id each coordinator passes to recordUsage() — or, for a page that starts through page-start.js,
+    // to `startPage({ page: … })`, whose session step records the view under that id (`recordUsage(spec.page, …)`).
+    assert.match(read('page-start.js'), /recordUsage\(spec\.page, member\)/, 'page-start.js no longer counts the view under the page id it was given');
+    const pageIds = new Set([...APP_JS.matchAll(/recordUsage\('([a-z-]+)'|\bstartPage\(\{\s*page:\s*'([a-z-]+)'/g)].map(x => x[1] ?? x[2]));
     assert.ok(pageIds.size >= 6, `expected the six page ids, found ${pageIds.size}`);
 
     // Document/guide opens: the card's own render map is the authoritative list of open ids.

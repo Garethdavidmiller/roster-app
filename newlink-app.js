@@ -3,7 +3,7 @@
  * newlink-app.js — coordinator for newlink.html: the three shortlisted proposals for the new CEA link (from January 2027), presented to
  * the colleagues who will work it.
  *
- * Owns: the access gate, the session wiring, and which view is on screen — the kind of colleague chosen in "What it means
+ * Owns: what its access gate shows a colleague it is not for (the gate and the session wiring are page-start.js's), and which view is on screen — the kind of colleague chosen in "What it means
  * if you…" and the proposal whose weeks are drawn. Every word of HTML is `newlink-render.js`; every figure is the
  * generated `newlink-data.js` (from the pack's own tooling, docs/links-26/tooling/newlink-data.mjs); every decision —
  * the phase, the closing date, the audience — is `newlink-config.js`. The proposals' content needs no network: once
@@ -40,17 +40,14 @@
 
 import { formatISO, escapeHtml } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
-import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, continueAfterSignIn, onReturnToPage } from './page-session.js';
-import { requirePage, navGatesFor } from './auth-policy.js';
+import { sessionReady, reconcileExpiredIdentity } from './session.js';
+import { signOutAndLeave, onReturnToPage } from './page-session.js';
+import { startPage } from './page-start.js';
+import { navGatesFor } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
-import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce } from './password-force.js';
-import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
+import { markPageReady, clearLoginStart } from './perf-reporter.js';
 import { initPdfViewer } from './pdf-viewer.js';
 import { isPlainClick } from './pdf-viewer-core.js';
 import { PROPOSALS } from './links-proposals.js';
@@ -79,26 +76,20 @@ const ABOUT = Object.freeze({
 
 /** Coordinator body, invoked by newlink-boot.js. Exported so a test can import without running. */
 export function init() {
-    reloadIfRestoredForSomeoneElse();
     registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Trains: a signed-out view must still take an update
     // Tear down a lingering privileged Firebase identity whose local session has expired — and a leftover session of the
     // retired staff PIN (reconcileExpiredIdentity's default).
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
-    const currentUser = getSession()?.name ?? null;
 
-    // Decided from the LOCAL session, as Operations does — the auth store is often still initialising here, and a
-    // role-gated page must not treat "pending" as "allowed".
-    const access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'newlink');
-    if (access.decision === 'login') {
-        initLoginOverlay({
-            pageLabel: 'New link', about: ABOUT,
-            onSuccess: continueAfterSignIn(init),
-        });
-        return;
-    }
+    // The start-up every card-opening page shares (page-start.js), decided from the LOCAL session, as Operations does —
+    // the auth store is often still initialising here, and a role-gated page must not treat "pending" as "allowed".
     // Signed in, and either in the audience or not: a colleague it is not for gets the page's chrome round a card saying
     // so, never a silent jump to the roster — the pill is not offered to them, but a shared link still brings them here.
-    start(/** @type {string} */ (currentUser), access.decision !== 'forbidden');
+    // So the refusal keeps the session: it is a real view by a real member, signed in, guarded and counted. The standard
+    // lost-session card carries this page's `about`, arriving with the member's name chosen and saying why they are asked.
+    startPage({ page: 'newlink', label: 'New link', about: ABOUT, refusalKeepsSession: true,
+        run: (member) => start(member, true),
+        refuse: (_decision, { member }) => start(/** @type {string} */ (member), false) });
 }
 
 /**
@@ -106,13 +97,6 @@ export function init() {
  * @param {string} member @param {boolean} admitted
  */
 function start(member, admitted) {
-    dismissLoginOverlay();
-    const established = ensureNamedSession(member);
-    resolveSession(established);
-    // The standard lost-session card (page-session.js), carrying this page's `about`: it arrives with the member's name
-    // chosen and says why they are being asked. A page's own `signIn` would replace it whole, and lose both.
-    guardNamedSession({ page: 'newlink', pageLabel: 'New link', member, established, about: ABOUT });
-
     /** @type {(() => void)|null} */
     let openAboutLightbox = null;
     initNavPanel({
@@ -133,9 +117,7 @@ function start(member, admitted) {
         // No proposals follow, so nothing will read the sign-in timer: drop it, or the next page opened within two minutes
         // would count this visit as its sign-in time (as Pay's and Overtime's refusals do).
         clearLoginStart();
-        // A real view by a real member, counted as the Pay Calculator counts its refusal; not timed, as nothing loads.
-        sessionReady.then(() => { initErrorReporter(); recordUsage('newlink', member); });
-        initPasswordForce(member, { ready: sessionReady }).catch(() => {});   // spent as the page opens (below); it fails open itself
+        // Counted as the Pay Calculator counts its refusal — by the start-up's session step; not timed, as nothing loads.
         return;
     }
     const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
@@ -147,17 +129,7 @@ function start(member, admitted) {
     // The status speaks of TODAY — which dates have come — and an installed app is not reloaded when it is reopened:
     // iOS keeps it resident for days (iPhone audit, Nov 2026). So it is drawn again whenever the page comes back.
     onReturnToPage(0, drawStatus);
-
-    sessionReady.then(() => {
-        initErrorReporter();
-        recordUsage('newlink', member);
-        recordPageLatency('newlink', member);
-    });
-    // The forced set-password step, called NOW with the session as its barrier, so a sign-in's one-shot marker is
-    // spent as the page opens ("consume BEFORE any await", password-force.js). Behind `sessionReady.then` it was
-    // spent only once the session was confirmed, and a colleague who left first was asked on a later ordinary load.
-    // It fails open by itself; the `.catch` only keeps an unexpected rejection from going unhandled.
-    initPasswordForce(member, { ready: sessionReady }).catch(() => {});
+    // The error reporter, the usage and latency counts and the forced set-password step are the start-up's.
 }
 
 /**
