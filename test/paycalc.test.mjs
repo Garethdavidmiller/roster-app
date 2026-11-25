@@ -680,6 +680,28 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
     assert.equal(priceLine({ pension: 151.86 }).usingCumulative, false, 'no figures: the payslip on its own');
   });
 
+  // …AND WHAT BOUNDS THE TAX IS THIS PAYSLIP'S NI AND LOANS, HANDED OVER BY THE SAME CALL (mutation
+  // sweep, 25 Nov 2026). `computeTax`'s bound is pinned below on its own, given `otherDeductions` by
+  // hand; nothing ran the call that GIVES it. Pricing with `otherDeductions: 0` let a mistyped Tax Paid
+  // take the whole pay as tax with NI and the loan on top — a take-home below £0 — and every lane
+  // stayed green (scripts/mutation-manifest.mjs → price-tax-after-deductions survived).
+  test('a mistyped Tax Paid, priced through calculate()\'s own call, never takes the take-home below £0', () => {
+    const PAY = 3142.84;
+    const r = runAppLines('sacGross', 'sacGross', {
+      pricePayslip, thresholds: T26_, grossWithBp: PAY, pension: 0,
+      plan: 'plan2', pgLoan: false, slSkip: false, slPaidOff: false,
+      // The year's FIRST payslip, carrying a Taxable Pay no first payslip could: nothing before it to
+      // compare, so the figures are used, and only the pay can bound what they ask for.
+      ytdP: 8 * PAY, ytdT: 348, periodN: 1,
+      document: { getElementById: () => ({ value: '1257L' }) },
+    }, ['sacGross', 'ni', 'sl', 'tax', 'net', 'usingCumulative', 'taxPayLimited']);
+    assert.equal(r.usingCumulative, true, 'premise: the figures were used');
+    assert.ok(r.ni > 0 && r.sl > 0, 'premise: NI and a loan are both deducted');
+    approx(r.tax, PAY - r.ni - r.sl, 'the tax takes what NI and the loan leave, and no more');
+    assert.equal(r.taxPayLimited, true, 'and the summary is told the pay, not the year, set it');
+    assert.ok(r.net >= 0, `a take-home of £${r.net} — below nothing`);
+  });
+
   // THE STOP MUST OUTLIVE ITS PAYSLIP'S PLACE IN THE LIST (whole-app review, Nov 2026). A select set
   // to a value no option carries reads ''. If the payslip list ever stops offering the stored stop —
   // the rollover note in paycalc-periods.js says why a year may leave it — calculate() read "still
