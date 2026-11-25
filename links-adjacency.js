@@ -82,7 +82,7 @@
  * and attempt 6's three starts all converged into minima that broke the spread. If all three fail,
  * the attempt falls back to attempt 0 and the status line says so.
  */
-import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek, isRest, MIN_REST_MINUTES } from './links-design.js';
+import { DAYS, startMinutes, restBetween, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek, isRest, MIN_REST_MINUTES } from './links-design.js';
 
 /** The things the order can be TUNED for — one per checkbox on the generator card, whose `key` is
  *  what `reorderLines` and `cost` read. This array does not draw the switches: they are static markup
@@ -176,9 +176,7 @@ export function breakLength(a, b) {
  */
 export function boundaryRest(a, b) {
     if (!a || !b) return null;
-    const end = endMinutesAbs(a.sat), start = startMinutes(b.sun);
-    if (end === null || start === null) return null;
-    return (24 * 60 - end) + start;
+    return restBetween(a.sat, b.sun);   // the ONE reading of a turnaround (links-design.js, 25 Nov 2026)
 }
 
 /**

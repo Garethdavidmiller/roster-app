@@ -12,7 +12,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    splitDesignDocs, binOldOnLoad, binOldOnRefresh, readCannotAnswer, migratesLegacy, byDesignName, designToOpen,
+    splitDesignDocs, binOldOnLoad, binOldOnRefresh, readCannotAnswer, migratesLegacy, byDesignName, designToOpen, emptyStateFor,
 } from '../links-design-load.js';
 import { LEGACY_DOC_ID, LINK_26_FROM, PREVIOUS_LINK_LENGTH } from '../links-design-doc.js';
 import { ROTATING_LINES } from '../links-design.js';
@@ -159,6 +159,51 @@ describe('the list order, and which design opens', () => {
         assert.equal(designToOpen([], proposals, null), null);
         assert.equal(designToOpen([], proposals, 'deleted-since'), null);
         assert.equal(designToOpen([], proposals, 'proposal-x')?.id, 'proposal-x', 'a proposal open last time reopens');
+    });
+});
+
+describe('the empty grid card: what it says, and which states may offer to make a design', () => {
+    const LOADING = { title: 'Loading your designs…', msg: 'One moment.' };
+    const read = (/** @type {Record<string, any>} */ o = {}) =>
+        emptyStateFor({ listLoading: false, loadFailed: false, binnedOnLoad: 0, binSize: 0, loading: LOADING, ...o });
+
+    test('LOADING says the markup\'s own words and offers nothing — a design made now would be replaced', () => {
+        const e = read({ listLoading: true, loadFailed: true, binnedOnLoad: 2, binSize: 2 });
+        assert.equal(e.state, 'loading', 'loading outranks every other state');
+        assert.equal(e.title, LOADING.title);
+        assert.equal(e.msg, LOADING.msg);
+        assert.equal(e.offers, false);
+        assert.equal(e.retry, false);
+    });
+
+    test('a FAILURE is never "No designs yet": no offer to make one, and Try again', () => {
+        const e = read({ loadFailed: true, binnedOnLoad: 1, binSize: 1 });
+        assert.equal(e.state, 'failed');
+        assert.equal(e.title, 'Couldn’t load your designs');
+        assert.match(e.msg, /Nothing has been lost/);
+        assert.equal(e.offers, false);
+        assert.equal(e.retry, true, 'an installed app has no reload button');
+    });
+
+    test('old-length designs moved this load: says where they went, counted, and offers', () => {
+        const one = read({ binnedOnLoad: 1, binSize: 3 });
+        assert.equal(one.state, 'binned');
+        assert.equal(one.title, `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted`);
+        assert.match(one.msg, new RegExp(`now ${ROTATING_LINES} lines, so the design drawn for ${PREVIOUS_LINK_LENGTH} moved there`));
+        assert.match(read({ binnedOnLoad: 2, binSize: 2 }).msg, /so the 2 designs drawn for/);
+        assert.equal(one.offers, true);
+        assert.equal(one.retry, false);
+        // a bin since emptied (restored or removed for good) is not where they are any more
+        assert.equal(read({ binnedOnLoad: 2, binSize: 0 }).state, 'empty');
+    });
+
+    test('nothing saved: "No designs yet", the rotation\'s length stated, and the offers', () => {
+        const e = read();
+        assert.equal(e.state, 'empty');
+        assert.equal(e.title, 'No designs yet');
+        assert.ok(e.msg.includes(`${ROTATING_LINES}-line</span> grid`));
+        assert.equal(e.offers, true);
+        assert.equal(e.retry, false);
     });
 });
 

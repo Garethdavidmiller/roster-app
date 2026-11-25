@@ -45,13 +45,13 @@ import {
 import { escapeHtml } from './roster-data.js';
 import { COMPARE_ACTIVE_FALLBACK } from './links-compare.js';
 import { analyse } from './links-analyse.js';
+import { DAY_LABELS } from './links-grid-cells.js';   // the grid's own day names, not a second list (25 Nov 2026)
 
-// Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
+// The rotation LENGTH is imported (v19.38) — it used to be a local copy of
 // 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
 // import". Three literals kept in step by hope is how a grid renders one number of rows while the
 // checks examine a different one, silently — and the rotation has since gone 28 -> 22 (v19.98),
 // which would have made all three wrong in three different ways.
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS = ROTATING_LINES;
 /** The minimum rest in words, from the generator's own gate figure — never typed as "12". */
 const MIN_REST_HOURS = `${MIN_REST_MINUTES / 60} hours`;

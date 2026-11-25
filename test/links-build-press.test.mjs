@@ -11,7 +11,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { overCapacityLine, refusalLine, buildConfirm, withSurplusLines, createBuildCounter, builtStatusLine } from '../links-build-press.js';
-import { generateLink, ROTATING_LINES, CONTRACTED_HOURS_PER_WEEK, DAYS, hmFromHours } from '../links-design.js';
+import { ROTATING_LINES, CONTRACTED_HOURS_PER_WEEK, DAYS, hmFromHours } from '../links-design.js';
+import { generateLink } from '../links-generate.js';
 import { assessTargetHours } from '../links-target-hours.js';
 import { reorderLines } from '../links-adjacency.js';
 import { buildDefaultTargets } from '../links-default-targets.js';

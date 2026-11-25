@@ -278,7 +278,8 @@ roster-app/
 ├── links-window.js ← the OPERATING WINDOW of a design, stored per design. Tested by links-window.test.mjs. See also links.spec.js.
 ├── links-deletion.js ← the PURE rules behind "Recently deleted". **The bin is PERMANENT** (owner decision; its header). Tested by links-deletion.test.mjs. See also doc-parity.test.mjs.
 ├── links-generator-targets.js ← the generator's target table on screen, its memory and provenance. Rule 4 in its header. Tested by links-generator-targets.test.mjs. See also links.spec.js.
-├── links-design.js ← pure link-design maths, including `ROTATING_LINES` — the ONE declaration of the rotation length. **Read its header before touching the generator or the hours maths.** Tested by links-design.test.mjs
+├── links-design.js ← pure link-design maths, including `ROTATING_LINES` — the ONE declaration of the rotation length, and `restBetween`, the one reading of a turnaround. Imports nothing. **Read its header before touching the hours maths.** Tested by links-design.test.mjs
+├── links-generate.js ← the link GENERATOR: `generateLink`, its two constructions, the contract gate and the minimum-rest repair; imports its constants from links-design.js. **Read its header before touching the generator.** Tested by links-design.test.mjs and links-contract.test.mjs
 ├── links-design-doc.js ← the SHAPE of a link design in memory and in Firestore, and every conversion between them. Its header. Tested by links-design-doc.test.mjs
 ├── links-design-load.js ← PURE: what a read of the design collection means, for the page load and the list refresh. Tested by links-design-load.test.mjs
 ├── links-design-naming.js ← what a design or staffing setup may be CALLED; a name clash is refused, never renamed silently. Tested by links-design-naming.test.mjs

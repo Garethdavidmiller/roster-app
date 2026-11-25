@@ -283,7 +283,12 @@ const CAPS = {
     // 1503 → 1513 (Nov 2026), a RAISE, said so: two rules where rules belong — `lineTotals` counts a lone spare day as a
     // floor (`loneSpare`), and `hoursFigure` is the one way a weeklyHours average is stated ("(partial)" included), both
     // pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
-    'links-design.js':         1513,   // a DOMAIN module: large is less alarming here, but still capped
+    // 1513 → 870 (25 Nov 2026, at 1511 of 1513): the generator left for links-generate.js, its comments with it, and the
+    // turnaround formula's second copy became a call to `restBetween`. The ceiling comes down to the new size plus room.
+    'links-design.js':          870,   // a DOMAIN module: large is less alarming here, but still capped
+    // NEW 25 Nov 2026: the generator moved out of links-design.js whole (`generateLink`, the two constructions, the rest
+    // repair), its long argued comments included. A pure DOMAIN module, so capped at the measured size plus room.
+    'links-generate.js':        740,
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
     // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same

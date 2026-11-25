@@ -71,7 +71,8 @@ below, and run `npm run generate:ai-map`.
 | Document links card (ops page) — a new key for every stored Huddle, Circular and Newsletter file, so every old copy of a link stops working | `operations-doc-links.js` (the card) · `functions/documents.js` (`rotateDocumentLinks`, the endpoint) · `functions/doc-link-rotation.js` (the rules) |
 | Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · plan of record `docs/AL_UPLOADER_PLAN.md` |
 | Links design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `links-app.js` + `links.html` + `links.css` |
-| Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) |
+| Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), the rest between two duties, design quality checks | `links-design.js` (pure — no DOM/Firebase, imports nothing; tested by `links-design.test.mjs`) |
+| The link generator — the two constructions, the contract gate, the minimum-rest repair | `links-generate.js` (pure; imports its constants from `links-design.js`; tested by `links-design.test.mjs` and `links-contract.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |
 | Which AL days consume entitlement, and a member's taken/booked/remaining position | `al-entitlement.js` (pure — no DOM/Firebase; tested by `al-entitlement.test.mjs`) |
 | CHRISTMAS LEAVE — who is shown on leave on 25/26 December, never counted, and the Boxing Day day in lieu | `christmas-leave.js` (pure; `christmas-leave.test.mjs`) · the whole allowance `entitlementFor` in `al-entitlement.js` |
@@ -343,7 +344,10 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `DEFAULT_TABLE_FIGURES` · `CARD_TIPS`
 
 ### `links-design.js`
-- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `WEEKENDS_OFF_AIM_PCT` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `hoursFigure` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
+- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `WEEKENDS_OFF_AIM_PCT` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `hoursFigure` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `restBetween` · `runDesignChecks`
+
+### `links-generate.js`
+- **Exports:** `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `repairShortRest` · `generateLink`
 
 ### `links-target-sets-store.js`
 - **Exports:** `createTargetSetStore`
@@ -355,7 +359,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `LEGACY_DOC_ID` · `LINK_26_FROM` · `PREVIOUS_LINK_LENGTH` · `isPre26Design` · `deepCopyPatterns` · `designFromDoc` · `binEntryFromDoc` · `docPayload` · `workingCopy` · `binEntryFrom` · `restoredEntryFrom` · `recordSave` · `lastSavedLabel`
 
 ### `links-design-load.js`
-- **Exports:** `splitDesignDocs` · `binOldOnLoad` · `binOldOnRefresh` · `readCannotAnswer` · `migratesLegacy` · `byDesignName` · `designToOpen`
+- **Exports:** `splitDesignDocs` · `binOldOnLoad` · `binOldOnRefresh` · `readCannotAnswer` · `migratesLegacy` · `byDesignName` · `designToOpen` · `emptyStateFor`
 
 ### `links-generator-targets.js`
 - **Exports:** `CUSTOM_SHIFT_PROMPT` · `customShiftRefusal` · `createTargetPanel`

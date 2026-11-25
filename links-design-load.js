@@ -20,10 +20,15 @@
  * migration's write, the background moves to the bin, and the state the answer becomes. Every
  * document → object mapping stays in links-design-doc.js, and what counts as deleted in
  * links-deletion.js; this module only decides which mapping each document gets.
+ *
+ * And what the grid card SAYS while there is no design to show (`emptyStateFor`, moved out of
+ * `renderGrid` on 25 Nov 2026): the same read's answer, put into words, so its four states are
+ * testable without a browser.
  */
 
-import { LEGACY_DOC_ID, designFromDoc, binEntryFromDoc, binEntryFrom, isPre26Design } from './links-design-doc.js';
+import { LEGACY_DOC_ID, designFromDoc, binEntryFromDoc, binEntryFrom, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
 import { isDeleted } from './links-deletion.js';
+import { ROTATING_LINES } from './links-design.js';
 
 /**
  * A collection read → live designs, the bin, and the legacy singleton. A binned design keeps its
@@ -111,4 +116,36 @@ export const byDesignName = (a, b) => a.name.localeCompare(b.name, 'en', { sensi
  */
 export function designToOpen(designs, proposals, rememberedId) {
     return [...designs, ...proposals].find(x => x.id === rememberedId) || designs[0] || null;
+}
+
+/**
+ * The grid card's words while no design is open — FOUR states, and only the last two may offer to make
+ * a design (links-design.md → Empty and failed states). While LOADING, a design made now would be
+ * replaced when the list lands (links-app-1); after a FAILURE — or a cached answer that cannot tell
+ * "none" from "never read here" (links-app-5) — "No designs yet" would be a lie, and a new design a
+ * duplicate. Only a failure offers Try again, because an installed app has no reload button.
+ *
+ * The loading words are the page's own markup, read once by the coordinator and passed in, so a retry
+ * says exactly what the first load said. `msg` is HTML: every value interpolated into it is a number.
+ * @param {{ listLoading: boolean, loadFailed: boolean, binnedOnLoad: number, binSize: number,
+ *           loading: { title: string, msg: string } }} read
+ *   `binnedOnLoad` — how many old-length designs this load moved to the bin; `binSize` — the bin now.
+ * @returns {{ state: 'loading'|'failed'|'binned'|'empty', title: string, msg: string, offers: boolean, retry: boolean }}
+ */
+export function emptyStateFor({ listLoading, loadFailed, binnedOnLoad, binSize, loading }) {
+    const state = listLoading ? 'loading' : loadFailed ? 'failed' : binnedOnLoad && binSize ? 'binned' : 'empty';
+    const offers = state === 'binned' || state === 'empty';
+    const retry = state === 'failed';
+    if (state === 'loading') return { state, title: loading.title, msg: loading.msg, offers, retry };
+    if (state === 'failed') {
+        return { state, title: 'Couldn’t load your designs', offers, retry,
+            msg: 'Check your connection and try again. Nothing has been lost — saved designs are kept on the server.' };
+    }
+    // No month: the day the new link starts is not set (owner, 8 Nov 2026); the length is true whenever read.
+    if (state === 'binned') {
+        return { state, title: `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted`, offers, retry,
+            msg: `The link is now ${ROTATING_LINES} lines, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.` };
+    }
+    return { state, title: 'No designs yet', offers, retry,
+        msg: `Build a rotating pattern from staffing targets with the Build a link card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${ROTATING_LINES}-line</span> grid.` };
 }
