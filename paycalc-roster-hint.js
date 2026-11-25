@@ -12,7 +12,7 @@
  * Do not edit here for: pay maths, period date maths, override fetch scheduling.
  */
 
-import { getPeriods, currentPeriodNum } from './paycalc-periods.js';
+import { currentPeriodNum, periodByNum, viewedPeriod } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getContr } from './paycalc-settings.js';
 import { getRosterSuggestion, getOverridesFetchState, fetchOverridesForPeriod } from './paycalc-roster-suggestions.js';
 import { escapeHtml } from './roster-data.js';
@@ -230,7 +230,7 @@ export function updateRosterHint() {
   const card = document.getElementById('rosterHintBar');
   if (!card) return;
 
-  const p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+  const p = viewedPeriod();
   if (!p) { card.style.display = 'none'; return; }
 
   const s = /** @type {any} */ (_suggestionOrNone(p, getLoggedMember()));
@@ -573,7 +573,7 @@ const _CAT_LABELS = /** @type {Record<string,string>} */ ({
  * @param {Function} autosave - Coordinator autosave callback.
  */
 export function fillCategoryFromRoster(cat, autosave) {
-  const p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+  const p = viewedPeriod();
   if (!p) return;
   const s = /** @type {any} */ (getRosterSuggestion(p, getLoggedMember()));
   if (!s) return;
@@ -625,7 +625,7 @@ export function refreshFromCalendarInBackground(p, memberName, { calculate, touc
     // Never over a CORRUPT period's blob; the hint bar above still refreshed, so "Fill from calendar"
     // — an explicit action — can replace it.
     if (loadWasCorrupt()) return;
-    const refreshP = getPeriods().find(/** @param {any} x */ x => x.num === fetchedPNum);
+    const refreshP = periodByNum(fetchedPNum);
     if (!refreshP) return;
     const s = getRosterSuggestion(refreshP, getLoggedMember());
     // clearZeros on the server's complete answer only: a gold figure the calendar no longer gives is
@@ -645,7 +645,7 @@ let _fillInFlight = false;
 export async function fillFromRoster(autosave) {
   if (_fillInFlight) return;
   const pNum = currentPeriodNum();
-  const p = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+  const p = periodByNum(pNum);
   if (!p) return;
   const member = getLoggedMember();
   // Second chance for the shift-changes fetch (v21.67): on a phone with poor signal the

@@ -38,6 +38,10 @@ function el(value = '') {
         appendChild(/** @type {any} */ c) { kids.push(c); return c; },
         get options() { return kids.flatMap(k => (k.options.length ? k.options : [k])); },
         setAttribute() {}, dispatchEvent() { return true; },
+        /** @type {Record<string, Function[]>} */ _on: {},
+        addEventListener(/** @type {string} */ type, /** @type {Function} */ fn) { (this._on[type] ??= []).push(fn); },
+        /** Run what the module wired for `type`, as the browser would. */
+        fire(/** @type {string} */ type, /** @type {any} */ ev = {}) { for (const fn of this._on[type] ?? []) fn(ev); },
         classList: {
             toggle(/** @type {string} */ c, /** @type {boolean} */ on) { if (on) cls.add(c); else cls.delete(c); },
             contains: (/** @type {string} */ c) => cls.has(c),
@@ -50,7 +54,7 @@ function el(value = '') {
     createElement: () => el(),
 };
 
-const { ytdHasFigures, refreshYtdSrc, updateYtdNote } = await import('../paycalc-ytd-card.js');
+const { ytdHasFigures, refreshYtdSrc, updateYtdNote, wireYtdCard } = await import('../paycalc-ytd-card.js');
 const { ytdSrcKey } = await import('../paycalc-migrations.js');
 const { getPeriods, CONFIG, YTD_SRC_EARLY } = await import('../paycalc-periods.js');
 const TY26 = /** @type {any} */ (CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27'));
@@ -118,5 +122,63 @@ describe('the source anchor: a stamp worked out is a stamp recorded', () => {
         els.ytdPay.value = '21000';
         refreshYtdSrc(TY26);
         assert.equal(_ls.has(ytdSrcKey(TY26)), false);
+    });
+});
+
+// THE WIRING (out of paycalc-app.js, 25 Nov 2026): which source a typing or a pick leaves recorded.
+// On 25 Nov 2026 the payslip on screen is the one being earned (paid 18 Dec, P59), and the one the
+// take-home line names to copy from is the 20 Nov payslip (P58) — the source a re-type moves to.
+describe('the card\'s wiring: what a typing or a pick leaves recorded', () => {
+    /** Wire a fresh card over payslip 59 with `stored` as its source; returns the calls it made. */
+    const wired = (/** @type {string|null} */ stored) => {
+        els.ytdSrcSelect = el(); els.periodSelect = el('59');
+        if (stored != null) _ls.set(ytdSrcKey(TY26), stored);
+        const calls = { saved: 0, priced: 0 };
+        wireYtdCard({ saveSettings: () => { calls.saved++; }, calculate: () => { calls.priced++; } });
+        return calls;
+    };
+    /** Type into the Taxable Pay box the way a member does: focus from outside the card, then input. */
+    const type = (/** @type {string} */ v) => { els.ytdPay.fire('focus', { relatedTarget: null }); els.ytdPay.value = v; els.ytdPay.fire('input'); };
+
+    test('figures typed AGAIN over an older source move it to the payslip the take-home line names', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 25, 12) });
+        const calls = wired('55');
+        els.ytdPay.value = '19000'; els.ytdTax.value = '1900';   // figures already there: a re-type
+        type('21000');
+        assert.equal(_ls.get(ytdSrcKey(TY26)), '58');
+        assert.deepEqual(calls, { saved: 1, priced: 1 }, 'the boxes are saved and the payslip re-priced');
+    });
+
+    test('…but typed into EMPTY boxes they come from the source already chosen', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 25, 12) });
+        wired('55');
+        type('21000');
+        assert.equal(_ls.get(ytdSrcKey(TY26)), '55');
+    });
+
+    test('…and a source PICKED this visit is kept, whatever is typed after it', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 25, 12) });
+        wired(null);
+        els.ytdPay.value = '19000'; els.ytdTax.value = '1900';
+        els.ytdSrcSelect.value = '55'; els.ytdSrcSelect.fire('change');
+        assert.equal(_ls.get(ytdSrcKey(TY26)), '55', 'the pick is recorded');
+        type('21000');
+        assert.equal(_ls.get(ytdSrcKey(TY26)), '55', 'and not moved by the figures typed after it');
+    });
+
+    test('moving between the two boxes is ONE edit, so the second box does not re-read it', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 25, 12) });
+        wired('55');
+        type('21000');                                              // empty boxes: not a re-type
+        els.ytdTax.fire('focus', { relatedTarget: { id: 'ytdPay' } });
+        els.ytdTax.value = '2100'; els.ytdTax.fire('input');
+        assert.equal(_ls.get(ytdSrcKey(TY26)), '55', 'the Tax Paid box is the same first entry');
+    });
+
+    test('picking the blank placeholder records "not from a payslip", never deletes the record', () => {
+        const calls = wired('58');
+        els.ytdSrcSelect.value = ''; els.ytdSrcSelect.fire('change');
+        assert.equal(_ls.get(ytdSrcKey(TY26)), '0');
+        assert.equal(calls.priced, 1, 'and the payslip is re-priced, which rewrites the note and chip');
     });
 });

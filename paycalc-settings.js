@@ -14,7 +14,7 @@
  */
 
 import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions, offerRecordedPayslip } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, periodByNum, viewedPeriod, todaysPeriodNum, visiblePeriods, appendPayslipOptions, offerRecordedPayslip } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
 import { gradeForRole } from './roster-data.js';
 import { byDays, gradeSplitLine, windowGrade } from './paycalc-grade.js';
@@ -194,7 +194,7 @@ export function periodDefaultPension(p) {
  *   (since Oct 2026, only the pension field, and only into a payslip that already has readable entries).
  */
 export function wirePensionControls({ autosave }) {
-  const _viewed = () => getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+  const _viewed = () => viewedPeriod();
   const _amt = () => /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
 
   // THE PAYSLIP'S OWN FIGURE SURVIVES BOTH CONTROLS (paycalc-3-3). A payslip that stores a pension of
@@ -345,7 +345,7 @@ export function awardGrade(awardTy) {
     if (mixed) console.warn('[PayCalc] back pay: the ' + awardTy.label + ' award window spans a change of grade — priced at the later one');
     if (grade) return grade;
   }
-  const onScreen = getPeriods().find(/** @param {any} x */ x => x.num === (currentPeriodNum() || todaysPeriodNum()));
+  const onScreen = periodByNum(currentPeriodNum() || todaysPeriodNum());
   return gradeDaysFor(onScreen).find(x => x.grade)?.grade ?? null;
 }
 
@@ -450,7 +450,7 @@ export function settingsKey(ty) { return `${pcPrefix()}setup_${ty.label.replace(
  *  Does NOT set the confirmed flag or collapse the card — that's confirmSettings(). */
 export function saveSettings() {
   const pNum    = currentPeriodNum();
-  const curP    = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+  const curP    = periodByNum(pNum);
   const curTy   = taxYearForPeriod(curP);
   // Save the grade setting FIRST — every helper below that prices a payslip (periodRate,
   // getPensionDefault) must read the NEW setting (v17.40 review fix). paycalc-grade-setting.js.
@@ -507,7 +507,7 @@ export function saveSettings() {
 export function confirmSettings(calculate) {
   saveSettings();
   const pNum  = currentPeriodNum();
-  const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+  const curP  = periodByNum(pNum);
   const curTy = taxYearForPeriod(curP);
   // If this period already has saved hours, patch its pension value in-place.
   const existingRaw = lsGet(periodKey(pNum));
@@ -600,6 +600,66 @@ export function setSettingsCardOpen(open) {
   if (ctrl) ctrl.setAttribute('aria-expanded', String(open));
 }
 
+/** The tax years whose Settings card has already been opened for the member this page load, so a
+ *  year not yet checked opens it ONCE, not on every payslip of the year. A reload starts it afresh. */
+const _settingsPrompted = new Set();
+/** The Settings header's hint as the markup writes it, put back over a tax year not yet checked.
+ *  @type {string|null} */
+let _settingsHintDefault = null;
+
+/**
+ * Paint what the Settings card and the setup banner say for the payslip on screen — run by the
+ * coordinator's onPeriodChange on every change of payslip. Out of paycalc-app.js on 25 Nov 2026; the
+ * "checked" mark it reads is `settingsKey`'s, one per tax year, set by confirmSettings.
+ *
+ * - A year the member has CHECKED: the setup banner goes, and the header hint is the rate THIS
+ *   payslip was paid at (`settingsSummary` — "pre-rise" where it was), never the year's settled rate
+ *   over a payslip priced at the old one.
+ * - A year NOT yet checked: the hint goes back to the markup's own, read before the first write —
+ *   written only once checked, it kept "✓ 2026/27 — £21.49/hr" over a 2025/26 payslip priced at
+ *   £20.74 — and the setup banner says what is true. A RETURNING member (`SK.setup`) also gets the
+ *   card opened, once per load per year, with the "New tax year" notice; a new member already sees it
+ *   open (loadSettings). Never for a year that is over: it is not new, and its settings are the ones
+ *   every payslip already uses.
+ * - The "New tax year" notice names ONE year, so it goes when another is on screen: only Save hid it
+ *   before, and a member who stepped to a year already checked read 2026/27's notice over 2025/26's
+ *   settings — and Save then checked the wrong year (review, 21 Nov 2026).
+ * @param {any} ty  the payslip's tax year
+ * @param {any} p   the payslip on screen
+ */
+export function paintSettingsForYear(ty, p) {
+  const tyConfirmed = lsGet(settingsKey(ty));
+  // Always keep the title current so the hardcoded HTML default never shows stale text.
+  /** @type {HTMLElement} */ (document.getElementById('setupBannerTitle')).textContent = `👋 Estimate your take-home for ${ty.label}`;
+  const hintEl = /** @type {HTMLElement} */ (document.getElementById('settingsHint'));
+  _settingsHintDefault ??= hintEl.textContent ?? '';
+  const yearNotice = document.getElementById('settingsNewYearNotice');
+  if (yearNotice && yearNotice.dataset.ty !== ty.label) yearNotice.classList.add('hidden');
+  if (tyConfirmed) {
+    /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
+    setStatus(hintEl, settingsSummary(ty, p));   // no tax code: it wrapped at 390px
+    return;
+  }
+  hintEl.textContent = _settingsHintDefault;
+  // What is TRUE (whole-app review, 24 Nov 2026): the tax code and student loan are single settings
+  // used for every payslip; pension is kept per payslip (the hint beside it says so); the grade
+  // follows the roster by date unless the member chose one (paycalc-grade-setting.js). Only the "checked" mark is per tax year.
+  /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
+    `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date unless you choose one — you'll be asked to check them again when a new tax year starts.`;
+  /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
+  if (_settingsPrompted.has(ty.label) || 48 + ty.last < todaysPeriodNum()) return;
+  _settingsPrompted.add(ty.label);
+  if (!lsGet(SK.setup)) return;
+  setSettingsCardOpen(true);
+  if (yearNotice) {
+    yearNotice.dataset.ty = ty.label;
+    yearNotice.textContent = ty.rateUnconfirmed
+      ? `New tax year ${ty.label} — a pay award has been accepted but isn't on payslips yet. Your rate stays on last year's until the award lands on a payslip, then it updates automatically. Check your tax code, then select Save settings.`
+      : `New tax year ${ty.label} — your hourly rate updates automatically. Check your tax code and pension, then select Save settings.`;
+    yearNotice.classList.remove('hidden');
+  }
+}
+
 /**
  * WHERE THE SETTINGS CARD SITS, AND THE WAY TO IT (desktop audit, 7 Nov 2026). Wiring, both halves.
  *
@@ -689,7 +749,7 @@ export function loadSettings() {
   // The YEAR IS NAMED, NOT TODAY'S (paycalc-3-16): "the current tax year" was 2026/27 only until the
   // 2027/28 rollover, after which a device first running this would have dated the opt-out from
   // 2027/28 and put a deduction back on every 2026/27 payslip the member was out of the scheme for.
-  const _curP = getPeriods().find(/** @param {any} x */ x => x.num === todaysPeriodNum());
+  const _curP = periodByNum(todaysPeriodNum());
   if (lsGet(SK.pensionTimeline) === null && lsGet(SK.pensionOptOut) === '1') {
     const _firstOfYear = getPeriods().find(/** @param {any} x */ x => taxYearForPeriod(x)?.label === LEGACY_OPT_OUT_YEAR)?.num ?? null;
     savePensionTimeline(migrateLegacyOptOut(true, _firstOfYear));

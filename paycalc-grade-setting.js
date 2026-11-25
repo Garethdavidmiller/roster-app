@@ -18,7 +18,7 @@
  */
 
 import { GRADES } from './paycalc-calc.js';
-import { getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions, offerRecordedPayslip } from './paycalc-periods.js';
+import { currentPeriodNum, periodByNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions, offerRecordedPayslip } from './paycalc-periods.js';
 import { SK } from './paycalc-migrations.js';
 import { getSession } from './session.js';
 import { teamMembers, gradeForRole } from './roster-data.js';
@@ -160,7 +160,7 @@ function rosterRolesOnScreen() {
   const m = getLoggedMember();
   if (!m) return undefined;
   const num = currentPeriodNum() || todaysPeriodNum();
-  const p = getPeriods().find(/** @param {any} x */ x => x.num === num);
+  const p = periodByNum(num);
   return p ? rolesInRange(m, p.start, p.cutoff).map(r => r.role) : [roleOn(m, new Date())];
 }
 

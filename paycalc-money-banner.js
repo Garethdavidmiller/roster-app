@@ -2,9 +2,11 @@
 /**
  * paycalc-money-banner.js — the two opt-in money banners on the result card.
  *
- * Owns: what the back-pay and Holiday Pay Premium banners SAY, and the three states each can be in.
- * Does NOT own: the amounts (paycalc-backpay.js / paycalc-hpp.js), the tick's change handlers
- *   (wired once in paycalc-app.js), or whether the lump is added to the estimate.
+ * Owns: what the back-pay and Holiday Pay Premium banners SAY, the three states each can be in, and
+ *   their controls — the opt-in ticks and the "view … card" links, with the HPP card's link to the
+ *   back-pay card (`wireBannerTicks`, out of paycalc-app.js on 25 Nov 2026).
+ * Does NOT own: the amounts (paycalc-backpay.js / paycalc-hpp.js), or whether the lump is added to the
+ *   estimate (`takeHomeInputs`, paycalc-calc.js — the rule the ticks below feed).
  *
  * ── WHY ONE MODULE FOR TWO BANNERS ──────────────────────────────────────────────────────────────
  *
@@ -29,6 +31,9 @@
  */
 
 import { fmt } from './paycalc-format.js';
+import { TAX_YEARS } from './paycalc-calc.js';
+import { hppIncKey } from './paycalc-migrations.js';
+import { lsSet, lsDel } from './ls.js';
 
 /**
  * The back-pay banner's words. `included` is the opt-in tick's own state, and it is what decides
@@ -128,4 +133,49 @@ export function paintBanner({ rootId, textId, tickId, noteId, available, include
     const note = document.getElementById(noteId);
     if (note) note.textContent = copy.note;
     root.style.display = '';
+}
+
+/**
+ * Open a collapsed card and bring it into view — through its header's own click, so initCardCollapse
+ * keeps aria-expanded in step and runs whatever the card does on opening (the back-pay card's
+ * pre-fill). An open card is only scrolled to.
+ * @param {string} cardId @param {string} bodyId @param {string} toggleId
+ */
+function viewCard(cardId, bodyId, toggleId) {
+    if (!document.getElementById(bodyId)?.classList.contains('open')) {
+        /** @type {HTMLElement|null} */ (document.getElementById(toggleId))?.click();
+    }
+    document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * Wire the two banners' controls, once, at init: each opt-in tick, each "view … card" link, and the
+ * HPP card's "Expecting a pay rise? Calculate back pay →" link, which goes the same way as the banner's.
+ *
+ * THE HPP TICK targets the tax year stamped on it at paint (`paintBanner`'s `tickYear`, as
+ * `data-year`) — the year whose premium lands on the payslip on screen — so this one listener is
+ * always about the right year; the flag it sets (`hppIncKey`) is the `premium.included` that
+ * `takeHomeInputs` reads. THE BACK-PAY TICK is a proxy for the card's own (hidden) `#bpIncludeTick`,
+ * the state-holder: setting that and firing its change reuses the card's whole persist-and-re-price.
+ * @param {{ calculate: () => void }} deps  the coordinator's re-price
+ */
+export function wireBannerTicks({ calculate }) {
+    const hppTick = /** @type {HTMLInputElement|null} */ (document.getElementById('hppBannerTick'));
+    hppTick?.addEventListener('change', () => {
+        const ty = TAX_YEARS.find(t => t.label === hppTick.dataset.year);
+        if (!ty) return;
+        if (hppTick.checked) lsSet(hppIncKey(ty), '1'); else lsDel(hppIncKey(ty));
+        calculate();
+    });
+    const bpTick = /** @type {HTMLInputElement|null} */ (document.getElementById('bpBannerTick'));
+    bpTick?.addEventListener('change', () => {
+        const dst = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
+        if (!dst) return;
+        dst.checked = bpTick.checked;
+        dst.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const toBackPay = () => viewCard('backPayCard', 'backPayBody', 'backPayCardToggle');
+    document.getElementById('bpBannerViewLink')?.addEventListener('click', toBackPay);
+    document.getElementById('hppBackPayLink')?.addEventListener('click', toBackPay);
+    document.getElementById('hppBannerViewLink')?.addEventListener('click', () => viewCard('hppCard', 'hppCardBody', 'hppCardToggle'));
 }

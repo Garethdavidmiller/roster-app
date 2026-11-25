@@ -39,6 +39,7 @@ mock.module('../paycalc-periods.js', {
         hasBankHoliday:   () => false,
         hasBoxingDay:     () => false,
         getPeriods:       () => _periods,
+        periodByNum:      (/** @type {number} */ n) => _periods.find((/** @type {any} */ x) => x.num === n),
         currentPeriodNum: () => 60,
         todaysPeriodNum:  () => 60,
         isTaxYearVisible: () => true,

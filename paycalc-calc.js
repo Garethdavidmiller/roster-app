@@ -344,6 +344,19 @@ export function taxYearForPeriod(p) {
 }
 
 /**
+ * A payslip's 1-based place in its tax year — HMRC's period number, 1 for April's payslip, 13 for
+ * March's — which the cumulative tax counts the year's allowance up to (computeTax's `periodN`), the
+ * Year to Date card asks about ("the first payslip of the year") and the printed payslip number is
+ * four times (payslipPeriodNum, paycalc-periods.js). One formula, so the three cannot disagree.
+ * @param {{ num: number }} p  a period from getPeriods()
+ * @param {{ first: number }} ty  its tax year (taxYearForPeriod)
+ * @returns {number}
+ */
+export function periodInTaxYear(p, ty) {
+  return (p.num - 48) - ty.first + 1;
+}
+
+/**
  * Return threshold objects for a given tax year label.
  * Falls back to 2025/26 with a warning if year not found.
  * No London Allowance here (18 Nov 2026): nothing read it, and a year's one figure is wrong for a
@@ -755,8 +768,8 @@ export function computeSL(sacGross, plan, slByYear, skip = false) {
  *
  * It decides NOTHING about its inputs: which gross (lumps folded in or not), which pension (the box,
  * the saved figure, the opt-out spell, the period default), whether the loans have stopped, and
- * whether the Year to Date figures may be used at all (`calculate()`'s source + 1 anchoring) all
- * belong to the caller. NI and the loans come BEFORE the tax because neither depends on it and the
+ * whether the Year to Date figures may be used at all (the source + 1 anchoring) all belong to the
+ * caller — for the payslip on screen, `takeHomeInputs` below. NI and the loans come BEFORE the tax because neither depends on it and the
  * cumulative tax is bounded by what they leave (`otherDeductions`, computeTax).
  *
  * @param {object} i
@@ -785,4 +798,77 @@ export function pricePayslip({ gross, pension, taxCode, thresholds, plan, pgLoan
   const taxed    = computeTax(sacGross, taxCode, thresholds, { ...taxOptions, otherDeductions: ni + sl });
   const { afterPension, net } = takeHomePay({ gross, pension, tax: taxed.tax, ni, sl });
   return { ...taxed, sacGross, ni, slUnder, slPost, sl, afterPension, net };
+}
+
+/**
+ * WHAT THE PAYSLIP ON SCREEN IS PRICED ON — the rules that turn what the page holds into
+ * `pricePayslip`'s inputs. Out of `calculate()` (paycalc-app.js) on 25 Nov 2026, so each is held by
+ * a test that CALLS it: they were lines inside a closure no test could reach, and the guards on them
+ * read the coordinator's source text. Every one of them is quiet when it breaks — the £ stays plausible.
+ *
+ * 1. BACK PAY joins only on the payslip it is paid in, and only once the member has ticked it in
+ *    (opt-in, OFF by default — the card works the lump out and shows it either way). Without the
+ *    payslip check the lump sat on EVERY payslip of the year while the banner, which has a gate of
+ *    its own, showed on one (PAY-3).
+ * 2. THE HOLIDAY PAY PREMIUM joins only once ticked, the same opt-in: until then the banner says it
+ *    could land here, and it is NOT added. `premium.amount` is already the figure landing on THIS
+ *    payslip (0 on any but its January one — paycalc-hpp-schedule.js decides which).
+ *    A banner may say "Includes" only about the two sums returned here (`bpThisPeriod`,
+ *    `hppForPeriod`), the ones folded into `grossWithBp` — never the sums merely available
+ *    (paycalc-money-banner.js, whose test holds the caller to it).
+ * 3. A BLANK PENSION BOX — or one holding nothing readable, a lone "." or "-" mid-edit — is THIS
+ *    payslip's default, never £0, or retyping the field would flash a take-home inflated by the whole
+ *    pension; a typed 0 is a genuine opt-out and is kept. A typed figure is floored at 0: a pasted
+ *    negative would add untaxed headroom and inflate the take-home.
+ * 4. THE STUDENT-LOAN STOP: deductions end from ONE payslip onward while earlier payslips keep
+ *    theirs, so they still match the real ones (setting the plan to None would strip those too); both
+ *    loans stop together. The select's choice, else what is STORED: a stop naming a payslip the list
+ *    no longer offers reads as '' there and must stay in force (paycalc-periods.js → the rollover
+ *    note). The select comes first, as storage may be blocked, and saveSettings stores every pick.
+ * 5. YEAR TO DATE FIGURES are used only on the payslip STRAIGHT AFTER the one they came from: the
+ *    cumulative method adds this payslip's pay to the totals entered, so anywhere else stale figures
+ *    would be read as last payslip's totals and skew the tax — and the chip and note, which follow
+ *    what computeTax DID, would call them "in use" beside a £ priced on them. A blank or unreadable
+ *    box is NULL, never 0: computeTax needs BOTH, and 0 is a figure (paycalc.md).
+ * 6. `periodN` is the payslip's place in its tax year (`periodInTaxYear`).
+ *
+ * @param {object} i
+ * @param {{ num: number }} i.p  the payslip on screen
+ * @param {{ first: number }} i.ty  its tax year
+ * @param {number} i.gross  computeGross's gross: the hours, the allowances and the adjustment
+ * @param {{ pNum: number, amount: number, included: boolean }} i.backPay  the back-pay card's lump
+ *   (bpState): the payslip it is paid in (0 for none), the sum, and the member's tick
+ * @param {{ amount: number, included: boolean }} i.premium  the Holiday Pay Premium landing on this
+ *   payslip (0 where none does) and the tick for its tax year
+ * @param {number|null} i.pensionBox  the pension box, read (null: blank or unreadable)
+ * @param {number} i.pensionDefault  this payslip's default pension (periodDefaultPension)
+ * @param {string} [i.slStopShown]  the stop select's value ('' for "No — still deducted", or no choice)
+ * @param {string|null} [i.slStopStored]  the stop as stored (SK.slPaidOff)
+ * @param {number|null} i.ytdPay  the Taxable Pay box, read (null: blank or unreadable)
+ * @param {number|null} i.ytdTax  the Tax Paid box, read (null: blank or unreadable)
+ * @param {number} i.ytdSrc  the payslip the figures came from (0: none recorded)
+ * @param {string} i.plan  the undergraduate plan, 'none' for none
+ * @param {boolean} i.pgLoan  a Postgraduate Loan as well
+ * @param {boolean} i.slSkip  this payslip's "not deducted this period" tick
+ * @param {string} i.taxCode  the Tax Code box's text
+ * @param {{ tax: any, scottishTax: any, ni: any, sl: any }} i.thresholds  getThresholds() for its year
+ * @returns {{ bpThisPeriod: number, hppForPeriod: number, grossWithBp: number, pension: number,
+ *   slStopFrom: number, slPaidOff: boolean, pricing: Parameters<typeof pricePayslip>[0] }}
+ *   `pricing` is pricePayslip's whole argument; `slStopFrom` the stop's payslip (0: still deducted)
+ */
+export function takeHomeInputs({ p, ty, gross, backPay, premium, pensionBox, pensionDefault,
+                                 slStopShown, slStopStored, ytdPay, ytdTax, ytdSrc,
+                                 plan, pgLoan, slSkip, taxCode, thresholds }) {
+  const bpThisPeriod = (backPay.pNum > 0 && backPay.pNum === p.num && backPay.included) ? backPay.amount : 0;
+  const hppForPeriod = premium.included ? premium.amount : 0;
+  const grossWithBp  = gross + bpThisPeriod + hppForPeriod;
+  const pension      = pensionBox != null ? Math.max(0, pensionBox) : pensionDefault;
+  const slStopFrom   = parseInt(slStopShown || slStopStored || '', 10) || 0;
+  const slPaidOff    = !!(slStopFrom && p.num >= slStopFrom);
+  const anchored     = !!ytdSrc && p.num === ytdSrc + 1;
+  const taxOptions   = { ytdPay: anchored ? ytdPay : null, ytdTax: anchored ? ytdTax : null, periodN: periodInTaxYear(p, ty) };
+  return {
+    bpThisPeriod, hppForPeriod, grossWithBp, pension, slStopFrom, slPaidOff,
+    pricing: { gross: grossWithBp, pension, plan, pgLoan, slSkip, slPaidOff, thresholds, taxCode, taxOptions },
+  };
 }

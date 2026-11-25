@@ -622,22 +622,25 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `headlineLabels` · `renderResultHeadline` · `renderUnpricedPayslip` · `renderActualCheck` · `renderYtdLine` · `wireYtdLine`
 
 ### `paycalc-ytd-card.js`
-- **Exports:** `ytdHasFigures` · `refreshYtdSrc` · `updateYtdNote`
+- **Exports:** `ytdHasFigures` · `refreshYtdSrc` · `updateYtdNote` · `wireYtdCard`
 
 ### `paycalc-disclosures.js`
 - **Exports:** `setDisclosure` · `toggleDisclosure` · `toggleHoursExtra` · `toggleHppNote` · `toggleBD` · `toggleDisclaimer`
 
+### `paycalc-clear-confirm.js`
+- **Exports:** `CLEAR_CONFIRM_MIN_MS` · `createClearConfirm`
+
 ### `paycalc-money-banner.js`
-- **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner`
+- **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner` · `wireBannerTicks`
 
 ### `paycalc-lightboxes.js`
 - **Exports:** `initPaycalcAbout` · `initPaycalcLightboxes`
 
 ### `paycalc-periods.js`
-- **Exports:** `CONFIG` · `getPeriods` · `payslipPeriodNum` · `computeEarliestVisiblePNum` · `payslipsShownTo` · `setEarliestVisiblePeriod` · `getEarliestVisiblePNum` · `visiblePeriods` · `isTaxYearVisible` · `todaysPeriodNum` · `currentPeriodNum` · `hasBoxingDay` · `bhsForYear` · `hasBankHoliday` · `CONDITIONAL_ROWS` · `updateBhRows` · `_setSelectPeriod` · `appendPayslipOptions` · `offerRecordedPayslip` · `periodLinkMissNote` · `periodPaidInMonth` · `buildPeriodSelect` · `payslipMayBeInHand` · `ytdSourceOffered` · `ytdAutoSource` · `ytdSourceToStamp` · `YTD_SRC_EARLY` · `ytdSourceAfterRetype` · `ytdAnchorStatus` · `buildYtdSourceSelect` · `buildBackPayPeriodSelect` · `updateTyTabs` · `jumpToTaxYear` · `prevPeriod` · `nextPeriod` · `ytdUpdateFrom`
+- **Exports:** `CONFIG` · `getPeriods` · `periodByNum` · `payslipPeriodNum` · `computeEarliestVisiblePNum` · `payslipsShownTo` · `setEarliestVisiblePeriod` · `getEarliestVisiblePNum` · `visiblePeriods` · `isTaxYearVisible` · `todaysPeriodNum` · `currentPeriodNum` · `viewedPeriod` · `hasBoxingDay` · `bhsForYear` · `hasBankHoliday` · `CONDITIONAL_ROWS` · `updateBhRows` · `_setSelectPeriod` · `appendPayslipOptions` · `offerRecordedPayslip` · `periodLinkMissNote` · `periodPaidInMonth` · `buildPeriodSelect` · `payslipMayBeInHand` · `ytdSourceOffered` · `ytdAutoSource` · `ytdSourceToStamp` · `YTD_SRC_EARLY` · `ytdSourceAfterRetype` · `ytdAnchorStatus` · `buildYtdSourceSelect` · `buildBackPayPeriodSelect` · `updateTyTabs` · `jumpToTaxYear` · `prevPeriod` · `nextPeriod` · `ytdUpdateFrom`
 
 ### `paycalc-settings.js`
-- **Exports:** `gradeForRole` · `getGradeSetting` · `gradeDaysFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `isPeriodPriced` · `unpricedLineFor` · `getEffectiveContr` · `getProRateFactor` · `isPensionOptedOut` · `applyPensionOptOutUI` · `buildPensionFromSelect` · `periodDefaultPension` · `wirePensionControls` · `getPensionDefault` · `settledRate` · `settledRateFor` · `awardGrade` · `periodRate` · `settingsSummary` · `updateRateForPeriod` · `updateYtdForTaxYear` · `settingsKey` · `saveSettings` · `confirmSettings` · `setSettingsCardOpen` · `wireSettingsCard` · `loadSettings`
+- **Exports:** `gradeForRole` · `getGradeSetting` · `gradeDaysFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `isPeriodPriced` · `unpricedLineFor` · `getEffectiveContr` · `getProRateFactor` · `isPensionOptedOut` · `applyPensionOptOutUI` · `buildPensionFromSelect` · `periodDefaultPension` · `wirePensionControls` · `getPensionDefault` · `settledRate` · `settledRateFor` · `awardGrade` · `periodRate` · `settingsSummary` · `updateRateForPeriod` · `updateYtdForTaxYear` · `settingsKey` · `saveSettings` · `confirmSettings` · `setSettingsCardOpen` · `paintSettingsForYear` · `wireSettingsCard` · `loadSettings`
 
 ### `paycalc-grade-setting.js`
 - **Exports:** `getGradeSetting` · `gradeDaysFor` · `isPeriodPriced` · `unpricedLineFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `saveGradeSetting` · `loadGradeSetting`
@@ -701,7 +704,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `PAY_DATA_GENERATION` · `memberSlug` · `keyOwnerSlug` · `pcPrefix` · `SK` · `setPaycalcNamespace` · `periodKey` · `parseSavedPeriod` · `readSavedPeriod` · `hppEstKey` · `hppActualKey` · `hppIncKey` · `hppModeKey` · `bpKey` · `ytdPayKey` · `ytdSrcKey` · `ytdTaxKey` · `NOTICE_YTD_KEY` · `NOTICE_HPP_KEY` · `isActualsDev` · `readPayslipActuals` · `writePayslipActuals` · `clearPayslipActuals` · `DEVICE_KEYS` · `RETIRED_DEVICE_KEYS` · `hasPendingLegacyMigration` · `resolveLegacyMigration` · `runMigrations`
 
 ### `paycalc-calc.js`
-- **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL` · `pricePayslip`
+- **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `periodInTaxYear` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL` · `pricePayslip` · `takeHomeInputs`
 
 ### `paycalc-roster-suggestions.js`
 - **Exports:** `_setOverridesForTest` · `_addBhDateForTest` · `_removeBhDateForTest` · `resetOverrides` · `getOverridesFetchState` · `fetchOverridesForPeriod` · `getRosterSuggestion`

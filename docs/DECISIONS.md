@@ -81,10 +81,12 @@ when this was decided (the current figures: `coordinator-ratchet.test.mjs`) — 
 for a fix was already spent, so the next change to that file, however small, had to move something
 out first. **Do not make that move speculatively.** The seam should be drawn by the change that
 needs it; a module carved today to hold three click handlers is a guess at where that
-change will want its boundary, and the ratchet is doing exactly its job by waiting. When it comes,
-the ready candidate is the cross-card navigation block (`_bannerViewCard` and the three link
-wirings, ~20 lines, no calculations), named for what it is — `paycalc-card-navigation.js`, never for
-the grouping that was not built. The transfer card's hash branch stays where it is; its
+change will want its boundary, and the ratchet is doing exactly its job by waiting. When it came,
+the ready candidate was the cross-card navigation block (the banners' open-and-scroll helper and
+the three link wirings, ~20 lines, no calculations), named for what it is — never for the grouping that was not
+built. (It left on 25 Nov 2026 with the banners' ticks, for the module that owns the banners:
+`wireBannerTicks`, paycalc-money-banner.js — the HPP card's back-pay link folded into the same
+open-and-scroll.) The transfer card's hash branch stays where it is; its
 ResizeObserver landing correction is its own concern. If the tail is ever
 revisited, start from grouping only the two gadgets (Decimal Hours Converter, Move Your Pay Data) —
 nothing taught is lost, ~95px saved — and expect that not to be worth a module either. Better

@@ -27,7 +27,7 @@
  */
 
 import { computeYearSoFar } from './paycalc-year-summary.js';
-import { getPeriods, currentPeriodNum, CONFIG } from './paycalc-periods.js';
+import { getPeriods, viewedPeriod, CONFIG } from './paycalc-periods.js';
 import { periodsInTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 import { resolveHppForPeriod } from './paycalc-hpp.js';
 import { getLoggedMember, getProRateFactor, isPeriodPriced } from './paycalc-settings.js';
@@ -235,7 +235,7 @@ async function _runFill(btn) {
         });
         // The loop leaves the suggestion module's override map on the LAST period it fetched —
         // put the ON-SCREEN period's back before anything repaints from it.
-        const cur = getPeriods().find((/** @type {any} */ x) => x.num === currentPeriodNum());
+        const cur = viewedPeriod();
         // Invalidate any fetch the loop ABANDONED on its timeout first: resolving late, it would
         // otherwise overwrite the restored map with a different period's changes (and a later Fill
         // would write them into this one). The reset bumps the fetch token, so it returns 'cancelled'.

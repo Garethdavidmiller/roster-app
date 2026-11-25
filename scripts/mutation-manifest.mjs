@@ -27,8 +27,9 @@
 // browser, no emulator — the sweep is cheap enough to run weekly in full (mutation.yml). A wiring
 // line only a browser can see (the page coordinators — `navigateToPaycalc`'s gate in calendar-app.js
 // is e2e/calendar.spec.js's "offers no jump from a colleague's month") is the browser lanes' work,
-// and is not listed here as if it were covered. paycalc-app.js's `calculate()` is the exception that
-// proves it can be done: paycalc.test.mjs runs its pricing statement as written (`runAppLines`).
+// and is not listed here as if it were covered. paycalc-app.js's `calculate()` shows the way out: the
+// rules that decided its pricing left it for a pure function (`takeHomeInputs`, paycalc-calc.js,
+// 25 Nov 2026), so they are listed below against the tests that call it.
 //
 // ── WHEN AN ENTRY GOES STALE ───────────────────────────────────────────────────────────────────
 //
@@ -637,6 +638,55 @@ export const MUTATIONS = [
         replace: 'const slPost   = (pgLoan) ?',
         test: unit('paycalc.test.mjs'),
         breaks: 'a Postgraduate Loan keeps being deducted after the payslip the member said deductions stopped',
+    },
+    // What the payslip on screen is priced ON (takeHomeInputs — out of calculate(), 25 Nov 2026).
+    {
+        id: 'take-home-back-pay-own-payslip',
+        file: 'paycalc-calc.js',
+        find: 'backPay.pNum > 0 && backPay.pNum === p.num && backPay.included',
+        replace: 'backPay.pNum > 0 && backPay.included',
+        test: plain('paycalc-money-banner.test.mjs'),
+        breaks: 'a ticked back-pay lump is added to every payslip of the year, not the one it is paid in',
+    },
+    {
+        id: 'take-home-back-pay-ticked',
+        file: 'paycalc-calc.js',
+        find: 'backPay.pNum === p.num && backPay.included) ?',
+        replace: 'backPay.pNum === p.num) ?',
+        test: plain('paycalc-money-banner.test.mjs'),
+        breaks: 'the back-pay lump joins the take-home before the member has ticked it in',
+    },
+    {
+        id: 'take-home-premium-ticked',
+        file: 'paycalc-calc.js',
+        find: 'const hppForPeriod = premium.included ? premium.amount : 0;',
+        replace: 'const hppForPeriod = premium.amount;',
+        test: plain('paycalc-money-banner.test.mjs'),
+        breaks: 'the Holiday Pay Premium joins the January take-home before the member has ticked it in',
+    },
+    {
+        id: 'take-home-pension-blank-default',
+        file: 'paycalc-calc.js',
+        find: 'pensionBox != null ? Math.max(0, pensionBox) : pensionDefault;',
+        replace: 'pensionBox != null ? Math.max(0, pensionBox) : 0;',
+        test: unit('paycalc.test.mjs'),
+        breaks: 'a blank pension box mid-edit prices the payslip with no pension, a take-home inflated by the whole deduction',
+    },
+    {
+        id: 'take-home-loan-stop-stored',
+        file: 'paycalc-calc.js',
+        find: "parseInt(slStopShown || slStopStored || '', 10)",
+        replace: "parseInt(slStopShown || '', 10)",
+        test: unit('paycalc.test.mjs'),
+        breaks: 'a student-loan stop the payslip list no longer offers is dropped, and the loan is priced back onto every payslip',
+    },
+    {
+        id: 'take-home-ytd-source-anchor',
+        file: 'paycalc-calc.js',
+        find: 'const anchored     = !!ytdSrc && p.num === ytdSrc + 1;',
+        replace: 'const anchored     = !!ytdSrc;',
+        test: unit('paycalc.test.mjs'),
+        breaks: 'Year to Date figures are read as last payslip\'s totals on every payslip of the year, and skew its tax',
     },
     {
         id: 'year-london-pro-rated',

@@ -176,7 +176,8 @@ roster-app/
 ├── paycalc-result-headline.js ← which figure is the pay result's headline and what it is called. **An actual is never called an estimate.** Tested by paycalc-result-headline.test.mjs
 ├── paycalc-ytd-card.js     ← the Year to Date card on the page; owns no rule. Tested by paycalc-ytd-card.test.mjs
 ├── paycalc-disclosures.js  ← the Pay page's button-and-panel disclosures. Tested by paycalc-disclosures.test.mjs
-├── paycalc-money-banner.js ← the two opt-in money banners; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc.spec.js.
+├── paycalc-clear-confirm.js ← the two-tap "Clear all entries": the arm, the countdown and which tap confirms. Tested by paycalc-clear-confirm.test.mjs. See also paycalc.spec.js.
+├── paycalc-money-banner.js ← the two opt-in money banners and their ticks and links; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc.spec.js.
 ├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html. See also paycalc.spec.js.
 ├── paycalc-periods.js      ← period arithmetic and the period select, and the Year to Date source rules. See also paycalc-periods.test.mjs.
 ├── paycalc-settings.js     ← each payslip's rate, contracted hours, the pension controls and settings persistence. See also paycalc-settings.test.mjs.
@@ -491,7 +492,8 @@ roster-app/
 │   ├── paycalc-ytd-card.test.mjs ← the Year to Date card's note, chip and source anchor (--experimental-test-module-mocks)
 │   ├── paycalc-disclosures.test.mjs ← every disclosure's `aria-expanded` and arrow in step with its panel. Part of test:hygiene
 │   ├── pay-audience.test.mjs ← who the Pay Calculator admits, by the role at the time. Part of test:hygiene
-│   ├── paycalc-money-banner.test.mjs ← the two money banners never overstating. Part of test:hygiene
+│   ├── paycalc-money-banner.test.mjs ← the two money banners never overstating, and the take-home's lump rules behind them. Part of test:hygiene
+│   ├── paycalc-clear-confirm.test.mjs ← the two-tap Clear: no delete nobody confirmed. Part of test:hygiene
 │   ├── paycalc-breakdown.test.mjs ← the pay-result card builders. Part of test:hygiene
 │   ├── paycalc-form-data.test.mjs ← the paycalc form round trip, a case per historical defect (--experimental-test-module-mocks)
 │   ├── paycalc-backpay-state.test.mjs ← the back-pay boxes, a case per historical defect. Part of test:hygiene

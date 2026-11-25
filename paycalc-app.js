@@ -4,10 +4,13 @@
  *
  * Owns: onPeriodChange, calculate, autosave, WHEN a period is saved and loaded, INIT, event wiring.
  * Does NOT own: period arithmetic and the Year to Date source rules (paycalc-periods.js), grade,
- *   settings and the rate (paycalc-settings.js), the roster hint bar (paycalc-roster-hint.js), HPP
- *   (paycalc-hpp.js), back pay (paycalc-backpay.js), pay maths (paycalc-calc.js), HOW a field
- *   persists (paycalc-form-data.js), the result card's markup (paycalc-breakdown.js) and the
- *   sticky take-home bar (paycalc-sticky-total.js).
+ *   settings, the rate and what the Settings card says for a tax year (paycalc-settings.js), the roster
+ *   hint bar (paycalc-roster-hint.js), HPP (paycalc-hpp.js), back pay (paycalc-backpay.js), pay maths
+ *   AND what the payslip on screen is priced on (paycalc-calc.js → takeHomeInputs), HOW a field
+ *   persists (paycalc-form-data.js), the result card's markup (paycalc-breakdown.js), the sticky
+ *   take-home bar (paycalc-sticky-total.js), the Year to Date card's wiring (paycalc-ytd-card.js), the
+ *   money banners' ticks and links (paycalc-money-banner.js) and the two-tap Clear
+ *   (paycalc-clear-confirm.js).
  * A new RULE belongs in one of those, not here — coordinator-ratchet.test.mjs holds this file's size.
  *
  * The body is an exported init(), called by paycalc-boot.js (CSP `script-src 'self'` blocks inline
@@ -20,7 +23,7 @@ import { printedStamp, formatClock } from './date-format.js';
 import {
   RATE_125, RATE_150, RATE_300,
   taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, pricePayslip,
+  computeGross, pricePayslip, takeHomeInputs,
 } from './paycalc-calc.js';
 import { resetOverrides } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
@@ -31,19 +34,19 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { paintRoleCard, PAYCALC_SIGN_IN_ABOUT } from './paycalc-role-card.js';
 import { signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
 import {
-  CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum,
+  CONFIG, getPeriods, currentPeriodNum, periodByNum, viewedPeriod, todaysPeriodNum, payslipPeriodNum,
   hasBoxingDay, hasBankHoliday,
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod, ytdSourceAfterRetype, payslipMayBeInHand, ytdUpdateFrom,
-  appendPayslipOptions, YTD_SRC_EARLY, payslipsShownTo,
+  _setSelectPeriod, payslipMayBeInHand, ytdUpdateFrom,
+  appendPayslipOptions, payslipsShownTo,
 } from './paycalc-periods.js';
 import { payCalculatorPrices } from './pay-audience.js';
 import {
   getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
-  applyPensionOptOutUI, wirePensionControls, periodDefaultPension, settingsSummary, unpricedLineFor,
-  updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
+  applyPensionOptOutUI, wirePensionControls, periodDefaultPension, unpricedLineFor,
+  updateRateForPeriod, updateYtdForTaxYear, paintSettingsForYear,
   saveSettings, confirmSettings, loadSettings, periodRate, wireSettingsCard,
 } from './paycalc-settings.js';
 import {
@@ -68,7 +71,7 @@ import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey,
 import { initPaycalcLightboxes, initPaycalcAbout } from './paycalc-lightboxes.js';
 import { fdShort, fdLong, fmt, minutesFieldText, isDataEmpty } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
-import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
+import { numVal, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { classifyPayKey } from './paycalc-inventory.js';
@@ -76,9 +79,10 @@ import { buildSummaryRows, buildLoanLines, buildBreakdownRows, buildProvChips, b
 
 import { setStatus } from './status-text.js';
 import { renderResultHeadline, renderYtdLine, wireYtdLine, renderUnpricedPayslip, renderActualCheck } from './paycalc-result-headline.js';
-import { backPayBannerCopy, hppBannerCopy, paintBanner } from './paycalc-money-banner.js';
+import { backPayBannerCopy, hppBannerCopy, paintBanner, wireBannerTicks } from './paycalc-money-banner.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
-import { ytdHasFigures, refreshYtdSrc, updateYtdNote } from './paycalc-ytd-card.js';
+import { createClearConfirm } from './paycalc-clear-confirm.js';
+import { refreshYtdSrc, updateYtdNote, wireYtdCard } from './paycalc-ytd-card.js';
 import { setDisclosure, toggleDisclosure, toggleHoursExtra, toggleHppNote, toggleBD, toggleDisclaimer } from './paycalc-disclosures.js';
 
 /**
@@ -186,12 +190,6 @@ export function init() {
     // the lump into that period's gross before tax/NI, and re-prices whenever it changes.
     onBackPayChange(() => calculate());
 
-    // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
-    // per browser session. Cleared on page reload. Uses tax year label as the key.
-    const _settingsPrompted = new Set();
-    /** The Settings header's hint as the markup writes it, put back over a tax year not yet checked. @type {string|null} */
-    let _settingsHintDefault = null;
-
     // The default period num selected on page load (first upcoming payday). Used by
     // the ● today-period button to know when to show itself.
     /** @type {number | null} */
@@ -251,7 +249,7 @@ export function init() {
       if (warnId) {
         const hrs   = hhmmDec(hId, mId);
         const warn  = document.getElementById(warnId);
-        const curP  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+        const curP  = viewedPeriod();
         const contr = getEffectiveContr(curP);
         if (hrs > contr && !cap) {
           if (warn) { setStatus(warn, `⚠ More than ${contr} hrs, your contracted maximum for this period — it is capped there when you leave the box`); warn.classList.add('show'); }
@@ -266,10 +264,9 @@ export function init() {
     }
 
     function onPeriodChange() {
-      _resetClearConfirm();   // switching period disarms a pending two-tap Clear (_resetClearConfirm says why)
+      _clearConfirm.reset();   // switching payslip disarms a pending two-tap Clear (paycalc-clear-confirm.js, rule 4)
       const pNum    = +/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect')).value;
-      const periods = getPeriods();
-      const p       = periods.find(/** @param {any} x */ x => x.num === pNum);
+      const p       = periodByNum(pNum);
       if (!p) return;
 
       // Prev / Next button states — over the VISIBLE periods (a new starter is clamped to their join
@@ -345,51 +342,9 @@ export function init() {
       const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
       if (pensionPeriodLbl) pensionPeriodLbl.textContent = `for the ${fdShort(p.payday)} payslip`;
 
-      // Settings confirmation check for this tax year.
-      const tyConfirmed = lsGet(settingsKey(ty));
-      // Always keep the title current so the hardcoded HTML default never shows stale text.
-      /** @type {HTMLElement} */ (document.getElementById('setupBannerTitle')).textContent = `👋 Estimate your take-home for ${ty.label}`;
-      // The card's header hint is written on BOTH branches: written only once checked, it kept
-      // "✓ 2026/27 — £21.49/hr" over a 2025/26 payslip priced at £20.74. An unchecked year gets back
-      // the markup's own hint, read before the first write.
-      const _hintEl = /** @type {HTMLElement} */ (document.getElementById('settingsHint'));
-      _settingsHintDefault ??= _hintEl.textContent ?? '';
-      // The "New tax year" notice names ONE year, so it goes when another is on screen. Only Save
-      // hid it before, and a member who stepped to a year already checked was left reading 2026/27's
-      // notice over 2025/26's settings — and Save then checked the wrong year (review, 21 Nov 2026).
-      const _yearNotice = document.getElementById('settingsNewYearNotice');
-      if (_yearNotice && _yearNotice.dataset.ty !== ty.label) _yearNotice.classList.add('hidden');
-      if (tyConfirmed) {
-        /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
-        // The rate THIS payslip was paid at (periodRate), with its "pre-rise" qualifier — never the
-        // year's settled rate over a payslip priced at the old one. No tax code: it wrapped at 390px.
-        setStatus(_hintEl, settingsSummary(ty, p));
-      } else {
-        _hintEl.textContent = _settingsHintDefault;
-        // What is TRUE (whole-app review, 24 Nov 2026): the tax code and student loan are single settings
-        // used for every payslip; pension is kept per payslip (the hint beside it says so); the grade
-        // follows the roster by date unless the member chose one (paycalc-grade-setting.js). Only the "checked" mark is per tax year.
-        /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
-          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date unless you choose one — you'll be asked to check them again when a new tax year starts.`;
-        /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
-        // Auto-open settings once per session per TY — only for returning users (new users already
-        // see the settings card open) — with the "New tax year" notice. Never for a year that is
-        // over: it is not new, and its settings are the ones every payslip already uses.
-        if (!_settingsPrompted.has(ty.label) && 48 + ty.last >= todaysPeriodNum()) {
-          _settingsPrompted.add(ty.label);
-          if (lsGet(SK.setup)) {
-            setSettingsCardOpen(true);
-            const notice = document.getElementById('settingsNewYearNotice');
-            if (notice) {
-              notice.dataset.ty = ty.label;
-              notice.textContent = ty.rateUnconfirmed
-                ? `New tax year ${ty.label} — a pay award has been accepted but isn't on payslips yet. Your rate stays on last year's until the award lands on a payslip, then it updates automatically. Check your tax code, then select Save settings.`
-                : `New tax year ${ty.label} — your hourly rate updates automatically. Check your tax code and pension, then select Save settings.`;
-              notice.classList.remove('hidden');
-            }
-          }
-        }
-      }
+      // The Settings card's hint, the setup banner and the "New tax year" notice for this payslip's
+      // tax year (paycalc-settings.js → paintSettingsForYear says what each shows, and when).
+      paintSettingsForYear(ty, p);
 
       // Show/hide bank holiday rows based on whether this period has any
       updateBhRows(p);
@@ -440,8 +395,8 @@ export function init() {
       loadPeriodData(p.num);
 
       // The back-pay card follows the viewed payslip's award year ALWAYS, not only while it is open,
-      // so the banner and the take-home reflect the payslip on screen (calculate() still gates the
-      // lump on `_bpPNum === _pNum`); per-year keys keep each year's tick, rates and amount apart.
+      // so the banner and the take-home reflect the payslip on screen (the lump still joins only its own
+      // payslip — takeHomeInputs); per-year keys keep each year's tick, rates and amount apart.
       syncBackPayForViewedYear();
 
       stampPaycalcPrintLine();
@@ -461,7 +416,7 @@ export function init() {
 
     function autosave() {
       const pNum = currentPeriodNum();   // SAVED before calculate() below: HPP and the year card read storage
-      const _autoP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+      const _autoP = periodByNum(pNum);
       const d    = readFormData({
         adjNegative: _adjNegative,
         periodDefaultPension: _autoP ? periodDefaultPension(_autoP) : null,
@@ -477,7 +432,7 @@ export function init() {
     }
     /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
      *  (`autosave` would save the calendar's suggestion too — see `settingFieldsWrite`). @param {string[]} fields */
-    const persistSetting = (fields) => () => { const pNum = currentPeriodNum(), p = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+    const persistSetting = (fields) => () => { const pNum = currentPeriodNum(), p = periodByNum(pNum);
       const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative,
         periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }), fields);
       if (w) { try { lsSet(periodKey(pNum), w); updateSaveStatus(pNum); } catch { /* storage unavailable */ } }
@@ -504,7 +459,7 @@ export function init() {
       _restoreRosterSuggested(pNum);
       // No pension saved for this payslip → its own default: the step for its payday (old payslips
       // keep the old rate) and the joining-period pro-rate.
-      const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+      const _pObj = periodByNum(pNum);
       _paintDefaultPension(d.pension == null ? _pObj : null);
       // The pension LOCK follows the viewed payslip — a member who left the scheme in August still
       // contributes on her July one. AFTER the paint above (it may only override a value where the
@@ -539,7 +494,7 @@ export function init() {
           return;
         }
         if (d) {
-          const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+          const _pObj = periodByNum(pNum);
           const _hasCustomPension = d.pension != null && Math.abs(d.pension - periodDefaultPension(_pObj)) > 0.005;
           if (!isDataEmpty(d) || _hasCustomPension) {
             setStatus(el, '✓ Entries saved for this payslip');
@@ -552,44 +507,15 @@ export function init() {
       el.className   = 'save-status unsaved';
     }
 
-    const _clearState = /** @type {{ pending: boolean, armedAt: number, timer: ReturnType<typeof setTimeout> | null, countdownTimer: ReturnType<typeof setInterval> | null }} */ ({ pending: false, armedAt: 0, timer: null, countdownTimer: null });
-    /** A confirming tap sooner than this after arming is the SAME gesture — a double-tap, which iOS
-     *  teaches by swallowing a first tap with the keypad up — never a prompt read and answered. */
-    const CLEAR_CONFIRM_MIN_MS = 500;
-
-    // Disarm the two-press "select again to confirm" clear — when it times out, when it is confirmed,
-    // on tab-hide AND on period change: without the last, arming Clear on period A then switching to
-    // B left the confirm live, so ONE tap of Clear on B wiped B with no confirm.
-    function _resetClearConfirm() {
-      if (!_clearState.pending) return;
-      clearTimeout(_clearState.timer ?? undefined);
-      clearInterval(_clearState.countdownTimer ?? undefined);
-      _clearState.pending = false;
-      _clearState.timer = null;
-      _clearState.countdownTimer = null;
-      const btn = document.getElementById('clearBtn');
-      if (btn) { btn.textContent = 'Clear all entries'; btn.classList.remove('confirming'); }
-    }
+    // The two-tap "Clear all entries" (paycalc-clear-confirm.js holds its rules): the second tap runs
+    // clearPeriod. Disarmed on a change of payslip (onPeriodChange) and when the tab is hidden, below.
+    const _clearConfirm = createClearConfirm(document.getElementById('clearBtn'), clearPeriod);
     // On hide: disarm "Select again to confirm" (iOS fires a suspended timer at once on resume — an accidental wipe), and let
     // go of the field in hand, so a figure that commits only on `change` (prior-year HPP) is kept if the page never returns.
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { _resetClearConfirm(); commitFocusedField(); } });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { _clearConfirm.reset(); commitFocusedField(); } });
 
+    /** Clear the payslip on screen — the confirmed second tap of "Clear all entries". */
     function clearPeriod() {
-      if (!_clearState.pending) {
-        const btn = /** @type {HTMLElement | null} */ (document.getElementById('clearBtn'));
-        _clearState.pending = true;
-        let secs = 3;
-        if (btn) { btn.textContent = `Select again to confirm (${secs})`; btn.classList.add('confirming'); }
-        _clearState.countdownTimer = setInterval(() => {   // the countdown, a tick a second
-          secs--;
-          if (secs > 0 && btn) btn.textContent = `Select again to confirm (${secs})`;
-        }, 1000);
-        _clearState.timer = setTimeout(_resetClearConfirm, 3000);
-        _clearState.armedAt = Date.now();
-        return;
-      }
-      if (Date.now() - _clearState.armedAt < CLEAR_CONFIRM_MIN_MS) return;   // still the arming tap's gesture
-      _resetClearConfirm();
       const pNum = currentPeriodNum();
       lsDel(periodKey(pNum));
       lsDel(snapKey(pNum));
@@ -599,7 +525,7 @@ export function init() {
       _hoursTouchedSinceFetch = true;
       clearRosterSuggestedAll();   // writeFormData expects the gold highlights cleared first
       writeFormData(emptyPeriodData());
-      _paintDefaultPension(getPeriods().find(/** @param {any} x */ x => x.num === pNum));   // writeFormData leaves a null pension blank
+      _paintDefaultPension(periodByNum(pNum));   // writeFormData leaves a null pension blank
       _adjNegative = false;
       updateAdjSign();
       updateSaveStatus(pNum);
@@ -644,7 +570,7 @@ export function init() {
     function calculate() {
       // Resolve thresholds for the selected period's tax year
       const _pNum   = currentPeriodNum();
-      const _curP   = getPeriods().find(/** @param {any} x */ x => x.num === _pNum);
+      const _curP   = periodByNum(_pNum);
       if (!_curP) { renderYtdLine(null); return; }   // from here on there is always a payslip
       syncNoSpecialTick();   // hours on screen, typed or gold, supersede the no-special-rate-hours tick
       const _ty     = taxYearForPeriod(_curP);
@@ -694,11 +620,10 @@ export function init() {
         peerDays: peer, otherAdj, london: LONDON,
       });
 
-      // Back pay joins only on its paid-in payslip AND once the member has ticked it in (opt-in, OFF
-      // by default — the card computes and shows the lump either way).
+      // The back-pay card's lump, its paid-in payslip and the member's opt-in tick — whether it JOINS
+      // this payslip is takeHomeInputs' rule, below (the card computes and shows the lump either way).
       const { amount: _bpAmount, pNum: _bpPNum, isEstimate: _bpIsEstimate, included: _bpIncluded,
               fromPayslip: _bpFromPayslip } = bpState();
-      const _bpThisPeriod = (_bpPNum > 0 && _bpPNum === _pNum && _bpIncluded) ? _bpAmount : 0;
 
       // The HPP card FIRST, because it is what stores the premiums read below: this year's whenever a
       // payslip of the year is viewed, and last year's — the one a January payslip carries — the first
@@ -728,30 +653,14 @@ export function init() {
           && (_hppRes.hasActual || payslipMayBeInHand(_curP)));
       const _hppAmount     = _hppRes.amount;      // the HPP figure landing on this January payslip
       const _hppIsEstimate = _hppRes.isEstimate;
-      // OPT-IN, like back pay: the premium JOINS the take-home only once the member ticks it in (off
-      // by default, per tax year); until then the banner says it could land here, and it is NOT added.
+      // OPT-IN, like back pay: the member's tick for this premium's tax year (off by default).
       const _hppIncluded   = !!_hppTy && lsGet(hppIncKey(_hppTy)) === '1';
-      const _hppForPeriod  = _hppIncluded ? _hppAmount : 0;
-
-      const grossWithBp = gross + _bpThisPeriod + _hppForPeriod;
 
       // The "updates automatically" hint is for first use: once this payslip has hours it hides, and
       // the provenance chips use the space for facts.
       const _netHintEl = document.getElementById('netHint');
       if (_netHintEl) _netHintEl.hidden =
         satHrs > 0 || bhHrs > 0 || bhOtHrs > 0 || oHrs > 0 || rHrs > 0 || sHrs > 0 || bHrs > 0 || peer > 0;
-
-      // Pension — salary sacrifice, off the gross before tax and NI. A BLANK or unparseable field (a
-      // lone "." or "-" mid-edit) means THIS payslip's default, never £0, or retyping the field would
-      // flash a take-home inflated by the whole pension; a typed "0" is a genuine opt-out and is kept.
-      // Floored at 0: a pasted negative would add untaxed headroom and inflate the take-home.
-      const _pField    = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
-      const _pRaw      = _pField && _pField.value.trim() !== '' ? parseSmartFloatOrNull(_pField.value) : null;
-      const pension    = _pRaw != null
-          ? Math.max(0, _pRaw)
-          : periodDefaultPension(_curP);
-      const pensionWarn = document.getElementById('pensionWarn');
-      if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
 
       // Plan 5 is not repayable before 2026/27 — disable the option on a 2025/26 period so it can't be
       // newly picked. thresholds.sl has no plan5 key for 2025/26 (paycalc-calc.js), so availability
@@ -765,37 +674,40 @@ export function init() {
       const plan   = _slSel.value;
       const pgLoan = /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked;
       const slSkip = /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked;
+      // One undergraduate plan AND a Postgraduate Loan can be repaid together — HMRC deducts each
+      // independently; the summary shows a line per active loan (pricePayslip, buildLoanLines).
       const _anyLoan = plan !== 'none' || pgLoan;
       // The "not deducted this period" skip + its row apply to whichever loan(s) are active.
       /** @type {HTMLElement} */ (document.getElementById('slSkipRow')).classList.toggle('hidden', !_anyLoan);
-      // The stop: deductions end from ONE payslip onward while EARLIER payslips keep theirs, so they
-      // still match the real ones (setting the plan to None would strip those too). Both loans stop
-      // together; a member whose loans end apart uses the per-period skip for the gap.
+      // The loans' stop: both stop together from one payslip; a member whose loans end apart uses the
+      // per-period skip for the gap. Where it applies is takeHomeInputs' rule 4, below.
       const _slPaidOffSel   = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
       const _slPaidOffField = document.getElementById('slPaidOffField');
       if (_slPaidOffField) _slPaidOffField.classList.toggle('hidden', !_anyLoan);
-      // The select, else what is STORED: a stop naming a payslip the list no longer offers reads as ''
-      // there and must stay in force (paycalc-periods.js → the rollover note). The select comes first,
-      // as storage may be blocked, and saveSettings stores every pick before this runs.
-      const _slPaidOffFromP = parseInt(_slPaidOffSel?.value || lsGet(SK.slPaidOff) || '', 10) || 0;
-      const slPaidOff       = !!(_slPaidOffFromP && _pNum >= _slPaidOffFromP);
-      // One undergraduate plan AND a Postgraduate Loan can be repaid together — HMRC deducts each
-      // independently (9% above the plan threshold; 6% above the £21,000 PGL threshold). The TOTAL feeds
-      // net + the break bar; the summary shows a separate line per active loan (pricePayslip, below).
-
-      // Income tax — cumulative PAYE when the Year to Date figures are given (W1/M1/X excluded). A
-      // blank or unparseable box passes NULL, never 0: computeTax needs BOTH figures, and "Taxable Pay
-      // typed, Tax Paid still blank" must read as incomplete, not as £0 of tax collected.
-      const ytdPayEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdPay'));
-      const ytdTaxEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdTax'));
-      let ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numValOr('ytdPay', null) : null;
-      let ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numValOr('ytdTax', null) : null;
-      // The cumulative method adds this payslip's pay to the totals entered, so it is VALID only on
-      // the payslip straight after the one they came from; any other payslip uses the standard
-      // method, or stale figures are silently treated as last-payslip totals and skew the tax.
+      // The Year to Date figures and the payslip they came from (cumulative PAYE; W1/M1/X excluded).
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
-      if (!(_ytdSrc && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
-      const periodN = (_curP.num - 48) - _ty.first + 1;
+
+      // WHAT THIS PAYSLIP IS PRICED ON: the boxes, read (a blank or unreadable box is null, never 0),
+      // and the rules that decide from them — a lump only on its own payslip and only once ticked, a
+      // blank pension box as the payslip's default, the loans' stop, Year to Date figures only on the
+      // payslip straight after their source — all takeHomeInputs' (paycalc-calc.js), tested there.
+      const {
+        bpThisPeriod: _bpThisPeriod, hppForPeriod: _hppForPeriod, grossWithBp, pension,
+        slStopFrom: _slPaidOffFromP, slPaidOff, pricing,
+      } = takeHomeInputs({
+        p: _curP, ty: _ty, gross, plan, pgLoan, slSkip, thresholds,
+        backPay: { pNum: _bpPNum, amount: _bpAmount, included: _bpIncluded },
+        premium: { amount: _hppAmount, included: _hppIncluded },
+        pensionBox: parseSmartFloatOrNull(/** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'))?.value),
+        pensionDefault: periodDefaultPension(_curP),
+        slStopShown: _slPaidOffSel?.value, slStopStored: lsGet(SK.slPaidOff),
+        ytdPay: parseSmartFloatOrNull(/** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay'))?.value),
+        ytdTax: parseSmartFloatOrNull(/** @type {HTMLInputElement|null} */ (document.getElementById('ytdTax'))?.value),
+        ytdSrc: _ytdSrc,
+        taxCode: /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value,
+      });
+      const pensionWarn = document.getElementById('pensionWarn');
+      if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
       // The payslip is PRICED by the one pipeline the year so far also uses (pricePayslip): NI and the
       // loans on the pay after pension, then the tax, then the take-home as the summary's rows show it,
       // each to the penny (takeHomePay). Everything above decided its inputs; nothing below re-prices.
@@ -803,16 +715,12 @@ export function init() {
         sacGross, ni, slUnder, slPost, sl, afterPension: _shownAfterPension, net,
         tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown,
         payLimited: taxPayLimited, ytdMisfit: taxYtdMisfit,
-      } = pricePayslip({
-        gross: grossWithBp, pension, plan, pgLoan, slSkip, slPaidOff, thresholds,
-        taxCode: /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value,
-        taxOptions: { ytdPay: ytdP, ytdTax: ytdT, periodN },
-      });
+      } = pricePayslip(pricing);
       paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
       updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed, !!taxYtdMisfit);   // "in use" is what computeTax did
 
       // The loan rows of the summary, which never leave a £0 unexplained — buildLoanLines says how.
-      const _slPaidOffP = slPaidOff ? getPeriods().find(/** @param {any} x */ x => x.num === _slPaidOffFromP) : null;
+      const _slPaidOffP = slPaidOff ? periodByNum(_slPaidOffFromP) : null;
       const slLines = buildLoanLines({
         sacGross, plan, planLabel: _slSel.selectedOptions[0]?.textContent?.trim() ?? plan, pgLoan, slUnder, slPost, slSkip,
         slPaidOff, paidOffDay: _slPaidOffP ? fdShort(_slPaidOffP.payday) : '', sl: thresholds.sl, tyLabel: _ty.label,
@@ -826,7 +734,7 @@ export function init() {
 
       // Check against the real payslip (paycalc-result-headline.js → renderActualCheck): the pension
       // the estimate DEDUCTED (sacGross floors at zero), and the payslip its Year to Date figures came from.
-      const _srcP = _ytdSrc ? getPeriods().find(/** @param {any} x */ x => x.num === _ytdSrc) : null;
+      const _srcP = _ytdSrc ? periodByNum(_ytdSrc) : null;
       renderActualCheck({ inHand: payslipMayBeInHand(_curP), net, taxCode: taxCodeUsed, recognised: taxCodeKnown,
         deducted: Math.min(pension, Math.max(0, grossWithBp)), ytdFrom: usingCumulative && _srcP ? fdShort(_srcP.payday) : '',
         estimate: { gross: _shownAfterPension, pension, tax, ni, net } });
@@ -1001,7 +909,6 @@ export function init() {
       _setSelectPeriod(document.getElementById('periodSelect'), _defaultPeriodNum);
       onPeriodChange();
     }, { releaseFocus: true });
-    /** @type {HTMLElement} */ (document.getElementById('clearBtn')).addEventListener('click', clearPeriod);
 
     // Result breakdown toggle
     /** @type {HTMLElement} */ (document.getElementById('bdBtn')).addEventListener('click', toggleBD);
@@ -1022,13 +929,12 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('blur', () => { onHhMm('satH','satM','satWarn'); autosave(); });
     }
 
-    // Hours inputs — minutes clamp + autosave
-    ['bhH','bhOtH','otH','rdwH','sunH','boxH'].forEach(/** @param {string} id */ id => {
-      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', autosave);
-    });
-    ['bhM','bhOtM','otM','rdwM','sunM','boxM'].forEach(/** @param {string} id */ id => {
-      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', () => { clampMins(id); autosave(); });
-    });
+    // Every other hours pair — minutes clamp + autosave; Saturday's, above, carries the cap as well.
+    for (const { cat, hId, mId } of HM_PAIRS) {
+      if (cat === 'sat') continue;
+      /** @type {HTMLElement} */ (document.getElementById(hId)).addEventListener('input', autosave);
+      /** @type {HTMLElement} */ (document.getElementById(mId)).addEventListener('input', () => { clampMins(mId); autosave(); });
+    }
     // The payslip self-check figures persist with the period like every other field; autosave()
     // recalculates, which re-renders the verdict.
     document.getElementById('actualNetInput')?.addEventListener('input', autosave);
@@ -1073,7 +979,7 @@ export function init() {
     // persist the choice for the viewed tax year, and recompute (calculate() → calcHPP reads the mode
     // and writes the resulting figure to hppEstKey, so the January take-home add is unchanged).
     const _saveHppForViewedYear = () => {
-      const _hp = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      const _hp = viewedPeriod();
       saveHppState(taxYearForPeriod(_hp));
     };
     document.getElementsByName('hppMode').forEach(/** @param {any} r */ r =>
@@ -1143,7 +1049,7 @@ export function init() {
       // Preserve a hand-entered pension: replace it only while it still holds the default it held
       // BEFORE the change, so tapping the grade just to check it never wipes a figure copied off a
       // payslip. Read before saveSettings(), which is what moves the setting.
-      const _gP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      const _gP = viewedPeriod();
 
       const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
       const _oldPenDefault = _gP ? periodDefaultPension(_gP).toFixed(2) : '';
@@ -1229,92 +1135,26 @@ export function init() {
       autosave();
     });
 
-    // Payslip card inputs
-    // Year to Date figures: stamp the source payslip on first entry (the latest paid one, where the
-    // totals almost always come from), and move an older one to the payslip the take-home line names
-    // when they are typed in again (ytdSourceAfterRetype); then persist + recalc. The select corrects it.
-    // "Again" is figures already in the boxes when the edit began (_ytdOver — the two boxes are one
-    // edit), and never a source picked in the select this visit (_ytdKeep): typed into empty boxes, or
-    // after a pick, the figures come from the payslip the member chose, and moving it lost that choice.
-    // Figures held under YTD_SRC_EARLY (entered before any payslip of the year was in hand) are a
-    // first entry again when typed (refreshYtdSrc's `typed`); a load never files them.
-    let _ytdOver = false; const _ytdKeep = new Set();
-    const _ytdFigureInput = () => {
-      saveSettings();
-      const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
-      const _ty2 = taxYearForPeriod(_p2);
-      const _raw = lsGet(ytdSrcKey(_ty2));
-      const _moved = _ytdOver && !_ytdKeep.has(_ty2.label) ? ytdSourceAfterRetype(_raw, { p: _p2, ty: _ty2 }) : null;
-      if (_moved != null) lsSet(ytdSrcKey(_ty2), String(_moved));
-      if (_moved != null || !_raw || _raw === YTD_SRC_EARLY) refreshYtdSrc(_ty2, { typed: true });
-      calculate();
-    };
-    for (const id of ['ytdPay', 'ytdTax']) {
-      const el = /** @type {HTMLElement} */ (document.getElementById(id));
-      el.addEventListener('focus', e => { if (!['ytdPay', 'ytdTax'].includes(/** @type {any} */ (e).relatedTarget?.id)) _ytdOver = ytdHasFigures(); });
-      el.addEventListener('input', _ytdFigureInput);
-    }
-    /** @type {HTMLElement} */ (document.getElementById('ytdSrcSelect')).addEventListener('change', () => {
-      const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
-      const _ty2 = taxYearForPeriod(_p2);
-      _ytdKeep.add(_ty2.label);
-      const _v = /** @type {HTMLSelectElement} */ (document.getElementById('ytdSrcSelect')).value;
-      // Picking the blank placeholder un-anchors the figures: record an explicit '0', so calculate()
-      // drops to the standard method — as the note now says — and the un-anchor PERSISTS. Deleting
-      // the key instead let the load-time stamp re-anchor them on the next period change, as the
-      // figures remain; '0' is a recorded value it leaves alone (ytdSourceToStamp).
-      if (_v) lsSet(ytdSrcKey(_ty2), _v); else lsSet(ytdSrcKey(_ty2), '0');
-      calculate();   // which rewrites the note and chip
-    });
+    // The Year to Date card's figure boxes and its "From which payslip?" select: the source each
+    // typing stamps or moves, and the pick that keeps or un-anchors it (paycalc-ytd-card.js).
+    wireYtdCard({ saveSettings, calculate });
 
     // The prior year's confirmed premium commits on `change` (leaving the field), NEVER on `input`:
     // commitPriorHppActual (paycalc-hpp.js) says what per-keystroke commits did to a confirmed figure.
     /** @type {HTMLElement} */ (document.getElementById('priorHppActualInput')).addEventListener('change', () => {
-      const curP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      const curP = viewedPeriod();
       commitPriorHppActual(taxYearForPeriod(curP), /** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value);
       // The January take-home, its banner, chips and the year block all read the stored figure.
       calculate();
     });
 
-    // HPP opt-in tick — lives IN the January-payslip banner (#hppBannerTick). The per-year flag it
-    // controls is stamped on the checkbox's data-year during render, so this once-wired listener
-    // always targets the correct tax year (the one whose HPP lands on the viewed payslip).
-    document.getElementById('hppBannerTick')?.addEventListener('change', () => {
-      const tick = /** @type {HTMLInputElement} */ (document.getElementById('hppBannerTick'));
-      const yr = tick.dataset.year;
-      const ty = CONFIG.TAX_YEARS.find(/** @param {any} t */ t => t.label === yr);
-      if (!ty) return;
-      if (tick.checked) lsSet(hppIncKey(ty), '1'); else lsDel(hppIncKey(ty));
-      calculate();
-    });
-    // Back-pay opt-in tick in its banner — proxies the (hidden) card state-holder #bpIncludeTick,
-    // reusing its full persist/recompute flow. And the two banners' "view … card" links.
-    document.getElementById('bpBannerTick')?.addEventListener('change', () => {
-      const src = /** @type {HTMLInputElement} */ (document.getElementById('bpBannerTick'));
-      const dst = /** @type {HTMLInputElement} */ (document.getElementById('bpIncludeTick'));
-      dst.checked = src.checked;
-      dst.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    /** @param {string} cardId @param {string} bodyId @param {string} toggleId */
-    const _bannerViewCard = (cardId, bodyId, toggleId) => {
-      if (!document.getElementById(bodyId)?.classList.contains('open')) {
-        /** @type {HTMLElement} */ (document.getElementById(toggleId))?.click();
-      }
-      document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth' });
-    };
-    document.getElementById('bpBannerViewLink')?.addEventListener('click', () => _bannerViewCard('backPayCard', 'backPayBody', 'backPayCardToggle'));
-    document.getElementById('hppBannerViewLink')?.addEventListener('click', () => _bannerViewCard('hppCard', 'hppCardBody', 'hppCardToggle'));
+    // The two money banners' opt-in ticks and "view … card" links, and the HPP card's link to the
+    // back-pay card (paycalc-money-banner.js → wireBannerTicks).
+    wireBannerTicks({ calculate });
 
-    // HPP formula toggle + disclaimer + back-pay cross-link
+    // HPP formula toggle + disclaimer
     /** @type {HTMLElement} */ (document.getElementById('hppToggleBtn')).addEventListener('click', toggleHppNote);
     /** @type {HTMLElement} */ (document.getElementById('disclaimerToggle')).addEventListener('click', toggleDisclaimer);
-    /** @type {HTMLElement} */ (document.getElementById('hppBackPayLink')).addEventListener('click', () => {
-      const body = document.getElementById('backPayBody');
-      // Route through the header click so initCardCollapse keeps aria-expanded in
-      // sync and runs the open-time pre-fill.
-      if (body && !body.classList.contains('open')) /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle')).click();
-      /** @type {HTMLElement} */ (document.getElementById('backPayCard')).scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
 
     // ── LIGHTBOXES — About, Help, the two Pay notices, the data-ownership prompt, the developer's
     // payslip import, and the decimal converter card: paycalc-lightboxes.js, whose header lists them
@@ -1406,7 +1246,7 @@ export function init() {
       const hdr = document.querySelector('.app-header');
       if (!hdr) return;
       const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
-      const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
+      const p = periodSel ? periodByNum(+periodSel.value) : null;
       // With a time, and the date in the app's own words — roster-data.js → "the provenance line
       // every printable surface closes on".
       const printedNow = new Date();
