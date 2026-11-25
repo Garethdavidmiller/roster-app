@@ -527,6 +527,12 @@ jobs:
     # per-test times from its six job logs: 24.3 and 24.2 test-minutes on desktop Chrome, 20.0 and 20.0 on
     # the Pixel — about 8 and 7 minutes on four workers. deploy-hosting.yml runs the same list and workers.
     #
+    # AND A THIRD DESKTOP SHARD, RE-CUT (25 Nov 2026, later). Two runs of that layout (#1861's, attempts
+    # 1 and 3) put desktop Chrome at 62 to 83 test-minutes and its two shards at 7.4 to 11.5 minutes of
+    # tests: four workers on one runner contend more than admin.spec.js alone had shown. Cut on the two
+    # runs' averaged per-test times: desktop Chrome in three of 24.1 to 24.2 test-minutes, the Pixel in
+    # two of 27.2 — about 6 and 7.5 minutes on four workers.
+    #
     # THE VARIABLE IS PLAYWRIGHT'S OWN BUT NOT IN ITS DOCUMENTATION. If an upgrade drops it, the cut
     # quietly goes back to equal counts, so workflow-hygiene.test.mjs fails when the installed
     # Playwright no longer reads it. deploy-hosting.yml runs this same list, weights included.
@@ -539,10 +545,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: chromium, shard: 1, shards: 2, weights: '948:961' }
-          - { project: chromium, shard: 2, shards: 2, weights: '948:961' }
-          - { project: mobile-chrome, shard: 1, shards: 2, weights: '811:1097' }
-          - { project: mobile-chrome, shard: 2, shards: 2, weights: '811:1097' }
+          - { project: chromium, shard: 1, shards: 3, weights: '609:619:681' }
+          - { project: chromium, shard: 2, shards: 3, weights: '609:619:681' }
+          - { project: chromium, shard: 3, shards: 3, weights: '609:619:681' }
+          - { project: mobile-chrome, shard: 1, shards: 2, weights: '918:991' }
+          - { project: mobile-chrome, shard: 2, shards: 2, weights: '918:991' }
     # 15 → 20 (4 Sep 2026), when a 7-minute `npm ci` cancelled the suite mid-run. 20 → 30 (25 Oct
     # 2026): the suite took ~10 minutes when 20 was set and takes 16–19½ now — the six green runs
     # before v24.98 spent 16m15s–18m48s in the tests, and v24.98's first PR run passed all 1,601 in
@@ -629,7 +636,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          # The project AND the shard in the name: six jobs upload here, and a colliding artifact name
+          # The project AND the shard in the name: five jobs upload here, and a colliding artifact name
           # fails the upload of whichever lands second — losing the report for the shard that broke.
           name: playwright-report-${{ matrix.project }}-shard${{ matrix.shard }}
           path: playwright-report/
@@ -741,7 +748,17 @@ jobs:
   # 7.3 and 8.8 minutes on two workers, where the longest had been 13. Still two workers: WebKit's lever
   # is contention, and the flake history says so (playwright.webkit.mjs).
   #
-  # THE COST, STATED: thirteen jobs (eleven until 25 Nov 2026) pay the ~1m18s setup instead of two, so total runner minutes go up
+  # AND THE LINKS PROJECTS IN TWO, ALL RE-CUT (25 Nov 2026, later). Two runs of that layout (#1861's,
+  # attempts 1 and 3) ended 15.3 minutes after they began, and the last job each time was a Links
+  # project run whole: the iPhone's 25.2 test-minutes took 13.6 minutes as a job, where every other shard
+  # finished by 12. So each Links project is now two shards, 127 and 84 tests (the cut lands there on
+  # both devices: 11.1 and 10.1 test-minutes on the desktop, 13.0 and 12.2 on the iPhone), and the
+  # others are re-cut on the two runs' averaged times — desktop WebKit's 76.9 test-minutes in five of
+  # 15.3 to 15.5, the iPhone's 96.1 in six of 16.0 to 16.1. That is 21 browser jobs and 8 short ones
+  # against the account's 20 at a time: the short ones are done within two minutes, so the last few
+  # shards start that much late, which costs less than one Links job running whole.
+  #
+  # THE COST, STATED: fifteen jobs (eleven until 25 Nov 2026) pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here
   # is a person waiting on a merge, not runner minutes.
   webkit:
@@ -754,19 +771,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: webkit, shard: 1, shards: 5, weights: '181:321:456:332:407' }
-          - { project: webkit, shard: 2, shards: 5, weights: '181:321:456:332:407' }
-          - { project: webkit, shard: 3, shards: 5, weights: '181:321:456:332:407' }
-          - { project: webkit, shard: 4, shards: 5, weights: '181:321:456:332:407' }
-          - { project: webkit, shard: 5, shards: 5, weights: '181:321:456:332:407' }
-          - { project: webkit-links, shard: 1, shards: 1, weights: '1' }
-          - { project: mobile-safari, shard: 1, shards: 6, weights: '149:370:378:171:207:422' }
-          - { project: mobile-safari, shard: 2, shards: 6, weights: '149:370:378:171:207:422' }
-          - { project: mobile-safari, shard: 3, shards: 6, weights: '149:370:378:171:207:422' }
-          - { project: mobile-safari, shard: 4, shards: 6, weights: '149:370:378:171:207:422' }
-          - { project: mobile-safari, shard: 5, shards: 6, weights: '149:370:378:171:207:422' }
-          - { project: mobile-safari, shard: 6, shards: 6, weights: '149:370:378:171:207:422' }
-          - { project: mobile-safari-links, shard: 1, shards: 1, weights: '1' }
+          - { project: webkit, shard: 1, shards: 5, weights: '290:316:365:305:423' }
+          - { project: webkit, shard: 2, shards: 5, weights: '290:316:365:305:423' }
+          - { project: webkit, shard: 3, shards: 5, weights: '290:316:365:305:423' }
+          - { project: webkit, shard: 4, shards: 5, weights: '290:316:365:305:423' }
+          - { project: webkit, shard: 5, shards: 5, weights: '290:316:365:305:423' }
+          - { project: webkit-links, shard: 1, shards: 2, weights: '127:84' }
+          - { project: webkit-links, shard: 2, shards: 2, weights: '127:84' }
+          - { project: mobile-safari, shard: 1, shards: 6, weights: '166:402:399:134:280:317' }
+          - { project: mobile-safari, shard: 2, shards: 6, weights: '166:402:399:134:280:317' }
+          - { project: mobile-safari, shard: 3, shards: 6, weights: '166:402:399:134:280:317' }
+          - { project: mobile-safari, shard: 4, shards: 6, weights: '166:402:399:134:280:317' }
+          - { project: mobile-safari, shard: 5, shards: 6, weights: '166:402:399:134:280:317' }
+          - { project: mobile-safari, shard: 6, shards: 6, weights: '166:402:399:134:280:317' }
+          - { project: mobile-safari-links, shard: 1, shards: 2, weights: '127:84' }
+          - { project: mobile-safari-links, shard: 2, shards: 2, weights: '127:84' }
     # Each job carries ONE engine and a share of its tests. The TEST STEP carries the budget (25 minutes,
     # below); this job cap is only the backstop against a hung runner, and it is wider than the
     # step's on purpose. On 7 Oct 2026 the WebKit apt install took 9 minutes three times in one
@@ -828,7 +847,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          # Shard in the name too: four jobs upload here, and a colliding artifact name fails the
+          # Shard in the name too: fifteen jobs upload here, and a colliding artifact name fails the
           # upload of whichever lands second — losing the report for the half that broke.
           name: playwright-report-webkit-${{ matrix.project }}-shard${{ matrix.shard }}
           path: playwright-report/

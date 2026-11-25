@@ -248,9 +248,9 @@ jobs:
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.tested.outputs.tested != 'true' }}
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
-    # Each project in two shards on four workers, as in e2e.yml's smoke job, which has the account and
-    # the measurements (25 Nov 2026): about 8 minutes a shard, against 15 to 17 for a whole project on
-    # two workers, which was the longest wait in every release. Each job runs only its own shard, so the
+    # Desktop Chrome in three shards and the Pixel in two, on four workers, as in e2e.yml's smoke job,
+    # which has the account and the measurements (25 Nov 2026): about 6 to 7.5 minutes a shard, against
+    # 15 to 17 for a whole project on two workers, which was the longest wait in every release. Each job runs only its own shard, so the
     # list must name every project in playwright.config.mjs and every shard of each, and it must be
     # e2e.yml's list exactly; workflow-hygiene.test.mjs holds all three. `fail-fast: false` so a red
     # shard never cancels the others and loses its report.
@@ -259,10 +259,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: chromium, shard: 1, shards: 2, weights: '948:961' }
-          - { project: chromium, shard: 2, shards: 2, weights: '948:961' }
-          - { project: mobile-chrome, shard: 1, shards: 2, weights: '811:1097' }
-          - { project: mobile-chrome, shard: 2, shards: 2, weights: '811:1097' }
+          - { project: chromium, shard: 1, shards: 3, weights: '609:619:681' }
+          - { project: chromium, shard: 2, shards: 3, weights: '609:619:681' }
+          - { project: chromium, shard: 3, shards: 3, weights: '609:619:681' }
+          - { project: mobile-chrome, shard: 1, shards: 2, weights: '918:991' }
+          - { project: mobile-chrome, shard: 2, shards: 2, weights: '918:991' }
     # THE LIMIT FOLLOWS THE RUN. While the tests shared one job with the upload, it went 20 → 40 on
     # 2 Oct 2026: v24.43 released at 20m11s, and v24.44 was CANCELLED at exactly 20m00s — smoke alone
     # took 17m14s, so the clock ran out inside the CSP proof, before the deploy step, and production
@@ -327,7 +328,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          # The project AND the shard in the name: six jobs upload here, and a colliding artifact name
+          # The project AND the shard in the name: five jobs upload here, and a colliding artifact name
           # fails the upload of whichever lands second — losing the report for the shard that broke.
           name: playwright-report-${{ matrix.project }}-shard${{ matrix.shard }}
           path: playwright-report/
