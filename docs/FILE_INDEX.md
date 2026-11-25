@@ -535,7 +535,8 @@ roster-app/
 │   ├── sw-asset-check.test.mjs ← deployment hygiene: the SW asset lists, `APP_VERSION`, roster-members.json, the VAPID key in both places, the docs' stamps
 │   ├── csp-hygiene.test.mjs    ← firebase.json's CSP permits every host the app contacts; its required host list is hand-maintained. Part of test:hygiene
 │   ├── hosting-ignore-parity.test.mjs ← **tooling is not part of the served app**: the dot-directories in firebase.json's ignore list. Part of test:hygiene
-│   ├── csp-meta-parity.test.mjs ← every page's `<meta>` CSP in lockstep with the firebase.json header (the mirror serves no headers). Part of test:hygiene
+│   ├── csp-meta-parity.test.mjs ← the RULE every page's generated `<meta>` CSP follows: the firebase.json header minus what a meta cannot carry. Part of test:hygiene
+│   ├── generated-copies.test.mjs ← everything `npm run generate:copies` writes is committed as it would write it now. Part of test:hygiene
 │   ├── guide-sources.test.mjs ← GUIDE_SOURCES.md's structure and its two-way contract with the pages. Part of test:hygiene
 │   ├── app-name-parity.test.mjs ← **"MYB" may name the STATION, never the SOFTWARE** ("Marylebone Roster"). Part of test:hygiene
 │   ├── rdw-term-parity.test.mjs ← **RDW has one name on screen: "Rest Day Working"**. Part of test:hygiene
@@ -686,6 +687,7 @@ roster-app/
 │   ├── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
 │   ├── generate-guide-index.mjs    ← `npm run generate:guide-index` — rebuilds guide-index.js from the guide pages
 │   ├── generate-ai-map.mjs         ← `npm run generate:ai-map` — rewrites the `- **Exports:**` line of every docs/AI_MAP.md entry from the module itself
+│   ├── generate-copies.mjs         ← `npm run generate:copies` — WRITES the facts kept in more than one file from the one place each is edited; its header lists them
 │   ├── audit-functions-deps.sh ← the Cloud Functions' production-dependency audit, for the deploy gate and the weekly monitor. Its header
 │   ├── signed-in.mjs             ← `npm run test:signed-in`: a throwaway Firebase project, the emulators and the accounts, then Playwright. Writes nothing into the checkout
 │   ├── test-nodeps.mjs           ← `npm run test:nodeps` — every suite that needs nothing installed; its exclusions are derived from package.json
@@ -696,7 +698,7 @@ roster-app/
 │   ├── refresh-visual-baselines.mjs ← `npm run test:visual:refresh` — updates only the failed visual baselines, or copies CI's render from the artifact. Its header
 │   └── typecheck.mjs             ← `npm run typecheck`; with no local compiler it REFUSES rather than run an unpinned `npx tsc`
 ├── jsconfig.json               ← TypeScript config for `// @ts-check`; its `exclude` list is pinned by `typecheck-scope.test.mjs`
-├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects, emulator ports. **Change the CSP header, change every page `<meta>`** (csp-meta-parity.test.mjs)
+├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects, emulator ports. **Change the CSP header, then `npm run generate:copies`** — it writes every page's `<meta>`
 ├── firestore.rules         ← Firestore security rules (deploy-rules.yml, gated by firestore.rules.test.mjs)
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
 ├── generate-sri.mjs        ← dev utility: patches the Mammoth CDN SRI hash in huddle.js

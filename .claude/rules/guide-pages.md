@@ -262,7 +262,7 @@ estimated honestly; each row was checked against the code. The last column says 
 | 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways | — |
 | 4 | `service-worker.js` | precache: `.html` + `.css` (+ `.js` if any) | enforced (#5) |
 | 5 | `sw-asset-check.test.mjs` | asset-list parity, and the `noindex` meta contract | — |
-| 6 | `csp-meta-parity.test.mjs` | the page's `<meta http-equiv="Content-Security-Policy">` must mirror the header | enforced |
+| 6 | `generated-copies.test.mjs` · `csp-meta-parity.test.mjs` | the page's `<meta http-equiv="Content-Security-Policy">` is the header's, written by `npm run generate:copies` | enforced |
 | 7 | the page itself | `noindex` meta + `color-scheme: only light` meta; a chip bar; the three script tags — `guide-back.js`, `guide-print.js` (a module) and `guide-chips.js` — once each; and `#savePdfBtn.btn-print` | enforced (#5, `page-contract-parity.test.mjs`) |
 | 8 | `e2e/axe.spec.js` | accessibility scan (blocking gate) | enforced (reads `GUIDE_PAGES`) |
 | 9 | `e2e/csp.spec.js` | deployed-CSP proof | enforced (reads `GUIDE_PAGES`) |

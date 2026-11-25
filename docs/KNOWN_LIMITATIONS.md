@@ -570,8 +570,8 @@ page's `<meta>` CSP, and confirm the CI `csp` job (not just local) goes green.
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which
 **cannot serve custom HTTP response headers at all**, so the `firebase.json` CSP header — and every
 other security and cache header — never reaches the mirror. Every served page therefore carries a
-`<meta http-equiv="Content-Security-Policy">` mirroring the header (`csp-meta-parity.test.mjs` keeps
-them in lockstep, `e2e/csp.spec.js` proves it at runtime). On the mirror the meta is the only CSP,
+`<meta http-equiv="Content-Security-Policy">` mirroring the header (`npm run generate:copies` writes
+them from it, `e2e/csp.spec.js` proves it at runtime). On the mirror the meta is the only CSP,
 and it covers **all resource-loading directives**. **Residual gaps on the mirror only — accepted, and
 a reason to retire it:**
 1. **`frame-ancestors 'none'` (anti-clickjacking) cannot be expressed in a `<meta>` CSP** (browsers
