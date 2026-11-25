@@ -413,8 +413,29 @@ test('admin: editing a week-grid time ends as the time meant or as unfinished â€
     await end.press('Home');
     await end.press('ArrowRight');
     await end.press('Backspace');
+    await expect(end, 'the box keeps what is there: the colon does not move').toHaveValue('2:30');
     await leave();
-    await expect(end, 'never read as a time with a zero dropped').toHaveValue('23:0');
+    await expect(end, 'never read as a time with a zero dropped').toHaveValue('2:30');
+    await expect(end).toHaveClass(/\binput-error\b/);
+
+    // â€¦and the digit typed in its place lands there (24-hour review, 25 Nov 2026): re-split as "23:0", the
+    // caret jumped to the end and a 1 meant for 12:30 made 23:01, a valid time.
+    await end.focus();
+    await end.press('Home');
+    await end.press('1');
+    await leave();
+    await expect(end, 'the edit finished where it was typed').toHaveValue('12:30');
+    await expect(end).not.toHaveClass(/\binput-error\b/);
+
+    // Typing over PART of the time is an edit too: the 30 selected and a 4 typed is what is left of 22:30,
+    // never 02:24.
+    await fresh();
+    await end.press('End');
+    await end.press('Shift+ArrowLeft');
+    await end.press('Shift+ArrowLeft');
+    await end.press('4');
+    await leave();
+    await expect(end, 'never 02:24').toHaveValue('22:4');
     await expect(end).toHaveClass(/\binput-error\b/);
 
     // The colon deleted: the same four digits, so the same time.

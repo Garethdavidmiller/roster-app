@@ -204,14 +204,14 @@ against the viewer's, which is why it looks like a few people's phones and not e
   weekly roster import use it. **The price:** a phone with full bars and no data now spends the wait
   AND a transaction's own retries (about eight seconds more) before a save is held — about sixteen
   seconds in all, accepted.
-- **A phone known to hold a leftover asks the records FIRST** (v26.83, owner's choice, 25 Nov 2026 —
+- **A phone known to hold a leftover asks the records FIRST** (v26.84, owner's choice, 25 Nov 2026 —
   the leftover note in `ownWritesSentFor`, claim-retry.js; the key `myb_queue_leftover`,
   firebase-client.js). The first time the wait runs out while online with the records clear, the
   phone notes it; from then on, online, a checked save asks its records first and goes straight to
   the server when they are clear — no eight seconds. A record of this account's still queued, or
   unreadable, still waits as before. Offline never skips and is never noted. The note is forgotten
   when the wait drains, and lapses after a week (`LEFTOVER_NOTE_MS`), so the phone waits once more
-  and finds out afresh. Admin's checked saves, the roster import and the Links workspace all use it.
+  and finds out afresh. Admin's checked saves, the roster import and the Links workspace's DESIGNS all use it — not its staffing setups (`links-target-sets-store.js`) or the leave sheet's upload log (`al-leave-save.js`), whose transactions never waited for this phone's own unsent saves.
   The diagnostic reads "skipped, its records clear" for such a save. **The price:** on a phone with
   the note, this account's own unsent write to a record the save does NOT touch is not waited for.
 - **The diagnostic line says how the wait went** (`trackOwnWritesWaits`, slow-save.js): "own-saves
@@ -860,6 +860,21 @@ action**:
 infrastructure.
 
 ---
+
+## A Boxing Day day in lieu can move an allowance THREE years on, and the save checks look at two — from Christmas 2028
+
+**Found by the 24-hour review, 25 Nov 2026; not reachable before December 2028.** Which year a worked Boxing
+Day's day in lieu is spent in is a CHAIN (`boxingDayLieuYear`, `al-entitlement.js`): year y+1 keeps its own
+day only if y's was not carried into it. So leave after Christmas in year y that pulls y's day back into y can
+leave y+2 a day short. The save-time checks read only the date's own year and the next (`allowanceYearsOf`,
+`christmas-leave.js`), so: (a) a booking that puts y+2 over its allowance saves WITHOUT the warning — the
+banner and the Calendar's leave panel then both show it, so nothing is hidden afterwards; (b) an absence over
+an ordinary leave day can name a "day in lieu that goes" when the total across the chain is unchanged.
+**Why it waits:** it needs a Dispatcher who works two Boxing Days running AND books late-December leave past
+the allowance both years. Boxing Day 2027 is a Sunday, which earns nothing, so 2026's day cannot chain past
+2027. Widening the check to every later year multiplies the work of every absence preview. **When:** before
+December 2028, with `CONFIG.MAX_YEAR` (whose note already falls due then): make `allowanceYearsOf` follow the
+chain while each later Boxing Day was earned.
 
 ## Pay calculator
 

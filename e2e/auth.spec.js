@@ -1449,6 +1449,24 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
     });
 
+    // …AND THE SAME WHEN THE LOGIN IS MADE ON ADMIN'S OWN SIGN-IN CARD (24-hour review, 25 Nov 2026). The gate ran
+    // signed OUT, and the card's sign-in went straight to the page: the whole of Admin, leave and absence cards
+    // included, for a login that has no roster to record leave against.
+    test('an Other Staff login made on Admin\'s own sign-in card gets the role card, not the page', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await withOtherStaff(page, NAME);
+        await page.goto('/admin.html');
+        await signInThroughOverlay(page, NAME);
+        await expect(page.locator('#adminRoleCard')).toBeVisible();
+        await expect(page.locator('#adminRoleCard .role-card-title')).toHaveText('Admin is for staff on the roster');
+        await expect(page.locator('#loginOverlay'), 'the sign-in card is taken down').toBeHidden();
+        for (const hidden of ['.member-context-bar', '#change-shift', '#book-annual-leave', '#record-sick-days', '#overridesCard']) {
+            await expect(page.locator(hidden), `${hidden} shows behind the card`).toBeHidden();
+        }
+        await expect(page.locator('#navMenuBtn'), 'the drawer is the way out').toBeVisible();
+        expect(errors).toEqual([]);
+    });
+
     // A colleague MOVED to Other Staff keeps their earlier grade in `roleHistory`, which the pay audience counts
     // (by the role at the time) — so the Pay Calculator priced their CEA payslips while the page policy refused the
     // page and the drawer hid Pay (review, 24 Nov 2026). The policy decides (pay-audience.js), on the real page.

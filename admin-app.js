@@ -134,7 +134,18 @@ export function init() {
             about: ADMIN_SIGN_IN_ABOUT,
             // A first sign-in initialises in place (`continueAfterSignIn`). A session lost LATER is the
             // shared card's (`guardNamedSession`), which reloads: sessionReady is one-shot.
-            onSuccess: continueAfterSignIn(initAuthorised),
+            // …and re-decided for whoever signed in (24-hour review, 25 Nov 2026): the gate below ran signed OUT, so an
+            // Other Staff login made on THIS card got the whole page — and its leave and absence cards under their own
+            // name — instead of the role card the same login gets when it opens Admin (owner, 24 Nov 2026).
+            onSuccess: continueAfterSignIn(() => {
+                currentUser = getSession()?.name ?? null;
+                if (requirePage({ status: 'named', member: currentUser }, 'admin').decision === 'forbidden') {
+                    dismissLoginOverlay();
+                    refuseThisLogin();
+                    return;
+                }
+                initAuthorised();
+            }),
         });
     }
 
@@ -1058,7 +1069,11 @@ export function init() {
     // (applyPermissions), not the page. 'login' iff no local session; 'forbidden' only for an "Other Staff"
     // login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague to record it for.
     const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
-    if (_access.decision === 'forbidden') {
+    if (_access.decision === 'forbidden') { refuseThisLogin(); return; }
+
+    /** The page for a login it is not for: the role card, on both routes here — the page loaded for that login,
+     *  or that login made on this page's own sign-in card (`showAdminLogin`). */
+    function refuseThisLogin() {
         // NOT FOR THIS LOGIN (owner, 24 Nov 2026): the page says why, as the Pay Calculator's role card does,
         // instead of sending them back to the Calendar with nothing said — its 📝 Admin button and "Record
         // leave" both land here. The card replaces the page (admin.css → `body.role-unsupported`), and the
@@ -1073,7 +1088,6 @@ export function init() {
         resolveSession(ensureNamedSession(currentUser));
         registerServiceWorker();
         sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); });
-        return;
     }
     if (_access.decision === 'login') {
         // Not signed in → show login overlay; do not load any Firestore data. On a confirmed sign-in,
