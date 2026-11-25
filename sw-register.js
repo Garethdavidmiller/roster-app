@@ -30,7 +30,7 @@ import { backgroundWritesInFlight } from './claim-retry.js';
 // count, in their own busy checks. So on the Pay Calculator, Trains, New link, Links and Overtime,
 // and on the Calendar once it was hidden, an update arriving in the second the write took reloaded
 // the page under it, and the member was asked to choose a password again at the next sign-in
-// (recorded in KNOWN_LIMITATIONS by the sign-in audit; its closing note is in ROADMAP_HISTORY).
+// (found by the sign-in audit, and closed at v26.01).
 // Asking on each page meant changing every page's start-up, so it is asked HERE, once, by every
 // reload this file makes. A held reload waits the way `reloadWhenNotBusy` always has: for the next
 // time the page is hidden with nothing on its way. Nothing is shown — the member did not ask for

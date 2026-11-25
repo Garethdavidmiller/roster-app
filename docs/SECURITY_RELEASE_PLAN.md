@@ -65,13 +65,15 @@ rule text and gate cases:
   word; the Functions, rules and signed-in lanes passed on it first.
   firebase-admin is on `^14` (the exact range is `functions/package.json`); the namespaced `admin.*`
   API v14 removed was migrated to the modular entry points before the move, so the version change
-  itself changed no code — ROADMAP_HISTORY.md → "firebase-admin upgrade to v14" names the two things
-  the next major will hit again. · A2 —
+  itself changed no code. **What the next major will hit again:** the endpoint harnesses inject their
+  fakes by RESOLVED PATH, so they must stub the modular entry points (`firebase-admin/auth`,
+  `firebase-admin/firestore`) the code requires — a fake left on a path nothing requires is loaded by
+  nobody, and the suite runs against the real SDK. Migrate on the old major first, then bump. · A2 —
   Workload Identity Federation, keyless OIDC on all three deploy workflows; the SA JSON key and the
   `FIREBASE_SERVICE_ACCOUNT` secret both deleted (**Appendix A2**). · A3 — doc-only accuracy.
 - **Track B (authorization release):** B0 — named-vs-anonymous identity signal. · B1 — named-session
   enforcement on the write pages, unconditional since its kill-switch was retired (v24.34;
-  ROADMAP_HISTORY.md → "The login freeze" has the freeze it was once rolled back for). · B2 — per-member `overrides`
+  the login freeze it was once rolled back for is `PASSWORD_DESIGN.md` §3.6). · B2 — per-member `overrides`
   isolation, permissive 3-tier `name || admin || manager`, plus the `manager` claim in
   `setupRosterAuth`. · **B3 — strict cutover (v16.29):** the `!('name' in token)` legacy escape removed
   from `overrides` create/update AND delete; shipped via the `CLAIM_EPOCH` sweep + `writeWithClaimRetry`
@@ -167,7 +169,7 @@ Three design points that flow from this and still govern any future rule change:
 ## Remaining work
 
 ### Track C — password release (C2 → C4 → C3 → C5)
-- **Goal & detail:** the 5-stage plan in ROADMAP_HISTORY.md → "Password security — the original five-stage design".
+- **Goal & detail:** the original five-stage plan is superseded and in git (`DECISIONS.md` → "Password security — the original five-stage plan is superseded").
 - **The agreed interim shape — `PASSWORD_DESIGN.md` ("C-lite"):** chosen passwords + the admin reset as
   the recovery channel, deferring C2 (email) until a relay exists. It honours this track's ordering
   (reset path ships before/with the change flow) and carries the two deep-review-critical design

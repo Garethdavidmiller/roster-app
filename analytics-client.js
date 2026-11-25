@@ -183,7 +183,7 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
     // single analytics/activeAccounts doc. Uniqueness of active accounts is deduped on the
     // client (usage-reporter.js) so these writes only ever carry "+1". All writes are
     // fire-and-forget — usage tracking must never affect the app. Decision maths is the pure
-    // usage-stats.js module; this is just the Firestore I/O. See ROADMAP_HISTORY.md → "Usage analytics".
+    // usage-stats.js module; this is just the Firestore I/O. Why first-party: DECISIONS.md → usage analytics.
 
     /**
      * Increment the anonymous page-view counter for the current month.

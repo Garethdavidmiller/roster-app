@@ -237,8 +237,8 @@ function grant() {
 }
 
 /**
- * A sign-in on one of the cards has succeeded: grant IN PLACE, or reload (ROADMAP_HISTORY.md →
- * "Calendar sign-in without the reload"). Until v26.40 it always reloaded, and the reload did three jobs.
+ * A sign-in on one of the cards has succeeded: grant IN PLACE, or reload (v26.40; `.claude/rules/calendar.md`
+ * → "A sign-in on a lock card grants IN PLACE"). Until v26.40 it always reloaded, and the reload did three jobs.
  *
  * IN PLACE when this page has never been granted and the live session and identity decide `named`.
  * Nothing has been built for anybody, so the grant builds the Calendar for this member exactly as the

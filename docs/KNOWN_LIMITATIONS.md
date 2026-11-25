@@ -4,17 +4,18 @@
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
-Every heading here should read as **still true today**. When an item closes, move it to
-`ROADMAP_HISTORY.md` and keep any durable lesson in the module header or contract that owns it —
-`doc-parity.test.mjs` fails on a heading that reads as closed. How each item came to be is in git
-and in `ROADMAP_HISTORY.md`, not here.
+Every heading here should read as **still true today**. When an item closes, delete it — git holds
+it — and keep any durable lesson in the module header or contract that owns it, and any decision in
+`DECISIONS.md`. `doc-parity.test.mjs` fails on a heading that reads as closed. How each item came to
+be is in git, not here (the closed items moved out before 25 Nov 2026 are in
+`git show 28b217d0:docs/ROADMAP_HISTORY.md`).
 
 ---
 
 ## Left open by the full check of 3 November 2026 — each an owner decision
 
 The bug, regression and technical-debt check of 3 Nov 2026 fixed what was plainly broken (that half
-is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a default:
+is in git). These it left, each for a decision rather than a default:
 
 - **Weight.** `.git` was about 1.4 GB on 3 Nov 2026, and each committed copy of the Links 26 pack zip
   had added ~15 MB to it, sixteen times. The zip is built on demand now (owner, 3 Nov 2026: it is
@@ -164,7 +165,7 @@ unknown. A part that only adds is a plain batch, held offline.
   complete route. None has been counted; nothing in the app reports them (see also "Duplicate
   Firestore override documents", below).
 
-How this arrived, release by release: git, and `ROADMAP_HISTORY.md`.
+How this arrived, release by release: git.
 
 ## Admin saves are slow on iPhones — one cause found, others still being measured
 
@@ -380,13 +381,13 @@ The Leave test (`admin: a drawer pill or the logo asks before leaving staged edi
 `e2e/admin.spec.js`) still stops the navigation at the network with a `204` and asserts the request
 Leave made — correct on either build — and the test after it proves the destination. **Never skip
 such a test on WebKit**: it is the lane's only view of the dialog, the drawer and the guard on
-Safari's engine. The reproduction is in `ROADMAP_HISTORY.md`.
+Safari's engine. The reproduction is in git (`git show 28b217d0:docs/ROADMAP_HISTORY.md`).
 
 ## Security
 
 > **Forward plan.** The security work is sequenced, with per-phase risk and rollback, in
 > **`SECURITY_RELEASE_PLAN.md`** — the single source for what has shipped, and the ordering that keeps
-> a fix from re-creating the v10.94 outage (task #2's post-mortem, `ROADMAP_HISTORY.md`). The entries
+> a fix from re-creating the v10.94 outage (task #2's post-mortem, in git). The entries
 > below are the constraints that still hold, and the reasoning behind them.
 >
 > | | |
@@ -452,7 +453,7 @@ it has got).
 ### No restore has ever been TESTED — and the portable export is still not set up
 
 Backups themselves are not the gap: PITR and a managed schedule are on, and a run confirmed both
-against the live project on 19 Sep 2026 (`ROADMAP_HISTORY.md` has that story). **What remains is
+against the live project on 19 Sep 2026 (git has that story). **What remains is
 that a backup nobody has restored from is a belief, not a capability.** Two gaps:
 
 - **The restore path is unexercised, though it is WRITTEN DOWN.** It lands in a **NEW** database,
@@ -604,8 +605,9 @@ for a small known team. Status of record: `SECURITY_RELEASE_PLAN.md` → B2/B3.
 ### A signed-in session lasts 60 days regardless of use (owner decisions — accepted trade)
 
 `SESSION_MS` in `session.js` is absolute, set once at sign-in, and the only clock: there is no
-inactivity cutoff (two owner decisions, recorded in `ROADMAP_HISTORY.md` — the absolute bound is not
-what protects an account, below, so its length is a UX dial). **Do not restore an inactivity cutoff** on the
+inactivity cutoff — two owner decisions: v20.41 removed the 7-day inactivity cutoff, and v20.47 doubled
+the absolute term from 30 days to 60. The absolute bound is not what protects an account, below, so its
+length is a UX dial. **Do not restore an inactivity cutoff** on the
 assumption it was load-bearing; it was deleted rather than left dormant for exactly that reason.
 `session.test.mjs` pins the replacement properties: a long-untouched session inside its window is
 still valid, a read leaves the stored session byte-identical, and a newly written session holds
@@ -667,9 +669,8 @@ fails every Firebase Auth call from it with nothing on screen naming the cause, 
 
 **Tasks #2–#4** — per-member write isolation (shipped strict; the v10.94 outage post-mortem), the HPP
 variable-pay split (#3: London Allowance and basic pay accrue no HPP — the rule is now
-`.claude/rules/paycalc.md` invariant 6), and the pay reminder push (verified live) — are in
-`ROADMAP_HISTORY.md` → "The four v11 security tasks", with task #1's history and its curl
-verification.
+`.claude/rules/paycalc.md` invariant 6), and the pay reminder push (verified live) — are in git
+(`git show 28b217d0:docs/ROADMAP_HISTORY.md` → "The four v11 security tasks", with task #1's history and its curl verification).
 
 ### Deep-review residuals (July 2026) — accepted / inherent, not code-fixable
 
@@ -809,7 +810,7 @@ server refuses to adopt the account whatever is linked to it until the owner del
 Operations → Reset asks "Their phone is lost or stolen". Ticked, no reset notice is sent — it would
 land on that phone's lock screen — and every push record the account owns is deleted. The phone cannot
 save its record again in the hour its token outlives the reset: the rules refuse a push record from a
-sign-in older than the member's last `resetAt` (`signedInSinceLastReset`; ROADMAP_HISTORY.md has the
+sign-in older than the member's last `resetAt` (`signedInSinceLastReset`; git has the
 gap as it was). One gap remains:
 
 - **The surname opens the account until the member chooses a new password.** A reset is the only
@@ -1223,7 +1224,7 @@ allowlist change; it bounds how long an outage nobody was looking for can last.
 
 **Any deploy-ignore pattern must exclude *only* dev and test files — never match a file the app
 imports at runtime.** That outage was a `**/*.mjs` in `firebase.json`'s hosting `ignore` dropping
-the runtime `purify.es.mjs` from every Firebase deploy (the story is in `ROADMAP_HISTORY.md`). No
+the runtime `purify.es.mjs` from every Firebase deploy (the story is in git). No
 test guards this direction: when adding a runtime asset with a test-like or tooling-like extension,
 confirm no `ignore` glob in `firebase.json` catches it.
 
@@ -1396,7 +1397,7 @@ not do, or cannot know:
   ROADMAP.md's scale — fine for building against, and not something to put in front of an assessing
   manager as a requirement. It is recorded because the number shapes every figure the tool produces,
   and "why this many lines?" is a question a proposal will be asked. The 24-line period it replaced is
-  in `ROADMAP_HISTORY.md`.
+  in git.
 
 - **The run cap cannot always reach its target, and says so.** The "Most shifts in a row" box defaults
   to `DEFAULT_MAX_RUN`. With that switch on alone the reorder reaches it; with the full objective set
@@ -1637,7 +1638,7 @@ feature deliberately does NOT do yet, so that a reader stops looking for them.
 The suite is broad (`docs/FILE_INDEX.md` routes every suite, and `doc-parity.test.mjs` keeps that
 complete); nearly every pure module has a companion `.test.mjs`. Every Cloud Function handler and the
 Firestore read/write layer (`firebase-client.js`) now run in the unit lane against fakes — how each
-gap closed is in `ROADMAP_HISTORY.md`. **Before adding new behaviour to `firebase-client.js`, add the
+gap closed is in git. **Before adding new behaviour to `firebase-client.js`, add the
 test with it.** A gap found and not closed belongs here; the pull request template asks for exactly
 that.
 
@@ -1741,7 +1742,7 @@ client — at an invented name's address or a real member's — carries nothing 
 believe. **Set up accounts takes back** an existing account at a roster email that carries no custom
 claim: it stamps `resetAt` first, then resets the password to the member's default and revokes every
 session, and only then stamps the claims; a take-back that fails stamps no claims, so the outsider is
-never handed them. How it was built, in order: `ROADMAP_HISTORY.md`.
+never handed them. How it was built, in order: git.
 
 **What remains is hygiene in the Firebase console, not a control** — neither grants anything now, and
 neither can be checked from the repository:

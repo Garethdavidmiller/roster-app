@@ -924,7 +924,7 @@
             }
 
             /* Desktop type, not a phone's 10px/11px in a 186px cell. The date number is decided, and
-               untouched (ROADMAP_HISTORY → "Calendar cell type hierarchy"). */
+               untouched (DECISIONS.md → "Calendar cell type hierarchy"). */
             .shift-badge {
                 font-size: var(--type-badge);
                 padding: 4px 12px;

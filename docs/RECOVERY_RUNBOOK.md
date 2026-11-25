@@ -556,8 +556,7 @@ bring a shared code back for whoever finds the URL, and the rules would still gr
 
 **The PIN's own rollout closed** (rules step 4 on 26 Aug 2026, verified in production on 27 Aug), and
 the PIN itself is now retired (above). Its narrative — the brakes, the 10 Aug failure, the go/no-go
-readings — is `ROADMAP_HISTORY.md` → "The Calendar PIN rollout (moved from RECOVERY_RUNBOOK.md,
-24 Nov 2026)". **What stays here is the playbook it proved, for any change that TIGHTENS a read
+readings — is in git (`git show 28b217d0:docs/ROADMAP_HISTORY.md` → "The Calendar PIN rollout"). **What stays here is the playbook it proved, for any change that TIGHTENS a read
 rule**; the step numbers are cited elsewhere, so they are kept.
 
 **Never deploy the rules first.** A client that cannot satisfy a tightened read rule shows every staff

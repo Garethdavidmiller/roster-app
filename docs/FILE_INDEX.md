@@ -326,7 +326,6 @@ roster-app/
 │   ├── links-26/ ← the new CEA link, **26 lines**, from January 2027: `RULES.md`, `30-days-off/` (the shortlist's designs), `proposals/`, `presentations/` and `tooling/`; README.md is the current state, HISTORY.md the record. The New link page serves its pack PDFs live from here on the Pages mirror (`PACK_BASE`, newlink-config.js)
 │   ├── timetable-dec26/ ← `tooling/` builds `trains-data.js` (the Trains page) from Chiltern's public December 2026 timetable PDFs, which are never committed; its README has the inputs and the method
 │   ├── DECISIONS.md ← what has already been DECIDED, and why, so it is not re-argued. A closed decision whose trigger fires MOVES back to ROADMAP.md
-│   ├── ROADMAP_HISTORY.md ← everything ROADMAP.md used to carry about the PAST. If something here becomes live again, MOVE it back
 │   ├── ARCHITECTURE.md ← the INDEX: which document is authoritative for each subject, the `EXC-*` table of current production exceptions, and the four status words
 │   ├── MAINTENANCE_CALENDAR.md ← work with a DEADLINE whether or not anyone plans it, each with a warning point
 │   ├── LATENCY.md ← sign-in and Calendar START latency: what shipped, what was measured, and the decision rule — CLOSED
@@ -340,7 +339,7 @@ roster-app/
 │   ├── CREDENTIAL_LIFECYCLE.md ← POINTER: merged into PASSWORD_DESIGN.md (24 Nov 2026); maps its old §N to LN
 │   ├── PASSWORD_DESIGN.md ← the chosen-password design (Track C, email deferred), and the credential lifecycle: how a credential is issued, recovered and retired, in order (L1–L10; **L7 is an OPEN owner decision**). Status: SECURITY_RELEASE_PLAN.md
 │   ├── AUTH_PLAN.md ← the full-app authentication design (Track E): what "behind authentication" can mean for static files on public hosting, and the E0–E6 phases. Status: SECURITY_RELEASE_PLAN.md
-│   ├── AUTH_ARCHITECTURE.md     ← POINTER: folded into AUTH_AND_SESSIONS.md → Architecture (24 Nov 2026); the Track 1 phases are in ROADMAP_HISTORY.md
+│   ├── AUTH_ARCHITECTURE.md     ← POINTER: folded into AUTH_AND_SESSIONS.md → Architecture (24 Nov 2026); the Track 1 phases are in git
 │   ├── RECOVERY_RUNBOOK.md      ← the "break glass" backup, rollback and disaster-recovery runbook
 │   ├── LINKS_DEC2026_PLAN.md ← the Links workspace against the December 2026 timetable change ("Dec 26" is the timetable, NOT Boxing Day): the service, the window, the baseline and the current 26-line state
 │   ├── BRASS_PLAN.md ← modelling BRASS (the RPS pension top-up) in the pay calculator; nothing ships until its owner questions are answered

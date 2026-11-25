@@ -118,7 +118,7 @@ const tests = readdirSync(new URL('./test/', REPO_ROOT_URL)).filter(f => f.endsW
 // a decision somebody makes, and an exemption whose reason stops being true comes OUT: the
 // `apis.google.com` CSP section was exempted as a "standing constraint" and kept for a release after
 // the policy stopped allowing those hosts, stating the reverse of the live CSP (whole-app review,
-// I8). It is in ROADMAP_HISTORY.md now.
+// I8). It is in git history now.
 const CLOSED_WORDS = /\b(CLOSED|FIXED|SUPERSEDED|RESOLVED|no longer a limitation|RESTORED)\b/i;
 const CLOSED_HEADING_EXEMPT = [
     // "mitigated, not fully closed (accepted)" — the word is there to say it is NOT closed.
@@ -132,7 +132,7 @@ test('KNOWN_LIMITATIONS.md headings state what is still true', () => {
         .filter(l => !CLOSED_HEADING_EXEMPT.some(e => l.includes(e)));
     assert.deepEqual(offenders, [],
         'these headings read as closed, so a reader cannot take the file at its word. Move the\n' +
-        'section to ROADMAP_HISTORY.md (or let git hold it), keep any durable lesson in the contract\n' +
+        'section out (git holds it), keep any durable lesson in the contract\n' +
         'or module header that owns it, and add a NAMED exemption here only if the heading is\n' +
         'genuinely still live:\n  ' + offenders.join('\n  '));
 });
@@ -662,7 +662,7 @@ test('the symbol guard would catch the two defects that motivated it — guard t
  * history doc recording "`X` was in `functions/index.js` before the split" cannot be made to
  * fail by writing the truth. Do not read the passing mutation as a reason to delete it.
  */
-const PAST_DOCS = /ROADMAP_HISTORY|experiments\//;
+const PAST_DOCS = /experiments\//;
 
 /** leading-underscore · lowerCamel with an inner capital · UPPER_SNAKE. */
 const LOCATABLE = String.raw`_[A-Za-z][A-Za-z0-9_]{3,}|[a-z][a-z0-9]*[A-Z][A-Za-z0-9_]*|[A-Z][A-Z0-9]*_[A-Z0-9_]+`;
