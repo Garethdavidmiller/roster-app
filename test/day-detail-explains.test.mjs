@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * day-detail-explains.test.mjs — IF A SYMBOL CAN APPEAR IN A CELL, THE DAY PANEL EXPLAINS IT IN
  * FULL WORDS.
@@ -23,10 +24,13 @@
  * — the same reasoning as `paycalc-inventory.test.mjs`, whose first contract drives the real key
  * builders out of the tree.
  *
- * `calendar-renderer.js` cannot be imported in Node (its graph reaches the gstatic Firebase SDK),
- * so the two functions under test are SLICED OUT OF THEIR REAL SOURCE and evaluated with their real
- * dependencies injected — the `sw-internals.test.mjs` pattern. Assertions therefore run against the
- * shipped code, not a copy, and the extraction throws loudly if either is renamed.
+ * `calendar-renderer.js` is imported for real. Its graph reaches the gstatic Firebase SDK only through
+ * `calendar-member.js` and `calendar-overrides.js`, neither of which the three functions under test
+ * read, so those two are replaced with inert stand-ins and everything else — `roster-data.js`,
+ * `override-utils.js`, the renderer itself — is the shipped module. Until 25 Nov 2026 the functions
+ * were SLICED out of the source text and run through `new Function` with their dependencies passed in
+ * by hand: a copy of the code, which broke on any move of it, and whose dependency list was this file's
+ * own guess at what the renderer imports.
  *
  * The second half of the file is the same subject from the other side: WHERE THE PANEL MUST SAY
  * NOTHING. `weekContext` has one silence that is easy to delete and impossible to see — a member on
@@ -34,44 +38,32 @@
  * that does not exist. It is checked against the REAL roster table, because a mock would only
  * restate the assumption.
  *
- * Part of test:hygiene — no mocks, no emulator, nothing installed.
+ * Part of test:unit — two module stand-ins, no emulator, nothing installed.
  */
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { shiftBadgeParts, getShiftKind, getRosterForMember, getWeekNumberForDate,
-         teamMembers, SHIFT_KIND_LABELS } from '../roster-data.js';
-import { parseOtherValue, OTHER_FLAVOURS } from '../override-utils.js';
+import { shiftBadgeParts, getWeekNumberForDate, teamMembers } from '../roster-data.js';
+import { OTHER_FLAVOURS } from '../override-utils.js';
 
 const RENDERER = readFileSync('./calendar-renderer.js', 'utf8');
 const CSS      = readFileSync('./index.css', 'utf8');
 const HTML     = readFileSync('./index.html', 'utf8');
 const DATA     = readFileSync('./roster-data.js', 'utf8');
 
-/**
- * Slice a top-level function out of a module's source by name. Throws if it is not found, so a
- * rename fails here rather than quietly leaving the contract unchecked.
- * @param {string} src @param {string} name
- */
-function sliceFn(src, name) {
-    const start = src.indexOf(`export function ${name}(`);
-    assert.ok(start !== -1, `${name} not found — renamed? This test guards it and must be updated.`);
-    const end = src.indexOf('\n}', start);
-    assert.ok(end !== -1, `${name} has no top-level closing brace`);
-    return src.slice(start, end + 2).replace(/^export /, '');
-}
+// The renderer's two routes to the Firebase SDK. Neither is read by shiftWords, dayMarkers or
+// weekContext; a call into either would be a change to what this file tests, so each one throws.
+const unused = (/** @type {string} */ what) => () => { throw new Error(`the day panel's words read ${what}`); };
+mock.module('../calendar-member.js', { namedExports: { getCurrentMember: unused('the member on screen') } });
+mock.module('../calendar-overrides.js', { namedExports: {
+    rosterOverridesCache: new Map(), monthKey: unused('the override cache'),
+} });
+const { dayMarkers, shiftWords, weekContext } = await import('../calendar-renderer.js');
 
 // The renderer's SHIFT_KIND_LABELS — roster-data.js's since Team View shares them (whole-app review,
-// 24 Nov 2026) — imported rather than retyped, and the renderer is held to importing it.
+// 24 Nov 2026) — and the renderer is held to importing it rather than keeping a copy Team View lacks.
 assert.match(RENDERER, /\bSHIFT_KIND_LABELS\b[^;]*from '\.\/roster-data\.js'/, 'calendar-renderer.js no longer takes SHIFT_KIND_LABELS from roster-data.js');
-const KIND_LABELS = SHIFT_KIND_LABELS;
-
-const dayMarkers = new Function(`${sliceFn(RENDERER, 'dayMarkers')}; return dayMarkers;`)();
-const shiftWords = new Function(
-    'SHIFT_KIND_LABELS', 'parseOtherValue', 'OTHER_FLAVOURS', 'getShiftKind', 'shiftBadgeParts',
-    `${sliceFn(RENDERER, 'shiftWords')}; return shiftWords;`,
-)(KIND_LABELS, parseOtherValue, OTHER_FLAVOURS, getShiftKind, shiftBadgeParts);
 
 const MEMBER = { name: 'G. Miller', currentWeek: 1, rosterType: 'main' };
 
@@ -235,11 +227,6 @@ describe('the panel has somewhere to put each explanation', () => {
 });
 
 describe('the roster week: stated where it is true, silent where it is not', () => {
-    const weekContext = new Function(
-        'getRosterForMember', 'getWeekNumberForDate',
-        `${sliceFn(RENDERER, 'weekContext')}; return weekContext;`,
-    )(getRosterForMember, getWeekNumberForDate);
-
     /** @param {string} name */
     const member = (name) => {
         const m = teamMembers.find(x => x.name === name);

@@ -518,6 +518,32 @@ export function computeGross(i) {
            gRdw, gSunday, gBoxing, gPeer };
 }
 
+/**
+ * The payslip on screen's gross from its boxes: `calculate()`'s own lines (paycalc-app.js), moved here
+ * unchanged so a test can call them (25 Nov 2026). A JOINER'S share of the payslip scales London and the
+ * contracted hours (£276.16 × 14/28 on the real 8 May 2026 payslip); bank holiday and Boxing Day hours
+ * count only in a payslip holding those days, as a save can restore figures into rows the page hides.
+ * The page's lookups (side-effect-free reads) are passed in. @param {any} p @param {any} ty its TAX_YEARS row
+ * @param {{ rate: number, peerDays: number, otherAdj: number, hours: (hId: string, mId: string) => number,
+ *   hasBankHoliday: (p: any) => boolean, hasBoxingDay: (p: any) => boolean, getProRateFactor: (p: any) => number,
+ *   getEffectiveContr: (p: any) => number }} i
+ * @returns {ReturnType<typeof computeGross> & Record<'london'|'effContr'|'satHrs'|'bhHrs'|'bhOtHrs'|'oHrs'|'rHrs'|'sHrs'|'bHrs', number>}
+ */
+export function payslipGross(p, ty, { rate, peerDays, otherAdj, hours, hasBankHoliday, hasBoxingDay, getProRateFactor, getEffectiveContr }) {
+  const london  = getLondonAllowanceForPeriod(p, ty) * getProRateFactor(p);
+  const satHrs  = hours('satH',  'satM');
+  const hasBh   = hasBankHoliday(p);   // the hidden-rows guard, above
+  const bhHrs   = hasBh ? hours('bhH',   'bhM')   : 0;
+  const bhOtHrs = hasBh ? hours('bhOtH', 'bhOtM') : 0;
+  const oHrs    = hours('otH',   'otM');
+  const rHrs    = hours('rdwH',  'rdwM');
+  const sHrs    = hours('sunH',  'sunM');
+  const bHrs    = hasBoxingDay(p)   ? hours('boxH',  'boxM')   : 0;
+  const effContr = getEffectiveContr(p);
+  return { london, effContr, satHrs, bhHrs, bhOtHrs, oHrs, rHrs, sHrs, bHrs,
+    ...computeGross({ effContr, rate, satHrs, bhHrs, bhOtHrs, oHrs, rHrs, sHrs, bHrs, peerDays, otherAdj, london }) };
+}
+
 /** One "week 1" or "month 1" in any of the ways a payslip prints it: W1, WK1, WEEK1, M1, MTH1, MONTH1. */
 const WEEK_OR_MONTH_1 = '(?:W(?:EEK|K)?|M(?:ONTH|TH)?)1';
 /** The week 1 / month 1 marker at the end of a code, read once its spaces are gone: HMRC's W1, M1 or

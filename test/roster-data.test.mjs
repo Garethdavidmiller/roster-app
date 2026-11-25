@@ -8,7 +8,7 @@
  * calendar renderer both read.
  */
 
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -1599,20 +1599,20 @@ test('getSpecialDayBadges: returns objects with icon and title fields', () => {
 // not throw, does not fail a render, and quietly makes the panel explain a marker the calendar is
 // not showing.
 //
-// `dayMarkers` cannot be imported here: calendar-renderer.js reaches the gstatic Firebase SDK
-// through its import graph, so nothing in it loads in Node. It has no imports of its own, though,
-// so it is sliced out BY NAME and evaluated against its real source — the `sw-internals.test.mjs`
-// idiom — and compared against the REAL `getSpecialDayBadges` on the other side. Extraction throws
-// if the function is renamed, so this fails loudly rather than silently checking nothing.
+// `dayMarkers` is the renderer's own export, imported for real. calendar-renderer.js reaches the gstatic
+// Firebase SDK only through calendar-member.js and calendar-overrides.js, which `dayMarkers` never
+// reads, so those two are inert stand-ins (each throws if called) and the renderer is the shipped
+// module. It is compared against the REAL `getSpecialDayBadges` on the other side. Until 25 Nov 2026 it
+// was sliced out of the source text by a regex and run through `new Function` — a copy, which broke
+// whenever the function moved.
 //
 // It deliberately does NOT compare the labels: the panel's are sentence case because they are
 // joined into the hover tooltip's sentence, admin's are title case because they are a badge
 // `title`. Nor the ORDER, which each surface chooses. The ICON is the shared fact.
-const _rendererSrc = readFileSync(new URL('./calendar-renderer.js', REPO_ROOT_URL), 'utf8');
-const _dayMarkersSrc = /export function dayMarkers\(f\) \{[\s\S]*?\n\}/.exec(_rendererSrc);
-assert.ok(_dayMarkersSrc, 'dayMarkers could not be sliced out of calendar-renderer.js — renamed?');
-const dayMarkers = /** @type {(f:any) => {icon:string,label:string}[]} */ (
-    new Function(`${_dayMarkersSrc[0].replace('export function', 'function')}; return dayMarkers;`)());
+const _notRead = () => { throw new Error('dayMarkers read the calendar\'s member or override state'); };
+mock.module('../calendar-member.js', { namedExports: { getCurrentMember: _notRead } });
+mock.module('../calendar-overrides.js', { namedExports: { rosterOverridesCache: new Map(), monthKey: _notRead } });
+const { dayMarkers } = await import('../calendar-renderer.js');
 
 describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surfaces', () => {
     const SHARED = [
@@ -1661,11 +1661,11 @@ describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surface
         const boxing = new Date(2026, 11, 26, 12);
         assert.deepEqual(getSpecialDayBadges(boxing), [],
             'Boxing Day gained an admin badge — index.css leaves the cell plain on purpose');
-        // The sliced FUNCTION, with comments stripped — the module's header explains at length why
-        // Boxing Day is absent, so scanning the whole file matches its own explanation and this
-        // assertion fails on the code being correctly documented. (It did, on the first run.)
-        const body = _dayMarkersSrc[0].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-        assert.equal(/boxing/i.test(body), false,
+        // Asked of the real function with every flag it takes set, and the names a Boxing Day flag
+        // would plausibly be given: no chip it can produce names Boxing Day.
+        const every = dayMarkers({ isToday: true, isBH: true, isXmas: true, isEaster: true, isPay: true,
+            isCutoff: true, isBoxing: true, isBoxingDay: true });
+        assert.equal(every.some(m => /boxing/i.test(m.label)), false,
             'dayMarkers gained a Boxing Day chip — the cell has no marker for it to explain');
     });
 });

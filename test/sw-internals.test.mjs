@@ -8,11 +8,12 @@
 // this test environment (the e2e suite blocks the service worker) — a change to the highest-outage-
 // risk file with no way to prove it here.
 //
-// Instead this test makes the helpers testable WITHOUT changing the SW at runtime: it reads the SW
-// source, slices out each pure function BY NAME (brace-matched), and evaluates that exact source in
-// a sandbox. So the assertions run against the SW's REAL code — no duplicate copy to drift, no
-// runtime change. If a helper is renamed/removed the extraction throws and this test fails loudly,
-// which is the intended drift signal.
+// So the WHOLE worker is evaluated, as a browser evaluates it, in a `vm` context with a stand-in
+// `self` and Cache Storage (the sw-fetch-doc.test.mjs and sw-lifecycle.test.mjs pattern), and each
+// helper is read off that context by name: a top-level function declaration in a classic script is
+// a global. Until 25 Nov 2026 each helper was sliced out of the source text by brace-matching and run
+// through `new Function` — a copy of the function, which broke on any move of code and could not see
+// a helper that leant on anything else in the file. A rename now fails at the lookup below.
 //
 // Covers: _appCacheVersion + compareAppCacheDesc (the v16.86 cross-version cache sort — previously
 // only exercised by a one-off render check), ctSafe (content-type guard), unredirect (redirect strip).
@@ -32,27 +33,40 @@ const ROOT = fileURLToPath(REPO_ROOT_URL);
 const SW = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
 
 /**
- * Slice out a top-level `function <name>(…) { … }` from source by brace-matching from its opening
- * brace to the matching close. Nested object/block braces are balanced correctly; the SW helpers
- * contain no braces inside strings or comments, so a plain depth counter is sufficient.
- * @param {string} src @param {string} name
+ * The real service worker, evaluated whole in a sandbox that never fires an event, and the named
+ * top-level functions read off it. The start-up re-check opens a cache, so Cache Storage answers
+ * with an empty cache rather than throwing.
+ * @param {string[]} names
+ * @returns {Record<string, any>}
  */
-function extractFn(src, name) {
-    const start = src.indexOf(`function ${name}(`);
-    assert.ok(start >= 0, `service-worker.js no longer defines function ${name}() — update this test`);
-    let i = src.indexOf('{', start);
-    for (let depth = 0; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}' && --depth === 0) { i++; break; }
+function swFunctions(names) {
+    const emptyCache = { match: async () => undefined, put: async () => {}, keys: async () => [], delete: async () => false };
+    const ctx = {
+        self: { registration: { scope: 'https://myb-roster.web.app/', navigationPreload: null },
+                location: { origin: 'https://myb-roster.web.app' },
+                addEventListener() {}, skipWaiting() {}, clients: { claim: async () => {} } },
+        caches: { open: async () => emptyCache, keys: async () => [], delete: async () => false, match: async () => undefined },
+        // The warm-up the empty cache starts never settles and arms no timer, so nothing it does can
+        // outlive this file or reach a helper under test.
+        fetch: () => new Promise(() => {}), setTimeout: () => 0, clearTimeout() {},
+        console: { log() {}, warn() {}, error() {} },
+        Request, Response, Headers, URL, AbortController, Promise,
+    };
+    vm.createContext(ctx);
+    vm.runInContext(SW, ctx, { filename: 'service-worker.js' });
+    /** @type {Record<string, any>} */ const found = {};
+    for (const n of names) {
+        found[n] = vm.runInContext(`typeof ${n} === 'function' ? ${n} : undefined`, ctx);
+        assert.equal(typeof found[n], 'function', `service-worker.js no longer defines function ${n}() — update this test`);
     }
-    return src.slice(start, i);
+    return found;
 }
 
-// Evaluate the four pure helpers' REAL source in one sandbox; Response is injected for unredirect.
-const NAMES = ['_appCacheVersion', 'compareAppCacheDesc', 'ctSafe', 'unredirect'];
-const body = NAMES.map(n => extractFn(SW, n)).join('\n');
-const { _appCacheVersion, compareAppCacheDesc, ctSafe, unredirect } =
-    new Function('Response', `${body}\nreturn { ${NAMES.join(', ')} };`)(Response);
+const SW_FNS = swFunctions(['_appCacheVersion', 'compareAppCacheDesc', 'ctSafe', 'unredirect', 'isOlderVersion']);
+const { compareAppCacheDesc, ctSafe, unredirect, isOlderVersion } = SW_FNS;
+/** The sandbox's arrays are another realm's, which deepEqual tells apart from this one's, so the pair
+ *  is copied into an ordinary array before it is compared. @param {string} name */
+const _appCacheVersion = (name) => [...SW_FNS._appCacheVersion(name)];
 
 // A minimal Response-like stub for ctSafe (it only reads headers.get). @param {string|null} ct
 const resWithCt = (ct) => ({ headers: { get: () => ct } });
@@ -174,7 +188,6 @@ describe('unredirect', () => {
 // cache the moment its script is evaluated — finished, deleted the NEWER cache, and the new worker's
 // own sweep then deleted the old one: no app cache left, and an offline launch got the Offline page.
 describe('isOlderVersion', () => {
-    const isOlderVersion = new Function(`${extractFn(SW, 'isOlderVersion')}; return isOlderVersion;`)();
     test('compares dotted numeric versions part by part', () => {
         assert.equal(isOlderVersion('25.05', '25.06'), true);
         assert.equal(isOlderVersion('25.06', '25.05'), false, 'a NEWER version is never older');
