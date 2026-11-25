@@ -343,8 +343,13 @@ const CAPS = {
     // the notification prompt strip and silent renewal (an IIFE that closed over nothing the
     // coordinator owns) left for calendar-notif-prompt.js, 1,346 down to 1,267. The ceiling comes
     // down with it rather than banking eighty lines as headroom, per the header's rule.
-    'calendar-app.js':         1310,
-                                       //   ← 1320 until v23.69, when the month LEGEND left for calendar-legend.js (1264 now)
+    // 1310 → 1190 on 25 Nov 2026, an EXTRACT: the member's own-roster copy (calendar-own-copy.js, its
+    // record rule now pure and tested), the month-jump picker (calendar-month-jump.js) and the page's
+    // keyboard shortcuts (calendar-keyboard.js → `initCalendarShortcuts`) left, and the legend's two
+    // copies of "what this month shows" became the renderer's `monthOnScreen` — 1,277 measured lines
+    // down to 1,158. The ceiling comes down with them, with thirty lines of room, not the saving.
+    'calendar-app.js':         1190,
+                                       //   ← 1320 until v23.69, when the month LEGEND left for calendar-legend.js (1264 then)
     'roster-data.js':          1200,   // mostly data, not logic
     // 1250 → 1200 on 16 Nov 2026 (v26.2x), an EXTRACT at 1250 of 1250: the seam the v22.50 note below names,
     // taken. The leave allowance — `getALEntitlement`, `dispatcherBaseAL` and the bank-holiday count it could

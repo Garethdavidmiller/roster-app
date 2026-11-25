@@ -5,7 +5,7 @@
  *
  * Owns: the stored copy (one member, a few months of their own leave, absences and shift changes),
  *   every rule about when it may be READ, and its deletion.
- * Does NOT own: when to paint it or how (calendar-app.js), the access decision (calendar-access.js),
+ * Does NOT own: when to paint it or how (calendar-own-copy.js), the access decision (calendar-access.js),
  *   or the live override cache (calendar-overrides.js) — which this module never writes to.
  *
  * ── WHY IT EXISTS ───────────────────────────────────────────────────────────────────────────────

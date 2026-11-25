@@ -6,7 +6,7 @@
  * no DOM. buildCalendarContainer tests use a minimal hand-rolled DOM factory so the
  * cell objects' classes, attributes and datasets can be inspected directly.
  */
-import { test, describe, mock, beforeEach } from 'node:test';
+import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
@@ -121,7 +121,7 @@ mock.module('../override-utils.js', {
 // Stubbing it would mean these tests assert against a model that is not the shipped one.
 const { noteKnowledge, _reset: _resetKnowledge } = await import('../calendar-data-state.js');
 
-const { createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer } =
+const { createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer, monthOnScreen, setSnapshotSource } =
     await import('../calendar-renderer.js');
 
 /** The month every grid test builds. Since v20.40 a container is only POPULATED when the month's
@@ -470,6 +470,64 @@ describe('buildCalendarContainer — withheld grid', () => {
         assert.ok(buildCalendarContainer(0, 2026).querySelectorAll('.calendar-day').length > 0);
         assert.equal(buildCalendarContainer(1, 2026).querySelectorAll('.calendar-day').length, 0,
             'February was never read — swiping to it must not inherit January\'s confidence');
+    });
+});
+
+// ── monthOnScreen — what a month shows, asked by the grid AND the legend (25 Nov 2026) ───────────
+//
+// The legend asked this in calendar-app.js in two hand-written copies of the grid's rule. One rule
+// now, so it is tested here once and through the grid that draws by it.
+describe('monthOnScreen — the member\'s own copy stands in for a month still loading', () => {
+    const COPY = new Map([['2026-01-06', { type: 'annual_leave', value: 'AL' }]]);
+    /** @type {any[]} */ let asked;
+    beforeEach(() => {
+        asked = [];
+        setSnapshotSource((name, year, month) => { asked.push([name, year, month]); return COPY; });
+    });
+    // The registered source is process-wide; leave it as the other suites found it.
+    afterEach(() => setSnapshotSource(null));
+
+    test('a LOADING month with the member\'s stored copy is drawn stale, from that copy', () => {
+        _resetKnowledge();
+        assert.deepEqual(monthOnScreen(FAKE_MEMBER, 2026, 0), { display: 'stale', snapshot: COPY });
+        assert.deepEqual(asked, [[FAKE_MEMBER.name, 2026, 0]], 'the registered source is asked for that member and month');
+    });
+
+    test('a loading month with NO stored copy stays loading', () => {
+        _resetKnowledge();
+        setSnapshotSource(() => null);
+        assert.deepEqual(monthOnScreen(FAKE_MEMBER, 2026, 0), { display: 'loading', snapshot: null });
+    });
+
+    test('only LOADING is stood in for — a failed, cached or known month keeps its own state, and the source is not asked', () => {
+        for (const [k, display] of /** @type {const} */ ([['error', 'unavailable'], ['cached', 'stale'], ['authoritative', 'render']])) {
+            _resetKnowledge();
+            noteKnowledge('2026-01', k);
+            assert.deepEqual(monthOnScreen(FAKE_MEMBER, 2026, 0), { display, snapshot: null }, `a ${k} month`);
+        }
+        assert.deepEqual(asked, [], 'a month with an answer of its own never reads the stored copy');
+    });
+
+    test('no member, no copy', () => {
+        _resetKnowledge();
+        assert.deepEqual(monthOnScreen(null, 2026, 0), { display: 'loading', snapshot: null });
+        assert.deepEqual(asked, []);
+    });
+
+    test('a copy the caller already holds is used instead of the source — and an explicit null refuses it', () => {
+        _resetKnowledge();
+        const given = new Map();
+        assert.equal(monthOnScreen(FAKE_MEMBER, 2026, 0, given).snapshot, given);
+        assert.deepEqual(monthOnScreen(FAKE_MEMBER, 2026, 0, null), { display: 'loading', snapshot: null });
+        assert.deepEqual(asked, [], 'the source is not asked when the caller supplied the answer');
+    });
+
+    test('the grid draws by the same answer: the copy, labelled', () => {
+        _resetKnowledge();
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.equal(container.dataset.overrideState, 'snapshot');
+        assert.equal(container.querySelectorAll('.calendar-snapshot-note').length, 1, 'labelled "Checking for changes…"');
+        assert.ok(container.querySelectorAll('.calendar-day').length > 0, 'and drawn, not withheld');
     });
 });
 

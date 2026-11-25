@@ -3,8 +3,11 @@
  * calendar-keyboard.js — Keyboard navigation and hover tooltip for index.html.
  *
  * Owns: arrow-key cell navigation (roving tabindex), PageUp/Down month jump,
- *   Enter/Space cell activation, desktop hover tooltip.
- * Does NOT own: month navigation state (calendar-state.js), swipe cooldown (calendar-swipe.js).
+ *   Enter/Space cell activation, desktop hover tooltip, and the page's keyboard shortcuts
+ *   (`initCalendarShortcuts`: ← → for a month or a week, T for today, P to print).
+ * Does NOT own: month navigation state (calendar-state.js), swipe cooldown (calendar-swipe.js), or
+ *   what a month change DOES — every key that moves the month presses the page's own control
+ *   (`#prevMonth`, `#nextMonth`, `goToToday`), so a key and a press cannot drift apart.
  * Edit here for: keyboard shortcut behaviour, tooltip positioning.
  */
 
@@ -135,5 +138,71 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
     focused.setAttribute('tabindex', '-1');
     next.setAttribute('tabindex', '0');
     next.focus();
+  });
+}
+
+/**
+ * The page's keyboard shortcuts, outside the grid (moved from calendar-app.js, 25 Nov 2026):
+ * ← → change the month (the week, in Team View), T goes to today, P prints.
+ *
+ * MONTH NAVIGATION IS WRITTEN ONCE. ← → press `#prevMonth` / `#nextMonth`, as PageUp/PageDown above
+ * already did, so the button's own guards — the swipe cooldown, the first-run prompt and the
+ * year-boundary no-op (`aria-disabled`, set at the boundary during render) — are the key's too. The
+ * key used to restate the button's body and its boundary check beside it (v16.21: at Dec MAX_YEAR /
+ * Jan MIN_YEAR it re-rendered and announced the identical clamped month). T is `goToToday`, the
+ * Today button's own action.
+ *
+ * Registered BEFORE `initCalendarKeyboard`'s listener (calendar-app.js wires this in its init block,
+ * that at the module tail), as it always was: a key another handler has already taken
+ * (`defaultPrevented`, a grade tab's arrows) is left alone here.
+ *
+ * @param {{
+ *   getAccessType: () => string,
+ *   isTeamViewMode: () => boolean,
+ *   isFirstRun: () => boolean,
+ *   jumpToCurrentWeek: () => void,
+ *   goToToday: () => void,
+ *   print: () => void,
+ * }} deps
+ */
+export function initCalendarShortcuts({ getAccessType, isTeamViewMode, isFirstRun, jumpToCurrentWeek, goToToday, print }) {
+  document.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;   // taken already (a grade tab's arrows), or a browser chord (Ctrl+P, Alt+←)
+    // Re-locked (access lost mid-session): the grid is behind the card, and an arrow here moved
+    // and PERSISTED the month there, so the member signed back in to a different one (Oct 2026).
+    if (getAccessType() === 'none') return;
+    // Don't fire if user is typing in an input
+    if (/** @type {Element} */ (e.target).tagName === 'SELECT' || /** @type {Element} */ (e.target).tagName === 'INPUT') return;
+    // Don't fire behind ANY open overlay — focus sits on a button there,
+    // so the input check above doesn't help: arrows/t would silently
+    // change the month behind the overlay (and PERSIST the drift via
+    // persistViewedMonth) and p would print it. The huddle viewer and the
+    // nav drawer are NOT .lb-overlay lightboxes, so they need their own
+    // checks (v16.69 review fix — the month drifted behind the Huddle).
+    if (document.querySelector('.lb-overlay.visible')) return;
+    if (document.getElementById('huddleViewer')?.classList.contains('visible')) return;
+    if (document.querySelector('.nav-panel.open')) return;
+    if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
+    if (isTeamViewMode()) {
+      // The week table is a tab stop on a narrow screen so that a keyboard can SCROLL it
+      // (axe scrollable-region-focusable, v25.43) — and ← → are how it scrolls. Turned into
+      // week changes, they re-rendered the grid and the off-screen days stayed out of reach.
+      if (/** @type {Element} */ (e.target).closest?.('#gradeTabPanel')) return;
+      if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
+      if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
+      if (e.key === 't' || e.key === 'T') jumpToCurrentWeek();
+      return;
+    }
+    // Below Team View, which draws a first run itself (no "my row"), so its keys work there.
+    if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
+    // Guard: when a calendar day cell has focus, arrow keys move between cells
+    // (handled by initCalendarKeyboard). Only navigate months when no cell is focused.
+    const onCell = !!document.activeElement?.classList.contains('calendar-day');
+    if (e.key === 'ArrowLeft'  && !onCell) document.getElementById('prevMonth')?.click();
+    if (e.key === 'ArrowRight' && !onCell) document.getElementById('nextMonth')?.click();
+    if (e.key === 't' || e.key === 'T') goToToday();
+    // Any open overlay (lightbox / huddle viewer / nav drawer) already returned above, so
+    // print is unguarded here.
+    if (e.key === 'p' || e.key === 'P') print();
   });
 }

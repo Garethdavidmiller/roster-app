@@ -4,8 +4,9 @@
  *
  * Owns: buildCalendarContainer (the month grid, or the panel that stands in for it) and its parts —
  *   createCalendarHeader, createDayCell, dayCellParts, dayCellName, shiftWords, splitShiftLine,
- *   dayMarkers, weekContext, changeProvenance — getSwipeDirection, and setSnapshotSource (where the
- *   member's own stored copy is read from).
+ *   dayMarkers, weekContext, changeProvenance — getSwipeDirection, setSnapshotSource (where the
+ *   member's own stored copy is read from) and monthOnScreen (what a month shows: the one rule the
+ *   grid and the legend both ask).
  * Does NOT own: display state (calendar-app.js), override fetching (calendar-overrides.js),
  *   member selection (calendar-member.js).
  * Edit here for: day cell HTML, calendar grid structure, month header, swipe maths.
@@ -371,12 +372,46 @@ function buildGridPlaceholder(display, onRetry) {
 let _snapshotSource = null;
 
 /**
- * Register where a month's stored own-roster copy comes from (v24.59). Set once by calendar-app.js,
- * so every caller of `buildCalendarContainer` — the month render AND the swipe carousel's adjacent
- * panels — gets the same answer without each having to ask.
+ * Register where a month's stored own-roster copy comes from (v24.59). Set once by calendar-app.js
+ * (the source itself is calendar-own-copy.js), so every caller of `buildCalendarContainer` — the
+ * month render AND the swipe carousel's adjacent panels — gets the same answer without each having
+ * to ask.
  * @param {((memberName: string, year: number, month: number) => Map<string, any>|null) | null} fn
  */
 export function setSnapshotSource(fn) { _snapshotSource = fn; }
+
+/**
+ * WHAT A MONTH SHOWS ON SCREEN — the one rule, asked by the grid AND by the legend (25 Nov 2026).
+ *
+ * ── THE MEMBER'S OWN COPY STANDS IN FOR A MONTH STILL LOADING (v24.59) ─────────────────────────
+ *
+ * Only `loading` — a month that failed keeps its failure panel, and a month with real data draws
+ * that. The copy is drawn as `stale` (no "As rostered" claims) and LABELLED, and it is read here,
+ * never merged into `rosterOverridesCache`, so nothing else can mistake it for what the server said.
+ * Whether a copy may be offered at all — own calendar, signed in by name, not Team View — is the
+ * source's decision (calendar-own-copy.js), not this view's.
+ *
+ * ONE function because the legend asked the same question in calendar-app.js in two hand-written
+ * copies (which records its keys come from, and whether a key applies at all). A copy that forgot
+ * the stored copy left an 🏖️ day on screen with no AL key (48-hour review), and one that disagreed
+ * with the grid would key a month the reader cannot see. The ready metric in calendar-app.js
+ * deliberately does NOT ask this: its own comment says why.
+ *
+ * @param {any} member - whose month; null or undefined means no stored copy can apply
+ * @param {number} year
+ * @param {number} month - 0-indexed
+ * @param {Map<string, any>|null} [given] - a copy the caller already holds (the pre-grant paint);
+ *   omitted, the registered source is asked (`setSnapshotSource`)
+ * @returns {{ display: 'render'|'stale'|'loading'|'unavailable', snapshot: Map<string, any>|null }}
+ *   `display` is how the grid draws; `snapshot` is the stored copy it is drawn from, or null
+ */
+export function monthOnScreen(member, year, month, given) {
+    const display = decideDisplay(knowledgeOf(monthKey(year, month)));
+    const snapshot = display === 'loading' && member
+        ? (given !== undefined ? given : _snapshotSource?.(member.name, year, month) ?? null)
+        : null;
+    return { display: snapshot ? 'stale' : display, snapshot };
+}
 
 /**
  * Builds and returns a fully populated calendar-container div.
@@ -440,18 +475,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
     // The HEADER is deliberately built first and kept in every state: it carries the month label and
     // it is the mount point for the sync chip (calendar-initial-fetch.js watches for it). Withholding
     // the header as well would take the retry away in exactly the states that need one.
-    let _display = decideDisplay(knowledgeOf(monthKey(year, month)));
-    // ── THE MEMBER'S OWN COPY STANDS IN FOR A MONTH STILL LOADING (v24.59) ─────────────────────
-    //
-    // Only `loading` — a month that failed keeps its failure panel, and a month with real data
-    // draws that. The copy is drawn as `stale` (no "As rostered" claims, see below) and LABELLED, and
-    // it is read here, never merged into `rosterOverridesCache`, so nothing else can mistake it for
-    // what the server said. Whether a copy may be offered at all — own calendar, signed in by name,
-    // not Team View — is the source's decision (calendar-app.js), not this view's.
-    const snapshot = _display === 'loading' && member
-        ? (opts.snapshot !== undefined ? opts.snapshot : _snapshotSource?.(member.name, year, month) ?? null)
-        : null;
-    if (snapshot) _display = 'stale';
+    // The member's own stored copy stands in for a month still loading, drawn `stale` (no "As
+    // rostered" claims, see below) and labelled: `monthOnScreen` holds the rule and its argument.
+    const { display: _display, snapshot } = monthOnScreen(member, year, month, opts.snapshot);
     calendarContainer.dataset.overrideState = snapshot ? 'snapshot' : _display;
     if (snapshot) {
         const note = document.createElement('p');
