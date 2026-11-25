@@ -45,8 +45,9 @@ same as *may the roster be read without individual identity?*. The first is answ
 second is Track E and stays where it is.
 
 **If you change a status, change the table, then search this file for prose that restates it.** This
-file's own Track E prose has disagreed with the table twice, once in each direction — a fact written in
-two places gets updated in one, and which one is arbitrary.
+file's Track E prose disagreed with the table twice, once in each direction — a fact written in two
+places gets updated in one, and which one is arbitrary — which is why that prose is now a pointer to
+`AUTH_PLAN.md`.
 
 ---
 
@@ -100,10 +101,9 @@ rule text and gate cases:
 - **Track D — App Check.** D1 monitor-first → D2 enforce, in the order Firestore → Storage →
   Functions, plus the analytics doc-size key-count cap. Monitor mode exists to learn what legitimate
   traffic looks like; enforcing before that is how you lock out your own staff.
-- **Track E — full-app auth.** Design is `AUTH_PLAN.md`; the phase list below is the sequencing half
-  and the two are kept in step by `auth-plan-parity.test.mjs`. The most likely external trigger is a
-  Chiltern-IT requirement if the app becomes official infrastructure — see ROADMAP.md → the
-  governance gate.
+- **Track E — full-app auth.** Everything but the stage is `AUTH_PLAN.md`. The most likely external
+  trigger is a Chiltern-IT requirement if the app becomes official infrastructure — see ROADMAP.md →
+  the governance gate.
 
 ---
 
@@ -251,138 +251,13 @@ Three design points that flow from this and still govern any future rule change:
   or one either side. That stops padding spreading to any other month's document; it does not shrink
   the exposure of the present month's, or of `activeAccounts`.)
 
-### Track E — full-app authentication — E0+E1 SHIPPED · the read closure is **CLOSED (26 Aug 2026)** · individual auth UNDECIDED
+### Track E — full-app authentication
 
-> **📄 `AUTH_PLAN.md` is the authoritative DESIGN doc for this track** (what "behind authentication" can
-> and cannot mean here, the per-phase build detail, the offline grace-mode answer, what to measure, the
-> owner decisions). This section stays authoritative for **sequencing and risk**, consistent with how
-> `PASSWORD_DESIGN.md` relates to Track C. Keep each to its half.
-
-> **Status: the read closure is IN FORCE since 26 Aug 2026; the shared staff PIN was RETIRED on 23 Nov
-> 2026, so every reader of the Calendar signs in by name. E3/E4/E5 as designed are still not built.**
->
-> `overrides` reads require a verified member (`isMember()`) or `admin`; the retired staff PIN's
-> `calendarViewer` capability was a third, until its server release deleted it (DECISIONS.md → "The
-> staff PIN retired"). The bare `allow read;` that once sat ABOVE that rule — and which,
-> because Firestore ORs every matching allow rule, kept override data public — was deleted in its own
-> push after the client had soaked; RECOVERY_RUNBOOK.md → "The staff PIN (retired)" keeps the order
-> it followed. **The external review's "public absence/AL data" finding is closed.** The `huddles` /
-> `circulars` / `newsletters` reads closed too (owner decision, 7 Sep 2026: the documents are not
-> visible without a sign-in — or, until 23 Nov 2026, the PIN). What stays open is the FILES half, the permanent bearer URLs
-> (E6 below; `ARCHITECTURE.md` EXC-007).
->
-> The owner decided independently (23 Nov 2026) that each person authenticates: the PIN is retired,
-> and somebody with no roster of their own gets an Other Staff login. That reached E3's front door by
-> removing the shared code; E3's soft posture, E4's offline grace and E5's named-only rules for the
-> whole app remain dormant (`AUTH_PLAN.md` → E3). `AUTH_PLAN.md` → E2 records how a server-validated shared credential answered
-> the decision gate in a way the phase list did not contain, and what it deliberately leaves open.
-
-**Two different bars, wildly different costs:**
-
-| | Rule shape | Who it lets in | What it blocks | UX cost |
-|---|-----------|----------------|----------------|---------|
-| **Level 1** — auth-required read | `allow read: if request.auth != null;` | any session **incl. an anonymous one** | a raw REST/`curl` scrape with **no** Firebase session; casual URL sharing | **Small, not zero** — needed the E1 prep first. No front-door change. |
-| **Level 2** — named-only read | `allow read: if isMember();` (already the live `overrides` read rule's member door — a bare `token.name != null` is weaker: any session can set its own display name) | only a **named** staff session | anonymous sessions too — anyone not signed in as staff | **Real** — the calendar must show a login before it renders. The true "behind login". |
-
-**Be honest about what each buys.** The project config is in the client JS, so a *determined* scraper
-can create an anonymous session — Level 1 raises the bar from "trivially public" to "must initiate a
-Firebase anonymous session against our project", not to "must be staff". The PIN (retired 23 Nov 2026)
-and Level 2 are the real gates. The exposure being closed is **outsider-with-URL**, not colleague-to-colleague (the member
-selector already lets any staff member view any colleague's roster/AL by design — Track E does not
-change that).
-
-**The rules tightening is the actual control** (a client gate over open rules is theatre, bypassable via
-REST). Staged:
-
-- **E0 (free, no decision needed) — ✓ SHIPPED v19.00.** Search engines excluded: `X-Robots-Tag:
-  noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in every served page
-  (the GitHub Pages mirror gets no headers, and a `robots.txt` cannot reach it — only honoured at an
-  origin root). `robots.txt` deliberately **permits** crawling: a crawler blocked from fetching can
-  never read the noindex, so `Disallow: /` would hide the signal, not the page. Guarded by
-  `sw-asset-check.test.mjs`. Closes the *casual* half of the exposure, independent of everything below.
-- **E1 (prep, behaviour-preserving): make the calendar's reads auth-aware — ✓ SHIPPED v19.01.**
-  Shipped as its OWN release, before any rules change. Four paths had read with whatever auth existed —
-  `calendar-initial-fetch.js`, `calendar-huddle-viewer.js`, `calendar-doc-viewer.js`, and
-  `nav-panel.js`'s Circular/Newsletter open. The calendar's own load became **two-phase** (paint from
-  the local cache with no network and no auth, then the authoritative server read once auth resolves),
-  so requiring a session for reads can never put a sign-in round trip in front of data the device
-  already holds. The three tap paths wait for auth **with a deadline** — see `AUTH_PLAN.md` → E1 for
-  the rule that came out of it. **This is client preparation, NOT a security boundary** — it changes
-  no rule (see question 1 below).
-- **E2: tighten reads to Level 1** (`request.auth != null`, anonymous OK) — **SUPERSEDED at v20.12,
-  and by something STRICTER. Do not build it.** Its whole content was "require *any* Firebase
-  session", with the Anonymous provider left enabled — so the barrier was one `signInAnonymously()`
-  call, which is no barrier to anyone willing to script it. The staff PIN replaced it: `overrides`
-  reads require a verified member (`isMember()`) **or** the `calendarViewer` capability, and anonymous
-  is denied outright. That clears the **E5** bar for the read without paying E3's front-door cost. The
-  PIN itself was retired on 23 Nov 2026, and its server release took the capability out of the
-  rules: a named sign-in is the only way in now. Full
-  argument: `AUTH_PLAN.md` → E2. The **three document collections**, the one piece left over from E2,
-  were closed under E6 (the reads require access; the files' bearer URLs are E6's remaining half).
-- **E3: require named on the calendar, SOFT posture.** Flip `PAGE_POLICIES.calendar` to require named,
-  wire the shared `login-overlay.js`, start in a **soft** posture first (a Calendar-specific policy flag
-  — the write pages' requirement is unconditional, so there is no shared switch to borrow) — measure
-  how many launches hit the wall. Client UX only; the rules are unchanged at this phase.
-- **E4: offline grace mode — ships WITH E3, not after.** Without it E3 is a genuine regression for a
-  member whose session lapsed while offline. Design in `AUTH_PLAN.md` §4 (durable device marker,
-  cache-only render, real login on reconnect). Do not schedule E3 without it.
-- **E5: tighten reads to Level 2** (`isMember()`) + make the calendar login mandatory. Only after E3/E4
-  soak, and only after the claim-tier analysis `AUTH_PLAN.md` flags as missing. Nothing in the app
-  calls `signInAnonymously` any more, so **disabling the Anonymous provider project-wide** does not wait
-  on E5: it is a Console step that can be taken now (`firestore.rules` still records the provider as
-  enabled).
-- **E6 — the READS closed (client v23.17, rules v23.18), and the FILES are handed out as 15-minute
-  signed links** (`getDocumentUrl`: server v24.16–18, client v24.19), with the stored permanent link
-  kept as the fallback when one cannot be fetched (owner, 7 Oct 2026 — DECISIONS.md). **What remains
-  open is the tokens already in circulation** (ARCHITECTURE.md EXC-007): the files ride bearer URLs
-  that bypass `storage.rules` entirely, so **no rules change in this track touches them**, and old
-  URLs stay live until the objects are rewritten. Word documents open through Microsoft's Office Online
-  viewer, which fetches them **server-side** — which is why authenticated download (the obvious route)
-  was not taken. Note the asymmetry when prioritising: the track's headline change protected the
-  personal data, and only E6 protects the company-confidential documents. Design and the options
-  weighed: `AUTH_PLAN.md` §5.
-
-**Why it's not much code but is a big decision.** Mechanically E3–E5 are a pattern-copy + a rules
-change + a policy flag (~a day). But the calendar is the app's **front door**, and four real
-consequences hang off requiring an individual sign-in there:
-
-1. **Offline lockout (sharpest).** The app is offline-first and the calendar is the PWA `start_url`,
-   launched from cache. A staff member whose 60-day session lapsed **and who is offline** cannot log in
-   (login needs network) → locked out of their **own cached roster**. A genuine regression to weigh —
-   E4 is the answer.
-2. **Notification deep-links.** A push tap opens `#huddle`; on a lapsed session it would land on a
-   login screen. The deep link must survive the login flow.
-3. **First-run onboarding.** First contact becomes "sign in" for everyone, including the shared
-   station PC — which is where the app has stood since the PIN was retired (23 Nov 2026).
-4. **The document viewers** couple to the login working on every path.
-
-**Rollout discipline:** migrate, don't cut over — **E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5**.
-Never make the calendar's front door and named-only read rules a single flip. `auth-plan-parity.test.mjs`
-pins this exact sequence in both documents and rejects superseded shorthand for the phases. Reuse the
-staged posture the B-track proved. Verify only from a **fresh private window**. **Starting E3
-consciously REVERSES a recorded decision** — `CREDENTIAL_LIFECYCLE.md` §4, keep both kinds of Calendar
-access — so record the reversal rather than making it silently. Retiring the PIN (23 Nov 2026) was
-that reversal, recorded there.
-
-**Owner questions — answer BEFORE writing any E code:**
-
-1. **What bar are we defending?** Casual (indexing / shared URL) → **E0 + the staff PIN** was the
-   stopping point, and both shipped; the PIN has since been retired for a named sign-in (23 Nov 2026). A motivated outsider willing to script an anonymous sign-in
-   is already refused by the read rule; *individual* identity — each person authenticates — needs
-   **E3/E4/E5** and the front-door cost that comes with them. *This single answer decides whether the
-   rest of Track E is needed at all.*
-   **Not E1.** E1 is behaviour-preserving CLIENT preparation — it changes no rule and does not stop a
-   direct Firestore REST read, so it is not a security boundary and must never be cited as one.
-2. **Is a login wall on the home screen acceptable?** (The calendar is opened many times a day.)
-3. **Is the offline-lockout regression acceptable?** If not: a grace mode (render the cached roster
-   read-only, require login only to *sync fresh* data) and/or longer sessions.
-4. **Member selector vs identity.** Default to showing your own roster, or stay a free selector with
-   login as a pure gate? (UX, not security.)
-5. **Analytics identity guarantee.** Keep the calendar identity-free, or make it an active-account
-   surface (still client-deduped, no server identity)?
-6. **Anonymous provider fate — overtaken.** Nothing in the app signs in anonymously any more, so the
-   provider can be **disabled project-wide** (real hardening) as a Console step, with nothing depending
-   on it.
+**Track E is written in `AUTH_PLAN.md`, and only there** — what "behind authentication" can mean for
+static files on public hosting, the E0–E6 phases, the order they may ship in, their risks, what to
+measure and the owner's questions (its §7). Its STATUS is the Track E and E6 rows of the canonical
+table above, and nowhere else. This section was a second copy of the phase list until 25 Nov 2026; the
+two copies drifted, so it is a pointer now, and `auth-plan-parity.test.mjs` keeps it one.
 
 ---
 
@@ -395,8 +270,7 @@ that reversal, recorded there.
 | Code expiry / retry-rate-limit policy | C2, C4 | 10-minute expiry + 3-attempt lockout is the documented default. |
 | reCAPTCHA Enterprise provider | D1/D2 | Required before App Check can attest. |
 | Is the app **official Chiltern infrastructure**? | App Check priority; header-capable hosting; Track E | If yes, App Check and Firebase-Hosting-only (drop github.io) rise in priority, and Track E may become a requirement. |
-| **Full-app auth — do it at all, and which bar?** | Track E (undecided) | See Track E header + Q1. The "which bar" answer may itself be dictated by IT. |
-| **Full-app auth — front-door + offline-lockout acceptable?** | Track E (E3) | Login wall on the PWA `start_url`; lapsed-session **offline** user loses their own cached roster. Q2–Q3. |
+| **Full-app auth — do it at all, which bar, and is the front door's cost acceptable?** | Track E (E3 onward) | The questions, and what each blocks, are `AUTH_PLAN.md` §7. The "which bar" answer may itself be dictated by IT. |
 
 ---
 
