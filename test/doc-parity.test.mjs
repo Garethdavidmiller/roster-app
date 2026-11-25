@@ -333,7 +333,10 @@ test('every module has its own AI_MAP entry, not just a mention', () => {
 // which is not prose and not this test's business. It is the largest card that survived the second
 // pass, rounded up, so it can only come DOWN. An entry that needs more room is a module whose header
 // should hold the rest.
-const AIMAP_ENTRY_CAP = 1_500;
+// RATCHETED 1,500 -> 750 (25 Nov 2026), when a module's card went: what a module is became its
+// FILE_INDEX row alone, so a module entry is its heading and its generated export line, and the
+// entries left with a note are the few that are not one module (the largest, 712).
+const AIMAP_ENTRY_CAP = 750;
 test('no AI_MAP entry outgrows a routing card', () => {
     const entries = [];
     let cur = null;

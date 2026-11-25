@@ -221,7 +221,7 @@ and it is not a changelog. Three homes, one fact each:
 
 A fact kept in two places drifts, and that drift is behind every stale doc claim this repo has had to
 correct. So a new module gets a one-line `FILE_INDEX.md` entry and its argument in its header
-(`AI_MAP.md` carries each module's routing card and generated export list). Reasoning leaves a doc only
+(`AI_MAP.md` carries each module's generated export list and the task → file table). Reasoning leaves a doc only
 after it is verified in the module header. `doc-parity.test.mjs` caps this file's size, because it is
 loaded into every session.
 

@@ -30,101 +30,101 @@ roster-app/
 ├── operations.html         ← admin-only Operations page: the Needs-attention strip, the document upload cards and links, the Roster upload, the Annual leave sheet, reset requests, account status, Staff Login Accounts, Error Log, Usage and App Speed
 ├── settings.html          ← the Settings STATUS page: Your account, This device, Your data — cards open by their state; what each state means is settings-status.js
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring
-├── calendar-state.js       ← display month/year state for index.html (getters/setters + persistViewedMonth)
-├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown
-├── calendar-al-lightbox.js ← the Calendar's annual-leave panel and day-detail panel (`initCalendarLightboxes`); every badge on the day panel comes from the grid's own authorities. Reasoning: its header. Tested by calendar-al-lightbox.test.mjs
-├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_PLAN.md → E1)
-├── calendar-keyboard.js    ← keyboard navigation and the hover tooltip for index.html
-├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs a leftover staff-PIN session out. **Read its header first.** Tested by calendar-access.test.mjs
+├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring. See also calendar.spec.js, calendar-redraw.test.mjs.
+├── calendar-state.js       ← display month/year state for index.html (getters/setters + persistViewedMonth). See also calendar-state.test.mjs.
+├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown. See also calendar.spec.js.
+├── calendar-al-lightbox.js ← the Calendar's annual-leave panel and day-detail panel (`initCalendarLightboxes`); every badge on the day panel comes from the grid's own authorities. Reasoning: its header. Tested by calendar-al-lightbox.test.mjs. See also lightbox-transform-parity.test.mjs, day-detail-explains.test.mjs.
+├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_PLAN.md → E1). See also calendar-initial-fetch.test.mjs.
+├── calendar-keyboard.js    ← keyboard navigation and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar.spec.js.
+├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs a leftover staff-PIN session out. **Read its header first.** Tested by calendar-access.test.mjs. See also AUTH_AND_SESSIONS.md, calendar-access.spec.js.
 ├── calendar-lock-slot.js ← the ONE place a card can stand in for the Calendar grid, and the workspace it hides; at most one card, no decisions. Exercised through calendar-access.test.mjs and e2e/calendar-access.spec.js
 ├── calendar-lock-cards.js ← the cards that can stand where the Calendar goes (sign-in, its can't-load fallback, come-back): it DRAWS, `calendar-access.js` DECIDES. Its header
-├── calendar-access-core.js ← the PURE rules behind the gate: the viewer identity (for the teardown), `decideAccess`, notice audiences (members only). **No client file shapes, sends or compares a PIN.** Tested by calendar-access-core.test.mjs
+├── calendar-access-core.js ← the PURE rules behind the gate: the viewer identity (for the teardown), `decideAccess`, notice audiences (members only). **No client file shapes, sends or compares a PIN.** Tested by calendar-access-core.test.mjs. See also CALENDAR_DATA.md.
 ├── calendar-snapshot.js ← the member's OWN roster kept on this device so the Calendar opens instantly while sign-in is checked; bounded, deleted on any refusal. Tested by calendar-snapshot.test.mjs and e2e/calendar-access.spec.js
-├── calendar-data-state.js  ← what the Calendar KNOWS about a month's overrides, and so what it may SHOW. Pure; the four states: its header. Tested by calendar-data-state.test.mjs
+├── calendar-data-state.js  ← what the Calendar KNOWS about a month's overrides, and so what it may SHOW. Pure; the four states: its header. Tested by calendar-data-state.test.mjs. See also CALENDAR_DATA.md.
 ├── calendar-legend.js ← the month legend: which keys apply and whether a legend applies at all. Reasoning: its header. Tested by calendar-legend.test.mjs
-├── calendar-overrides.js   ← the Calendar's Firestore override cache: range fetches, the phase-1 cache read, the access gate, the read ticket and the write ordering — each rule argued beside its code
+├── calendar-overrides.js   ← the Calendar's Firestore override cache: range fetches, the phase-1 cache read, the access gate, the read ticket and the write ordering — each rule argued beside its code. See also calendar-overrides.test.mjs.
 ├── calendar-notices.js     ← the Calendar page's one-time notices (`initCalendarNotices`); new index.html notices land here. Live ones: the new-notice skill
-├── calendar-member.js      ← team member selection for index.html (dropdown, current member, stale-name handling)
-├── calendar-renderer.js    ← calendar cell/grid building for index.html, plus the pure helpers the day panel reads back
-├── calendar-huddle-viewer.js    ← the Huddle viewer overlay (`#huddle`), including the per-table scroll boxes
-├── huddle-table-grid.js ← which Huddle cells are really in COLUMN 1, walking the grid as the browser does. Pure. Tested by huddle-table-grid.test.mjs
-├── calendar-doc-viewer.js  ← the Circular/Newsletter in-app viewer (`#circular` / `#newsletter`), separate from the Huddle viewer
-├── nav-panel.js            ← the shared nav drawer; renders what nav-destinations.js lists
+├── calendar-member.js      ← team member selection for index.html (dropdown, current member, stale-name handling). See also calendar-member.test.mjs.
+├── calendar-renderer.js    ← calendar cell/grid building for index.html, plus the pure helpers the day panel reads back. See also calendar-renderer.test.mjs, calendar.spec.js.
+├── calendar-huddle-viewer.js    ← the Huddle viewer overlay (`#huddle`), including the per-table scroll boxes. See also calendar-huddle-viewer.test.mjs.
+├── huddle-table-grid.js ← which Huddle cells are really in COLUMN 1, walking the grid as the browser does. Pure. Tested by huddle-table-grid.test.mjs. See also pages.spec.js.
+├── calendar-doc-viewer.js  ← the Circular/Newsletter in-app viewer (`#circular` / `#newsletter`), separate from the Huddle viewer. See also calendar-doc-viewer.test.mjs.
+├── nav-panel.js            ← the shared nav drawer; renders what nav-destinations.js lists. See also nav-panel.test.mjs, nav-bell.test.mjs, nav-guide-fold.test.mjs, coordinator-ratchet.test.mjs.
 ├── nav-destinations.js     ← the drawer's destinations and pill gates as DATA; imports nothing
-├── newsletter-recency.js   ← whether the ☰ menu offers the Marylebone Newsletter (latest issue under six weeks old)
-├── notice-archive.js       ← the App Notices archive's rules and its never-throwing read
+├── newsletter-recency.js   ← whether the ☰ menu offers the Marylebone Newsletter (latest issue under six weeks old). See also calendar.spec.js, operations.spec.js.
+├── notice-archive.js       ← the App Notices archive's rules and its never-throwing read. See also notice-archive.test.mjs.
 ├── guide-search.js         ← the PURE rules of cross-guide search, including the one tokeniser shared with the index generator. Tested by guide-search.test.mjs
 ├── guide-index.js          ← GENERATED cross-guide search index — do NOT hand-edit; `npm run generate:guide-index` with any guide-content change. Pinned by guide-index-parity.test.mjs
 ├── nav-guide-search.js     ← the drawer's guide search box, lazy-loaded with the index on first focus
-├── install-prompt.js ← the one-off "add to home screen" strip on the Calendar, plus `installRoute`; never shown with the notification prompt. Its header
+├── install-prompt.js ← the one-off "add to home screen" strip on the Calendar, plus `installRoute`; never shown with the notification prompt. Its header. See also install-route.test.mjs.
 ├── calendar-notif-prompt.js ← the Calendar's one-off notification prompt and the silent subscription renewal; never for a leftover staff-PIN viewer. Its header. Tested by calendar-notif-prompt.test.mjs
 ├── calendar-doc-access.js ← whether this Calendar may read the DOCUMENTS (Huddle, Circular, Newsletter): the gate their viewers and drawer links consult, read from `calendar-access-state.js`. Its header. Tested by calendar-doc-access.test.mjs
 ├── calendar-access-state.js ← whether Calendar access is HELD right now — the one copy, with one write, read by both the roster gate and the document gate. Its header. Tested by calendar-access-state.test.mjs
-├── calendar-redraw.js ← WHEN the Calendar page may draw and what its next draw owes (start-up stages, the swipe wait, owed focus); draws nothing. Its header. Tested by calendar-redraw.test.mjs
+├── calendar-redraw.js ← WHEN the Calendar page may draw and what its next draw owes (start-up stages, the swipe wait, owed focus); draws nothing. Its header. Tested by calendar-redraw.test.mjs. See also calendar.spec.js.
 ├── calendar-drawer.js ← the Calendar's menu for the saved session, and its rebuild after an in-place sign-in. Its header. Tested by calendar-drawer.test.mjs and e2e/calendar-access.spec.js
-├── text-scale.js ← how much larger the phone draws text than the stylesheet asks, and the tier the Calendar's rows key on (`data-text-scale`). Its header. Tested by text-scale.test.mjs
-├── notif.js                ← shared Web Push: support and state, enable/disable, sign-out release, and the platform reads (iOS, standalone, Pages mirror)
-├── select-sheet.js ← the app's OWN dropdown in place of the OS's; the native `<select>` stays as the value holder. The rules an edit can break: its header and select-sheet-parity.test.mjs. Tested by select-sheet.test.mjs and select-sheet-pick.test.mjs
-├── overlay.js              ← shared overlay helpers: `createLightbox`, the scroll lock, focus trap, overlay history, and the in-app confirm/prompt dialogs; re-exports card-collapse.js
+├── text-scale.js ← how much larger the phone draws text than the stylesheet asks, and the tier the Calendar's rows key on (`data-text-scale`). Its header. Tested by text-scale.test.mjs. See also calendar.spec.js.
+├── notif.js                ← shared Web Push: support and state, enable/disable, sign-out release, and the platform reads (iOS, standalone, Pages mirror). See also notif.test.mjs.
+├── select-sheet.js ← the app's OWN dropdown in place of the OS's; the native `<select>` stays as the value holder. The rules an edit can break: its header and select-sheet-parity.test.mjs. Tested by select-sheet.test.mjs and select-sheet-pick.test.mjs. See also calendar.spec.js.
+├── overlay.js              ← shared overlay helpers: `createLightbox`, the scroll lock, focus trap, overlay history, and the in-app confirm/prompt dialogs; re-exports card-collapse.js. See also overlay.test.mjs, overlay-history.test.mjs.
 ├── card-collapse.js        ← a card's collapsible header and the deep link that opens a collapsed card by name; re-exported by overlay.js
 ├── date-picker.js          ← the brand-styled single-date picker over a hidden native `<input type="date">`. **Its CSS is in `shared.css`**
 ├── date-format.js          ← the app's OWN date vocabulary and month/day tables (roster-data.js re-exports `DAY_NAMES`, `MONTH_ABB` and `MONTH_NAMES`). Pure. Tested by date-format.test.mjs and month-vocabulary-parity.test.mjs
 ├── about-lightbox.js       ← the shared About panel, plus `wireHeaderLogo` — the only wiring of a sub-page's header logo. Used by every app page
-├── tips-lightbox.js        ← the shared per-card Tips panel
-├── login-overlay.js        ← the shared in-place sign-in overlay for every page that signs in, as a modal or inline (the Calendar's front door). Its header
+├── tips-lightbox.js        ← the shared per-card Tips panel. See also tips-content.test.mjs.
+├── login-overlay.js        ← the shared in-place sign-in overlay for every page that signs in, as a modal or inline (the Calendar's front door). Its header. See also auth.spec.js, calendar-access.spec.js.
 ├── login-core.js           ← the sign-in card's DOM-free rules, including the 30-second typed sign-in deadline (`SIGN_IN_GIVE_UP_MS`) and the set-password marker's hold; login-overlay.js re-exports them. Tested by login-overlay.test.mjs
-├── password-force.js ← the MANDATORY "set your own password" overlay (PASSWORD_DESIGN.md Phase 2). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs
-├── session.js              ← shared auth/session: re-establishing the Firebase session, the pre-warm, the local session, and the named-vs-anonymous identity signals
-├── staff-pin-ended.js      ← whether arriving on this page signed out a leftover session of the retired staff PIN, and the one sentence that says so; transition plumbing. Its header. Tested by session.test.mjs and login-overlay.test.mjs
-├── silent-sign-in.js      ← the RULES of the sign-in nobody typed (pure); session.js keeps the memory. Its header. Tested by session.test.mjs
+├── password-force.js ← the MANDATORY "set your own password" overlay (PASSWORD_DESIGN.md Phase 2). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs. See also page-contract-parity.test.mjs.
+├── session.js              ← shared auth/session: re-establishing the Firebase session, the pre-warm, the local session, and the named-vs-anonymous identity signals. See also coordinator-ratchet.test.mjs.
+├── staff-pin-ended.js      ← whether arriving on this page signed out a leftover session of the retired staff PIN, and the one sentence that says so; transition plumbing. Its header. Tested by session.test.mjs and login-overlay.test.mjs. See also calendar-access.spec.js.
+├── silent-sign-in.js      ← the RULES of the sign-in nobody typed (pure); session.js keeps the memory. Its header. Tested by session.test.mjs. See also AUTH_AND_SESSIONS.md.
 ├── viewer-shed.js         ← signs a leftover staff-PIN viewer out before a member signs in, in the order that keeps it out of long-lived storage. Its header. Tested by session.test.mjs
 ├── auth-state-core.js      ← the PURE identity state machine (AUTH_AND_SESSIONS.md → Architecture). Tested by auth-state-core.test.mjs
-├── auth-state.js           ← the auth STORE over that reducer; session.js feeds it. AUTH_AND_SESSIONS.md → Architecture
-├── auth-policy.js          ← page AUTHORISATION: the page policies and the drawer's pill gates. CLIENT UX only — the server rules are the boundary
+├── auth-state.js           ← the auth STORE over that reducer; session.js feeds it. AUTH_AND_SESSIONS.md → Architecture. See also auth-state.test.mjs, session.test.mjs.
+├── auth-policy.js          ← page AUTHORISATION: the page policies and the drawer's pill gates. CLIENT UX only — the server rules are the boundary. See also AUTH_AND_SESSIONS.md, auth-policy.test.mjs, page-contract-parity.test.mjs.
 ├── sw-register.js          ← shared service-worker registration and update lifecycle. Reasoning beside each rule. Tested by sw-register.test.mjs
 ├── splash-watchdog.js      ← CLASSIC (non-module) recovery script for index.html, so it runs even when the module graph fails: one guarded reload, then a Reload / Reset-cache panel. Tested by splash-watchdog.test.mjs
-├── error-reporter.js       ← the shared uncaught-error reporter, writing to Firestore `clientErrors`; its header has the four call shapes
+├── error-reporter.js       ← the shared uncaught-error reporter, writing to Firestore `clientErrors`; its header has the four call shapes. See also error-reporter.test.mjs.
 ├── fetch-timeout.js ← the time bound on every Cloud Function call, and on a file read by silence. **A timed-out WRITE is never reported as not having happened.** Tested by fetch-timeout.test.mjs
 ├── usage-reporter.js ← the shared anonymous usage recorder (no identity stored). Tested by usage-reporter.test.mjs
 ├── usage-stats.js          ← pure usage maths behind the Usage card
-├── perf-reporter.js        ← the shared anonymous latency recorder behind the App Speed card; only time somebody spent waiting is counted
+├── perf-reporter.js        ← the shared anonymous latency recorder behind the App Speed card; only time somebody spent waiting is counted. See also perf-reporter.test.mjs.
 ├── perf-stats.js           ← pure latency maths behind the App Speed card
-├── calendar-team-view.js        ← Team Week View; its overrides come from the SHARED month fetch, with no Firestore read of its own
+├── calendar-team-view.js        ← Team Week View; its overrides come from the SHARED month fetch, with no Firestore read of its own. See also CALENDAR_DATA.md, team-week-start.test.mjs, calendar.spec.js.
 ├── al-contract.js ← a member's CONTRACT leave allowance for a year; read it through `entitlementFor`. Pure; tested by al-entitlement.test.mjs
 ├── al-entitlement.js ← which annual-leave days consume entitlement and where that leaves a member — the ONE answer every surface asks. Its header. Pure; tested by al-entitlement.test.mjs
 ├── al-leave-file.js ← THE LEAVE FILE: the sealed contract between the session that reads the clerks' workbook and the Operations card. Pure; tested by al-leave-file.test.mjs
-├── al-leave-compare.js ← the leave sheet beside the app, person by person and day by day, judged by the app's own rules; writes nothing. Pure; tested by al-leave-compare.test.mjs
+├── al-leave-compare.js ← the leave sheet beside the app, person by person and day by day, judged by the app's own rules; writes nothing. Pure; tested by al-leave-compare.test.mjs. See also operations.spec.js.
 ├── al-leave-plan.js ← what one Save of the Annual leave sheet writes, its upload log and Undo. Pure; tested by al-leave-plan.test.mjs
 ├── al-leave-save.js ← the Annual leave sheet's Save against Firestore, the upload log and the Undo. Tested by al-leave-save.test.mjs
 ├── al-leave-words.js ← every sentence the Annual leave sheet card says. Pure; tested by al-leave-words.test.mjs
-├── christmas-leave.js ← Christmas Day and Boxing Day leave and the Boxing Day lieu day, derived, never stored; `resolveDayShift` is what every surface calls. Its header. Pure; tested by christmas-leave.test.mjs
+├── christmas-leave.js ← Christmas Day and Boxing Day leave and the Boxing Day lieu day, derived, never stored; `resolveDayShift` is what every surface calls. Its header. Pure; tested by christmas-leave.test.mjs. See also CALENDAR_DATA.md, calendar.spec.js, admin.spec.js.
 ├── leave-year.js ← WHICH YEAR'S ALLOWANCE a day of leave comes out of (a January day may carry `leaveYear`). Pure; tested by leave-year.test.mjs
 ├── admin-leave-year.js ← the Admin AL card's "Which year's allowance" panel; draws, decides nothing. Tested by admin-leave-year.test.mjs
 ├── admin-leave-year-save.js ← the save behind that panel, in one checked transaction. Tested in admin-overrides.test.mjs
 ├── admin-al-year.js ← WHICH YEAR the Admin AL figures describe. Pure; tested by admin-al-year.test.mjs
-├── admin-al-projection.js ← WHAT AN AL BOOKING WILL DO, decided once for preview, warning and write. Its header. Tested by admin-al-projection.test.mjs
-├── admin-week-row-state.js ← what a week-grid row looks like in each state, and a week's staged rows as draft data; works from the row element alone
-├── admin-day-pills.js ← which changes one week-grid day takes, refused at its pills (layer 1 of the Sunday rule). Its header
+├── admin-al-projection.js ← WHAT AN AL BOOKING WILL DO, decided once for preview, warning and write. Its header. Tested by admin-al-projection.test.mjs. See also admin-overrides.test.mjs.
+├── admin-week-row-state.js ← what a week-grid row looks like in each state, and a week's staged rows as draft data; works from the row element alone. See also admin-week-editor.test.mjs, admin-own-write.test.mjs, admin-overrides.test.mjs.
+├── admin-day-pills.js ← which changes one week-grid day takes, refused at its pills (layer 1 of the Sunday rule). Its header. See also admin-day-pills.test.mjs.
 ├── admin-own-write.js ← what the page's own write does to the week on screen: only the touched days redraw. Its header
 ├── admin-bulk-apply.js ← what the week card's bulk Apply is waiting for, and the days it left alone; not a layer of the Sunday rule
-├── admin-time-inputs.js ← the Admin week grid's time boxes. Its re-entry guard is load-bearing on iOS — the header says why
+├── admin-time-inputs.js ← the Admin week grid's time boxes. Its re-entry guard is load-bearing on iOS — the header says why. See also admin.spec.js.
 ├── admin-week-collect.js ← what one press of the week grid's Save asks to write (Sunday rule layer 6). Its header. Tested by override-utils.test.mjs
 ├── admin-al-week-save.js ← what one week-grid save does about its annual leave, and the same for a Saved Changes delete. Its header. Pure; tested by admin-al-week-save.test.mjs
 ├── overtime-sunday-release.js ← asking to be taken off a rostered Sunday: a request that grants nothing. Pure; tested by overtime-sunday-release.test.mjs
-├── overtime-phase.js ← where the Overtime week stands, in the member's terms (words for TIME); re-exported from overtime-format.js. Pinned by overtime-format.test.mjs
-├── overtime-answer.js ← the one place a day's answer is edited on the Overtime form. Its header. Pure; tested by overtime-answer.test.mjs
+├── overtime-phase.js ← where the Overtime week stands, in the member's terms (words for TIME); re-exported from overtime-format.js. Pinned by overtime-format.test.mjs. See also OVERTIME_AVAILABILITY.md.
+├── overtime-answer.js ← the one place a day's answer is edited on the Overtime form. Its header. Pure; tested by overtime-answer.test.mjs. See also overtime.spec.js.
 ├── al-swapped-days.js ← which days in an AL booking need the swapped-day question, and the rest days an absence range leaves alone. Its header. Pure; tested by al-swapped-days.test.mjs and e2e/admin.spec.js
 ├── admin-al-spare-note.js ← the one sentence the AL booking preview says about Spare days. Pure; tested by admin-al-spare-note.test.mjs and e2e/admin.spec.js
 ├── admin-period-dates.js ← what a run of booked dates is and how it reads. **A gap is not a day off.** Pure; tested by admin-period-dates.test.mjs
 ├── admin-booked-periods.js ← the recorded-dates list on admin.html and which year of it is shown, plus the shared two-tap and feedback fade. Its header. Tested by admin-booked-periods.test.mjs
-├── print-guard.js      ← whether `window.print()` can do anything here (it does nothing in an iOS home-screen app); every print control goes through `printOrExplain`. Tested by print-guard.test.mjs
+├── print-guard.js      ← whether `window.print()` can do anything here (it does nothing in an iOS home-screen app); every print control goes through `printOrExplain`. Tested by print-guard.test.mjs. See also print.spec.js.
 ├── clock-input.js      ← the rules of a TEXT clock box, pure, shared by every page with one. Tested by clock-input.test.mjs
-├── override-utils.js   ← override, member-start and shift helpers, including `resolveEffectiveShift` (the override→display ladder)
-├── admin-app.js            ← coordinator for admin.html; its body is an exported `init()` run by admin-boot.js
+├── override-utils.js   ← override, member-start and shift helpers, including `resolveEffectiveShift` (the override→display ladder). See also coordinator-ratchet.test.mjs.
+├── admin-app.js            ← coordinator for admin.html; its body is an exported `init()` run by admin-boot.js. See also coordinator-ratchet.test.mjs.
 ├── admin-tips.js           ← CARD_TIPS for admin.html's `?` panels. Pure data
 ├── admin-boot.js           ← two-line bootstrap for admin.html (CSP blocks inline module scripts)
-├── operations-app.js       ← coordinator for operations.html: session guard, upload and account cards; body is `init()`, run by operations-boot.js
+├── operations-app.js       ← coordinator for operations.html: session guard, upload and account cards; body is `init()`, run by operations-boot.js. See also coordinator-ratchet.test.mjs.
 ├── operations-reports.js   ← what the Operations reporting cards SHARE; owns no card, and is not a re-export barrel (its header says why)
 ├── operations-errors.js    ← the Error Log card, with a no-silent-caps banner and a bug-report copy
 ├── operations-usage.js     ← the Usage card: page and document opens, active accounts, the exact sign-in figures
@@ -135,91 +135,91 @@ roster-app/
 ├── operations-al-sheet.js ← the Annual leave sheet card: a leave file in, each member's records read whole, every difference drawn as text; nothing kept. Driven by e2e/operations.spec.js
 ├── operations-al-save.js ← that card's Save: per-person confirmations, the receipt and the Undo. Driven by e2e/operations.spec.js
 ├── operations-doc-uploads.js ← the Circular and Newsletter upload cards' configuration; the card itself is doc-upload.js
-├── operations-tips.js      ← CARD_TIPS for operations.html's `?` panels. Pure data
+├── operations-tips.js      ← CARD_TIPS for operations.html's `?` panels. Pure data. See also operations.spec.js.
 ├── operations-boot.js      ← two-line bootstrap for operations.html (CSP blocks inline module scripts)
-├── settings-status.js ← what the Settings cards' states MEAN and which open; runs no reads. **Silence is not success.** Pure; tested by settings-status.test.mjs
+├── settings-status.js ← what the Settings cards' states MEAN and which open; runs no reads. **Silence is not success.** Pure; tested by settings-status.test.mjs. See also settings.spec.js.
 ├── settings-app.js         ← coordinator for settings.html; body is `init()`, run by settings-boot.js; driven by e2e/settings.spec.js
 ├── settings-boot.js        ← two-line bootstrap for settings.html (CSP blocks inline module scripts)
-├── huddle.js               ← the Daily Huddle manual upload card on Operations
-├── notif-card.js           ← the Settings Notifications card's wiring. Tested by notif-card.test.mjs
+├── huddle.js               ← the Daily Huddle manual upload card on Operations. See also dependency-pin-parity.test.mjs.
+├── notif-card.js           ← the Settings Notifications card's wiring. Tested by notif-card.test.mjs. See also settings.spec.js.
 ├── notif-card-core.js      ← what that card SAYS for each device and state. Pure; tested by notif-card-core.test.mjs
-├── doc-upload.js           ← the shared Operations upload-card skeleton (Huddle, Circular, Newsletter): pick, validate, optional transform, upload, feedback
+├── doc-upload.js           ← the shared Operations upload-card skeleton (Huddle, Circular, Newsletter): pick, validate, optional transform, upload, feedback. See also doc-upload.test.mjs.
 ├── admin-auth.js ← Staff Login Accounts: the provisioning button and the read-only audit above it. Its header. Tested by admin-auth.test.mjs
-├── admin-al.js             ← the Annual Leave Booking card: a config wrapper over admin-range-booking.js
-├── admin-sick.js           ← the Record Absence card: a config wrapper over admin-range-booking.js
-├── admin-range-booking.js  ← the shared skeleton of the two date-range booking cards
+├── admin-al.js             ← the Annual Leave Booking card: a config wrapper over admin-range-booking.js. See also admin-range-booking.test.mjs, admin-al-projection.test.mjs.
+├── admin-sick.js           ← the Record Absence card: a config wrapper over admin-range-booking.js. See also admin.spec.js.
+├── admin-range-booking.js  ← the shared skeleton of the two date-range booking cards. See also admin-range-booking.test.mjs.
 ├── admin-save-receipt.js ← what a save actually DID, day by day; a removed day is named, not omitted. Pure; tested by admin-save-receipt.test.mjs
 ├── slow-save.js ← the one line shown while a save waits for the server; never says "saved" (its header says why). Tested by slow-save.test.mjs and e2e/admin.spec.js
 ├── admin-shift-types.js ← the shift-type table Change a Shift speaks. **`PILL_TYPES` is the ONE declaration of which pills exist and in what order.** Tested by admin-shift-types.test.mjs
-├── admin-week-editor.js ← the seven-day grid, its pills, the bulk bar and everything staged but not saved. Its header
-├── admin-saved-changes.js ← the Saved Changes list and both delete paths; it may not claim completeness it does not have. Its header
+├── admin-week-editor.js ← the seven-day grid, its pills, the bulk bar and everything staged but not saved. Its header. See also admin-week-editor.test.mjs, admin.spec.js.
+├── admin-saved-changes.js ← the Saved Changes list and both delete paths; it may not claim completeness it does not have. Its header. See also admin-saved-changes.test.mjs, admin.spec.js.
 ├── admin-override-store.js ← the Admin override cache, its staged reads and their on-screen states. Its header
-├── override-id.js ← the ONE document id a manual override for a member and date is written to. Pure; its header
-├── override-compare.js ← whether the server's copy of a day is still the record the page showed. Pure; its header
+├── override-id.js ← the ONE document id a manual override for a member and date is written to. Pure; its header. See also override-utils.test.mjs, admin-overrides.test.mjs.
+├── override-compare.js ← whether the server's copy of a day is still the record the page showed. Pure; its header. See also admin-override-store.test.mjs, admin-roster-upload.test.mjs, admin-overrides.test.mjs, signed-in.spec.js.
 ├── admin-override-coverage.js ← what the Admin override cache KNOWS: authority comes from what was REQUESTED, never from the data. Pure; tested by admin-override-coverage.test.mjs
 ├── admin-shift-rules.js    ← shift-length, rest and day rules for Change a Shift; it decides, the caller paints. Its header. Tested by admin-shift-rules.test.mjs
-├── admin-overrides.js      ← Change a Shift COORDINATION: the write paths, rule validation and the section wiring
+├── admin-overrides.js      ← Change a Shift COORDINATION: the write paths, rule validation and the section wiring. See also admin-overrides.test.mjs.
 ├── admin-week-swipe.js ← the week-grid SWIPE on admin.html (Pointer Events; not shared with calendar-swipe.js). Covered by e2e/admin.spec.js
-├── admin-rangepicker.js    ← the inline date-range calendar
-├── admin-deep-link.js ← where a hash on admin.html LANDS, including nested targets. Tested by admin-deep-link.test.mjs
-├── roster-alignment.js ← whether a roster read is trustworthy or a day out, judged against the member's own base pattern; and which week the form offers first. Its header. Tested by admin-roster-upload.test.mjs
+├── admin-rangepicker.js    ← the inline date-range calendar. See also admin-rangepicker.test.mjs.
+├── admin-deep-link.js ← where a hash on admin.html LANDS, including nested targets. Tested by admin-deep-link.test.mjs. See also admin.spec.js.
+├── roster-alignment.js ← whether a roster read is trustworthy or a day out, judged against the member's own base pattern; and which week the form offers first. Its header. Tested by admin-roster-upload.test.mjs. See also operations.spec.js.
 ├── roster-cell-rules.js ← what a parsed roster cell MEANS as an override; every path producing a review value goes through it. Its header. Tested by roster-cell-rules.test.mjs
-├── roster-entry-control.js ← answering an unreadable roster cell in place. Its header
-├── roster-review-states.js ← the state of each roster-review cell, whether it is ticked, and what a Save writes. **Never "write it" where anything is in doubt.** Its header
-├── admin-roster-upload.js  ← Weekly Roster Upload COORDINATION: the review table, the file pick, the parse call and a refused Save
+├── roster-entry-control.js ← answering an unreadable roster cell in place. Its header. See also admin-roster-upload.test.mjs, operations.spec.js.
+├── roster-review-states.js ← the state of each roster-review cell, whether it is ticked, and what a Save writes. **Never "write it" where anything is in doubt.** Its header. See also admin-roster-upload.test.mjs.
+├── admin-roster-upload.js  ← Weekly Roster Upload COORDINATION: the review table, the file pick, the parse call and a refused Save. See also coordinator-ratchet.test.mjs.
 ├── roster-import-save.js   ← what one Save of the roster review writes, and its refusal line
-├── paycalc-app.js          ← coordinator for paycalc.html (wiring, autosave, the result card); body is `init()`, run by paycalc-boot.js
+├── paycalc-app.js          ← coordinator for paycalc.html (wiring, autosave, the result card); body is `init()`, run by paycalc-boot.js. See also paycalc.spec.js.
 ├── paycalc-boot.js         ← two-line bootstrap for paycalc.html (CSP blocks inline module scripts)
-├── paycalc-sticky-total.js ← the bar that keeps the take-home figure on screen; every guard fixes a reported iOS behaviour (its header)
-├── paycalc-role-card.js ← what the calculator says to somebody it will not price; who is refused is pay-audience.js
+├── paycalc-sticky-total.js ← the bar that keeps the take-home figure on screen; every guard fixes a reported iOS behaviour (its header). See also paycalc-sticky-total.test.mjs, paycalc.spec.js.
+├── paycalc-role-card.js ← what the calculator says to somebody it will not price; who is refused is pay-audience.js. See also paycalc-role-card.test.mjs, paycalc.spec.js.
 ├── paycalc-result-headline.js ← which figure is the pay result's headline and what it is called. **An actual is never called an estimate.** Tested by paycalc-result-headline.test.mjs
 ├── paycalc-ytd-card.js     ← the Year to Date card on the page; owns no rule. Tested by paycalc-ytd-card.test.mjs
 ├── paycalc-disclosures.js  ← the Pay page's button-and-panel disclosures. Tested by paycalc-disclosures.test.mjs
-├── paycalc-money-banner.js ← the two opt-in money banners; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs
-├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html
-├── paycalc-periods.js      ← period arithmetic and the period select, and the Year to Date source rules
-├── paycalc-settings.js     ← each payslip's rate, contracted hours, the pension controls and settings persistence
-├── paycalc-grade-setting.js ← the member's grade setting on this device, whether a payslip can be priced, and what the page says about it
-├── paycalc-grade.js        ← which grade each of a payslip's days was worked under, and its words. Pure
-├── paycalc-roster-hint.js  ← the roster-assist hint bar and its fills
-├── paycalc-hpp.js          ← the Holiday Pay Premium estimator and shared period helpers
+├── paycalc-money-banner.js ← the two opt-in money banners; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc.spec.js.
+├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html. See also paycalc.spec.js.
+├── paycalc-periods.js      ← period arithmetic and the period select, and the Year to Date source rules. See also paycalc-periods.test.mjs.
+├── paycalc-settings.js     ← each payslip's rate, contracted hours, the pension controls and settings persistence. See also paycalc-settings.test.mjs.
+├── paycalc-grade-setting.js ← the member's grade setting on this device, whether a payslip can be priced, and what the page says about it. See also paycalc-grade-setting.test.mjs, paycalc-grade-wiring.test.mjs, paycalc.spec.js.
+├── paycalc-grade.js        ← which grade each of a payslip's days was worked under, and its words. Pure. See also paycalc-grade.test.mjs.
+├── paycalc-roster-hint.js  ← the roster-assist hint bar and its fills. See also paycalc-roster-hint.test.mjs.
+├── paycalc-hpp.js          ← the Holiday Pay Premium estimator and shared period helpers. See also paycalc-hpp.test.mjs.
 ├── paycalc-hpp-schedule.js ← the PURE payslip ↔ tax-year relation for Holiday Pay Premium. Tested by paycalc-hpp-schedule.test.mjs
 ├── paycalc-fill-year.js ← "Fill this tax year from your calendar" and the seven rules that make it safe (its header). Tested by paycalc-fill-year.test.mjs
 ├── paycalc-year-card.js ← the "This tax year so far" block and its fill control. Its header. Tested by paycalc-year-card.test.mjs
 ├── paycalc-year-summary.js ← the "This tax year so far" figures. Tested by paycalc-year-summary.test.mjs
-├── paycalc-backpay.js      ← the back-pay lump-sum card
+├── paycalc-backpay.js      ← the back-pay lump-sum card. See also paycalc-backpay.test.mjs.
 ├── paycalc-backpay-accrual.js ← what a pay award owes, period by period. Pure. Tested through paycalc-backpay.test.mjs and paycalc-hpp.test.mjs
 ├── paycalc-backpay-state.js ← which figure ends up in which back-pay box, and which the member may change. Its header. Tested by paycalc-backpay-state.test.mjs
 ├── paycalc-pension.js ← WHEN a member was in the pension scheme; an empty timeline means contributing. Its header. Pure; tested by paycalc-pension.test.mjs
-├── paycalc-format.js       ← shared pure paycalc formatters and time-input helpers
+├── paycalc-format.js       ← shared pure paycalc formatters and time-input helpers. See also paycalc-format.test.mjs.
 ├── paycalc-breakdown.js    ← the PURE HTML builders for the pay-result card. Tested by paycalc-breakdown.test.mjs
 ├── paycalc-form-data.js ← the per-period form ↔ saved-data ROUND TRIP. Tested by paycalc-form-data.test.mjs
 ├── paycalc-inputs.js       ← the pay form's input helpers, free of coordinator state so they test against a fake `document`. Tested by paycalc-inputs.test.mjs
 ├── paycalc-inventory.js ← what a stored pay key IS and what a set of them adds up to — the one authority behind the backup summary and the damage preflight. Tested by paycalc-inventory.test.mjs
-├── paycalc-transfer.js ← the pay-data BACKUP FORMAT and import rules; `validateBackup` is the TRUST BOUNDARY. Tested by paycalc-transfer.test.mjs
+├── paycalc-transfer.js ← the pay-data BACKUP FORMAT and import rules; `validateBackup` is the TRUST BOUNDARY. Tested by paycalc-transfer.test.mjs. See also paycalc-key-parity.test.mjs.
 ├── paycalc-transfer-card.js ← the DOM half of the "Move Your Pay Data" card; restore REPLACES, never merges (its header says why)
-├── paycalc-calc.js         ← pure pay maths: tax, NI, student loan, gross, the grades and tax years
+├── paycalc-calc.js         ← pure pay maths: tax, NI, student loan, gross, the grades and tax years. See also paycalc-current-year.test.mjs.
 ├── paycalc-help.js         ← the Pay Calculator's `?` panel text. Pure data
 ├── paycalc-migrations.js   ← the paycalc storage keys, the migrations and the saved-period decoder (a corrupt period is surfaced, never dropped)
-├── paycalc-roster-suggestions.js ← the roster pre-fill engine
-├── roster-data.js          ← shared: `APP_VERSION`, `CONFIG`, the roster data and its utilities; `signInMembers()` is the one list of who can sign in
+├── paycalc-roster-suggestions.js ← the roster pre-fill engine. See also paycalc-roster-suggestions.test.mjs.
+├── roster-data.js          ← shared: `APP_VERSION`, `CONFIG`, the roster data and its utilities; `signInMembers()` is the one list of who can sign in. See also CALENDAR_DATA.md.
 ├── roster-cycle-data.js    ← raw roster cycle arrays, imported by roster-data.js only
 ├── roster-member-data.js ← the roster's PEOPLE (`teamMembers`), no logic; re-exported by roster-data.js. **World-readable** — the field-by-field argument is on `teamMembers`
 ├── pay-audience.js        ← WHO the Pay Calculator is for, by the role at the time. Pure. Tested by pay-audience.test.mjs
-├── roster-roles.js        ← a member's GRADE ON A DAY, from `role` and `roleHistory`. Pure, no imports
-├── firebase-client.js      ← shared: Firebase init, `db` and the Firestore helpers
-├── auth-identity.js        ← pure account-identity helpers (`normaliseSurname`, the account email, password validation); surname-parity.test.mjs holds the functions copy to this file
-├── storage-utils.js        ← pure Storage helpers, including the download-URL allowlist (a security control); re-exported by firebase-client.js
-├── document-url.js         ← asks `getDocumentUrl` for a SHORT-LIVED document URL; null means "use the stored URL". Never throws
-├── client-errors.js        ← the pure RULES of the client error log. **A filter too broad silently swallows real errors.**
-├── claim-retry.js          ← what a `permission-denied` means: retry once after a token refresh, or a refusal rather than a network fault (the one home). Tested by claim-retry.test.mjs
+├── roster-roles.js        ← a member's GRADE ON A DAY, from `role` and `roleHistory`. Pure, no imports. See also roster-data.test.mjs.
+├── firebase-client.js      ← shared: Firebase init, `db` and the Firestore helpers. See also AUTH_AND_SESSIONS.md, firebase-client.test.mjs, calendar-viewer-parity.test.mjs.
+├── auth-identity.js        ← pure account-identity helpers (`normaliseSurname`, the account email, password validation); surname-parity.test.mjs holds the functions copy to this file. See also auth-identity.test.mjs.
+├── storage-utils.js        ← pure Storage helpers, including the download-URL allowlist (a security control); re-exported by firebase-client.js. See also storage-utils.test.mjs, calendar-doc-viewer.test.mjs.
+├── document-url.js         ← asks `getDocumentUrl` for a SHORT-LIVED document URL; null means "use the stored URL". Never throws. See also document-url.test.mjs.
+├── client-errors.js        ← the pure RULES of the client error log. **A filter too broad silently swallows real errors.**. See also error-reporter.test.mjs.
+├── claim-retry.js          ← what a `permission-denied` means: retry once after a token refresh, or a refusal rather than a network fault (the one home). Tested by claim-retry.test.mjs. See also AUTH_AND_SESSIONS.md.
 ├── page-session.js         ← how a signed-in page LEAVES a session and what it does when the session leaves it, including the late-identity reload guard (`lateReloadAllowed`). Its header. Tested by page-session.test.mjs and page-contract-parity.test.mjs
 ├── unsaved-draft.js        ← unsaved work kept for a page that goes without asking; offered on the next load, never applied silently. Its header. Tested in page-session.test.mjs
-├── ls.js                   ← iOS-safe localStorage wrappers, including the two that refuse to leave a half state
+├── ls.js                   ← iOS-safe localStorage wrappers, including the two that refuse to leave a half state. See also ls-persist.test.mjs.
 ├── storage-keys.js         ← the single source for the CROSS-FILE storage keys. Pinned by storage-key-parity.test.mjs
 ├── status-text.js ← the leading glyph on a transient status message, and when a new live region speaks. Tested by status-text.test.mjs; kept by status-glyph-parity.test.mjs
 ├── upload-commit.js ← what an AMBIGUOUS Firestore commit means after a document upload — resolved by READING. Pure; tested by upload-commit.test.mjs
-├── documents-client.js ← the date-keyed document collections and their upload sequence. **A live document must never point at a file that is not there.** Tested by documents-client.test.mjs
+├── documents-client.js ← the date-keyed document collections and their upload sequence. **A live document must never point at a file that is not there.** Tested by documents-client.test.mjs. See also rules/pwa.md.
 ├── own-password.js ← re-authenticating with, and changing, the member's OWN password, and both surfaces' save sequence. Its header. Tested by firebase-client.test.mjs, password-force.test.mjs
 ├── account-calls.js ← the browser's side of three account endpoints; re-exported by firebase-client.js. Tested by firebase-client.test.mjs
 ├── analytics-client.js ← the Firestore I/O of the error log and the usage and speed counters; the decisions are elsewhere. Tested by analytics-client.test.mjs
@@ -227,13 +227,13 @@ roster-app/
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
 ├── overtime.html           ← Overtime availability: one page for the member's form and the reviewer workspace (its header says why) — closed while `CONFIG.OVERTIME_ENABLED` is false (OVERTIME_AVAILABILITY.md → Paused)
 ├── overtime.css            ← CSS for overtime.html, built around the week row
-├── overtime-app.js         ← coordinator for overtime.html: access gate, login, tabs and the planning horizon; body is `init()`, run by overtime-boot.js
+├── overtime-app.js         ← coordinator for overtime.html: access gate, login, tabs and the planning horizon; body is `init()`, run by overtime-boot.js. See also overtime.spec.js.
 ├── overtime-boot.js        ← 2-line bootstrap for overtime.html (CSP blocks inline module scripts)
 ├── overtime-data.js        ← every call the Overtime page makes to the server, with timeouts and the reconcilable submission id
 ├── overtime-format.js      ← the PURE client side of Overtime in words. Tested by overtime-format.test.mjs
 ├── overtime-clock.js ← WHETHER an Overtime action is still allowed; the client never refuses what the server would accept. Tested by overtime-clock.test.mjs
-├── overtime-form.js        ← the member's seven-day form: render, collect, submit, reconcile. Its header says what must not be "tidied"
-├── overtime-review-controller.js ← the REVIEWER's side of overtime.html. Its header
+├── overtime-form.js        ← the member's seven-day form: render, collect, submit, reconcile. Its header says what must not be "tidied". See also overtime-form.test.mjs, overtime-roster.test.mjs, overtime.spec.js, OVERTIME_AVAILABILITY.md.
+├── overtime-review-controller.js ← the REVIEWER's side of overtime.html. Its header. See also OVERTIME_AVAILABILITY.md, overtime-review-controller.test.mjs.
 ├── overtime-manager.js     ← the reviewer's workspace for one week, rendered from data it is handed. **Available, Not available and No response never merge.**
 ├── overtime-roster.js      ← what people are actually rostered to do across an Overtime window, in one bounded read (not the Calendar's fetcher — its header)
 ├── overtime-tips.js        ← CARD_TIPS for overtime.html's `?` panels. Pure data
@@ -260,23 +260,23 @@ roster-app/
 ├── newlink-config.js       ← the new link page's SETTINGS, one decision a line, including `PACK_BASE` — the pack PDFs are served live from the Pages mirror's docs/links-26/
 ├── newlink-data.js         ← GENERATED by docs/links-26/tooling/newlink-data.mjs — the figures and pack list the new link page shows. Pinned by newlink-data.test.mjs
 ├── newlink-render.js       ← the new link page's HTML as strings, ordering the proposals A to Z itself. Pure; escapes everything
-├── pdf-viewer.js           ← the in-app PDF viewer (`#pdfViewer`, newlink.html), drawing with PDF.js; why it exists is pdf-viewer-core.js's header
+├── pdf-viewer.js           ← the in-app PDF viewer (`#pdfViewer`, newlink.html), drawing with PDF.js; why it exists is pdf-viewer-core.js's header. See also newlink.spec.js.
 ├── pdf-viewer-core.js      ← the PDF viewer's pure rules, including never offering to open a file inside an installed app's scope
 ├── links.html              ← the link design workspace (visible to `CONFIG.LINKS_DESIGNERS` only)
 ├── links.css               ← CSS for links.html
-├── links-app.js            ← coordinator for links.html: the working copy, grid-cell meaning, the Build press and wiring; no Firestore I/O of its own. Body is `init()`, run by links-boot.js
+├── links-app.js            ← coordinator for links.html: the working copy, grid-cell meaning, the Build press and wiring; no Firestore I/O of its own. Body is `init()`, run by links-boot.js. See also coordinator-ratchet.test.mjs.
 ├── links-boot.js           ← two-line bootstrap for links.html (CSP blocks inline module scripts)
-├── links-design-library.js ← the design library's panels: import and the Recently deleted bin. Its header
+├── links-design-library.js ← the design library's panels: import and the Recently deleted bin. Its header. See also links-design-library.test.mjs.
 ├── links-design-store.js ← the design collection's persistence lifecycle and concurrency protocol; the four rules it makes unwritable: its header. Tested by links-design-store.test.mjs
 ├── links-queued-saves.js ← the Links saves only this browser's queue holds until the server answers. Pure; the seven rules are its header
-├── links-concurrency.js    ← the PURE co-editing rules for the Links workspace. Every bug here was a SILENT overwrite of a colleague's work. Tested by links-concurrency.test.mjs
+├── links-concurrency.js    ← the PURE co-editing rules for the Links workspace. Every bug here was a SILENT overwrite of a colleague's work. Tested by links-concurrency.test.mjs. See also links-design-store.test.mjs.
 ├── links-fatigue.js ← the ORR fatigue factors assessed against a design. **It reports factors PRESENT and never passes or fails a design.** Tested by links-fatigue.test.mjs
 ├── links-limits.js ← the HARD limits a design meets or does not — kept apart from links-fatigue.js on purpose (its header). Tested by links-limits.test.mjs
 ├── links-adjacency.js ← the ORDER the lines sit in, and its scoring. Its header. Tested by links-adjacency.test.mjs
-├── links-demand.js ← the service a design has to cover (trains per hour at Marylebone); never scores a design. Tested by links-demand.test.mjs
-├── links-window.js ← the OPERATING WINDOW of a design, stored per design. Tested by links-window.test.mjs
-├── links-deletion.js ← the PURE rules behind "Recently deleted". **The bin is PERMANENT** (owner decision; its header). Tested by links-deletion.test.mjs
-├── links-generator-targets.js ← the generator's target table on screen, its memory and provenance. Rule 4 in its header. Tested by links-generator-targets.test.mjs
+├── links-demand.js ← the service a design has to cover (trains per hour at Marylebone); never scores a design. Tested by links-demand.test.mjs. See also links.spec.js.
+├── links-window.js ← the OPERATING WINDOW of a design, stored per design. Tested by links-window.test.mjs. See also links.spec.js.
+├── links-deletion.js ← the PURE rules behind "Recently deleted". **The bin is PERMANENT** (owner decision; its header). Tested by links-deletion.test.mjs. See also doc-parity.test.mjs.
+├── links-generator-targets.js ← the generator's target table on screen, its memory and provenance. Rule 4 in its header. Tested by links-generator-targets.test.mjs. See also links.spec.js.
 ├── links-design.js ← pure link-design maths, including `ROTATING_LINES` — the ONE declaration of the rotation length. **Read its header before touching the generator or the hours maths.** Tested by links-design.test.mjs
 ├── links-design-doc.js ← the SHAPE of a link design in memory and in Firestore, and every conversion between them. Its header. Tested by links-design-doc.test.mjs
 ├── links-design-load.js ← PURE: what a read of the design collection means, for the page load and the list refresh. Tested by links-design-load.test.mjs
@@ -285,13 +285,13 @@ roster-app/
 ├── links-shortlist.js ← "Keep only the shortlist": the admin's one-off bin of every older design. Pure; tested by links-shortlist.test.mjs and e2e/links-shortlist.spec.js
 ├── links-design-header.js ← the design MASTHEAD on links.html. Its header. Tested by links-design-header.test.mjs
 ├── links-seed.js ← the generator's ROSTER SEED: it MEASURES, `links-default-targets.js` DESIGNS. Tested by links-seed.test.mjs
-├── links-target-sets.js ← SAVED SETS of generator targets; a corrupt document is refused whole. Tested by links-target-sets.test.mjs and firestore.rules.test.mjs
+├── links-target-sets.js ← SAVED SETS of generator targets; a corrupt document is refused whole. Tested by links-target-sets.test.mjs and firestore.rules.test.mjs. See also links.spec.js.
 ├── links-target-sets-store.js ← the Firestore half of the saved staffing sets. **A read that FAILS is not an empty collection.** Tested by links-target-sets-store.test.mjs
 ├── links-target-hours.js ← whether a generator target table pays the contract. Tested by links-target-hours.test.mjs
 ├── links-default-targets.js ← the table the generator STARTS from, against the December 2026 service. Its header. Tested by links-default-targets.test.mjs
 ├── links-import.js ← turning somebody else's roster proposal into a design — a TRUST BOUNDARY: a design or a refusal, never a half-design. Tested by links-import.test.mjs
 ├── links-analysis.js ← links.html's read-only analysis panels. Tested by links-analysis.test.mjs
-├── links-compare-analysis.js ← compare mode's analysis for two designs. Pure; rendered by links-compare.js
+├── links-compare-analysis.js ← compare mode's analysis for two designs. Pure; rendered by links-compare.js. See also links-compare.test.mjs.
 ├── links-compare.js        ← links.html compare mode; single source of truth for the compare state. Tested by links-compare.test.mjs
 ├── links-grid-input.js ← how the design grid is operated (keyboard, mouse strokes); what a cell means stays in links-app.js. Tested by links-grid-input.test.mjs and e2e/links.spec.js
 ├── links-print.js ← preparing the Links page for paper and putting it back (iOS sends no `afterprint`). Tested by links-print.test.mjs
@@ -306,14 +306,14 @@ roster-app/
 ├── staff-guide.css / paycalc-guide.css / fip-guide.css ← page-specific guide CSS
 ├── purify.es.mjs           ← self-hosted DOMPurify v3.4.18. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
 ├── pdfjs/                  ← PDF.js, the legacy build, vendored for pdf-viewer.js in a folder named for its version; an upgrade is a NEW folder. dependency-pin-parity.test.mjs has the steps
-├── service-worker.js       ← the single service worker for all pages; the cache name includes `APP_VERSION`
+├── service-worker.js       ← the single service worker for all pages; the cache name includes `APP_VERSION`. See also coordinator-ratchet.test.mjs.
 ├── manifest.json           ← PWA manifest for all pages
 ├── guide.html · fip.html ← the two LEGACY guide URLs, kept as redirect stubs (the Pages mirror serves no redirects); they go when the mirror does
-├── legacy-redirect.js      ← the one script those stubs carry, keeping the #fragment and ?query
+├── legacy-redirect.js      ← the one script those stubs carry, keeping the #fragment and ?query. See also page-contract-parity.test.mjs, guides.spec.js.
 ├── staff-guide.html / paycalc-guide.html / railcard-guide.html / fip-guide.html / rangers-guide.html ← printable guides (via nav panel)
 ├── rangers-guide.css ← the Rangers & Rovers guide's stylesheet. **Neither validity attribute may be inferred from the other.** `.claude/rules/guide-pages.md`; evidence: GUIDE_SOURCES.md
 ├── railcard-guide.css      ← the Railcard guide's stylesheet. **The Network area ends at Banbury — do not "correct" it.** `.claude/rules/guide-pages.md`
-├── guide-chips.js          ← the "Jump to section" chip bar on all five guides (classic script)
+├── guide-chips.js          ← the "Jump to section" chip bar on all five guides (classic script). See also page-contract-parity.test.mjs.
 ├── fip-guide.js                  ← JS for fip-guide.html: the country finder and print preparation (iOS fires no `beforeprint` for AirPrint)
 ├── guide-print.js          ← the shared ⤓ PDF button on every guide page, through print-guard.js
 ├── guide-back.js           ← the guides' back-arrow retarget; `from` must be one of the app's own pages
@@ -716,24 +716,24 @@ roster-app/
     ├── account-reads.js           ← the account domain's two admin READS, built by auth-endpoints.js. Tested by auth-endpoints.test.mjs
     ├── account-lifecycle.js       ← the pure rules at the edges of an account's life (Set up accounts, the admin reset). Tested by account-lifecycle.test.mjs and auth-endpoints.test.mjs
     ├── reset-request.js           ← `requestPasswordReset`, the public doorbell a locked-out member rings: records a request, pushes to the admin's devices only. Tested by auth-endpoints.test.mjs
-    ├── admin-recipients.js        ← WHO a notice for the admin may reach — one rule for every admin notice
-    ├── push.js                    ← the web-push TRANSPORT: `fanOutPush` and `sendTargetedPush` (**fails closed, never falls back to everyone**); never what a payload says
+    ├── admin-recipients.js        ← WHO a notice for the admin may reach — one rule for every admin notice. See also auth-endpoints.test.mjs, documents-endpoints.test.mjs, overtime-endpoints.test.mjs.
+    ├── push.js                    ← the web-push TRANSPORT: `fanOutPush` and `sendTargetedPush` (**fails closed, never falls back to everyone**); never what a payload says. See also push-transport.test.mjs.
     ├── push-notices.js            ← the push DESIGN LANGUAGE and `buildPushPayload`, the one builder (`.claude/rules/notifications.md`). Pure
     ├── roster-parse-helpers.js   ← pure roster-parse helpers
     ├── roster-geometry.js        ← what the roster PDF's OWN GRID says about where each cell is — the import's only witness that is not the model. Its header. Tested by roster-geometry.test.mjs
     ├── roster-sunday-repair.js   ← layer 1 of the day-drift defence: the Sunday-anchored repair. Tested by roster-parse-helpers.test.mjs + index-endpoints.test.mjs
     ├── roster-week-heading.js   ← the week the roster SAYS it is for, read from its printed heading; a sheet for another week is refused. Tested by roster-geometry.test.mjs + index-endpoints.test.mjs
     ├── roster-prompt.js          ← the two roster-parse prompts and the ONE code table they share. Its header. Tested by roster-cell-read.test.mjs + roster-prompt-parity.test.mjs
-    ├── cell-day-rules.js   ← what a roster cell means given WHICH DAY it is in, one function per rule
+    ├── cell-day-rules.js   ← what a roster cell means given WHICH DAY it is in, one function per rule. See also roster-parse-helpers.test.mjs, index-endpoints.test.mjs.
     ├── roster-other-days.js   ← what a roster cell reads as when it names an Other-family day. Tested by roster-parse-helpers.test.mjs + index-endpoints.test.mjs
     ├── overtime.js                ← the OVERTIME domain's endpoints; retention is filtered here, not in the rules. Design: OVERTIME_AVAILABILITY.md
-    ├── member-identity.js         ← which member a verified ID token speaks for, or none — the server twin of `isMember()`. Its header
-    ├── request-helpers.js         ← the request plumbing every endpoint shares, in one copy
+    ├── member-identity.js         ← which member a verified ID token speaks for, or none — the server twin of `isMember()`. Its header. See also member-identity.test.mjs.
+    ├── request-helpers.js         ← the request plumbing every endpoint shares, in one copy. See also doc-url-core.test.mjs.
     ├── caught.js                  ← the fields a `catch` reads off a thrown value, typed for the `unknown` it is (`fieldsOf`). Requires nothing
     ├── web-push.d.ts              ← types for the part of `web-push` push.js calls (the package ships none); read only by the type-checker
     ├── jsconfig.json              ← the Functions' own strict type-check (`npm run typecheck` runs it beside the root one)
     ├── doc-url-core.js            ← who may be handed a document URL, for which document and for how long — a door that MIRRORS firestore.rules, taking a KIND, never a path. Design: AUTH_PLAN.md §5
-    ├── doc-link-rotation.js       ← a new key for the permanent link of every stored document file, so old copies stop opening it (ARCHITECTURE.md EXC-007). Its header
+    ├── doc-link-rotation.js       ← a new key for the permanent link of every stored document file, so old copies stop opening it (ARCHITECTURE.md EXC-007). Its header. See also doc-link-rotation.test.mjs.
     ├── london-clock.js            ← an ISO date and the instant it names in London. **Requires nothing**, which keeps overtime-core.test.mjs in the every-branch lane
     ├── overtime-core.js           ← every RULE Overtime Availability has, with no I/O. **The deadline hours are the highest-risk thing in the feature.** Design: OVERTIME_AVAILABILITY.md
     ├── retired-viewer-account.js  ← the retired staff PIN's shared account, recognised so Set up accounts, the leaver sweep, a reset and the notices never adopt it; deleted in the cleanup release. Its header

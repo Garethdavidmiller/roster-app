@@ -25,7 +25,7 @@ changed once.
 |---|---|---|
 | **Arriving from outside** | `README.md` | What the app is, and which checks run with nothing installed — the front door, not a summary of this table |
 | **Repository conventions** | `CLAUDE.md` | Version bumping, architecture decisions, wording conventions, change impact |
-| **Module routing** | `AI_MAP.md` | What every module is and what it exports |
+| **Module routing** | `AI_MAP.md` | What every module exports, and which file a task needs (what a module IS: `FILE_INDEX.md`) |
 | **File routing** | `FILE_INDEX.md` | What every FILE is, one line each — the catalogue `CLAUDE.md` points to rather than carries |
 | **Authentication & sessions** | `AUTH_AND_SESSIONS.md` | Session ↔ identity ↔ claim, the invariants across them, and the client's auth architecture (the two pure layers, degraded state, reads vs writes — folded in from `AUTH_ARCHITECTURE.md`, now a pointer) |
 | **Credentials & their lifecycle** | `PASSWORD_DESIGN.md` | The passwords as built, and (its credential-lifecycle section, merged from `CREDENTIAL_LIFECYCLE.md`, now a pointer) how a credential is issued, recovered and retired — and the ORDER those changes go in. Holds the one open decision about what retiring the surname should MEAN |
