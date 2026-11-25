@@ -71,6 +71,24 @@ test('it refuses an absent target, an ambiguous one and an edit that changes not
     assert.throws(() => readFileSync(seen), /ENOENT/, 'no refusal may run the command it was given');
 });
 
+// `--check` is how scripts/mutation-sweep.mjs finds a stale manifest entry: the same refusals, and
+// on an edit that WOULD apply, where — with nothing written and nothing run.
+test('--check asks the refusals and says where the edit lands, but changes nothing and runs nothing', (t) => {
+    const { dir, file } = scratch(t, 'one two two\n');
+    const seen = join(dir, 'seen.txt');
+    const ok = run(file, seen, '--find', 'one', '--replace', 'ONE', '--check');
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.match(ok.stdout, /applies at .*target\.txt:1 — --check/);
+    assert.equal(readFileSync(file, 'utf8'), 'one two two\n', 'the file is untouched');
+    assert.throws(() => readFileSync(seen), /ENOENT/, 'the command was never started');
+    const stale = run(file, seen, '--find', 'three', '--replace', 'x', '--check');
+    assert.equal(stale.status, 2, 'an edit that cannot apply is still refused under --check');
+    assert.match(stale.stderr, /NOT PRESENT/);
+    const twice = run(file, seen, '--find', 'two', '--replace', 'x', '--check');
+    assert.equal(twice.status, 2);
+    assert.match(twice.stderr, /appears 2 times/);
+});
+
 /** A `node -e` command in which `fs`, the target's path `f` and its current text `t` are in scope. */
 const nodeCmd = (/** @type {string} */ file, /** @type {string} */ body) => [process.execPath, '-e',
     `const fs = require('fs'); const f = ${JSON.stringify(file)}; const t = fs.readFileSync(f, 'utf8'); ${body}`];

@@ -42,6 +42,12 @@
 // normally, on a crash, on Ctrl-C, SIGTERM or SIGHUP, and — through a small detached watchdog — when
 // the tool itself is killed outright. Until it is back, the original is also kept outside the tree,
 // so a run that died with its watchdog is reported by the next one instead of being mutated twice.
+//
+// `--check` stops after the refusals above have been asked: it says where the edit WOULD land and
+// exits 0, touching nothing and running nothing (the command after `--` is still required, and is
+// never started). It exists for scripts/mutation-sweep.mjs, whose manifest must fail loudly the day
+// a wiring line it names is edited away — an entry that no longer applies is the commonest way a
+// list of mutations rots, and it is the same silent no-op this tool was written to refuse.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, realpathSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -65,6 +71,7 @@ const file = opt('file');
 const find = opt('find');
 const replace = opt('replace') ?? '';
 const within = opt('in');
+const checkOnly = opts.includes('--check');
 if (!file) die('--file is required');
 if (!find) die('--find is required');
 
@@ -122,6 +129,11 @@ if (mutated === original) {
 const lineOf = (/** @type {number} */ i) => original.slice(0, i).split('\n').length;
 const where = `${file}:${lineOf(from + region.indexOf(find))}`
     + (within ? ` (in the block at lines ${lineOf(from)}–${lineOf(to - 1)})` : '');
+
+if (checkOnly) {
+    console.log(`✓ applies at ${where} — --check: nothing changed, nothing run`);
+    process.exit(0);
+}
 
 // ── THE ORIGINAL, KEPT OUTSIDE THE TREE WHILE THE FILE IS MUTATED ──────────────────────────────
 // Not beside the file: a stray file in the tree can itself fail the command (a suite that lists the
