@@ -4,8 +4,8 @@ import globals from 'globals';
 // Files that never run in a page: Node (the Cloud Functions, the scripts, this config, the Node-side
 // test fixtures) and the service worker, whose globals are a worker's. They used to inherit the
 // browser's globals with everyone else, so `status`, `name`, `event` or `document` in one of them
-// linted clean and failed only in production, as a ReferenceError — and neither the
-// Functions nor the worker is type-checked (whole-app check, 10 November 2026).
+// linted clean and failed only in production, as a ReferenceError — and the worker is not
+// type-checked (whole-app check, 10 November 2026; the Functions are, since 25 November 2026).
 const NOT_A_PAGE = ['functions/**', 'scripts/**', 'test-fixtures/**/*.mjs', 'generate-sri.mjs',
     'eslint.config.js', 'service-worker.js'];
 

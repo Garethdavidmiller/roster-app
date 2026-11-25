@@ -21,15 +21,18 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { nameToEmail, resolveRosterAuthConfig, summariseSignIns, summariseAccountGaps } = require('./roster-parse-helpers');
 const { requireAdmin } = require('./request-helpers');
+const { fieldsOf } = require('./caught');
 
 /**
  * Every account in the project. `listUsers` caps a page at 1000 and the roster is ~50, so this is one
  * page in practice — the loop is here so it stays correct if that ever stops being true.
- * @returns {Promise<any[]>} UserRecords
+ * @returns {Promise<import('firebase-admin/auth').UserRecord[]>}
  */
 async function listAllUsers() {
     const { getAuth } = require('firebase-admin/auth');
+    /** @type {import('firebase-admin/auth').UserRecord[]} */
     const users = [];
+    /** @type {string|undefined} */
     let pageToken;
     do {
         const page = await getAuth().listUsers(1000, pageToken);
@@ -83,7 +86,7 @@ function buildAccountReadEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, now 
 const getSignInStats = onRequest(
     { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
     async (req, res) => {
-        if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+        if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
         if (!(await requireAdmin(req, res))) return;
 
@@ -94,7 +97,7 @@ const getSignInStats = onRequest(
         // out here, mirroring recordUsage's write-time CONFIG.ADMIN_NAMES filter.
         // Derived from the SERVER-owned roster (roster-members.json), never a client payload.
         const cfg = resolveRosterAuthConfig(rosterMembers);
-        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
+        if (cfg.error) { res.status(500).json({ error: 'Server roster config invalid' }); return; }
 
         try {
             // Inside the try (Nov 2026 review): `nameToEmail` throws on a roster entry that is not a
@@ -105,10 +108,12 @@ const getSignInStats = onRequest(
                 cfg.processMembers.filter(n => !adminSet.has(n)).map(n => nameToEmail(n).toLowerCase()));
             const stats = summariseSignIns(await listAllUsers(), now(), allowedEmails);
             console.log('[getSignInStats]', JSON.stringify(stats));
-            return res.json(stats);
+            res.json(stats);
+            return;
         } catch (e) {
-            console.error('[getSignInStats] failed', e && e.code, e);
-            return res.status(500).json({ error: 'Could not read sign-in stats' });
+            console.error('[getSignInStats] failed', fieldsOf(e).code, e);
+            res.status(500).json({ error: 'Could not read sign-in stats' });
+            return;
         }
     }
 );
@@ -141,12 +146,12 @@ const getSignInStats = onRequest(
 const getAccountSetupGaps = onRequest(
     { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
     async (req, res) => {
-        if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+        if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
         if (!(await requireAdmin(req, res))) return;
 
         const cfg = resolveRosterAuthConfig(rosterMembers);
-        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
+        if (cfg.error) { res.status(500).json({ error: 'Server roster config invalid' }); return; }
 
         try {
             // Admins are INCLUDED here, unlike getSignInStats. There they are excluded because the
@@ -162,10 +167,12 @@ const getAccountSetupGaps = onRequest(
             console.log('[getAccountSetupGaps]', JSON.stringify({
                 refused: gaps.refused || null, setUp: gaps.setUp.length, leavers: gaps.leavers.length,
             }));
-            return res.json(gaps);
+            res.json(gaps);
+            return;
         } catch (e) {
-            console.error('[getAccountSetupGaps] failed', e && e.code, e);
-            return res.status(500).json({ error: 'Could not read account setup state' });
+            console.error('[getAccountSetupGaps] failed', fieldsOf(e).code, e);
+            res.status(500).json({ error: 'Could not read account setup state' });
+            return;
         }
     }
 );

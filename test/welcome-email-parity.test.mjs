@@ -13,10 +13,12 @@
  *
  * The copies are only worth having if they ARE the same email. A correction made in one file and
  * not the others is a colleague told something the rest were not, and five hand-kept copies
- * of 200 lines drift. So each ready-made copy is BUILT here from the general template, by making
- * its choices, and compared with the file as its reader sees it: comments dropped (the reader never
- * sees them, and each copy's header is its own) and runs of spacing collapsed. Anything else that
- * differs fails, and the message says where.
+ * of 200 lines drift. Until 25 Nov 2026 this file BUILT each copy from the general template and
+ * failed when a hand-kept one differed. `npm run generate:copies` (scripts/generate-copies.mjs →
+ * `welcome-emails`) now WRITES each copy that way, below its own hand-written header, and
+ * generated-copies.test.mjs fails a copy that is not what it would write. What stays here are the
+ * RULES the copies follow, read from the files as they are — so a bug in the generator cannot pass
+ * for a current copy.
  *
  * ── THE PAY CALCULATOR SECTION IS THE APP'S ANSWER, NOT THIS FILE'S ─────────────────────────────
  *
@@ -58,30 +60,18 @@
  * Whether the wording is RIGHT, only that the five copies agree. The header comments, which differ
  * by design. How a real mail app draws any of it.
  */
-import { test, describe } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
 import { CONFIG, gradeForRole } from '../roster-data.js';
+import { WELCOME_TEMPLATE as GENERAL, WELCOME_COPIES as COPIES, OTHER_STAFF } from '../scripts/generate-copies.mjs';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
 
 const DIR = new URL('./.claude/skills/new-starter/', REPO_ROOT_URL);
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, DIR), 'utf8');
-
-const GENERAL = 'welcome-email.html';
-
-/** Each ready-made copy, and the grade it is for: the label the sign-in list shows. */
-const COPIES = /** @type {const} */ ({
-    'welcome-email-cea.html':        'CEA',
-    'welcome-email-ces.html':        'CES',
-    'welcome-email-dispatcher.html': 'Dispatcher',
-    'welcome-email-other-staff.html': 'Other Staff',
-});
-
-/** The grade whose login has no roster of its own (roster-member-data.js → `otherStaff`). */
-const OTHER_STAFF = 'Other Staff';
 
 /** What the reader sees: comments out, spacing collapsed. Tags and inline styles stay, because the
  *  copies must LOOK the same as well as say the same. */
@@ -91,90 +81,15 @@ const visible = (/** @type {string} */ html) =>
 /** Never print a PIN: mask any run of exactly four digits in a snippet bound for the log. */
 const masked = (/** @type {string} */ s) => s.replace(/\b\d{4}\b/g, '####');
 
-/**
- * Replace the ONE match of `re`, or fail saying the general template has changed shape, which is
- * a change to this test as much as to the template.
- * @param {string} html @param {RegExp} re @param {string} by @param {string} what
- */
-function replaceOnce(html, re, by, what) {
-    const found = html.match(new RegExp(re.source, 'g')) || [];
-    assert.equal(found.length, 1,
-        `${GENERAL} should have ONE ${what} in the form this test reads, and has ${found.length}. ` +
-        'If its either/or blocks were reworked, update choose() in this file to match.');
-    return html.replace(re, by);
-}
-
-/**
- * The general template with one grade's choices made, as the four ready-made copies make them: the opening
- * for somebody already working at Marylebone, the grade, What it does, and the Pay Calculator section
- * the app says that grade gets — none at all for Other Staff, whose menu has no calculator.
- * @param {string} grade
- */
-function choose(grade) {
-    let html = read(GENERAL);
-    const other = grade === OTHER_STAFF;
-    // The opening: the new starter's paragraph goes (everything from its marker to the next one's),
-    // and the chosen one, written inside a comment, comes out of it; the third goes whole.
-    html = replaceOnce(html, /<!-- OPENING A — NEW STARTER -->[\s\S]*?(?=<!-- OPENING B — EXISTING STAFF)/, '',
-        'OPENING A (new starter) block');
-    html = replaceOnce(html, /<!-- OPENING B — EXISTING STAFF\s*([\s\S]*?)\s*-->/, other ? '' : '$1',
-        'OPENING B (existing staff) block');
-    html = replaceOnce(html, /<!-- OPENING C — OTHER STAFF[^\n]*\s*([\s\S]*?)\s*-->/, other ? '$1' : '',
-        'OPENING C (Other Staff) block');
-    // What it does: a member's own roster (A, written live), or the station's (B, inside a comment).
-    if (other) {
-        html = replaceOnce(html, /<!-- WHAT IT DOES A — WITH A ROSTER[\s\S]*?(?=<!-- WHAT IT DOES B — OTHER STAFF)/, '',
-            'WHAT IT DOES A (with a roster) block');
-        html = replaceOnce(html, /<!-- WHAT IT DOES B — OTHER STAFF[^\n]*\s*([\s\S]*?)\s*-->/, '$1',
-            'WHAT IT DOES B (Other Staff) block');
-        // Section 4, heading and both variants: the Pay Calculator is not in their menu.
-        html = replaceOnce(html, /<!-- ── 4\. PAY CALCULATOR[\s\S]*?(?=<!-- ── SIGN OFF)/, '',
-            'section 4 (the Pay Calculator), heading to sign-off');
-        return html.replaceAll('{{GRADE}}', grade);
-    }
-    html = replaceOnce(html, /<!-- WHAT IT DOES B — OTHER STAFF[\s\S]*?-->/, '',
-        'WHAT IT DOES B (Other Staff) block');
-    if (gradeForRole(grade)) {
-        html = replaceOnce(html, /<!-- VARIANT B — DISPATCHER[\s\S]*?-->/, '',
-            'Pay Calculator VARIANT B (it will not work for you) block');
-    } else {
-        html = replaceOnce(html, /<!-- VARIANT A — CEA and CES -->[\s\S]*?(?=<!-- VARIANT B — DISPATCHER)/, '',
-            'Pay Calculator VARIANT A (it works for you) block');
-        html = replaceOnce(html, /<!-- VARIANT B — DISPATCHER\s*([\s\S]*?)\s*-->/, '$1',
-            'Pay Calculator VARIANT B (it will not work for you) block');
-    }
-    return html.replaceAll('{{GRADE}}', grade);
-}
-
-/** Where two strings first part company, as two masked snippets. */
-function firstDifference(/** @type {string} */ a, /** @type {string} */ b) {
-    let i = 0;
-    while (i < a.length && i < b.length && a[i] === b[i]) i++;
-    const around = (/** @type {string} */ s) => masked(s.slice(Math.max(0, i - 70), i + 70));
-    return `\n  this file: …${around(a)}…\n  expected:  …${around(b)}…`;
-}
-
 /** The placeholders the reader would see, sorted and de-duplicated. */
 const placeholders = (/** @type {string} */ html) =>
     [...new Set(visible(html).match(/\{\{[A-Z_]+\}\}/g) || [])].sort();
 
-describe('each ready-made copy is the general template with its choices made', () => {
-    for (const [file, grade] of Object.entries(COPIES)) {
-        test(`${file}: the ${grade} email, word for word and style for style`, () => {
-            const got = visible(read(file));
-            const want = visible(choose(grade));
-            assert.ok(got === want,
-                `${file} is not ${GENERAL} with the ${grade} choices made. A change to the wording belongs ` +
-                `in all five files.${firstDifference(got, want)}`);
-        });
-    }
-});
-
-test('every ready-made copy is registered here, and each is for a grade the sign-in list offers', () => {
+test('every ready-made copy is registered with the generator, and each is for a grade the sign-in list offers', () => {
     // A fifth copy dropped into the folder would otherwise drift with nothing checking it.
     const onDisk = readdirSync(DIR).filter(f => /^welcome-email-.+\.html$/.test(f)).sort();
     assert.deepEqual(onDisk, Object.keys(COPIES).sort(),
-        'every welcome-email-*.html in .claude/skills/new-starter/ needs a row in COPIES above');
+        'every welcome-email-*.html in .claude/skills/new-starter/ needs a row in WELCOME_COPIES (scripts/generate-copies.mjs)');
     // The email says "choose <grade>". A label the list does not show sends somebody looking for it.
     for (const [file, grade] of Object.entries(COPIES)) {
         assert.ok(CONFIG.GRADE_ORDER.includes(grade),
@@ -183,7 +98,7 @@ test('every ready-made copy is registered here, and each is for a grade the sign
 });
 
 test('the Pay Calculator section follows the app: the copy for a grade without rates says so', () => {
-    // A guard on choose() itself, so the comparison above cannot pass by building the wrong thing.
+    // A guard on the generator's choices, read from the copy as written, so it cannot pass by building the wrong thing.
     // The wording is the general template's own: VARIANT A's first sentence, and VARIANT B's.
     for (const [file, grade] of Object.entries(COPIES)) {
         const text = visible(read(file));
@@ -198,8 +113,7 @@ test('the Pay Calculator section follows the app: the copy for a grade without r
 });
 
 test('the Other Staff copy promises nothing a login without a roster cannot do', () => {
-    // A guard on choose() as much as on the copy: the comparison above cannot pass by building the
-    // wrong thing. These are the general template's own words for the things such a login lacks.
+    // A guard on the generator's choices as much as on the copy: read from the file as written. These are the general template's own words for the things such a login lacks.
     const file = Object.keys(COPIES).find(f => COPIES[/** @type {keyof typeof COPIES} */ (f)] === OTHER_STAFF);
     assert.ok(file, 'there should be an Other Staff copy');
     const text = visible(read(/** @type {string} */ (file)));

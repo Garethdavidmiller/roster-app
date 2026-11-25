@@ -290,7 +290,9 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 15, not 10, since it installs TWICE (25 Nov 2026) — the root tree and functions/, for the
+    # typecheck below — which is what took the `functions` job past 10 (its comment has the account).
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -315,11 +317,23 @@ jobs:
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
-          # change invalidates it correctly.
+          # change invalidates it correctly. Both lockfiles here: this job installs both trees.
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      # THE FUNCTIONS' TYPES (25 Nov 2026). `npm run typecheck`, inside `npm run check` below, checks
+      # functions/ too (functions/jsconfig.json), against firebase-admin's, firebase-functions' and the
+      # lockfile's @types/node — so this job needs the Functions' install as well as the root one.
+      # Without it the gate REFUSES (scripts/typecheck.mjs) rather than report missing modules as
+      # defects. `--ignore-scripts`: it is for the types alone, and nothing in this job runs a Function.
+      - name: Install function dependencies (for their types)
+        run: npm ci --ignore-scripts
+        working-directory: functions
 
       # Deployment-hygiene tests run here (not only at deploy) so the
       # doc-checkpoint tripwire and version-consistency checks gate every

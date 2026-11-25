@@ -278,6 +278,13 @@ async function readRecords(db, collections, bucketName) {
     return { linkedBy, heldKeys, withoutLink, unreadable };
 }
 
+/** A record that names a file, with its stored link. @typedef {{ ref: any, url: string, dead: boolean }} LinkRef */
+/**
+ * One file and what the rotation will do to it: re-key it under the records in `refs`, or, with no
+ * records, clear its spare keys (`meta` its metadata as first read).
+ * @typedef {{ file: any, refs: LinkRef[]|null, meta?: any, namedSince?: boolean }} PlanEntry
+ */
+
 /**
  * Run `fn` over `items`, at most `limit` at a time.
  * @template T
@@ -356,7 +363,7 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
         rotated: 0, recordsMended: 0, cleared: 0, changedDuringRun: 0, failed: [],
     };
 
-    /** @type {{ file: any, refs: { ref: any, url: string, dead: boolean }[]|null, meta?: any, namedSince?: boolean }[]} */
+    /** @type {PlanEntry[]} */
     const plan = [];
     await eachLimited(files, limit, async (file) => {
         const refs = linkedBy.get(file.name);
@@ -409,8 +416,9 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
             else report.failed.push({ path: file.name, step: 'clear' });
         }
     });
-    await eachLimited(plan.filter(p => p.refs), limit, async ({ file, refs }) => {
+    await eachLimited(plan.filter(/** @returns {p is PlanEntry & { refs: LinkRef[] }} */ (p) => !!p.refs), limit, async ({ file, refs }) => {
         // 1 · EXPAND — the old keys stay, so the stored link keeps opening the file.
+        /** @type {string} */
         let key;
         /** @type {any} */
         let expanded;

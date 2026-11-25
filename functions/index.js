@@ -50,12 +50,13 @@ const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeom
 const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, reviewRestReadsOfEmptyCells, DAY_LABELS: CELL_DAY_LABELS,
     MODEL_REQUEST, DECLINED_ERROR, repeatedMembers } = require('./roster-prompt');
 const { checkSheetWeek } = require('./roster-week-heading');
-const { requireAdmin, readRawBody: readCappedBody } = require('./request-helpers');
+const { requireAdmin, headerText, readRawBody: readCappedBody } = require('./request-helpers');
 const { londonIsoDate }          = require('./london-clock');
 const { buildDocumentEndpoints } = require('./documents');
 const { buildAuthEndpoints }     = require('./auth-endpoints');
 const { buildOvertimeEndpoints } = require('./overtime');
 const { purgeArmedAt }           = require('./overtime-core');   // the retention purge's arming DATE
+const { fieldsOf } = require('./caught');
 const rosterMembers = require('./roster-members.json');
 
 initializeApp();
@@ -208,8 +209,8 @@ exports.parseRosterPDF = onRequest(
         if (!(await requireAdmin(req, res, 'parseRosterPDF'))) return;
 
         // ---- Headers ----
-        const weekEnding = (req.headers['x-week-ending']  || '').trim();
-        const rosterType = (req.headers['x-roster-type']  || '').trim().toLowerCase();
+        const weekEnding = headerText(req, 'x-week-ending').trim();
+        const rosterType = headerText(req, 'x-roster-type').trim().toLowerCase();
 
         if (!weekEnding || !/^\d{4}-\d{2}-\d{2}$/.test(weekEnding)) {
             res.status(400).json({ error: 'Missing or invalid X-Week-Ending header (expected YYYY-MM-DD)' });
@@ -288,6 +289,7 @@ exports.parseRosterPDF = onRequest(
         // Names are loaded from functions/roster-members.json, which is generated from
         // roster-data.js by scripts/generate-roster-members.mjs. Run that script whenever
         // a staff member joins or leaves. Verified in sync by sw-asset-check.test.mjs.
+        /** @type {Record<string, unknown>} keyed by the header the caller sent, so any key may be asked */
         const STAFF_NAMES = rosterMembers;
 
         const relevantNames = STAFF_NAMES[rosterType];
@@ -449,7 +451,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // A whole week out is the one misplacement the day-drift layers cannot see. Refused here, before
         // the model is called (or below, if the wait gave up first); a sheet whose heading cannot be
         // read goes on as before, and is logged. Either way, nothing has been written.
-        const refusedForWeek = geo => {
+        const refusedForWeek = (/** @type {import('./roster-geometry').RosterGeometry|null|undefined} */ geo) => {
             const check = checkSheetWeek(geo, weekEnding);
             console[check.status === 'match' ? 'log' : 'warn'](`[parseRosterPDF] ${check.note}`);
             if (check.status === 'mismatch') res.status(409).json({ error: check.message, sheetWeekEnding: check.sheetWeek });
@@ -463,6 +465,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // first, which destroys the table and causes day-column misalignment. On the geometry path
         // there is no table left to read: the cells arrive already placed, as text.
 
+        /** The model's JSON (`extractAIJson`): `any` until the shape check below, and each layer after it checks what it reads. @type {any} */
         let parsed;
         /** @type {AbortSignal|null} */
         let modelDeadline = null;
@@ -477,6 +480,7 @@ columnScan: one key per column header; every staff member appears in every colum
             // roster-prompt.js, with its reasons; index-endpoints.test.mjs pins it through this call.
             // The geometry path sends NO document block: the cells are the input, so attaching the
             // PDF would put the thing the model must not re-read back in front of it.
+            /** @type {import('@anthropic-ai/sdk/resources/messages').ContentBlockParam[]} */
             const content = cellTable.usable
                 ? [{ type: 'text', text: buildCellPrompt(cellTable.rows) }]
                 : [
@@ -510,19 +514,22 @@ columnScan: one key per column header; every staff member appears in every colum
             parsed = extractAIJson(responseText);
 
         } catch (err) {
-            console.error('[parseRosterPDF] Claude AI call failed:', err.message);
+            console.error('[parseRosterPDF] Claude AI call failed:', fieldsOf(err).message);
+            // The SDK's HTTP status, when the error carries one. `Number.isInteger` already implied a
+            // number; the `typeof` says so to the checker, so the comparisons below are on a number.
+            const aiStatus = fieldsOf(err).status;
             // Distinguish JSON parse errors (bad AI output) from API errors
             if (err instanceof SyntaxError) {
                 res.status(502).json({ error: 'The AI returned an unreadable response — please try again' });
             } else if (modelDeadline && modelDeadline.aborted) {
                 res.status(502).json({ error: 'The AI service did not answer in time — please try again in a moment' });
-            } else if (Number.isInteger(err && err.status) && err.status >= 400 && err.status < 500
-                && ![408, 409, 429].includes(err.status)) {
+            } else if (typeof aiStatus === 'number' && Number.isInteger(aiStatus) && aiStatus >= 400 && aiStatus < 500
+                && ![408, 409, 429].includes(aiStatus)) {
                 // A REFUSAL IS NOT AN OUTAGE (whole-app check, 10 Nov 2026). A retired model id, a
                 // setting the model rejects, a bad key: each fails identically every time, so "try
                 // again in a moment" sent the admin round a retry that cannot work. The SDK does
                 // not retry these either; 408/409/429 are the 4xx it does, and they stay below.
-                res.status(502).json({ error: `The AI service refused the request (HTTP ${err.status}), so trying again will not help — the function log says why` });
+                res.status(502).json({ error: `The AI service refused the request (HTTP ${aiStatus}), so trying again will not help — the function log says why` });
             } else {
                 res.status(502).json({ error: 'Could not reach the AI service — please try again in a moment' });
             }
@@ -558,7 +565,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // `headers`, a few lines down.
         if (!geometryPath) {
             const { columnDates, error: colError } = mapColumnHeadersToDates(parsed.columnHeaders, dates);
-            if (colError) {
+            if (colError !== null) {   // null exactly when every header mapped (its JSDoc)
                 console.error(`[parseRosterPDF] Column mapping error: ${colError}`);
                 res.status(502).json({ error: colError });
                 return;
@@ -617,7 +624,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // Through headerToDayIndex, the one header rule every other layer uses (import-server-3): an
         // exact "sun"/"sunday" test here switched the repair off for a dated header ("Sun 30/08").
         const hasSundayColumn = geometryPath
-            || parsed.columnHeaders.some(h => headerToDayIndex(h) === 0);
+            || parsed.columnHeaders.some((/** @type {unknown} */ h) => headerToDayIndex(h) === 0);
         // A Sunday it cannot repair is left for the grid below and settled after it (roster-sunday-repair.js).
         // The cross-check's picks go in too: a row the repair moves takes its picks with it.
         const disputedSundays = applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates, _ccStats.choices);

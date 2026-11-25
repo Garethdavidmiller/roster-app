@@ -96,10 +96,11 @@ name, roster name and surname password are left to fill. They exist so that ever
 grade is sent the same email: the CEA's is the one sent to a CEA on 7 Nov 2026 (owner, 8 Nov 2026:
 "so a consistent version can be used for CEAs"), and the supervisor's and the Dispatcher's follow it
 (owner, 11 Nov 2026), and the Other Staff copy since the staff PIN those colleagues used was retired
-(owner, 24 Nov 2026). **A change to the wording belongs in all five files**:
-`welcome-email-parity.test.mjs` builds each copy from `welcome-email.html` and fails until they
-agree. It also fails the Dispatcher's copy on the day the calculator gains Dispatcher rates, because
-that copy tells them to ignore it.
+(owner, 24 Nov 2026). **A change to the wording belongs in `welcome-email.html` alone**:
+`npm run generate:copies` writes each copy from it, below the copy's own header, and
+`generated-copies.test.mjs` fails until it has run. On the day the calculator gains Dispatcher
+rates, the generator writes the other Pay Calculator section into the Dispatcher's copy, which until
+then tells them to ignore it.
 
 Nothing in the app introduces itself. A new starter is provisioned, appears on every screen, and
 has no idea any of it is there; the only thing that closes that gap is somebody telling them.

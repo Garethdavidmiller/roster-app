@@ -33,6 +33,7 @@ const {
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { enabledAdminUids } = require('./admin-recipients');
 const { readJsonBody } = require('./request-helpers');
+const { fieldsOf } = require('./caught');
 const rosterMembers = require('./roster-members.json');
 
 /**
@@ -95,7 +96,7 @@ const RESET_REQUEST_THROTTLE_MS = 10 * 60 * 1000;   // 10 minutes
 // the rows' locks, still shows — the price of not making a locked-out member wait longer (their screen
 // reads "Sending…"), and every name such a burst probes is recorded where the admin sees it.
 const RESET_REQUEST_ANSWER_FLOOR_MS = 3_000;
-const answerFloorMs = Number.isFinite(resetRequestAnswerFloorMs) ? resetRequestAnswerFloorMs : RESET_REQUEST_ANSWER_FLOOR_MS;
+const answerFloorMs = typeof resetRequestAnswerFloorMs === 'number' && Number.isFinite(resetRequestAnswerFloorMs) ? resetRequestAnswerFloorMs : RESET_REQUEST_ANSWER_FLOOR_MS;
 // How long the admin notification may take before the endpoint gives up on it and answers the member
 // anyway. Well inside the function's 30s timeout, leaving room for the record itself — the request is
 // the product, the push is a courtesy, and the courtesy must never cost the product.
@@ -147,7 +148,8 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
     //  · A push that reached nobody is tried ONCE more, with the queue as it then stands: the requests
     //    that found its claim stood aside for it, and would otherwise wait for the next request.
     const rows = getFirestore().collection('resetRequests');
-    const ms = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : NaN);
+    // `t` is a stored Firestore field, so its type is whatever the row was written with: checked here.
+    const ms = (/** @type {any} */ t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : NaN);
     for (let round = 0; round < 2; round++) {
         let pending = 1;
         try {
@@ -171,11 +173,11 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
             // ABORTED (10): the burst held these rows past the last retry, and one of its requests claimed.
             // NOT_FOUND (5): the admin cleared this row first. Stand aside for both. Anything else is a read
             // that failed: notify with a count of 1, as before — a possibly-low count still does its job.
-            if (e && (e.code === 10 || e.code === 5)) {
-                console.log('[requestPasswordReset] notification left to the burst for', member, e.code);
+            if (fieldsOf(e).code === 10 || fieldsOf(e).code === 5) {
+                console.log('[requestPasswordReset] notification left to the burst for', member, fieldsOf(e).code);
                 return;
             }
-            console.warn('[requestPasswordReset] coalescing read failed — notifying with 1', e && e.code);
+            console.warn('[requestPasswordReset] coalescing read failed — notifying with 1', fieldsOf(e).code);
             pending = 1;
         }
         let accepted = 0;
@@ -195,7 +197,7 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
                 { timeoutMs: ADMIN_NOTIFY_SEND_TIMEOUT_MS },
             );
         } catch (e) {
-            console.warn('[requestPasswordReset] the admin push failed for', member, e && e.message);
+            console.warn('[requestPasswordReset] the admin push failed for', member, fieldsOf(e).message);
         }
         // Release the claim however the send ended, and record that the admin was REACHED only when a
         // subscription accepted the push, so the next member in the window rings the phone instead of
@@ -207,7 +209,7 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
                 ? { notifiedAt: FieldValue.serverTimestamp(), notifyClaimedAt: FieldValue.delete() }
                 : { notifyClaimedAt: FieldValue.delete() });
         } catch (e) {
-            console.warn('[requestPasswordReset] could not record the push for', member, e && e.code);
+            console.warn('[requestPasswordReset] could not record the push for', member, fieldsOf(e).code);
         }
         if (accepted > 0) return;
         console.warn('[requestPasswordReset] nothing accepted the push for', member, '— not stamping notifiedAt');
@@ -224,23 +226,24 @@ const requestPasswordReset = onRequest(
     async (req, res) => {
         // Measured from the top, so the floor covers every round trip either path makes.
         const answerNotBefore = Date.now() + answerFloorMs;
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+        if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
         // The kill switch, server-side (v18.97). 503 rather than 404: it is honest about the endpoint
         // existing but being closed, and it does not change what an outsider can learn about the
         // roster. The client link is hidden separately by CONFIG.PASSWORD_RESET_REQUESTS. The switch itself
         // is RESET_REQUESTS_ENABLED in auth-endpoints.js, handed in as `enabled` (this file's header).
-        if (enabled !== true) return res.status(503).json({ error: 'Reset requests are temporarily unavailable' });
+        if (enabled !== true) { res.status(503).json({ error: 'Reset requests are temporarily unavailable' }); return; }
 
         const body = readJsonBody(req);   // a Buffer body used to answer 400 "Missing member" (functions-core-8)
         const member = typeof body.member === 'string' ? body.member.trim() : '';
-        if (!member) return res.status(400).json({ error: 'Missing member' });
+        if (!member) { res.status(400).json({ error: 'Missing member' }); return; }
 
         const cfg = resolveRosterAuthConfig(rosterMembers);
-        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
+        if (cfg.error) { res.status(500).json({ error: 'Server roster config invalid' }); return; }
         // Unknown name → 404 with a generic message. The roster IS public (login dropdown), so this
         // reveals nothing; it just stops junk names creating rows.
         if (!cfg.processMembers.includes(member)) {
-            return res.status(404).json({ error: 'Unknown member' });
+            res.status(404).json({ error: 'Unknown member' });
+            return;
         }
 
         try {
@@ -262,10 +265,10 @@ const requestPasswordReset = onRequest(
             try {
                 disabled = !!(await getAuth().getUserByEmail(nameToEmail(member)))?.disabled;
             } catch (e) {
-                if (e && e.code === 'auth/user-not-found') provisioned = false;
+                if (fieldsOf(e).code === 'auth/user-not-found') provisioned = false;
                 else {
                     provisioned = null;
-                    console.warn('[requestPasswordReset] provisioned lookup failed for', member, e && e.code);
+                    console.warn('[requestPasswordReset] provisioned lookup failed for', member, fieldsOf(e).code);
                 }
             }
 
@@ -276,7 +279,7 @@ const requestPasswordReset = onRequest(
             // count is what the admin reads as "how stuck is this person", so it has to mean something.
             const recorded = await getFirestore().runTransaction(async tx => {
                 const snap   = await tx.get(docRef);
-                const stamp  = snap.exists ? snap.data().requestedAt : null;
+                const stamp  = snap.exists ? snap.data()?.requestedAt : null;
                 const lastMs = stamp && typeof stamp.toMillis === 'function' ? stamp.toMillis() : null;
                 if (!shouldRecordResetRequest(lastMs, Date.now(), RESET_REQUEST_THROTTLE_MS)) return false;
                 /** @type {any} */
@@ -314,7 +317,7 @@ const requestPasswordReset = onRequest(
                         }),
                     ]);
                 } catch (e) {
-                    console.warn('[requestPasswordReset] admin notify failed for', member, e && e.message);
+                    console.warn('[requestPasswordReset] admin notify failed for', member, fieldsOf(e).message);
                 } finally {
                     // The race is settled; the losing timer must not run on for its full 10s after the answer
                     // has gone (test audit, 7 Nov 2026 — it held this file's suite open ten seconds a run).
@@ -328,10 +331,12 @@ const requestPasswordReset = onRequest(
             // (RESET_REQUEST_ANSWER_FLOOR_MS, functions-core-4).
             const holdMs = answerNotBefore - Date.now();
             if (holdMs > 0) await new Promise((resolve) => setTimeout(resolve, holdMs));
-            return res.json({ ok: true });
+            res.json({ ok: true });
+            return;
         } catch (e) {
-            console.error('[requestPasswordReset] failed for', member, e && e.code, e);
-            return res.status(500).json({ error: 'Could not record the request' });
+            console.error('[requestPasswordReset] failed for', member, fieldsOf(e).code, e);
+            res.status(500).json({ error: 'Could not record the request' });
+            return;
         }
     }
 );

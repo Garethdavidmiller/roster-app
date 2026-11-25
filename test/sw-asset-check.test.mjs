@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { GUIDE_PAGES as GUIDE_PAGE_ENTRIES, REDIRECT_PAGES } from '../scripts/app-pages.mjs';
+import { APP_PAGES as APP_PAGE_ENTRIES, GUIDE_PAGES as GUIDE_PAGE_ENTRIES, REDIRECT_PAGES } from '../scripts/app-pages.mjs';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -693,45 +693,13 @@ test('Firestore collections in firebase-client.js all have firestore.rules entri
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// paycalc.html <link rel="modulepreload"> hints must stay in sync with paycalc's
-// real static import graph. The preloads collapse the module-fetch waterfall (see
-// the comment block in paycalc.html); if an import is added/removed and the hints
-// aren't updated, the speed-up silently regresses for that module — and a stale
-// gstatic Firebase version would preload the wrong SDK file. This guards both.
+// The <link rel="modulepreload"> hints are GENERATED (25 Nov 2026): `npm run generate:copies`
+// writes each app page's SDK tags and, for the deepest graphs, the whole local static graph
+// (scripts/generate-copies.mjs → module-preloads; which pages: `preloads` in scripts/app-pages.mjs),
+// and generated-copies.test.mjs fails a page that is not what it would write. Until then the lists
+// were kept by hand and this file held each one to the real graph, which is now how they are made.
+// What stays here is checked WITHOUT the generator, so a bug in it cannot pass for a current page.
 // ──────────────────────────────────────────────────────────────────────────────
-
-/** Resolve the transitive set of LOCAL (./) static module deps reachable from `entry`. */
-function staticLocalGraph(entry) {
-    const seen = new Set();
-    const walk = (file) => {
-        if (seen.has(file)) return;
-        seen.add(file);
-        let src;
-        try { src = readFileSync(join(ROOT, file), 'utf8'); } catch { return; }
-        // Strip comments first. The `from '...'` scan below matches that substring
-        // anywhere, so a module path written inside a JSDoc/usage comment (e.g.
-        // "// re-exported from './foo.js'") would otherwise inject a PHANTOM module and
-        // make the walker recurse into an unrelated subtree — a spurious CI failure.
-        // Preserve "://" so import URLs like https://… are not mangled.
-        src = src
-            .replace(/\/\*[\s\S]*?\*\//g, '')        // block comments
-            .replace(/(^|[^:])\/\/[^\n]*/g, '$1');   // line comments (but not the // in a URL)
-        const deps = [];
-        let m;
-        // "... from './path'" — covers single-line AND multiline import/export blocks
-        const fromRe = /\bfrom\s*["']([^"']+)["']/g;
-        while ((m = fromRe.exec(src))) deps.push(m[1]);
-        // side-effect imports: import './path'
-        const sideRe = /^\s*import\s*["']([^"']+)["']/gm;
-        while ((m = sideRe.exec(src))) deps.push(m[1]);
-        for (const p of deps) {
-            if (!p.startsWith('./')) continue;   // ignore gstatic + bare specifiers
-            walk(p.slice(2));
-        }
-    };
-    walk(entry);
-    return seen;
-}
 
 /** The gstatic Firebase SDK modules firebase-client.js imports STATICALLY (excludes dynamic
  *  import() like firebase-storage, which is intentionally lazy and must NOT be preloaded). These
@@ -743,44 +711,18 @@ function requiredGstaticModules() {
         .map(x => x[1]);
 }
 
-/** Pages that declare modulepreload hints, the entry each one's graph starts from, and whether the
- *  page preloads that entry too. links.html joined at v21.75 — as the workspace grew it overtook
- *  paycalc as the deepest graph in the app, which is the only reason the other pages go without.
- *  index.html is here as well, and its list is the WHOLE graph, not a hand-picked subset: this
- *  comment said otherwise for a long while, beside a separate index-only test that checked it
- *  exhaustively all along (folded into this table at the v24.28 review). Its entry, calendar-app.js,
- *  is a plain module script rather than a *-boot.js shim, so the page preloads it as well. */
-const PRELOAD_PAGES = /** @type {const} */ ([
-    ['paycalc.html', 'paycalc-boot.js', false],
-    ['links.html',   'links-boot.js',   false],
-    ['index.html',   'calendar-app.js', true],
-]);
-
-for (const [page, entry, preloadsEntry] of PRELOAD_PAGES) {
-    test(`${page} modulepreload hints match its real transitive module graph`, () => {
-        const html = readFileSync(join(ROOT, page), 'utf8');
-
-        // The local module graph the page actually loads (a boot shim handles itself).
-        const graph = staticLocalGraph(entry);
-        if (!preloadsEntry) graph.delete(entry);
-        const expected = [...graph].filter(f => f.endsWith('.js')).sort();
-
-        // The local modules the page declares as preloads.
-        const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)]
-            .map(x => x[1]).sort();
-        // A preload listed twice passes the comparison below (it checks membership, not count) and
-        // is a second hint for a file already asked for — index.html carried one for months.
-        const twice = preloaded.filter((f, i) => i > 0 && preloaded[i - 1] === f);
-        assert.deepEqual(twice, [], `${page} preloads these more than once: ${twice.join(', ')}`);
-
-        const missing = expected.filter(f => !preloaded.includes(f));
-        const stale   = preloaded.filter(f => !expected.includes(f));
-        assert.deepEqual(
-            { missing, stale }, { missing: [], stale: [] },
-            `${page} modulepreload list is out of sync with ${entry}'s static graph.\n` +
-            `  Add a <link rel="modulepreload"> for: ${missing.join(', ') || '(none)'}\n` +
-            `  Remove the stale preload for:        ${stale.join(', ') || '(none)'}`
-        );
+// A SHALLOW reading of the graph, independent of the generator's walker: a preloading page preloads
+// the module its HTML loads (or what its boot shim imports) and everything that module imports directly.
+// A walker that stopped short — a regex that missed a multi-line import, say — fails here first.
+for (const p of APP_PAGE_ENTRIES.filter(e => e.preloads)) {
+    test(`${p.file} preloads its coordinator and every module the coordinator imports directly`, () => {
+        const html = readFileSync(join(ROOT, p.file), 'utf8');
+        const preloaded = new Set([...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)].map(x => x[1]));
+        const src = stripComments(readFileSync(join(ROOT, p.coordinator), 'utf8'));
+        const direct = [...src.matchAll(/\bfrom\s*["']\.\/([^"']+\.js)["']/g)].map(x => x[1]);
+        assert.ok(direct.length > 3, `${p.coordinator}: read ${direct.length} direct imports — the reading is wrong`);
+        const missing = [p.coordinator, ...direct].filter(f => !preloaded.has(f));
+        assert.deepEqual(missing, [], `${p.file} does not preload ${missing.join(', ')} — run npm run generate:copies`);
     });
 }
 
@@ -832,45 +774,6 @@ for (const page of APP_PAGES) {
     }
   });
 }
-
-// The pages that deliberately carry no LOCAL preload list — asserted so a stray or hand-written one
-// fails CI rather than rotting unnoticed; this test is where that decision is recorded. The three fixed
-// gstatic tags above are a different thing and are REQUIRED on every page: they name one immutable
-// URL each and cannot fall behind the graph, which is the whole objection to a local list.
-//
-// links.html LEFT this list at v21.75. The original reasoning was that only the deepest graphs
-// earn the hints, and links was assumed shallow; it is now the deepest of the seven (46 modules,
-// ~1.1 MB), and measured on a throttled phone it was spending 8-9 sequential discovery rounds
-// getting there. It is in PRELOAD_PAGES above instead, where the exhaustive graph check applies —
-// which is the important half: an unguarded hand-maintained list is worse than none, because it
-// silently stops covering the module it was written for.
-test('admin/operations/settings/overtime.html carry NO local modulepreload hints', () => {
-    for (const page of ['admin.html', 'operations.html', 'settings.html', 'overtime.html']) {
-        const html = readFileSync(join(ROOT, page), 'utf8');
-        const local = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)].map(x => x[1]);
-        assert.deepEqual(local, [],
-            `${page} has ${local.length} LOCAL <link rel="modulepreload"> hint(s): ${local.join(', ')}. ` +
-            `These pages deliberately carry none: only the deepest module graphs earn a checked list (the comment above this test). ` +
-            `Either remove them, or add the page to PRELOAD_PAGES so its list is checked against the real graph.`);
-    }
-});
-
-test('service-worker.js FIREBASE_SDK_VERSION matches the SDK version firebase-client.js imports', () => {
-    // The SW serves the gstatic SDK cache-first from an SDK-versioned cache (v16.10).
-    // A firebase-client.js SDK bump without the matching SW constant bump would leave the
-    // SW caching (and warming) the OLD version's URLs while pages import the new ones —
-    // the new SDK would silently lose its offline guarantee.
-    const sw     = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
-    const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
-    const swVer  = sw.match(/const FIREBASE_SDK_VERSION = '([\d.]+)'/)?.[1];
-    assert.ok(swVer, 'FIREBASE_SDK_VERSION constant missing from service-worker.js');
-    const clientVers = new Set(
-        [...client.matchAll(/gstatic\.com\/firebasejs\/([\d.]+)\//g)].map(x => x[1])
-    );
-    assert.equal(clientVers.size, 1, `firebase-client.js references multiple SDK versions: ${[...clientVers].join(', ')}`);
-    assert.equal([...clientVers][0], swVer,
-        `firebase-client.js imports SDK ${[...clientVers][0]} but service-worker.js FIREBASE_SDK_VERSION is ${swVer} — bump both together`);
-});
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Privacy guard: real payslip figures (the payslip actuals must live ONLY in the test

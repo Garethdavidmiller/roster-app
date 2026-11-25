@@ -28,6 +28,7 @@
 
 const { nameToEmail } = require('./roster-parse-helpers');
 const { isViewerAccount } = require('./retired-viewer-account');
+const { fieldsOf } = require('./caught');
 
 /**
  * Is this the member's OWN account — enabled, not the retired shared viewer, and carrying the `member`
@@ -58,7 +59,7 @@ async function enabledAdminUids(names, logTag) {
             if (user && user.uid && !user.disabled && user.customClaims && user.customClaims.admin === true) uids.push(user.uid);
             else console.warn(`${logTag} not an enabled admin account, so not told:`, name);
         } catch (e) {
-            console.warn(`${logTag} could not resolve the admin account for`, name, e && e.code);
+            console.warn(`${logTag} could not resolve the admin account for`, name, fieldsOf(e).code);
         }
     }
     return uids;

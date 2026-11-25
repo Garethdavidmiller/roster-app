@@ -201,8 +201,9 @@ jobs:
     needs: tested
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-latest
-    # The same command, setup and limit as e2e.yml's `unit` job (1.6 minutes on 10 Nov 2026).
-    timeout-minutes: 10
+    # The same command, setup and limit as e2e.yml's `unit` job (1.6 minutes on 10 Nov 2026; 15, from
+    # 10, since both install functions/ too for the typecheck — 25 Nov 2026).
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -222,9 +223,17 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      # The Functions' types, for the typecheck inside `npm run check` — e2e.yml's `unit` job says why.
+      - name: Install function dependencies (for their types)
+        run: npm ci --ignore-scripts
+        working-directory: functions
 
       # No separate `node --check` loop (removed at the v24.28 review): `npm run check` runs
       # test:parse, whose module-parse.test.mjs parses every root .js (the same set `*.js` named)

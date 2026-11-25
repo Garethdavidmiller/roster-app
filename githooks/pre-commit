@@ -210,6 +210,48 @@ else
   not_checked "The roster-members sync check"
 fi
 
+# Generated-copies check — every file scripts/generate-copies.mjs writes (the pages' CSP <meta>,
+# and the rest its header lists) must be exactly what it would write from the commit AS STAGED.
+# generated-copies.test.mjs makes the same comparison in CI. Same method as the roster-members
+# check above: the files it reads are copied out of the index, so a source edited and staged with
+# its copies left unregenerated — or a generated region edited by hand — is refused here.
+if [[ -n "$HAVE_NODE" ]]; then
+  export COPIES_TMP="$HOOK_TMP/copies"
+  mkdir -p "$COPIES_TMP"
+  git ls-files -z -- ':(glob)*.js' ':(glob)*.mjs' ':(glob)*.html' firebase.json package.json 'scripts/*.mjs' \
+      '.claude/skills/new-starter/*.html' \
+    | xargs -0 git checkout-index --prefix="$COPIES_TMP/" --
+  node --input-type=module - << 'NODEEOF'
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
+const root = process.env.COPIES_TMP;
+let stale = [];
+try {
+    const { buildCopies, firstDifference } = await import(pathToFileURL(`${root}/scripts/generate-copies.mjs`).href);
+    const read = (p) => readFileSync(`${root}/${p}`, 'utf8');
+    for (const { copy, file, content } of buildCopies(read)) {
+        const have = read(file);
+        if (have !== content) stale.push(`    ${file} (${copy}) — ${firstDifference(have, content)}`);
+    }
+} catch (e) {
+    process.stderr.write(`  generated copies: could not build them from the staged files — ${e && e.message}\n`);
+    process.exit(1);
+}
+if (stale.length) {
+    process.stderr.write('  generated copies: these files, as staged, are not what generate-copies.mjs writes from the\n'
+        + '  staged sources:\n' + stale.join('\n') + '\n');
+    process.exit(1);
+}
+NODEEOF
+  if [ $? -ne 0 ]; then
+    echo "  Run: npm run generate:copies — and stage what it writes. Never edit a GENERATED region by hand."
+    exit 1
+  fi
+else
+  not_checked "The generated-copies check"
+fi
+
 # Export-drift same-commit check — if a staged JS module CHANGES its exported
 # surface (adds, removes or renames a symbol) vs HEAD, AI_MAP.md must be updated
 # in the SAME commit. Generalises the module add/remove rule at the top of this

@@ -403,7 +403,7 @@ roster-app/
 │   ├── notif-card-core.test.mjs ← the Notifications card's words for every device. Part of test:hygiene
 │   ├── notif-card.test.mjs    ← the Notifications card's wiring through the real `initNotificationsCard`. Part of test:unit
 │   ├── surname-parity.test.mjs ← the account identifier derivation stays in sync across the ESM/CommonJS boundary. Part of test:hygiene
-│   ├── payday-cutoff-parity.test.mjs ← the server's cut-off rule stays in sync with roster-data.js's paydays. Part of test:hygiene
+│   ├── payday-cutoff-parity.test.mjs ← the server's cut-off rule reads the GENERATED cycle and agrees with roster-data.js's paydays. Part of test:hygiene
 │   ├── import-graph.test.mjs   ← circular imports across all root ES modules
 │   ├── slow-save.test.mjs ← the slow-save watcher; the wording never says saved. Part of test:hygiene
 │   ├── admin-save-receipt.test.mjs ← a receipt that leaves something out or lists days out of order. Part of test:hygiene
@@ -535,12 +535,13 @@ roster-app/
 │   ├── sw-asset-check.test.mjs ← deployment hygiene: the SW asset lists, `APP_VERSION`, roster-members.json, the VAPID key in both places, the docs' stamps
 │   ├── csp-hygiene.test.mjs    ← firebase.json's CSP permits every host the app contacts; its required host list is hand-maintained. Part of test:hygiene
 │   ├── hosting-ignore-parity.test.mjs ← **tooling is not part of the served app**: the dot-directories in firebase.json's ignore list. Part of test:hygiene
-│   ├── csp-meta-parity.test.mjs ← every page's `<meta>` CSP in lockstep with the firebase.json header (the mirror serves no headers). Part of test:hygiene
+│   ├── csp-meta-parity.test.mjs ← the RULE every page's generated `<meta>` CSP follows: the firebase.json header minus what a meta cannot carry. Part of test:hygiene
+│   ├── generated-copies.test.mjs ← everything `npm run generate:copies` writes is committed as it would write it now. Part of test:hygiene
 │   ├── guide-sources.test.mjs ← GUIDE_SOURCES.md's structure and its two-way contract with the pages. Part of test:hygiene
 │   ├── app-name-parity.test.mjs ← **"MYB" may name the STATION, never the SOFTWARE** ("Marylebone Roster"). Part of test:hygiene
 │   ├── rdw-term-parity.test.mjs ← **RDW has one name on screen: "Rest Day Working"**. Part of test:hygiene
 │   ├── uk-english-parity.test.mjs ← **the app speaks UK English**; its word list: its header. Part of test:hygiene
-│   ├── welcome-email-parity.test.mjs ← the welcome email's five copies are one email. Part of test:hygiene
+│   ├── welcome-email-parity.test.mjs ← the rules the welcome email's generated copies follow (grade, Pay Calculator section, phone fit). Part of test:hygiene
 │   ├── al-copy-parity.test.mjs ← the Annual Leave help teaches the rule the save follows. Part of test:hygiene
 │   ├── admin-al-week-save.test.mjs ← a week-grid save's annual leave. Part of test:hygiene
 │   ├── card-header-parity.test.mjs ← the card-header conventions. Part of test:hygiene
@@ -552,6 +553,7 @@ roster-app/
 │   ├── doc-parity.test.mjs ← the documentation is CHECKED: routing, wiring, symbols, counts, and this tree's caps. Part of test:hygiene
 │   ├── module-coverage-parity.test.mjs ← **is there a module nobody thought about at all?** Part of test:hygiene
 │   ├── mutate-script.test.mjs ← `scripts/mutate.mjs`, run. Part of test:hygiene
+│   ├── mutation-sweep-script.test.mjs ← `scripts/mutation-sweep.mjs`, run on scratch manifests, and the real manifest's `--check-only`: a stale entry fails here. Part of test:hygiene
 │   ├── run-tests-script.test.mjs ← `scripts/run-tests.mjs`, run on scratch suites. Part of test:hygiene
 │   ├── bump-version-script.test.mjs ← `scripts/bump-version.mjs`, run on a scratch copy. Part of test:hygiene
 │   ├── refresh-visual-script.test.mjs ← `scripts/refresh-visual-baselines.mjs`, run in a scratch repository. Part of test:hygiene
@@ -686,6 +688,7 @@ roster-app/
 │   ├── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
 │   ├── generate-guide-index.mjs    ← `npm run generate:guide-index` — rebuilds guide-index.js from the guide pages
 │   ├── generate-ai-map.mjs         ← `npm run generate:ai-map` — rewrites the `- **Exports:**` line of every docs/AI_MAP.md entry from the module itself
+│   ├── generate-copies.mjs         ← `npm run generate:copies` — WRITES the facts kept in more than one file from the one place each is edited; its header lists them
 │   ├── audit-functions-deps.sh ← the Cloud Functions' production-dependency audit, for the deploy gate and the weekly monitor. Its header
 │   ├── signed-in.mjs             ← `npm run test:signed-in`: a throwaway Firebase project, the emulators and the accounts, then Playwright. Writes nothing into the checkout
 │   ├── test-nodeps.mjs           ← `npm run test:nodeps` — every suite that needs nothing installed; its exclusions are derived from package.json
@@ -693,10 +696,12 @@ roster-app/
 │   ├── make-leave-file.mjs       ← STAGE 1 of the leave uploader, run in a session on the clerks' workbook (AL_UPLOADER_PLAN.md). Never run on a real workbook in CI
 │   ├── xlsx-read.mjs             ← just enough .xlsx reading for that script; the workbook is untrusted
 │   ├── mutate.mjs                ← break ONE line on purpose, run a command, put the file back — the tool CLAUDE.md requires before claiming a guard. Its header
+│   ├── mutation-sweep.mjs        ← `npm run test:mutation`: every manifest entry through mutate.mjs, one table; fails on a survivor or a stale entry. Weekly in `mutation.yml`. Its header
+│   ├── mutation-manifest.mjs     ← the WIRING lines that sweep breaks — money, access, naming — each with its narrowest test and what it would break. Its header
 │   ├── refresh-visual-baselines.mjs ← `npm run test:visual:refresh` — updates only the failed visual baselines, or copies CI's render from the artifact. Its header
 │   └── typecheck.mjs             ← `npm run typecheck`; with no local compiler it REFUSES rather than run an unpinned `npx tsc`
 ├── jsconfig.json               ← TypeScript config for `// @ts-check`; its `exclude` list is pinned by `typecheck-scope.test.mjs`
-├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects, emulator ports. **Change the CSP header, change every page `<meta>`** (csp-meta-parity.test.mjs)
+├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects, emulator ports. **Change the CSP header, then `npm run generate:copies`** — it writes every page's `<meta>`
 ├── firestore.rules         ← Firestore security rules (deploy-rules.yml, gated by firestore.rules.test.mjs)
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
 ├── generate-sri.mjs        ← dev utility: patches the Mammoth CDN SRI hash in huddle.js
@@ -725,6 +730,9 @@ roster-app/
     ├── overtime.js                ← the OVERTIME domain's endpoints; retention is filtered here, not in the rules. Design: OVERTIME_AVAILABILITY.md
     ├── member-identity.js         ← which member a verified ID token speaks for, or none — the server twin of `isMember()`. Its header
     ├── request-helpers.js         ← the request plumbing every endpoint shares, in one copy
+    ├── caught.js                  ← the fields a `catch` reads off a thrown value, typed for the `unknown` it is (`fieldsOf`). Requires nothing
+    ├── web-push.d.ts              ← types for the part of `web-push` push.js calls (the package ships none); read only by the type-checker
+    ├── jsconfig.json              ← the Functions' own strict type-check (`npm run typecheck` runs it beside the root one)
     ├── doc-url-core.js            ← who may be handed a document URL, for which document and for how long — a door that MIRRORS firestore.rules, taking a KIND, never a path. Design: AUTH_PLAN.md §5
     ├── doc-link-rotation.js       ← a new key for the permanent link of every stored document file, so old copies stop opening it (ARCHITECTURE.md EXC-007). Its header
     ├── london-clock.js            ← an ISO date and the instant it names in London. **Requires nothing**, which keeps overtime-core.test.mjs in the every-branch lane

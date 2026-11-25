@@ -43,6 +43,7 @@ const { mustReclaim, claimedByAnotherMember, unlinkOtherProviders } = require('.
 const { buildResetRequestEndpoint } = require('./reset-request');
 const { buildAccountReadEndpoints, listAllUsers } = require('./account-reads');
 const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids, sweepAgainstPreview } = require('./account-lifecycle');
+const { fieldsOf } = require('./caught');
 
 /**
  * Stamp `passwordStatus/{member}.resetAt`, the marker a device's SILENT sign-in is refused against
@@ -138,7 +139,8 @@ const setupRosterAuth = onRequest(
     },
     async (req, res) => {
         if (req.method !== 'POST') {
-            return res.status(405).json({ error: 'Method not allowed' });
+            res.status(405).json({ error: 'Method not allowed' });
+            return;
         }
 
         // This re-provisions accounts, so a revoked admin's cached token is refused at once (requireAdmin).
@@ -156,10 +158,12 @@ const setupRosterAuth = onRequest(
         // sweep can never disable an admin/manager/designer. Unit-tested in roster-parse-helpers.test.mjs.
         const cfg = resolveRosterAuthConfig(rosterMembers);
         if (cfg.error === 'missing-active-members') {
-            return res.status(500).json({ error: 'Server roster config missing activeMembers — run `npm run generate:roster-members`' });
+            res.status(500).json({ error: 'Server roster config missing activeMembers — run `npm run generate:roster-members`' });
+            return;
         }
         if (cfg.error === 'empty-admin') {
-            return res.status(500).json({ error: 'Server roster config has no admin — refusing to run (would lock out admin)' });
+            res.status(500).json({ error: 'Server roster config has no admin — refusing to run (would lock out admin)' });
+            return;
         }
         const processMembers = cfg.processMembers;
         const adminMembers    = new Set(cfg.admin);
@@ -194,8 +198,8 @@ const setupRosterAuth = onRequest(
                 email    = nameToEmail(name);
                 password = nameToPassword(name);
             } catch (err) {
-                failed.push(`${name} (invalid: ${err.message})`);
-                console.error(`[setupRosterAuth] Name derivation failed for "${name}": ${err.message}`);
+                failed.push(`${name} (invalid: ${fieldsOf(err).message})`);
+                console.error(`[setupRosterAuth] Name derivation failed for "${name}": ${fieldsOf(err).message}`);
                 continue;
             }
             // Reject a collision: keep the FIRST occurrence's account + claims intact and surface the
@@ -215,13 +219,13 @@ const setupRosterAuth = onRequest(
             // nothing is created for that name.
             let exists;
             try { exists = (await getAuth().getUsers([{ email }])).users.length > 0; } catch (lookupErr) {
-                failed.push(`${name} (lookup-failed: ${lookupErr.message})`);
-                console.error(`[setupRosterAuth] lookup-failed for ${name}: ${lookupErr.message}`);
+                failed.push(`${name} (lookup-failed: ${fieldsOf(lookupErr).message})`);
+                console.error(`[setupRosterAuth] lookup-failed for ${name}: ${fieldsOf(lookupErr).message}`);
                 continue;
             }
             if (!exists) try { await stampResetAt(name); } catch (stampErr) {
-                failed.push(`${name} (stamp-failed: ${stampErr.message} — no account was created)`);
-                console.error(`[setupRosterAuth] resetAt stamp failed, so ${email} was not created: ${stampErr.message}`);
+                failed.push(`${name} (stamp-failed: ${fieldsOf(stampErr).message} — no account was created)`);
+                console.error(`[setupRosterAuth] resetAt stamp failed, so ${email} was not created: ${fieldsOf(stampErr).message}`);
                 continue;
             }
             let uid, justCreated = false, previousClaims = null;
@@ -232,7 +236,7 @@ const setupRosterAuth = onRequest(
                 created.push(name);
                 console.log(`[setupRosterAuth] Created: ${email}`);
             } catch (err) {
-                if (err.code === 'auth/email-already-exists') {
+                if (fieldsOf(err).code === 'auth/email-already-exists') {
                     // Fetch UID so we can still (re)apply claims, and re-enable
                     // if the account was previously disabled (returning staff member).
                     let reclaiming = false, reEnabling = false;
@@ -300,11 +304,11 @@ const setupRosterAuth = onRequest(
                         // outsider the member's claims, and the next run would adopt it for good.
                         uid = undefined;
                         const what = reclaiming ? 'reclaim-failed' : reEnabling ? 're-enable-failed' : 'lookup-failed';
-                        failed.push(`${name} (${what}: ${lookupErr.message})`);
-                        console.error(`[setupRosterAuth] ${what} for ${name}: ${lookupErr.message}`);
+                        failed.push(`${name} (${what}: ${fieldsOf(lookupErr).message})`);
+                        console.error(`[setupRosterAuth] ${what} for ${name}: ${fieldsOf(lookupErr).message}`);
                     }
                 } else {
-                    const reason = err.code || err.message || 'unknown';
+                    const reason = fieldsOf(err).code || fieldsOf(err).message || 'unknown';
                     failed.push(`${name} (${reason})`);
                     console.error(`[setupRosterAuth] Failed for ${name}: ${reason}`);
                 }
@@ -316,6 +320,7 @@ const setupRosterAuth = onRequest(
             // a member removed from the admin/manager list loses the elevated claim on the next run.
             if (uid) {
                 const claims = claimsForTier(name, { adminSet: adminMembers, managerSet: managerMembers, designerSet: designerMembers });
+                /** @type {string[]} */
                 let lost = [];
                 try {
                     // A just-created account left claimless is one the NEXT run takes back (password
@@ -328,8 +333,8 @@ const setupRosterAuth = onRequest(
                     console.log(`[setupRosterAuth] Set ${tier} claim: ${email}`);
                     lost = elevatedClaimsLost(previousClaims, claims);   // only once the new claims are on
                 } catch (claimErr) {
-                    failed.push(`${name} (claim-failed: ${claimErr.message})`);
-                    console.error(`[setupRosterAuth] Failed to set claim for ${name}: ${claimErr.message}`);
+                    failed.push(`${name} (claim-failed: ${fieldsOf(claimErr).message})`);
+                    console.error(`[setupRosterAuth] Failed to set claim for ${name}: ${fieldsOf(claimErr).message}`);
                 }
                 // A TIER TAKEN AWAY STOPS AT ONCE (sign-in audit D3): its sessions are revoked, so the old
                 // tier's cached token is refused by every checkRevoked endpoint now, not when it renews.
@@ -338,8 +343,8 @@ const setupRosterAuth = onRequest(
                     demoted.push(name);
                     console.warn(`[setupRosterAuth] ${email} lost ${lost.join(' and ')} — signed out of every device`);
                 } catch (revokeErr) {
-                    failed.push(`${name} (lost ${lost.join(' and ')} but could not be signed out, so the old access lasts until their sign-in renews: ${revokeErr.message})`);
-                    console.error(`[setupRosterAuth] revoke after a lost tier failed for ${name}: ${revokeErr.message}`);
+                    failed.push(`${name} (lost ${lost.join(' and ')} but could not be signed out, so the old access lasts until their sign-in renews: ${fieldsOf(revokeErr).message})`);
+                    console.error(`[setupRosterAuth] revoke after a lost tier failed for ${name}: ${fieldsOf(revokeErr).message}`);
                 }
             }
         }
@@ -383,13 +388,13 @@ const setupRosterAuth = onRequest(
                             const n = await releasePushForOwner(uid);
                             if (n) console.log(`[setupRosterAuth] Removed ${n} push record(s) for leaver: ${label}`);
                         } catch (pushErr) {
-                            console.warn(`[setupRosterAuth] Could not remove push records for ${label}: ${pushErr.message}`);
+                            console.warn(`[setupRosterAuth] Could not remove push records for ${label}: ${fieldsOf(pushErr).message}`);
                         }
                         disabled.push(label);
                         console.log(`[setupRosterAuth] Disabled + revoked leaver: ${label}`);
                     } catch (err) {
                         failed.push(label);
-                        console.error(`[setupRosterAuth] Failed to disable ${label}: ${err.message}`);
+                        console.error(`[setupRosterAuth] Failed to disable ${label}: ${fieldsOf(err).message}`);
                     }
                 }
                 // And the leavers ALREADY disabled (sign-in audit D2): a phone with a token still valid
@@ -397,12 +402,12 @@ const setupRosterAuth = onRequest(
                 // idempotent, never listed as newly disabled, and never the PIN account (account-lifecycle.js).
                 if (confirmOrphanRemoval) for (const uid of disabledLeaverUids(users, activeEmails)) {
                     try { disabledLeaverPushRemoved += await releasePushForOwner(uid); } catch (pushErr) {
-                        console.warn(`[setupRosterAuth] Could not remove push records of a disabled leaver: ${pushErr.message}`);
+                        console.warn(`[setupRosterAuth] Could not remove push records of a disabled leaver: ${fieldsOf(pushErr).message}`);
                     }
                 }
             } catch (err) {
                 orphanSweepFailed = true;
-                console.error(`[setupRosterAuth] Leaver sweep failed (accounts above were still processed): ${err.message}`);
+                console.error(`[setupRosterAuth] Leaver sweep failed (accounts above were still processed): ${fieldsOf(err).message}`);
             }
             if (confirmOrphanRemoval) console.log(`[setupRosterAuth] Removed ${disabledLeaverPushRemoved} push record(s) of leavers already disabled`);
         }
@@ -440,22 +445,23 @@ const resetMemberPassword = onRequest(
     // The VAPID secret is for the "your password was reset" push below: without it the key reads '' in production.
     { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS, secrets: [VAPID_PRIVATE_KEY] },
     async (req, res) => {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+        if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
         if (!(await requireAdmin(req, res))) return;   // a revoked admin's cached token must not reset accounts
 
         const body = readJsonBody(req);   // the member's name, in whatever shape the body arrived
         const member = typeof body.member === 'string' ? body.member.trim() : '';
-        if (!member) return res.status(400).json({ error: 'Missing member' });
+        if (!member) { res.status(400).json({ error: 'Missing member' }); return; }
         const lostDevice = body.lostDevice === true;   // strictly the boolean — anything else is an ordinary reset
 
         // Target must be a server-owned provisioned account (B4) — never trust a raw client name.
         const cfg = resolveRosterAuthConfig(rosterMembers);
-        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid — run `npm run generate:roster-members`' });
+        if (cfg.error) { res.status(500).json({ error: 'Server roster config invalid — run `npm run generate:roster-members`' }); return; }
         if (!cfg.processMembers.includes(member)) {
             // Not on the roster the Functions were deployed with: Set up accounts reads that same file, so
             // it cannot help. The remedy is the roster change, regenerated and deployed.
-            return res.status(404).json({ error: `"${member}" is not on the deployed roster. Add them to the roster, run \`npm run generate:roster-members\`, and reset again once the Functions deploy has finished.` });
+            res.status(404).json({ error: `"${member}" is not on the deployed roster. Add them to the roster, run \`npm run generate:roster-members\`, and reset again once the Functions deploy has finished.` });
+            return;
         }
 
         try {
@@ -469,13 +475,15 @@ const resetMemberPassword = onRequest(
             // a PIN session left open can link one). Setting up accounts already refuses to adopt it; a
             // reset must not give it a known password either (v24.38).
             if (isViewerAccount(user)) {
-                return res.status(409).json({ error: `${email} is linked to the retired staff PIN account — delete that account in the Firebase console, then run this again` });
+                res.status(409).json({ error: `${email} is linked to the retired staff PIN account — delete that account in the Firebase console, then run this again` });
+                return;
             }
             // …and an account claimed for ANOTHER member is not this member's to reset (as Set up
             // accounts refuses to adopt it): it would put that member on this one's default.
             const other = claimedByAnotherMember(user);
             if (other) {
-                return res.status(409).json({ error: `${email} holds an account claimed for "${other}" — check it in the Firebase console` });
+                res.status(409).json({ error: `${email} holds an account claimed for "${other}" — check it in the Firebase console` });
+                return;
             }
             // AN ACCOUNT THIS SERVER NEVER STAMPED is TAKEN BACK, not just re-passworded (v24.56, auth
             // review) — the same as setupRosterAuth does, for the same reason: it was registered from
@@ -485,7 +493,8 @@ const resetMemberPassword = onRequest(
             // disabled, so the admin told the member to sign in to an account that could not be used.
             // Set up accounts is the remedy — it re-enables a roster member's account on this default.
             if (user.disabled && !takeBack) {
-                return res.status(409).json({ error: `${member}'s account is disabled, so a reset would not let them in. Run Set up accounts: it re-enables the account on their surname default.` });
+                res.status(409).json({ error: `${member}'s account is disabled, so a reset would not let them in. Run Set up accounts: it re-enables the account on their surname default.` });
+                return;
             }
             // THE STAMP FIRST, AND IT MUST LAND (functions-core-2). resetAt is what keeps the other
             // devices out once the password is the surname default (AUTH_AND_SESSIONS.md 23); stamped
@@ -495,8 +504,9 @@ const resetMemberPassword = onRequest(
                 stamp = await stampResetAt(member, { remember: true });
             } catch (stampErr) {
                 console.error('[resetMemberPassword] resetAt stamp failed — nothing was changed for', member,
-                              stampErr && stampErr.code, stampErr);
-                return res.status(503).json({ error: 'Could not record the reset, so nothing was changed — try again' });
+                              fieldsOf(stampErr).code, stampErr);
+                res.status(503).json({ error: 'Could not record the reset, so nothing was changed — try again' });
+                return;
             }
             // A PASSWORD WRITE THAT THROWS (sign-in audit E1) was either REFUSED — nothing changed, so the
             // stamp goes back — or its outcome is UNKNOWN, and the stamp stays: account-lifecycle.js.
@@ -507,11 +517,12 @@ const resetMemberPassword = onRequest(
             } catch (writeErr) {
                 let restored = false;
                 if (passwordWriteRefused(writeErr)) try { await restoreResetAt(member, stamp); restored = true; } catch (restoreErr) {
-                    console.error('[resetMemberPassword] the refused reset stays stamped for', member, restoreErr && restoreErr.code, restoreErr);
+                    console.error('[resetMemberPassword] the refused reset stays stamped for', member, fieldsOf(restoreErr).code, restoreErr);
                 }
-                console.error('[resetMemberPassword] password write failed for', member, writeErr && writeErr.code, { restored }, writeErr);
+                console.error('[resetMemberPassword] password write failed for', member, fieldsOf(writeErr).code, { restored }, writeErr);
                 const { status, error } = unwrittenResetAnswer(member, writeErr, { restored });
-                return res.status(status).json({ error });
+                res.status(status).json({ error });
+                return;
             }
             // ── PAST THIS LINE THE CREDENTIAL HAS CHANGED, AND NOTHING MAY SAY OTHERWISE ─────────
             // (v21.86, external audit.) Revocation used to be a bare `await` inside the outer try,
@@ -531,7 +542,7 @@ const resetMemberPassword = onRequest(
                 // working sessions. That is a security-relevant partial state, so it is logged
                 // as an error and returned to the admin rather than folded into a boolean.
                 console.error('[resetMemberPassword] revoke failed (password WAS reset) for', member,
-                              revokeErr && revokeErr.code, revokeErr);
+                              fieldsOf(revokeErr).code, revokeErr);
             }
             // TELL THE MEMBER (v23.62, owner request). Until now the one person this is ABOUT was
             // the only person not told: their password had become the surname default and every
@@ -575,7 +586,7 @@ const resetMemberPassword = onRequest(
                 notified = accepted > 0;
             } catch (pushErr) {
                 console.error('[resetMemberPassword] notify failed (password WAS reset) for', member,
-                              pushErr && pushErr.code, pushErr);
+                              fieldsOf(pushErr).code, pushErr);
             }
             // A LOST OR STOLEN PHONE (sign-in audit D1, Nov 2026). The notice above would land on THAT
             // phone's lock screen, and its push record would go on receiving every notice addressed to
@@ -585,11 +596,11 @@ const resetMemberPassword = onRequest(
             let pushReleased = null;
             if (lostDevice) try { pushReleased = await releasePushForOwner(user.uid); } catch (releaseErr) {
                 console.error('[resetMemberPassword] push release failed (password WAS reset) for', member,
-                              releaseErr && releaseErr.code, releaseErr);
+                              fieldsOf(releaseErr).code, releaseErr);
             }
             // `revoked` is what HAPPENED. `stamped` is always true here (no reset proceeds without
             // its stamp) and stays in the answer because Operations still reads it.
-            return res.json({
+            res.json({
                 ok: true, member, revoked, stamped: true, notified,
                 ...(!revoked ? { revokeFailed: true } : {}),
                 // The account still carries NO claim, so the member cannot use the app on it until
@@ -597,12 +608,15 @@ const resetMemberPassword = onRequest(
                 ...(takeBack ? { takenBack: true } : {}),
                 ...(lostDevice ? { lostDevice: true, ...(pushReleased === null ? { pushReleaseFailed: true } : { pushReleased }) } : {}),
             });
+            return;
         } catch (e) {
-            if (e && e.code === 'auth/user-not-found') {
-                return res.status(404).json({ error: `No Firebase account for "${member}" — run Set up accounts first` });
+            if (fieldsOf(e).code === 'auth/user-not-found') {
+                res.status(404).json({ error: `No Firebase account for "${member}" — run Set up accounts first` });
+                return;
             }
-            console.error('[resetMemberPassword] failed for', member, e && e.code, e);
-            return res.status(500).json({ error: 'Reset failed' });
+            console.error('[resetMemberPassword] failed for', member, fieldsOf(e).code, e);
+            res.status(500).json({ error: 'Reset failed' });
+            return;
         }
     }
 );

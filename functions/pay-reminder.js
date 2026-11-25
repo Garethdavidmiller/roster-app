@@ -80,7 +80,7 @@ async function sendPayReminder({ payday, roster, vapidPrivate, vapidPublic, STAF
     const paydayFmt = payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Europe/London' });
 
     const names = payReminderMembers(roster);
-    const uids  = (await Promise.all(names.map(uidForMember))).filter(Boolean);
+    const uids  = (await Promise.all(names.map(uidForMember))).filter(/** @returns {u is string} */ (u) => Boolean(u));
 
     setupWebPush(vapidPrivate, vapidPublic);
     // Event-reminder grammar (.claude/rules/notifications.md): "💷 <Event> — <urgency>",

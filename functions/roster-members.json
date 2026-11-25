@@ -589,5 +589,9 @@
     ],
     "overtimeBeta": [],
     "overtimeEnabled": false,
-    "maxRosterYear": 2030
+    "maxRosterYear": 2030,
+    "payCycle": {
+        "firstPayday": "2026-02-13",
+        "intervalDays": 28
+    }
 }

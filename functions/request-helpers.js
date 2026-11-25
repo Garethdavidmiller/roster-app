@@ -13,9 +13,12 @@
  * case-exact "Bearer ". The cost was never today's caller (the app's pages send application/json);
  * it was the next handler, copied from whichever copy was nearest.
  *
- * Requires nothing at load time — `firebase-admin/auth` is required inside `requireAdmin` — so the
- * pure readers stay loadable where no install exists (doc-url-core.js runs in test:hygiene).
+ * Requires nothing installed at load time — `firebase-admin/auth` is required inside `requireAdmin`,
+ * and `./caught` requires nothing — so the pure readers stay loadable where no install exists
+ * (doc-url-core.js runs in test:hygiene).
  */
+
+const { fieldsOf } = require('./caught');
 
 /**
  * A JSON request body as an object, whatever shape the runtime handed it over in, or `{}`.
@@ -58,6 +61,19 @@ function isFormParsedJson(body) {
 const readJsonBody = (req) => jsonBodyOf(req && req.body, req && req.rawBody);
 
 /**
+ * One request header as text, or `''` when it is absent. Node joins a repeated custom header into one
+ * comma-separated string — only `set-cookie` arrives as an array — so the array its type allows is
+ * never met on the headers read with this; were it met, it reads as no header rather than throwing.
+ * @param {{ headers: import('http').IncomingHttpHeaders }} req
+ * @param {string} name  lower-case, as Node stores them
+ * @returns {string}
+ */
+function headerText(req, name) {
+    const value = req.headers[name];
+    return typeof value === 'string' ? value : '';
+}
+
+/**
  * The token in an `Authorization: Bearer …` header — the scheme matched in any case — or `''`.
  * @param {any} req
  * @returns {string}
@@ -88,7 +104,7 @@ async function requireAdmin(req, res, logTag) {
     try {
         decoded = await getAuth().verifyIdToken(token, true);
     } catch (err) {
-        if (logTag) console.warn(`[${logTag}] Token verification failed:`, err && err.message);
+        if (logTag) console.warn(`[${logTag}] Token verification failed:`, fieldsOf(err).message);
         res.status(401).json({ error: 'Unauthorised' });
         return null;
     }
@@ -151,4 +167,4 @@ async function readRawBody(req, res, logTag, maxBytes) {
     }
 }
 
-module.exports = { jsonBodyOf, readJsonBody, bearerToken, requireAdmin, readRawBody };
+module.exports = { jsonBodyOf, readJsonBody, headerText, bearerToken, requireAdmin, readRawBody };

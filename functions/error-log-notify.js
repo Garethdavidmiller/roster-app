@@ -61,7 +61,9 @@ async function notifyAdminOfErrorLog({ vapidPrivate, vapidPublic, STAFF_SITE_URL
     const snap = await ref.get();
     const state = snap.exists ? snap.data() : null;
     const due = noticeDue(asState(state), now());
-    if (due === 'seed') {
+    // `!state` is the seed case too — `noticeDue` answers 'seed' for no record — spelt out so the
+    // checker knows the record exists below.
+    if (due === 'seed' || !state) {
         // Rule 6: the backlog is not news. `set`, not a merge: a record missing its line starts again whole.
         await ref.set({ announcedThrough: FieldValue.serverTimestamp(), lastAttemptAt: null });
         console.log('[errorLog] first check: the line starts now, and nothing is sent');

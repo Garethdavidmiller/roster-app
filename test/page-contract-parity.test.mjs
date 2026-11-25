@@ -111,14 +111,21 @@ test('the page list itself is not empty or accidentally filtered to nothing', ()
     assert.ok(APP_PAGES.includes('index.html'), 'the calendar must be in the list');
 });
 
-test('every SERVED page is checked by csp-meta-parity', () => {
+test('every SERVED page gets the generated meta CSP', () => {
     // The meta CSP is the ONLY policy the GitHub Pages mirror gets — it cannot serve headers — so a
-    // page missing from that suite's list has no CSP there at all. EVERY SERVED PAGE, guides and
+    // page the generator does not write has no CSP there at all. EVERY SERVED PAGE, guides and
     // redirect stubs included: `rangers-guide.html` shipped at v20.05 and was never added to the old
-    // hand list. Since v24.52 the suite reads `servedFiles()`, so this asserts it still does.
-    const { imports, handList } = readsThePageList(read('./test/csp-meta-parity.test.mjs'), 'servedFiles');
-    assert.ok(imports, 'csp-meta-parity no longer takes its pages from scripts/app-pages.mjs (servedFiles)');
-    assert.deepEqual(handList, [], 'csp-meta-parity names pages itself again — read them from the list');
+    // hand list. Since 25 Nov 2026 `npm run generate:copies` WRITES every page's tag
+    // (scripts/generate-copies.mjs → cspMeta), reading the pages from `servedFiles()`, and
+    // generated-copies.test.mjs holds each page to it; this asserts the generator still reads the list.
+    const src = read('./scripts/generate-copies.mjs');
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    assert.match(code, /import\s*\{[^}]*\bservedFiles\b[^}]*\}\s*from\s*'\.\/app-pages\.mjs'/,
+        'generate-copies.mjs no longer takes its pages from scripts/app-pages.mjs (servedFiles)');
+    const body = code.slice(code.indexOf('function cspMeta('));
+    assert.match(body.slice(0, body.indexOf('\n}\n')), /servedFiles\(\)/, 'cspMeta no longer writes every page servedFiles() names');
+    const handList = servedFiles().filter(f => code.includes(`'${f}'`));
+    assert.deepEqual(handList, [], 'generate-copies.mjs names pages itself — read them from the list');
 });
 
 test('every card-bearing page is checked by card-header-parity', () => {

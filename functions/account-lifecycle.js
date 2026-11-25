@@ -128,22 +128,24 @@ function elevatedClaimsLost(before, after) {
 function disabledLeaverUids(users, activeEmails) {
     const disabled = (Array.isArray(users) ? users : []).filter((u) => u && u.disabled === true);
     return computeOrphanLabels(disabled.map((u) => ({ ...u, disabled: false })), activeEmails)
-        .map((o) => o.uid).filter((uid) => typeof uid === 'string' && uid !== '');
+        .map((o) => o.uid).filter(/** @returns {uid is string} */ (uid) => typeof uid === 'string' && uid !== '');
 }
 
 /**
  * Which of the leavers found NOW a confirmed sweep may disable, given the uids the admin previewed (the
  * header, D1). `confirmUids` null is a client older than the preview's uids: every leaver found, as
  * before — kept ONLY for such a client, and the one branch to delete once none can be left.
- * @param {Array<{ uid: string|undefined, label: string }>} orphans  computeOrphanLabels, at the confirm
+ * @template {string|undefined} Uid  `string` for real accounts (computeOrphanLabels keeps it)
+ * @param {Array<{ uid: Uid, label: string }>} orphans  computeOrphanLabels, at the confirm
  * @param {string[]|null} confirmUids  the previewed uids (parseSetupActionFlags), or null
- * @returns {{ toDisable: Array<{ uid: string|undefined, label: string }>, skipped: string[], notPreviewed: string[] }}
+ * @returns {{ toDisable: Array<{ uid: Uid, label: string }>, skipped: string[], notPreviewed: string[] }}
  *          `skipped` — previewed uids that are no longer leavers; `notPreviewed` — labels of leavers left alone
  */
 function sweepAgainstPreview(orphans, confirmUids) {
     const found = Array.isArray(orphans) ? orphans : [];
     if (confirmUids === null) return { toDisable: found, skipped: [], notPreviewed: [] };
     const asked = new Set(confirmUids);
+    /** @type {Set<string|undefined>} */
     const fresh = new Set(found.map((o) => o.uid));
     return {
         toDisable: found.filter((o) => typeof o.uid === 'string' && asked.has(o.uid)),

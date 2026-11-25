@@ -1,0 +1,54 @@
+name: Mutation sweep
+
+# Scheduled, NON-BLOCKING mutation sweep of the wiring lines (scripts/mutation-manifest.mjs).
+#
+# CLAUDE.md names the risk "the rule tested, the wiring not": a helper can be perfect and the answer
+# still wrong, because the line that calls it passed the wrong argument, was never called, ran in the
+# wrong access context, or had its result discarded. `npm run test:mutation` breaks each listed line
+# on a path that moves money, decides access or names a person — one at a time, through
+# scripts/mutate.mjs — and runs the narrowest test that should notice. It fails when a mutant
+# SURVIVES (a line no test would notice breaking) or an entry gave no verdict.
+#
+# Its own workflow on a schedule, not a gate: a full sweep runs every listed suite twice per entry,
+# and what it finds is a test gap to close on purpose, not a reason to hold a release. A STALE entry —
+# a listed line edited away — does not wait for Monday: mutation-sweep-script.test.mjs runs the
+# sweep's `--check-only` in `npm test`, so it fails the commit that makes it.
+#
+# It needs only the two installs: the unit lanes and the Functions suites, no browser, no emulator,
+# no secret and no token.
+on:
+  schedule:
+    - cron: '23 5 * * 1'   # Mondays 05:23 UTC — clear of offline (06:00) and backup-check (06:12)
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      # No token left on disk: every dependency's install script runs in this job, and nothing here
+      # needs git credentials (deploy-hosting.yml says why).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Node 24, as the Functions job in e2e.yml: several entries run the Functions suites.
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install function dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Run the mutation sweep
+        run: npm run test:mutation

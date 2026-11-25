@@ -144,7 +144,7 @@ Treat a cell as blank ONLY when it has no text whatsoever.`;
  * (`matchGeometryRow` says how it happens), so handing it to both put a colleague's week on somebody
  * absent from the sheet, pre-ticked, with nobody listed missing — `shared-row`, the names in `shared`.
  *
- * @param {{ available?: boolean, rows?: Array<{ name: string, cells: string[], occupancy: boolean[] }>, dayHeaders?: number }|null|undefined} geometry
+ * @param {{ available?: boolean, rows?: Array<{ name: string, cells: string[], occupancy: boolean[] }>, dayHeaders?: number, reason?: string }|null|undefined} geometry
  * @param {string[]} memberNames
  * @returns {{ usable: boolean, reason: string, rows: Array<{ memberName: string, cells: string[] }>,
  *             matched: string[], unmatched: string[], shared: string[] }}

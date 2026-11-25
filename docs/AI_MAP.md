@@ -235,8 +235,12 @@ Which member a verified ID token speaks for, or none — the server copy of `isM
 - **Exports:** `memberNameFromClaims` · `mustReclaim` · `claimedByAnotherMember` · `unlinkOtherProviders`
 
 ### `functions/request-helpers.js`
-The request plumbing every endpoint shares, in one copy: the JSON body reader, the bearer token, the admin gate (`requireAdmin`) and the capped raw upload body. It requires nothing at load time, so the readers are tested in test:hygiene (`doc-url-core.test.mjs`).
-- **Exports:** `jsonBodyOf` · `readJsonBody` · `bearerToken` · `requireAdmin` · `readRawBody`
+The request plumbing every endpoint shares, in one copy: the JSON body reader, one header as text (`headerText`), the bearer token, the admin gate (`requireAdmin`) and the capped raw upload body. It requires nothing installed at load time, so the readers are tested in test:hygiene (`doc-url-core.test.mjs`).
+- **Exports:** `jsonBodyOf` · `readJsonBody` · `headerText` · `bearerToken` · `requireAdmin` · `readRawBody`
+
+### `functions/caught.js`
+The fields a `catch` reads off a thrown value (`code`, `message`, `status`, `statusCode`), typed as the `unknown` a strict checker says it is: `fieldsOf(err).code` reads what `err.code` read for every object, and `undefined` for anything else. One reading instead of a cast in every catch. Requires nothing.
+- **Exports:** `fieldsOf`
 
 ### `functions/london-clock.js`
 An ISO calendar date, and the instant it names in London — machinery, not Overtime policy; the hours the depot chose stay in `functions/overtime-core.js`, which re-exports these. It requires nothing, and `london-clock.test.mjs` asserts it, which keeps `overtime-core.test.mjs` in test:hygiene.
@@ -920,7 +924,7 @@ The roster-to-pay suggestion engine behind the hint bar: one member's recorded c
 - **Exports:** `_setOverridesForTest` · `_addBhDateForTest` · `_removeBhDateForTest` · `resetOverrides` · `getOverridesFetchState` · `fetchOverridesForPeriod` · `getRosterSuggestion`
 
 ### `firebase-client.js`
-The single Firebase initialisation point: every page takes `db`, `auth` and the SDK calls from here, never from the CDN, so the SDK version appears once (a bump also moves `FIREBASE_SDK_VERSION` in `service-worker.js` — CLAUDE.md → Change impact). It cannot load in Node, so its rules live in the pure modules and factories it binds — `claim-retry.js` for every write, `documents-client.js`, `account-calls.js`, `analytics-client.js` among them. Boot persistence: `AUTH_AND_SESSIONS.md` 8; the persistent cache: `.claude/rules/pwa.md`. Tested by `firebase-client.test.mjs` and `calendar-viewer-parity.test.mjs`.
+The single Firebase initialisation point: every page takes `db`, `auth` and the SDK calls from here, never from the CDN, so the SDK version appears once (after a bump, `npm run generate:copies` writes `FIREBASE_SDK_VERSION` in `service-worker.js` and the pages' SDK preloads). It cannot load in Node, so its rules live in the pure modules and factories it binds — `claim-retry.js` for every write, `documents-client.js`, `account-calls.js`, `analytics-client.js` among them. Boot persistence: `AUTH_AND_SESSIONS.md` 8; the persistent cache: `.claude/rules/pwa.md`. Tested by `firebase-client.test.mjs` and `calendar-viewer-parity.test.mjs`.
 - **Exports:** `db` · `collection` · `query` · `where` · `orderBy` · `limit` · `getDocs` · `getDocsFromCache` · `getDoc` · `getDocFromCache` · `onSnapshot` · `addDoc` · `setDoc` · `deleteDoc` · `doc` · `serverTimestamp` · `writeBatch` · `runTransaction` · `deleteField` · `COLLECTIONS` · `isSafeStorageUrl` · `resolveDocumentOpenUrl` · `auth` · `authBootstrap` · `authReady` · `currentUserAfterBoot` · `restoreMemberPersistence` · `signInWithEmailAndPassword` · `signOut` · `onAuthStateChanged` · `withClaimRetry` · `writeWithClaimRetry` · `whenOwnWritesSent` · `whenOwnWritesSentFor` · `VIEWER_WRITES_GRACE_MS` · `letViewerWritesGo` · `normaliseSurname` · `nameToEmail` · `uploadHuddle` · `uploadCircular` · `uploadNewsletter` · `getLatestCircular` · `getLatestNewsletter` · `getLatestHuddle` · `subscribeToLatestHuddle` · `currentAuthUid` · `savePushSubscription` · `deletePushSubscription` · `getStaffContact` · `saveStaffContact` · `deleteStaffContact` · `getAllStaffContacts` · `getPasswordStatus` · `probeResetAtMs` · `savePasswordSetAt` · `getAllPasswordStatus` · `reauthenticateWithPassword` · `changeOwnPassword` · `resetMemberPassword` · `getAccountSetupGaps` · `requestPasswordReset` · `fetchSignedDocumentUrl` · `getSignInStats` · `getResetRequests` · `clearResetRequest` · `logClientError` · `getClientErrors` · `resolveClientError` · `recordPageView` · `recordActiveAccount` · `recordOriginUse` · `recordPerfSample` · `getPerfStats` · `getUsageStats`
 
 ### `fetch-timeout.js`

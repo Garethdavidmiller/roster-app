@@ -76,10 +76,8 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
-      - name: Lint and type-check (repo gate)
-        run: |
-          npm run lint
-          npm run typecheck
+      - name: Lint (repo gate)
+        run: npm run lint
 
       # EVERY functions module, not a hand-list. The list held two names while push.js (v20.52),
       # documents.js and auth-endpoints.js (v20.55) arrived unchecked — a hand-maintained list
@@ -116,6 +114,11 @@ jobs:
       - name: Install function dependencies
         run: npm ci
         working-directory: functions
+
+      # AFTER the Functions' install (25 Nov 2026): the typecheck checks functions/ too, against the
+      # types that install provides, and refuses without them (scripts/typecheck.mjs).
+      - name: Type-check (repo gate — the browser modules and the Functions)
+        run: npm run typecheck
 
       - name: Run functions tests (parser helpers, deploy-surface pin, overtime + auth endpoints)
         run: npm run test:functions

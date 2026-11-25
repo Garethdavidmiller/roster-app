@@ -17,15 +17,19 @@ const { getStorage } = require('firebase-admin/storage');
 const crypto = require('crypto');
 const { parseStrictIsoDate, fileSignatureMatches } = require('./roster-parse-helpers');
 const { pruneOldHuddles } = require('./huddle-retention');
+const { headerText } = require('./request-helpers');
+const { fieldsOf } = require('./caught');
 
 /**
  * Build the ingestHuddle endpoint. Called once, from buildDocumentEndpoints.
  * @param {object} deps
  * @param {import('firebase-functions/params').SecretParam} deps.HUDDLE_SECRET
  * @param {import('firebase-functions/params').SecretParam} deps.VAPID_PRIVATE_KEY
- * @param {Function} deps.readRawBody           shared streaming body reader (also used by parseRosterPDF)
- * @param {Function} deps.nowInLondon           TZ-independent London calendar date
- * @param {Function} deps.isRetriableFirestoreError  commit-ambiguous classifier
+ * @param {(req: any, res: any, logTag: string) => Promise<string|null>} deps.readRawBody
+ *        shared streaming body reader (also used by parseRosterPDF); null once it has answered
+ * @param {() => { year: number, month: number, day: number }} deps.nowInLondon
+ *        TZ-independent London calendar date (a 0-based month, as `Date` takes it)
+ * @param {(err: unknown) => boolean} deps.isRetriableFirestoreError  commit-ambiguous classifier
  * @param {number}   deps.MAX_FILE_BYTES
  * @param {number}   deps.MAX_HUDDLE_HTML_CHARS
  * @param {(collectionName: string, date: string) => Promise<boolean>} deps.isLatestOfKind
@@ -112,8 +116,8 @@ const ingestHuddle = onRequest(
         }
 
         // ---- Metadata from headers ----
-        const date     = (req.headers['x-huddle-date']     || '').trim();
-        const filename = (req.headers['x-huddle-filename'] || '').trim();
+        const date     = headerText(req, 'x-huddle-date').trim();
+        const filename = headerText(req, 'x-huddle-filename').trim();
 
         if (!date || !filename) {
             res.status(400).json({ error: 'Missing required headers: x-huddle-date, x-huddle-filename' });
@@ -211,7 +215,7 @@ const ingestHuddle = onRequest(
             const prevSnap = await getFirestore().collection('huddles').doc(date).get();
             if (prevSnap.exists) prevStoragePath = (prevSnap.data() || {}).storagePath || null;
         } catch (readErr) {
-            console.warn('[ingestHuddle] Could not read previous huddle metadata (non-fatal, cleanup only):', readErr.message);
+            console.warn('[ingestHuddle] Could not read previous huddle metadata (non-fatal, cleanup only):', fieldsOf(readErr).message);
         }
 
         try {
@@ -264,11 +268,13 @@ const ingestHuddle = onRequest(
                     }
                 } catch (mammothErr) {
                     // Conversion failure is non-fatal — file still saved to Storage
-                    console.warn('[ingestHuddle] mammoth conversion failed:', mammothErr.message);
+                    console.warn('[ingestHuddle] mammoth conversion failed:', fieldsOf(mammothErr).message);
                 }
             }
 
             // ---- Write Firestore metadata document ----
+            /** @type {{ date: string, storageUrl: string, storagePath: string, fileType: string,
+             *           uploadedAt: import('firebase-admin/firestore').FieldValue, uploadedBy: string, htmlContent?: string }} */
             const firestoreDoc = {
                 date,
                 storageUrl,
@@ -309,7 +315,7 @@ const ingestHuddle = onRequest(
             /** @type {{ existed: boolean, replacedBy: any }} */
             let written = { existed: false, replacedBy: null };
             /** What the last attempt that WROTE saw before writing: a re-run's answer (above), and the catch's. @type {{ existed: boolean, replacedBy: any }|null} */
-            let seenByWrite = null;
+            let seenByWrite = /** @type {{ existed: boolean, replacedBy: any }|null} */ (null);
             const huddleRef = getFirestore().collection('huddles').doc(date);
             try {
                 written = await getFirestore().runTransaction(async tx => {
@@ -343,10 +349,10 @@ const ingestHuddle = onRequest(
                 // this read.
                 const live = await huddleRef.get().then(snap => snap.data(), () => null);   // null: unread
                 if (!live || live.storagePath !== storagePath) {
-                    console.warn(`[ingestHuddle] metadata transaction failed (${metaErr.code}) and ${live === null ? 'the record could not be read back' : 'the record does not name this upload'} — leaving new object in place (commit-ambiguous), not deleting`);
+                    console.warn(`[ingestHuddle] metadata transaction failed (${fieldsOf(metaErr).code}) and ${live === null ? 'the record could not be read back' : 'the record does not name this upload'} — leaving new object in place (commit-ambiguous), not deleting`);
                     throw metaErr;
                 }
-                console.warn(`[ingestHuddle] metadata transaction failed (${metaErr.code}), but its commit had landed — carrying on`);
+                console.warn(`[ingestHuddle] metadata transaction failed (${fieldsOf(metaErr).code}), but its commit had landed — carrying on`);
                 // Only an attempt that wrote can have put this path there, so seenByWrite is set.
                 written = /** @type {{ existed: boolean, replacedBy: any }} */ (seenByWrite);
             }
@@ -397,7 +403,7 @@ const ingestHuddle = onRequest(
                 try {
                     await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
                 } catch (pushErr) {
-                    console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
+                    console.warn('[ingestHuddle] Push notifications failed (non-fatal):', fieldsOf(pushErr).message);
                 }
             }
 
@@ -408,7 +414,7 @@ const ingestHuddle = onRequest(
             try {
                 await pruneOldHuddles(date, { db: getFirestore(), bucket: getStorage().bucket(), nowInLondon });
             } catch (pruneErr) {
-                console.warn('[ingestHuddle] Huddle prune failed (non-fatal):', pruneErr.message);
+                console.warn('[ingestHuddle] Huddle prune failed (non-fatal):', fieldsOf(pruneErr).message);
             }
 
             res.status(200).json({ success: true, date, storageUrl });

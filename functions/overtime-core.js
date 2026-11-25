@@ -137,7 +137,7 @@ const MAX_PARTICIPANTS_PER_WINDOW = 499;
 
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-/** The instant of 12:00 Europe/London on `isoDate` — the availability deadline clock. */
+/** The instant of 12:00 Europe/London on `isoDate` — the availability deadline clock. @param {string} isoDate @returns {number} */
 function londonNoonTimestamp(isoDate) {
     return londonTimestamp(isoDate, DEADLINE_HOUR_LONDON);
 }
@@ -164,24 +164,24 @@ function lastSchedulerRun(nowMs) {
     return londonTimestamp(addDays(today, -1), SCHEDULER_HOUR_LONDON);
 }
 
-/** The instant of 00:00 Europe/London on `isoDate` — used as the retention expiry boundary. */
+/** The instant of 00:00 Europe/London on `isoDate` — used as the retention expiry boundary. @param {string} isoDate @returns {number} */
 function londonMidnightTimestamp(isoDate) {
     return londonTimestamp(isoDate, 0);
 }
 
 // ── Calendar helpers (pure date arithmetic, no timezone) ────────────────────────────────────────
 
-/** True when the ISO date is a Saturday — the only legal week-ending. */
+/** True when the ISO date is a Saturday — the only legal week-ending. @param {unknown} isoDate @returns {boolean} */
 function isSaturday(isoDate) {
-    return isValidIsoDate(isoDate) && isoDayOfWeek(isoDate) === 6;
+    return typeof isoDate === 'string' && isValidIsoDate(isoDate) && isoDayOfWeek(isoDate) === 6;
 }
 
-/** The seven Sunday→Saturday ISO dates of the roster week starting `weekStart`. */
+/** The seven Sunday→Saturday ISO dates of the roster week starting `weekStart`. @param {string} weekStart @returns {string[]} */
 function weekDates(weekStart) {
     return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 }
 
-/** The week-ending Saturday of the Sunday–Saturday week containing `isoDate` (itself, if Saturday). */
+/** The week-ending Saturday of the Sunday–Saturday week containing `isoDate` (itself, if Saturday). @param {string} isoDate @returns {string} */
 function weekEndingFor(isoDate) {
     return addDays(isoDate, 6 - isoDayOfWeek(isoDate));
 }
@@ -252,7 +252,7 @@ function phaseFor(milestones, nowMs) {
     return 'INITIAL_OPEN';
 }
 
-/** True when the window may still accept a submission or amendment. */
+/** True when the window may still accept a submission or amendment. @param {string} phase @returns {boolean} */
 function isOpenPhase(phase) {
     return phase === 'INITIAL_OPEN' || phase === 'FINAL_OPEN';
 }
@@ -450,6 +450,7 @@ function weeksNeedingWindows(nowMs, existingWeekEndings, { maxRosterYear }) {
  * automatically overnight" every day until "Missed" (overtime-core-6). `beyondRoster` gives it its
  * own state at every phase, because its cause, a CONFIG year nobody raised, is the same throughout.
  *
+ * @param {{ initialDeadlineAt: number, finalDeadlineAt: number }} milestones  the week's (`milestonesFor`)
  * @param {number} nowMs
  * @param {boolean} exists
  * @param {boolean} [autoOverdue] true when the last scheduled run was due to create this week and
@@ -468,6 +469,7 @@ function windowRowState(milestones, nowMs, exists, autoOverdue = false, beyondRo
 
 // ── Participants ────────────────────────────────────────────────────────────────────────────────
 
+/** A member of the GENERATED Overtime roster (`overtimeRoster`). @typedef {{name:string,grade?:string,rosterOrder?:number,startDate?:string|null,hidden?:boolean,managerOnly?:boolean}} OvertimeRosterRow */
 /** Window audience labels. Provenance and selector choice — NEVER an authorisation input. */
 const AUDIENCES = Object.freeze(['restricted', 'all']);
 
@@ -479,6 +481,8 @@ const AUDIENCES = Object.freeze(['restricted', 'all']);
  * appears in the next one. Every participant answers all seven days, and asking a new starter to
  * declare availability for days before they were employed is incoherent. A four-day part week is
  * the alternative, and it would leak into counts, reminders and the seven-day schema everywhere.
+ * @param {{ name?: unknown, startDate?: string|null }|null|undefined} member  a generated roster row
+ * @param {string} weekStart @returns {boolean}
  */
 function isEligibleForWeek(member, weekStart) {
     if (!member || typeof member.name !== 'string' || !member.name) return false;
@@ -532,7 +536,7 @@ function isEligibleForWeek(member, weekStart) {
  *
  * Widening the beta is still a one-word edit — `currentAudience()`.
  *
- * @param {Array<{name:string,grade?:string,rosterOrder?:number,startDate?:string|null,hidden?:boolean,managerOnly?:boolean}>} roster
+ * @param {OvertimeRosterRow[]} roster
  * @param {{ weekStart:string, audience:string, adminNames?:string[], betaNames?:string[] }} ctx
  * @returns {Array<{memberName:string, grade:string, rosterOrder:number}>}
  */
@@ -549,7 +553,7 @@ function selectParticipants(roster, { weekStart, audience, adminNames = [], beta
         .map(m => ({
             memberName:  m.name,
             grade:       m.grade || '',
-            rosterOrder: Number.isInteger(m.rosterOrder) ? m.rosterOrder : 0,
+            rosterOrder: typeof m.rosterOrder === 'number' && Number.isInteger(m.rosterOrder) ? m.rosterOrder : 0,
         }))
         .sort((a, b) => a.rosterOrder - b.rosterOrder || a.memberName.localeCompare(b.memberName));
 }
@@ -561,7 +565,7 @@ function selectParticipants(roster, { weekStart, audience, adminNames = [], beta
  * name that cannot be a path segment corrupts a write rather than failing a lint. Applied to
  * GENERATED data, in CI — a future starter with an unusual name must break the build, not
  * production. Firestore's own rules: non-empty, no '/', not '.' or '..', no __reserved__ form,
- * at most 1500 bytes.
+ * at most 1500 bytes. @param {unknown} name @returns {boolean}
  */
 function isSafeDocId(name) {
     if (typeof name !== 'string' || name.length === 0) return false;
@@ -581,6 +585,7 @@ function isSafeDocId(name) {
  * reference to the roster: the roster can change afterwards, and a member's declaration must remain
  * what they actually said rather than silently re-pointing at a different time.
  */
+/** Each mode and the fields it takes. @type {Readonly<Record<string, readonly string[]>>} */
 const AVAILABILITY_MODES = Object.freeze({
     unavailable:  Object.freeze([]),
     all_day:      Object.freeze([]),
@@ -672,7 +677,7 @@ const OPTIONAL_DAY_FIELDS = Object.freeze(['fullTwelve']);
  */
 const REQUEST_DAY_FIELDS = Object.freeze(['releaseRequested']);
 
-/** @returns {{ok:true, day:object}|{ok:false, error:string}} */
+/** @param {any} raw  a day of the client's JSON, which this validates @returns {{ok:true, day:Record<string, unknown>}|{ok:false, error:string}} */
 function normaliseDay(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'day-not-object' };
     const mode = raw.mode;
@@ -770,20 +775,24 @@ function normaliseDays(days, expectedDates) {
 /**
  * Semantic equality of two normalised weeks. Both sides come from `normaliseDays`, so key order is
  * already canonical and a stable stringify is a true comparison rather than an approximation.
+ * @param {unknown} a @param {unknown} b @returns {boolean}
  */
 function daysEqual(a, b) {
     return stableStringify(a) === stableStringify(b);
 }
 
+/** JSON with every object's keys sorted. @param {unknown} v @returns {string} */
 function stableStringify(v) {
     if (v === null || typeof v !== 'object') return JSON.stringify(v);
     if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
-    return `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
+    // A plain object here (the two checks above); the checker cannot index `object`, so it is named as one.
+    const o = /** @type {Record<string, unknown>} */ (v);
+    return `{${Object.keys(o).sort().map(k => `${JSON.stringify(k)}:${stableStringify(o[k])}`).join(',')}}`;
 }
 
 // ── Revisions and concurrency ───────────────────────────────────────────────────────────────────
 
-/** Zero-padded revision document id, so the natural string order is the revision order. */
+/** Zero-padded revision document id, so the natural string order is the revision order. @param {number} n @returns {string} */
 function revisionId(n) {
     return String(n).padStart(6, '0');
 }
@@ -805,7 +814,7 @@ function revisionId(n) {
  * @param {{currentRevision:number, days:object}|null} head
  * @param {object} incomingDays already through `normaliseDays`
  * @param {number} ifRevision   0 for a first submission
- * @returns {{action:'create'|'append'|'noop'|'conflict', revision?:number, expected?:number}}
+ * @returns {{action:'create'|'append'|'noop', revision:number} | {action:'conflict', expected:number}}
  */
 function decideSubmission(head, incomingDays, ifRevision) {
     if (!head) {
@@ -903,7 +912,7 @@ function dayChangedAt(sortedRevisions) {
 /**
  * A value with every object's keys sorted, so `JSON.stringify` becomes an order-independent
  * comparison — the CommonJS counterpart of the client's `stableStringify`.
- * @param {any} v
+ * @param {any} v @returns {unknown}
  */
 function stableKeyOrder(v) {
     if (v === null || typeof v !== 'object') return v;

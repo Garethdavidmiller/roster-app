@@ -35,6 +35,7 @@ const {
 const { readOtherDayCell, namesMeeting } = require('./roster-other-days');
 const { isViewerAccount } = require('./retired-viewer-account');
 const { jsonBodyOf } = require('./request-helpers');
+const { fieldsOf } = require('./caught');
 
 // ── Shift normalisation ──────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ function normaliseShift(raw, { quiet = false } = {}) {
     // normalise to a bogus shift time and pass review as a genuine shift. Out-of-range
     // values fall through to the unrecognised path (the UNKNOWN review sentinel) so they
     // don't silently become a real working shift.
-    const validHHMM = (h, m) => +h >= 0 && +h <= 23 && +m >= 0 && +m <= 59;
+    const validHHMM = (/** @type {string} */ h, /** @type {string} */ m) => +h >= 0 && +h <= 23 && +m >= 0 && +m <= 59;
 
     // A WORKED RANGE NEEDS TWO DIFFERENT CLOCK TIMES (v20.39). Both times valid is not enough:
     // every duration helper in this app reads `end <= start` as an OVERNIGHT WRAP, which is right
@@ -90,7 +91,7 @@ function normaliseShift(raw, { quiet = false } = {}) {
     // Equality only — `end < start` stays legal, because a genuine overnight shift is ordinary here.
     // A failure falls through to the UNKNOWN sentinel rather than being corrected: nobody knows what
     // the cell really said, so it belongs in human review with every other unreadable value.
-    const workedRange = (h1, m1, h2, m2) =>
+    const workedRange = (/** @type {string} */ h1, /** @type {string} */ m1, /** @type {string} */ h2, /** @type {string} */ m2) =>
         validHHMM(h1, m1) && validHHMM(h2, m2)
         && !(+h1 === +h2 && +m1 === +m2);
 
@@ -271,7 +272,8 @@ function buildWeekDates(weekEnding) {
  * Strips preamble, markdown fences, or trailing text safely.
  *
  * @param {string} text - Raw text from AI response
- * @returns {object} Parsed JSON object
+ * @returns {any} Parsed JSON object — the MODEL'S JSON, unvalidated, so `any` is its honest type: an
+ *   external payload whose every field the caller and each layer after it checks before reading
  * @throws {SyntaxError} if no JSON object is found or JSON is invalid
  */
 function extractAIJson(text) {
@@ -330,7 +332,7 @@ function extractAIJson(text) {
     }
     if (parsedOnly) return parsedOnly;
     if (haveFallback) return fallback;   // nothing matched the shape — behave as before
-    throw new SyntaxError('No valid JSON object found in AI response' + (firstErr ? `: ${firstErr.message}` : ''));
+    throw new SyntaxError('No valid JSON object found in AI response' + (firstErr ? `: ${fieldsOf(firstErr).message}` : ''));
 }
 
 // ── Column header → day index mapping ───────────────────────────────────────
@@ -355,7 +357,7 @@ const HEADER_TO_INDEX = Object.assign(Object.create(null), {
  * SINGLE source for the three parse layers that each resolve a header (mapColumnHeadersToDates,
  * buildSafeEntries, applyColumnScanCrossCheck) — they used to inline this two-line lookup, so a
  * change (a new alias, a different fallback) had to be made in all three or they'd drift.
- * @param {string} header
+ * @param {unknown} header  a model-written header or day key: read through `String()`
  * @returns {number|undefined}
  */
 function headerToDayIndex(header) {
@@ -368,7 +370,7 @@ function headerToDayIndex(header) {
  *
  * @param {string[]} columnHeaders - e.g. ['Sun', 'Mon', 'Tue', ...]
  * @param {string[]} dates         - 7 ISO dates from buildWeekDates()
- * @returns {{ columnDates: string[]|null, error: string|null }}
+ * @returns {{ columnDates: string[], error: null } | { columnDates: null, error: string }}
  *   error is null on success; columnDates is null on error.
  */
 function mapColumnHeadersToDates(columnHeaders, dates) {
@@ -387,6 +389,12 @@ function mapColumnHeadersToDates(columnHeaders, dates) {
 }
 
 // ── Safe entry builder ───────────────────────────────────────────────────────
+
+/**
+ * One member's week as the server holds it after the read: their roster name and a normalised value
+ * for each ISO date. What every layer after `buildSafeEntries` reads and repairs in place.
+ * @typedef {{ memberName: string, shifts: Record<string, string> }} SafeEntry
+ */
 
 /** Day names for the "no <day> cell was read" sentinel, indexed like `dates` (Sunday first). */
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -418,10 +426,12 @@ function memberRows(parsedMembers) {
  * Mon–Sat day fails closed to the UNREADABLE sentinel (v22.19; the reasoning is inline below).
  * Shift values are normalised via normaliseShift().
  *
- * @param {object[]} parsedMembers  - AI-returned member objects (memberName + day keys)
+ * @param {any[]}    parsedMembers  - AI-returned member objects (memberName + day keys). The model's
+ *                                    JSON, UNVALIDATED — `any` for that reason: every field is checked
+ *                                    below before it is read
  * @param {string[]} columnHeaders  - column headers from AI output
  * @param {string[]} dates          - 7 ISO dates (Sun → Sat) from buildWeekDates()
- * @returns {object[]} safeEntries: [{ memberName: string, shifts: { date: value } }]
+ * @returns {SafeEntry[]} safeEntries: [{ memberName: string, shifts: { date: value } }]
  */
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
@@ -471,6 +481,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         // column both mean "not rostered on Sunday", and neither is evidence of a misread.
         // A missing weekday COLUMN is a different matter and correctly floods — a roster that does
         // not show Tuesday is a broken read, not a format.
+        /** @type {Record<string, string>} */
         const shifts = {};
         for (let i = 0; i < dates.length; i++) {
             shifts[dates[i]] = blankCellMeaning(i, DAY_LABELS[i]);
@@ -483,6 +494,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         // → filled 'RD', silently dropping a real shift where the base was also RD. Index the entry's
         // day keys the same tolerant way so the two lookups can't diverge. (Day abbrevs sun/mon/…/sat
         // don't collide with member metadata keys like name/grade.)
+        /** @type {Record<string, unknown>} */
         const entryByDay = {};
         for (const k of Object.keys(entry)) {
             const kk = String(k).trim().toLowerCase().slice(0, 3);
@@ -503,7 +515,9 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         // absent key should instead go to review is a live question — the answer needs a
         // compliance rate, and until this split nobody could measure one: BOTH cases logged as
         // "no cell read for [Sun]", including the case where the cell WAS read and reported empty.
+        /** @type {string[]} */
         const blankKeys = [];
+        /** @type {string[]} */
         const absentKeys = [];
         for (let i = 0; i < columnHeaders.length; i++) {
             const header   = columnHeaders[i];
@@ -578,7 +592,7 @@ function normaliseScanValue(raw) {
     return norm.startsWith('UNKNOWN|') ? null : norm;
 }
 
-/** Human form of a normalised shift for the "read two ways" message ("RDW|t" → "RDW t", capped). */
+/** Human form of a normalised shift for the "read two ways" message ("RDW|t" → "RDW t", capped). @param {unknown} v @returns {string} */
 function reviewLabel(v) {
     // App-language label for a normalised shift, for the admin-facing "couldn't read" review message.
     // Uses the app's STAFF-FACING terms — never the internal 'SICK' data value (wording rule: absence
@@ -623,8 +637,9 @@ function reviewLabel(v) {
  * limitation here — it leaves the Sunday claim for the geometry witness (roster-sunday-repair.js),
  * and the client's detectShiftedRow remains the catch when the witness cannot run.
  *
- * @param {object[]} safeEntries   - modified in place ({ memberName, shifts: { date: value } })
- * @param {object}   columnScan    - { header: { memberName: rawCellValue } } from AI output
+ * @param {SafeEntry[]} safeEntries - modified in place ({ memberName, shifts: { date: value } })
+ * @param {Record<string, any>|null|undefined} columnScan - { header: { memberName: rawCellValue } } from
+ *                                   AI output, UNVALIDATED: each column and cell is checked as it is read
  * @param {string[]} columnHeaders - column headers from AI output
  * @param {string[]} dates         - 7 ISO dates (Sun → Sat) from buildWeekDates()
  */
@@ -702,8 +717,8 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         // the client treats OFF ≡ RD), but the scan normalises OFF → 'RD' via BLANK_SCAN_TOKENS — so
         // compare with OFF folded to RD on the row side, or every ordinary CES/bilingual rest day
         // would false-flag as a disagreement.
-        const rowEq = v => (v === 'OFF' ? 'RD' : v);
-        const cellsAgree = (rowV, colV) => rowEq(rowV) === colV;
+        const rowEq = (/** @type {string} */ v) => (v === 'OFF' ? 'RD' : v);
+        const cellsAgree = (/** @type {string} */ rowV, /** @type {string} */ colV) => rowEq(rowV) === colV;
 
         // Per-cell RDW repair BEFORE the disagreement count: RDW-stripping is a known one-sided
         // failure (the reads agree on the TIME, only the RDW marker differs). Column has RDW, row
@@ -779,7 +794,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             // (a drifted row's absence was misread one day off and the shift realigns it). On an undetected
             // drift the absence lands a day off — the same positional risk that applies to EVERY cell on
             // that row (pre-existing), not new to this resolution, and review-gated (admin sees the DIFF).
-            const isRest = x => x === 'RD' || x === 'OFF';
+            const isRest = (/** @type {string} */ x) => x === 'RD' || x === 'OFF';
             if (d !== dates[0] && ((rowV === 'SICK' && isRest(colV)) || (isRest(rowV) && colV === 'SICK'))) {
                 console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row/column read disagreed Rest↔Absent — recorded as Absent (an absence code was read on one pass; never silently drop an absence)`);
                 entry.shifts[d] = 'SICK';
@@ -819,9 +834,15 @@ function parseStrictIsoDate(str) {
 // ── Pay cutoff detection ─────────────────────────────────────────────────────
 
 /**
+ * The pay cycle's anchor payday and length — GENERATED into roster-members.json from
+ * CONFIG.FIRST_PAYDAY and CONFIG.PAYDAY_INTERVAL_DAYS in roster-data.js by
+ * `npm run generate:roster-members`. Never write them here: move them in CONFIG and regenerate.
+ */
+const PAY_CYCLE = require('./roster-members.json').payCycle;
+
+/**
  * Returns true if the given date is a pay cutoff day (Saturday before payday).
- * Mirrors isCutoffDate() in roster-data.js.
- * FIRST_PAYDAY and INTERVAL_DAYS must stay in sync with CONFIG in roster-data.js.
+ * Mirrors isCutoffDate() in roster-data.js, on the cycle in roster-members.json (PAY_CYCLE, above).
  *
  * @param {Date} date - midnight local date to check
  * @returns {boolean}
@@ -830,8 +851,9 @@ function isPayCutoffDay(date) {
     // Anchor in UTC so the arithmetic is correct on any server timezone.
     // Date.UTC and setUTCHours give the same result as their local counterparts on
     // UTC Cloud Run — but are explicit and correct if TZ ever differs.
-    const FIRST_PAYDAY_MS = Date.UTC(2026, 1, 13, 12, 0, 0); // 13 Feb 2026, noon UTC
-    const INTERVAL_DAYS   = 28;
+    const [anchorY, anchorM, anchorD] = String(PAY_CYCLE.firstPayday).split('-').map(Number);
+    const FIRST_PAYDAY_MS = Date.UTC(anchorY, anchorM - 1, anchorD, 12, 0, 0); // the anchor payday, noon UTC
+    const INTERVAL_DAYS   = PAY_CYCLE.intervalDays;
     const MS_PER_DAY      = 86_400_000;
     // Rebuild the intended CALENDAR day at noon UTC from the input's local components. The caller
     // builds `date` with the local-timezone `new Date(y, m, d)`, so mixing its raw getTime() with
@@ -943,7 +965,10 @@ function parseSetupActionFlags(reqBody, rawBody) {
  * `processMembers` unions the role names into the member set so every role-holder is provisioned AND
  * lands in the never-orphan set (a leaver sweep can then never disable an admin/manager/designer).
  * @param {any} rosterMembers  the parsed roster-members.json
- * @returns {{ error?: string, members?: string[], admin?: string[], manager?: string[], designer?: string[], processMembers?: string[] }}
+ * @returns {{ error: 'missing-active-members' } | { error: 'empty-admin' }
+ *         | { error?: undefined, members: string[], admin: string[], manager: string[], designer: string[], processMembers: string[] }}
+ *   One or the other, so a caller that has returned on `cfg.error` holds every list — the checker
+ *   sees that, because both codes are non-empty and so truthy.
  */
 function resolveRosterAuthConfig(rosterMembers) {
     const members  = Array.isArray(rosterMembers && rosterMembers.activeMembers) ? rosterMembers.activeMembers : [];
@@ -1039,9 +1064,10 @@ function summariseSignIns(users, nowMs, allowedEmails) {
  * set, not disabled, and never the retired staff PIN's shared account (a leftover PIN session can
  * link an email to it, and deleting it is the owner's step — ./retired-viewer-account.js). Pure; the
  * handler previews or disables+revokes them.
- * @param {Array<{ uid?: string, email?: string, displayName?: string, disabled?: boolean }>} users
+ * @template {{ uid?: string, email?: string, displayName?: string, disabled?: boolean }} User
+ * @param {User[]} users  a real UserRecord always has a uid, and the answer keeps that
  * @param {Set<string>} activeEmails  emails of currently-provisioned members (never disabled)
- * @returns {Array<{ uid: string|undefined, label: string }>}
+ * @returns {Array<{ uid: User['uid'], label: string }>}
  */
 function computeOrphanLabels(users, activeEmails) {
     const out = [];
@@ -1052,9 +1078,11 @@ function computeOrphanLabels(users, activeEmails) {
             !user.disabled) {
             // Its display name only when the ADDRESS was made from it: the holder can set any name,
             // and a leaver renamed after a current member was listed as that member (functions-core lead).
-            const own = typeof user.displayName === 'string' && user.displayName.trim() !== ''
-                && nameToEmail(user.displayName.trim()).toLowerCase() === user.email.toLowerCase();
-            out.push({ uid: user.uid, label: own ? user.displayName : user.email });
+            // `shown` is the display name exactly when it is a string, so `own` implies it is that name.
+            const shown = typeof user.displayName === 'string' ? user.displayName : '';
+            const own = shown.trim() !== ''
+                && nameToEmail(shown.trim()).toLowerCase() === user.email.toLowerCase();
+            out.push({ uid: user.uid, label: own ? shown : user.email });
         }
     }
     return out;
@@ -1157,7 +1185,7 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
  * and since the client VAPID fingerprint (derived from the unchanged public key) wouldn't change,
  * no device would ever re-subscribe → a permanent, silent notification outage. So ONLY 410/404
  * delete; everything else (401, 5xx, network) is a transient/keep.
- * @param {number|undefined|null} statusCode  HTTP status from the push service
+ * @param {unknown} statusCode  HTTP status from the push service, as the send's error carried it (compared, never read)
  * @returns {boolean} true → delete the subscription doc; false → keep and log
  */
 function shouldDeleteSubscription(statusCode) {

@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * csp-meta-parity.test.mjs (v17.63) — keep every served HTML page's <meta http-equiv=
- * "Content-Security-Policy"> in lockstep with the firebase.json CSP HEADER.
+ * csp-meta-parity.test.mjs (v17.63; the copies generated since 25 Nov 2026) — the RULE by which every served page's
+ * <meta http-equiv="Content-Security-Policy"> follows the firebase.json CSP HEADER.
  *
  * WHY a meta CSP exists at all: the app is served from two origins — Firebase Hosting (primary,
  * which applies the firebase.json header) AND the GitHub Pages staff mirror
@@ -11,45 +11,28 @@
  * cache too. On Firebase the page then carries header + meta (identical → same enforcement); on the
  * mirror the meta is the only CSP.
  *
- * This test fails the build if any page's meta drifts from the header — the same anti-drift discipline
- * csp-hygiene.test.mjs applies to the header itself. A <meta> CSP cannot express a few directives
- * (browsers ignore them there), so those are excluded from the expected meta and must NOT appear in it.
+ * THE COPIES ARE WRITTEN, NOT KEPT. Until 25 Nov 2026 this file compared sixteen hand-kept <meta> tags
+ * with the header and failed when one was forgotten. `npm run generate:copies`
+ * (scripts/generate-copies.mjs → `csp-meta`) now writes every page's tag from the header, and
+ * generated-copies.test.mjs fails when a committed page is not what it would write. What stays here
+ * is the part that is a RULE rather than a copy, checked by an independent reading so that a bug in
+ * the generator cannot pass for a current file: the meta is the header, directive for directive,
+ * minus the few a <meta> cannot express — which must not appear in it, or a reader is misled into
+ * thinking they apply on the mirror.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { servedFiles } from '../scripts/app-pages.mjs';
+import { join } from 'node:path';
+import { headerCsp, metaCspFor, META_INCOMPATIBLE } from '../scripts/generate-copies.mjs';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
-const REPO_ROOT_URL = new URL('../', import.meta.url);
-
-const ROOT = fileURLToPath(REPO_ROOT_URL);
-
-// Directives a <meta http-equiv="CSP"> cannot express — browsers ignore them when delivered via meta.
-// Kept out of the expected meta; asserted absent so no one is misled into thinking they apply there.
-const META_INCOMPATIBLE = new Set(['frame-ancestors', 'report-uri', 'report-to', 'sandbox']);
-
-// EVERY SERVED PAGE, not every APP page. The distinction cost this list three entries: it carried
-// four of the five guides, and `rangers-guide.html` — which shipped at v20.05 — was simply never
-// added, alongside the two legacy redirect stubs. All three happened to hold the correct meta, so
-// nothing was broken; nothing was watching either.
-//
-// The reason a guide belongs here is the reason any page does, and `page-contract-parity` states it:
-// the meta CSP is the ONLY policy the GitHub Pages mirror gets, because it cannot serve headers. A
-// guide is served on that mirror exactly like the calendar. Guides are legitimately a different
-// family for nav, auth and analytics — which is why page-contract-parity excludes them — but being
-// fetchable is not one of those things, and the CSP check had silently inherited that exclusion.
-//
-// The redirect stubs are here for the same reason. They carry a meta CSP already; checking it costs
-// nothing and catches the drift nobody would otherwise see.
-//
-// The list is scripts/app-pages.mjs (v24.52) — every served page, all three kinds.
-const SERVED_HTML = servedFiles();
+const ROOT = fileURLToPath(new URL('../', import.meta.url));
+const read = (/** @type {string} */ f) => readFileSync(join(ROOT, f), 'utf8');
 
 /** Parse a CSP string into a Map(directive → sorted-value-string), order-independent. */
-function parseCsp(csp) {
+function parseCsp(/** @type {string} */ csp) {
     const map = new Map();
     for (const part of csp.split(';').map(s => s.trim()).filter(Boolean)) {
         const [name, ...vals] = part.split(/\s+/);
@@ -58,54 +41,29 @@ function parseCsp(csp) {
     return map;
 }
 
-/** The firebase.json CSP header value. */
-function headerCsp() {
-    const fb = JSON.parse(readFileSync(join(ROOT, 'firebase.json'), 'utf8'));
-    for (const h of fb.hosting?.headers ?? [])
-        for (const kv of h.headers ?? [])
-            if (kv.key === 'Content-Security-Policy') return kv.value;
-    throw new Error('Content-Security-Policy header not found in firebase.json');
-}
-
-/** Extract the meta CSP content from an HTML file (null if absent). */
-function metaCsp(html) {
-    // The content attribute is double-quoted and its value contains single quotes ('self'), so the
-    // delimiter class must exclude only the double quote (not both) or it truncates at the first 'self'.
-    const m = html.match(/<meta\s+http-equiv=["']Content-Security-Policy["']\s+content="([^"]+)"/i);
-    return m ? m[1] : null;
-}
-
-const header = parseCsp(headerCsp());
-// Expected meta = the header minus the meta-incompatible directives.
-const expectedMeta = new Map([...header].filter(([name]) => !META_INCOMPATIBLE.has(name)));
+const INCOMPATIBLE = new Set(META_INCOMPATIBLE);
+const header = parseCsp(headerCsp(read));
+const meta = parseCsp(metaCspFor(headerCsp(read)));
 
 test('the header actually contains at least one meta-incompatible directive (else this guard is moot)', () => {
     // frame-ancestors 'none' is the real one today; if the header ever drops all of them this test
-    // still passes (expectedMeta === header), it just flags that the exclusion set is now inert.
-    const present = [...header.keys()].filter(k => META_INCOMPATIBLE.has(k));
+    // still passes (meta === header), it just flags that the exclusion set is now inert.
+    const present = [...header.keys()].filter(k => INCOMPATIBLE.has(k));
     assert.ok(present.length >= 1, 'expected the header to carry frame-ancestors (or another meta-incompatible directive)');
 });
 
-for (const file of SERVED_HTML) {
-    test(`${file}: meta CSP mirrors the header (minus meta-incompatible directives)`, () => {
-        const html = readFileSync(join(ROOT, file), 'utf8');
-        const raw = metaCsp(html);
-        assert.ok(raw, `${file} must carry a <meta http-equiv="Content-Security-Policy"> (GitHub Pages parity)`);
-        const meta = parseCsp(raw);
+test('the generated meta is the header minus the meta-incompatible directives, value for value', () => {
+    for (const name of meta.keys())
+        assert.ok(!INCOMPATIBLE.has(name), `the generated meta CSP contains "${name}", which a <meta> CSP cannot enforce`);
+    for (const [name, val] of header) {
+        if (INCOMPATIBLE.has(name)) continue;
+        assert.ok(meta.has(name), `the generated meta CSP is missing "${name}" (present in the header)`);
+        assert.equal(meta.get(name), val, `the generated meta CSP "${name}" = "${meta.get(name)}" but the header has "${val}"`);
+    }
+    for (const name of meta.keys())
+        assert.ok(header.has(name), `the generated meta CSP has "${name}", absent from the header`);
+});
 
-        // No meta-incompatible directive should be present (they'd be silently ignored → misleading).
-        for (const name of meta.keys())
-            assert.ok(!META_INCOMPATIBLE.has(name),
-                `${file}: meta CSP contains "${name}", which a <meta> CSP cannot enforce — remove it`);
-
-        // Every expected directive present with the exact same value…
-        for (const [name, val] of expectedMeta) {
-            assert.ok(meta.has(name), `${file}: meta CSP is missing "${name}" (present in the header)`);
-            assert.equal(meta.get(name), val,
-                `${file}: meta CSP "${name}" = "${meta.get(name)}" but the header has "${val}"`);
-        }
-        // …and no EXTRA directive beyond what the header defines.
-        for (const name of meta.keys())
-            assert.ok(expectedMeta.has(name), `${file}: meta CSP has "${name}", absent from the header`);
-    });
-}
+test('the generator refuses a header value that would break out of the attribute', () => {
+    assert.throws(() => metaCspFor(`default-src 'self'; script-src "x"`), /double quote/);
+});

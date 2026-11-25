@@ -98,7 +98,7 @@ function londonTimestamp(isoDate, hour) {
     return guess - londonOffsetMinutes(firstPass) * 60000;
 }
 
-/** The ISO calendar date in Europe/London at a given instant. */
+/** The ISO calendar date in Europe/London at a given instant. @param {number} utcMs @returns {string} */
 function londonIsoDate(utcMs) {
     const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -120,13 +120,13 @@ function isValidIsoDate(isoDate) {
     return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
-/** Day of week for an ISO date, 0=Sunday…6=Saturday. Timezone-free — it names a calendar date. */
+/** Day of week for an ISO date, 0=Sunday…6=Saturday. Timezone-free — it names a calendar date. @param {string} isoDate @returns {number} */
 function isoDayOfWeek(isoDate) {
     const [y, m, d] = isoDate.split('-').map(Number);
     return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
-/** Shift an ISO date by whole days. Pure calendar arithmetic; DST cannot affect a date count. */
+/** Shift an ISO date by whole days. Pure calendar arithmetic; DST cannot affect a date count. @param {string} isoDate @param {number} days @returns {string} */
 function addDays(isoDate, days) {
     const [y, m, d] = isoDate.split('-').map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d + days));

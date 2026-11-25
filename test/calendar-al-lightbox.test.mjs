@@ -442,6 +442,36 @@ describe('a panel\'s ways out', () => {
     });
 });
 
+// ── ON A COLLEAGUE'S CALENDAR, NOTHING ADDRESSED TO THE READER (mutation sweep, 25 Nov 2026) ──────
+// "View recorded leave", "Leave dates" and "Pay estimate" each open the SIGNED-IN member's own page, so
+// both panels offer them only while the calendar on screen is the reader's (`personalActionsAllowed`).
+// The rule is calendar-access-core.test.mjs's; what nothing ran was the panels handing it the member ON
+// SCREEN — asking with the reader's own name in its place passed every lane (scripts/mutation-manifest.mjs
+// → day-panel-own-panel, day-panel-personal-actions survived). Each case shows its premise on the
+// reader's own calendar first, so a panel that hides the actions for everybody cannot pass.
+describe('on a colleague\'s calendar, the panels offer nothing addressed to the reader', () => {
+    const cell = (/** @type {Record<string, string>} */ dataset) => ({ dataset: { detailDay: 'Monday 16 November 2026', ...dataset } });
+    test('the leave panel\'s "View recorded leave" is the reader\'s own panel only', () => {
+        openLeavePanel();
+        assert.equal(byId('alLbViewLink').hidden, false, 'premise: the reader\'s own panel offers it');
+        shown = EXAMPLE;   // the reader browses a colleague's calendar
+        openLeavePanel();
+        assert.equal(byId('alLbViewLink').hidden, true, 'a colleague\'s balance linked to the reader\'s own leave list');
+    });
+
+    test('the day panel\'s "Leave dates" and "Pay estimate" are the reader\'s own day only', () => {
+        const { paydays } = getPaydaysAndCutoffs(THIS_YEAR);
+        const day = cell({ detailShiftValue: 'AL', detailShift: 'Annual leave', paydayIso: formatISO(paydays[3]) });
+        openDayDetail(day);
+        assert.deepEqual([byId('dayDetailLeaveBtn').hidden, byId('dayDetailPayBtn').hidden], [false, false],
+            'premise: the reader\'s own leave on a payday offers both');
+        shown = EXAMPLE;
+        openDayDetail(day);
+        assert.equal(byId('dayDetailLeaveBtn').hidden, true, 'a colleague\'s leave day opened the reader\'s own leave list');
+        assert.equal(byId('dayDetailPayBtn').hidden, true, 'a colleague\'s payday opened the reader\'s own calculator');
+    });
+});
+
 // ── WHAT THE READ REACHES, read through the figures (test audit, 24 Nov 2026) ──────────────────────
 // A year's allowance holds days dated outside it: next January's days a member chose to take from this year,
 // and the day in lieu for working last Boxing Day. The panel fetches its own records, so each is in its

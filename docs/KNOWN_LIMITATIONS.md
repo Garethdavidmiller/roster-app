@@ -570,8 +570,8 @@ page's `<meta>` CSP, and confirm the CI `csp` job (not just local) goes green.
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which
 **cannot serve custom HTTP response headers at all**, so the `firebase.json` CSP header — and every
 other security and cache header — never reaches the mirror. Every served page therefore carries a
-`<meta http-equiv="Content-Security-Policy">` mirroring the header (`csp-meta-parity.test.mjs` keeps
-them in lockstep, `e2e/csp.spec.js` proves it at runtime). On the mirror the meta is the only CSP,
+`<meta http-equiv="Content-Security-Policy">` mirroring the header (`npm run generate:copies` writes
+them from it, `e2e/csp.spec.js` proves it at runtime). On the mirror the meta is the only CSP,
 and it covers **all resource-loading directives**. **Residual gaps on the mirror only — accepted, and
 a reason to retire it:**
 1. **`frame-ancestors 'none'` (anti-clickjacking) cannot be expressed in a `<meta>` CSP** (browsers
@@ -1355,15 +1355,6 @@ a sheet for another week before anything is written. Three cases go unchecked:
 
 In each case the upload goes on as it did before the check existed, and the Functions log says "the
 sheet's own week was not checked". A whole week out there is caught only by the admin.
-
-### Cloud Function payday constant duplicated from `roster-data.js`
-`functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
-constants (inside `isPayCutoffDay()`, which `functions/documents.js` imports) for the pay-reminder
-scheduled notification. These must stay in sync with `CONFIG.FIRST_PAYDAY` and
-`CONFIG.PAYDAY_INTERVAL_DAYS` in `roster-data.js`. If the pay schedule ever changes, both files
-must be updated. The correct long-term fix is a shared JSON config consumed by both, but the
-no-build constraint makes this awkward. `payday-cutoff-parity.test.mjs` fails if the two drift, so a
-payday change that updates only one side cannot pass CI.
 
 ### Cloud Function staff list is generated from `roster-data.js` — regenerate it in the same commit
 `parseRosterPDF` name-matches the AI-parsed roster output against `STAFF_NAMES`, which is
