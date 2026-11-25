@@ -2,26 +2,28 @@
 /**
  * calendar-app.js — Calendar UI for index.html.
  *
- * Owns: the page's wiring — month navigation (buttons, keys, Today), `renderCalendar` and the
- *   first-run prompt, the month-jump picker, the About and Team-help lightbox wiring, the access
- *   bootstrap that starts the workspace, and the member's own-roster copy (paint and save).
- * Does NOT own: rendering (calendar-renderer.js), Team Week View (calendar-team-view.js), override
- *   cache (calendar-overrides.js), member selection (calendar-member.js), swipe (calendar-swipe.js),
- *   sync chip + initial fetch (calendar-initial-fetch.js), the AL and day-detail panels
- *   (calendar-al-lightbox.js), the notification strip (calendar-notif-prompt.js).
+ * Owns: the page's wiring — month navigation (the Prev/Next/Today buttons and `goToToday`, which
+ *   the keys press), `renderCalendar` and the first-run prompt, the About and Team-help lightbox
+ *   wiring, and the access bootstrap that starts the workspace.
+ * Does NOT own: rendering, and what a month shows (calendar-renderer.js → `monthOnScreen`), Team Week
+ *   View (calendar-team-view.js), override cache (calendar-overrides.js), member selection
+ *   (calendar-member.js), swipe (calendar-swipe.js), the keyboard shortcuts (calendar-keyboard.js),
+ *   the month-jump picker (calendar-month-jump.js), the member's own-roster copy — paint and save
+ *   (calendar-own-copy.js), sync chip + initial fetch (calendar-initial-fetch.js), the AL and
+ *   day-detail panels (calendar-al-lightbox.js), the notification strip (calendar-notif-prompt.js).
  * Edit here for: event wiring, and the order the page starts in.
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
 import { enhanceSelect } from './select-sheet.js';
-import { CONFIG, MONTH_NAMES, computeEaster, teamMembers, resolveMemberRoster } from './roster-data.js';
+import { CONFIG, MONTH_NAMES, computeEaster, resolveMemberRoster } from './roster-data.js';
 import { formatClock, printedStamp } from './date-format.js';
 import { authReady, getLatestNewsletter } from './firebase-client.js';
 import { checkLatestNewsletter } from './newsletter-recency.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
-import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW, SELECTED_MEMBER } from './storage-keys.js';
+import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW } from './storage-keys.js';
 import { initTeamView } from './calendar-team-view.js';
 import { wireCalendarDrawer, rewireCalendarDrawer } from './calendar-drawer.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox, confirmDialog } from './overlay.js';
@@ -42,10 +44,11 @@ import { createLegend } from './calendar-legend.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, handleAccessLost } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
-import { buildCalendarContainer, setSnapshotSource } from './calendar-renderer.js';
-import { snapshotMonth, saveSnapshotMonths, clearSnapshot, MONTHS_BEFORE, MONTHS_AFTER } from './calendar-snapshot.js';
-import { mountLockCard } from './calendar-lock-slot.js';
-import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth, watchLocalDate, addMonths } from './calendar-state.js';
+import { buildCalendarContainer, setSnapshotSource, monthOnScreen } from './calendar-renderer.js';
+import { clearSnapshot } from './calendar-snapshot.js';
+import { createOwnCopy } from './calendar-own-copy.js';
+import { initMonthJump } from './calendar-month-jump.js';
+import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth, watchLocalDate } from './calendar-state.js';
 import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calendar-swipe.js';
 import { createRedrawScheduler } from './calendar-redraw.js';
 import { initCalendarLightboxes } from './calendar-al-lightbox.js';
@@ -55,7 +58,7 @@ import { initNotifPrompt } from './calendar-notif-prompt.js';
 import { hasDocumentAccess, documentAccess } from './calendar-doc-access.js';
 import { onCalendarAccess } from './calendar-access-state.js';
 import { applyTextScale } from './text-scale.js';
-import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
+import { initCalendarTooltip, initCalendarKeyboard, initCalendarShortcuts } from './calendar-keyboard.js';
 
 import { setStatus } from './status-text.js';
 import { signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
@@ -118,6 +121,11 @@ function _markReadyIfGridShown() {
         // Which read served the grid, and when the server confirmed it, were their own milestones
         // until the App Speed review (Oct 2026) retired the card blocks that read them; LATENCY.md
         // holds what they found.
+        // ASKED WITHOUT THE STORED COPY, deliberately — not `monthOnScreen` (calendar-renderer.js),
+        // which the grid and the legend ask. A loading month the member's own copy stands in for is
+        // drawn `stale`, but it is not the live roster this figure times: the copy has a milestone of
+        // its own (`rosterSnapshot`, calendar-own-copy.js). Counted here too, the first mark — the one
+        // that wins — would time the copy again rather than the roster a read put on screen.
         const display = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
         if (showsRoster(display)) markPageReady();
     } catch { /* the metric must never be able to break the boot */ }
@@ -177,6 +185,23 @@ const teamView = initTeamView({
     _pushOverlayState,
     _clearOverlayHistory,
 });
+
+// ── THE MEMBER'S OWN ROSTER, SHOWN WHILE THE SIGN-IN CHECK RUNS (calendar-own-copy.js) ────────────
+// Offered only on the member's OWN calendar, signed in by name, outside Team View; that module says
+// when it is painted and kept, and why neither path can be mistaken for what the server said. Its
+// source is registered HERE, at module scope, so no render can run before the renderer can ask it.
+// The listeners that clear it on a lost grant stay below (ACCESS LOST), with the grid's.
+const ownCopy = createOwnCopy({
+    sessionName: () => getSession()?.name,
+    accessType: getAccessType,
+    isTeamViewMode: () => teamView.isTeamViewMode(),
+    currentMemberName: () => /** @type {any} */ (getCurrentMember())?.name,
+    cache: rosterOverridesCache,
+    monthKey,
+    buildCalendarContainer,
+    markMilestone,
+});
+setSnapshotSource(ownCopy.snapshotFor);
 
 // ============================================
 // WHEN THE PAGE MAY DRAW (calendar-redraw.js)
@@ -301,18 +326,14 @@ const legend = createLegend({
     getCurrentMember,
     // The month's keys come from the same records the grid is drawn from — the stored copy while the
     // month loads, as the renderer reads it (48-hour review: an 🏖️ day showed with no AL key).
-    getShiftTypesInMonth: (member, y, m) => getShiftTypesInMonth(member, y, m,
-        decideDisplay(knowledgeOf(monthKey(y, m))) === 'loading' ? _snapshotFor(member?.name ?? '', y, m) : null),
+    getShiftTypesInMonth: (member, y, m) => getShiftTypesInMonth(member, y, m, monthOnScreen(member, y, m).snapshot),
     getDisplayYear,
     getDisplayMonth,
     computeEaster,
     resolveMemberRoster,
     // A loading month the member's stored copy is drawn for IS a grid on screen — the renderer draws
     // it `stale` — so it gets its key by the same rule (whole-app review, Oct 2026).
-    displayVerdict: () => {
-        const y = getDisplayYear(), m = getDisplayMonth(), v = decideDisplay(knowledgeOf(monthKey(y, m)));
-        return v === 'loading' && _snapshotFor(/** @type {any} */ (getCurrentMember())?.name ?? '', y, m) ? 'stale' : v;
-    },
+    displayVerdict: () => monthOnScreen(getCurrentMember(), getDisplayYear(), getDisplayMonth()).display,
     isTeamViewMode: () => teamView.isTeamViewMode(),
     isFirstRun,
 });
@@ -437,7 +458,7 @@ function renderCalendar() {
             checking: _initialFetchInProgress,   // the first check is running: "couldn't check" would be false
         });
         // Preserve keyboard focus across the re-render. Wiping #calendarDisplay drops focus to
-        // <body>, after which calendar-app.js's document keydown handler treats arrows as MONTH
+        // <body>, after which the page's keyboard shortcuts (`initCalendarShortcuts`) treat arrows as MONTH
         // jumps instead of day steps. Capture whether a day cell was focused, then restore the new
         // roving anchor below. Doing it HERE (the render choke point) covers BOTH the synchronous
         // PageUp/Down month change AND the async override-fetch re-render that follows when paging
@@ -458,7 +479,7 @@ function renderCalendar() {
         redraw.focusSettled(_wantsFocus, !!_anchor);
 
         updateNavButtonState();
-        _saveOwnSnapshot();
+        ownCopy.save();
 
         // Ensure Firestore overrides are cached for the displayed month.
         // No-op if already fetched; fires a background fetch and re-render if not
@@ -558,17 +579,26 @@ function announceMonthChange() {
 }
 
 
+/**
+ * Show this month, pulse today's cell and announce it: the Today button's action, and the T key's
+ * (calendar-keyboard.js → `initCalendarShortcuts`). Each caller has already refused a swipe in
+ * progress, Team View (which has its own today) and the first-run prompt.
+ */
+function goToToday() {
+    const now = new Date();
+    setDisplayMonth(now.getMonth());
+    setDisplayYear(now.getFullYear());
+    renderCalendar();
+    pulseToday();
+    announceMonthChange();
+}
+
 document.getElementById('todayBtn')?.addEventListener('click', () => {
     if (isSwipeCooldown()) return;
     if (teamView.isTeamViewMode()) {
         teamView.jumpToCurrentWeek();   // Team View draws a first run itself, so 📍 works there too
     } else if (!isFirstRun()) {   // prompt is up — don't pulse/announce a month the user can't see (v16.23)
-        const now = new Date();
-        setDisplayMonth(now.getMonth());
-        setDisplayYear(now.getFullYear());
-        renderCalendar();
-        pulseToday();
-        announceMonthChange();
+        goToToday();
     }
 });
 
@@ -832,118 +862,19 @@ try {
             });
         })();
 
-        // ============================================
-        // MONTH/YEAR JUMP PICKER
-        // ============================================
-        (function() {
-            const overlay    = document.getElementById('monthJumpOverlay');
-            const card       = document.getElementById('monthJumpCard');
-            const selMonth   = /** @type {HTMLSelectElement} */ (document.getElementById('monthJumpMonth'));
-            const selYear    = /** @type {HTMLSelectElement} */ (document.getElementById('monthJumpYear'));
-            const btnConfirm = document.getElementById('monthJumpConfirm');
-            const btnCancel  = document.getElementById('monthJumpCancel');
-            if (!overlay) return;
+        // The month/year jump picker, opened from the month heading: calendar-month-jump.js.
+        initMonthJump({ renderCalendar, announceMonthChange, getAccessType });
 
-            // Populate year select once (CONFIG.MIN_YEAR..MAX_YEAR)
-            for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
-                const opt = document.createElement('option');
-                opt.value = String(y); opt.textContent = String(y);
-                selYear.appendChild(opt);
-            }
-            // Populate month select once
-            MONTH_NAMES.forEach((name, i) => {
-                const opt = document.createElement('option');
-                opt.value = String(i); opt.textContent = name;
-                selMonth.appendChild(opt);
-            });
-
-            // Shared canonical lifecycle — adds the focus restore this picker
-            // never had (closing used to drop keyboard focus to <body>).
-            // No .lb-close button here: Cancel is the close control.
-            const picker = createLightbox({
-                overlay,
-                content: card || undefined,
-                initialFocus: () => selMonth || undefined,
-                onOpen() {
-                    selMonth.value = String(getDisplayMonth());
-                    selYear.value  = String(getDisplayYear());
-                },
-            });
-
-            // Delegated click: any .month-year element (rebuilt on each render)
-            (/** @type {HTMLElement} */ (document.getElementById('calendarDisplay'))).addEventListener('click', e => {
-                if (/** @type {Element} */ (e.target).closest('.month-year')) picker.open();
-            });
-            (/** @type {HTMLElement} */ (document.getElementById('calendarDisplay'))).addEventListener('keydown', e => {
-                if (/** @type {Element} */ (e.target).closest('.month-year') && (/** @type {KeyboardEvent} */ (e).key === 'Enter' || /** @type {KeyboardEvent} */ (e).key === ' ')) {
-                    e.preventDefault(); picker.open();
-                }
-            });
-
-            // A LOST GRANT TAKES THE PICKER WITH IT (17 Nov 2026), as it takes the leave and day panels:
-            // left open over the lock card, "Go to month" moved and PERSISTED the month behind it, so the
-            // member signed back in to a month they had not chosen — the keyboard already refuses below.
-            onCalendarAccess(({ open }) => { if (!open) picker.close(); });
-            btnConfirm?.addEventListener('click', () => {
-                if (getAccessType() === 'none') { picker.close(); return; }
-                setDisplayMonth(parseInt(selMonth.value, 10));
-                setDisplayYear(parseInt(selYear.value, 10));
-                picker.close();
-                renderCalendar();
-                announceMonthChange();
-                // renderCalendar() rebuilt the heading the focus restore pointed
-                // at — move focus onto the freshly rendered equivalent.
-                /** @type {HTMLElement} */ (document.querySelector('.month-year'))?.focus();
-            });
-
-            btnCancel?.addEventListener('click', () => picker.close());
-        })();
-
-        // ============================================
-        // KEYBOARD SHORTCUTS (Desktop)
-        // ============================================
-        document.addEventListener('keydown', (e) => {
-            if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;   // taken already (a grade tab's arrows), or a browser chord (Ctrl+P, Alt+←)
-            // Re-locked (access lost mid-session): the grid is behind the card, and an arrow here moved
-            // and PERSISTED the month there, so the member signed back in to a different one (Oct 2026).
-            if (getAccessType() === 'none') return;
-            // Don't fire if user is typing in an input
-            if (/** @type {Element} */ (e.target).tagName === 'SELECT' || /** @type {Element} */ (e.target).tagName === 'INPUT') return;
-            // Don't fire behind ANY open overlay — focus sits on a button there,
-            // so the input check above doesn't help: arrows/t would silently
-            // change the month behind the overlay (and PERSIST the drift via
-            // persistViewedMonth) and p would print it. The huddle viewer and the
-            // nav drawer are NOT .lb-overlay lightboxes, so they need their own
-            // checks (v16.69 review fix — the month drifted behind the Huddle).
-            if (document.querySelector('.lb-overlay.visible')) return;
-            if (document.getElementById('huddleViewer')?.classList.contains('visible')) return;
-            if (document.querySelector('.nav-panel.open')) return;
-            if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
-            if (teamView.isTeamViewMode()) {
-                // The week table is a tab stop on a narrow screen so that a keyboard can SCROLL it
-                // (axe scrollable-region-focusable, v25.43) — and ← → are how it scrolls. Turned into
-                // week changes, they re-rendered the grid and the off-screen days stayed out of reach.
-                if (/** @type {Element} */ (e.target).closest?.('#gradeTabPanel')) return;
-                if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
-                if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
-                if (e.key === 't' || e.key === 'T') teamView.jumpToCurrentWeek();
-                return;
-            }
-            // Below Team View, which draws a first run itself (no "my row"), so its keys work there.
-            if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
-            // Guard: when a calendar day cell has focus, arrow keys move between cells
-            // (handled by initCalendarKeyboard). Only navigate months when no cell is focused.
-            // Honour the year-boundary no-op like the Prev/Next buttons do (they check aria-disabled,
-            // set at the boundary during render) — otherwise at Dec MAX_YEAR / Jan MIN_YEAR this
-            // re-rendered and screen-reader-announced the identical clamped month (v16.21).
-            if (e.key === 'ArrowLeft'  && !document.activeElement?.classList.contains('calendar-day')
-                && document.getElementById('prevMonth')?.getAttribute('aria-disabled') !== 'true') { changeMonth(-1); renderCalendar(); announceMonthChange(); }
-            if (e.key === 'ArrowRight' && !document.activeElement?.classList.contains('calendar-day')
-                && document.getElementById('nextMonth')?.getAttribute('aria-disabled') !== 'true') { changeMonth(1);  renderCalendar(); announceMonthChange(); }
-            if (e.key === 't' || e.key === 'T') { const now = new Date(); setDisplayMonth(now.getMonth()); setDisplayYear(now.getFullYear()); renderCalendar(); pulseToday(); announceMonthChange(); }
-            // Any open overlay (lightbox / huddle viewer / nav drawer) already returned above, so
-            // print is unguarded here.
-            if (e.key === 'p' || e.key === 'P') printOrExplain({ explain: () => explainNoPrint(confirmDialog) });   // print-guard.js: a home-screen app on iOS 27 cannot print
+        // Keyboard shortcuts (desktop): ← → for a month or a week, T for today, P to print —
+        // calendar-keyboard.js. The arrows PRESS Prev/Next and T is `goToToday`, so a key and a press
+        // are one path. Registered here, before `initCalendarKeyboard` at the module tail, as before.
+        initCalendarShortcuts({
+            getAccessType,
+            isTeamViewMode: () => teamView.isTeamViewMode(),
+            isFirstRun,
+            jumpToCurrentWeek: () => teamView.jumpToCurrentWeek(),
+            goToToday,
+            print: () => printOrExplain({ explain: () => explainNoPrint(confirmDialog) }),   // print-guard.js: a home-screen app on iOS 27 cannot print
         });
 
 } catch (error) {
@@ -1144,64 +1075,13 @@ function _onFirstGrant() {
     _resolvePasswordForce(_runPasswordForce());
 }
 
-// ── THE MEMBER'S OWN ROSTER, SHOWN WHILE THE SIGN-IN CHECK RUNS (v24.59, calendar-snapshot.js) ──
-// Offered only on the member's OWN calendar, signed in by name, outside Team View — the copy is
-// theirs and nobody else's. Before the grant it is painted into the lock slot (the place the
-// skeleton would stand) with no handlers, so nothing on it can act; after the grant the renderer asks
-// the source registered below (`setSnapshotSource`) for any month still loading. Neither path touches `rosterOverridesCache` or the
-// knowledge states, so the copy can never be mistaken for what the server said.
-const _ownView = (/** @type {string} */ name) => !!name && getSession()?.name === name
-    && (lsGet(SELECTED_MEMBER) ?? name) === name && lsGet(TEAM_VIEW) !== '1';
-/** The member's stored copy of a month, where the live grid may show it. @param {string} name @param {number} year @param {number} month */
-const _snapshotFor = (name, year, month) =>
-    getAccessType() === 'named' && _ownView(name) && !teamView.isTeamViewMode() ? snapshotMonth(name, year, month) : null;
-setSnapshotSource(_snapshotFor);
-
-/** Paint the stored copy in the lock slot before the access decision. @returns {boolean} painted */
-function _paintSnapshotBeforeGrant() {
-    try {
-        const name = getSession()?.name;
-        if (!name || !_ownView(name)) return false;
-        const member = teamMembers.find(m => m.name === name && !m.hidden && !m.managerOnly);
-        if (!member) { clearSnapshot(); return false; }   // a leaver, or a login-only account
-        const days = snapshotMonth(name, getDisplayYear(), getDisplayMonth());
-        if (!days) return false;
-        const card = mountLockCard({ id: 'calendarSnapshot', className: 'cal-snapshot' });
-        card?.appendChild(buildCalendarContainer(getDisplayMonth(), getDisplayYear(), { member, snapshot: days }));
-        // The moment the member first sees their shifts, timed for the App Speed card (v24.85) —
-        // only here, where the copy is actually on screen before the check, never for a fall-through.
-        if (card) markMilestone('rosterSnapshot');
-        return !!card;
-    } catch (e) { console.warn('[Calendar] own-roster copy not painted', e); return false; }
-}
-
-/** Keep the months the live read has settled for the member's own calendar. */
-function _saveOwnSnapshot() {
-    try {
-        const name = getSession()?.name;
-        if (getAccessType() !== 'named' || !_ownView(name ?? '') || teamView.isTeamViewMode()
-            || /** @type {any} */ (getCurrentMember())?.name !== name) return;
-        const now = new Date();
-        /** @type {Record<string, any[]>} */ const months = {};
-        for (let d = -MONTHS_BEFORE; d <= MONTHS_AFTER; d++) {
-            const { month, year } = addMonths(now.getMonth(), now.getFullYear(), d);
-            const key = monthKey(year, month);
-            if (knowledgeOf(key) !== 'authoritative') continue;   // only what the SERVER settled
-            const prefix = `${name}|${key}-`;
-            // The cache keys a record by `name|date` and stores neither inside it — put them back.
-            months[key] = [...rosterOverridesCache].filter(([k]) => k.startsWith(prefix))
-                .map(([k, r]) => ({ ...r, memberName: name, date: k.slice(k.indexOf('|') + 1) }));
-        }
-        saveSnapshotMonths(/** @type {string} */ (name), months);
-    } catch (e) { console.warn('[Calendar] own-roster copy not saved', e); }
-}
-
 // ── ACCESS LOST, BY WHICHEVER ROUTE ──────────────────────────────────────────────────────────────
 // Two routes notice a loss mid-session: the first load (`onAccessLost`, above) and a month read
 // (navigation and Team View, through calendar-overrides.js — the likelier one, v20.15). Both end in
 // ONE call, `handleAccessLost`, which shuts the one access state and THEN puts the card up. What must
 // follow a loss listens for that write in the module that owns it; this file shuts no gate, and
-// calendar-access-state.js says why. The member's stored copy and the grid are this file's: a Calendar
+// calendar-access-state.js says why. Clearing the member's stored copy (calendar-own-copy.js paints and
+// keeps it) and the grid is this file's: a Calendar
 // that has lost access keeps neither — not the copy (v24.59), nor the month or week the grant drew,
 // which the card hides but the page still holds (18 Nov 2026); the next grant repaints it
 // (`onEveryGrant`). Wired before access is decided, so neither can be missing when a read is refused.
@@ -1210,7 +1090,8 @@ onCalendarAccess(({ open }) => { if (!open) clearSnapshot(); });
 onCalendarAccess(({ open }) => { if (!open) document.getElementById('calendarDisplay')?.replaceChildren(); });
 
 initCalendarAccess({
-    paintBeforeDecision: _paintSnapshotBeforeGrant,
+    // Synchronous, so the member's own copy is on screen before the decision's first await (calendar-own-copy.js).
+    paintBeforeDecision: ownCopy.paintBeforeGrant,
     // A sign-in or come-back card means a person is about to type: the speed sample stops there
     // (perf-reporter.js → "A sample is time somebody spent waiting"). The sign-in card says so itself.
     onAwaitingInput: markAwaitingInput,

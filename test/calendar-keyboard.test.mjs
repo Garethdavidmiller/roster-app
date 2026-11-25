@@ -56,17 +56,35 @@ globalThis.document = /** @type {any} */ ({
     },
     get activeElement() { return doc.activeElement; },
     querySelectorAll: () => cells,
-    getElementById: (/** @type {string} */ id) => ({ click: () => clicked.push(id) }),
+    // What the page shortcuts look for: an open lightbox or the drawer (by selector), the Huddle viewer.
+    querySelector: (/** @type {string} */ sel) => (doc.open.includes(sel) ? {} : null),
+    getElementById: (/** @type {string} */ id) => ({ click: () => clicked.push(id),
+        classList: { contains: (/** @type {string} */ c) => c === 'visible' && doc.open.includes(`#${id}`) } }),
     createElement: () => tip,
     body: { appendChild() {} },
 });
-doc = { activeElement: null };
+doc = { activeElement: null, open: [] };
 // A device whose PRIMARY pointer is fine and hovers — a touchscreen laptop reports its trackpad.
 globalThis.window = /** @type {any} */ ({ matchMedia: () => ({ matches: true }), innerWidth: 1280, innerHeight: 800 });
 
-const { initCalendarKeyboard, initCalendarTooltip } = await import('../calendar-keyboard.js');
+const { initCalendarKeyboard, initCalendarTooltip, initCalendarShortcuts } = await import('../calendar-keyboard.js');
 /** @type {any[]} */
 const opened = [];
+
+// The page's shortcuts, wired as calendar-app.js wires them — and FIRST, as there. The harness keeps
+// one keydown listener at a time, so each is put back where its own tests press it.
+/** What the shortcuts did, in order. @type {string[]} */
+const acted = [];
+const page = { access: 'named', team: false, firstRun: false };
+initCalendarShortcuts({
+    getAccessType: () => page.access,
+    isTeamViewMode: () => page.team,
+    isFirstRun: () => page.firstRun,
+    jumpToCurrentWeek: () => acted.push('this week'),
+    goToToday: () => acted.push('today'),
+    print: () => acted.push('print'),
+});
+const shortcutKeydown = keydown;
 initCalendarKeyboard({ navigateToPaycalc: () => false, openDayDetail: c => opened.push(c) });
 
 /** Press `key` and report whether the default was prevented. */
@@ -190,5 +208,72 @@ describe('the hover tooltip is a MOUSE\'s preview, never a finger\'s (17 Nov 202
         assert.equal(tip.hidden, true, 'a touch left the mouse\'s tip standing');
         over(onDay);        // …then the compatibility mouseover every tap is followed by
         assert.equal(tip.hidden, true, 'a tap on a touchscreen laptop put the hover tip up');
+    });
+});
+
+// ── THE PAGE'S SHORTCUTS (initCalendarShortcuts, moved from calendar-app.js on 25 Nov 2026) ──────
+//
+// Month navigation is written ONCE: ← → press the same #prevMonth / #nextMonth a pointer does, as
+// PageUp/PageDown above, so the button's own guards (the year boundary, the first run, the swipe) are
+// the key's. Before the move the key restated the button's body beside it.
+describe('the page shortcuts press the page\'s own controls', () => {
+    /** Press a page shortcut. @param {string} key @param {Record<string, any>} [extra] */
+    const shortcut = (key, extra = {}) => shortcutKeydown({ key, target: { tagName: 'DIV', closest: () => null }, ...extra });
+    beforeEach(() => {
+        acted.length = 0;
+        Object.assign(page, { access: 'named', team: false, firstRun: false });
+        doc.open = [];
+        doc.activeElement = { classList: { contains: () => false } };   // focus on the page, not a day
+    });
+
+    test('← and → click Prev and Next; T goes to today; P prints', () => {
+        shortcut('ArrowLeft');
+        shortcut('ArrowRight');
+        assert.deepEqual(clicked, ['prevMonth', 'nextMonth'], 'the arrows press the buttons, never move the month themselves');
+        shortcut('t'); shortcut('T'); shortcut('p');
+        assert.deepEqual(acted, ['today', 'today', 'print']);
+    });
+
+    test('with a day focused the arrows are the grid\'s, not the month\'s', () => {
+        doc.activeElement = cells[10];
+        shortcut('ArrowLeft'); shortcut('ArrowRight');
+        assert.deepEqual(clicked, []);
+    });
+
+    test('in Team View the arrows change the WEEK and T is this week', () => {
+        page.team = true;
+        shortcut('ArrowLeft'); shortcut('ArrowRight'); shortcut('t'); shortcut('p');
+        assert.deepEqual(clicked, ['tvPrevWeek', 'tvNextWeek']);
+        assert.deepEqual(acted, ['this week'], 'P is not Team View\'s');
+    });
+
+    test('…except inside the week table, where ← → scroll it', () => {
+        page.team = true;
+        shortcut('ArrowLeft', { target: { tagName: 'DIV', closest: (/** @type {string} */ s) => (s === '#gradeTabPanel' ? {} : null) } });
+        assert.deepEqual(clicked, []);
+    });
+
+    test('nothing moves the month behind a lock, an input, an overlay, a swipe, a chord or the first-run prompt', () => {
+        /** @type {Array<[string, () => void, Record<string, any>?]>} */
+        const refusals = [
+            ['access lost', () => { page.access = 'none'; }],
+            ['first run', () => { page.firstRun = true; }],
+            ['a swipe settling', () => { cooldown = true; }],
+            ['a lightbox open', () => { doc.open = ['.lb-overlay.visible']; }],
+            ['the drawer open', () => { doc.open = ['.nav-panel.open']; }],
+            ['the Huddle open', () => { doc.open = ['#huddleViewer']; }],
+            ['typing in a box', () => {}, { target: { tagName: 'INPUT', closest: () => null } }],
+            ['in a select', () => {}, { target: { tagName: 'SELECT', closest: () => null } }],
+            ['Ctrl held', () => {}, { ctrlKey: true }],
+            ['Alt held', () => {}, { altKey: true }],
+            ['taken already', () => {}, { defaultPrevented: true }],
+        ];
+        for (const [why, arrange, extra] of refusals) {
+            Object.assign(page, { access: 'named', team: false, firstRun: false });
+            doc.open = []; cooldown = false; clicked = []; acted.length = 0;
+            arrange();
+            for (const key of ['ArrowLeft', 'ArrowRight', 't', 'p']) shortcut(key, extra);
+            assert.deepEqual([clicked, acted], [[], []], `a key acted with ${why}`);
+        }
     });
 });

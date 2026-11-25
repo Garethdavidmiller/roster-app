@@ -36,15 +36,16 @@ below, and run `npm run generate:ai-map`.
 | Calendar swipe carousel | `calendar-swipe.js` |
 | Calendar annual-leave panel and day-detail panel | `calendar-al-lightbox.js` |
 | Calendar first three-month read and the sync chip | `calendar-initial-fetch.js` |
-| Calendar keyboard navigation and hover tooltip | `calendar-keyboard.js` |
+| Calendar keyboard navigation, the page shortcuts and hover tooltip | `calendar-keyboard.js` |
+| Calendar month/year jump picker (from the month heading) | `calendar-month-jump.js` |
 | Calendar override cache | `calendar-overrides.js` |
 | What the Calendar knows about each month, and so what it may show | `calendar-data-state.js` |
 | The Calendar's access gate, the cards that stand in for it, and its pure rules | `calendar-access.js` · `calendar-lock-cards.js` · `calendar-lock-slot.js` · `calendar-access-core.js` |
-| The member's own roster kept on the device, shown labelled before the sign-in check finishes | `calendar-snapshot.js` |
+| The member's own roster kept on the device, shown labelled before the sign-in check finishes | `calendar-snapshot.js` · `calendar-own-copy.js` (when it is shown and kept) |
 | The Calendar page's one-time notices (which are live: the new-notice skill → "Current notices") | `calendar-notices.js` |
 | Calendar member selection | `calendar-member.js` |
 | The phone's text scale, measured rather than asked, for the Calendar's control rows | `text-scale.js` |
-| Calendar rendering — the grid, the header and the day cells | `calendar-renderer.js` |
+| Calendar rendering — the grid, the header and the day cells, and what a month shows (`monthOnScreen`) | `calendar-renderer.js` |
 | The month legend — which keys apply, and whether it shows at all | `calendar-legend.js` |
 | The document gate on the Calendar — may the Huddle, Circular and Newsletter be read (opened on the grant, shut on access lost) | `calendar-doc-access.js` |
 | Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
@@ -144,7 +145,10 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `initInitialFetch`
 
 ### `calendar-keyboard.js`
-- **Exports:** `initCalendarTooltip` · `initCalendarKeyboard`
+- **Exports:** `initCalendarTooltip` · `initCalendarKeyboard` · `initCalendarShortcuts`
+
+### `calendar-month-jump.js`
+- **Exports:** `initMonthJump`
 
 ### `calendar-access.js`
 - **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
@@ -157,6 +161,9 @@ below, and run `npm run generate:ai-map`.
 
 ### `calendar-snapshot.js`
 - **Exports:** `SNAPSHOT_VERSION` · `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `LEAVE_YEARS_AROUND` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
+
+### `calendar-own-copy.js`
+- **Exports:** `ownCopyWindow` · `ownMonthsToStore` · `createOwnCopy`
 
 ### `calendar-access-core.js`
 - **Exports:** `CALENDAR_VIEWER_UID` · `CALENDAR_VIEWER_CLAIM` · `isViewerUser` · `noticeAudienceAllows` · `personalActionsAllowed` · `decideAccess`
@@ -219,7 +226,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `takeStaleMemberName` · `getDefaultMemberIndex` · `isFirstRun` · `getSelectedMemberIndex` · `_resetSelectionFallbackForTest` · `saveSelectedMember` · `populateTeamMemberDropdown` · `getCurrentMember` · `validateTeamMembers`
 
 ### `calendar-renderer.js`
-- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `buildCalendarContainer`
+- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer`
 
 ### `calendar-huddle-viewer.js`
 - **Exports:** `wrapTables` · `initHuddleViewer`

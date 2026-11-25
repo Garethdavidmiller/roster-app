@@ -30,23 +30,25 @@ roster-app/
 ├── operations.html         ← admin-only Operations page: the Needs-attention strip, the document upload cards and links, the Roster upload, the Annual leave sheet, reset requests, account status, Staff Login Accounts, Error Log, Usage and App Speed
 ├── settings.html          ← the Settings STATUS page: Your account, This device, Your data — cards open by their state; what each state means is settings-status.js
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring. See also calendar.spec.js, calendar-redraw.test.mjs.
+├── calendar-app.js         ← coordinator for index.html: event wiring, the Prev/Next/Today buttons, the access hooks, notification wiring. See also calendar.spec.js, calendar-redraw.test.mjs.
 ├── calendar-state.js       ← display month/year state for index.html (getters/setters + persistViewedMonth). See also calendar-state.test.mjs.
 ├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown. See also calendar.spec.js.
 ├── calendar-al-lightbox.js ← the Calendar's annual-leave panel and day-detail panel (`initCalendarLightboxes`); every badge on the day panel comes from the grid's own authorities. Reasoning: its header. Tested by calendar-al-lightbox.test.mjs. See also lightbox-transform-parity.test.mjs, day-detail-explains.test.mjs.
 ├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_PLAN.md → E1). See also calendar-initial-fetch.test.mjs.
-├── calendar-keyboard.js    ← keyboard navigation and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar.spec.js.
+├── calendar-keyboard.js    ← keyboard navigation, the page shortcuts (`initCalendarShortcuts`: they press the page's own buttons) and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar.spec.js.
+├── calendar-month-jump.js  ← the month/year jump picker opened from the month heading (`initMonthJump`). Tested by calendar-month-jump.test.mjs. See also calendar.spec.js.
 ├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs a leftover staff-PIN session out. **Read its header first.** Tested by calendar-access.test.mjs. See also AUTH_AND_SESSIONS.md, calendar-access.spec.js.
 ├── calendar-lock-slot.js ← the ONE place a card can stand in for the Calendar grid, and the workspace it hides; at most one card, no decisions. Exercised through calendar-access.test.mjs and e2e/calendar-access.spec.js
 ├── calendar-lock-cards.js ← the cards that can stand where the Calendar goes (sign-in, its can't-load fallback, come-back): it DRAWS, `calendar-access.js` DECIDES. Its header
 ├── calendar-access-core.js ← the PURE rules behind the gate: the viewer identity (for the teardown), `decideAccess`, notice audiences (members only). **No client file shapes, sends or compares a PIN.** Tested by calendar-access-core.test.mjs. See also CALENDAR_DATA.md.
 ├── calendar-snapshot.js ← the member's OWN roster kept on this device so the Calendar opens instantly while sign-in is checked; bounded, deleted on any refusal. Tested by calendar-snapshot.test.mjs and e2e/calendar-access.spec.js
+├── calendar-own-copy.js ← WHEN the Calendar shows and keeps that copy: the renderer's source, the paint before the grant, the save after a render, and which records are kept (`ownMonthsToStore`). Tested by calendar-own-copy.test.mjs and e2e/calendar-access.spec.js
 ├── calendar-data-state.js  ← what the Calendar KNOWS about a month's overrides, and so what it may SHOW. Pure; the four states: its header. Tested by calendar-data-state.test.mjs. See also CALENDAR_DATA.md.
 ├── calendar-legend.js ← the month legend: which keys apply and whether a legend applies at all. Reasoning: its header. Tested by calendar-legend.test.mjs
 ├── calendar-overrides.js   ← the Calendar's Firestore override cache: range fetches, the phase-1 cache read, the access gate, the read ticket and the write ordering — each rule argued beside its code. See also calendar-overrides.test.mjs.
 ├── calendar-notices.js     ← the Calendar page's one-time notices (`initCalendarNotices`); new index.html notices land here. Live ones: the new-notice skill
 ├── calendar-member.js      ← team member selection for index.html (dropdown, current member, stale-name handling). See also calendar-member.test.mjs.
-├── calendar-renderer.js    ← calendar cell/grid building for index.html, plus the pure helpers the day panel reads back. See also calendar-renderer.test.mjs, calendar.spec.js.
+├── calendar-renderer.js    ← calendar cell/grid building for index.html, what a month shows (`monthOnScreen`, which the legend asks too), plus the pure helpers the day panel reads back. See also calendar-renderer.test.mjs, calendar.spec.js.
 ├── calendar-huddle-viewer.js    ← the Huddle viewer overlay (`#huddle`), including the per-table scroll boxes. See also calendar-huddle-viewer.test.mjs.
 ├── huddle-table-grid.js ← which Huddle cells are really in COLUMN 1, walking the grid as the browser does. Pure. Tested by huddle-table-grid.test.mjs. See also pages.spec.js.
 ├── calendar-doc-viewer.js  ← the Circular/Newsletter in-app viewer (`#circular` / `#newsletter`), separate from the Huddle viewer. See also calendar-doc-viewer.test.mjs.
@@ -598,6 +600,7 @@ roster-app/
 │   ├── calendar-controls-parity.test.mjs ← four static contracts on index.css's control rows. Part of test:hygiene
 │   ├── day-detail-explains.test.mjs ← **if a symbol can appear in a CELL, the day panel explains it in FULL WORDS**. Part of test:hygiene
 │   ├── calendar-snapshot.test.mjs ← every refusal of the own-roster copy. Part of test:hygiene
+│   ├── calendar-own-copy.test.mjs ← which records the own-roster copy keeps, and when the Calendar offers it. Part of test:hygiene
 │   ├── calendar-data-state.test.mjs ← showing too much or too little, which is why `cached` is its own state. Part of test:hygiene
 │   ├── calendar-legend.test.mjs ← the legend by cost: never speaking for a month we have not got. Part of test:hygiene
 │   ├── calendar-access-state.test.mjs ← the one copy of whether Calendar access is held, and that both gates agree
@@ -613,7 +616,8 @@ roster-app/
 │   ├── install-route.test.mjs ← the install notice's route through the real `installRoute()`
 │   ├── calendar-doc-viewer.test.mjs ← the Circular/Newsletter in-app viewer (--experimental-test-module-mocks)
 │   ├── calendar-huddle-viewer.test.mjs ← the Daily Huddle viewer and the document gate. Part of test:unit
-│   ├── calendar-keyboard.test.mjs ← the Calendar's keyboard grammar. Part of test:unit
+│   ├── calendar-keyboard.test.mjs ← the Calendar's keyboard grammar and page shortcuts. Part of test:unit
+│   ├── calendar-month-jump.test.mjs ← the month/year jump picker, and a lost grant stopping it. Part of test:unit
 │   ├── calendar-notif-prompt.test.mjs ← the notification strip's two access rules. Part of test:unit
 │   ├── page-css-parity.test.mjs ← a page may only use classes its OWN stylesheets define. Part of test:hygiene
 │   ├── css-var-parity.test.mjs ← every `var(--x)` a page can reach is declared on that page. Part of test:hygiene
