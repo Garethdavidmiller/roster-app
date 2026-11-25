@@ -1777,13 +1777,13 @@ button.lightbox-bug-link {
     max-height: var(--modal-max-h);
 }
 
-/* THE OPAQUE NAVY SHEET — one surface: the one-time notices, About, and (desktop audit, Nov 2026) App
-   Notices and coming-soon, whose see-through labels failed AA over a light page. One rule, so they
-   cannot drift; the reasoning is point 1 above. A panel that wants it joins this list. */
+/* THE OPAQUE NAVY SHEET — notices, About, App Notices and coming-soon (see-through labels failed AA), and the
+   leave panel (owner, 25 Nov 2026). One rule, so they cannot drift (point 1 above); a panel joins this list. */
 .notice-lb-content,
 #iconLightboxContent,
 #navNoticesContent,
-#navComingSoonContent {
+#navComingSoonContent,
+#alLightboxContent {
     --lb-close-color: var(--lb-close-navy);
     --lb-close-hover: var(--lb-close-navy-hover);
     --lb-close-disc:  var(--primary-blue);

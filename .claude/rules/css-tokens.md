@@ -104,16 +104,18 @@ default) is the app's common form and is allowed; `index.css` is held to the rul
 `calendar-controls-parity.test.mjs` 7.
 
 **Two overlay corner families, both named:** compact DIALOGS use `--radius-xl` (20px) — the white
-ones (month-jump, login, Tips, confirm/prompt, the Calendar's Circular/Newsletter viewer) and the
-Calendar's team info, a compact see-through one; full navy GLASS SHEETS (About, notices, day detail,
+ones (month-jump, login, Tips — Team Week View's `?` among them since 25 Nov 2026 — confirm/prompt,
+the Calendar's Circular/Newsletter viewer); full navy GLASS SHEETS (About, notices, day detail,
 AL) use `--radius-panel` (24px). The Pay Calculator's `?` panels ARE the shared Tips panel (owner, Nov
 2026); they were a see-through glass sheet, the one `?` in the app the page showed through behind.
 
-**Within the glass family, four are SOLID:** the one-time notices, the About panel and the drawer's
-App Notices and Coming Soon panels share one opaque navy sheet (`.notice-lb-content,
-#iconLightboxContent, #navNoticesContent, #navComingSoonContent` in shared.css — a panel that wants it
-joins the selector list, never copies it). Day detail and AL stay see-through: they look at something
-still on screen. See-through, a notice's or About's contrast would depend on the page underneath (App
+**Within the glass family, five are SOLID:** the one-time notices, the About panel, the drawer's
+App Notices and Coming Soon panels and the Calendar's leave panel share one opaque navy sheet
+(`.notice-lb-content, #iconLightboxContent, #navNoticesContent, #navComingSoonContent,
+#alLightboxContent` in shared.css — a panel that wants it joins the selector list, never copies it).
+The leave panel joined on the owner's word (25 Nov 2026): it is a year's figures, not a look at
+something on screen, and the month's coloured cells showed through them. Day detail stays see-through:
+it looks at the day still on screen. See-through, a notice's or About's contrast would depend on the page underneath (App
 Notices' section labels measured 3.0–3.4:1 over Admin's light cards).
 
 **An overlay never wears the card radius.** `--radius-lg` is `.card`'s radius, and sharing the card's
@@ -225,8 +227,8 @@ a direct child of a scrolling panel is pinned** by `createLightbox` (`pinCloseBu
 shared.css → "THE ✕ STAYS"): do not restate a panel's padding in CSS for it, it is measured.
 
 **Out of scope, deliberately:** the nav drawer (`min(260px, 72vw)` — a side panel, not a centred
-modal) and the Calendar's page-local overlays in `index.css` — the glass day detail, AL and team info,
-and the white Circular/Newsletter viewer (`min(420px, 88vw)`) — which size themselves.
+modal) and the Calendar's page-local overlays in `index.css` — the glass day detail, the solid leave
+panel, and the white Circular/Newsletter viewer (`min(420px, 88vw)`) — which size themselves.
 
 ## Spacing — `--space-*` is a card rhythm, NOT a general scale
 
