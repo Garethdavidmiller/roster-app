@@ -2,7 +2,7 @@
  * account-lifecycle.test.mjs — the pure rules at the edges of an account's life
  * (functions/account-lifecycle.js, sign-in audit Nov 2026).
  * Run: node scripts/run-tests.mjs test/account-lifecycle.test.mjs   (part of `npm run test:functions`;
- * it needs nothing installed, since the module requires only the pure roster-parse-helpers.js).
+ * it needs nothing installed, since the module requires only the pure account-rules.js).
  *
  * Organised by what a wrong answer COSTS. auth-endpoints.test.mjs drives the handlers that ask these
  * rules for real; this pins the rules at their edges, which the handler tests do not reach.
@@ -18,7 +18,7 @@ const require = createRequire(REPO_ROOT_URL);
 const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids, sweepAgainstPreview } =
     require('./functions/account-lifecycle.js');
 const { CALENDAR_VIEWER_UID } = require('./functions/retired-viewer-account.js');
-const { computeOrphanLabels } = require('./functions/roster-parse-helpers.js');
+const { computeOrphanLabels } = require('./functions/account-rules.js');
 
 // ── A PASSWORD WRITE THAT THROWS (audit E1) ─────────────────────────────────────────────────────
 //

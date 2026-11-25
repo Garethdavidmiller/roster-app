@@ -25,6 +25,7 @@ import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { initRosterUpload } from './admin-roster-upload.js';
+import { functionUrl } from './function-url.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocumentUploadCards } from './operations-doc-uploads.js';
 import { initDocLinksCard, docLinksRequestInFlight } from './operations-doc-links.js';
@@ -143,7 +144,7 @@ export function init() {
     initRosterUpload({
         currentUser,
         currentIsAdmin: true,
-        parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
+        parseUrl:   functionUrl('parseRosterPDF'),
         getIdToken: async () => { await sessionReady; return auth.currentUser?.getIdToken(); },
         // Nothing to re-read: this page has no Saved Changes list (and importing Admin's loads a dozen modules).
         loadOverrides: async () => {},

@@ -3,6 +3,8 @@ paths:
   - "functions/push.js"
   - "functions/roster-parse-helpers.js"
   - "functions/push-notices.js"
+  - "functions/push-guards.js"
+  - "functions/reset-request-rules.js"
   - "functions/error-log-*.js"
   - "functions/documents.js"
   - "functions/pay-reminder.js"
@@ -182,14 +184,14 @@ reset again with the box ticked.
 **Why the queue depth is in the reset-request title.** One stable tag per feature means a second
 request *replaces* the first on the lock screen, so the headline states the current total
 (`2 waiting`) and the body names whoever just asked: the newest notification summarises the whole
-queue. Built by the pure `buildResetRequestNotice` (`functions/roster-parse-helpers.js`), never inline.
+queue. Built by the pure `buildResetRequestNotice` (`functions/reset-request-rules.js`), never inline.
 
 ## Only to a push service
 
 A subscription's `endpoint` is written by a browser and the rules can check only its type and
 length, so a signed-in account could make every later fan-out POST to a URL of its choosing. Both
 senders therefore pass every endpoint through `isAllowedPushEndpoint`
-(`functions/roster-parse-helpers.js`) first: HTTPS, default port, no credentials, and a host in
+(`functions/push-guards.js`) first: HTTPS, default port, no credentials, and a host in
 `PUSH_SERVICE_HOSTS` (Google, Mozilla, Apple, Microsoft). A refused endpoint is **skipped and logged,
 never deleted** — an unknown host may be a real provider — and **a new browser's push service must be
 added to that list**, or its users silently stop receiving notifications. The guard is at the SEND,

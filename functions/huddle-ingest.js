@@ -19,6 +19,7 @@ const { parseStrictIsoDate, fileSignatureMatches } = require('./roster-parse-hel
 const { pruneOldHuddles } = require('./huddle-retention');
 const { headerText } = require('./request-helpers');
 const { fieldsOf } = require('./caught');
+const { REGION } = require('./region');
 
 /**
  * Build the ingestHuddle endpoint. Called once, from buildDocumentEndpoints.
@@ -72,7 +73,7 @@ function buildIngestHuddle({
 const ingestHuddle = onRequest(
     {
         secrets:       [HUDDLE_SECRET, VAPID_PRIVATE_KEY],
-        region:        'europe-west2',
+        region:        REGION,
         cors:          false,
         timeoutSeconds: 60,
         // Declared, not the platform's 256 MiB (functions-core-3): a file at the upload cap is held as

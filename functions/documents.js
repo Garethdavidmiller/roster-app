@@ -43,6 +43,7 @@ const { bearerToken, requireAdmin, readJsonBody } = require('./request-helpers')
 const { sendPayReminder } = require('./pay-reminder');
 const { notifyAdminOfErrorLog } = require('./error-log-notify');
 const { fieldsOf } = require('./caught');
+const { REGION } = require('./region');
 const { rotateDocumentLinks: rotateLinks } = require('./doc-link-rotation');
 const { buildIngestHuddle } = require('./huddle-ingest');
 
@@ -119,7 +120,7 @@ const onHuddleCreated = onDocumentCreated(
     {
         document: 'huddles/{date}',
         secrets:  [VAPID_PRIVATE_KEY],
-        region:   'europe-west2',
+        region:   REGION,
     },
     async event => {
         const date       = event.params.date;
@@ -187,7 +188,7 @@ async function sendDocPushNotifications(feature, body, vapidPrivate) {
 }
 
 const onCircularCreated = onDocumentCreated(
-    { document: 'circulars/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
+    { document: 'circulars/{date}', secrets: [VAPID_PRIVATE_KEY], region: REGION },
     async event => {
         const date = event.params.date;
         if (!(await isLatestOfKind('circulars', date))) {
@@ -204,7 +205,7 @@ const onCircularCreated = onDocumentCreated(
 );
 
 const onNewsletterCreated = onDocumentCreated(
-    { document: 'newsletters/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
+    { document: 'newsletters/{date}', secrets: [VAPID_PRIVATE_KEY], region: REGION },
     async event => {
         const date = event.params.date;
         if (!(await isLatestOfKind('newsletters', date))) {
@@ -266,7 +267,7 @@ const sendPayReminderNotification = onSchedule(
     {
         schedule:  '0 8 * * *',
         timeZone:  'Europe/London',
-        region:    'europe-west2',
+        region:    REGION,
         secrets:   [VAPID_PRIVATE_KEY],
     },
     async () => {
@@ -317,7 +318,7 @@ const sendTimetableReminder = onSchedule(
     {
         schedule:  '0 18 * * *',
         timeZone:  'Europe/London',
-        region:    'europe-west2',
+        region:    REGION,
         secrets:   [VAPID_PRIVATE_KEY],
     },
     async () => {
@@ -356,7 +357,7 @@ const sendErrorLogNotification = onSchedule(
     {
         schedule:       '*/15 * * * *',
         timeZone:       'Europe/London',
-        region:         'europe-west2',
+        region:         REGION,
         secrets:        [VAPID_PRIVATE_KEY],
         maxInstances:   1,
         timeoutSeconds: 60,
@@ -421,7 +422,7 @@ const sendErrorLogNotification = onSchedule(
      */
     const getDocumentUrl = onRequest(
         {
-            region:         'europe-west2',
+            region:         REGION,
             timeoutSeconds: 30,
             cors:           ADMIN_FUNCTION_ORIGINS,
         },
@@ -527,7 +528,7 @@ const sendErrorLogNotification = onSchedule(
      */
     const rotateDocumentLinks = onRequest(
         {
-            region:         'europe-west2',
+            region:         REGION,
             // A few hundred files at four at a time is well under a minute; the margin is for a slow
             // Storage day, so a run is never cut off by the platform halfway through a file.
             timeoutSeconds: 300,

@@ -1078,7 +1078,7 @@ shows only its title.
   "Continue for now". `own-password.js` and `fetch-timeout.js` carry it; `__E2E.hangPasswordWrite`
   drives the browser tests through it.
 - **Sign-in statistics count only accounts on the roster**: `summariseSignIns` takes an allowlist and
-  an empty one counts nothing (`functions/roster-parse-helpers.js`).
+  an empty one counts nothing (`functions/account-rules.js`).
 - **Two quick Clears must not leave a ghost row**: queue-card refreshes are QUEUED, never dropped
   (`operations-app.js`).
 - **The kill switch reaches the endpoint**: `RESET_REQUESTS_ENABLED` in `functions/auth-endpoints.js`

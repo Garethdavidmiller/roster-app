@@ -16,8 +16,9 @@ import { escapeHtml } from './roster-data.js';
 import { auth, getAccountSetupGaps } from './firebase-client.js';
 import { sessionReady, getFirebaseAuthError, restoreFirstAuthUser } from './session.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
+import { functionUrl } from './function-url.js';
 
-const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
+const SETUP_AUTH_URL = functionUrl('setupRosterAuth');
 
 /**
  * Initialises the Staff Login Accounts setup card (admin only). Call once after
