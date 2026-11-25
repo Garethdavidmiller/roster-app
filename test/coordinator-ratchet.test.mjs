@@ -167,7 +167,8 @@ const CAPS = {
     // 2750 → 2550: brought DOWN with what left (Nov 2026): the Build press's words and bookkeeping (links-build-press.js) and what the page reads from today's roster (links-today.js), 2,744 measured lines to 2,483; the measured size plus 50, rounded up.
     // 2550 → 2400: brought DOWN again (Nov 2026): the grid's cells (links-grid-cells.js), the one working-copy setter, one read of the collection and the print net (links-print.js), 2,483 measured lines to 2,348; the measured size plus 50, rounded.
     // 2400 → 1950: brought DOWN (Nov 2026), by cutting comments to their reasons: the changelog went — git log keeps it — and every why an edit could break stayed, 2,348 measured lines to 1,860; the measured size plus 50, rounded up. The next Links rule still goes in a domain module.
-    'links-app.js':            1950,   // ← Nov 2026, extractions and comment cuts (2750 on 18 Nov 2026)
+    // 1950 → 1450 on 25 Nov 2026, brought DOWN with what left (the maintainability split): the grid and what a cell press means (links-grid.js), the paint bar and its brush (links-brush-bar.js), the staffed-window editor (links-window-editor.js) and the Build press (links-build-button.js), 1,872 measured lines to 1,356; the measured size plus 50, rounded up.
+    'links-app.js':            1450,   // ← 25 Nov 2026, the maintainability split (1950 earlier in Nov 2026)
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap
@@ -462,12 +463,22 @@ const CAPS = {
     // 1250 → 1150 (21 Nov 2026, at 1,099), a LOWER: the drawer's destinations and the pill filter left for
     // nav-destinations.js (imported by the tests rather than read as text), its two lightboxes became one
     // lifecycle (`_drawerLightbox`), the archive re-export and the dead `comingSoon` extension point went.
-    'nav-panel.js':            1150,
+    // 1150 → 530 (25 Nov 2026, at 499 of 1,100), a SPLIT: the drawer's HTML left for nav-panel-markup.js, its two
+    // lightboxes and their one lifecycle for nav-drawer-lightboxes.js, the document rows' open for nav-latest-doc.js,
+    // the bell for nav-bell.js and the Reference fold for nav-guide-fold.js. What stays is the coordinator — open and
+    // close, the one history entry, the delegated click, the Tab trap, sign-out and the reset. Measured plus about 30,
+    // so the next part of the drawer brings its own module rather than a raise.
+    'nav-panel.js':             530,
     // overlay.js crossed 900 on 18 Nov 2026, 892 → 953: `followLinkOutOf`, the rule for a link that leaves the page
     // from inside an open lightbox, and the argument for it. One subject (the overlay layer's history), and the rule
     // needs the PRIVATE handler stack, so it cannot leave without exporting that; it is held without a DOM in
     // overlay-history.test.mjs. 953 measured, plus 50, to the next 50.
-    'overlay.js':              1050,
+    // 1050 → 690 (25 Nov 2026, at 654 of 1,016), a SPLIT that did what the note above said needed an export: the
+    // Back stack and `followLinkOutOf` left for overlay-history.js, the Tab trap and focus guard for overlay-focus.js,
+    // the scroll fade and pinned ✕ for overlay-panel-scroll.js — all re-exported, so no import moved. The scroll lock,
+    // createLightbox and the dialogs built on it stay (overlay.js's header says why the dialogs cannot leave). Measured
+    // plus about 35.
+    'overlay.js':               690,
     // settings-app.js crossed 900 on 18 Nov 2026, 900 → 908: the Work Email card's slow-load branch now marks the card
     // saved as an ordinary load does. Wiring, not a rule. 908 measured, plus 50, to the next 50.
     // 1000 → 580 (25 Nov 2026, at 552 of 1,000), a SPLIT at the cap: the `?` panels' content left for

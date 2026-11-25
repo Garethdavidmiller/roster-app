@@ -513,7 +513,7 @@ test('buildActualCheck: with Year to Date figures in use, a big gap names the pa
 
 test('buildActualCheck: told nothing about the settings, it says what it said before v24.87', () => {
     // The two lines above are only as good as the call site passing the REAL figures — that is
-    // pinned in a browser (e2e/paycalc.spec.js). Here: no settings, no claims about them.
+    // pinned in a browser (e2e/paycalc-ytd.spec.js). Here: no settings, no claims about them.
     assert.doesNotMatch(buildActualCheck(2800, 2900), /tax code|pension/i);
     assert.doesNotMatch(buildActualCheck(2910, 2900), /tax code|pension/i);
     assert.equal(buildActualCheck(2900, 2900, { taxCode: '1257L', pension: 0 }),

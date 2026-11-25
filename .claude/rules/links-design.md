@@ -58,9 +58,13 @@ or in the module header beside the code.
 
 The workspace is one coordinator over the pure or extracted modules below. Everything except
 `links-app.js` is testable without a browser, and that is deliberate: the rules that have produced
-bugs were pulled out of the coordinator, which keeps most of the Firestore and DOM state (the design
-library keeps its own), and `links-app.js` makes no Firestore read or write of its own — designs go
-through `links-design-store.js`. **The list is `FILE_INDEX.md`'s `links-*.js` rows, one line each,
+bugs were pulled out of the coordinator, which keeps the working copy, `dirty` and most of the
+Firestore state (the design library keeps its own), and `links-app.js` makes no Firestore read or
+write of its own — designs go through `links-design-store.js`. **Four modules are the coordinator's
+DOM wiring, split out of it on 25 Nov 2026** — the grid (`links-grid.js`), the paint bar
+(`links-brush-bar.js`), the window editor (`links-window-editor.js`) and the Build press
+(`links-build-button.js`): their pure parts are unit-tested, their wiring end to end, and each reads
+the working copy through a getter and hands an edit back through a callback, so `dirty` has one home. **The list is `FILE_INDEX.md`'s `links-*.js` rows, one line each,
 and what each module owns, with the reason, is its own header** (this file carried a third copy as a
 table until 25 Nov 2026). Do not write a count of them anywhere: the rows are the count.
 
@@ -433,8 +437,8 @@ one distinct time correctly gets a one-chip bar. Pinned by
 ### The staffed operating window
 
 Stored on each design as `window` (`{monSat,sun}:{start,end}`), defaulting to `DEFAULT_WINDOW`. The rules
-are the pure `links-window.js`; the coordinator owns only the editor on the Coverage card and the
-Firestore field. An edit marks the design dirty, because the window is part of the proposal.
+are the pure `links-window.js`; the editor on the Coverage card is `links-window-editor.js`, and the
+coordinator owns only the working copy and the Firestore field. An edit marks the design dirty, because the window is part of the proposal.
 
 **It exists so the heat map can see missing cover at the ends of the day.** Span and gaps come from the
 window, not from the first and last worked hour, which hid an unstaffed evening entirely. An hour
@@ -749,7 +753,8 @@ those lines, so no arrangement can rescue a wrong table.
   cover-week count moves. That is the rule working: `links-contract.test.mjs` asserts the case with both
   its neighbours, and a tolerance would bring back designs that are quietly a few hours out.
 - **`requireContract` defaults ON.** Only the construction tests pass `false`, and
-  `links-contract.test.mjs` fails if `links-app.js` ever does.
+  `links-contract.test.mjs` fails if the page ever does — `links-app.js` or any module that calls
+  `generateLink` (the Build press, `links-build-button.js`).
 
 **A threshold IS defensible here, unlike the ORR factors**: the contract is a contract, not guidance.
 The Design-checks ROW keeps its half-hour of slack and never turns red, because it describes a design
@@ -848,7 +853,7 @@ refusing it.
   when **all four** adjacencies it can affect come out legal, or the repair walks the breach onto
   another line and reads as success.
 - **`requireRest` is the opt-out**, for construction fixtures that staff every line every day;
-  `links-contract.test.mjs` fails if `links-app.js` ever passes it, exactly as for `requireContract`.
+  `links-contract.test.mjs` fails if the page ever passes it, exactly as for `requireContract`.
 - **The reorder runs after the gate, so it is held to it too**: rest across the week boundary is
   charged and filtered on in every configuration (Line order, below).
 

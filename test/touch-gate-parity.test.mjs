@@ -43,7 +43,7 @@ const SINGLE_PROJECT_EXEMPT = [
     {
         // In three specs since pages.spec.js was split by page (3 Nov 2026): the sweep, and two
         // page tests that size their own controls.
-        files: ['pages.spec.js', 'admin.spec.js', 'links.spec.js'],
+        files: ['pages.spec.js', 'admin-week-grid.spec.js', 'links.spec.js'],
         match: "'a thumb, not a mouse'",
         why: 'WCAG 2.2 SC 2.5.8 tap-target sizing. A standard about geometry, not about rendering — '
            + 'the number is the same on both engines, so a second run would cost time and prove nothing.',

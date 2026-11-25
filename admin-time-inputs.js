@@ -26,7 +26,7 @@
  */
 
 import { TIME_RE } from './roster-data.js';
-import { shapeClockBox, settleClockBox } from './clock-input.js';
+import { shapeClockBoxInPlace, settleClockBox, noteClockBoxBefore } from './clock-input.js';
 
 let _formatting = false;
 let _wired = false;
@@ -35,6 +35,11 @@ let _wired = false;
 export function initTimeInputs() {
     if (_wired) return;
     _wired = true;
+    // What the box held before each change (clock-input.js rule 7) — the edit rule asks it, never guesses.
+    document.addEventListener('beforeinput', e => {
+        const t = /** @type {Element} */ (e.target);
+        if (t?.classList?.contains('time-input')) noteClockBoxBefore(/** @type {HTMLInputElement} */ (t));
+    });
     // Typing 4 digits auto-inserts the colon: "0730" → "07:30"
     document.addEventListener('input', e => {
         if (_formatting || !/** @type {Element} */ (e.target).classList.contains('time-input')) return;
@@ -42,7 +47,7 @@ export function initTimeInputs() {
         timeInput.classList.remove('input-error');
         timeInput.removeAttribute('aria-invalid');
         _formatting = true;
-        timeInput.value = shapeClockBox(timeInput, /** @type {InputEvent} */ (e));
+        shapeClockBoxInPlace(timeInput, /** @type {InputEvent} */ (e));
         _formatting = false;
         // A complete time moves on: start → its row's end, bulk start → bulk end. A REAL time, not
         // five characters: "24:00" fills the box too, and moving on from it would leave an

@@ -119,11 +119,48 @@ export function finaliseClockInput(raw, { edited = false } = {}) {
 //   4. THE FLAG CLEARS when the box holds a complete time again, or is emptied to one digit or none, which is
 //      how a new time is started. It stayed on after an edit was finished, and a time pasted in later lost
 //      its shortcut.
-// A box whose remembered value is not what it now shows was set by the page since; its digits are treated
-// as an edit, the safe reading.
+//   5. A BOX THE PAGE HAS WRITTEN SINCE is read the safe way: its digits are an edit. A box whose remembered
+//      value is not what it now shows, on a deletion, or one whose digits could not have come from what it
+//      remembered plus the keys just typed (`couldFollow`), was set by the page — a prefill, a redraw, the
+//      Shift pill toggled. Trusting the memory there settled "10:8" (the 55 of a prefilled 10:55 typed over)
+//      to 01:08 (the random-edit test, e2e/clock-box-properties.spec.js, 25 Nov 2026).
+//   7. WHAT THE BOX HELD IS ASKED, NOT GUESSED (25 Nov 2026, the review of rules 5 and 6). The browser's
+//      `beforeinput` event fires just before every change, with the box still holding its old value, and every
+//      caller reports it (`noteClockBoxBefore`), with the selection it held. With that in hand an entry is an
+//      EDIT exactly when the box held a complete time, or an unfinished edit of one, and some of its digits lie
+//      outside what the change replaced — whatever made the change: a key, a paste, an Android keyboard's
+//      composition, an autofill. What was typed is never read for this: a paste cut short by the box's five
+//      characters lands less than it says ("1:30" pasted over the 23 of 23:45 lands "1"), and read from its text
+//      it looked like the whole time replaced, and 01:45. Replacing the whole time is a new one, shortcuts and all. Rule 5's guess from memory let a
+//      page-written time that began with the member's own digits through (type 10, the page writes 10:20 back,
+//      type 5 over the 20 → 01:05), and only a typed key counted as typing over, so a paste over part of a
+//      prefilled time still invented one. The memory (rules 3–5) is kept only for a box whose caller never
+//      reported a `beforeinput`.
+//   6. THE CARET STAYS WITH ITS DIGITS. Writing a reshaped value into the box throws the caret to its end, so
+//      deleting the colon of 22:30 ("2230", re-split to "22:30") left the caret after the 0, and the edit
+//      that followed landed there: Backspace, Backspace, 1, meant as 21:30, saved 22:31. Every caller writes
+//      the box through `shapeClockBoxInPlace`, which puts the caret back after as many digits as stood
+//      before it (one more for a zero it supplied).
 
 /** @type {WeakMap<object, { last: string, edited: boolean }>} */
 const boxes = new WeakMap();
+/** What each box held just before the change being shaped, and its selection (rule 7), set by
+ *  `noteClockBoxBefore`, used once. @type {WeakMap<object, { value: string, from: number|null, to: number|null }>} */
+const heldBefore = new WeakMap();
+
+/**
+ * Report what a text clock box holds just BEFORE a change (rule 7): call it from the box's `beforeinput` listener,
+ * beside the `input` listener that calls `shapeClockBoxInPlace`.
+ * @param {{ value: string }} box
+ */
+export function noteClockBoxBefore(box) {
+    const b = /** @type {{ value: string, selectionStart?: number|null, selectionEnd?: number|null }} */ (box);
+    heldBefore.set(box, {
+        value: b.value,
+        from: typeof b.selectionStart === 'number' ? b.selectionStart : null,
+        to: typeof b.selectionEnd === 'number' ? b.selectionEnd : null,
+    });
+}
 
 /** @param {string} v @returns {string} */
 const digitsOf = v => String(v ?? '').replace(/[^0-9]/g, '').slice(0, 4);
@@ -150,6 +187,24 @@ function asLeft(v) {
  *  @param {string} v @param {string} d  its digits @param {boolean} edited */
 const keepsAsLeft = (v, d, edited) => edited && d.length < 4 && String(v ?? '').includes(':');
 
+/** Is `few` `many` with some digits removed, in order (or `many` itself)? @param {string} few @param {string} many */
+function within(few, many) {
+    let i = 0;
+    for (const c of many) if (c === few[i]) i++;
+    return i === few.length;
+}
+
+/** Could the digits `now` have come from the remembered `before` by typing `typed` into it, over a selection or
+ *  not (rule 5)? An unknown key (`typed` not digits) is given the benefit of the doubt.
+ *  @param {string} now @param {string} before @param {string} typed */
+function couldFollow(now, before, typed) {
+    if (!/^\d+$/.test(typed)) return true;
+    for (let i = 0; i + typed.length <= now.length; i++) {
+        if (now.slice(i, i + typed.length) === typed && within(now.slice(0, i) + now.slice(i + typed.length), before)) return true;
+    }
+    return false;
+}
+
 /** Did typing `typed` over the held digits `before` leave some of them beside it (rule 2)?
  *  @param {string} now  the digits now @param {string} before  the digits held @param {string} typed  the digits typed */
 function typedOverPart(now, before, typed) {
@@ -170,8 +225,22 @@ export function shapeClockBox(box, event) {
     const d = digitsOf(box.value);
     const seen = boxes.get(box);
     const kind = String(event?.inputType ?? '');
+    const prev = heldBefore.get(box);
+    heldBefore.delete(box);
     let edited = false;
-    if (d.length > 1) {
+    if (d.length > 1 && prev !== undefined) {
+        // Rule 7: what the box held, and what the change replaced, are known.
+        const pd = digitsOf(prev.value);
+        const heldTime = pd.length === 4 && isClockTime(formatClockInput(pd));
+        const heldEdit = seen !== undefined && seen.last === pd && seen.edited;
+        if (heldTime || heldEdit) {
+            // A deletion leaves the rest; anything else replaced its selection. Unknown selection: the safe reading.
+            const survivors = kind.startsWith('delete') || prev.from === null || prev.to === null
+                ? 1
+                : digitsOf(prev.value.slice(0, prev.from) + prev.value.slice(prev.to)).length;
+            edited = survivors > 0;
+        }
+    } else if (d.length > 1) {
         if (kind.startsWith('delete')) {
             const before = seen?.last;
             edited = before === undefined || !leftAfterDeleting(d, before)
@@ -179,17 +248,42 @@ export function shapeClockBox(box, event) {
         } else {
             // What was typed: the event's own `data` — one digit when a browser leaves it out of a keystroke.
             const typed = event?.data == null ? (kind === 'insertText' ? 'x' : '') : digitsOf(event.data);
-            const before = seen?.last;
+            // Rule 5: a memory the box's digits cannot have come from is the page's writing, not the member's.
+            const before = seen !== undefined && couldFollow(d, seen.last, typed) ? seen.last : undefined;
             const overTime = before === undefined
                 ? kind === 'insertText'                       // a keystroke into a box the page filled: its stored time
                 : isClockTime(formatClockInput(before));
-            edited = seen?.edited === true
+            edited = (before !== undefined && seen?.edited === true)
                 || (overTime && typed !== '' && typedOverPart(d, before ?? '9999', typed));
         }
     }
     const shaped = keepsAsLeft(box.value, d, edited) ? asLeft(box.value) : formatClockInput(box.value, { edited });
     // Rule 4: a complete time again ends the edit.
     boxes.set(box, { last: digitsOf(shaped), edited: edited && !isClockTime(shaped) });
+    return shaped;
+}
+
+/**
+ * `shapeClockBox`, WRITTEN INTO the box with its caret kept beside its digits (rule 6) — what every text clock box's
+ * `input` handler calls. A value that does not change is not written, so the caret is not touched at all.
+ * @param {{ value: string, selectionStart?: number | null, setSelectionRange?: (a: number, b: number) => void }} box
+ * @param {{ inputType?: string, data?: string | null } | null} [event]
+ * @returns {string} what the box now holds
+ */
+export function shapeClockBoxInPlace(box, event) {
+    const raw = box.value;
+    const caret = typeof box.selectionStart === 'number' ? box.selectionStart : raw.length;
+    const shaped = shapeClockBox(box, event);
+    if (shaped === raw) return shaped;
+    let digitsBefore = digitsOf(raw.slice(0, caret)).length;
+    if (digitsOf(shaped) === '0' + digitsOf(raw)) digitsBefore += 1;   // a zero the box supplied sits before them
+    box.value = shaped;
+    let at = 0;
+    for (let seenDigits = 0; at < shaped.length && seenDigits < digitsBefore; at++) if (/\d/.test(shaped[at])) seenDigits++;
+    // A Delete that took only the colon, which the box puts straight back, steps over it — or the next Delete takes it
+    // again and the box never changes (the review of rule 6).
+    if (String(event?.inputType ?? '') === 'deleteContentForward' && shaped[at] === ':') at += 1;
+    try { box.setSelectionRange?.(at, at); } catch { /* a box that takes no caret keeps none */ }
     return shaped;
 }
 

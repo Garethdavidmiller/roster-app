@@ -384,7 +384,7 @@ question: Safari on a phone is not believed to share it, but nobody has checked 
 check: Admin → change a row → ☰ → Calendar → **Leave**.
 
 The Leave test (`admin: a drawer pill or the logo asks before leaving staged edits`, in
-`e2e/admin.spec.js`) still stops the navigation at the network with a `204` and asserts the request
+`e2e/admin-unsaved-work.spec.js`) still stops the navigation at the network with a `204` and asserts the request
 Leave made — correct on either build — and the test after it proves the destination. **Never skip
 such a test on WebKit**: it is the lane's only view of the dialog, the drawer and the guard on
 Safari's engine. The reproduction is in git (`git show 28b217d0:docs/ROADMAP_HISTORY.md`).
@@ -1072,7 +1072,7 @@ Every dialog traps Tab/Shift+Tab — the nav panel and every lightbox through `c
 ### The drawer does not pull back focus the iPhone keyboard's arrows move out of it
 The ‹ › arrows above the iPhone keyboard move focus to the previous or next text field in the document
 and fire no key event, so a Tab trap never sees them. Since 7 Nov 2026 every `createLightbox` dialog
-pulls such focus back (`_guardFocus`, `overlay.js`); the nav drawer, its two lightboxes and the Huddle
+pulls such focus back (`_guardFocus`, `overlay-focus.js`); the nav drawer, its two lightboxes and the Huddle
 viewer keep their own Tab traps and have no guard, so the arrows can leave the drawer's *Search the
 guides* box for a field behind it. Not built yet; since v26.25 `nav-panel.js` has room under its cap
 (`coordinator-ratchet.test.mjs`). The device check
@@ -1652,8 +1652,8 @@ that.
 what remains once the pure logic has been extracted, so `calendar-app.js` and `admin-app.js` are
 DOM-bound by construction, and a unit harness for either would be a mock of the whole page. Their
 decisive seams are wiring-tested in e2e instead, deliberately, and the tests say so in their own
-headers: `e2e/calendar.spec.js` (`day detail:` block) pins `personalActionsAllowed` at its call site
-and records the mutation that justified it, and `e2e/admin.spec.js` does the same for
+headers: `e2e/calendar-day-detail.spec.js` pins `personalActionsAllowed` at its call site
+and records the mutation that justified it, and `e2e/admin-leave-booking.spec.js` does the same for
 `_syncMemberFor`. `page-contract-parity.test.mjs` pins every page's coordinator to calling the three
 fire-and-forget writers — `initErrorReporter`, `recordUsage` and `recordPageLatency` — inside that
 page's declared auth barrier, because a call made before an identity exists is rejected in silence

@@ -286,11 +286,15 @@ describe('guardNamedSession', () => {
 
     test('…and Trains is WIRED to pass it: the explanation its card at load carries (the wiring, read from source)', async () => {
         // The rule above is the helper's; this is the call site. Without `about` a member who lost their
-        // session mid-visit met a card without the staff PIN's way in that the page's own card offers.
+        // session mid-visit met a card that did not say what the page is, where the page's own card did. ONE
+        // `about` now feeds both, through the start-up (page-start.test.mjs: the card and the guard are each
+        // handed it), so the call site has one thing to pass.
         const { readFileSync } = await import('node:fs');
         const src = readFileSync(new URL('./trains-app.js', REPO_ROOT_URL), 'utf8');
-        assert.match(src, /initLoginOverlay\(\{[^}]*about: SIGN_IN_ABOUT/, 'premise: the card at load explains the page');
-        assert.match(src, /guardNamedSession\(\{[^}]*about: SIGN_IN_ABOUT/, 'the card a lost session gets does not say what the page is');
+        assert.match(src, /startPage\(\{[^}]*about: SIGN_IN_ABOUT/, 'the cards Trains opens do not say what the page is');
+        const start = readFileSync(new URL('./page-start.js', REPO_ROOT_URL), 'utf8');
+        assert.match(start, /initLoginOverlay\(\{[^}]*about: spec\.about/, 'premise: the start-up\'s card at load carries the page\'s explanation');
+        assert.match(start, /guardNamedSession\(\{[^}]*about: spec\.about/, 'the card a lost session gets does not say what the page is');
     });
 
     // EVERY PAGE GETS THE SHARED CARD (external review of v26.67). Admin and Overtime passed a card of their own,
@@ -319,16 +323,21 @@ describe('guardNamedSession', () => {
     });
 
     test('…and Admin and Overtime are WIRED to the shared card: no card of their own (the wiring, read from source)', async () => {
+        // Through the start-up now (page-start.js), which hands `about` and `beforeSignInAgain` to guardNamedSession
+        // as `about` and `beforeSignIn` — and nothing else, so no page can pass a card of its own.
         const { readFileSync } = await import('node:fs');
         for (const [file, wants] of /** @type {Array<[string, RegExp]>} */ ([
-            ['admin-app.js', /guardNamedSession\(\{[^}]*about: ADMIN_SIGN_IN_ABOUT[^}]*\}\)/],
-            ['overtime-app.js', /guardNamedSession\(\{[^}]*beforeSignIn: \(\) => review\.standDown\(\{ clear: true \}\)/],
+            ['admin-app.js', /startPage\(\{[^}]*about: ADMIN_SIGN_IN_ABOUT/],
+            ['overtime-app.js', /beforeSignInAgain: \(\) => review\.standDown\(\{ clear: true \}\)/],
         ])) {
             const src = readFileSync(new URL(`./${file}`, REPO_ROOT_URL), 'utf8');
-            assert.match(src, wants, `${file} no longer passes what its card needs to guardNamedSession`);
-            const call = src.slice(src.indexOf('guardNamedSession({'), src.indexOf('});', src.indexOf('guardNamedSession({')));
-            assert.doesNotMatch(call, /signIn:/, `${file} passes a card of its own again, which never says "signed in again"`);
+            assert.match(src, wants, `${file} no longer passes what its card needs to the start-up`);
+            assert.doesNotMatch(src, /guardNamedSession\(/, `${file} guards its session by hand again`);
         }
+        const start = readFileSync(new URL('./page-start.js', REPO_ROOT_URL), 'utf8');
+        const call = start.slice(start.indexOf('guardNamedSession({'), start.indexOf('});', start.indexOf('guardNamedSession({')));
+        assert.match(call, /beforeSignIn: spec\.beforeSignInAgain/, 'the start-up no longer hands the page\'s put-away step to the lost-session card');
+        assert.doesNotMatch(call, /signIn:/, 'the start-up passes a card of its own, which never says "signed in again"');
     });
 
     test('it waits for the session to settle before deciding', async () => {
@@ -572,41 +581,6 @@ describe('back/forward cache', () => {
 // A phone never shows the browser's "Leave site?", so these are the only question an iPhone gets.
 // The About panel's links joined the drawer's: Admin's "Calendar" link (once "View staff roster") left staged edits behind
 // without one, because the guard looked for `.nav-panel` alone.
-describe('continueAfterSignIn — the sign-in card\'s onSuccess on every page', () => {
-    test('with a session: the Back guard is rebased BEFORE the page runs, and nothing reloads', async () => {
-        const fresh = await import('../page-session.js?continue-ok');
-        listeners = {}; log = [];
-        session = null;
-        fresh.reloadIfRestoredForSomeoneElse();          // loaded for nobody…
-        session = { name: 'A. Member' };                 // …signed into in place
-        fresh.continueAfterSignIn(() => log.push('run'))();
-        assert.deepEqual(log, ['run']);
-        fire('pagehide');
-        fire('pageshow', { persisted: true });
-        assert.deepEqual(log, ['run'], 'the page is theirs now: a Back to it does not reload');
-    });
-
-    test('no session by then: a reload into a fresh sign-in, and the page never runs for nobody', () => {
-        session = null;
-        ps.continueAfterSignIn(() => log.push('run'))();
-        assert.deepEqual(log, ['reload']);
-    });
-
-    test('needName: a session without a name reloads too; without needName it runs', () => {
-        session = {};
-        ps.continueAfterSignIn(() => log.push('run'), { needName: true })();
-        assert.deepEqual(log, ['reload'], 'a page keyed by the member\'s name is never run without one');
-        log = [];
-        ps.continueAfterSignIn(() => log.push('run'))();
-        assert.deepEqual(log, ['run']);
-    });
-
-    test('a page that throws mid-wiring reloads, never stays half-built', () => {
-        ps.continueAfterSignIn(() => { log.push('run'); throw new Error('wiring'); })();
-        assert.deepEqual(log, ['run', 'reload']);
-    });
-});
-
 describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', () => {
     /** A tap on a link at `href`, inside `zone` ('.nav-panel', '#iconLightbox', or neither). `click`
      *  holds what a real click carries — `button` and the modifier keys — when a test needs them.
@@ -864,7 +838,7 @@ describe('onReturnToPage — an installed app is not reloaded when it is reopene
 // ── unsaved-draft.js — THE KEPT COPY ITSELF ──────────────────────────────────────────────────────
 // The module's own suite lives here, beside the trigger that writes it: its rules are the five in
 // its header, and each test below names the one it holds. The browser half — a real hide, a reload
-// and the question on screen — is e2e/admin.spec.js and e2e/links.spec.js.
+// and the question on screen — is e2e/admin-unsaved-work.spec.js and e2e/links.spec.js.
 const ud = await import('../unsaved-draft.js');
 
 describe('unsaved-draft.js', () => {

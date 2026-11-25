@@ -119,15 +119,19 @@ test('contract 6 — a search EXAMPLE is not an answer', () => {
 test('contract 7 — result rows ride nav-panel\'s delegated guide-link handler', () => {
     const ui = read('nav-guide-search.js');
     const nav = read('nav-panel.js');
+    // The search box's lazy load left nav-panel.js for nav-guide-fold.js with the Reference fold (25 Nov 2026).
+    const fold = read('nav-guide-fold.js');
     // The class the delegated handler dispatches on, present in BOTH files: the renderer must
     // stamp it and the handler must still listen for it.
     assert.ok(ui.includes("'nav-panel-link nav-panel-link--guide"), 'result rows no longer carry the guide-link class');
     assert.ok(nav.includes(".closest('.nav-panel-link--guide')"), 'the delegated handler no longer dispatches on the class');
     assert.ok(ui.includes('dataset.openId'), 'results no longer stamp data-open-id — opens would stop counting');
-    // And the lazy boundary: nav-panel must import the UI dynamically, never statically — a
-    // static import would put the ~90KB index into every page boot.
-    assert.ok(nav.includes("import('./nav-guide-search.js')"), 'the lazy import is gone');
-    assert.ok(!/^import .*nav-guide-search/m.test(nav), 'nav-guide-search must not be statically imported');
+    // And the lazy boundary: the drawer must import the UI dynamically, never statically — a
+    // static import would put the ~90KB index into every page boot. Neither drawer module may.
+    assert.ok(fold.includes("import('./nav-guide-search.js')"), 'the lazy import is gone');
+    for (const [name, src] of [['nav-panel.js', nav], ['nav-guide-fold.js', fold]]) {
+        assert.ok(!/^import .*nav-guide-search/m.test(src), `${name}: nav-guide-search must not be statically imported`);
+    }
 });
 
 test('contract 5b — the FIP guide\'s Vilnius–Riga conflict reaches the drawer on both its cards', () => {

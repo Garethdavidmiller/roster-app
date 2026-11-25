@@ -1,6 +1,7 @@
 // @lane hygiene
 /**
- * Unit tests for the overlay.js Android-Back history STACK (_pushOverlayState /
+ * Unit tests for the overlay layer's Android-Back history STACK (overlay-history.js, reached through
+ * overlay.js's re-exports: _pushOverlayState /
  * _clearOverlayHistory + the popstate listener).
  * Run with: node scripts/run-tests.mjs test/overlay-history.test.mjs
  *
@@ -21,6 +22,7 @@
 
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
 
 let popstateHandler = /** @type {null | (() => void)} */ (null);
 let pushCount = 0;
@@ -53,8 +55,24 @@ global.document = /** @type {any} */ ({
 /** Fire a hardware/Android Back press: the browser already popped the entry. */
 function pressBack() { popstateHandler?.(); }
 
+// A FRESH overlay.js IS NOT ENOUGH SINCE THE STACK LEFT IT (25 Nov 2026). The stack's state and its
+// popstate listener live in overlay-history.js, which overlay.js imports and re-exports; a cache-busted
+// overlay.js alone would re-link the SAME overlay-history.js, whose listener registered once, on the
+// first test, and never again. So a module loaded under a `?history-test=N` query hands the same query to
+// every relative import it makes: each test gets the whole overlay layer fresh, as it did when it was one file.
+registerHooks({
+    resolve(specifier, context, nextResolve) {
+        const resolved = nextResolve(specifier, context);
+        const query = context.parentURL ? new URL(context.parentURL).search : '';
+        return query.startsWith('?history-test=') && specifier.startsWith('./')
+            ? { ...resolved, url: resolved.url + query }
+            : resolved;
+    },
+});
+
 let _seq = 0;
-/** Load a fresh overlay.js instance (fresh module-level stack + popstate registration). */
+/** Load a fresh overlay.js instance — and, through the hook above, a fresh overlay-history.js under it
+ *  (fresh module-level stack + popstate registration). */
 async function freshOverlay() {
     pushCount = 0; backCount = 0; popstateHandler = null;
     return import('../overlay.js?history-test=' + (_seq++));
@@ -688,7 +706,7 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
 // lightbox's own history entry, and one Back from it landed on a step of this page that nothing answered.
 // `followLinkOutOf` closes the lightbox WITHOUT popping that entry and replaces it with the link's page, as the
 // drawer's links replace the drawer's entry. The wiring of each caller is calendar-notices.test.mjs's and the
-// browser journey e2e/calendar.spec.js's and e2e/settings.spec.js's.
+// browser journey e2e/calendar-notices.spec.js's and e2e/settings.spec.js's.
 describe('followLinkOutOf — the link\'s page takes the lightbox\'s history entry', () => {
     function fakeOverlay() {
         const classes = new Set();

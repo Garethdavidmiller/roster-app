@@ -2,7 +2,8 @@
 /**
  * trains-app.js — coordinator for trains.html: what changes at Marylebone on 13 December 2026.
  *
- * Owns: the access gate, the session wiring, and which view is on screen — the day, the question
+ * Owns: what its access gate waits for before the sign-in (the gate and the session wiring are
+ *   page-start.js's), and which view is on screen — the day, the question
  * (what's changing / a station / where they stop) and the chosen station. Every judgement about the
  * timetables is `trains-change.js`, `trains-stations.js` (with `trains-weekdays.js` and
  * `trains-verdict.js`) and `trains-headlines.js`; every word of HTML
@@ -60,18 +61,15 @@
 import { CONFIG } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, ACCESS_DECISION_BUDGET_MS } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, continueAfterSignIn } from './page-session.js';
-import { requirePage, navGatesFor } from './auth-policy.js';
+import { getSession, sessionReady, reconcileExpiredIdentity, ACCESS_DECISION_BUDGET_MS } from './session.js';
+import { signOutAndLeave } from './page-session.js';
+import { startPage } from './page-start.js';
+import { navGatesFor } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
-import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce } from './password-force.js';
-import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { markPageReady } from './perf-reporter.js';
 import { STATIONS } from './trains-data.js';
 import { CARD_TIPS, tipsOn } from './trains-tips.js';
 import { railwayToday } from './trains-change.js';
@@ -104,14 +102,15 @@ let overviewCard = { setOpen(/** @type {boolean} */ _open) {} };
 
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
 export function init() {
-    reloadIfRestoredForSomeoneElse();
     registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Links: a signed-out view must still take an update (whole-app review)
-    const currentUser = getSession()?.name ?? null;
+    // Tear down a lingering privileged Firebase identity whose local session has expired — and a leftover session of the
+    // retired staff PIN (owner, 23 Nov 2026), which is what a signed-out visitor most often brings.
+    const teardown = reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
-    // Decided from the LOCAL session, as Operations and Overtime do — the auth store is often still
-    // initialising here, and a role-gated page must not treat "pending" as "allowed".
-    const access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'trains');
-    if (access.decision === 'login') {
+    // The start-up every card-opening page shares (page-start.js), decided from the LOCAL session, as Operations
+    // and Overtime do — the auth store is often still initialising here, and a role-gated page must not treat
+    // "pending" as "allowed".
+    startPage({ page: 'trains', label: 'Trains', about: SIGN_IN_ABOUT,
         // No member: the sign-in. The teardown runs FIRST — it is what signs out a leftover session of the
         // retired staff PIN (owner, 23 Nov 2026) — but for no longer than the Calendar gives it
         // (`ACCESS_DECISION_BUDGET_MS`, calendar-access.js). It begins by awaiting `authReady`, which never
@@ -119,38 +118,24 @@ export function init() {
         // left the placeholder up for good with no way to sign in (72-hour check, 24 Nov 2026). Past the
         // budget the card goes up and the teardown runs on: the card hears the retired-PIN line whenever
         // it lands (`onStaffPinEnded`, staff-pin-ended.js), as the Calendar's does.
-        Promise.race([
-            reconcileExpiredIdentity().catch(() => {}),
+        beforeCard: () => Promise.race([
+            teardown,
             new Promise(resolve => setTimeout(resolve, ACCESS_DECISION_BUDGET_MS)),
-        ]).then(() => { document.body.classList.add('auth-ready'); initLoginOverlay({
-            pageLabel: 'Trains', about: SIGN_IN_ABOUT,
-            onSuccess: continueAfterSignIn(init),
-        }); });
-        return;
-    }
-    if (access.decision === 'forbidden') {
+        ]).then(() => { document.body.classList.add('auth-ready'); }),
         // Not reachable while the policy admits every member. Kept so that a role added
         // back to the policy fails closed — back to the roster, quietly — rather than open.
-        window.location.replace('./');
-        return;
-    }
-    // Tear down a lingering privileged Firebase identity whose local session has expired.
-    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
-    start(/** @type {string} */ (currentUser));
+        refuse: () => window.location.replace('./'),
+        run: start });
 }
 
 /**
- * The page, for a member. (With `member` null it was the station PIN's, which is nobody, until the PIN
- * was retired on 23 Nov 2026: a member is the only reader now.)
+ * The page, for a member — run by the start-up once their session is re-established and guarded (the card a lost
+ * session gets says what the card at load says: `about`). (With `member` null it was the station PIN's, which is
+ * nobody, until the PIN was retired on 23 Nov 2026: a member is the only reader now.)
  * @param {string} member
  */
 function start(member) {
     document.body.classList.add('auth-ready');   // the cards show; the boot placeholder goes (trains.html)
-    dismissLoginOverlay();
-    const established = ensureNamedSession(member);
-    resolveSession(established);
-    // The card a lost session gets says what the card at load says.
-    guardNamedSession({ page: 'trains', pageLabel: 'Trains', member, established, about: SIGN_IN_ABOUT });
     const isAdmin = CONFIG.ADMIN_NAMES.includes(member);
     /** @type {any} */ let openAboutLightbox = null;
     initNavPanel({
@@ -211,16 +196,7 @@ function start(member) {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(state); });
     // …and one that is never hidden is asked each minute (the header's "On and after the change").
     setInterval(() => { if (document.visibilityState === 'visible') turnIfNewDay(state); }, 60_000);
-
-    sessionReady.then(() => {
-        initErrorReporter();
-        recordUsage('trains', member);
-        recordPageLatency('trains', member);
-    });
-    // Called now, with the session as its barrier: a sign-in's one-shot marker is spent as the page opens,
-    // never only once the session is confirmed (password-force.js, "consume BEFORE any await"). It fails open by
-    // itself; the `.catch` only keeps an unexpected rejection from going unhandled.
-    initPasswordForce(member, { ready: sessionReady }).catch(() => {});
+    // The error reporter, the usage and latency counts and the forced set-password step are the start-up's.
 }
 
 // ── Renders ─────────────────────────────────────────────────────────────────────────────────────

@@ -28,7 +28,8 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
     weeklyHours,
     CONTRACTED_HOURS_PER_WEEK, ROTATING_LINES,
@@ -220,15 +221,26 @@ describe('the opt-out is not a back door', () => {
         // The only reason `requireContract` may exist. `links-design.test.mjs` passes it because its
         // fixtures describe a rotation shape rather than a week's work; if the coordinator ever
         // passed it, every real Generate would be ungated and nothing else would say so.
-        const app = readFileSync(new URL('./links-app.js', REPO_ROOT_URL), 'utf8');
-        assert.equal(/requireContract/.test(app), false,
-            'links-app.js mentions requireContract — the app must never opt out of the contract gate');
-        // Same guard for the rest gate (v21.11), and for the same reason. It exists so construction
-        // fixtures — several of which staff every line every day, which no arrangement can rest —
-        // can still exercise the constructions. A design the app hands a designer is one somebody
-        // could be rostered to, and there is no reading of that where 11h45 between turns is fine.
-        assert.equal(/requireRest/.test(app), false,
-            'links-app.js mentions requireRest — the app must never opt out of the minimum-rest gate');
+        //
+        // Read from EVERY page module that calls the generator, not one named file: the press left
+        // links-app.js for links-build-button.js on 25 Nov 2026, and a guard naming the old file
+        // would have gone on passing over a module it no longer read.
+        const callers = readdirSync(fileURLToPath(REPO_ROOT_URL))
+            .filter(f => f.endsWith('.js') && f !== 'links-generate.js')
+            .filter(f => /\bgenerateLink\(/.test(readFileSync(new URL(`./${f}`, REPO_ROOT_URL), 'utf8')));
+        assert.ok(callers.includes('links-build-button.js'),
+            `the Build press no longer calls generateLink from links-build-button.js (callers: ${callers.join(', ') || 'none'}) — point this guard at the module that does`);
+        for (const f of ['links-app.js', ...callers]) {
+            const src = readFileSync(new URL(`./${f}`, REPO_ROOT_URL), 'utf8');
+            assert.equal(/requireContract/.test(src), false,
+                `${f} mentions requireContract — the app must never opt out of the contract gate`);
+            // Same guard for the rest gate (v21.11), and for the same reason. It exists so construction
+            // fixtures — several of which staff every line every day, which no arrangement can rest —
+            // can still exercise the constructions. A design the app hands a designer is one somebody
+            // could be rostered to, and there is no reading of that where 11h45 between turns is fine.
+            assert.equal(/requireRest/.test(src), false,
+                `${f} mentions requireRest — the app must never opt out of the minimum-rest gate`);
+        }
     });
 
     test('and leaving it out is the SAFE default', () => {

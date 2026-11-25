@@ -3,7 +3,7 @@
  * notif.js — Shared Web Push notification state + subscribe/unsubscribe logic.
  *
  * Single source of truth for the VAPID key and the push-subscription lifecycle.
- * Imported by nav-panel.js (the drawer bell), calendar-notif-prompt.js (renewal + the one-off prompt),
+ * Imported by nav-bell.js (the drawer bell) and nav-panel.js (sign-out's release), calendar-notif-prompt.js (renewal + the one-off prompt),
  * notif-card.js (the Settings Notifications card), settings-app.js, install-prompt.js,
  * paycalc-transfer-card.js, and session.js (dynamically, for `releaseDevicePush`).
  *

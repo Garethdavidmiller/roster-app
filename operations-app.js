@@ -2,8 +2,9 @@
 /**
  * operations-app.js — Coordinator for operations.html.
  *
- * Owns: the access gate (signed out → the in-place sign-in; a non-admin → admin.html), Firebase
- *   Auth re-establishment, the Account status and reset-request cards, and the page's wiring.
+ * Owns: what its access gate does with a non-admin (admin.html — the gate, the in-place sign-in and
+ *   the Firebase Auth re-establishment are page-start.js's), the Account status and reset-request
+ *   cards, and the page's wiring.
  * Does NOT own: Huddle upload logic (huddle.js), roster PDF pipeline
  *   (admin-roster-upload.js), staff auth setup (admin-auth.js), the three reporting cards
  *   (operations-errors.js, -usage.js, -speed.js), the Needs-attention strip (operations-attention.js) or what
@@ -20,10 +21,7 @@ import { initErrorLog } from './operations-errors.js';
 import { createAttentionStrip, reportLoginAccounts, withdrawLoginAccounts } from './operations-attention.js';
 import { initUsageCard } from './operations-usage.js';
 import { initPageSpeedCard } from './operations-speed.js';
-import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce } from './password-force.js';
-import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { markPageReady } from './perf-reporter.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { functionUrl } from './function-url.js';
 import { initHuddleUpload } from './huddle.js';
@@ -36,10 +34,10 @@ import { initSelectSheets, enhanceSelect } from './select-sheet.js';
 import { resetQuestion, resetFailure, resetOutcome } from './operations-reset.js';
 import { twoTap, disarmConfirm } from './two-tap.js';
 import { initNavPanel } from './nav-panel.js';
-import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, leaveAfterAsking, continueAfterSignIn } from './page-session.js';
-import { requirePage, navGatesFor } from './auth-policy.js';
+import { getSession, sessionReady, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
+import { signOutAndLeave, askBeforeSignOut, leaveAfterAsking } from './page-session.js';
+import { startPage } from './page-start.js';
+import { navGatesFor } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox, registerPopInterceptor, suppressNextPop, whenHistorySettled } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -54,7 +52,6 @@ import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
  * call), so a test can import this module WITHOUT running it. The login and forbidden paths return early.
  */
 export function init() {
-    reloadIfRestoredForSomeoneElse();
     // Register the service worker UNCONDITIONALLY, before the access gate: a signed-out or non-admin
     // visit returns early below and would otherwise never register or update it.
     // An update reload waits — asked again at the moment of reloading — for the work a reload loses: a
@@ -74,38 +71,21 @@ export function init() {
     // Tear down a privileged Firebase identity whose local session has expired, so a deep link cannot
     // keep an old credential live. Fire-and-forget and login-safe.
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
+
+    // The start-up every card-opening page shares (page-start.js): the Back guard, the Operations policy
+    // (admin only) decided from the LOCAL session, the in-place sign-in — after which this init() runs
+    // again and is decided afresh — and, for an admin, their own Firebase session re-established and
+    // guarded, `sessionReady` fulfilled (admin-auth.js and huddle.js await it), the set-password step and
+    // the error reporter. Signed in as anybody else: Admin (access control, not a login divert).
+    if (!startPage({ page: 'operations', label: 'Operations', again: init,
+        refuse: () => window.location.replace('./admin.html') })) return;
+
     // ============================================
     // SESSION — read from localStorage (shared with admin-app.js via session.js)
     // ============================================
     const currentSession = getSession();
     const currentUser    = currentSession?.name ?? null;
 
-    // Page access (auth-policy.js): the local session maps to 'named' (the optimistic fast render) or
-    // 'signedOut', and requirePage applies the Operations policy — admin only.
-    const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations');
-    if (_access.decision === 'login') {
-        // Not signed in → the shared in-place sign-in. On success init() runs again, and the authorised
-        // body below runs exactly ONCE. Do NOT resolveSession(false) here: sessionReady is one-shot.
-        // A reload instead if init() throws or there is no session by then (`continueAfterSignIn`).
-        initLoginOverlay({ pageLabel: 'Operations', onSuccess: continueAfterSignIn(init) });
-        return;
-    }
-    if (_access.decision === 'forbidden') {
-        // Signed in but NOT an admin — Operations is admin-only (access control, not a login divert).
-        window.location.replace('./admin.html');
-        return;
-    }
-    // _access.decision === 'allow' → proceed (signed-in admin).
-    // In-place sign-in: if we re-entered via the overlay's onSuccess, the overlay is still mounted —
-    // remove it to reveal the page. No-op on a normal already-signed-in load (no overlay present).
-    dismissLoginOverlay();
-
-    // Resolve sessionReady, which the feature modules (admin-auth.js, huddle.js) await.
-    const _opsAuth = ensureNamedSession(currentUser);
-    resolveSession(_opsAuth);
-    // An own session that cannot be confirmed signs in again now; one revoked LATER does too
-    // (page-session.js — the same follow-up every named page runs).
-    guardNamedSession({ page: 'operations', pageLabel: 'Operations', member: currentUser, established: _opsAuth });
     // The admin-gated reads below go through `withClaimRetry`: just after "Set up accounts" the token
     // may not carry the `admin` claim yet, and one refresh picks it up.
 
@@ -732,10 +712,6 @@ export function init() {
     initUsageCard();
     initPageSpeedCard();
 
-    sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
-    // Forced set-password overlay — fire-and-forget, with the session as its barrier, so the sign-in's one-shot
-    // marker is spent as the page opens (password-force.js). `currentUser` is right here: an in-place sign-in
-    // re-runs init(), and only that signed-in pass gets this far.
-    initPasswordForce(currentUser, { ready: sessionReady });
-
+    // The error reporter, the usage and latency counts and the forced set-password step are the start-up's
+    // (page-start.js), behind `sessionReady`.
 }

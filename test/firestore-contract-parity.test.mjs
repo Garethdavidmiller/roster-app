@@ -47,8 +47,10 @@ test('every analytics id the client can write is allowed by firestore.rules', ()
         'the pv_ rule no longer checks the ids a write changes against pvCountIds()');
     const allowed = new Set([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
 
-    // Page views: the id each coordinator passes to recordUsage().
-    const pageIds = new Set([...APP_JS.matchAll(/recordUsage\('([a-z-]+)'/g)].map(x => x[1]));
+    // Page views: the id each coordinator passes to recordUsage() — or, for a page that starts through page-start.js,
+    // to `startPage({ page: … })`, whose session step records the view under that id (`recordUsage(spec.page, …)`).
+    assert.match(read('page-start.js'), /recordUsage\(spec\.page, member\)/, 'page-start.js no longer counts the view under the page id it was given');
+    const pageIds = new Set([...APP_JS.matchAll(/recordUsage\('([a-z-]+)'|\bstartPage\(\{\s*page:\s*'([a-z-]+)'/g)].map(x => x[1] ?? x[2]));
     assert.ok(pageIds.size >= 6, `expected the six page ids, found ${pageIds.size}`);
 
     // Document/guide opens: the card's own render map is the authoritative list of open ids.
@@ -79,8 +81,10 @@ test('every analytics id the client can write is allowed by firestore.rules', ()
 // two of the four guides had no branch at all — so the group answered a narrower question than its
 // heading claimed for five months.
 test('every guide in the nav drawer has an open counter, and every guide counter is emitted', () => {
-    // The list, imported (nav-destinations.js); the TEMPLATE that stamps it on the link is nav-panel.js's.
-    const NAV = read('nav-panel.js');
+    // The list, imported (nav-destinations.js); the TEMPLATE that stamps it on the link is nav-panel-markup.js's,
+    // and the click handler that reads it back is nav-panel.js's (the drawer's split, 25 Nov 2026).
+    const NAV = read('nav-panel-markup.js');
+    const NAV_HANDLER = read('nav-panel.js');
     // FIVE since v20.05 (Rangers & Rovers). The literal is the tripwire — it is what forces a
     // sixth guide through this test rather than past it, which is how the openId, OPEN_META and
     // firestore.rules ends get wired at the same time instead of one release apart.
@@ -105,7 +109,7 @@ test('every guide in the nav drawer has an open counter, and every guide counter
     // Pay Calculator Guide as the Staff Guide and both bars would still look plausible.
     assert.match(NAV, /data-open-id="\$\{g\.openId\}"/,
         'the guide link no longer carries data-open-id — the open counter has lost its id source');
-    assert.doesNotMatch(NAV, /_href\.includes\('(guide|fip)/,
+    assert.doesNotMatch(NAV + NAV_HANDLER, /_href\.includes\('(guide|fip)/,
         'guide open ids must not be matched from the href — see the substring trap above');
 });
 

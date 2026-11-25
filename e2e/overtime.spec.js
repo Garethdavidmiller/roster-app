@@ -2230,7 +2230,7 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await expect(page, 'Cancel keeps the page').toHaveURL(/overtime\.html/);
         // A closed dialog stays in the page for 500ms so it can fade, and the next question builds a new
         // one; ask again before it has gone and the page holds two copies of the same words, which the
-        // text lookup above refuses (admin.spec.js met it first). A fast machine asks inside the 500ms.
+        // text lookup above refuses (the Admin specs met it first). A fast machine asks inside the 500ms.
         await expect(page.locator('.dialog-overlay'), 'the closed dialog has left the page').toHaveCount(0);
 
         await page.locator('#navPanelBrand').click();   // the drawer is still open: its head opens About

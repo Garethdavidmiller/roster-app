@@ -530,7 +530,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // reason, as the success path above. The withheld grid's "Try again" is only drawn when a
       // per-month fetch is safe to start, and that is decided by THIS flag at render time; leaving
       // it to the `finally` painted the failure panel with no action on it, which is the state the
-      // whole change exists to remove. Caught by e2e/calendar.spec.js, not by any unit test — the
+      // whole change exists to remove. Caught by e2e/calendar-*.spec.js, not by any unit test — the
       // flag, the render and the button live in three different modules.
       setInitialFetchInProgress(false);
       // Repaint so a withheld grid moves from "Checking this month" to the failure panel (v20.40).

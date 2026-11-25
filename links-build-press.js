@@ -3,7 +3,7 @@
  * links-build-press.js — what the Links "Build the link" press SAYS and remembers: why a table was
  * refused, the question it asks before replacing a design, the line it reports, and which build of
  * these inputs this is. Pure: no DOM, no Firebase. Tested by links-build-press.test.mjs; the press
- * itself (the confirm, the held button, the scroll anchor) is the coordinator's, end to end in
+ * itself (the confirm, the held button, the scroll anchor) is links-build-button.js's, end to end in
  * e2e/links.spec.js.
  *
  * ── RULES AN EDIT CAN BREAK ─────────────────────────────────────────────────────────────────────

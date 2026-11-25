@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '26.86';
+const APP_VERSION = '26.87';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -194,6 +194,8 @@ const APP_MODULES = [
     'links-analysis.js',
     'links-app.js',
     'links-boot.js',
+    'links-brush-bar.js',
+    'links-build-button.js',
     'links-build-press.js',
     'links-compare-analysis.js',
     'links-compare.js',
@@ -213,6 +215,7 @@ const APP_MODULES = [
     'links-generator-targets.js',
     'links-grid-cells.js',
     'links-grid-input.js',
+    'links-grid.js',
     'links-import.js',
     'links-limits.js',
     'links-print.js',
@@ -225,12 +228,18 @@ const APP_MODULES = [
     'links-target-sets.js',
     'links-tips.js',
     'links-today.js',
+    'links-window-editor.js',
     'links-window.js',
     'login-core.js',
     'login-overlay.js',
     'ls.js',
+    'nav-bell.js',
     'nav-destinations.js',
+    'nav-drawer-lightboxes.js',
+    'nav-guide-fold.js',
     'nav-guide-search.js',
+    'nav-latest-doc.js',
+    'nav-panel-markup.js',
     'nav-panel.js',
     'newlink-app.js',
     'newlink-boot.js',
@@ -257,6 +266,9 @@ const APP_MODULES = [
     'operations-usage.js',
     'other-day.js',
     'overflow-hint.js',
+    'overlay-focus.js',
+    'overlay-history.js',
+    'overlay-panel-scroll.js',
     'overlay.js',
     'override-compare.js',
     'override-id.js',
@@ -276,6 +288,7 @@ const APP_MODULES = [
     'overtime-tips.js',
     'own-password.js',
     'page-session.js',
+    'page-start.js',
     'password-force.js',
     'pay-audience.js',
     'paycalc-app.js',

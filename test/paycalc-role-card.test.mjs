@@ -8,7 +8,7 @@
  * assertions are about the properties of each message that would be wrong if they went — a promise
  * with a date, a "will be added" to a manager, a line about the retired staff PIN — rather
  * than about the exact strings, which may be reworded freely. The browser side (that the right card
- * actually shows, with the calculator withheld) is `e2e/paycalc.spec.js`.
+ * actually shows, with the calculator withheld) is `e2e/paycalc-grades.spec.js`.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

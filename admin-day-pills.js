@@ -70,7 +70,7 @@ export function restrictDayPills(row, { sunday, beforeStart, christmas = null })
         });
         return;
     }
-    // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 1: disable pills in week grid). Only e2e/admin.spec.js proves them dead.
+    // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 1: disable pills in week grid). Only e2e/admin-week-grid.spec.js proves them dead.
     if (sunday) {
         off(row.querySelector('.pill-annual_leave'), 'Annual Leave — unavailable on Sundays (not a contracted day)');
         off(row.querySelector('.pill-sick'), 'Absent — unavailable on Sundays (not a contracted day)');

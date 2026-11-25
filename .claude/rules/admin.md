@@ -10,7 +10,8 @@ paths:
   - "al-swapped-days*.js"
   - "test/al-swapped-days.test.mjs"
   - "test/al-copy-parity.test.mjs"
-  - "e2e/admin.spec.js"
+  - "e2e/admin*.spec.js"
+  - "e2e/admin-helpers.js"
 ---
 
 # Admin page — area decisions

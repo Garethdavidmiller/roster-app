@@ -521,7 +521,7 @@ jobs:
     #
     # The run was ~16 minutes, and the account's ceiling is 20 jobs at once: six of 26 waited up to two
     # minutes for a runner, so a shard added is a job queued. Chrome is not the engine whose workers
-    # contend (playwright.webkit.mjs has WebKit's record): on four cores, four workers ran admin.spec.js in
+    # contend (playwright.webkit.mjs has WebKit's record): on four cores, four workers ran admin.spec.js (now admin-*.spec.js) in
     # 2m17s against 3m29s on two, all 183 green. So Chrome runs four workers on two shards a project, and
     # the two jobs it gives up go to WebKit (below), which has no such headroom. The cuts are #1860's
     # per-test times from its six job logs: 24.3 and 24.2 test-minutes on desktop Chrome, 20.0 and 20.0 on
@@ -532,6 +532,13 @@ jobs:
     # tests: four workers on one runner contend more than admin.spec.js alone had shown. Cut on the two
     # runs' averaged per-test times: desktop Chrome in three of 24.1 to 24.2 test-minutes, the Pixel in
     # two of 27.2 — about 6 and 7.5 minutes on four workers.
+    #
+    # THE BIG SPECS SPLIT BY FEATURE, AND THE CUTS KEPT (25 Nov 2026, later still). admin.spec.js,
+    # calendar.spec.js and paycalc.spec.js became the admin-*, calendar-* and paycalc-* files, which sort
+    # where their parents did, so each block of tests keeps its place in the order and a cut moves only
+    # WITHIN a block. Every shard here and in the webkit job below was listed before and after and timed
+    # on #1868's per-test times: Chrome's five shards moved by 0.1 test-minute at most, desktop WebKit's
+    # longest stayed 17.3 and the iPhone's fell from 20.2 to 18.4. So the weights stand.
     #
     # THE VARIABLE IS PLAYWRIGHT'S OWN BUT NOT IN ITS DOCUMENTATION. If an upgrade drops it, the cut
     # quietly goes back to equal counts, so workflow-hygiene.test.mjs fails when the installed

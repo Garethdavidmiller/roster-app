@@ -383,7 +383,7 @@ describe('one winner per date (v21.56)', () => {
 //   - admin-al.js `projectAlOverage` — admin-range-booking.test.mjs → "a booking inside one year never raises the bar
 //     about another year that is already over";
 //   - admin-app.js `alPosition` (the banner), `entitlementNote` (its breakdown) and `planAlWeekSave` (the week grid's
-//     bar) — e2e/admin.spec.js → "the AL banner counts leave that is already on record", "leave over a worked Boxing
+//     bar) — e2e/admin-leave-booking.spec.js → "the AL banner counts leave that is already on record", "leave over a worked Boxing
 //     Day names the day in lieu it takes back, and the bar counts it" and the over-allowance tests beside them;
 //   - calendar-al-lightbox.js's read, from last Boxing Day to the end of next January, and its carried-out count —
 //     calendar-al-lightbox.test.mjs → "the panel reads every day this year's allowance holds", whose Firestore
@@ -1167,7 +1167,7 @@ describe('a Spare week costs at most four days of leave', () => {
 // ── HOW A BALANCE IS SHOWN: OVER, NOT MINUS (owner, 25 Nov 2026) ─────────────────────────────────
 // The Calendar's leave panel has said "Over 3" since v24.46; Admin's banner printed "-3" and its chip
 // "2026: -3 left". One rule now, `balanceFace`, for both. Driven through the Admin surface in
-// e2e/admin.spec.js ("the over-limit message is not clipped") and the Calendar's in
+// e2e/admin-leave-booking.spec.js ("the over-limit message is not clipped") and the Calendar's in
 // calendar-al-lightbox.test.mjs.
 describe('balanceFace — the figure, its words and its tone', () => {
     test('past the allowance: the figure has no minus, and the words say "over"', () => {

@@ -1,7 +1,7 @@
 // @lane hygiene
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isClockTime, formatClockInput, finaliseClockInput, shapeClockBox, settleClockBox } from '../clock-input.js';
+import { isClockTime, formatClockInput, finaliseClockInput, shapeClockBox, settleClockBox, shapeClockBoxInPlace, noteClockBoxBefore } from '../clock-input.js';
 
 // clock-input.test.mjs — the two rules of a TEXT clock box, moved here with the module at v24.61.
 // Organised by cost: accepting nonsense is the expensive direction for `isClockTime` (a `29:00`
@@ -244,5 +244,93 @@ describe('a box remembers whether its digits are what is left of a time', () => 
     it('a box never typed in keeps what it holds', () => {
         assert.equal(settleClockBox(box('07:00')), '07:00');
         assert.equal(settleClockBox(box('')), '');
+    });
+});
+
+// ── RULE 7: WHAT THE BOX HELD IS ASKED (the review of rules 5 and 6, 25 Nov 2026) ─────────────────
+// A box modelled as a browser keeps it: a value, a selection, and `beforeinput` reported before every change.
+describe('rule 7 — the box reports what it held, with its selection, before each change', () => {
+    const box = (value = '') => {
+        const b = { _v: value, from: value.length, to: value.length,
+            get value() { return this._v; }, set value(x) { if (x !== this._v) { this._v = x; this.from = this.to = x.length; } },
+            get selectionStart() { return this.from; }, get selectionEnd() { return this.to; },
+            setSelectionRange(a, z) { this.from = a; this.to = z; } };
+        return b;
+    };
+    /** Replace the selection with `text` (cut to five characters, as maxlength does), as a browser would. */
+    const put = (b, text, inputType = 'insertText') => {
+        noteClockBoxBefore(b);
+        const room = 5 - (b.value.length - (b.to - b.from));
+        const t = text.slice(0, Math.max(0, room));
+        b._v = b.value.slice(0, b.from) + t + b.value.slice(b.to); b.from = b.to = b.from + t.length;
+        shapeClockBoxInPlace(b, { inputType, data: text });
+    };
+    const del = (b, forward = false) => {
+        noteClockBoxBefore(b);
+        let { from, to } = b; if (from === to) { if (forward) to++; else from--; }
+        b._v = b.value.slice(0, from) + b.value.slice(to); b.from = b.to = from;
+        shapeClockBoxInPlace(b, { inputType: forward ? 'deleteContentForward' : 'deleteContentBackward', data: null });
+    };
+    const typeIn = (b, keys) => { for (const k of keys) put(b, k); };
+
+    it('a page-written time that begins with the digits typed is still a time: 10 typed, 10:20 written, 5 over the 20 → never 01:05', () => {
+        const b = box(); typeIn(b, '10');
+        b.value = '10:20';                       // the page writes it back
+        b.setSelectionRange(3, 5); put(b, '5');
+        assert.equal(b.value, '10:5');
+        assert.equal(settleClockBox(b), '10:5', 'what is left of 10:20, refused at Save');
+    });
+
+    it('a paste, a composition or an autofill over part of a time is an edit, like a key', () => {
+        for (const kind of ['insertFromPaste', 'insertCompositionText', 'insertReplacementText']) {
+            const b = box('22:30'); b.setSelectionRange(3, 5); put(b, '4', kind);
+            assert.equal(settleClockBox(b), '22:4', `${kind} over the 30 of 22:30 invented a time`);
+        }
+    });
+
+    it('a paste cut short by the five characters is judged by what it replaced, not by its text', () => {
+        const b = box('23:45'); b.setSelectionRange(0, 2); put(b, '1:30', 'insertFromPaste');
+        assert.equal(b.value, '1:45', 'only "1:" landed; the edit keeps the box as left, one colon');
+        assert.notEqual(settleClockBox(b), '01:45', 'the 45 survived, so this is an edit of 23:45');
+    });
+
+    it('replacing the whole time is a new one, and keeps its shortcut', () => {
+        const b = box('22:30'); b.setSelectionRange(0, 5); put(b, '630', 'insertFromPaste');
+        assert.equal(b.value, '06:30');
+        const c = box('22:30'); c.setSelectionRange(0, 5); typeIn(c, '130');
+        assert.equal(settleClockBox(c), '01:30');
+    });
+
+    it('Delete steps over the colon it took, so the next Delete takes a digit', () => {
+        const b = box('22:30'); b.setSelectionRange(2, 2);
+        del(b, true);
+        assert.equal(b.value, '22:30', 'the colon is put straight back');
+        assert.equal(b.selectionStart, 3, 'the caret steps over it');
+        del(b, true);
+        assert.equal(b.value, '22:0');
+    });
+
+    it('the caret stays with its digits (rule 6): the colon of 22:30 deleted, then Backspace, then 1 → 21:30', () => {
+        const b = box('22:30'); b.setSelectionRange(3, 3);
+        del(b);                       // the colon: "2230", put back as 22:30 with the caret before it
+        assert.equal(b.selectionStart, 2);
+        del(b);                       // the second 2
+        put(b, '1');
+        assert.equal(b.value, '21:30');
+    });
+});
+
+// Every box that shapes through `shapeClockBoxInPlace` reports `beforeinput` too, or rule 7 falls back to guessing.
+describe('every caller reports what the box held', () => {
+    it('each module that shapes a clock box also calls noteClockBoxBefore', async () => {
+        const { readFileSync, readdirSync } = await import('node:fs');
+        const root = new URL('../', import.meta.url);
+        const callers = readdirSync(root).filter(f => f.endsWith('.js') && f !== 'clock-input.js')
+            .filter(f => /\bshapeClockBoxInPlace\(/.test(readFileSync(new URL(f, root), 'utf8')));
+        assert.ok(callers.length >= 4, `only ${callers.length} callers found — this test is reading nothing`);
+        for (const f of callers) {
+            const src = readFileSync(new URL(f, root), 'utf8');
+            assert.match(src, /addEventListener\('beforeinput'[\s\S]{0,200}noteClockBoxBefore\(/, `${f} shapes a clock box but never reports beforeinput`);
+        }
     });
 });

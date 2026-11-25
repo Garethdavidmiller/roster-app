@@ -1,0 +1,125 @@
+// @ts-check
+/**
+ * nav-bell.js — The drawer footer's notification bell (🔔/🔕): its paint, its refresh on every drawer open,
+ * and its tap. Every line of push logic is notif.js's; this only renders, refreshes and toggles.
+ *
+ * Moved out of nav-panel.js (25 Nov 2026). nav-panel-markup.js draws the button (signed-in only, and only
+ * where `notifSupported()`); nav-panel.js calls `wireNavBell` once per `initNavPanel` and the refresh it
+ * returns on every open. The decisions — a COMPACT icon beside Sign out, never a labelled row (owner,
+ * reverted twice); `aria-pressed` the only state; a blocked bell's tap explaining itself in the drawer's
+ * info panel — are .claude/rules/nav-drawer.md's. Why a refresh never paints over a tap (`_bellGen`,
+ * `_bellBusy`) is argued beside the two counters below.
+ */
+
+import { peekNotifState, enableNotifications, disableNotifications } from './notif.js';
+import { currentUserAfterBoot } from './firebase-client.js';
+
+/**
+ * What a tap on a BLOCKED bell says (its title and icon are the bell's `data-cs-*`). On Settings the card it sends
+ * the reader to is on the page under the drawer, so it says so rather than giving the menu route to the page they
+ * are already reading (18 Nov 2026).
+ * @param {string} currentPage
+ */
+const blockedBellText = (currentPage) => 'Notifications are blocked for this app in your phone’s or browser’s settings, so the bell can’t switch '
+    + 'them on. ' + (currentPage === 'settings'
+        ? 'The Notifications card on this page says how to allow them.'
+        : '☰ → Settings → Notifications says how to allow them.');
+
+
+/**
+ * Wire the bell, if the drawer drew one, and hand back its refresh. The drawer's two collaborators are passed
+ * under the names nav-panel.js gives them, so the body reads as it did there: a BLOCKED bell's tap closes the
+ * drawer visually (keeping its history entry) and opens the info panel over it.
+ * @param {{ currentPage: string, _closePanelVisualOnly: () => void, _openComingSoon: (triggerEl?: HTMLElement, overrideBody?: string) => void }} drawer
+ * @returns {() => Promise<void>} re-read and repaint the bell — a no-op when it is not drawn
+ */
+export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoon }) {
+    // Notification toggle — an in-panel action, so the panel stays open (a BLOCKED bell is the exception:
+    // its tap explains itself in the info panel, nav-drawer-lightboxes.js).
+    const bell      = /** @type {HTMLButtonElement|null} */ (document.getElementById('navNotifBell'));
+    const bellIcon  = document.getElementById('navNotifIcon');
+    let _bellBusy   = false;
+    // A REFRESH ANSWERS ONLY IF NOTHING NEWER HAS STARTED (review, 21 Nov 2026). Each open starts a
+    // refresh it does not wait for; a tap while that refresh was still reading repainted the bell, when
+    // it answered, with the state it read BEFORE the tap — 🔕 "off" on a device just subscribed. Every
+    // refresh and every tap takes the next number, and a refresh paints only while its number is current.
+    // …AND NEVER WHILE A TAP IS IN FLIGHT, NOR AFTER ITS ANSWER (24-hour check, 22 Nov 2026): the drawer
+    // closed and reopened during a slow toggle (up to ~8 s) started a refresh with a HIGHER number than
+    // the tap's, whose read — begun before the toggle settled — then painted the old 🔕 over the tap's 🔔.
+    // So a refresh that finds a tap in flight after its first wait stands aside (`_bellBusy`): one that
+    // gets past it begins its read only once the tap has let go, so it reads the tap's answer, never the
+    // state from before it — and a tap that starts after that still makes it stale through the number.
+    let _bellGen    = 0;
+
+    /** Apply a state string to the toggle glyph and accessible name.
+     * @param {any} state */
+    function _paintBell(state) {
+        if (!bell) return;
+        const on = state === 'on';
+        // While the real state is still resolving (up to ~8s for swReady), a neutral "working" glyph —
+        // never 🔔, which only ever means genuinely on. Compact icon: the aria-label carries the state.
+        if (bellIcon)  bellIcon.textContent  = state === 'loading' ? '🔄' : on ? '🔔' : '🔕';
+        bell.dataset.notifState = state;
+        // A TOGGLE SAYS ITS STATE ONCE (review, 21 Nov 2026): `aria-pressed` is the state, so the name
+        // stays "Notifications" — the name used to say it too ("on — tap to turn off, toggle button,
+        // pressed"). Checking and blocked are not on/off, so they drop `aria-pressed` and say what
+        // they are; a blocked bell's tap explains how to allow them, and its name says so.
+        const toggle = state !== 'loading' && state !== 'denied';
+        if (toggle) bell.setAttribute('aria-pressed', on ? 'true' : 'false');
+        else bell.removeAttribute('aria-pressed');
+        bell.setAttribute('aria-label',
+            state === 'loading' ? 'Notifications — checking…'
+          : state === 'denied' ? 'Notifications blocked — how to allow them'
+          : 'Notifications');
+    }
+
+    /**
+     * Re-read and repaint the bell. No-op when the bell is not rendered.
+     * Uses peekNotifState (no side effects) — repainting on every panel open
+     * must not write to Firestore. VAPID rotation runs from calendar-app.js on load.
+     */
+    async function _refreshBell() {
+        if (!bell) return;
+        const gen = ++_bellGen;
+        // NOT WHILE THE ACCOUNT BEHIND THE SESSION IS GONE: a tap then subscribed, the rules refused
+        // the save and the bell flipped back to off unexplained. After the boot restore, so one in progress keeps it.
+        const user = await currentUserAfterBoot(3000);
+        if (gen !== _bellGen || _bellBusy) return;
+        bell.hidden = !user;
+        // A restore still running at 3s is not an account gone (48-hour review): bring it back when it lands.
+        if (bell.hidden) { void currentUserAfterBoot().then(u => { if (u) void _refreshBell(); }); return; }
+        const state = await peekNotifState();
+        if (gen === _bellGen) _paintBell(state);
+    }
+
+    bell?.addEventListener('click', async () => {
+        if (_bellBusy) return;
+        const state = bell.dataset.notifState;
+        // Browser-blocked: the browser will not ask again, so the tap SAYS where it is fixed — in the
+        // drawer's info panel, as a document that cannot open does. It did nothing at all, under a 🔕
+        // that looks exactly like "off" (whole-app check, 17 Nov 2026); the aria-label said "blocked"
+        // to a screen reader only. Settings' card has each phone's own steps. 'loading' is a no-op:
+        // toggling then would re-subscribe a device that may already be subscribed.
+        if (state === 'denied') { _closePanelVisualOnly(); _openComingSoon(bell, blockedBellText(currentPage)); return; }
+        if (state === 'loading') return;
+        _bellBusy = true;
+        _bellGen++;   // a refresh still reading from before this tap must not paint over it
+        bell.dataset.notifState = 'loading';
+        _paintBell('loading');   // repaint NOW — otherwise the old 🔔/"On" glyph shows through a slow toggle (up to 8s)
+        bell.disabled = true;
+        let failed = false;
+        try {
+            _paintBell(state === 'on' ? await disableNotifications() : await enableNotifications());
+        } catch (err) {
+            console.warn('[Nav] Bell toggle failed:', err);
+            failed = true;
+        } finally {
+            bell.disabled = false;
+            _bellBusy = false;
+        }
+        // Restore the real state if the toggle errored — once the tap has let go, or the refresh stands aside.
+        if (failed) await _refreshBell();
+    });
+
+    return _refreshBell;
+}

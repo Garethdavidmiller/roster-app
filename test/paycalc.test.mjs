@@ -11,7 +11,7 @@ import {
   awardFromForYear, isPreAwardPeriod,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod, PENSION_STEPS,
-  readTaxCode, pricePayslip, takeHomeInputs, periodInTaxYear,
+  readTaxCode, pricePayslip, takeHomeInputs, periodInTaxYear, payslipGross,
 } from '../paycalc-calc.js';
 import { parseSmartFloatOrNull } from '../roster-data.js';
 
@@ -116,9 +116,6 @@ const T26 = getThresholds('2026/27');
  */
 const dueBy = (code, t, ytdPay, n) =>
   /** @type {{ expected: number }} */ (computeTax(0, code, t, { ytdPay, ytdTax: 1e9, periodN: n + 1 }).ytdMisfit).expected;
-// The result card's calculate(), as TEXT: it has no seam a test can call, so the block that checks
-// its deductions runs its own lines (see "calculate()'s own lines" below).
-const APP_SRC = readFileSync(new URL('./paycalc-app.js', REPO_ROOT_URL), 'utf8');
 const TY25 = TAX_YEARS[0]; // 2025/26
 const TY26 = TAX_YEARS[1]; // 2026/27
 
@@ -749,32 +746,15 @@ describe('takeHomeInputs — what the payslip on screen is priced on, and the pr
   // paycalc-money-banner.test.mjs, contracts 1 and 3.
 });
 
-// ── calculate()'s OWN lines that are still its own: a joiner's payslip and the rows it can hold ────
+// ── calculate()'s OWN lines: a joiner's payslip and the rows it can hold ─────────────────────────
 //
 // calculate() is a closure inside init() with no seam a test can call (paycalc-money-banner.test.mjs
-// explains why), so these lines are sliced out of the source and run. A rewrite this cannot find
-// fails loudly here rather than passing quietly.
+// explains why), so its lines that turn the boxes into a gross live in `payslipGross` (paycalc-calc.js)
+// and are CALLED here, with the page's lookups handed in. Until 25 Nov 2026 they were sliced out of
+// paycalc-app.js's source text and run through `new Function`, which tested a copy and broke whenever
+// the lines moved. The page's half — that calculate() hands payslipGross its own lookups — is the
+// last test of this block, and the joiner e2e in e2e/paycalc-*.spec.js drives the whole page.
 describe("calculate()'s own lines — a joiner's payslip, and the rows a payslip can hold", () => {
-  /**
-   * Run the statements from `const <first>` to the end of `const <last> …;` in calculate(), with the
-   * named inputs, and return the named results. Any name the lines use that is not handed in throws.
-   */
-  function runAppLines(/** @type {string} */ first, /** @type {string} */ last,
-                       /** @type {Record<string, any>} */ inputs, /** @type {string[]} */ results) {
-    const decl = (/** @type {string} */ name, /** @type {number} */ after) => {
-      // `const name =`, or a destructuring that declares it: `const { …, name } =`.
-      const re = new RegExp(`const (?:${name}|\\{[^}]*\\b${name}\\b[^}]*\\})\\s*=`, 'g');
-      re.lastIndex = after;
-      return re.exec(APP_SRC)?.index ?? -1;
-    };
-    const from = decl(first, 0);
-    const lastAt = decl(last, from);
-    assert.ok(from > 0 && lastAt >= from, `calculate() no longer declares ${first} … ${last} — re-read this guard`);
-    const body = APP_SRC.slice(from, APP_SRC.indexOf(';', lastAt) + 1);
-    const names = Object.keys(inputs);
-    return new Function(...names, `${body}\nreturn { ${results.join(', ')} };`)(...names.map(n => inputs[n]));
-  }
-
   // A JOINER'S FIRST PAYSLIP, AND THE ROWS A PAYSLIP CANNOT HOLD (review, 18 Nov 2026). calculate()
   // scales the London Allowance and the contracted hours by a joiner's share of the payslip, and
   // counts bank holiday and Boxing Day hours only in a payslip that holds those days — saved figures
@@ -795,9 +775,19 @@ describe("calculate()'s own lines — a joiner's payslip, and the rows a payslip
   /** The joiner's share of a payslip — getProRateFactor's answer for them (paycalc-settings.js).
    *  @param {any} p */
   const share = (p) => calcProRateFactor(JOINER_START, p.start, p.cutoff);
-  /** calculate()'s London Allowance line, run as written. @param {any} p */
-  const londonFor = (p) => runAppLines('_proRateFactor', 'LONDON',
-    { getProRateFactor: share, getLondonAllowanceForPeriod, _curP: p, _ty: TY2627 }, ['LONDON']).LONDON;
+  /**
+   * calculate()'s gross for the joiner: their share of the payslip, getEffectiveContr's rule for a
+   * joiner (paycalc-settings.js — the 140 hours scaled, rounded), and the boxes and days given.
+   * @param {any} p @param {{ rate?: number, hours?: (hId: string, mId: string) => number,
+   *   hasBankHoliday?: (q: any) => boolean, hasBoxingDay?: (q: any) => boolean }} [o]
+   */
+  const joinerGross = (p, { rate = 21.49, hours = () => 0, hasBankHoliday = () => false, hasBoxingDay = () => false } = {}) =>
+    payslipGross(p, TY2627, {
+      rate, peerDays: 0, otherAdj: 0, hours, hasBankHoliday, hasBoxingDay,
+      getProRateFactor: share, getEffectiveContr: (/** @type {any} */ q) => Math.round(140 * share(q)),
+    });
+  /** calculate()'s London Allowance for the joiner's payslip. @param {any} p */
+  const londonFor = (p) => joinerGross(p).london;
 
   test("a joiner's payslip carries the London Allowance scaled by their share of THAT payslip", () => {
     approx(londonFor(MAY8), 138.08, '£276.16 × 14/28 — the figure on the real 8 May 2026 payslip');
@@ -806,12 +796,7 @@ describe("calculate()'s own lines — a joiner's payslip, and the rows a payslip
   });
 
   test("a joiner's payslip pays basic on their contracted hours for it, never a full 140", () => {
-    const pay = (/** @type {any} */ p, /** @type {number} */ rate) => runAppLines('_effContr', 'gross', {
-      // getEffectiveContr's rule for a joiner (paycalc-settings.js): the 140 hours scaled, rounded.
-      getEffectiveContr: (/** @type {any} */ q) => Math.round(140 * share(q)),
-      _curP: p, numVal: () => 0, _adjNegative: false, computeGross, rate, peer: 0, LONDON: londonFor(p),
-      satHrs: 0, bhHrs: 0, bhOtHrs: 0, oHrs: 0, rHrs: 0, sHrs: 0, bHrs: 0,
-    }, ['gross', 'gBasicNorm']);
+    const pay = (/** @type {any} */ p, /** @type {number} */ rate) => joinerGross(p, { rate });
     const first = pay(MAY8, 20.74);
     approx(first.gBasicNorm, 70 * 20.74, '70 contracted hours: 14 days of 28, at the rate before the award');
     approx(first.gross, 1451.80 + 138.08, 'the joining payslip: half the basic and half the London Allowance');
@@ -822,18 +807,39 @@ describe("calculate()'s own lines — a joiner's payslip, and the rows a payslip
     // What the boxes hold — restored from a save into rows the page hides, so a payslip with no bank
     // holiday can still carry bank holiday hours from an earlier edit.
     /** @type {Record<string, number>} */
-    const SAVED = { bhH: 7, bhOtH: 3, otH: 2, rdwH: 8, sunH: 6, boxH: 9 };
-    const rows = (/** @type {any} */ p) => runAppLines('_hasBh', 'bHrs', {
-      hasBankHoliday: (/** @type {any} */ q) => q === MAY8 || q === JAN15,
-      hasBoxingDay:   (/** @type {any} */ q) => q === JAN15,
-      hhmmDec: (/** @type {string} */ hId) => SAVED[hId] ?? 0, _curP: p,
-    }, ['bhHrs', 'bhOtHrs', 'oHrs', 'rHrs', 'sHrs', 'bHrs']);
-    assert.deepEqual(rows(DEC18), { bhHrs: 0, bhOtHrs: 0, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 0 },
+    const SAVED = { satH: 5, bhH: 7, bhOtH: 3, otH: 2, rdwH: 8, sunH: 6, boxH: 9 };
+    const RATE = 21.49;
+    const ROWS = ['satHrs', 'bhHrs', 'bhOtHrs', 'oHrs', 'rHrs', 'sHrs', 'bHrs'];
+    /** The rows a payslip counts, and what they priced to. @param {any} p */
+    const rows = (p) => {
+      const g = joinerGross(p, {
+        rate: RATE,
+        hasBankHoliday: (/** @type {any} */ q) => q === MAY8 || q === JAN15,
+        hasBoxingDay:   (/** @type {any} */ q) => q === JAN15,
+        hours: (/** @type {string} */ hId) => SAVED[hId] ?? 0,
+      });
+      return { counted: Object.fromEntries(ROWS.map(k => [k, /** @type {any} */ (g)[k]])), g };
+    };
+    assert.deepEqual(rows(DEC18).counted, { satHrs: 5, bhHrs: 0, bhOtHrs: 0, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 0 },
       'no bank holiday and no Boxing Day: those three rows count nothing, whatever they hold');
-    assert.deepEqual(rows(MAY8), { bhHrs: 7, bhOtHrs: 3, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 0 },
+    assert.deepEqual(rows(MAY8).counted, { satHrs: 5, bhHrs: 7, bhOtHrs: 3, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 0 },
       'Easter Monday: both bank holiday rows count, and Boxing Day still does not');
-    assert.deepEqual(rows(JAN15), { bhHrs: 7, bhOtHrs: 3, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 9 },
+    assert.deepEqual(rows(JAN15).counted, { satHrs: 5, bhHrs: 7, bhOtHrs: 3, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 9 },
       'the January payslip holds both');
+    // And what is counted is what is PRICED: a row zeroed above pays nothing, a row counted pays its rate.
+    const dec = rows(DEC18).g, jan = rows(JAN15).g;
+    assert.equal(dec.gBankHol + dec.gBhOt + dec.gBoxing, 0, 'a hidden row\'s saved hours reached the gross');
+    approx(jan.gBoxing, 9 * RATE * 3, 'Boxing Day hours are priced at 3×');
+    approx(jan.gBhOt, 3 * RATE * 1.25, 'Bank Holiday Overtime hours are priced at 1.25×');
+  });
+
+  test('calculate() hands payslipGross the page\'s own lookups', () => {
+    // The page's half of the rules above, which no unit test can call: the lookups it passes are the
+    // real ones, by name, so a stand-in (a factor of 1, a full 140 hours, a check that always says
+    // yes) cannot be passed in their place without this failing.
+    const app = readFileSync(new URL('./paycalc-app.js', REPO_ROOT_URL), 'utf8');
+    assert.match(app, /= payslipGross\(_curP, _ty, \{\s*rate, peerDays: peer, otherAdj,\s*hours: hhmmDec, hasBankHoliday, hasBoxingDay, getProRateFactor, getEffectiveContr,\s*\}\);/,
+      'calculate() no longer prices the payslip on screen through payslipGross with the page\'s lookups');
   });
 });
 

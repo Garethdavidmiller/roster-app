@@ -113,13 +113,21 @@
     <link rel="modulepreload" href="./install-prompt.js">
     <link rel="modulepreload" href="./leave-year.js">
     <link rel="modulepreload" href="./ls.js">
+    <link rel="modulepreload" href="./nav-bell.js">
     <link rel="modulepreload" href="./nav-destinations.js">
+    <link rel="modulepreload" href="./nav-drawer-lightboxes.js">
+    <link rel="modulepreload" href="./nav-guide-fold.js">
+    <link rel="modulepreload" href="./nav-latest-doc.js">
+    <link rel="modulepreload" href="./nav-panel-markup.js">
     <link rel="modulepreload" href="./nav-panel.js">
     <link rel="modulepreload" href="./newsletter-recency.js">
     <link rel="modulepreload" href="./notice-archive.js">
     <link rel="modulepreload" href="./notif.js">
     <link rel="modulepreload" href="./other-day.js">
     <link rel="modulepreload" href="./overflow-hint.js">
+    <link rel="modulepreload" href="./overlay-focus.js">
+    <link rel="modulepreload" href="./overlay-history.js">
+    <link rel="modulepreload" href="./overlay-panel-scroll.js">
     <link rel="modulepreload" href="./overlay.js">
     <link rel="modulepreload" href="./override-utils.js">
     <link rel="modulepreload" href="./own-password.js">
@@ -466,7 +474,7 @@
                  12px on every ordinary day — a gap under a panel with no actions, on the common
                  case rather than the rare one. `:has()` asks the question of the children rather
                  than trusting a third place to be updated. Pinned in BOTH directions by
-                 e2e/calendar.spec.js — nothing on screen says "there is an empty box here", so an
+                 e2e/calendar-*.spec.js — nothing on screen says "there is an empty box here", so an
                  empty row that still draws is invisible to every other kind of check. -->
             <div class="day-detail-actions" id="dayDetailActions">
                 <a class="day-detail-leave-btn" id="dayDetailLeaveBtn" href="admin.html#alBookedBox" hidden>Leave dates</a>

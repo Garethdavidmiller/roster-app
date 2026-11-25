@@ -606,6 +606,12 @@ test.describe('new link', () => {
         await page.locator('#pdfViewerClose').click();
         await page.locator(`#nlPackList a.nl-file[data-file="${file.path}"]`).click();
         await expect(status).toHaveText('This file needs a connection. Check your signal, then try again.');
+        // …and the viewer has finished OPENING before the keyboard is used in it (flaky under load until 25 Nov 2026).
+        // `createLightbox` moves focus into a lightbox in its opening frame, the frame that adds `.open`, and a refused
+        // file can say so before that frame has come (measured: the words 2 ms ahead of it). On a loaded machine the
+        // frame then landed after the `focus()` below and took the focus to the panel, so Enter pressed nothing and no
+        // page arrived. With `.open` on, that move has been made.
+        await expect(page.locator('#pdfViewer')).toHaveClass(/\bopen\b/);
         fail = null;
         // FROM THE KEYBOARD (lightbox review R1-6): the retry hides the button that has focus, and focus fell to the
         // page for the wait and stayed there. It goes to the pages box, the viewer's own Tab stop, and stays in the viewer.
@@ -798,11 +804,27 @@ test.describe('new link', () => {
         const errors = collectFatalErrors(page);
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
+        // EACH TAP THAT TAKES THE PAGE TO A CARD IS WAITED OUT TO ITS END (flaky under load until 25 Nov 2026). The tile
+        // and the "Have your say" link scroll the page SMOOTHLY — measured at 0.8 s on the desktop and 1.2 s on the Pixel
+        // — and the assertions after each are true while it is still moving. A tap pressed while the page moves under it
+        // can be released over something else, and a click goes to what the press and the release share, so the chevron
+        // tapped next was never clicked and its card stayed open. So the wait is for the page to come to REST, never a
+        // set time: moved from where it stood at the tap's click, and then still over two frames. Both halves matter —
+        // the scroll starts some frames after the click (measured: 70 ms with no movement), and the instant scroll
+        // Playwright makes to bring the control into view is over before the click, so neither reads as landed.
+        const tapAndLand = async (/** @type {import('@playwright/test').Locator} */ control) => {
+            await page.evaluate(() => addEventListener('click', () => { /** @type {any} */ (window).__yAtClick = scrollY; }, { capture: true, once: true }));
+            await control.click();
+            await expect.poll(() => page.evaluate(() => new Promise((rest) => {
+                const y = scrollY;
+                requestAnimationFrame(() => requestAnimationFrame(() => rest(y !== /** @type {any} */ (window).__yAtClick && scrollY === y)));
+            })), { message: 'the page never came to rest after the tap' }).toBe(true);
+        };
 
         // the tile for Middle Ground opens Middle Ground's weeks, even with the weeks card folded
         await page.locator('#nlWeeksChevron').click();
         await expect(page.locator('#nlWeeksBody')).not.toHaveClass(/\bopen\b/);
-        await page.locator('[data-open-weeks="proposal:MG-26-T8"]').click();
+        await tapAndLand(page.locator('[data-open-weeks="proposal:MG-26-T8"]'));
         await expect(page.locator('#nlWeeksBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toContainText('Middle Ground');
         await expect(page.locator('[data-design="proposal:MG-26-T8"]')).toHaveAttribute('aria-pressed', 'true');
@@ -811,7 +833,7 @@ test.describe('new link', () => {
         // "Have your say" at the top opens its card, folded or not, and takes the reader there
         await page.locator('#nlSayChevron').click();
         await expect(page.locator('#nlSayBody')).not.toHaveClass(/\bopen\b/);
-        await page.locator('#nlStatus [data-open-card="nlSay"]').click();
+        await tapAndLand(page.locator('#nlStatus [data-open-card="nlSay"]'));
         await expect(page.locator('#nlSayBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#nlSayCard h2')).toBeFocused();
         // who leads the change: Sara Silva, as the RMT rep — never the admin; and how the choice is made is left vague (owner, 4 Nov

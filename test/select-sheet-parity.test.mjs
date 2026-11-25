@@ -142,10 +142,11 @@ const NATIVE_BY_DECISION = {
         + 'sheet trigger is a different interaction from replacing a field, and it is a design '
         + 'question for the owner rather than a mechanical conversion. Designer-only surface.',
 
-    // `links-app.js`'s inline grid-cell editor WAS listed here, and is not any more: v23.38
-    // converted it, and the conversion is why the detached-select rule above exists. The editor now
-    // builds a select purely to parse its own options and hands the groups to `openOptionSheet`,
-    // which is the right answer for an ephemeral control the old blur guard would have cancelled.
+    // The Links inline grid-cell editor (`links-app.js` then, `links-grid.js` since 25 Nov 2026) WAS
+    // listed here, and is not any more: v23.38 converted it, and the conversion is why the
+    // detached-select rule above exists. The editor now builds a select purely to parse its own
+    // options and hands the groups to `openOptionSheet`, which is the right answer for an ephemeral
+    // control the old blur guard would have cancelled.
 };
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -186,7 +187,7 @@ function findSelects() {
         for (const m of src.matchAll(/(?:\b(?:const|let|var)\s+)?([A-Za-z_$][\w$]*)\s*=\s*document\.createElement\(\s*['"]select['"]\s*\)/g)) {
             const ident = m[1];
             const after = src.slice(m.index, m.index + 600);
-            // A DETACHED select is not a control. `links-app.js` builds one purely to turn an
+            // A DETACHED select is not a control. `links-grid.js` builds one purely to turn an
             // options string into the sheet's grouped shape via `readGroups`, and never inserts it
             // — so there is no OS popup to replace and nothing for a reader to open. Recognised per
             // SELECT, by this variable reaching `readGroups`, rather than per MODULE by the file
@@ -785,7 +786,7 @@ test('a `.value =` on an enhanced select announces itself, or rebuilds, or repai
 //
 // THE FIX THAT LOOKED RIGHT AND WAS NOT, recorded because it is the tempting one: pinning the
 // selects themselves with `top: 0; left: 0`. It cured the page height and moved the Calendar's
-// member select onto the ← Prev button — caught by `e2e/calendar.spec.js`'s overlap guard at six
+// member select onto the ← Prev button — caught by `e2e/calendar-phone-layout.spec.js`'s overlap guard at six
 // widths and two projects. The defect is that the CLIP does not reach the select, not that the
 // select is in the wrong place, and the fix has to say so. `position: relative` moves nothing.
 //

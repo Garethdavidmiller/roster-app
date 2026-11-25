@@ -37,7 +37,7 @@
 import * as OTD from './overtime-data.js';
 import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
-import { isClockTime, shapeClockBox, settleClockBox } from './clock-input.js';
+import { isClockTime, shapeClockBoxInPlace, settleClockBox, noteClockBoxBefore } from './clock-input.js';
 import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
@@ -381,9 +381,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // SHAPED AS IT IS TYPED (7 Nov 2026, iPhone audit), by the rule every text clock box
             // shares (clock-input.js): the box is `inputmode="numeric"` and an iPhone's number pad has
             // no colon, so "0600" used to stay "0600" until the box was left.
+            inp.addEventListener('beforeinput', () => noteClockBoxBefore(inp));   // clock-input.js rule 7
             inp.addEventListener('input', e => {
-                const shaped = shapeClockBox(inp, /** @type {InputEvent} */ (e));
-                if (shaped !== inp.value) inp.value = shaped;
+                shapeClockBoxInPlace(inp, /** @type {InputEvent} */ (e));
             });
             // COMMITTED ON BLUR AS WELL AS CHANGE: setting `.value` from `input` resets WebKit's
             // change baseline, so on an iPhone `change` may never fire when the box is left

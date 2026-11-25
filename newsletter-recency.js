@@ -27,7 +27,7 @@
  * at all. Only the Calendar asks because it is the page every member opens first and the home of the
  * documents, and because a read on every page would land inside the windows where the browser tests
  * count reads exactly (e2e/overtime.spec.js expects four). The drawer re-reads this answer every time
- * it opens (nav-panel.js), and an Operations upload from this device counts as an answer at once
+ * it opens (nav-panel.js; its document row is nav-latest-doc.js), and an Operations upload from this device counts as an answer at once
  * (`noteNewsletterUploaded`), so the admin sees the button come back as soon as they upload.
  *
  * A device that has never asked shows NO button. Offering an issue nobody has dated is the fault this

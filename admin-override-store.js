@@ -30,7 +30,7 @@
  *     class of false claim as showing an empty week — it just fails in the patient direction.
  *
  * Tested by `admin-override-store.test.mjs` (the reads, the cache and the checked commits), through
- * `admin-overrides.test.mjs` (the write gates), and driven in a browser by `e2e/admin.spec.js` (which
+ * `admin-overrides.test.mjs` (the write gates), and driven in a browser by `e2e/admin-saves.spec.js` (which
  * query actually runs).
  */
 

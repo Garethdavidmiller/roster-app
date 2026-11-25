@@ -1,9 +1,9 @@
-// @lane hygiene
+// @lane unit
 /**
  * Unit tests for the PURE gate in password-force.js — `shouldForcePasswordSet` — and for the save sequence and
  * deadline helpers it shares with Settings (`runPasswordSave`, `withTimeout`, `settleOrTimeout`, own-password.js).
  *
- * Run: node scripts/run-tests.mjs test/password-force.test.mjs   (no mocks — the gate takes plain values)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/password-force.test.mjs
  *
  * WHY THIS IS THE PART WORTH TESTING. The overlay itself is DOM wiring; the gate is where a mistake
  * has consequences. Each of its four conditions prevents a specific failure that is either invisible
@@ -16,12 +16,13 @@
  *                    member with no way through. This is the lockout case.
  *   · `!migrated`  — nothing to compel once they've set their own password.
  *
- * Importing password-force.js pulls in firebase-client.js (and so the gstatic SDK) — which is exactly
- * why the gate is exported separately from the module's DOM/Firebase work. This test imports it
- * through a source read + eval of the one function, the sw-internals.test.mjs technique, so it runs
- * in plain Node with no mocks and still asserts the REAL code rather than a copy.
+ * Importing password-force.js pulls in firebase-client.js (and so the gstatic SDK) and overlay.js (which
+ * needs a browser `window`), so those two modules are replaced with inert stand-ins and the REAL password-force.js is imported and its exported gate called.
+ * The gate reads neither; they exist only so the module links. Until 25 Nov 2026 the gate was cut
+ * out of the source text by a regex and run through `new Function` — a copy, which broke whenever the
+ * function moved or gained a line the regex did not expect.
  */
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { withTimeout, settleOrTimeout, runPasswordSave, SAVE_TIMEOUT_MS } from '../own-password.js';
@@ -29,12 +30,15 @@ import { withTimeout, settleOrTimeout, runPasswordSave, SAVE_TIMEOUT_MS } from '
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
 
-// Extract the real function from source and evaluate it standalone. Throws loudly if it is renamed
-// or reshaped, so this can never silently drift into testing nothing.
-const SRC = readFileSync(new URL('./password-force.js', REPO_ROOT_URL), 'utf8');
-const match = /export function shouldForcePasswordSet\(([\s\S]*?)\n}/.exec(SRC);
-assert.ok(match, 'shouldForcePasswordSet not found in password-force.js — has it been renamed?');
-const shouldForcePasswordSet = new Function(`return function shouldForcePasswordSet(${match[1]}\n}`)();
+// The SDK is unreachable in Node, and overlay.js needs a browser `window` to load; the gate reads neither.
+const sdkCall = () => { throw new Error('the gate under test called the Firebase client'); };
+mock.module('../firebase-client.js', { namedExports: {
+    getPasswordStatus: sdkCall, changeOwnPassword: sdkCall, reauthenticateWithPassword: sdkCall,
+} });
+// overlay.js wires a `window` listener when it loads; the gate locks no scroll.
+mock.module('../overlay.js', { namedExports: { lockBodyScroll() {}, unlockBodyScroll() {} } });
+const PASSWORD_FORCE = await import('../password-force.js');
+const { shouldForcePasswordSet } = PASSWORD_FORCE;
 
 /** The state of a member who SHOULD be compelled — each test varies one field from this. */
 const COMPEL = { flagOn: true, hasMarker: true, authStatus: 'named', migrated: false };
@@ -76,14 +80,15 @@ describe('shouldForcePasswordSet', () => {
 });
 
 // ── withTimeout — the guard that turns a HANG into a recoverable failure ────────────────────────
-// Extracted the same way (source read + eval) so these assertions run against the real code. This
-// helper is why a dead-air connection no longer strands the mandatory overlay on "Saving…", and
+// This helper is why a dead-air connection no longer strands the mandatory overlay on "Saving…", and
 // since v18.95 the Settings Password card depends on it too, so it is worth pinning down.
 // Both helpers moved to own-password.js with the save sequence (settings review, Nov 2026), which loads
 // in plain Node, so they are IMPORTED now rather than extracted — and password-force.js must still
 // re-export them, because the sign-in card imports `withTimeout` from there.
 test('password-force.js still re-exports the two deadline helpers the sign-in card reads', () => {
-    assert.match(SRC, /export \{ withTimeout, settleOrTimeout \}/);
+    // Asked of the loaded module, so it is the very function the sign-in card gets, not a line of text.
+    assert.equal(PASSWORD_FORCE.withTimeout, withTimeout);
+    assert.equal(PASSWORD_FORCE.settleOrTimeout, settleOrTimeout);
 });
 /**
  * Run `fn` with setTimeout/clearTimeout spied (the extracted helpers resolve both from globalThis

@@ -391,7 +391,7 @@ characters**, which is the rhythm of the notices beside it: 503px on both engine
 Three habits from it:
 - **Measure the card at 360x740 and 375x667, both engines, before shipping** — `scrollHeight` against
   `clientHeight`, never a screenshot alone: a card caught mid-animation is scaled, and a picture of it
-  lies about the fit. `e2e/paycalc.spec.js` → "fits a … phone without scrolling" is the pattern.
+  lies about the fit. `e2e/paycalc-notices.spec.js` → "fits a … phone without scrolling" is the pattern.
 - **Keep a button label to about 25 characters**, so it stays on one line at 360; the full date can
   live in the sentence above it.
 - **`&nbsp;` holds a date together, and an emoji with its card's name** (`13&nbsp;Mar&nbsp;2026`,
