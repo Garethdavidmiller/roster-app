@@ -1,8 +1,18 @@
 // @ts-check
 /**
- * overlay.js — Shared scroll lock, Android Back button overlay helpers, the canonical lightbox and the
- * in-app confirm/prompt dialogs. The collapsible card and the deep link that opens one by name are
- * card-collapse.js's, re-exported below so every page imports them from here as it always has.
+ * overlay.js — The overlay layer's front door: the shared scroll lock, the canonical lightbox
+ * (`createLightbox`), the notice gate (`openNoticeIfClear`) and the in-app confirm/prompt dialogs built on
+ * the lightbox. The rest of the layer lives in its own modules and is RE-EXPORTED below, so every page and
+ * module imports all of it from here as it always has (the Facade pattern — one door, several rooms):
+ *
+ *   · overlay-history.js      — the Android Back stack, `whenHistorySettled`, `followLinkOutOf`
+ *   · overlay-focus.js        — the Tab trap and the guard for focus moves no key reports
+ *   · overlay-panel-scroll.js — a scrolling panel's "more below" fade and its pinned ✕
+ *   · card-collapse.js        — the collapsible card and the deep link that opens one by name
+ *
+ * WHY THE DIALOGS STAY HERE. They are createLightbox's own clients, and page-session.js and the pages
+ * import `confirmDialog` from this file. Moved out, they would import createLightbox from here while this
+ * file re-exported them — a cycle (import-graph.test.mjs) — so they stay beside the lifecycle they wire.
  *
  * Imported by most pages and many feature modules — grep for the import rather than trusting a
  * list here.
@@ -11,17 +21,17 @@
  * position:fixed at the current scroll offset and restore on close. The
  * .lb-open class (defined in shared.css) applies the fix.
  *
- * Android Back button: opening any overlay pushes a shallow history entry and
- * registers its close handler on a LIFO stack, so NESTED overlays (e.g. a lightbox
- * opened over Team Week View) each get their own entry and Back closes only the
- * topmost — the lower overlay keeps its entry and closes on the next Back. Closing via
- * a button pops that overlay's entry with history.back(); the resulting popstate echo
- * is absorbed so its handler is not re-invoked. (Before v15.69 this was a single slot:
- * the second overlay clobbered the first's registration, so after closing the top one
- * the lower overlay was left open with no entry and Back then left the page.)
+ * Android Back button: every overlay's entry and close handler go on ONE stack, so Back closes only the
+ * topmost — overlay-history.js's header has the model and the incident behind it.
  */
 
 export { initCardCollapse, openCardNamedByHash } from './card-collapse.js';
+import { _pushOverlayState, _isTopOverlay, _clearOverlayHistory, whenHistorySettled } from './overlay-history.js';
+import { trapFocus, _guardFocus, _highestOpenLayer, _zOf } from './overlay-focus.js';
+import { watchScrollFade, pinCloseButton } from './overlay-panel-scroll.js';
+export { _pushOverlayState, _isTopOverlay, _clearOverlayHistory, registerPopInterceptor, suppressNextPop, whenHistorySettled, followLinkOutOf } from './overlay-history.js';
+export { trapFocus } from './overlay-focus.js';
+export { watchScrollFade, pinCloseButton } from './overlay-panel-scroll.js';
 
 let _lbScrollY = 0;
 // Depth-counted so nesting is safe (the v15.69 history stack made nested overlays a
@@ -58,57 +68,6 @@ export function unlockBodyScroll() {
     document.documentElement?.classList.remove('lb-keep-gutter');
     document.body.style.removeProperty('--lb-scroll-y');
     window.scrollTo(0, _lbScrollY);
-}
-
-// LIFO stack of overlay close handlers — one per pushed history entry, so nested
-// overlays stack instead of clobbering each other's Back registration.
-/** @type {Function[]} */
-let _backHandlers = [];
-// Absorbs the popstate ECHO that a button-initiated history.back() fires (see
-// _clearOverlayHistory) — a counter, not a boolean, so overlapping button-closes stay balanced.
-let _suppressPops = 0;
-// True only while a popstate-invoked handler runs. A _clearOverlayHistory() call from
-// inside such a handler (the browser already consumed the entry) must be a no-op — otherwise
-// it would pop and history.back() a SECOND overlay. (Team view's toggle and every lightbox's
-// close call _clearOverlayHistory, so they hit this on the Back path.)
-let _handlingPop = false;
-
-/**
- * Push a shallow history entry so Android Back closes the overlay, and register its
- * close handler on the stack. Idempotent per handler: re-registering the SAME overlay's
- * close (e.g. open() called twice with no intervening close) does not stack a duplicate
- * entry — preserving the old model's resilience to a double-open.
- * @param {Function} closeHandler
- */
-export function _pushOverlayState(closeHandler) {
-    if (_backHandlers.includes(closeHandler)) return;
-    history.pushState({ mybOverlay: true }, '');
-    _backHandlers.push(closeHandler);
-}
-
-/**
- * Is this overlay's close handler at the TOP of the stack — i.e. is it the one the user can
- * actually see and interact with?
- *
- * WHY (v19.53). Every open overlay attaches its OWN `document`-level keydown listener, so a single
- * Escape fired all of them. Android Back was already correct (one history entry is consumed per
- * press, so only the topmost handler runs) and so was the ✕ (it belongs to one overlay) — Escape
- * was the odd one out, and it was the dangerous one: with two one-time NOTICES open, one keypress
- * ran both `onClose` callbacks, so the notice buried underneath was archived and flagged
- * permanently seen by someone who never saw it. Measured, not theorised.
- *
- * `_backHandlers` is reused deliberately rather than a second stack being introduced: it is already
- * the ordered record of what is open, already drives Back, and already has tests. Two stacks would
- * be two things to keep in step.
- *
- * **Fails OPEN.** A handler that is not on the stack at all cannot be shown to be underneath
- * anything, so it is treated as topmost — a wrongly-suppressed Escape is a user trapped in a dialog,
- * which is far worse than an extra close.
- * @param {Function} closeHandler
- */
-export function _isTopOverlay(closeHandler) {
-    if (!_backHandlers.includes(closeHandler)) return true;
-    return _backHandlers[_backHandlers.length - 1] === closeHandler;
 }
 
 /**
@@ -188,236 +147,6 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler
 }
 
 /**
- * Remove an overlay's history entry when it is closed by a button (not Back).
- * Pass the overlay's own close handler so its SPECIFIC entry is removed — this makes the
- * call idempotent (a double-tap on the ✕, common during the 500ms fade, finds the handler
- * already gone and no-ops instead of popping the overlay BENEATH it) and safe if a
- * non-topmost overlay is dismissed. With no handler it falls back to popping the top (the
- * closing overlay is normally the topmost). Either way it history.back()s ONE entry and the
- * echoed popstate is absorbed by _suppressPops. A no-op inside a popstate-invoked handler
- * (_handlingPop) — the browser already consumed that entry.
- * @param {Function} [closeHandler]
- */
-export function _clearOverlayHistory(closeHandler) {
-    if (_handlingPop) return;
-    const idx = closeHandler ? _backHandlers.lastIndexOf(closeHandler) : _backHandlers.length - 1;
-    if (idx < 0) return;   // already removed (double-tap) or not registered → idempotent no-op
-    _backHandlers.splice(idx, 1);
-    _suppressPops++;
-    history.back();
-}
-
-// External pop owners (v16.23). nav-panel.js manages its OWN history entry (the drawer) outside
-// this stack; without coordination, the popstate from the drawer's history.back() — or a hardware
-// Back while the drawer is open — reached this handler and POPPED an unrelated overlay handler
-// (concretely: closing the nav drawer while Team Week View was active invoked toggleTeamView and
-// kicked the user out of team view). An interceptor returning true claims the pop; this stack is
-// left untouched. Registered once at module level by the owner (survives resetNavPanel cycles).
-/** @type {Array<() => boolean>} */
-const _popInterceptors = [];
-/** @param {() => boolean} fn — return true iff the current popstate belongs to you. */
-export function registerPopInterceptor(fn) { _popInterceptors.push(fn); }
-/** Absorb the NEXT popstate before it reaches the overlay stack — for an external owner's
- *  button-initiated history.back() (its ownership flag is already cleared by then, so the
- *  interceptor can't claim the echo). */
-export function suppressNextPop() { _suppressPops++; }
-
-// ── WHEN HAS A BUTTON-CLOSE ACTUALLY LANDED? (v23.61) ────────────────────────────────────────────
-//
-// `_clearOverlayHistory` calls `history.back()`, and the browser answers with a popstate LATER —
-// asynchronously, after the call returns. Anything that pushes a history entry in between (a
-// dialog opened from a picker's callback, say) pushes it on top of the entry the traversal is about
-// to pop, so the traversal pops the NEW entry instead: the dialog's own Back handler runs and it
-// closes itself, having just opened. That race is why every sheet action in this app used to wait
-// out a fixed timer before acting. A timer measures neither the fade nor the echo; this does.
-/** @type {Array<() => void>} */ let _settleWaiters = [];
-/** @type {any} */ let _settleFallback = null;
-function _drainSettleWaiters() {
-    clearTimeout(_settleFallback); _settleFallback = null;
-    const fns = _settleWaiters; _settleWaiters = [];
-    for (const fn of fns) {
-        try { fn(); } catch (e) { console.error('[overlay] settle callback threw:', e); }
-    }
-}
-/**
- * Run `fn` once no popstate echo from our own `history.back()` is outstanding — SYNCHRONOUSLY when
- * none is (a hardware-Back close issues no `history.back()`, so there is nothing to wait for),
- * otherwise when the echo lands. A 500 ms fallback covers a browser that never sends one, the same
- * tolerance `dismissOverlay` gives a missing `transitionend`; a late echo after the fallback is
- * simply absorbed as before.
- * @param {() => void} fn
- */
-export function whenHistorySettled(fn) {
-    if (_suppressPops === 0) { fn(); return; }
-    _settleWaiters.push(fn);
-    if (!_settleFallback) _settleFallback = setTimeout(_drainSettleWaiters, 500);
-}
-
-window.addEventListener('popstate', () => {
-    // Absorb the echo from our own button-initiated history.back() (or an external owner's — see
-    // suppressNextPop). Checked FIRST so a claimed/suppressed pop can never leak the counter.
-    if (_suppressPops > 0) {
-        _suppressPops--;
-        if (_suppressPops === 0 && _settleWaiters.length) _drainSettleWaiters();
-        return;
-    }
-    // An external owner (the nav drawer) claims pops for its own live history entry.
-    for (const claims of _popInterceptors) {
-        try { if (claims()) return; } catch (_e) { /* interceptor must never break the stack */ }
-    }
-    if (_backHandlers.length === 0) return;
-    const fn = _backHandlers.pop();
-    // Guard so the handler's own _clearOverlayHistory() call is a no-op (the entry is gone).
-    _handlingPop = true;
-    try { fn?.(); } finally { _handlingPop = false; }
-});
-
-// ── A LINK OUT OF THE PAGE FROM INSIDE A LIGHTBOX (18 Nov 2026) ──────────────────────────────────────
-//
-// An open lightbox holds a history entry with THIS page's address (`_pushOverlayState`), and a plain link
-// followed from inside it — a one-time notice's call to action, an About panel's page link — stacked the
-// next page on top of that entry. Back from there came back to it: from the back/forward cache with the
-// lightbox still up although it had been answered, or, reloaded (as a page holding a database connection
-// usually is), to a page whose stack is empty — so the NEXT Back was a step within the page that nothing
-// answered, and an installed app took one press more to leave. The drawer met this first and REPLACES its
-// entry with the destination (nav-panel.js); this is that move for a lightbox. The lightbox's entry leaves
-// the stack WITHOUT a `history.back()` — the replace is what removes it — the lightbox closes as any close
-// does (its `onClose` runs), and `location.replace` puts the destination where the entry was. Back from
-// there lands on the page as it was before the lightbox opened.
-//
-// Taken over only for a plain click on a link to ANOTHER document in this tab: a new tab or window, a
-// download, mail or another scheme, a fragment of this page and a click the page has already handled
-// (`defaultPrevented`) are left to the browser. And two cases keep the link's own push:
-//   · an echo still on its way is waited for first (`whenHistorySettled`) — "Leave" on the unsaved-work
-//     question re-clicks the link as that dialog closes (page-session.js), and a replace issued while the
-//     dialog's `history.back()` is pending would land on the wrong entry;
-//   · a lightbox that no longer holds the TOP entry — closed by then (a ✕ or Back during the fade, when the
-//     card can still be tapped), or under another overlay — has no entry of its own to replace.
-
-/**
- * Is this a link to another document, opened in this tab — not a fragment of this page, mail or another
- * scheme, a new window or a download?
- * @param {HTMLAnchorElement} link
- */
-function _leavesThisDocument(link) {
-    const raw = link.getAttribute('href') ?? '';
-    if (!raw || raw.startsWith('#') || link.hasAttribute('download')) return false;
-    if (link.target && link.target !== '_self') return false;
-    let to;
-    try { to = new URL(link.href); } catch { return false; }
-    if (to.protocol !== 'https:' && to.protocol !== 'http:') return false;
-    const here = new URL(location.href);
-    return to.origin !== here.origin || to.pathname !== here.pathname || to.search !== here.search;
-}
-
-/**
- * Follow a click on a link inside an open lightbox by REPLACING the lightbox's history entry with the
- * link's page (the reasoning is above). Wire it as the link's click listener, or the panel's: it finds the
- * link from the event's target.
- * @param {{ close: () => unknown }} lightbox  the `createLightbox` handle the link sits in
- * @param {MouseEvent} e  the click
- * @returns {boolean} true when it took the click over; false when the browser follows the link as it would
- */
-export function followLinkOutOf(lightbox, e) {
-    const link = /** @type {HTMLAnchorElement|null} */ (/** @type {any} */ (e?.target)?.closest?.('a[href]') ?? null);
-    if (!link || e.defaultPrevented || !_leavesThisDocument(link)) return false;
-    if ((e.button ?? 0) !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return false;   // a new tab or window
-    e.preventDefault();
-    const href = link.href;
-    whenHistorySettled(() => {
-        if (_backHandlers[_backHandlers.length - 1] !== lightbox.close) { location.assign(href); return; }
-        _backHandlers.pop();   // its entry becomes the destination below, so nothing is left to pop it
-        lightbox.close();      // the close every lightbox makes, without the history.back() it has no entry for
-        location.replace(href);
-    });
-    return true;
-}
-
-/**
- * What Tab can reach in `container` (enabled, rendered, in the Tab order) — one list for the trap and
- * the focus guard. A NEGATIVE tabindex takes a control out of the Tab order whatever its tag, and the
- * trap's two ends must be stops Tab can land on: counted, the date picker's last day, the sign-in
- * card's hidden username field and the 1px select behind a picker trigger each became an end that
- * focus never reached, so the trap never wrapped and Tab walked out of the dialog.
- * @param {Element} container
- */
-function _tabStops(container) {
-    return /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]')]).filter(el =>
-        !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null
-        && !(Number.parseInt(el.getAttribute('tabindex') ?? '', 10) < 0));
-}
-
-/**
- * Trap keyboard focus inside a lightbox container (accessibility).
- * Call from the container's keydown handler — no-op if key is not Tab.
- * @param {Element|null} container
- * @param {KeyboardEvent} e
- */
-export function trapFocus(container, e) {
-    if (e.key !== 'Tab' || !container) return;
-    const els = _tabStops(container);
-    if (!els.length) { e.preventDefault(); return; }
-    const first = els[0], last = els[els.length - 1];
-    const active = document.activeElement;
-    // When focus is on the dialog PANEL itself (its tabindex="-1" — the default open focus since the
-    // WAI-ARIA panel-focus change) it is outside `els`, so neither wrap branch below fires and a
-    // Shift+Tab would walk backwards PAST the overlay into the page behind it. Treat container-held
-    // focus as sitting just before the first element: Shift+Tab wraps to last, Tab goes to first —
-    // keeping the trap closed on the very first keystroke after open.
-    if (active === container) { e.preventDefault(); (e.shiftKey ? last : first).focus(); return; }
-    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
-}
-
-// ── FOCUS THAT ARRIVES WITHOUT A KEY (iPhone audit, 7 Nov 2026) ── The ‹ › arrows over the iPhone
-// keyboard step to the previous or next text field IN THE DOCUMENT and fire no key event, so the Tab
-// trap never saw them: typing walked out of a prompt into a field behind it (a screen reader's moves
-// and a late `focus()` are the same shape). So an open overlay pulls focus that lands outside it back
-// in — to the control last focused inside, else the first. TOPMOST ONLY and failing OPEN, as Escape:
-// `_isTopOverlay` orders the stack, and any other open `aria-modal` surface that paints above (by
-// z-index, then document order) stands the guard down. That is meant for the surfaces OFF the stack —
-// the sign-in card a lost session mounts over a dialog, the password-force card: fighting those would
-// leave a member unable to type a password. Nothing here asks whether a surface is on the stack, so one
-// that is stands it down too. That happens only where paint and stack disagree (the document viewer
-// under the Huddle until 10 Nov 2026), and focus is then left where the reader can see it.
-/** An element's layer as it paints: its computed z-index, `auto` as 0. @param {Element} el */
-const _zOf = (el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
-/** Does another open modal surface paint above `overlay` — in practice one off the stack (above)? (A shut drawer is aria-hidden; a shut lightbox has no boxes.) @param {Element} overlay */
-function _unstackedSurfaceAbove(overlay) {
-    return Array.from(document.querySelectorAll('[aria-modal="true"]')).some(el => {
-        if (el === overlay || el.contains(overlay) || overlay.contains(el)) return false;
-        if (el.getAttribute('aria-hidden') === 'true' || !el.getClientRects().length) return false;
-        return _zOf(el) > _zOf(overlay) || (_zOf(el) === _zOf(overlay) && !!(overlay.compareDocumentPosition(el) & 4));   // 4: FOLLOWING
-    });
-}
-/**
- * The highest layer on screen: the open lightboxes and sheets, and the modal surfaces off the stack
- * (the sign-in and password cards) — shown, and not aria-hidden, as above. 0 when nothing is up.
- */
-function _highestOpenLayer() {
-    let top = 0;
-    for (const el of Array.from(document.querySelectorAll('.lb-overlay, [aria-modal="true"]'))) {
-        if (el.getAttribute('aria-hidden') === 'true' || !el.getClientRects().length) continue;
-        top = Math.max(top, _zOf(el));
-    }
-    return top;
-}
-/** Pull focus landing outside `overlay` back in. Returns the detach. @param {Element} overlay @param {Element} panel @param {() => boolean} isTop */
-function _guardFocus(overlay, panel, isTop) {
-    if (typeof overlay.contains !== 'function') return () => {};
-    /** @type {any} */ let last = null;
-    const onFocusIn = (/** @type {any} */ e) => {
-        const t = e.target;
-        if (t?.nodeType !== 1) return;                       // the window or the document regaining focus
-        if (overlay.contains(t)) { last = t; return; }
-        if (!isTop() || _unstackedSurfaceAbove(overlay)) return;
-        const kept = last?.isConnected && overlay.contains(last) && !last.disabled;
-        /** @type {any} */ (kept ? last : _tabStops(panel)[0] ?? (panel.hasAttribute?.('tabindex') ? panel : null))?.focus?.({ preventScroll: true });
-    };
-    document.addEventListener('focusin', onFocusIn, true);
-    return () => document.removeEventListener('focusin', onFocusIn, true);
-}
-/**
  * Close on a tap on the BACKDROP: a press and a release on the overlay itself. A mouse drag that starts
  * inside the card and ends on the backdrop — selecting a prompt's text — arrives as a `click` on the
  * overlay too, because a click goes to the nearest element the press and the release share, and it
@@ -440,97 +169,6 @@ const _NO_KEYBOARD = new Set(['button', 'submit', 'reset', 'checkbox', 'radio', 
 const _isTextEntry = (/** @type {any} */ el) => el?.tagName === 'TEXTAREA' || (el?.tagName === 'INPUT' && !_NO_KEYBOARD.has(String(el.type || 'text').toLowerCase()));
 
 /**
- * Mark a panel with more below its fold, for shared.css's fade: every lightbox, and the drawer's body.
- *
- * Toggled rather than always-on: fading the last line of a panel that FITS would invent the
- * ambiguity this exists to remove. Re-measured on scroll (the fade must go once you reach the
- * bottom) and on resize — a phone rotating turns a scrolling panel into a fitting one.
- *
- * Best-effort decoration: a panel that never gains the class looks as it did before v21.36.
- *
- * @param {HTMLElement|null} panel the scrolling element
- * @returns {() => void} stops watching
- */
-export function watchScrollFade(panel) {
-    if (!panel) return () => {};
-    const sync = () => {
-        const more = panel.scrollHeight - panel.clientHeight - panel.scrollTop > 2;
-        panel.classList.toggle('has-more', more);
-        // Scrolled at all: a pinned ✕ takes its disc, so the words passing beneath it do not show
-        // through the glyph (`pinCloseButton` below; shared.css → THE ✕ STAYS).
-        panel.classList.toggle('is-scrolled', panel.scrollTop > 0);
-    };
-    // The WINDOW listener outlives the panel unless something removes it (v21.86, external audit).
-    // The scroll listener dies with the element; `resize` is on `window`, so every open added one
-    // more, and for the dialogs built on the fly (`confirmDialog`/`promptDialog`) the handler also
-    // closed over a detached node and kept it alive. One AbortController per open, aborted on
-    // close, retires both listeners together and cannot drift out of step the way a pair of
-    // matching add/remove calls can.
-    const ac = new AbortController();
-    requestAnimationFrame(() => requestAnimationFrame(sync));
-    panel.addEventListener('scroll', sync, { passive: true, signal: ac.signal });
-    window.addEventListener('resize', sync, { passive: true, signal: ac.signal });
-    // THE PANEL CAN CHANGE SIZE WITH NOTHING SCROLLED OR RESIZED (v24.30 polish pass). The picker
-    // sheet's search box filters its own list: a 45-name sheet opens capped at 85vh and gains the
-    // fade, then "zzz" leaves one line of "No match" in a 189px panel — measured scrollHeight ===
-    // clientHeight — still wearing the fade over that line, because neither listener above had
-    // fired. So the panel's CONTENT is watched, and its box too. The content observer is the one that
-    // matters: a MutationObserver runs as a microtask, and `sync` reads `scrollHeight`, which forces
-    // the layout it needs. ResizeObserver and requestAnimationFrame both ride the rendering loop,
-    // which headless WebKit throttled in about half of measured runs — the fade stayed on with the
-    // observer never called. The box observer stays for a size change with no DOM change (a late
-    // font), and `hidden` is watched for a fold — the drawer's Reference — that adds no node.
-    if (typeof ResizeObserver === 'function') {
-        const ro = new ResizeObserver(sync);
-        ro.observe(panel);
-        ac.signal.addEventListener('abort', () => ro.disconnect());
-    }
-    if (typeof MutationObserver === 'function') {
-        const mo = new MutationObserver(sync);
-        mo.observe(panel, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
-        ac.signal.addEventListener('abort', () => mo.disconnect());
-    }
-    return () => ac.abort();
-}
-
-/**
- * Keep a panel's ✕ in reach while the panel scrolls (lightbox review R1-5, 22 Nov 2026).
- *
- * The shared `.lb-close` is placed ABSOLUTELY inside the panel that scrolls, so it scrolled away with
- * the words: a long About or notice on a small phone, or at a large text size, left the reader with no
- * close control on screen — and iOS has no system Back. shared.css's `.lb-close--pinned` makes it
- * sticky instead. This measures where the shared rule put it — its `top` and `right` less the panel's
- * own padding, and what cancels its height (and a flex gap) — so the pinned ✕ sits on exactly the same
- * spot at rest, whatever the panel's padding is on this page at this window size, and the content
- * does not move. Measured here rather than restated per panel in CSS, where a copy of each padding
- * would drift from the panel the first time either changed.
- *
- * Re-measured on every open (a window or text size may have changed since). Left alone, and so as it
- * always was: a ✕ that is not a direct child of the panel (the Tips' and the picker's sit in a sticky
- * top of their own), one a page has placed differently (`position: static` in a full-bleed header),
- * a panel that does not scroll, and a flex ROW or grid panel, where an in-flow ✕ would take a column.
- * Best-effort decoration, as `watchScrollFade` is: with no layout API it does nothing.
- * @param {Element|null|undefined} panel the scrolling `.lb-content`
- */
-export function pinCloseButton(panel) {
-    const btn = /** @type {HTMLElement|null} */ (panel?.querySelector?.(':scope > .lb-close') ?? null);
-    if (!panel || !btn || typeof getComputedStyle !== 'function') return;
-    btn.classList.remove('lb-close--pinned');   // measure where the SHARED rule places it
-    const b = getComputedStyle(btn), p = getComputedStyle(panel);
-    const flex = /flex/.test(p.display);
-    if (b.position !== 'absolute' || !/auto|scroll/.test(p.overflowY)
-        || (flex && !p.flexDirection.startsWith('column')) || /grid/.test(p.display)) return;
-    const px = (/** @type {string} */ v) => parseFloat(v) || 0;
-    const y = px(b.top) - px(p.paddingTop);
-    const x = px(b.right) - px(p.paddingRight);
-    const gap = flex ? px(p.rowGap) : 0;
-    btn.style.setProperty('--lb-pin-y', `${y}px`);
-    btn.style.setProperty('--lb-pin-x', `${x}px`);
-    btn.style.setProperty('--lb-pin-after', `${-(y + btn.offsetHeight + gap)}px`);
-    btn.classList.add('lb-close--pinned');
-}
-
-/**
  * Build a lightbox with the canonical open/close lifecycle (the rule is in CLAUDE.md's
  * architecture table; the lifecycle and its three exceptions are here). One factory so every lightbox gets the
  * same behaviour and none can drift: focus save/restore, .visible → rAF →
@@ -538,7 +176,7 @@ export function pinCloseButton(panel) {
  * a Tab trap and a guard for focus moves Tab never sees, and a text field focused in the tap.
  *
  * THREE EXCEPTIONS, AND THE FIRST TWO ARE ONE DECISION. The drawer's `#navComingSoonLightbox` and
- * `#navNoticesLightbox` (App Notices) belong to nav-panel.js alone and hand-roll this lifecycle,
+ * `#navNoticesLightbox` (App Notices) belong to the drawer alone (nav-drawer-lightboxes.js) and hand-roll this lifecycle,
  * because they share the drawer's history entry: never migrate either to createLightbox. Both are
  * injected at runtime, so overlay-parity.test.mjs's scan of the served HTML cannot see them. The
  * third is `#huddleViewer` (calendar-huddle-viewer.js), a full-bleed panel with no backdrop close.

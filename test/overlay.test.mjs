@@ -3,9 +3,10 @@
  * and unlockBodyScroll.
  * Run with: node scripts/run-tests.mjs test/overlay.test.mjs
  *
- * overlay.js imports one module, card-collapse.js (re-exported, so initCardCollapse is tested here
- * through it), and that imports nothing; otherwise only browser globals. A minimal stub is provided
- * before the import so the module loads cleanly in Node.
+ * overlay.js imports four modules and re-exports them — card-collapse.js (so initCardCollapse is tested
+ * here through it), overlay-history.js, overlay-focus.js (so trapFocus is too) and overlay-panel-scroll.js
+ * — none of which imports anything; otherwise only browser globals. A minimal stub is provided before the
+ * import so the modules load cleanly in Node.
  */
 
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
@@ -1127,3 +1128,24 @@ describe('dismissOverlay — an overlay that never faded in goes at once', () =>
     });
 });
 
+describe('overlay.js is the one door to the overlay layer (the split of 25 Nov 2026)', () => {
+    // Every page and module imports the layer from overlay.js. Its parts moved into their own files, so a
+    // name the facade stopped re-exporting — or one it re-exported from a stale copy — would break a page
+    // whose import never changed. Identity, not just presence: the SAME function, so the same stack.
+    test('its re-exports ARE the parts\' own functions', async () => {
+        const overlay = await import('../overlay.js');
+        const parts = {
+            'overlay-history.js': ['_pushOverlayState', '_isTopOverlay', '_clearOverlayHistory', 'registerPopInterceptor',
+                'suppressNextPop', 'whenHistorySettled', 'followLinkOutOf'],
+            'overlay-focus.js': ['trapFocus'],
+            'overlay-panel-scroll.js': ['watchScrollFade', 'pinCloseButton'],
+        };
+        for (const [file, names] of Object.entries(parts)) {
+            const part = await import(`../${file}`);
+            for (const name of names) {
+                assert.equal(typeof part[name], 'function', `${file} no longer exports ${name}`);
+                assert.equal(/** @type {any} */ (overlay)[name], part[name], `overlay.js does not re-export ${file}'s ${name}`);
+            }
+        }
+    });
+});

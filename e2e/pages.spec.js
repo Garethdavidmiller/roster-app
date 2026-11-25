@@ -1108,7 +1108,7 @@ test('App Notices: a long archive is reached and scrolled from the keyboard, wit
     await expect(list, 'Shift+Tab comes back to the list').toBeFocused();
 });
 
-// AN EMPTY ARCHIVE IS ITS MESSAGE AND NOTHING ELSE (whole-app review, Nov 2026). nav-panel.js hides the list when
+// AN EMPTY ARCHIVE IS ITS MESSAGE AND NOTHING ELSE (whole-app review, Nov 2026). nav-drawer-lightboxes.js hides the list when
 // there is nothing archived, and `display: flex` beat the `hidden` attribute, so the list stayed: a 0px box that took
 // the column's gap a second time and was still read out as an empty "Notices you've read" group. Playwright's own
 // `toBeHidden()` cannot see this — a box 0px tall already counts as hidden — so the box and the role are asked.
@@ -1133,7 +1133,7 @@ test('App Notices: an empty archive shows its message, with no empty list left i
         return { hidden: list.hidden, boxes: list.getClientRects().length, gap: parseFloat(getComputedStyle(panel).rowGap),
                  under: message.offsetTop - (heading.offsetTop + heading.offsetHeight) };
     });
-    expect(m.hidden, 'premise: nav-panel.js hides the list of an empty archive').toBe(true);
+    expect(m.hidden, 'premise: nav-drawer-lightboxes.js hides the list of an empty archive').toBe(true);
     expect(m.boxes, 'the hidden list is still laid out').toBe(0);
     expect(Math.round(m.under), 'the message sits one gap under the intro, not two').toBe(m.gap);
     await expect(page.getByRole('group', { name: /Notices shown on this device/ }),

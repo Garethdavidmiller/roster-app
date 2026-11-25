@@ -61,3 +61,24 @@ test('the toggle says its state once; checking and blocked are not on/off', asyn
         assert.deepEqual([bell.getAttribute('aria-pressed'), bell.getAttribute('aria-label')], [pressed, label], state);
     }
 });
+
+test('a BLOCKED bell\'s tap is handed to the drawer it sits in: the visual close, then the info panel with this page\'s route', async () => {
+    // The bell left nav-panel.js for nav-bell.js (25 Nov 2026) and reaches the drawer only through the two
+    // collaborators it is handed. Driven directly, with both recorded: the order matters (the drawer closes
+    // visually, keeping its history entry, before the info panel reuses that entry), and so does the page —
+    // on Settings the card that says how is on the page under the drawer, so the route is not the menu's.
+    const { wireNavBell } = await import(R + 'nav-bell.js');
+    for (const [page, route] of [['admin', '☰ → Settings → Notifications'], ['settings', 'The Notifications card on this page']]) {
+        const bell = el(); els.set('navNotifBell', bell); els.set('navNotifIcon', el());
+        /** @type {any[]} */ const calls = [];
+        const refresh = wireNavBell({ currentPage: page, _closePanelVisualOnly: () => calls.push('visual close'),
+            _openComingSoon: (/** @type {any} */ t, /** @type {any} */ body) => calls.push([t, body]) });
+        peek = async () => 'denied';
+        await refresh();
+        await bell.on.click();
+        assert.equal(calls[0], 'visual close', page);
+        assert.equal(calls[1]?.[0], bell, `${page}: the info panel takes its title and icon from the bell itself`);
+        assert.ok(String(calls[1]?.[1]).includes(route), `${page}: ${calls[1]?.[1]}`);
+        assert.equal(calls.length, 2, `${page}: one tap, one hand-over`);
+    }
+});

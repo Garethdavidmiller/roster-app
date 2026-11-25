@@ -58,14 +58,14 @@ below, and run `npm run generate:ai-map`.
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
 | Team Week View, and which week it opens on | `calendar-team-view.js` |
 | Override priority, member start, rest shifts, the shared display ladder (`resolveEffectiveShift`), the Sunday rule, the training value grammar and its pay resolver | `override-utils.js` (the grammar and its pay resolver: `other-day.js`, re-exported) |
-| Body scroll lock, overlay history, focus trap, the lightbox lifecycle, the in-app dialogs, card collapse | `overlay.js` |
+| Body scroll lock, overlay history, focus trap, the lightbox lifecycle, the in-app dialogs, card collapse | `overlay.js` (the Back stack: `overlay-history.js`; the Tab trap: `overlay-focus.js`; the scroll fade and pinned ✕: `overlay-panel-scroll.js`) |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
 | Service worker registration + update lifecycle (every app page) | `sw-register.js` |
 | Auth/session helpers — the local session and re-establishing Firebase on load | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` (+ `admin-boot.js`) + `admin.html` |
 | Settings page — Password, Work email, Notifications, Install, Pay Calculator data | `settings-app.js` + `settings.html` (Password: `settings-password-card.js`; Install: `settings-install-card.js`; `?` panels: `settings-tips.js`) |
-| Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
+| Nav-panel footer initials badge | `nav-panel-markup.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` (the Circular and Newsletter cards' configuration: `operations-doc-uploads.js`) |
 | Error Log card (ops page) — uncaught error capture, the card, Copy for Claude | `error-reporter.js`, `firebase-client.js`, `client-errors.js` (ordering/retention policy), `operations-errors.js`, `operations.css` · the admin's phone told of new entries: `functions/error-log-notify.js` (the rules: `functions/error-log-notice.js`) |
 | Usage card (ops page) — anonymous page popularity + active-account counts | `usage-reporter.js`, `firebase-client.js`, `usage-stats.js` (date/aggregation maths), `operations-usage.js`, `operations.css`, `firestore.rules` (`analytics`) |
@@ -102,7 +102,7 @@ below, and run `npm run generate:ai-map`.
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
-| Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` (what it lists: `nav-destinations.js`) |
+| Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` (what it lists: `nav-destinations.js`; its HTML: `nav-panel-markup.js`; its two lightboxes: `nav-drawer-lightboxes.js`; the document rows: `nav-latest-doc.js`; the bell: `nav-bell.js`; the Reference fold: `nav-guide-fold.js`) |
 | Whether the ☰ menu offers the Marylebone Newsletter — only while its latest issue is under six weeks old | `newsletter-recency.js` (the Calendar asks once a load; the drawer reads the answer this device keeps) |
 | Push notification subscribe/unsubscribe, VAPID key, notification state (shared) | `notif.js` |
 | Firestore security rules — write isolation, field validation, admin bypass | `firestore.rules` |
@@ -266,10 +266,19 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `captureInstallOffer` · `initDeviceCard`
 
 ### `overlay.js`
-- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `pinCloseButton` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
+- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `_pushOverlayState` · `_isTopOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `watchScrollFade` · `pinCloseButton` · `lockBodyScroll` · `unlockBodyScroll` · `openNoticeIfClear` · `dismissOverlay` · `closeOnBackdropTap` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
 
 ### `card-collapse.js`
 - **Exports:** `initCardCollapse` · `openCardNamedByHash`
+
+### `overlay-history.js`
+- **Exports:** `_pushOverlayState` · `_isTopOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf`
+
+### `overlay-focus.js`
+- **Exports:** `trapFocus` · `_zOf` · `_highestOpenLayer` · `_guardFocus`
+
+### `overlay-panel-scroll.js`
+- **Exports:** `watchScrollFade` · `pinCloseButton`
 
 ### `about-lightbox.js`
 - **Exports:** `initAboutLightbox` · `wireHeaderLogo`
@@ -826,6 +835,21 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `nav-panel.js`
 - **Exports:** `resetNavPanel` · `initNavPanel`
+
+### `nav-panel-markup.js`
+- **Exports:** `injectNavPanel`
+
+### `nav-drawer-lightboxes.js`
+- **Exports:** `FOCUS_DELAY_MS` · `createDrawerLightboxes`
+
+### `nav-latest-doc.js`
+- **Exports:** `createLatestDocOpener`
+
+### `nav-bell.js`
+- **Exports:** `wireNavBell`
+
+### `nav-guide-fold.js`
+- **Exports:** `wireGuideFold`
 
 ### `newsletter-recency.js`
 - **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`
