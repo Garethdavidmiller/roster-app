@@ -664,6 +664,7 @@ roster-app/
 │   ├── pages.spec.js       ← the browser tests that SPAN pages: every-page sweeps, the drawer, dialogs, the select sheet, large text. The `@a11y` `KNOWN_SMALL` baseline only shrinks
 │   ├── every-page.spec.js  ← the release gate's iPhone check (deploy-hosting.yml's `safari` job): every page opens, every guide draws, every old address lands. Pages from scripts/app-pages.mjs
 │   ├── admin.spec.js       ← Admin in a real browser
+│   ├── clock-box-properties.spec.js ← a real text clock box under seeded random edit sequences: never a time nobody typed, never a caret thrown past a digit. Desktop projects only; its header
 │   ├── links.spec.js       ← the Links workspace in a real browser (the shortlist's own row is links-shortlist.spec.js)
 │   ├── operations.spec.js  ← Operations in a real browser
 │   ├── al-sheet-fixture.js ← a sealed leave file built at test time; members chosen BY RULE, never typed by name
