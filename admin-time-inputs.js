@@ -26,7 +26,7 @@
  */
 
 import { TIME_RE } from './roster-data.js';
-import { shapeClockBox, settleClockBox } from './clock-input.js';
+import { shapeClockBoxInPlace, settleClockBox } from './clock-input.js';
 
 let _formatting = false;
 let _wired = false;
@@ -42,7 +42,7 @@ export function initTimeInputs() {
         timeInput.classList.remove('input-error');
         timeInput.removeAttribute('aria-invalid');
         _formatting = true;
-        timeInput.value = shapeClockBox(timeInput, /** @type {InputEvent} */ (e));
+        shapeClockBoxInPlace(timeInput, /** @type {InputEvent} */ (e));
         _formatting = false;
         // A complete time moves on: start → its row's end, bulk start → bulk end. A REAL time, not
         // five characters: "24:00" fills the box too, and moving on from it would leave an

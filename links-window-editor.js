@@ -26,7 +26,7 @@
  */
 
 import { normaliseWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
-import { shapeClockBox, settleClockBox } from './clock-input.js';
+import { shapeClockBoxInPlace, settleClockBox } from './clock-input.js';
 
 /**
  * Wire the staffed-window editor, once.
@@ -52,7 +52,7 @@ export function createWindowEditor({ getDesign, setWindow }) {
     // `change` never fired on an iPhone. `commit` is idempotent.
     for (const row of /** @type {const} */ (['monSat', 'sun'])) {
         for (const el of [els[row].start, els[row].end]) {
-            el?.addEventListener('input', e => { el.value = shapeClockBox(el, /** @type {InputEvent} */ (e)); });
+            el?.addEventListener('input', e => { shapeClockBoxInPlace(el, /** @type {InputEvent} */ (e)); });
             el?.addEventListener('blur', () => commit(row));
         }
     }
