@@ -1356,15 +1356,6 @@ a sheet for another week before anything is written. Three cases go unchecked:
 In each case the upload goes on as it did before the check existed, and the Functions log says "the
 sheet's own week was not checked". A whole week out there is caught only by the admin.
 
-### Cloud Function payday constant duplicated from `roster-data.js`
-`functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
-constants (inside `isPayCutoffDay()`, which `functions/documents.js` imports) for the pay-reminder
-scheduled notification. These must stay in sync with `CONFIG.FIRST_PAYDAY` and
-`CONFIG.PAYDAY_INTERVAL_DAYS` in `roster-data.js`. If the pay schedule ever changes, both files
-must be updated. The correct long-term fix is a shared JSON config consumed by both, but the
-no-build constraint makes this awkward. `payday-cutoff-parity.test.mjs` fails if the two drift, so a
-payday change that updates only one side cannot pass CI.
-
 ### Cloud Function staff list is generated from `roster-data.js` — regenerate it in the same commit
 `parseRosterPDF` name-matches the AI-parsed roster output against `STAFF_NAMES`, which is
 **generated**, not hand-maintained: `functions/index.js` does `require('./roster-members.json')`,

@@ -93,6 +93,16 @@ export function buildRosterMembers() {
         // and the two would part company at the next MAX_YEAR bump (already booked in
         // MAINTENANCE_CALENDAR.md) — the classic drift this generated file exists to prevent.
         maxRosterYear: CONFIG.MAX_YEAR,
+        // The pay cut-off cycle's anchor and length, for the scheduled pay reminder
+        // (`isPayCutoffDay`, functions/roster-parse-helpers.js). It was a pair of hand-kept literals
+        // there, held to CONFIG by payday-cutoff-parity.test.mjs — so a new tax year's anchor, moved
+        // in CONFIG alone, fired the reminder on the wrong Saturday until somebody copied it across.
+        // The date is the anchor PAYDAY's calendar day, local to CONFIG.FIRST_PAYDAY; the server
+        // rebuilds it at noon UTC. Not under `roles`, like `overtimeBeta`: it grants nothing.
+        payCycle: {
+            firstPayday:  isoDate(CONFIG.FIRST_PAYDAY),
+            intervalDays: CONFIG.PAYDAY_INTERVAL_DAYS,
+        },
     };
 }
 

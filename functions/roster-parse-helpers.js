@@ -834,9 +834,15 @@ function parseStrictIsoDate(str) {
 // ── Pay cutoff detection ─────────────────────────────────────────────────────
 
 /**
+ * The pay cycle's anchor payday and length — GENERATED into roster-members.json from
+ * CONFIG.FIRST_PAYDAY and CONFIG.PAYDAY_INTERVAL_DAYS in roster-data.js by
+ * `npm run generate:roster-members`. Never write them here: move them in CONFIG and regenerate.
+ */
+const PAY_CYCLE = require('./roster-members.json').payCycle;
+
+/**
  * Returns true if the given date is a pay cutoff day (Saturday before payday).
- * Mirrors isCutoffDate() in roster-data.js.
- * FIRST_PAYDAY and INTERVAL_DAYS must stay in sync with CONFIG in roster-data.js.
+ * Mirrors isCutoffDate() in roster-data.js, on the cycle in roster-members.json (PAY_CYCLE, above).
  *
  * @param {Date} date - midnight local date to check
  * @returns {boolean}
@@ -845,8 +851,9 @@ function isPayCutoffDay(date) {
     // Anchor in UTC so the arithmetic is correct on any server timezone.
     // Date.UTC and setUTCHours give the same result as their local counterparts on
     // UTC Cloud Run — but are explicit and correct if TZ ever differs.
-    const FIRST_PAYDAY_MS = Date.UTC(2026, 1, 13, 12, 0, 0); // 13 Feb 2026, noon UTC
-    const INTERVAL_DAYS   = 28;
+    const [anchorY, anchorM, anchorD] = String(PAY_CYCLE.firstPayday).split('-').map(Number);
+    const FIRST_PAYDAY_MS = Date.UTC(anchorY, anchorM - 1, anchorD, 12, 0, 0); // the anchor payday, noon UTC
+    const INTERVAL_DAYS   = PAY_CYCLE.intervalDays;
     const MS_PER_DAY      = 86_400_000;
     // Rebuild the intended CALENDAR day at noon UTC from the input's local components. The caller
     // builds `date` with the local-timezone `new Date(y, m, d)`, so mixing its raw getTime() with

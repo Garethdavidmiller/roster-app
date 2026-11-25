@@ -403,7 +403,7 @@ roster-app/
 │   ├── notif-card-core.test.mjs ← the Notifications card's words for every device. Part of test:hygiene
 │   ├── notif-card.test.mjs    ← the Notifications card's wiring through the real `initNotificationsCard`. Part of test:unit
 │   ├── surname-parity.test.mjs ← the account identifier derivation stays in sync across the ESM/CommonJS boundary. Part of test:hygiene
-│   ├── payday-cutoff-parity.test.mjs ← the server's cut-off rule stays in sync with roster-data.js's paydays. Part of test:hygiene
+│   ├── payday-cutoff-parity.test.mjs ← the server's cut-off rule reads the GENERATED cycle and agrees with roster-data.js's paydays. Part of test:hygiene
 │   ├── import-graph.test.mjs   ← circular imports across all root ES modules
 │   ├── slow-save.test.mjs ← the slow-save watcher; the wording never says saved. Part of test:hygiene
 │   ├── admin-save-receipt.test.mjs ← a receipt that leaves something out or lists days out of order. Part of test:hygiene

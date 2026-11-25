@@ -6,14 +6,16 @@
  *   - functions: isPayCutoffDay() in functions/roster-parse-helpers.js (hardcoded FIRST_PAYDAY_MS +
  *                INTERVAL_DAYS), used by the scheduled pay-reminder push.
  *
- * Cloud Functions are CommonJS and cannot import the browser ES module, so the anchor is copied.
+ * Cloud Functions are CommonJS and cannot import the browser ES module, so the anchor is copied —
+ * by the generator now, not by hand.
  * The functions copy carried only a "must stay in sync" comment and NO test (unlike surname-parity) —
  * so a new-tax-year update to CONFIG.FIRST_PAYDAY/INTERVAL in roster-data.js would silently leave the
  * scheduled push firing the cutoff reminder on the WRONG Saturday (whole-codebase review, functions
  * finding #1). These tests fail loudly if the two ever drift:
- *   1. Source-equivalence — the functions anchor literals are DERIVED from CONFIG here, so editing the
- *      anchor in one place alone (the likely drift) breaks the build even though functions isn't
- *      importable as a browser module.
+ *   1. The anchor is GENERATED, not copied (25 Nov 2026) — `npm run generate:roster-members` writes
+ *      CONFIG's anchor and interval into functions/roster-members.json (`payCycle`), and the function
+ *      reads them there. This file pins that it reads them and that they are CONFIG's; until then it
+ *      compared two hand-kept literals with CONFIG.
  *   2. Behavioural — isPayCutoffDay() must recognise every roster-data cutoff that sits on the pure
  *      28-day grid (i.e. weeks with no bank-holiday payday shift, which isPayCutoffDay deliberately
  *      does not model — a documented, separate divergence).
@@ -37,16 +39,24 @@ const DAY = 86_400_000;
 const at = (/** @type {string} */ iso) => new Date(iso + 'T12:00:00'); // local-noon, matches the callers
 
 describe('pay-cutoff cycle — browser ↔ functions parity', () => {
-    test('functions anchor literals are still in sync with CONFIG (source-equivalence)', () => {
+    test('the server takes its cycle from the generated roster-members.json, never a literal of its own', () => {
+        // Since 25 Nov 2026 the anchor and interval are GENERATED into functions/roster-members.json
+        // (`payCycle`, `npm run generate:roster-members`), whose currency sw-asset-check.test.mjs checks
+        // field by field. What is left to pin is that the function READS them: an anchor written back
+        // into the source as a literal is the hand-kept copy again.
         const src = readFileSync(new URL('./functions/roster-parse-helpers.js', REPO_ROOT_URL), 'utf8');
-        const fp  = CONFIG.FIRST_PAYDAY;
-        // functions uses `Date.UTC(<y>, <m>, <d>, 12, 0, 0)` mirroring CONFIG.FIRST_PAYDAY's y/m/d.
-        const expectedAnchor = `Date.UTC(${fp.getFullYear()}, ${fp.getMonth()}, ${fp.getDate()}, 12`;
-        assert.ok(src.includes(expectedAnchor),
-            `isPayCutoffDay FIRST_PAYDAY_MS drifted from CONFIG.FIRST_PAYDAY — expected "${expectedAnchor}". ` +
-            `Update FIRST_PAYDAY_MS in functions/roster-parse-helpers.js to match roster-data CONFIG.`);
-        assert.ok(new RegExp(`INTERVAL_DAYS\\s*=\\s*${CONFIG.PAYDAY_INTERVAL_DAYS}\\b`).test(src),
-            `isPayCutoffDay INTERVAL_DAYS drifted from CONFIG.PAYDAY_INTERVAL_DAYS (${CONFIG.PAYDAY_INTERVAL_DAYS}).`);
+        const body = src.slice(src.indexOf('function isPayCutoffDay('), src.indexOf('\n}\n', src.indexOf('function isPayCutoffDay(')));
+        assert.match(src, /const PAY_CYCLE = require\('\.\/roster-members\.json'\)\.payCycle;/,
+            'roster-parse-helpers.js no longer reads the pay cycle from roster-members.json');
+        assert.match(body, /PAY_CYCLE\.firstPayday/, 'isPayCutoffDay no longer takes its anchor from PAY_CYCLE');
+        assert.match(body, /INTERVAL_DAYS\s*=\s*PAY_CYCLE\.intervalDays;/, 'isPayCutoffDay no longer takes its interval from PAY_CYCLE');
+        assert.doesNotMatch(body, /Date\.UTC\(\d{4}/, 'isPayCutoffDay hard-codes an anchor year again');
+        // And the generated values ARE CONFIG's, read here without the generator.
+        const { payCycle } = require('./functions/roster-members.json');
+        const fp = CONFIG.FIRST_PAYDAY;
+        const iso = `${fp.getFullYear()}-${String(fp.getMonth() + 1).padStart(2, '0')}-${String(fp.getDate()).padStart(2, '0')}`;
+        assert.deepEqual(payCycle, { firstPayday: iso, intervalDays: CONFIG.PAYDAY_INTERVAL_DAYS },
+            'functions/roster-members.json payCycle is not CONFIG\'s — run npm run generate:roster-members');
     });
 
     test('recognises the anchor cutoff and its ±28-day neighbours, rejects adjacent days', () => {
