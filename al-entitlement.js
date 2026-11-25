@@ -71,10 +71,10 @@ import { roleOn } from './roster-roles.js';
 /**
  * A member's WHOLE annual-leave allowance for a year — the one door every surface reads it through
  * (v25.37). The contract figure is `getALEntitlement` (al-contract.js); on top of it goes the day in
- * lieu earned by working a Boxing Day the member was due to work (`boxingDayLieuDays`,
- * christmas-leave.js), which is in the NEXT year's allowance: 2027 holds the day earned on
- * 26 December 2026 (owner, 15 Nov 2026). No entitlement on record stays `null` — a day is not added
- * to nothing, which would make it a number (v22.45).
+ * lieu earned by working a Boxing Day the member was due to work, in whichever year it is SPENT
+ * (`boxingDayLieuYear`, below): the Boxing Day's own year when leave after it that December needs it,
+ * otherwise the next. No entitlement on record stays `null` — a day is not added to nothing, which
+ * would make it a number (v22.45).
  *
  * It is not inside `getALEntitlement` because christmas-leave.js imports al-contract.js, so
  * al-contract.js cannot import it back (christmas-leave.js's header). A second door would be a
@@ -89,7 +89,64 @@ export function entitlementFor(member, year, overrides = []) {
     const y = parseInt(String(year), 10);
     const contract = getALEntitlement(member, y, overrides);
     if (contract === null) return null;
-    return contract + boxingDayLieuDays(member, y, overrides);
+    const { carried, late } = boxingDayLieuSplit(member, y, overrides);
+    return contract + carried + late;
+}
+
+/**
+ * WHICH ALLOWANCE HOLDS THE DAY IN LIEU FOR WORKING BOXING DAY `boxingYear` — that year's, the next
+ * year's, or `null` when none was earned (owner, 25 Nov 2026).
+ *
+ * The roster clerk says the day is valid for a year. It went into the NEXT year's allowance (owner,
+ * 15 Nov 2026), so it could not be taken between Boxing Day and New Year: leave on 31 December came
+ * off a year that might have none left, with the day in lieu sitting in January. So the day can be
+ * taken from 27 December, and it is SPENT WHERE IT IS NEEDED: in its own year when that year has leave
+ * counted from 27 December on (a January day charged back to it included, leave-year.js) and the year's
+ * allowance without it cannot cover the year's leave; otherwise in the next year, to 31 December
+ * (owner: "keep it to 31 December").
+ *
+ * The year's own leave goes FIRST, the day in lieu only on what is left over. Leave a year does not
+ * use is lost at its end and the day in lieu keeps for another twelve months, so that order is the one
+ * that keeps every day a member has. Nothing is asked and nothing is stored: like the Christmas leave
+ * it derives from what is on record (christmas-leave.js, "derived, never stored"), so booking or
+ * removing a day in late December moves the day in lieu between the two years by itself.
+ *
+ * THE COST IS A CHAIN, AND EVERY SURFACE MUST READ IT WHOLE. Whether one year's allowance "cannot cover"
+ * its leave depends on the day in lieu carried into it from the Boxing Day before, which depends on the
+ * year before that. It starts at the first Christmas these rules apply to, so a surface asking about a
+ * year needs the member's records from that first year on — the Calendar's leave panel reads from it.
+ * A Dispatcher's bank-holiday Boxing Day is not in it: their bank-holiday rule counts that day in its
+ * own year (`boxingDayLieuDays` gives nothing for it).
+ * @param {any} member  teamMembers entry
+ * @param {number|string} boxingYear  the Boxing Day's year
+ * @param {Array<any>} [overrides] the member's overrides
+ * @returns {number|null}  the allowance year holding the day
+ */
+export function boxingDayLieuYear(member, boxingYear, overrides = []) {
+    const b = parseInt(String(boxingYear), 10);
+    if (!member || !Number.isFinite(b)) return null;
+    if (!boxingDayLieuDays(member, b + 1, overrides)) return null;   // none earned (every Boxing Day before the rules too)
+    const contract = getALEntitlement(member, b, overrides);
+    if (contract === null) return b + 1;                             // no allowance that year to run past
+    const carried = boxingDayLieuYear(member, b - 1, overrides) === b ? 1 : 0;
+    const counted = countedAlDates({ overrides, member, year: b });
+    const afterIt = [...counted].some(d => d >= `${b}-12-27`);
+    return afterIt && counted.size > contract + carried ? b : b + 1;
+}
+
+/**
+ * The days in lieu for working Boxing Day that `year`'s allowance holds, by where they came from:
+ * `carried`, the Boxing Day before, unless it was spent that December; `late`, this year's own,
+ * spent on leave after it (`boxingDayLieuYear`). Each 0 or 1.
+ * @param {any} member @param {number|string} year @param {Array<any>} [overrides]
+ * @returns {{ carried: number, late: number }}
+ */
+export function boxingDayLieuSplit(member, year, overrides = []) {
+    const y = parseInt(String(year), 10);
+    return {
+        carried: boxingDayLieuYear(member, y - 1, overrides) === y ? 1 : 0,
+        late: boxingDayLieuYear(member, y, overrides) === y ? 1 : 0,
+    };
 }
 
 /**
@@ -98,9 +155,10 @@ export function entitlementFor(member, year, overrides = []) {
  * in lieu (a worked Boxing Day, a Dispatcher's worked bank holiday) answers through the one that
  * grants it, rather than a second copy of either.
  *
- * In EVERY year the day can reach (`allowanceYearsOf`, christmas-leave.js), not just its own: a
- * worked Boxing Day's day in lieu is in the NEXT year's allowance (owner, 15 Nov 2026), so leave over
- * that work leaves its own year where it was and takes the day from the year after.
+ * Across EVERY year the day can reach (`allowanceYearsOf`, christmas-leave.js), not just its own, and
+ * as a TOTAL: a worked Boxing Day's day in lieu sits in its own year or the next (`boxingDayLieuYear`),
+ * so leave over that work takes it from whichever holds it; and leave late in December can move it from
+ * one year to the other, which lowers neither the member's days nor this answer.
  *
  * `written` is the record the save puts there — leave by default; an absence takes the day in lieu
  * back exactly as leave does, because it too replaces the work (`projectAbsenceRange`,
@@ -114,11 +172,13 @@ export function lowersAllowance(member, date, ovByDate, written = { type: 'annua
     const held = ovByDate && typeof ovByDate.values === 'function' ? [...ovByDate.values()].filter(Boolean) : [];
     const leave = { memberName: member.name, date, ...written, createdAt: { seconds: 4102444800 } };
     const withLeave = [...held.filter(o => o.date !== date), leave];
-    return allowanceYearsOf(member, date).some(year => {
-        const before = entitlementFor(member, year, held);
-        const after = entitlementFor(member, year, withLeave);
-        return before !== null && after !== null && after < before;
-    });
+    let before = 0, after = 0;
+    for (const year of allowanceYearsOf(member, date)) {
+        const was = entitlementFor(member, year, held), now = entitlementFor(member, year, withLeave);
+        if (was === null || now === null) continue;
+        before += was; after += now;
+    }
+    return after < before;
 }
 
 /**
@@ -440,7 +500,7 @@ export function leaveYearChoices({ overrides, member, todayStr }) {
  * a colleague's 22 unless it explains itself.
  *
  * @param {{ member: any, year: number|string, overrides: any[] }} args
- * @returns {{ base: number, lieu: number, boxingDay: number, proRated: boolean } | null}
+ * @returns {{ base: number, lieu: number, boxingDay: number, boxingDayYears: number[], proRated: boolean } | null}
  */
 export function dispatcherBreakdown({ member, year, overrides }) {
     const y = parseInt(String(year), 10);
@@ -459,8 +519,9 @@ export function dispatcherBreakdown({ member, year, overrides }) {
     // it is reported on its own and kept out of `lieu`, which the caption calls the days "for bank
     // holidays worked".
     // `base + lieu + boxingDay === entitlement` is what the test pins.
-    const boxingDay = boxingDayLieuDays(member, y, overrides);
-    return { base, lieu: entitlement - base - boxingDay, boxingDay, proRated };
+    const split = boxingDayLieuSplit(member, y, overrides);
+    const boxingDay = split.carried + split.late;
+    return { base, lieu: entitlement - base - boxingDay, boxingDay, boxingDayYears: boxingDayYearsOf(y, split), proRated };
 }
 
 /**
@@ -478,9 +539,9 @@ export function dispatcherBreakdown({ member, year, overrides }) {
  * reason beside it. The joining year said nothing for a CEA or a CES until Nov 2026, while a
  * Dispatcher's said "(pro-rated)": a "20" beside a colleague's 32 read like a mistake.
  *
- * THE LINE NAMES THE BOXING DAY'S YEAR (15 Nov 2026). The day is in the next year's allowance, so the
- * 2027 line is about December 2026. "For working Boxing Day" alone, under 2027, reads as a Boxing
- * Day that has not happened yet.
+ * THE LINE NAMES THE BOXING DAY'S YEAR (15 Nov 2026). The day is usually in the next year's allowance,
+ * so the 2027 line is about December 2026. "For working Boxing Day" alone, under 2027, reads as a Boxing
+ * Day that has not happened yet. One spent in its own year says so (25 Nov 2026, `lateWords`).
  *
  * @param {{ member: any, year: number|string, overrides: any[] }} args
  * @returns {string|null}
@@ -490,16 +551,28 @@ export function entitlementNote({ member, year, overrides }) {
     const split = dispatcherBreakdown({ member, year, overrides });
     if (split) {
         const parts = [`${split.base}${split.proRated ? ' (pro-rated)' : ''}`, `${split.lieu} for bank holidays worked`];
-        if (split.boxingDay) parts.push(`${split.boxingDay} for working Boxing Day ${boxingDayForAllowance(year)}`);
+        for (const by of split.boxingDayYears) parts.push(`1 for working Boxing Day ${by}${lateWords(by, year)}`);
         return parts.join(' + ');
     }
     if (entitlementFor(member, year, overrides) === null) return null;
     const y = parseInt(String(year), 10);
     /** @type {string[]} */ const parts = [];
     if (member.proRatedAL?.[y] !== undefined) parts.push(`Pro-rated for starting part way through ${y}`);
-    const boxing = boxingDayLieuDays(member, year, overrides);
-    if (boxing) parts.push(`${parts.length ? 'includes' : 'Includes'} ${boxing} day in lieu for working Boxing Day ${boxingDayForAllowance(year)}`);
+    for (const by of boxingDayYearsOf(y, boxingDayLieuSplit(member, y, overrides))) {
+        parts.push(`${parts.length ? 'includes' : 'Includes'} 1 day in lieu for working Boxing Day ${by}${lateWords(by, y)}`);
+    }
     return parts.length ? parts.join('; ') : null;
+}
+
+/** The Boxing Days whose day in lieu `year` holds, oldest first. @param {number} year @param {{carried: number, late: number}} split */
+function boxingDayYearsOf(year, split) {
+    return [...(split.carried ? [boxingDayForAllowance(year)] : []), ...(split.late ? [year] : [])];
+}
+
+/** A day in lieu spent in its own year says so: under that year's allowance, "for working Boxing Day 2026" alone
+ *  would read as a day earned for the year after. @param {number} boxingYear @param {number|string} year */
+function lateWords(boxingYear, year) {
+    return boxingYear === Number(year) ? ', taken on leave after it that December' : '';
 }
 
 /**

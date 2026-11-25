@@ -712,13 +712,15 @@ export function buildCalendarContainer(month, year, opts = {}) {
         const fromYear = shift === 'AL' ? carriedFrom(override, dateStr) : null;
         if (fromYear) dayCell.dataset.detailLeaveYear = String(fromYear);
         // Which Christmas day this leave is, for the panel's one-line explanation; and, on a Boxing
-        // Day the member was due to work and DID work, the year a day in lieu is added to — the
-        // NEXT year's (christmas-leave.js → allowanceForBoxingDay, the rule the allowance reads).
+        // Day the member was due to work and DID work, the Boxing Day's year and the year its day in
+        // lieu goes to when that December's leave does not need it (christmas-leave.js →
+        // allowanceForBoxingDay; where it is spent is boxingDayLieuYear, al-entitlement.js).
         if (christmasLeave) dayCell.dataset.detailChristmas = String(currentDate.getDate());
         // A leave RECORD on a Christmas day — not the pattern's leave, and not counted either.
         else if (christmasNotCounted) dayCell.dataset.detailChristmasRecorded = String(currentDate.getDate());
         else if (christmasDue && currentDate.getDate() === 26 && isWorkedDay) {
             dayCell.dataset.detailBoxingLieu = String(allowanceForBoxingDay(member, currentDate.getFullYear()));
+            dayCell.dataset.detailBoxingYear = String(currentDate.getFullYear());
         }
         if (extras)       dayCell.dataset.detailExtras = extras;
         // JSON rather than a re-parse of the sentence above: the panel needs the icons, and

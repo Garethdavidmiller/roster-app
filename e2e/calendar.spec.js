@@ -1,6 +1,6 @@
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
-import { CONFIG, teamMembers, getPatternShift } from '../roster-data.js';
+import { CONFIG, teamMembers, getPatternShift, getBaseShift } from '../roster-data.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedCalendarMember, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse, scaleText } from './helpers.js';
 
 // ── Calendar access ─────────────────────────────────────────────────────────────────────────────
@@ -3072,6 +3072,44 @@ test('day detail: a January leave day moved to last year\'s allowance says so, a
 // panel lists the day and counts the earned one — in 2027, the NEXT year's allowance (owner, 15 Nov
 // 2026: the roster clerk says the day is valid for a year). The signed-in member's pattern has a late
 // turn on both days in 2026; the fixture records that Boxing Day as worked, and nothing else.
+// …AND A DAY TAKEN LATE THAT DECEMBER IS SPENT THERE (owner, 25 Nov 2026). With 2026's allowance used up, leave after
+// Boxing Day takes the day in lieu in 2026, so 2027 does not hold it too. The panel for 2027 can only know that from
+// 2026's whole year of leave, so its read starts at the first Christmas the rules apply to, not last Boxing Day.
+test('christmas: leave after a worked Boxing Day, past the year\'s allowance, spends the day in lieu that December', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    const me = /** @type {any} */ (teamMembers.find(t => t.name === 'G. Miller'));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const timed = (/** @type {Date} */ d) => d.getDay() !== 0 && /^\d\d:\d\d-/.test(String(getBaseShift(me, d)));
+    /** @type {string[]} */ const leave = [];
+    for (let d = new Date(2026, 0, 5); leave.length < 32; d.setDate(d.getDate() + 1)) if (timed(d)) leave.push(iso(d));
+    const late = [28, 29, 30, 31].map(day => new Date(2026, 11, day)).find(timed);
+    expect(late, 'premise: a working day between 28 and 31 December 2026 on G. Miller\'s line').toBeTruthy();
+    leave.push(iso(/** @type {Date} */ (late)));
+    await page.addInitScript((days) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            ...days.map((date, i) => ({ id: 'al' + i, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' })),
+            { id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '', source: 'manual' },
+        ];
+    }, leave);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbYear')).toHaveText('2026');
+    await expect(page.locator('#alLbEntitlement')).toHaveText('33');
+    await expect(page.locator('#alLbRemaining')).toHaveText('0');
+    await expect(page.locator('#alLbBreakdown'))
+        .toHaveText('Entitlement 33: includes 1 day in lieu for working Boxing Day 2026, taken on leave after it that December');
+    await page.locator('#alLbNextYear').click();
+    await expect(page.locator('#alLbYear')).toHaveText('2027');
+    await expect(page.locator('#alLbEntitlement'), 'spent in December 2026, so not in 2027 as well').toHaveText('32');
+    await expect(page.locator('#alLbBreakdown')).toBeHidden();
+    // The read the 2027 panel made reached back to the first Christmas, which is what let it see 2026's leave.
+    const asked = await page.evaluate(() => /** @type {any} */ (window).__E2E.whereCalls.filter((/** @type {any} */ w) => w[0] === 'date' && w[1] === '>=').map((/** @type {any} */ w) => w[2]));
+    expect(asked.at(-1), 'the 2027 panel read from 26 December 2025, not from Boxing Day 2026').toBe('2025-12-26');
+});
+
 test('christmas: a day due at work is leave never counted, and a worked Boxing Day adds a day to the next year', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
@@ -3096,7 +3134,7 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(cell('Saturday 26 December 2026')).toHaveAttribute('data-detail-shift-value', 'RDW');
     await cell('Saturday 26 December 2026').click();
     await expect(line).toBeVisible();
-    await expect(line).toHaveText('Worked Boxing Day when due at work: one day of annual leave in lieu is added to the 2027 allowance.');
+    await expect(line).toHaveText('Worked Boxing Day when due at work: one day of annual leave in lieu, to take from 27 December. If leave later this December runs past the 2026 allowance, it covers that; otherwise it is added to the 2027 allowance.');
     await page.locator('#dayDetailClose').click();
     // An ordinary day says nothing about Christmas — absent means HIDDEN, not an empty line.
     await cell('Thursday 24 December 2026').click();

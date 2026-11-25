@@ -16,13 +16,17 @@
  *      can a Spare turn be recorded or imported on either day (admin-day-pills.js, checkDayRules in
  *      admin-shift-rules.js, normaliseCellValue in roster-cell-rules.js).
  *   2. Never on a Sunday. Sundays are uncontracted, so nobody is due at work on one.
- *   3. Somebody due at work on Boxing Day who WORKS it earns one day of annual leave in lieu, added to
- *      the NEXT year's allowance — counted once for a Dispatcher, whose bank-holiday rule may already
- *      have counted the day. Working Boxing Day from a rest day is overtime, and earns none.
+ *   3. Somebody due at work on Boxing Day who WORKS it earns one day of annual leave in lieu, to take
+ *      from 27 December to the end of the next year — counted once for a Dispatcher, whose
+ *      bank-holiday rule may already have counted the day. Working Boxing Day from a rest day is
+ *      overtime, and earns none.
  *
- * Rule 3's year changed on 15 Nov 2026. It was the Boxing Day's own year until the roster clerk said
- * the day in lieu is valid for a year, every year; the owner chose the next year's allowance, so a
- * Boxing Day worked in 2026 is a day to take at any time in 2027 (`allowanceForBoxingDay`).
+ * Rule 3's year has changed twice. It was the Boxing Day's own year until the roster clerk said the
+ * day in lieu is valid for a year, every year; the owner then chose the next year's allowance (15 Nov
+ * 2026), so a Boxing Day worked in 2026 was a day to take in 2027 — and could not be taken on New
+ * Year's Eve. Since 25 Nov 2026 (owner) it is SPENT WHERE IT IS NEEDED: in its own year when leave
+ * after it that December runs past that year's allowance, otherwise in the next
+ * (`boxingDayLieuYear`, al-entitlement.js, which needs the leave count and so cannot live here).
  *
  * ── DERIVED, NEVER STORED ────────────────────────────────────────────────────────────────────────
  *
@@ -106,10 +110,11 @@ export function isUncountedChristmasLeave(shift, dateStr, christmasLeave) {
 }
 
 /**
- * The allowance a day in lieu for working Boxing Day `year` is added to (rule 3): the NEXT year's
- * (owner, 15 Nov 2026). This is where that is decided. The allowance counts the day through
- * `boxingDayLieuDays`, and the surfaces that word a worked Boxing Day (the Calendar's day panel,
- * Admin's week grid) name the year this returns, so no two can disagree about where the day went.
+ * The allowance a day in lieu for working Boxing Day `year` goes to when leave after it that December
+ * does not need it (rule 3): the NEXT year's (owner, 15 Nov 2026). Where it IS spent, its own year or
+ * this one, is `boxingDayLieuYear` (al-entitlement.js), because that needs the leave count. The surfaces
+ * that word a worked Boxing Day (the Calendar's day panel, Admin's week grid) name both years, so no two
+ * can disagree about where the day goes.
  *
  * Why the next year, not the Boxing Day's own: the roster clerk says the day is valid for a year,
  * every year. Added to the year it was earned in, it could be taken only in the last days of
@@ -143,19 +148,21 @@ export function boxingDayForAllowance(year) {
 }
 
 /**
- * The years whose allowance a record dated `dateStr` can change: its own year, where a Dispatcher's
- * worked bank holiday earns its day, and, for a Boxing Day, the year its day in lieu goes into
- * (`allowanceForBoxingDay`). Admin's save checks each of them for a member it would leave over
- * their allowance (admin-al-projection.js).
- * @param {any} member  teamMembers entry
+ * The years whose allowance a record dated `dateStr` can change. Admin's save checks each of them for
+ * a member it would leave over their allowance (admin-al-projection.js).
+ *
+ * Its own year, where a Dispatcher's worked bank holiday earns its day, AND THE NEXT (25 Nov 2026):
+ * the year's Boxing Day in lieu is spent in that year or the next by how much of that year's leave is
+ * left over (`boxingDayLieuYear`, al-entitlement.js), so any day's leave — not only Boxing Day's work —
+ * can move it from one to the other. A January day adds the year before too, because it can be charged
+ * there (leave-year.js), moving that year's day in lieu the same way.
+ * @param {any} _member  teamMembers entry (the years no longer depend on who; kept for the callers)
  * @param {string} dateStr  ISO `YYYY-MM-DD`
  * @returns {number[]}  ascending
  */
-export function allowanceYearsOf(member, dateStr) {
+export function allowanceYearsOf(_member, dateStr) {
     const y = Number(String(dateStr).slice(0, 4));
-    if (!String(dateStr).endsWith('-12-26')) return [y];
-    const lieu = allowanceForBoxingDay(member, y);
-    return lieu === y ? [y] : [y, lieu];
+    return String(dateStr).slice(5, 7) === '01' ? [y - 1, y, y + 1] : [y, y + 1];
 }
 
 /**

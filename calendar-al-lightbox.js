@@ -26,7 +26,7 @@ import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { formatISO, paydayForCutoff, parseISODate, CONFIG } from './roster-data.js';
 import { countedAlDates, alPosition, entitlementNote } from './al-entitlement.js';
-import { christmasLeaveDates, christmasLeaveLine, boxingDayForAllowance } from './christmas-leave.js';
+import { christmasLeaveDates, christmasLeaveLine, boxingDayForAllowance, CHRISTMAS_LEAVE_FROM_YEAR } from './christmas-leave.js';
 import { carryLine } from './leave-year.js';
 import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './calendar-snapshot.js';
 
@@ -257,13 +257,16 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
         // declared in firestore.indexes.json and deployed by deploy-rules.yml.
         // …TO THE END OF NEXT JANUARY (v25.18): a day there may come out of THIS year's allowance
         // (leave-year.js), and a panel that never read it would show this year a day too generous.
-        // …AND FROM LAST YEAR'S BOXING DAY (15 Nov 2026): working it when due at work adds a day to
-        // THIS year's allowance (christmas-leave.js), so a read that began on 1 January would show
-        // that member a day short all year.
+        // …AND FROM THE FIRST CHRISTMAS THE RULES APPLY TO (25 Nov 2026). A worked Boxing Day's day in
+        // lieu is in this year's allowance unless the leave of the December it was earned in needed it,
+        // and whether that December needed it turns on the day carried in from the Boxing Day before, and
+        // so back to the first (boxingDayLieuYear, al-entitlement.js). From last year's Boxing Day alone,
+        // as it read until then, a day spent that December would still be counted here. Its Boxing Day
+        // week before is read too, for a Spare week over New Year (countedAlDates).
         getDocs(query(
           collection(db, COLLECTIONS.overrides),
           where('memberName', '==', /** @type {any} */ (member).name),
-          where('date', '>=', `${boxingDayForAllowance(year)}-12-26`),
+          where('date', '>=', `${Math.min(boxingDayForAllowance(year), CHRISTMAS_LEAVE_FROM_YEAR - 1)}-12-26`),
           where('date', '<=', `${year + 1}-01-31`)
         )),
         new Promise((_, reject) => { _alTimer = setTimeout(() => reject(new Error('AL load timeout')), 15_000); }),
@@ -479,10 +482,16 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
       // pattern's — so it is not "due at work", only free.
       const kept = name(d.detailChristmasRecorded);
       const lieu = /^\d{4}$/.test(d.detailBoxingLieu || '') ? d.detailBoxingLieu : '';
+      const boxingYear = /^\d{4}$/.test(d.detailBoxingYear || '') ? d.detailBoxingYear : '';
+      // The day can be taken from 27 December (owner, 25 Nov 2026): leave after it that December which the
+      // year's allowance cannot cover uses it, and otherwise it is in the next year's (boxingDayLieuYear,
+      // al-entitlement.js). A Dispatcher's bank-holiday Boxing Day is counted in its own year, as before.
+      const lieuLine = !lieu ? ''
+        : !boxingYear || lieu === boxingYear ? `Worked Boxing Day when due at work: one day of annual leave in lieu is added to the ${lieu} allowance.`
+        : `Worked Boxing Day when due at work: one day of annual leave in lieu, to take from 27 December. If leave later this December runs past the ${boxingYear} allowance, it covers that; otherwise it is added to the ${lieu} allowance.`;
       xmasEl.textContent = day ? `${day}: due at work, so this is annual leave. It does not come off the allowance.`
         : kept ? `${kept}: annual leave recorded here does not come off the allowance.`
-        : lieu ? `Worked Boxing Day when due at work: one day of annual leave in lieu is added to the ${lieu} allowance.`
-        : '';
+        : lieuLine;
       xmasEl.hidden = !(day || kept || lieu);
     }
     // A member whose worked turns all wear ONE kind (`permanentShift`): the cell's badge says that

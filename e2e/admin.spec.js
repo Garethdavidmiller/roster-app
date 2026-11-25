@@ -2785,6 +2785,57 @@ test('admin: Christmas leave is listed with the recorded leave, not counted, wit
     await expect(page.locator('#alBannerBreakdown'), 'the day in lieu is 2027\'s, so 2026 has nothing to explain').toBeHidden();
 });
 
+// THE DAY IN LIEU CAN BE TAKEN FROM 27 DECEMBER (owner, 25 Nov 2026). With the year's allowance used up and Boxing Day
+// worked, leave on a day after it is covered by the day in lieu: no "over allowance" bar, and the 2026 banner says
+// what the extra day is. Through the real booking path, because the rule is only as good as the count Admin asks.
+// Chosen by shape, like XMAS_MEMBER, with a working day between 28 and 31 December 2026 to take as leave.
+const LATE_DEC = [28, 29, 30, 31].map(day => new Date(2026, 11, day));
+const timedOn = (/** @type {any} */ m, /** @type {Date} */ d) => d.getDay() !== 0 && /^\d\d:\d\d-/.test(String(getBaseShift(m, d)));
+const LIEU_MEMBER = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && m.name !== 'G. Miller'
+    && !m.startDate && !m.proRatedAL && m.bilingualContract !== true && !m.roleHistory && !m.rosterChanges
+    && /^\d\d:\d\d-/.test(String(getPatternShift(m, new Date(2026, 11, 26)))) && LATE_DEC.some(d => timedOn(m, d)))?.name;
+
+test('admin: leave after a worked Boxing Day, past the year\'s allowance, takes the day in lieu — not "over"', async ({ page }) => {
+    test.setTimeout(40_000);
+    expect(LIEU_MEMBER, 'premise: a CEA due at work on Boxing Day 2026, working a day from 28 December, on a plain contract').toBeTruthy();
+    const who = /** @type {string} */ (LIEU_MEMBER);
+    const m = /** @type {any} */ (teamMembers.find(t => t.name === who));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const timed = (/** @type {Date} */ d) => timedOn(m, d);
+    /** @type {string[]} */ const leave = [];
+    for (let d = new Date(2026, 0, 5); leave.length < 32; d.setDate(d.getDate() + 1)) if (timed(d)) leave.push(iso(d));
+    const late = LATE_DEC.find(timed);
+    const lateIso = iso(/** @type {Date} */ (late));
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(([name, days]) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            authUser: true,   // the save needs a signed-in account
+            docs: [
+                ...days.map((date, i) => ({ id: 'al' + i, memberName: name, date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' })),
+                { id: 'bx', memberName: name, date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '', source: 'manual' },
+            ],
+        });
+    }, /** @type {[string, string[]]} */ ([who, leave]));
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption(who);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBannerEntitlement')).toHaveText('32');
+    await expect(page.locator('#alBannerTaken'), 'the year\'s 32 days are all taken by 10 December').toHaveText('32');
+    await expect(page.locator('#alRangePicker')).toBeVisible();   // open on December: the clock is 10 December
+    await page.locator(`#alRpGrid .rp-day[data-iso="${lateIso}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${lateIso}"]`).click();
+    await expect(page.locator('#alPreview')).toBeVisible();
+    await expect(page.locator('#alPreview'), 'covered by the day in lieu').not.toContainText('over');
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect(page.locator('#alFeedback'), 'saved without an "over allowance" question').toContainText('Recorded');
+    await expect(page.locator('#alConfirmBar')).not.toHaveClass(/visible/);
+    await expect(page.locator('#alBannerEntitlement')).toHaveText('33');
+    await expect(page.locator('#alBannerBreakdown'))
+        .toHaveText('Includes 1 day in lieu for working Boxing Day 2026, taken on leave after it that December');
+});
+
 // The note under ENTITLEMENT is a 50-character sentence about Boxing Day 2026, and it was `nowrap`: the
 // fourth figure grew as wide as the sentence and the four ran out of the banner, where the card's
 // `overflow: hidden` cut them ("…for working B") — so a TEXT test stayed green on a note nobody could

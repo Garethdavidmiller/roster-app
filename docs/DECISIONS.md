@@ -1125,6 +1125,18 @@ constant.
 
 ## The Boxing Day day in lieu goes into the next year's allowance (owner, 15 Nov 2026)
 
+**Amended (owner, 25 Nov 2026): it can be taken from 27 December.** In the next year's allowance it could
+not be used between Boxing Day and New Year, and the owner wanted to take it on New Year's Eve. So it is
+SPENT WHERE IT IS NEEDED: leave from 27 December that the year's own allowance cannot cover uses it in
+that year, and otherwise it is in the next year's allowance, to 31 December ("keep it to 31 December").
+The year's own leave goes first, because leave a year does not use is lost and the day in lieu keeps.
+Nothing is asked or stored; it follows from the leave on record (`boxingDayLieuYear`, al-entitlement.js).
+Chosen over asking at booking ("use your day in lieu for this?"), which would have needed a new field on
+the leave records, a rules release first, and an answer every time. **What it costs:** a year's figure
+depends on the December before, so booking or removing a late-December day moves the day between the two
+years, and a surface showing a year needs the member's records back to the first Christmas (the
+Calendar's leave panel reads from 26 December 2025). The rest of this entry is the 15 Nov decision.
+
 **Decided (owner, 15 Nov 2026):** the day of annual leave in lieu for working a Boxing Day the member
 was due to work goes into the NEXT year's allowance, to take at any time that year. A Boxing Day
 worked in 2026 is a day in the 2027 allowance. The roster clerk said the day is valid for one year,

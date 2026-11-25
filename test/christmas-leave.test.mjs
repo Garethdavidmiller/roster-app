@@ -31,6 +31,7 @@ import {
 } from '../christmas-leave.js';
 import {
     entitlementFor, alPosition, dispatcherBreakdown, entitlementNote, consumesEntitlement, countedAlDates,
+    boxingDayLieuYear, lowersAllowance,
 } from '../al-entitlement.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
@@ -303,11 +304,13 @@ describe('which allowance a Boxing Day goes into — one rule, asked from either
         assert.equal(boxingDayForAllowance('2030'), 2029);
     });
 
-    test('the years a record can move: its own, and the next one for a Boxing Day', () => {
+    // Any day's leave can move a year's Boxing Day in lieu between that year and the next (25 Nov 2026,
+    // `boxingDayLieuYear`), and a January day can be charged to the year before (leave-year.js).
+    test('the years a record can move: its own and the next, and the year before for a January day', () => {
         assert.deepEqual(allowanceYearsOf(CEA, '2026-12-26'), [2026, 2027]);
-        assert.deepEqual(allowanceYearsOf(CEA, '2026-12-25'), [2026]);
-        assert.deepEqual(allowanceYearsOf(CEA, '2027-01-04'), [2027]);
-        assert.deepEqual(allowanceYearsOf(DISP_2028, '2028-12-26'), [2028]);
+        assert.deepEqual(allowanceYearsOf(CEA, '2026-12-25'), [2026, 2027]);
+        assert.deepEqual(allowanceYearsOf(CEA, '2026-06-10'), [2026, 2027]);
+        assert.deepEqual(allowanceYearsOf(CEA, '2027-01-04'), [2026, 2027, 2028]);
     });
 
     test('the year the day panel and Admin\'s row name is the year whose allowance holds the day — everybody, 2026 to 2029', () => {
@@ -497,5 +500,101 @@ describe('isUncountedChristmasLeave — one rule for every surface that words th
         assert.equal(isUncountedChristmasLeave('AL', '2026-12-24', false), false);
         assert.equal(isUncountedChristmasLeave('06:20-13:45', '2026-12-25', false), false);
         assert.equal(isUncountedChristmasLeave('SICK', '2026-12-26', false), false);
+    });
+});
+
+// ── THE DAY IN LIEU IS SPENT WHERE IT IS NEEDED (owner, 25 Nov 2026) ─────────────────────────────
+// The roster clerk says the day is valid for a year. In the NEXT year's allowance it could not be taken between
+// Boxing Day and New Year: leave on 31 December came off a year that might have none left. So it can be taken from
+// 27 December: leave after it that December which the year's own allowance cannot cover uses it, and otherwise it is
+// in the next year's allowance, to 31 December. The year's own leave goes first — leave a year does not use is lost,
+// and the day in lieu keeps.
+describe('the Boxing Day in lieu — taken from 27 December where the year has run out', () => {
+    /** The CEA's leave: `n` counted days of `year`, all before `before`, as AL records. */
+    function leaveDays(/** @type {any} */ m, /** @type {number} */ year, /** @type {number} */ n, before = '12-26') {
+        /** @type {any[]} */ const out = [];
+        for (let d = new Date(year, 0, 2); formatISO(d) < `${year}-${before}` && out.length < n; d.setDate(d.getDate() + 1)) {
+            const iso = formatISO(d);
+            const trial = [...out, ov(m, iso, 'annual_leave', 'AL')];
+            if (countedAlDates({ overrides: trial, member: m, year }).size > out.length) out.push(trial[trial.length - 1]);
+        }
+        assert.equal(countedAlDates({ overrides: out, member: m, year }).size, n, `could not find ${n} leave days in ${year}`);
+        return out;
+    }
+    /** The first day from 27 December that leave costs. */
+    function lateDay(/** @type {any} */ m, /** @type {number} */ year) {
+        for (let day = 27; day <= 31; day++) {
+            const iso = `${year}-12-${day}`;
+            if (consumesEntitlement(m, iso, new Map([[iso, ov(m, iso, 'annual_leave', 'AL')]]))) return iso;
+        }
+        throw new Error(`no costed day from 27 December ${year}`);
+    }
+    const contract26 = () => getALEntitlement(CEA, 2026, []);
+    const contract27 = () => getALEntitlement(CEA, 2027, []);
+    const worked = () => ov(CEA, '2026-12-26', 'rdw', '06:00-14:00');
+
+    test('the year\'s allowance used up, leave from 27 December takes the day in lieu — and the next year does not get it as well', () => {
+        const recs = [worked(), ...leaveDays(CEA, 2026, contract26()), ov(CEA, lateDay(CEA, 2026), 'annual_leave', 'AL')];
+        assert.equal(boxingDayLieuYear(CEA, 2026, recs), 2026);
+        assert.equal(entitlementFor(CEA, 2026, recs), contract26() + 1);
+        assert.equal(alPosition({ overrides: recs, member: CEA, year: 2026, todayStr: '2026-11-25' }).remaining, 0, 'not over');
+        assert.equal(entitlementFor(CEA, 2027, recs), contract27(), 'spent, so not in 2027');
+        assert.equal(entitlementNote({ member: CEA, year: 2026, overrides: recs }),
+            'Includes 1 day in lieu for working Boxing Day 2026, taken on leave after it that December');
+        assert.equal(entitlementNote({ member: CEA, year: 2027, overrides: recs }), null);
+    });
+
+    test('the year\'s own leave goes first: with a day still left, the day in lieu waits for the next year', () => {
+        const recs = [worked(), ...leaveDays(CEA, 2026, contract26() - 1), ov(CEA, lateDay(CEA, 2026), 'annual_leave', 'AL')];
+        assert.equal(boxingDayLieuYear(CEA, 2026, recs), 2027);
+        assert.equal(entitlementFor(CEA, 2026, recs), contract26());
+        assert.equal(entitlementFor(CEA, 2027, recs), contract27() + 1);
+    });
+
+    test('Boxing Day not worked: nothing to take, and the late day is simply over', () => {
+        const recs = [...leaveDays(CEA, 2026, contract26()), ov(CEA, lateDay(CEA, 2026), 'annual_leave', 'AL')];
+        assert.equal(boxingDayLieuYear(CEA, 2026, recs), null);
+        assert.equal(alPosition({ overrides: recs, member: CEA, year: 2026, todayStr: '2026-11-25' }).remaining, -1);
+    });
+
+    test('only leave AFTER Boxing Day can use it: a year over before then keeps the day for the next year', () => {
+        const recs = [worked(), ...leaveDays(CEA, 2026, contract26() + 1)];
+        assert.equal(boxingDayLieuYear(CEA, 2026, recs), 2027);
+        assert.equal(entitlementFor(CEA, 2026, recs), contract26());
+    });
+
+    test('removing the late day puts the day in lieu back in the next year', () => {
+        const late = ov(CEA, lateDay(CEA, 2026), 'annual_leave', 'AL');
+        const base = [worked(), ...leaveDays(CEA, 2026, contract26())];
+        assert.equal(entitlementFor(CEA, 2027, [...base, late]), contract27());
+        assert.equal(entitlementFor(CEA, 2027, base), contract27() + 1);
+    });
+
+    // Leave late in December MOVES the day between the years; it loses nobody a day. Leave over the work itself does.
+    test('leave from 27 December lowers nothing; leave over the Boxing Day work takes the day back', () => {
+        const recs = [worked(), ...leaveDays(CEA, 2026, contract26())];
+        const byDate = new Map(recs.map(r => [r.date, r]));
+        assert.equal(lowersAllowance(CEA, lateDay(CEA, 2026), byDate), false);
+        assert.equal(lowersAllowance(CEA, '2026-12-26', byDate), true);
+    });
+
+    test('a day carried in from the Boxing Day before counts first: the chain, 2028 into 2029', () => {
+        const due = ACTIVE.find(m => m.role === 'CEA' && !m.startDate && !m.proRatedAL
+            && patternDue(m, BOXING_2028) && patternDue(m, new Date(2029, 11, 26)));
+        assert.ok(due, 'needs a CEA due at work on Boxing Day 2028 and 2029');
+        const c29 = getALEntitlement(due, 2029, []);
+        const work = [ov(due, '2028-12-26', 'rdw', '06:00-14:00'), ov(due, '2029-12-26', 'rdw', '06:00-14:00')];
+        const late = ov(due, lateDay(due, 2029), 'annual_leave', 'AL');
+        // 2029 holds 2028's day; its leave using exactly that much leaves 2029's own day for 2030.
+        const fits = [...work, ...leaveDays(due, 2029, c29), late];
+        assert.equal(boxingDayLieuYear(due, 2028, fits), 2029);
+        assert.equal(boxingDayLieuYear(due, 2029, fits), 2030);
+        assert.equal(entitlementFor(due, 2029, fits), c29 + 1);
+        // One more day, and 2029's own is needed too.
+        const over = [...work, ...leaveDays(due, 2029, c29 + 1), late];
+        assert.equal(boxingDayLieuYear(due, 2029, over), 2029);
+        assert.equal(entitlementFor(due, 2029, over), c29 + 2);
+        assert.equal(entitlementNote({ member: due, year: 2029, overrides: over }),
+            'Includes 1 day in lieu for working Boxing Day 2028; includes 1 day in lieu for working Boxing Day 2029, taken on leave after it that December');
     });
 });
