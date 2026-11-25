@@ -20,7 +20,9 @@ Assessment / Team Day still show the base shift time — they run DURING your sh
 **No Other day on 25 or 26 December**, any flavour, times or not (Gareth: Boxing Day Jul 2026;
 "There cannot be training or meeting on December 25th or 26th", 21 Nov 2026). The week grid turns
 the Other pill off on both days, its Save refuses one (`checkDayRules`), and the roster import holds
-one for review without writing it (`christmas-other`).
+one for review without writing it (`christmas-other`). One saved there before is not drawn
+(`isOverrideDisplaySuppressed`), earns no Boxing Day day in lieu, and is priced as the day underneath
+(owner, 25 Nov 2026); Admin's week grid says it is there and how to remove it.
 
 | Decision | Answer |
 |---|---|

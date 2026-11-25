@@ -268,7 +268,9 @@ export function getRosterSuggestion(p, member) {
     const _otherParsed = ov && ov.type === 'other' ? parseOtherValue(ov.value) : null;
     let _otherFromOv = null;   // null = not an Other day; boolean = fromOv override below
     if (_otherParsed) {
-      if (cur.getDay() === 0) {
+      // …and Christmas Day and Boxing Day, which cannot be Other days either (owner, 25 Nov 2026): the Calendar draws a
+      // legacy one as the day underneath (Christmas leave, or the rest day), so it is priced as that, never as worked.
+      if (cur.getDay() === 0 || (cur.getMonth() === 11 && (cur.getDate() === 25 || cur.getDate() === 26))) {
         // A Sunday Other-family day cannot exist (blocked at every write layer). A legacy/out-of-band doc
         // falls back to the BASE shift — matching the display layers, which suppress the override
         // and show the base. (Skipping the whole day would silently DROP a worked base Sunday's
@@ -277,17 +279,12 @@ export function getRosterSuggestion(p, member) {
       } else {
         const _pay = resolveOtherPay(_otherParsed, baseValue);
         if (_pay.mode === 'rdw') {
-          // Route the rest-day-worked minutes by the DAY, mirroring a plain rdw override:
-          // Boxing Day (26 Dec) is ALWAYS 3× (confirmed payroll rule — the box bucket), a bank
-          // holiday pays as BH overtime ("Bank Holiday Overtime 1.25"), anything else is RDW.
+          // Route the rest-day-worked minutes by the DAY, mirroring a plain rdw override: a bank
+          // holiday pays as BH overtime ("Bank Holiday Overtime 1.25"), anything else is RDW. (Boxing
+          // Day never reaches here: an Other day there is priced as the day underneath, above.)
           const _mins     = _pay.mins;
           const _labelTxt = _otherParsed.time ?? `${OTHER_RDW_DEFAULT_MINS / 60}h default — adjust to actual`;
-          const _isBoxingT = cur.getMonth() === 11 && cur.getDate() === 26;
-          if (_isBoxingT) {
-            boxMins += _mins; boxCount++; boxFromOv = true; // always from the override (mirrors bhOt/rdwFromOv)
-            if (!_otherParsed.time) defaulted8h.box = true;
-            days.push({ date: new Date(cur), shift: _labelTxt, type: 'box', source: 'override' });
-          } else if (_isDateBH(cur)) {
+          if (_isDateBH(cur)) {
             bhOtMins += _mins; bhOtCount++;
             if (!_otherParsed.time) defaulted8h.bhOt = true;
             days.push({ date: new Date(cur), shift: _labelTxt, type: 'bhOt', source: 'override' });

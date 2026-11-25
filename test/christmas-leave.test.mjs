@@ -198,9 +198,18 @@ describe('the day in lieu — earned by working a Boxing Day you were due to wor
         assert.equal(entitlementFor(CEA, 2026, worked()), getALEntitlement(CEA, 2026, []));
     });
 
-    test('a plain shift or an Other day is worked too — the type does not matter, the work does', () => {
+    test('a plain shift is worked too — the type does not matter, the work does', () => {
         assert.equal(boxingDayLieuDays(CEA, 2027, [ov(CEA, '2026-12-26', 'shift', '06:20-14:20')]), 1);
-        assert.equal(boxingDayLieuDays(CEA, 2027, [ov(CEA, '2026-12-26', 'other', 'TRG')]), 1);
+    });
+
+    // …BUT A RECORD THE CALENDAR DOES NOT DRAW EARNS NOTHING (owner, 25 Nov 2026). Boxing Day cannot be an Other day, so
+    // one saved before Save refused it is drawn as Christmas leave (`isOverrideDisplaySuppressed`); it earned the day in
+    // lieu all the same, so the member saw leave and was given a day for working.
+    test('an Other day saved on Boxing Day before it was refused is not drawn, so it earns no day', () => {
+        for (const value of ['TRG', 'TRG RDW', 'MEET 06:00-14:00']) {
+            assert.equal(boxingDayLieuDays(CEA, 2027, [ov(CEA, '2026-12-26', 'other', value)]), 0, value);
+        }
+        assert.equal(entitlementFor(CEA, 2027, [ov(CEA, '2026-12-26', 'other', 'TRG RDW')]), getALEntitlement(CEA, 2027, []));
     });
 
     test('not worked, or leave, absence or rest recorded instead: no day', () => {
@@ -466,10 +475,12 @@ describe('a day shown wrongly — what each surface draws', () => {
     test('the worked-day test the day panel and Admin\'s note use is the allowance\'s own', () => {
         // The renderer marks a day in lieu from the EFFECTIVE shift; the allowance counts from the
         // winning document's value. They must agree on every type that can be recorded there.
-        for (const [type, value] of [['rdw', '06:00-14:00'], ['shift', '06:20-14:20'], ['other', 'TRG'],
+        // `true` for 26 December, as every surface passes `isChristmasOrBoxingDay` (25 Nov 2026): left out, the drawn
+        // day kept a legacy Other day the Calendar hides, and this test could not see the two disagree.
+        for (const [type, value] of [['rdw', '06:00-14:00'], ['shift', '06:20-14:20'], ['other', 'TRG'], ['other', 'TRG RDW'],
             ['annual_leave', 'AL'], ['sick', 'SICK'], ['correction', 'RD'], ['spare_shift', 'SPARE']]) {
             const o = ov(CEA, '2026-12-26', type, value);
-            assert.equal(isWorkedShift(resolveDayShift(o, 'RD', false, true).shift) ? 1 : 0,
+            assert.equal(isWorkedShift(resolveDayShift(o, 'RD', false, true, true).shift) ? 1 : 0,
                 boxingDayLieuDays(CEA, 2027, [o]), type);
         }
     });
