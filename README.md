@@ -184,6 +184,15 @@ behind them.
   issue thread, and one that has cleared by then is only noted on the run. The hourly
   `production-currency.yml` asks a different question — whether the served version matches `main` —
   which a stuck splash answers "yes" to.
+- **`npm run test:mutation`** — `scripts/mutation-sweep.mjs`: every entry in
+  `scripts/mutation-manifest.mjs` (a WIRING line on a path that moves money, decides access or names
+  a person) broken in turn through `scripts/mutate.mjs`, with the narrowest Node suite that should
+  notice run before and after. It fails when a mutant SURVIVES — a line no test would notice
+  breaking — or gives no verdict. Weekly and non-blocking in `mutation.yml`, because a full run takes
+  minutes and a survivor is a test to write, not a release to hold. It needs `npm ci` and `npm ci
+  --prefix functions` and nothing else; a line only a browser can see is the browser lanes' work and is
+  not listed. A STALE entry (its line edited away) does not wait for the schedule: `npm test` runs the
+  sweep's `--check-only` (`mutation-sweep-script.test.mjs`), so re-aim the entry in the same commit.
 - **`npm run test:offline`** — `e2e/offline.spec.js` under `playwright.offline.mjs`: the service
   worker's offline-first paths with the network cut. Not in `npm test` or any gate; it runs weekly,
   non-blocking, in `offline.yml`.

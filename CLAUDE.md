@@ -300,6 +300,7 @@ npm run test:visual:webkit  # a small Safari-engine visual set — report-only
 npm run test:webkit         # the smoke suite under WebKit — branch CI; the deploy gate runs every-page.spec.js
 npm run test:live           # the DEPLOYMENT HEALTH CHECK against the real site, both origins; gates nothing
 npm run test:offline        # SW/offline paths with the network cut — weekly, non-blocking (offline.yml)
+npm run test:mutation       # breaks each wiring line in scripts/mutation-manifest.mjs; red on a survivor — weekly, non-blocking (mutation.yml)
 npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; both halves gate Hosting
 ```
 **Five traps, each in full in README.md → "The test lanes", beside its lane:** read the `visual

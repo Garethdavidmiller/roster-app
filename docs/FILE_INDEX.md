@@ -553,6 +553,7 @@ roster-app/
 │   ├── doc-parity.test.mjs ← the documentation is CHECKED: routing, wiring, symbols, counts, and this tree's caps. Part of test:hygiene
 │   ├── module-coverage-parity.test.mjs ← **is there a module nobody thought about at all?** Part of test:hygiene
 │   ├── mutate-script.test.mjs ← `scripts/mutate.mjs`, run. Part of test:hygiene
+│   ├── mutation-sweep-script.test.mjs ← `scripts/mutation-sweep.mjs`, run on scratch manifests, and the real manifest's `--check-only`: a stale entry fails here. Part of test:hygiene
 │   ├── run-tests-script.test.mjs ← `scripts/run-tests.mjs`, run on scratch suites. Part of test:hygiene
 │   ├── bump-version-script.test.mjs ← `scripts/bump-version.mjs`, run on a scratch copy. Part of test:hygiene
 │   ├── refresh-visual-script.test.mjs ← `scripts/refresh-visual-baselines.mjs`, run in a scratch repository. Part of test:hygiene
@@ -695,6 +696,8 @@ roster-app/
 │   ├── make-leave-file.mjs       ← STAGE 1 of the leave uploader, run in a session on the clerks' workbook (AL_UPLOADER_PLAN.md). Never run on a real workbook in CI
 │   ├── xlsx-read.mjs             ← just enough .xlsx reading for that script; the workbook is untrusted
 │   ├── mutate.mjs                ← break ONE line on purpose, run a command, put the file back — the tool CLAUDE.md requires before claiming a guard. Its header
+│   ├── mutation-sweep.mjs        ← `npm run test:mutation`: every manifest entry through mutate.mjs, one table; fails on a survivor or a stale entry. Weekly in `mutation.yml`. Its header
+│   ├── mutation-manifest.mjs     ← the WIRING lines that sweep breaks — money, access, naming — each with its narrowest test and what it would break. Its header
 │   ├── refresh-visual-baselines.mjs ← `npm run test:visual:refresh` — updates only the failed visual baselines, or copies CI's render from the artifact. Its header
 │   └── typecheck.mjs             ← `npm run typecheck`; with no local compiler it REFUSES rather than run an unpinned `npx tsc`
 ├── jsconfig.json               ← TypeScript config for `// @ts-check`; its `exclude` list is pinned by `typecheck-scope.test.mjs`
