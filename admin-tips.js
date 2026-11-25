@@ -65,9 +65,10 @@ export const CARD_TIPS = {
                 { icon: '🗓️', html: 'Leave in <strong>January</strong> comes out of that year’s allowance. When some is booked, a <strong>Which year’s allowance</strong> panel appears under the Record button, and a day can come out of the year before instead, while that year still has days left.' },
                 // christmas-leave.js: both days are skipped by the range (admin-al.js names them in the preview), a member
                 // due at work there is shown on leave at no cost from 2026, a Spare week's are rest days, and a worked
-                // Boxing Day earns a day in lieu in the NEXT year's allowance, which leave over that day takes back.
+                // Boxing Day earns a day in lieu, taken from 27 December where that December needs it and otherwise in the
+                // NEXT year's allowance (owner, 25 Nov 2026; boxingDayLieuYear, al-entitlement.js); leave over that day takes it back.
                 { icon: '🎄', html: '<strong>Christmas Day</strong> and <strong>Boxing Day</strong> are skipped: the station is closed. From 2026, somebody whose pattern has them at work on either day is shown on leave there automatically, and it costs nothing. In a Spare week both are rest days.' },
-                { icon: '➕', html: 'Working <strong>Boxing Day</strong> when the pattern had them at work earns one day of leave in lieu, added to the <strong>next</strong> year’s allowance. Leave booked over that worked day takes the day back.' },
+                { icon: '➕', html: 'Working <strong>Boxing Day</strong> when the pattern had them at work earns one day of leave in lieu. It can be taken from <strong>27 December</strong>: leave later that December that the year’s allowance cannot cover uses it, and otherwise it is added to the <strong>next</strong> year’s allowance. Leave booked over that worked day takes the day back.' },
             ]},
         ],
     },

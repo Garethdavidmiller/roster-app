@@ -102,6 +102,15 @@ export function resetStagedRows() {
     });
 }
 
+/** The week grid's line on a Boxing Day worked when due at work: where its day in lieu goes (owner, 25 Nov 2026 — it
+ *  can be taken from 27 December, and is spent where it is needed: boxingDayLieuYear, al-entitlement.js). A Dispatcher's
+ *  bank-holiday Boxing Day is counted in its own year. @param {number} lieuYear @param {number} boxingYear */
+function boxingLieuNote(lieuYear, boxingYear) {
+    return lieuYear === boxingYear
+        ? `Boxing Day worked when due at work: one day of annual leave in lieu is added to the ${lieuYear} allowance`
+        : `Boxing Day worked when due at work: one day of annual leave in lieu, from 27 December — it covers leave this December past the ${boxingYear} allowance, otherwise it is added to ${lieuYear}`;
+}
+
 /** Returns a new Date set to the Sunday of the week containing dateStr. @param {string} dateStr */
 function getSundayOfWeek(dateStr) {
     const d = parseISODate(dateStr);
@@ -231,7 +240,7 @@ export function buildWeekGridInto(container, dateStr) {
             : xmasShows === 'AL'
                 ? `${xmasDay}: due at work, so on annual leave that is never counted — nothing to record`
             : date.getDate() === 26 && isWorkedShift(xmasShows)
-                ? `Boxing Day worked when due at work: one day of annual leave in lieu is added to the ${allowanceForBoxingDay(member, date.getFullYear())} allowance`
+                ? boxingLieuNote(allowanceForBoxingDay(member, date.getFullYear()), date.getFullYear())
             : '';
 
         const row = document.createElement('div');

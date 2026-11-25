@@ -965,7 +965,7 @@ describe('the grade at the time decides a year\'s allowance', () => {
         assert.equal(dispatcherBreakdown({ member: moved, year: 2026, overrides: [] }), null);
         assert.ok(dispatcherBreakdown({ member: moved, year: 2025, overrides: [] }), 'a Dispatcher year splits');
         assert.deepEqual(dispatcherBreakdown({ member: joined, year: 2026, overrides: [] }),
-            { base: 22, lieu: 2, boxingDay: 0, proRated: false });
+            { base: 22, lieu: 2, boxingDay: 0, boxingDayYears: [], proRated: false });
     });
 
     test('a Boxing Day is counted ONCE across a change of grade', () => {

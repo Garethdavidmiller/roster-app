@@ -296,8 +296,8 @@ export function rangeSundayCorrections({ dates, memberObj, ovByDate = null }) {
 
 /**
  * What an ABSENCE range does to the leave ALLOWANCE (review of v26.22). An absence spends no leave,
- * but written over a day whose WORK earned a day in lieu — a worked Boxing Day (whose day goes into
- * the NEXT year's allowance), a Dispatcher's worked bank holiday — it takes that day back, exactly as
+ * but written over a day whose WORK earned a day in lieu — a worked Boxing Day (whose day is spent in
+ * that December or the next year, `boxingDayLieuYear`), a Dispatcher's worked bank holiday — it takes that day back, exactly as
  * leave over it does: the day is no longer worked. The Absence card checked nothing, so the allowance
  * fell without a word, while the week grid already asked (`planAlWeekSave`'s no-leave path).
  *

@@ -358,8 +358,9 @@ The field reference — every field, `rosterChanges`, the cycles and the fixed p
   edits everyone on that line.**
 
 **AL entitlement** — read the whole allowance through `entitlementFor` in `al-entitlement.js`, never
-`getALEntitlement` (`al-contract.js`) directly: it adds a worked Boxing Day's day in lieu to the NEXT
-year's allowance, and `christmas-leave.test.mjs` fails on any other caller. `proRatedAL[year]` takes
+`getALEntitlement` (`al-contract.js`) directly: it adds a worked Boxing Day's day in lieu where it is
+spent — that December when leave after it needs it, else the NEXT year (`boxingDayLieuYear`) — and
+`christmas-leave.test.mjs` fails on any other caller. `proRatedAL[year]` takes
 priority for every role **except Dispatcher**, where it scales the BASE only and the lieu days are still
 added on top (owner decision): the 22 is an allowance a part-year deserves part of, a lieu day is owed
 because a specific day was worked.

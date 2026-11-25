@@ -430,10 +430,28 @@ export const MUTATIONS = [
     {
         id: 'entitlement-null-stays-null',
         file: 'al-entitlement.js',
-        find: '    if (contract === null) return null;\n    return contract + boxingDayLieuDays',
-        replace: '    return contract + boxingDayLieuDays',
+        find: '    if (contract === null) return null;\n    const { carried, late } = boxingDayLieuSplit',
+        replace: '    const { carried, late } = boxingDayLieuSplit',
         test: plain('al-entitlement.test.mjs'),
         breaks: 'a year with no allowance on record shows a confident figure — the lieu days, or 0',
+    },
+    // THE BOXING DAY IN LIEU IS SPENT WHERE IT IS NEEDED (owner, 25 Nov 2026): leave from 27 December that the year
+    // cannot cover uses it that year, otherwise it is in the next.
+    {
+        id: 'boxing-lieu-taken-late',
+        file: 'al-entitlement.js',
+        find: '    return afterIt && counted.size > contract + carried ? b : b + 1;',
+        replace: '    return b + 1;',
+        test: plain('christmas-leave.test.mjs'),
+        breaks: 'leave on New Year\'s Eve after a worked Boxing Day reads as over allowance, the day in lieu stuck in the next year',
+    },
+    {
+        id: 'boxing-lieu-own-leave-first',
+        file: 'al-entitlement.js',
+        find: '    return afterIt && counted.size > contract + carried ? b : b + 1;',
+        replace: '    return afterIt ? b : b + 1;',
+        test: plain('christmas-leave.test.mjs'),
+        breaks: 'a late-December day with the year\'s own leave still left spends the day in lieu, which keeps, instead',
     },
     {
         id: 'al-position-null-balance',

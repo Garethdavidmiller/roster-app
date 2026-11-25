@@ -197,7 +197,7 @@ page after a release took over a second to be usable (`LATENCY.md` → THE NOVEM
 
 - **A Dispatcher's day in lieu for a Boxing Day that is also a bank holiday** (next on 26 December
   2028). Every other worked Boxing Day's day in lieu now goes into the next year's allowance (owner,
-  15 Nov 2026). Does this one? Until answered, the Dispatcher bank-holiday rule keeps it in that
+  15 Nov 2026), or its own year when leave after it that December needs it (25 Nov 2026). Does this one? Until answered, the Dispatcher bank-holiday rule keeps it in that
   year. DECISIONS.md → "The Boxing Day day in lieu goes into the next year's allowance".
 - **When the Railcard guide's boxes may drop their history lines.** DECISIONS.md → "Pay's
   first-visit Settings, and the Railcard's corrections".
