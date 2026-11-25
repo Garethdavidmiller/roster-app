@@ -246,7 +246,7 @@ export function getRosterSuggestion(p, member) {
 
     // Training / Induction / Assessment (OTHER_DAYS.md) — the ONLY override that means
     // "fall back to the day underneath" (every other override REPLACES the base). The pay
-    // mapping lives in ONE place: resolveOtherPay (override-utils.js).
+    // mapping lives in ONE place: resolveOtherPay (other-day.js, re-exported by override-utils.js).
     //   rdw     → an Other-family rest-day: credit the RDW bucket (actual times, or the 8h
     //             default the member adjusts) and move on — never split into overtime.
     //   timed   → actual times on a rostered day: classify like a shift override, so the

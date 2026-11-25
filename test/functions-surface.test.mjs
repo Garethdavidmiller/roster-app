@@ -169,3 +169,61 @@ test('every handler that reaches setupWebPush declares the VAPID_PRIVATE_KEY sec
             `${name} can send a push but does not declare secrets: [VAPID_PRIVATE_KEY] — in production the key reads as '' and every push it sends fails inside a best-effort catch`);
     }
 });
+
+// ── EVERY NAME THE BROWSER CALLS IS A NAME THAT IS DEPLOYED (25 Nov 2026) ───────────────────────
+//
+// The browser reaches a function by NAME, through `functionUrl(name)` (function-url.js) — the one
+// address that was hand-written nine times. A function renamed or dropped on the server leaves the
+// client calling an address that 404s, and nothing else fails until somebody presses that button. So
+// every name is found statically: each `functionUrl('…')` literal in the app's own modules, and, for
+// overtime-data.js — whose one `post(name, …)` wrapper passes a variable on — each `post('…')` literal.
+// A non-literal call anywhere else fails, because a name this scan cannot see is a name it cannot check.
+// Checked against DEPLOY_SURFACE, not the paused list: Overtime's client is kept for the day it returns.
+test('function-url-parity: every function the browser calls by name is in the deploy surface', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const strip = (/** @type {string} */ s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    /** @type {Map<string, string[]>} name → the files that call it */
+    const called = new Map();
+    const note = (/** @type {string} */ name, /** @type {string} */ file) => called.set(name, [...(called.get(name) || []), file]);
+    const appModules = readdirSync(new URL('./', REPO_ROOT_URL)).filter(f => f.endsWith('.js') && f !== 'function-url.js');
+    for (const f of appModules) {
+        const src = strip(readFileSync(new URL(`./${f}`, REPO_ROOT_URL), 'utf8'));
+        for (const m of src.matchAll(/(?<![\w.$])functionUrl\(\s*([^)]*?)\s*\)/g)) {
+            const lit = m[1].match(/^'(\w+)'$/);
+            if (lit) { note(lit[1], f); continue; }
+            assert.ok(f === 'overtime-data.js' && m[1] === 'name',
+                `${f} calls functionUrl(${m[1]}) — pass the function's name as a string literal, so this test can check it is deployed`);
+        }
+        if (f === 'overtime-data.js') {
+            for (const m of src.matchAll(/(?<![\w.$])post\(\s*'(\w+)'/g)) note(m[1], f);
+        }
+    }
+    // The scan must be seeing the calls, or it checks nothing: every caller function-url.js's header names.
+    const files = new Set([...called.values()].flat());
+    for (const f of ['account-calls.js', 'admin-auth.js', 'document-url.js', 'firebase-client.js',
+        'operations-app.js', 'operations-doc-links.js', 'overtime-data.js']) {
+        assert.ok(files.has(f), `no function name found in ${f} — the scan has gone blind there`);
+    }
+    const unknown = [...called].filter(([name]) => !DEPLOY_SURFACE.includes(name))
+        .map(([name, by]) => `${name} (called by ${[...new Set(by)].join(', ')})`);
+    assert.deepEqual(unknown, [], `the browser calls functions that are not deployed:\n  ${unknown.join('\n  ')}`);
+});
+
+test('function-url-parity: the address is written once, and names the region the functions deploy to', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    // Every app module, comments included — a second copy anywhere is the drift this module exists to end.
+    const copies = readdirSync(new URL('./', REPO_ROOT_URL))
+        .filter(f => f.endsWith('.js') && f !== 'function-url.js')
+        .filter(f => readFileSync(new URL(`./${f}`, REPO_ROOT_URL), 'utf8').includes('.cloudfunctions.net'));
+    assert.deepEqual(copies, [], 'a Cloud Functions address is hand-written outside function-url.js — use functionUrl(name)');
+
+    const { REGION } = require('./functions/region.js');
+    const { FUNCTIONS_BASE } = await import(new URL('./function-url.js', REPO_ROOT_URL).href);
+    assert.equal(FUNCTIONS_BASE, `https://${REGION}-myb-roster.cloudfunctions.net`,
+        'function-url.js and functions/region.js name different regions — the browser would call where nothing is deployed');
+    // And every function is deployed there — read from the deploy metadata `firebase deploy` reads.
+    const index = indexWith(true);
+    for (const name of DEPLOY_SURFACE) {
+        assert.deepEqual(index[name].__endpoint.region, [REGION], `${name} is not deployed to REGION`);
+    }
+});

@@ -124,16 +124,16 @@ test('the firestore.rules sweep line is not older than any version the file cite
 });
 
 // ── 2. The "Other" day-family flavour grammar ───────────────────────────────────────────────────
-// OTHER_FLAVOURS in override-utils.js is the documented single source (`_OTHER_RE` there is built
+// OTHER_FLAVOURS in other-day.js is the documented single source (`_OTHER_RE` there is built
 // from it; OTHER_DAYS.md → Phase B, step 1), and the CLIENT already derives its own accept-set from it (v18.91). But the
 // rules restate the alternation as a literal. A seventh flavour would therefore compose fine on the
 // client and be REJECTED by the rules — a failed save with a permission error, which reads like a
 // claim problem rather than a grammar one. Not hypothetical: this family gained Union at v18.56 and
 // Meeting at v18.61, so it changes roughly every other month.
 test('the Other-family flavours in firestore.rules match OTHER_FLAVOURS exactly', () => {
-    const src = read('override-utils.js');
+    const src = read('other-day.js');
     const of = src.match(/export const OTHER_FLAVOURS = \{([\s\S]*?)\n\};/);
-    assert.ok(of, 'OTHER_FLAVOURS not found in override-utils.js — has it been renamed?');
+    assert.ok(of, 'OTHER_FLAVOURS not found in other-day.js — has it been renamed or moved?');
     // Keys are the sentinels: TRG, IND, ASSESS, … (uppercase, at the start of a line).
     const clientFlavours = [...of[1].matchAll(/^\s{4}([A-Z]+):/gm)].map(x => x[1]).sort();
     assert.ok(clientFlavours.length >= 6, `expected the Other flavours, found ${clientFlavours.join(',')}`);

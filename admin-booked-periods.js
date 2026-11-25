@@ -42,28 +42,18 @@
  * direction. `pickBookedYear` may therefore only ever return a year that is IN the list it was
  * handed, or null when the list is empty.
  *
- * ── THE TWO CONTROLS A DELETING LIST NEEDS, SHARED ──────────────────────────────────────────────
+ * ── THE TWO CONTROLS A DELETING LIST NEEDS live in two-tap.js and feedback-line.js (25 Nov 2026) ──
  *
- * The two-tap ✕ (`armConfirm` / `disarmConfirm`) and the feedback line's fade (`fadeFeedback` /
- * `holdFeedback`) are exported because Saved Changes deletes the same records another way, and the
- * range cards write the same feedback line this list's deletes report on. There was a second copy
- * of the two-tap in Saved Changes, and only that copy had been fixed: this one left its five-second
- * disarm timer running, so it could disarm a re-armed ✕ early or put "✕" back over a slow delete's
- * "…" (whole-app check, 10 Nov 2026). One copy cannot drift.
- *
- * A DOUBLE TAP IS ONE GESTURE, NOT A QUESTION ANSWERED (confirm review, Nov 2026). The second tap of a
- * double tap met an armed control and deleted at once, so the two-tap asked nothing of the hand that
- * double-tapped — and iOS teaches double taps by swallowing a first tap with the keypad up. The Pay
- * Calculator's Clear had already learned this (`CLEAR_CONFIRM_MIN_MS`, paycalc-app.js); here the
- * minimum lives in the one way to arm a control, `twoTap`, so no caller can arm without it.
- * `armConfirm` is deliberately NOT exported: a caller that armed it directly and tested `confirming`
- * itself would be the copy that forgot. Operations' email Remove uses it too.
+ * The two-tap ✕ (`twoTap` / `disarmConfirm`) and the feedback line's fade (`fadeFeedback` /
+ * `holdFeedback`) are shared with Saved Changes, the range cards and Operations, so they are modules
+ * of their own rather than exports of this list; their headers carry the reasoning that came with them.
  */
 
 import { carriedFrom } from './leave-year.js';
 import { computePeriodDeleteIds, withOutrankedManualCopies } from './override-utils.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
 import { namedDays } from './admin-period-dates.js';
+import { twoTap, disarmConfirm } from './two-tap.js';
 
 /**
  * What a row's ✕ deletes, and the line that then says so (review, Nov 2026). The records are
@@ -112,114 +102,6 @@ export function periodDelete({ overrides, type, memberName, start, end, isRestGa
         + (older.length ? `, and ${older.length === 1 ? 'an earlier entry' : `${older.length} earlier entries`} for ${namedDays(olderOn)}` : '')
         + (sundays.length ? `. ${namedDays(sundays)}, set as ${one ? 'a rest day' : 'rest days'} for this `
             + `${type === 'annual_leave' ? 'leave' : 'absence'}, ${one ? 'is' : 'are'} back on the roster.` : '') };
-}
-
-/**
- * Arm a two-tap destructive control: its label, class and accessible name change together. A
- * DESTRUCTIVE TWO-STEP CONTROL MUST SAY ITS MEANING CHANGED (v23.16, external review), so the name
- * becomes "Confirm …"; the idle name is kept on the element, so any exit — the timer, a failure,
- * success — can restore it, and a re-arm while armed never reads "Confirm confirm …". It disarms
- * itself after five seconds — but never while it is `disabled`, which is how both delete paths mark
- * a delete in flight.
- *
- * The countdown is ONE per control, so a re-arm gets its own five seconds, and it lives ON the
- * control as `armTimer`, where the Saved Changes copy kept it: e2e/axe.spec.js clears it to hold
- * a confirm open for the length of its scan.
- * @param {HTMLElement} btn
- * @param {string} armedText what the armed control SHOWS
- * @param {string} idleText what it shows again once disarmed
- * @param {string} [armedName] the armed accessible name, where "Confirm " + the idle one would not
- *   contain what the control shows — the bulk button's count, said by a voice user as "Delete 3"
- *   (WCAG 2.5.3; 6 Nov 2026)
- */
-function armConfirm(btn, armedText, idleText, armedName) {
-    /** @type {any} */ (btn).armedAt = performance.now();
-    btn.classList.add('confirming');
-    btn.textContent = armedText;
-    const idle = btn.dataset.idleLabel || btn.getAttribute('aria-label');
-    if (idle) {
-        btn.dataset.idleLabel = idle;
-        btn.setAttribute('aria-label', armedName ?? `Confirm ${idle.charAt(0).toLowerCase()}${idle.slice(1)}`);
-    }
-    const b = /** @type {any} */ (btn);
-    clearTimeout(b.armTimer);
-    b.armTimer = setTimeout(() => {
-        if (btn.classList.contains('confirming') && !b.disabled) disarmConfirm(btn, idleText);
-    }, 5000);
-}
-
-/** A confirming tap sooner than this after arming is the SAME gesture — a double tap — never a
- *  question read and answered. The figure is the Pay Calculator's `CLEAR_CONFIRM_MIN_MS`, for the
- *  same reason (header). Measured on `performance.now()`, not `Date.now()`: it is monotonic, so a
- *  clock correction between the taps cannot shorten or stretch it, and the end-to-end suites pin
- *  `Date` with `page.clock.setFixedTime`, under which a `Date` gap never grows and no delete could
- *  ever be confirmed. */
-export const TWO_TAP_MIN_MS = 500;
-
-/**
- * One tap of a two-tap destructive control, and whether it CONFIRMS. An idle control is armed and the
- * tap confirms nothing; an armed one confirms only once `TWO_TAP_MIN_MS` has passed since it was
- * armed, so the second tap of a double tap is ignored and the control stays armed for a real answer.
- * On `true` the control is still armed: the caller disarms it, as it always has, when the action
- * starts or ends.
- *
- * `armedFor` names WHAT was asked about — the bulk delete's selection. A tap while armed for
- * something else re-arms for the new thing, with its own count and its own minimum, so the count asked
- * about is the count deleted.
- * @param {HTMLElement} btn
- * @param {string} armedText what the armed control shows — ONE word per action: 'Delete?' for one row,
- *   `Delete ${n}?` for several
- * @param {string} idleText what it shows again once disarmed
- * @param {string} [armedName] the armed accessible name (`armConfirm`)
- * @param {string} [armedFor] what this arming is for, when that can change under it
- * @returns {boolean} true: carry out the action now
- */
-export function twoTap(btn, armedText, idleText, armedName, armedFor = '') {
-    if (!btn.classList.contains('confirming') || (btn.dataset.armedFor ?? '') !== armedFor) {
-        if (armedFor) btn.dataset.armedFor = armedFor; else delete btn.dataset.armedFor;
-        armConfirm(btn, armedText, idleText, armedName);
-        return false;
-    }
-    return performance.now() - (/** @type {any} */ (btn).armedAt ?? 0) >= TWO_TAP_MIN_MS;
-}
-
-/**
- * The armed control back to idle — label, class and accessible name together, so no exit can
- * restore two of the three — and its countdown stopped.
- * @param {HTMLElement} btn @param {string} idleText
- */
-export function disarmConfirm(btn, idleText) {
-    const b = /** @type {any} */ (btn);
-    clearTimeout(b.armTimer);
-    b.armTimer = undefined;
-    btn.classList.remove('confirming');
-    btn.textContent = idleText;
-    if (btn.dataset.idleLabel) btn.setAttribute('aria-label', btn.dataset.idleLabel);
-}
-
-/** Each feedback line's pending fade. ONE per line, cancelled by every later write to it. */
-const _fades = new WeakMap();
-
-/**
- * Stop a feedback line's pending fade. Every writer of a shared line calls this before it writes:
- * a fade started for an earlier message took a later one down — an error three seconds after a
- * delete, or a receipt meant never to time out (whole-app check, 10 Nov 2026).
- * @param {Element|null|undefined} el
- */
-export function holdFeedback(el) {
-    if (!el) return;
-    clearTimeout(_fades.get(el));
-    _fades.delete(el);
-}
-
-/**
- * Fade a feedback line back to `idleClass` after `ms`, replacing any fade already pending on it.
- * @param {Element|null|undefined} el @param {string} idleClass @param {number} ms
- */
-export function fadeFeedback(el, idleClass, ms) {
-    if (!el) return;
-    holdFeedback(el);
-    _fades.set(el, setTimeout(() => { _fades.delete(el); el.className = idleClass; }, ms));
 }
 
 /**

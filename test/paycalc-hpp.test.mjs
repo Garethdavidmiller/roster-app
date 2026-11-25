@@ -43,6 +43,7 @@ mock.module('../paycalc-periods.js', {
         hasBankHoliday:   () => _hasBankHolidayVal,
         hasBoxingDay:     () => _hasBoxingDayVal,
         getPeriods:       () => _realPeriods.getPeriods(),
+        periodByNum:      _realPeriods.periodByNum,
         currentPeriodNum: () => _viewPNum,
         todaysPeriodNum:  () => _realPeriods.todaysPeriodNum(),
         isTaxYearVisible: () => true,   // new-starter clamp — default visible; updatePriorHpp gates on it

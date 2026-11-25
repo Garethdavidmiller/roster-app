@@ -60,6 +60,7 @@ const { memberNameFromClaims } = require('./member-identity');
 const { bearerToken, readJsonBody } = require('./request-helpers');
 const { isMembersOwnAccount } = require('./admin-recipients');
 const { fieldsOf } = require('./caught');
+const { REGION } = require('./region');
 
 /** A targeted send → how many accepted it. @typedef {(payload: object, uids: string[], tag: string) => Promise<number>} SendPush */ /** A member's own uid, or null. @typedef {(name: string) => Promise<string|null>} UidForName */
 /** The verified caller (`authenticate`). @typedef {{ name: string, uid: string, admin: boolean, manager: boolean }} Caller */
@@ -335,8 +336,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
     const createOvertimeWindow = onRequest(
         // The VAPID secret rides along when configured (the asked notice sends from this handler);
         // conditional so the tests, which inject `notify` fakes, need no SecretParam at all.
-        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS,
-            ...(VAPID_PRIVATE_KEY ? { secrets: [VAPID_PRIVATE_KEY] } : {}) },
+        { region: REGION, timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS, ...(VAPID_PRIVATE_KEY ? { secrets: [VAPID_PRIVATE_KEY] } : {}) },
         async (req, res) => {
             const who = await authenticate(req, res);
             if (!who) return;
@@ -616,7 +616,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * has closed is a record, and this endpoint refuses to edit one.
      */
     const withdrawOvertimeParticipant = onRequest(
-        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+        { region: REGION, timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
         async (req, res) => {
             const who = await authenticate(req, res);
             if (!who) return;
@@ -704,7 +704,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * `existed` branch above) the other six runs a week cost one collection read each.
      */
     const autoCreateOvertimeWindows = onSchedule(
-        { schedule: '0 5 * * *', timeZone: 'Europe/London', region: 'europe-west2',
+        { schedule: '0 5 * * *', timeZone: 'Europe/London', region: REGION,
             ...(VAPID_PRIVATE_KEY ? { secrets: [VAPID_PRIVATE_KEY] } : {}) },
         async () => {
             const nowMs = Date.now();
@@ -852,7 +852,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * ever depended on when this last ran, and arming it changes no behaviour at all.
      */
     const purgeExpiredOvertimeWindows = onSchedule(
-        { schedule: '0 4 * * *', timeZone: 'Europe/London', region: 'europe-west2' },
+        { schedule: '0 4 * * *', timeZone: 'Europe/London', region: REGION },
         async () => {
             const nowMs = Date.now();
             const armed = resolveArmed(purgeArmed);
@@ -950,7 +950,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * ever show what exists, and the thing worth seeing is what does not.
      */
     const getOvertimeManagerOverview = onRequest(
-        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+        { region: REGION, timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
         async (req, res) => {
             const who = await authenticate(req, res);
             if (!who) return;
@@ -1150,7 +1150,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * turn keeps the first release free of the deploy-ordering dance an index requires.
      */
     const getMyOvertimeState = onRequest(
-        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+        { region: REGION, timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
         async (req, res) => {
             const who = await authenticate(req, res);
             if (!who) return;
@@ -1232,7 +1232,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * emulator; this function only performs it.
      */
     const submitOvertimeAvailability = onRequest(
-        { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+        { region: REGION, timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
         async (req, res) => {
             const who = await authenticate(req, res);
             if (!who) return;

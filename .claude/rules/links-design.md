@@ -46,7 +46,7 @@ or in the module header beside the code.
 | 1 | **The rotation length is declared once and stated nowhere else** — no literal in code, strings or markup (the parity test), and no comment or prose giving the CURRENT length as a fact (held by hand: the test strips comments, because a comment may record history — a dated release, a past length). A literal is one more copy waiting to drift. | `links-design.js` (`ROTATING_LINES`) · `links-rotation-parity.test.mjs` |
 | 2 | **A hard limit and a fatigue factor are opposite kinds of statement.** Separate modules, separate counts, separate sections. Fatigue factors report what is PRESENT; they never pass or fail a design, and nothing here may read as a certificate. | `links-limits.js` · `links-fatigue.js` |
 | 3 | **Every fatigue rule laps the rotation.** Somebody on the last line goes to the first next week. | `links-fatigue.js` |
-| 4 | **The generator REFUSES what it cannot repair.** Reporting a shortfall is not refusing it — a design that exists gets saved, compared, printed and taken into a room. | `links-design.js` (`repairShortRest`) · `links-contract.test.mjs` |
+| 4 | **The generator REFUSES what it cannot repair.** Reporting a shortfall is not refusing it — a design that exists gets saved, compared, printed and taken into a room. | `links-generate.js` (`repairShortRest`) · `links-contract.test.mjs` |
 | 5 | **A failed read-back flags the baseline UNKNOWN, never merely null.** Every co-editing bug here has been a SILENT overwrite of a colleague's work, discovered only on reopening. | `links-design-store.js` · `links-concurrency.js` |
 | 6 | **An import becomes a design or a refusal, never a half-design.** An unreadable cell is refused BY NAME, never defaulted to a rest day — an import that "succeeds" four duties light reads as a lighter week, and every panel then reports confidently about it. A row of empty cells is an empty week IN ITS PLACE, never a line skipped: skipping one moved every later week up a line. | `links-import.js` |
 | 7 | **The days-worked divisor is the WORKING lines, not the rotation** — unlike the hours average beside it. | `links-design.js` (`lineTotals`) |
@@ -307,9 +307,15 @@ agreed. A legacy `meta` field is ignored on load and dropped on the next save.
 
 ### The design maths
 
-All design maths live in `links-design.js` — no DOM, no Firebase and **no imports at all**, not even
+The design maths live in `links-design.js` — no DOM, no Firebase and **no imports at all**, not even
 `roster-data.js`, so it loads anywhere. That is why `classifyShift`'s Early/Late/Night boundaries are
-literals, tied to CONFIG by a parity test in `links-design.test.mjs`. `links-app.js` imports the maths;
+literals, tied to CONFIG by a parity test in `links-design.test.mjs`. **The generator is
+`links-generate.js`** (moved out 25 Nov 2026, when `links-design.js` reached its cap): it imports the
+constants and the shift reading from `links-design.js`, never the other way round, so the maths module
+stays import-free. The constants stay at their URL on purpose — the e2e routes that rewrite
+`MIN_REST_MINUTES` and `SPARE_WORKED_DAYS` rewrite `links-design.js`, and the generator follows them
+through its import. **The rest between two duties is read in ONE place, `restBetween`**: the checks,
+the rest repair and the reorder's week boundary all call it. `links-app.js` imports the maths;
 **do not duplicate any of it back into the coordinator.** The export list is `AI_MAP.md`'s, not this
 file's.
 
@@ -871,7 +877,7 @@ between the designers in Firestore (`linkTargetSets`), because the promise they 
 **rotating window**. Which one ran is REPORTED in the status line, never silent, because they give
 visibly different designs. `generatePatterns` is the thin wrapper that returns the patterns only, kept
 for the construction tests written against it; the page calls `generateLink`. The reasoning and the measurements are the comment above
-the two constructions in `links-design.js`.
+the two constructions in `links-generate.js`.
 
 1. **Settled weeks (default).** Slots are grouped into WAVES — starts within `WAVE_SPAN_MINUTES`, the
    FF19 threshold — and each wave gets a contiguous BLOCK of lines sized by its duty, sliding its own
@@ -894,7 +900,7 @@ Daily targets are met exactly by both, a day-class total over the working lines 
 (`over-capacity`), and the generator writes every line. **Do not add back** `buildDefaultDesign`,
 `initFromRosters` or `resetFromRosters` — removed because they copied raw roster patterns verbatim and
 left the lines past the roster's own length blank. **Interleaving the waves inside the generator is a
-WON'T-DO** (tried and reverted; the numbers are in `links-design.js`): it fixes the raw block length
+WON'T-DO** (tried and reverted; the numbers are in `links-generate.js`): it fixes the raw block length
 but puts a late wave's 23:55 Saturday beside a morning wave's 06:20 Sunday. The generator owns the
 SHAPE; `links-adjacency.js` owns the ORDER.
 
@@ -1019,8 +1025,9 @@ you HOPE to fill, which is why the table labels it `RDW`; and "weekends off" cou
 going to work, which is why `links-adjacency.js` splits days off from contracted days given.
 
 - **A cover week IS Mon–Sat SPARE; its Sunday is not asked about** (`isCoverWeek` in `links-design.js`,
-  read by the hours, the per-line totals, the contracted-days ceiling, the spare spread and the roster
-  seed). A cover week written with its Sunday as a rest day is still a cover week.
+  read by the hours, the per-line totals, the contracted-days ceiling, the spare spread, the roster
+  seed, and the New link page's weeks and their count — which asked all seven days until 25 Nov 2026).
+  A cover week written with its Sunday as a rest day is still a cover week.
 - **A spare week's four days come from Monday to Saturday.** Its Sunday stays RDW if the roster clerk
   gives it, on top of the four (`spareDrawsOnFour`; the owner's words are under Fatigue factors). All
   seven days are still marked SPARE, which is what "available for cover" means.

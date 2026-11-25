@@ -150,8 +150,51 @@ describe('a box remembers whether its digits are what is left of a time', () => 
         const b = box('16:30');
         b.value = '6:30';
         b.value = shapeClockBox(b, { inputType: 'deleteContentBackward' });
-        assert.equal(b.value, '63:0');
-        assert.equal(settleClockBox(b), '63:0');
+        assert.equal(b.value, '6:30', 'the box keeps what is there, colon and all');
+        assert.equal(settleClockBox(b), '6:30');
+        assert.equal(isClockTime(settleClockBox(b)), false, 'refused at Save, never guessed as 06:30');
+    });
+
+    // The three gaps the 24-hour review found (25 Nov 2026), each the module header's rule of that number.
+    it('rule 1: an edit keeps the colon where it was, so the digit typed next lands where it is typed', () => {
+        const b = box();
+        for (const d of '2230') key(b, d);
+        b.value = '2:30';                          // the first 2 deleted, the caret left before the remaining 2
+        b.value = shapeClockBox(b, { inputType: 'deleteContentBackward' });
+        assert.equal(b.value, '2:30', 'not re-split as 23:0, which threw the caret to the end');
+        b.value = '12:30';                         // the 1 typed where the 2 was
+        b.value = shapeClockBox(b, { inputType: 'insertText', data: '1' });
+        assert.equal(b.value, '12:30');
+        assert.equal(settleClockBox(b), '12:30');
+    });
+
+    it('rule 2: typing over part of a time is an edit too — never 02:24', () => {
+        for (const start of [() => { const b = box(); for (const d of '2230') key(b, d); return b; }, () => box('22:30')]) {
+            const b = start();
+            b.value = '22:4';                      // the 30 selected, a 4 typed over it
+            b.value = shapeClockBox(b, { inputType: 'insertText', data: '4' });
+            assert.equal(b.value, '22:4');
+            assert.equal(settleClockBox(b), '22:4', 'what is left of 22:30, refused at Save');
+        }
+    });
+
+    it('rule 2: replacing the WHOLE time is a new one, with its shortcut', () => {
+        const b = box('22:30');
+        b.value = '630';                           // all of it selected, 630 pasted over it
+        b.value = shapeClockBox(b, { inputType: 'insertFromPaste', data: '630' });
+        assert.equal(b.value, '06:30');
+        assert.equal(settleClockBox(b), '06:30');
+    });
+
+    it('rule 4: an edit finished as a time ends, so a time pasted in later keeps its shortcut', () => {
+        const b = box();
+        for (const d of '2235') key(b, d);
+        backspace(b);
+        key(b, '5');
+        assert.equal(b.value, '22:35');
+        b.value = '130';
+        b.value = shapeClockBox(b, { inputType: 'insertFromPaste', data: '130' });
+        assert.equal(settleClockBox(b), '01:30');
     });
 
     it('a new time typed short still takes its zero: 130 is 01:30 and 630 is 06:30', () => {

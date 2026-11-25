@@ -130,7 +130,7 @@ export function credentialCandidatesFor(fullName, typed) {
  * `.toMillis()` (so this stays Firebase-free and unit-testable); a missing/parse-less field is 0.
  *
  * Single source for the Operations Account-status table (`operations-app.js`) and the Settings
- * status chip/nudge (`settings-app.js`) — previously duplicated inline in both, which risked drift.
+ * status chip/nudge (`settings-password-card.js`) — previously duplicated inline in both, which risked drift.
  *
  * @param {{ passwordSetAt?: any, resetAt?: any }|null|undefined} status  the passwordStatus doc
  * @returns {boolean}

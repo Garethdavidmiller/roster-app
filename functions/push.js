@@ -30,7 +30,7 @@
  */
 
 const { getFirestore } = require('firebase-admin/firestore');
-const { shouldDeleteSubscription, isAllowedPushEndpoint } = require('./roster-parse-helpers');
+const { shouldDeleteSubscription, isAllowedPushEndpoint } = require('./push-guards');
 const { fieldsOf } = require('./caught');
 
 // Module-level flag so setVapidDetails() is only called once per warm instance.
@@ -252,7 +252,7 @@ async function fanOutPush(payload, logTag) {
         } catch (err) {
             // Delete ONLY genuinely-dead subscriptions (410/404). A 401 is a VAPID-auth
             // misconfig, not a dead endpoint — deleting on it would wipe the whole collection.
-            // Full rationale + tests: shouldDeleteSubscription in roster-parse-helpers.js (v16.15/v16.81).
+            // Full rationale + tests: shouldDeleteSubscription in push-guards.js (v16.15/v16.81).
             if (shouldDeleteSubscription(fieldsOf(err).statusCode)) {
                 await docSnap.ref.delete();
                 console.log(`${logTag} Removed dead subscription ${docSnap.id}`);

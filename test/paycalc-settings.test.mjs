@@ -1000,3 +1000,81 @@ describe('the opt-out date shows the start on record after a refused correction 
         assert.equal(card.pensionOptOutFrom.value, String(V - 1));
     });
 });
+
+// ── WHAT THE SETTINGS CARD SAYS FOR THE YEAR ON SCREEN (paintSettingsForYear — out of paycalc-app.js's
+// onPeriodChange, 25 Nov 2026). Each case is a defect that shipped once: a checked year's hint left over
+// an unchecked one's payslip, the "New tax year" notice left naming a year no longer on screen, and a
+// card re-opened on every payslip of a year rather than once.
+describe('paintSettingsForYear — the hint, the setup banner and the "New tax year" notice', () => {
+    /** @type {Record<string, any>} */ let page;
+    const el = () => {
+        const cls = new Set();
+        return {
+            textContent: '', innerHTML: '', dataset: /** @type {Record<string, string>} */ ({}),
+            classList: {
+                add: (/** @type {string} */ c) => cls.add(c), remove: (/** @type {string} */ c) => cls.delete(c),
+                contains: (/** @type {string} */ c) => cls.has(c),
+                toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => (on ? cls.add(c) : cls.delete(c)),
+            },
+            setAttribute() {}, querySelector: () => null, contains: () => false,
+            ownerDocument: { createElement: () => ({ setAttribute() {}, textContent: '' }), createTextNode: (/** @type {string} */ t) => ({ textContent: t }) },
+            appendChild(/** @type {any} */ n) { this.textContent += n.textContent; },
+        };
+    };
+    /** @type {any} */ let S, TYS, P;
+    before(async () => {
+        S = await import('../paycalc-settings.js');
+        const periods = await import('../paycalc-periods.js');
+        TYS = periods.CONFIG.TAX_YEARS; P = (/** @type {number} */ n) => periods.getPeriods().find((/** @type {any} */ x) => x.num === n);
+    });
+    beforeEach(() => {
+        mock.timers.enable({ apis: ['Date'], now: new Date(2026, 10, 25, 12) });   // the year's payslips still to come
+        _ls.clear(); _ls.set(SK.grade, 'cea');
+        page = {};
+        global.document = /** @type {any} */ ({ activeElement: null, getElementById: (/** @type {string} */ id) => (page[id] ??= el()) });
+        page.settingsHint = el(); page.settingsHint.textContent = 'Grade, tax code and pension';   // the markup's own
+    });
+    afterEach(() => { mock.timers.reset(); });
+    const Y = (/** @type {string} */ label) => TYS.find((/** @type {any} */ t) => t.label === label);
+    const lastOf = (/** @type {any} */ ty) => P(48 + ty.last);
+
+    // FIRST: which years have been offered is the module's own for the page load (once per year).
+    test('a returning member\'s card opens ONCE for a year not checked, with the notice naming it', () => {
+        _ls.set(SK.setup, '1');
+        const ty = Y('2026/27');
+        S.paintSettingsForYear(ty, P(59));
+        assert.equal(page.settingsBody.classList.contains('open'), true, 'the card is opened');
+        assert.equal(page.settingsNewYearNotice.dataset.ty, '2026/27');
+        assert.equal(page.settingsNewYearNotice.classList.contains('hidden'), false);
+        page.settingsBody.classList.toggle('open', false);           // the member shuts it…
+        S.paintSettingsForYear(ty, P(58));                            // …and steps to another payslip of the year
+        assert.equal(page.settingsBody.classList.contains('open'), false, 'opened again on the next payslip of the same year');
+        // The notice names ONE year: stepping to another year takes it away.
+        S.paintSettingsForYear(Y('2025/26'), lastOf(Y('2025/26')));
+        assert.equal(page.settingsNewYearNotice.classList.contains('hidden'), true, 'the 2026/27 notice stayed over 2025/26');
+    });
+
+    test('a CHECKED year: no setup banner, and the hint is the rate THIS payslip was paid at', () => {
+        const ty = Y('2025/26');
+        _ls.set(S.settingsKey(ty), '1');
+        S.paintSettingsForYear(ty, lastOf(ty));
+        assert.equal(page.setupBanner.classList.contains('hidden'), true);
+        assert.equal(page.settingsHint.textContent, S.settingsSummary(ty, lastOf(ty)));
+    });
+
+    test('a year NOT checked gets the markup\'s hint back, and the setup banner', () => {
+        const ty = Y('2025/26');
+        _ls.set(S.settingsKey(ty), '1');
+        S.paintSettingsForYear(ty, lastOf(ty));                     // a checked year's summary first…
+        S.paintSettingsForYear(Y('2026/27'), P(59));                // …then a year never checked
+        assert.equal(page.settingsHint.textContent, 'Grade, tax code and pension', 'the checked year\'s rate is left over this payslip');
+        assert.equal(page.setupBanner.classList.contains('hidden'), false);
+        assert.match(page.setupBannerTitle.textContent, /2026\/27/);
+    });
+
+    test('a year that is over is never offered as new', () => {
+        _ls.set(SK.setup, '1');
+        S.paintSettingsForYear(Y('2025/26'), lastOf(Y('2025/26')));
+        assert.equal(page.settingsBody?.classList.contains('open') ?? false, false);
+    });
+});

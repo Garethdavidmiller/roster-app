@@ -3,7 +3,7 @@
 /**
  * functions/account-lifecycle.js — the pure rules Set up accounts and the admin reset apply at the
  * edges of an account's life (sign-in audit, Nov 2026). No Firebase, no HTTP — it requires only the
- * pure roster-parse-helpers.js — so every rule is tested on its own (account-lifecycle.test.mjs) and
+ * pure account-rules.js — so every rule is tested on its own (account-lifecycle.test.mjs) and
  * through the real handlers (auth-endpoints.test.mjs). auth-endpoints.js is the orchestration.
  *
  * ── A PASSWORD WRITE THAT THROWS IS EITHER REFUSED OR UNKNOWN (audit E1) ─────────────────────────
@@ -53,7 +53,7 @@
  * enabled and reported, so the admin previews again. A confirm WITHOUT the list is an Operations page
  * cached from before this release; it keeps the old behaviour, which is all that page can ask for.
  */
-const { computeOrphanLabels } = require('./roster-parse-helpers');
+const { computeOrphanLabels } = require('./account-rules');
 
 /** Auth codes that PROVE a password write changed nothing — the header says why the list is short. */
 const PASSWORD_WRITE_REFUSALS = new Set([

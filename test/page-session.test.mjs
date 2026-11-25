@@ -571,6 +571,41 @@ describe('back/forward cache', () => {
 // A phone never shows the browser's "Leave site?", so these are the only question an iPhone gets.
 // The About panel's links joined the drawer's: Admin's "Calendar" link (once "View staff roster") left staged edits behind
 // without one, because the guard looked for `.nav-panel` alone.
+describe('continueAfterSignIn — the sign-in card\'s onSuccess on every page', () => {
+    test('with a session: the Back guard is rebased BEFORE the page runs, and nothing reloads', async () => {
+        const fresh = await import('../page-session.js?continue-ok');
+        listeners = {}; log = [];
+        session = null;
+        fresh.reloadIfRestoredForSomeoneElse();          // loaded for nobody…
+        session = { name: 'A. Member' };                 // …signed into in place
+        fresh.continueAfterSignIn(() => log.push('run'))();
+        assert.deepEqual(log, ['run']);
+        fire('pagehide');
+        fire('pageshow', { persisted: true });
+        assert.deepEqual(log, ['run'], 'the page is theirs now: a Back to it does not reload');
+    });
+
+    test('no session by then: a reload into a fresh sign-in, and the page never runs for nobody', () => {
+        session = null;
+        ps.continueAfterSignIn(() => log.push('run'))();
+        assert.deepEqual(log, ['reload']);
+    });
+
+    test('needName: a session without a name reloads too; without needName it runs', () => {
+        session = {};
+        ps.continueAfterSignIn(() => log.push('run'), { needName: true })();
+        assert.deepEqual(log, ['reload'], 'a page keyed by the member\'s name is never run without one');
+        log = [];
+        ps.continueAfterSignIn(() => log.push('run'))();
+        assert.deepEqual(log, ['run']);
+    });
+
+    test('a page that throws mid-wiring reloads, never stays half-built', () => {
+        ps.continueAfterSignIn(() => { log.push('run'); throw new Error('wiring'); })();
+        assert.deepEqual(log, ['run', 'reload']);
+    });
+});
+
 describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', () => {
     /** A tap on a link at `href`, inside `zone` ('.nav-panel', '#iconLightbox', or neither). `click`
      *  holds what a real click carries — `button` and the modifier keys — when a test needs them.

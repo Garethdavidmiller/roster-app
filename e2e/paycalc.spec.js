@@ -456,6 +456,29 @@ test('paycalc: changing a setting never saves the calendar\'s suggestion as ente
     expect(await saved(), 'a setting saved the suggestion as though the member had entered it').toBeNull();
 });
 
+// …NOR TAPPING INTO A SATURDAY BOX AND LEAVING IT (24-hour review, 25 Nov 2026). The Saturday boxes cap when they
+// are left, and that blur saved the whole form every time — the gold suggestion with it, on nothing more than a
+// tap in and a tap on Next. Leaving saves only what the cap rewrote; what is typed is saved as it is typed.
+test('paycalc: tapping into a Saturday box and leaving it never saves the calendar\'s suggestion; a cap is saved', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#satH'), 'premise: the calendar\'s Saturday is shown, not saved').toHaveClass(/roster-suggested/);
+    const saved = () => page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p57'));
+    await page.locator('#satH').focus();
+    await page.locator('#satM').focus();      // leaves the hours box…
+    await page.locator('#sunH').focus();      // …and the minutes box
+    await expect(page.locator('#netDisplay')).not.toBeEmpty();
+    expect(await saved(), 'a look at the Saturday boxes saved the suggestion as though the member had entered it').toBeNull();
+
+    await page.locator('#satH').fill('200');
+    await page.locator('#sunH').focus();
+    const cap = (/Capped at (\d+) hrs/.exec(await page.locator('#satWarn').innerText()) ?? [])[1];
+    expect(cap, 'premise: the box was capped when left').toBeTruthy();
+    await expect.poll(async () => JSON.parse(await saved() ?? '{}').satH, 'the capped figure is what is saved').toBe(Number(cap));
+});
+
 test('paycalc: changing a setting never writes over saved entries that could not be read', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
     await seedSession(page);
@@ -2255,7 +2278,7 @@ test('paycalc: the loan rows name the plan picked and the payslip deductions sto
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
-// THE TWO-TAP CLEAR (the coordinator's `_clearState`). The one destructive control on the page: the
+// THE TWO-TAP CLEAR (`createClearConfirm`, paycalc-clear-confirm.js). The one destructive control on the page: the
 // first tap only ARMS it, with a countdown; three seconds, or a change of payslip, disarms it; only a
 // second tap while armed wipes the payslip — and only the one on screen.
 test('paycalc: "Clear all entries" needs a second tap, and disarms itself', async ({ page }) => {

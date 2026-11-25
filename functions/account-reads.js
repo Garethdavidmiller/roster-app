@@ -19,9 +19,11 @@
  */
 
 const { onRequest } = require('firebase-functions/v2/https');
-const { nameToEmail, resolveRosterAuthConfig, summariseSignIns, summariseAccountGaps } = require('./roster-parse-helpers');
+const { nameToEmail } = require('./roster-parse-helpers');
+const { resolveRosterAuthConfig, summariseSignIns, summariseAccountGaps } = require('./account-rules');
 const { requireAdmin } = require('./request-helpers');
 const { fieldsOf } = require('./caught');
+const { REGION } = require('./region');
 
 /**
  * Every account in the project. `listUsers` caps a page at 1000 and the roster is ~50, so this is one
@@ -84,7 +86,7 @@ function buildAccountReadEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, now 
  * resetMemberPassword. GET (it is a pure read), and CORS-restricted like the other admin functions.
  */
 const getSignInStats = onRequest(
-    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+    { region: REGION, timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
     async (req, res) => {
         if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
@@ -144,7 +146,7 @@ const getSignInStats = onRequest(
  * other admin functions.
  */
 const getAccountSetupGaps = onRequest(
-    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+    { region: REGION, timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
     async (req, res) => {
         if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return; }
 

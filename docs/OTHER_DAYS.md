@@ -3,7 +3,7 @@
 *Not version-stamped; not a runtime asset. **BUILT + SHIPPED** — a record and a how-to, not a plan
 (renamed from `OTHER_PLAN.md`). The shipped behaviour is documented in CLAUDE.md, AI_MAP.md,
 OPERATIONS_REFERENCE.md and `.claude/rules/paycalc.md`; the pay and grammar single source is
-`override-utils.js`. What remains here: the **design decisions** (cited from code as "OTHER_DAYS.md
+`other-day.js`, re-exported by `override-utils.js`. What remains here: the **design decisions** (cited from code as "OTHER_DAYS.md
 decision N"), the **Evolution** record of the rename to the Other family, and the **Phase B**
 checklist for adding a flavour. Every flavour planned so far has shipped.*
 
@@ -55,7 +55,7 @@ time** unless one is actually entered (the `hideBaseTime` flag — see Evolution
 Per new flavour, the touch-list (short because the submenu chips are GENERATED from `OTHER_FLAVOURS`
 and the server uses an explicit alias table, so neither needs hand-edited UI):
 
-1. `override-utils.js` — one `OTHER_FLAVOURS` entry (`MEET: {badge:'Meet', full:'Meeting'}` /
+1. `other-day.js` — one `OTHER_FLAVOURS` entry (`MEET: {badge:'Meet', full:'Meeting'}` /
    `UNION: {badge:'Union', full:'Union'}`). Nothing else in this file: `_OTHER_RE` is built from
    `OTHER_FLAVOURS`.
 2. `functions/roster-other-days.js` — one `OTHER_DAY_ALIASES` entry per roster word, and the words in
@@ -99,5 +99,5 @@ and the current one stated, with Evolution above as the authority; elsewhere rea
 | 8 | How RDW-ness is decided | **Explicitly marked on the roster** ("TRG RDW"). Manual entry gets an RDW tick, **pre-ticked** when the day's base is a rest day. Engine belt-and-braces: base RD/OFF ⇒ treat as RDW even if the flag is missing |
 | 9 | Sunday | **Blocked** — a Sunday can never be a training day (same enforcement-layer treatment as AL/Absent; the layers are enumerated in CLAUDE.md) |
 | 10 | Admin manual entry | Yes — **one** ~~"Training"~~ → **"Other"** pill in Change a Shift; picking it reveals the flavour chips (one must be chosen) + RDW tick + **optional** time boxes (blank = defaults) — Evolution → Manual UX |
-| 11 | Times storage | Optional, on the override value itself (the value grammar is `_OTHER_RE`, built from `OTHER_FLAVOURS` in `override-utils.js`). Roster upload carries times for a **meeting** only (`"10:00-14:00 MTG"` imports as `MEET 10:00-14:00` — `functions/roster-other-days.js`); for every other flavour only manual admin entry does |
+| 11 | Times storage | Optional, on the override value itself (the value grammar is `_OTHER_RE`, built from `OTHER_FLAVOURS` in `other-day.js`). Roster upload carries times for a **meeting** only (`"10:00-14:00 MTG"` imports as `MEET 10:00-14:00` — `functions/roster-other-days.js`); for every other flavour only manual admin entry does |
 | 12 | Worked-day status | Training counts as a **worked** day (dispatcher BH-lieu counting included — a BH training earns lieu, since it pays as the day) |

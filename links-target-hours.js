@@ -4,7 +4,7 @@
  *
  * Owns: the VERDICT on a generator target table (hours per line, the gap, on-target or not) and the
  *   words the card states it in — including the provenance note about where the table came from.
- * Does NOT own: the minutes arithmetic (`targetExSundayMinutes`/`dutyMinutes` in links-design.js),
+ * Does NOT own: the minutes arithmetic (`targetExSundayMinutes` in links-generate.js, `dutyMinutes` in links-design.js),
  *   the default table (links-default-targets.js), or any DOM. `links-generator-targets.js` writes
  *   the result.
  * Edit here for: the on-target rule, the wording of the gap, the provenance note.
@@ -43,7 +43,8 @@
  * Pure: no DOM, no Firebase. Tested by links-target-hours.test.mjs.
  */
 
-import { dutyMinutes, targetExSundayMinutes, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
+import { dutyMinutes, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
+import { targetExSundayMinutes } from './links-generate.js';
 
 /**
  * @typedef {{ time: string, weekday: number, sat: number, sun: number }} TargetSlot

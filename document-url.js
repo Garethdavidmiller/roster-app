@@ -34,9 +34,10 @@
  */
 
 import { fetchWithTimeout } from './fetch-timeout.js';
+import { functionUrl } from './function-url.js';
 
 /** The endpoint (v24.16 server half). AUTH_PLAN.md §5. */
-export const DOCUMENT_URL_ENDPOINT = 'https://europe-west2-myb-roster.cloudfunctions.net/getDocumentUrl';
+export const DOCUMENT_URL_ENDPOINT = functionUrl('getDocumentUrl');
 
 /**
  * Short on purpose: this sits between a tap and a document opening, and the stored url is right

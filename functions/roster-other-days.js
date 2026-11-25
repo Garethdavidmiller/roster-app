@@ -13,7 +13,7 @@
  *
  * ── THE GRAMMAR IT WRITES ───────────────────────────────────────────────────────────────────────
  *
- * `FLAVOUR [" RDW"] [" HH:MM-HH:MM"]` — the client's own (`_OTHER_RE`, override-utils.js), which the
+ * `FLAVOUR [" RDW"] [" HH:MM-HH:MM"]` — the client's own (`_OTHER_RE`, other-day.js), which the
  * calendar, the pay engine and firestore.rules all read. This file is a deliberate duplicate of the
  * RECOGNITION side only: CommonJS cannot import a browser ES module (the accepted pattern, as with
  * `normaliseSurname`). The roster's words collapse to the sentinels through an explicit table; an

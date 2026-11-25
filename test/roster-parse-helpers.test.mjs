@@ -38,17 +38,19 @@ const {
     fileSignatureMatches,
     NOTIFICATION_FEATURES,
     buildPushPayload,
-    shouldDeleteSubscription,
-    isAllowedPushEndpoint,
+} = require('./functions/roster-parse-helpers.js');
+// The account rules, the reset-request queue's rules and the push transport guards left
+// roster-parse-helpers.js for modules of their own (25 Nov 2026); their tests stayed here.
+const {
     parseSetupActionFlags,
     resolveRosterAuthConfig,
     claimsForTier,
     computeOrphanLabels,
     summariseAccountGaps,
-    shouldRecordResetRequest,
-    buildResetRequestNotice,
-    shouldNotifyAdmin,
-    summariseSignIns,} = require('./functions/roster-parse-helpers.js');
+    summariseSignIns,
+} = require('./functions/account-rules.js');
+const { shouldRecordResetRequest, buildResetRequestNotice, shouldNotifyAdmin } = require('./functions/reset-request-rules.js');
+const { shouldDeleteSubscription, isAllowedPushEndpoint } = require('./functions/push-guards.js');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./functions/roster-sunday-repair.js');
 const { blankCellMeaning, isBlankReading, printsNothing } = require('./functions/cell-day-rules.js');
 const { applyGeometryWitness } = require('./functions/roster-geometry.js');

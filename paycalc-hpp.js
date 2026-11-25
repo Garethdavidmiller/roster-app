@@ -15,7 +15,7 @@ import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
   taxYearForPeriod, capHours, getLondonAllowanceForPeriod, awardFromForYear, awardRatesFor,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible, payslipMayBeInHand } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, periodByNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible, payslipMayBeInHand } from './paycalc-periods.js';
 import { getLoggedMember, awardGrade, periodRate, settledRateFor, getEffectiveContr, getProRateFactor, getPensionDefault, isPensionOptedOut, isPeriodPriced } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
@@ -798,7 +798,7 @@ export function updatePriorHpp(ty) {
   }
 
   const pNum = currentPeriodNum();
-  const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+  const curP = periodByNum(pNum);
   // Is the payslip on screen the one that carries LAST year's premium? Asked of the shared
   // schedule (paycalc-hpp-schedule.js) rather than re-derived here (invariant 4).
   const _carrier = hppPayslipForTaxYear(priorTy, getPeriods());

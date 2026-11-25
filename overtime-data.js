@@ -24,8 +24,7 @@ import { fetchWithTimeout, isFetchTimeout, isFetchAborted } from './fetch-timeou
 import { auth, db, collection, doc, getDocs } from './firebase-client.js';
 import { clockOffset, deriveHistory, isWithdrawn } from './overtime-format.js';
 import { loadRosterForMembers } from './overtime-roster.js';
-
-const BASE = 'https://europe-west2-myb-roster.cloudfunctions.net';
+import { functionUrl } from './function-url.js';
 
 /** 60s server ceiling + headroom. See the header: the bound ends an infinite wait, nothing more. */
 const BUDGET_MS = 65_000;
@@ -95,7 +94,7 @@ async function postOnce(name, body, opts, fresh) {
     const tSend = Date.now();
     let res;
     try {
-        res = await fetchWithTimeout(`${BASE}/${name}`, {
+        res = await fetchWithTimeout(functionUrl(name), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify(body || {}),

@@ -16,6 +16,7 @@
  */
 
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
+import { functionUrl } from './function-url.js';
 
 /** The code `resetMemberPassword` gives a failure BEFORE anything was sent: the admin's sign-in could not be renewed
  *  (offline, most often), so the request never left this device and nothing was reset — the one failure that knows
@@ -29,7 +30,7 @@ export function buildAccountCalls({ auth }) {
     /** Admin-only Cloud Function that resets a member's Firebase password back to their surname default
      *  and stamps `passwordStatus.resetAt` (server-side). Mirrors admin-auth.js's setupRosterAuth caller:
      *  a FRESH admin ID token as a Bearer header on every call. */
-    const RESET_PASSWORD_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/resetMemberPassword';
+    const RESET_PASSWORD_URL = functionUrl('resetMemberPassword');
 
     /**
      * Reset a member's password to the surname default (admin break-glass). Requires the caller's admin
@@ -72,7 +73,7 @@ export function buildAccountCalls({ auth }) {
     }
 
     /** Admin-only Cloud Function returning who is not properly provisioned (v22.53). */
-    const ACCOUNT_GAPS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/getAccountSetupGaps';
+    const ACCOUNT_GAPS_URL = functionUrl('getAccountSetupGaps');
 
     /**
      * Which roster members are not properly set up, and which leavers still can sign in (admin only —
@@ -105,7 +106,7 @@ export function buildAccountCalls({ auth }) {
     }
 
     /** The public `requestPasswordReset` endpoint (PASSWORD_DESIGN.md — the request queue). */
-    const REQUEST_RESET_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset';
+    const REQUEST_RESET_URL = functionUrl('requestPasswordReset');
 
     /**
      * Ask the admin to reset a member's password. Called from the LOGIN OVERLAY, by someone who is

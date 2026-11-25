@@ -124,7 +124,8 @@ mock.module('../firebase-client.js', {
 });
 
 const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates,
-        shiftDisplay, manualShiftDisplay, isZeroLengthRange, PARSE_ABORT_MS } = await import('../admin-roster-upload.js');
+        shiftDisplay, manualShiftDisplay, isZeroLengthRange, PARSE_ABORT_MS, PARSE_EXPECTED_MS, parseFailureLine,
+        statusFailureLine } = await import('../admin-roster-upload.js');
 const { teamMembers, getBaseShift } = await import('../roster-data.js');
 const { guardedWrites, replacedFromState, collectRosterWrites, carryReviewAnswers } = await import('../roster-review-states.js');
 // The alignment rules moved OUT of the coordinator at v22.16 (roster-alignment.js) — a Firebase-free
@@ -2775,21 +2776,11 @@ describe('the roster parse is never abandoned before the server could finish', (
 // Safari reports EVERY network failure as "Load failed", and the import answered all of them with
 // "the PDF may be large" — so a phone that lost its signal two seconds in, or was left for another
 // app while the read ran, sent the admin to shrink a PDF that was fine. `parseFailureLine` is
-// private to the module (no export, so its documented surface is unchanged), so it is sliced out of
-// the source by name and that exact code is run, the technique splash-watchdog.test.mjs uses. A
-// rename makes the slice throw rather than pass. The click handler that feeds it is driven in
-// e2e/operations.spec.js.
+// exported (25 Nov 2026) and imported here; until then it was sliced out of the source by name and run
+// through `new Function`, which checked a copy and broke on a reflow. The click handler that feeds it is
+// driven in e2e/operations.spec.js.
 describe('a roster read that fails in transit says what happened', () => {
-    const src = readFileSync(new URL('./admin-roster-upload.js', REPO_ROOT_URL), 'utf8');
-    const start = src.indexOf('function parseFailureLine(');
-    let end = src.indexOf(') {', start) + 2;   // the BODY's brace — the parameters destructure one of their own
-    for (let depth = 0; end < src.length; end++) {
-        if (src[end] === '{') depth++;
-        else if (src[end] === '}' && --depth === 0) { end++; break; }
-    }
-    const expectedMs = Number(/const PARSE_EXPECTED_MS = ([\d_]+);/.exec(src)?.[1].replace(/_/g, ''));
-    /** @type {(err: any, seen: { online: boolean, elapsedMs: number, wasHidden: boolean }) => string|null} */
-    const line = new Function('PARSE_EXPECTED_MS', `${src.slice(start, end)}\nreturn parseFailureLine;`)(expectedMs);
+    const line = parseFailureLine, expectedMs = PARSE_EXPECTED_MS;
 
     const DROPPED = /^The connection dropped before it finished\. .*keep this screen open/;
     const SLOW = /^Parsing took longer than expected/;
@@ -2799,9 +2790,8 @@ describe('a roster read that fails in transit says what happened', () => {
     const loadFailed = () => new TypeError('Load failed');
     const aborted = () => Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
 
-    test('guard the guard — the helper and the read time were found in the module', () => {
-        assert.ok(start > 0, 'admin-roster-upload.js no longer defines parseFailureLine — update this test');
-        assert.ok(expectedMs >= 5_000 && expectedMs < PARSE_ABORT_MS, `PARSE_EXPECTED_MS read as ${expectedMs}`);
+    test('the read time the boundaries are measured against is a sane one', () => {
+        assert.ok(expectedMs >= 5_000 && expectedMs < PARSE_ABORT_MS, `PARSE_EXPECTED_MS is ${expectedMs}`);
     });
 
     test('Safari\'s "Load failed" within seconds of starting is a dropped connection, not a slow PDF', () => {
@@ -2847,7 +2837,6 @@ describe('a roster read that fails in transit says what happened', () => {
     // handler's — was "Unexpected error — please try again or contact support". The words now come
     // from the status; the browser half (a 504 and a body that stalls) is in e2e/operations.spec.js.
     test('a refusal with no words of its own is worded from its status, and never sends anyone to "support"', async () => {
-        const { statusFailureLine } = await import('../admin-roster-upload.js');
         assert.match(statusFailureLine(504), /^The server stopped the read because it took too long\. Try again/);
         assert.match(statusFailureLine(408), /took too long/);
         assert.match(statusFailureLine(413), /too large/);
@@ -3261,5 +3250,75 @@ describe('upload to review: an uncertain weekday cell is shown as "check the PDF
         }
         assert.deepEqual(collectRosterWrites(states).filter((/** @type {any} */ wr) => ['2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03'].includes(wr.date)), [],
             'an uncertain cell was saved');
+    });
+});
+
+// ── ONE PERSON'S SECTION, AND ONE ROW'S MARKUP (25 Nov 2026) ─────────────────────────────────────
+// Both were inline in the render loop, reachable only through a page. `personSummary`
+// (roster-review-states.js) decides which days get a row, what the badge counts and whether Skip all is
+// offered; `reviewRow` (roster-review-rows.js) draws a row per state. Driven with cell states shaped as
+// computeCellStates makes them, and this module's real `shiftDisplay`.
+const { personSummary, guardedRowHtml: guardedRowHtmlForRows } = await import('../roster-review-states.js');
+const { reviewRow } = await import('../roster-review-rows.js');
+const { escapeHtml: escapeForRows } = await import('../roster-data.js');
+describe('a person\'s section and its rows', () => {
+    const WHO = 'Q. Tester';
+    const states = (/** @type {Record<string, any>} */ byDate) => new Map(Object.entries(byDate).map(([d, s]) => [`${WHO}|${d}`, s]));
+    const restAsk = { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'SICK', chosen: null };
+    const draw = (/** @type {any} */ s, date = '2026-06-15') =>
+        reviewRow({ key: `${WHO}|${date}`, s, date, dayName: 'Mon', dateStr: '15 Jun', shiftDisplay, manualShiftDisplay });
+
+    test('the badge counts changes, not notices; a matching day gets no row', () => {
+        const p = personSummary(WHO, ['2026-06-14', '2026-06-15', '2026-06-16'],
+            states({ '2026-06-14': { state: 'MATCH' }, '2026-06-15': { state: 'DIFF' }, '2026-06-16': { state: 'GUARDED', guarded: 'sunday' } }));
+        assert.deepEqual(p.changedDates, ['2026-06-15', '2026-06-16'], 'in date order, the MATCH day left out');
+        assert.equal(p.pendingCount, 1, 'a GUARDED row is a notice, not a change to approve');
+        assert.equal(p.canWrite, true);
+    });
+
+    test('Skip all is offered for a person whose only rows ask the rest-day question — an answer writes', () => {
+        const asks = personSummary(WHO, ['2026-06-15'], states({ '2026-06-15': restAsk }));
+        assert.equal(asks.pendingCount, 0);
+        assert.equal(asks.canWrite, true);
+        const notices = personSummary(WHO, ['2026-06-15'], states({ '2026-06-15': { state: 'GUARDED', guarded: 'sunday' } }));
+        assert.equal(notices.canWrite, false, 'all notices: nothing to skip');
+        assert.deepEqual(personSummary(WHO, ['2026-06-15'], states({})).changedDates, [], 'no cells: no section');
+    });
+
+    test('a DIFF row draws its tick as `chosen` says — an unticked row is drawn unticked, and skipped', () => {
+        const on = draw({ state: 'DIFF', chosen: true, baseShift: 'RD', parsedShift: '06:00-14:00' });
+        assert.equal(on.className, 'roster-change-row roster-change-diff');
+        assert.match(on.html, /class="roster-tick" data-key="Q\. Tester\|2026-06-15" aria-pressed="true"/);
+        assert.match(on.html, /act-update">Update</);
+        const off = draw({ state: 'DIFF', chosen: false, baseShift: 'RD', parsedShift: '06:00-14:00' });
+        assert.equal(off.className, 'roster-change-row roster-change-diff is-skipped');
+        assert.match(off.html, /class="roster-tick off"[^>]*aria-pressed="false"/);
+    });
+
+    test('a CONFLICT starts on "Keep saved"; a REMOVE_IMPORT says the entry is no longer on the roster', () => {
+        const c = draw({ state: 'CONFLICT', chosen: 'manual', manualValue: '07:00-15:00', parsedShift: '06:00-14:00' });
+        assert.equal(c.className, 'roster-change-row roster-change-conflict');
+        assert.match(c.html, /data-pick="manual" aria-pressed="true">Keep saved/);
+        assert.match(c.html, /data-pick="pdf" aria-pressed="false">Use new roster/);
+        const r = draw({ state: 'REMOVE_IMPORT', chosen: true, manualValue: '07:00-15:00', baseShift: 'RD' });
+        assert.match(r.html, /no longer on the roster/);
+        assert.match(r.html, /act-clear">Clear old/);
+    });
+
+    test('an UNREADABLE row with readings starts on NEITHER; one without readings offers the entry', () => {
+        const pick = draw({ state: 'UNREADABLE', chosen: null, parsedShift: 'UNKNOWN|X', options: [{ display: '06:00-14:00' }, { display: 'RD' }] });
+        assert.equal(pick.className, 'roster-change-row roster-change-unreadable', 'unanswered: the unreadable style');
+        assert.doesNotMatch(pick.html, /data-opt="0" aria-pressed="true"/);
+        assert.match(pick.html, /data-opt="skip" aria-pressed="true">Skip/, 'Skip is what an unanswered row means');
+        const bare = draw({ state: 'UNREADABLE', chosen: null, parsedShift: 'UNKNOWN|X' });
+        assert.equal(bare.className, 'roster-change-row roster-change-unreadable roster-change-row--stacked');
+        assert.match(bare.html, />Enter the shift</);
+    });
+
+    test('a GUARDED row is guardedRowHtml\'s, with the roster\'s own badge', () => {
+        const g = draw(restAsk);
+        assert.equal(g.className, 'roster-change-row roster-change-guarded');
+        assert.equal(g.html, guardedRowHtmlForRows({ key: `${WHO}|2026-06-15`, s: restAsk, dayName: 'Mon', dateStr: '15 Jun',
+            badgeHtml: shiftDisplay('SICK', '2026-06-15'), esc: escapeForRows }));
     });
 });

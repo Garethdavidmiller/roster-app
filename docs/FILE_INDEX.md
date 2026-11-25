@@ -30,23 +30,25 @@ roster-app/
 ├── operations.html         ← admin-only Operations page: the Needs-attention strip, the document upload cards and links, the Roster upload, the Annual leave sheet, reset requests, account status, Staff Login Accounts, Error Log, Usage and App Speed
 ├── settings.html          ← the Settings STATUS page: Your account, This device, Your data — cards open by their state; what each state means is settings-status.js
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring. See also calendar.spec.js, calendar-redraw.test.mjs.
+├── calendar-app.js         ← coordinator for index.html: event wiring, the Prev/Next/Today buttons, the access hooks, notification wiring. See also calendar.spec.js, calendar-redraw.test.mjs.
 ├── calendar-state.js       ← display month/year state for index.html (getters/setters + persistViewedMonth). See also calendar-state.test.mjs.
 ├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown. See also calendar.spec.js.
 ├── calendar-al-lightbox.js ← the Calendar's annual-leave panel and day-detail panel (`initCalendarLightboxes`); every badge on the day panel comes from the grid's own authorities. Reasoning: its header. Tested by calendar-al-lightbox.test.mjs. See also lightbox-transform-parity.test.mjs, day-detail-explains.test.mjs.
 ├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_PLAN.md → E1). See also calendar-initial-fetch.test.mjs.
-├── calendar-keyboard.js    ← keyboard navigation and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar.spec.js.
+├── calendar-keyboard.js    ← keyboard navigation, the page shortcuts (`initCalendarShortcuts`: they press the page's own buttons) and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar.spec.js.
+├── calendar-month-jump.js  ← the month/year jump picker opened from the month heading (`initMonthJump`). Tested by calendar-month-jump.test.mjs. See also calendar.spec.js.
 ├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs a leftover staff-PIN session out. **Read its header first.** Tested by calendar-access.test.mjs. See also AUTH_AND_SESSIONS.md, calendar-access.spec.js.
 ├── calendar-lock-slot.js ← the ONE place a card can stand in for the Calendar grid, and the workspace it hides; at most one card, no decisions. Exercised through calendar-access.test.mjs and e2e/calendar-access.spec.js
 ├── calendar-lock-cards.js ← the cards that can stand where the Calendar goes (sign-in, its can't-load fallback, come-back): it DRAWS, `calendar-access.js` DECIDES. Its header
 ├── calendar-access-core.js ← the PURE rules behind the gate: the viewer identity (for the teardown), `decideAccess`, notice audiences (members only). **No client file shapes, sends or compares a PIN.** Tested by calendar-access-core.test.mjs. See also CALENDAR_DATA.md.
 ├── calendar-snapshot.js ← the member's OWN roster kept on this device so the Calendar opens instantly while sign-in is checked; bounded, deleted on any refusal. Tested by calendar-snapshot.test.mjs and e2e/calendar-access.spec.js
+├── calendar-own-copy.js ← WHEN the Calendar shows and keeps that copy: the renderer's source, the paint before the grant, the save after a render, and which records are kept (`ownMonthsToStore`). Tested by calendar-own-copy.test.mjs and e2e/calendar-access.spec.js
 ├── calendar-data-state.js  ← what the Calendar KNOWS about a month's overrides, and so what it may SHOW. Pure; the four states: its header. Tested by calendar-data-state.test.mjs. See also CALENDAR_DATA.md.
 ├── calendar-legend.js ← the month legend: which keys apply and whether a legend applies at all. Reasoning: its header. Tested by calendar-legend.test.mjs
 ├── calendar-overrides.js   ← the Calendar's Firestore override cache: range fetches, the phase-1 cache read, the access gate, the read ticket and the write ordering — each rule argued beside its code. See also calendar-overrides.test.mjs.
 ├── calendar-notices.js     ← the Calendar page's one-time notices (`initCalendarNotices`); new index.html notices land here. Live ones: the new-notice skill
 ├── calendar-member.js      ← team member selection for index.html (dropdown, current member, stale-name handling). See also calendar-member.test.mjs.
-├── calendar-renderer.js    ← calendar cell/grid building for index.html, plus the pure helpers the day panel reads back. See also calendar-renderer.test.mjs, calendar.spec.js.
+├── calendar-renderer.js    ← calendar cell/grid building for index.html, what a month shows (`monthOnScreen`, which the legend asks too), plus the pure helpers the day panel reads back. See also calendar-renderer.test.mjs, calendar.spec.js.
 ├── calendar-huddle-viewer.js    ← the Huddle viewer overlay (`#huddle`), including the per-table scroll boxes. See also calendar-huddle-viewer.test.mjs.
 ├── huddle-table-grid.js ← which Huddle cells are really in COLUMN 1, walking the grid as the browser does. Pure. Tested by huddle-table-grid.test.mjs. See also pages.spec.js.
 ├── calendar-doc-viewer.js  ← the Circular/Newsletter in-app viewer (`#circular` / `#newsletter`), separate from the Huddle viewer. See also calendar-doc-viewer.test.mjs.
@@ -118,10 +120,15 @@ roster-app/
 ├── al-swapped-days.js ← which days in an AL booking need the swapped-day question, and the rest days an absence range leaves alone. Its header. Pure; tested by al-swapped-days.test.mjs and e2e/admin.spec.js
 ├── admin-al-spare-note.js ← the one sentence the AL booking preview says about Spare days. Pure; tested by admin-al-spare-note.test.mjs and e2e/admin.spec.js
 ├── admin-period-dates.js ← what a run of booked dates is and how it reads. **A gap is not a day off.** Pure; tested by admin-period-dates.test.mjs
-├── admin-booked-periods.js ← the recorded-dates list on admin.html and which year of it is shown, plus the shared two-tap and feedback fade. Its header. Tested by admin-booked-periods.test.mjs
+├── admin-booked-periods.js ← the recorded-dates list on admin.html and which year of it is shown. Its header. Tested by admin-booked-periods.test.mjs
+├── admin-period-delete.js ← a Recorded-dates row's ✕: what one period delete does, in order, every dependency injected. Its header. Tested by admin-period-delete.test.mjs
+├── admin-confirm-bar.js ← the over-allowance question's bar on admin.html: whose question it is, and what Save anyway does. Its header. Tested by admin-confirm-bar.test.mjs
+├── two-tap.js ← the two-tap destructive control (arm, then confirm), shared by Admin's lists and Operations. Its header. Tested by two-tap.test.mjs
+├── feedback-line.js ← a feedback line's one fade, cancelled by every later write to it. Tested by two-tap.test.mjs
 ├── print-guard.js      ← whether `window.print()` can do anything here (it does nothing in an iOS home-screen app); every print control goes through `printOrExplain`. Tested by print-guard.test.mjs. See also print.spec.js.
 ├── clock-input.js      ← the rules of a TEXT clock box, shared by every page with one, and each box's memory of whether its digits are an EDIT. Tested by clock-input.test.mjs
-├── override-utils.js   ← override, member-start and shift helpers, including `resolveEffectiveShift` (the override→display ladder). See also coordinator-ratchet.test.mjs.
+├── override-utils.js   ← override, member-start and shift helpers, including `resolveEffectiveShift` (the override→display ladder); re-exports other-day.js. See also coordinator-ratchet.test.mjs.
+├── other-day.js        ← the Other-day value grammar (`OTHER_FLAVOURS`, parse/compose) and how one pays (`resolveOtherPay`); `isRestShift`. Pure; tested by override-utils.test.mjs. See also firestore-contract-parity.test.mjs.
 ├── admin-app.js            ← coordinator for admin.html; its body is an exported `init()` run by admin-boot.js. See also coordinator-ratchet.test.mjs.
 ├── admin-tips.js           ← CARD_TIPS for admin.html's `?` panels. Pure data
 ├── admin-boot.js           ← two-line bootstrap for admin.html (CSP blocks inline module scripts)
@@ -140,6 +147,9 @@ roster-app/
 ├── operations-boot.js      ← two-line bootstrap for operations.html (CSP blocks inline module scripts)
 ├── settings-status.js ← what the Settings cards' states MEAN and which open; runs no reads. **Silence is not success.** Pure; tested by settings-status.test.mjs. See also settings.spec.js.
 ├── settings-app.js         ← coordinator for settings.html; body is `init()`, run by settings-boot.js; driven by e2e/settings.spec.js
+├── settings-tips.js        ← CARD_TIPS for settings.html's `?` panels. Pure data. See also tips-content.test.mjs, settings-status.test.mjs.
+├── settings-password-card.js ← the Settings Password card: migration status and the change-password form; `passwordSaving()` holds the reload and sign-out. Driven by e2e/settings.spec.js
+├── settings-install-card.js ← the Settings Install card, and the hold on the browser's install offer from page start. Driven by e2e/settings.spec.js
 ├── settings-boot.js        ← two-line bootstrap for settings.html (CSP blocks inline module scripts)
 ├── huddle.js               ← the Daily Huddle manual upload card on Operations. See also dependency-pin-parity.test.mjs.
 ├── notif-card.js           ← the Settings Notifications card's wiring. Tested by notif-card.test.mjs. See also settings.spec.js.
@@ -167,6 +177,7 @@ roster-app/
 ├── roster-cell-rules.js ← what a parsed roster cell MEANS as an override; every path producing a review value goes through it. Its header. Tested by roster-cell-rules.test.mjs
 ├── roster-entry-control.js ← answering an unreadable roster cell in place. Its header. See also admin-roster-upload.test.mjs, operations.spec.js.
 ├── roster-review-states.js ← the state of each roster-review cell, whether it is ticked, and what a Save writes. **Never "write it" where anything is in doubt.** Its header. See also admin-roster-upload.test.mjs.
+├── roster-review-rows.js ← one roster review row's markup per cell state; draws `chosen`, never decides it. Pure; its header. Tested by admin-roster-upload.test.mjs
 ├── admin-roster-upload.js  ← Weekly Roster Upload COORDINATION: the review table, the file pick, the parse call and a refused Save. See also coordinator-ratchet.test.mjs.
 ├── roster-import-save.js   ← what one Save of the roster review writes, and its refusal line
 ├── paycalc-app.js          ← coordinator for paycalc.html (wiring, autosave, the result card); body is `init()`, run by paycalc-boot.js. See also paycalc.spec.js.
@@ -176,7 +187,8 @@ roster-app/
 ├── paycalc-result-headline.js ← which figure is the pay result's headline and what it is called. **An actual is never called an estimate.** Tested by paycalc-result-headline.test.mjs
 ├── paycalc-ytd-card.js     ← the Year to Date card on the page; owns no rule. Tested by paycalc-ytd-card.test.mjs
 ├── paycalc-disclosures.js  ← the Pay page's button-and-panel disclosures. Tested by paycalc-disclosures.test.mjs
-├── paycalc-money-banner.js ← the two opt-in money banners; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc.spec.js.
+├── paycalc-clear-confirm.js ← the two-tap "Clear all entries": the arm, the countdown and which tap confirms. Tested by paycalc-clear-confirm.test.mjs. See also paycalc.spec.js.
+├── paycalc-money-banner.js ← the two opt-in money banners and their ticks and links; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc.spec.js.
 ├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html. See also paycalc.spec.js.
 ├── paycalc-periods.js      ← period arithmetic and the period select, and the Year to Date source rules. See also paycalc-periods.test.mjs.
 ├── paycalc-settings.js     ← each payslip's rate, contracted hours, the pension controls and settings persistence. See also paycalc-settings.test.mjs.
@@ -212,6 +224,7 @@ roster-app/
 ├── auth-identity.js        ← pure account-identity helpers (`normaliseSurname`, the account email, password validation); surname-parity.test.mjs holds the functions copy to this file. See also auth-identity.test.mjs.
 ├── storage-utils.js        ← pure Storage helpers, including the download-URL allowlist (a security control); re-exported by firebase-client.js. See also storage-utils.test.mjs, calendar-doc-viewer.test.mjs.
 ├── document-url.js         ← asks `getDocumentUrl` for a SHORT-LIVED document URL; null means "use the stored URL". Never throws. See also document-url.test.mjs.
+├── function-url.js         ← the ONE address of the Cloud Functions, `functionUrl(name)`; every name passed is checked against the deployed list (functions-surface.test.mjs). Pure
 ├── client-errors.js        ← the pure RULES of the client error log. **A filter too broad silently swallows real errors.**. See also error-reporter.test.mjs.
 ├── claim-retry.js          ← what a `permission-denied` means: retry once after a token refresh, or a refusal rather than a network fault (the one home). Tested by claim-retry.test.mjs. See also AUTH_AND_SESSIONS.md.
 ├── page-session.js         ← how a signed-in page LEAVES a session and what it does when the session leaves it, including the late-identity reload guard (`lateReloadAllowed`). Its header. Tested by page-session.test.mjs and page-contract-parity.test.mjs
@@ -278,7 +291,8 @@ roster-app/
 ├── links-window.js ← the OPERATING WINDOW of a design, stored per design. Tested by links-window.test.mjs. See also links.spec.js.
 ├── links-deletion.js ← the PURE rules behind "Recently deleted". **The bin is PERMANENT** (owner decision; its header). Tested by links-deletion.test.mjs. See also doc-parity.test.mjs.
 ├── links-generator-targets.js ← the generator's target table on screen, its memory and provenance. Rule 4 in its header. Tested by links-generator-targets.test.mjs. See also links.spec.js.
-├── links-design.js ← pure link-design maths, including `ROTATING_LINES` — the ONE declaration of the rotation length. **Read its header before touching the generator or the hours maths.** Tested by links-design.test.mjs
+├── links-design.js ← pure link-design maths, including `ROTATING_LINES` — the ONE declaration of the rotation length, and `restBetween`, the one reading of a turnaround. Imports nothing. **Read its header before touching the hours maths.** Tested by links-design.test.mjs
+├── links-generate.js ← the link GENERATOR: `generateLink`, its two constructions, the contract gate and the minimum-rest repair; imports its constants from links-design.js. **Read its header before touching the generator.** Tested by links-design.test.mjs and links-contract.test.mjs
 ├── links-design-doc.js ← the SHAPE of a link design in memory and in Firestore, and every conversion between them. Its header. Tested by links-design-doc.test.mjs
 ├── links-design-load.js ← PURE: what a read of the design collection means, for the page load and the list refresh. Tested by links-design-load.test.mjs
 ├── links-design-naming.js ← what a design or staffing setup may be CALLED; a name clash is refused, never renamed silently. Tested by links-design-naming.test.mjs
@@ -420,8 +434,11 @@ roster-app/
 │   ├── admin-leave-year.test.mjs ← the Admin leave-year panel's markup and wiring. Part of test:hygiene
 │   ├── admin-al-year.test.mjs ← which year the Admin AL figures state. Part of test:hygiene
 │   ├── admin-booked-periods.test.mjs ← the booked-periods year selector and its precedence. Part of test:hygiene
+│   ├── two-tap.test.mjs ← the two-tap control and a feedback line's fade, driven directly. Part of test:hygiene
+│   ├── admin-confirm-bar.test.mjs ← the over-allowance bar: a card may hide only its own question. Part of test:hygiene
 │   ├── admin-week-editor.test.mjs ← the week grid's three silent failures and the Save button agreeing with staged edits (--experimental-test-module-mocks)
 │   ├── admin-saved-changes.test.mjs ← the Saved Changes controls, executed (--experimental-test-module-mocks)
+│   ├── admin-period-delete.test.mjs ← a Recorded-dates delete through the real function, every dependency injected (--experimental-test-module-mocks)
 │   ├── admin-range-booking.test.mjs ← the shared save path behind both booking cards
 │   ├── admin-card-config.test.mjs ← what each booking card hands the shared factory. Part of test:unit
 │   ├── paycalc-roster-hint.test.mjs ← "Fill from calendar" across its await: a payslip switched mid-fetch is written nothing
@@ -491,7 +508,8 @@ roster-app/
 │   ├── paycalc-ytd-card.test.mjs ← the Year to Date card's note, chip and source anchor (--experimental-test-module-mocks)
 │   ├── paycalc-disclosures.test.mjs ← every disclosure's `aria-expanded` and arrow in step with its panel. Part of test:hygiene
 │   ├── pay-audience.test.mjs ← who the Pay Calculator admits, by the role at the time. Part of test:hygiene
-│   ├── paycalc-money-banner.test.mjs ← the two money banners never overstating. Part of test:hygiene
+│   ├── paycalc-money-banner.test.mjs ← the two money banners never overstating, and the take-home's lump rules behind them. Part of test:hygiene
+│   ├── paycalc-clear-confirm.test.mjs ← the two-tap Clear: no delete nobody confirmed. Part of test:hygiene
 │   ├── paycalc-breakdown.test.mjs ← the pay-result card builders. Part of test:hygiene
 │   ├── paycalc-form-data.test.mjs ← the paycalc form round trip, a case per historical defect (--experimental-test-module-mocks)
 │   ├── paycalc-backpay-state.test.mjs ← the back-pay boxes, a case per historical defect. Part of test:hygiene
@@ -598,6 +616,7 @@ roster-app/
 │   ├── calendar-controls-parity.test.mjs ← four static contracts on index.css's control rows. Part of test:hygiene
 │   ├── day-detail-explains.test.mjs ← **if a symbol can appear in a CELL, the day panel explains it in FULL WORDS**. Part of test:hygiene
 │   ├── calendar-snapshot.test.mjs ← every refusal of the own-roster copy. Part of test:hygiene
+│   ├── calendar-own-copy.test.mjs ← which records the own-roster copy keeps, and when the Calendar offers it. Part of test:hygiene
 │   ├── calendar-data-state.test.mjs ← showing too much or too little, which is why `cached` is its own state. Part of test:hygiene
 │   ├── calendar-legend.test.mjs ← the legend by cost: never speaking for a month we have not got. Part of test:hygiene
 │   ├── calendar-access-state.test.mjs ← the one copy of whether Calendar access is held, and that both gates agree
@@ -613,7 +632,8 @@ roster-app/
 │   ├── install-route.test.mjs ← the install notice's route through the real `installRoute()`
 │   ├── calendar-doc-viewer.test.mjs ← the Circular/Newsletter in-app viewer (--experimental-test-module-mocks)
 │   ├── calendar-huddle-viewer.test.mjs ← the Daily Huddle viewer and the document gate. Part of test:unit
-│   ├── calendar-keyboard.test.mjs ← the Calendar's keyboard grammar. Part of test:unit
+│   ├── calendar-keyboard.test.mjs ← the Calendar's keyboard grammar and page shortcuts. Part of test:unit
+│   ├── calendar-month-jump.test.mjs ← the month/year jump picker, and a lost grant stopping it. Part of test:unit
 │   ├── calendar-notif-prompt.test.mjs ← the notification strip's two access rules. Part of test:unit
 │   ├── page-css-parity.test.mjs ← a page may only use classes its OWN stylesheets define. Part of test:hygiene
 │   ├── css-var-parity.test.mjs ← every `var(--x)` a page can reach is declared on that page. Part of test:hygiene
@@ -716,11 +736,14 @@ roster-app/
     ├── auth-endpoints.js          ← the ACCOUNT-AND-CREDENTIAL domain: setupRosterAuth, resetMemberPassword and the account reads
     ├── account-reads.js           ← the account domain's two admin READS, built by auth-endpoints.js. Tested by auth-endpoints.test.mjs
     ├── account-lifecycle.js       ← the pure rules at the edges of an account's life (Set up accounts, the admin reset). Tested by account-lifecycle.test.mjs and auth-endpoints.test.mjs
+    ├── account-rules.js           ← the pure ACCOUNT rules: claim tiers, leaver orphans, the provisioning audit, the sign-in counts. Its header. Tested by roster-parse-helpers.test.mjs and auth-endpoints.test.mjs
     ├── reset-request.js           ← `requestPasswordReset`, the public doorbell a locked-out member rings: records a request, pushes to the admin's devices only. Tested by auth-endpoints.test.mjs
+    ├── reset-request-rules.js     ← the reset-request queue's RULES: the throttle, the one-push-per-burst window, the notice's words. Pure. Tested by roster-parse-helpers.test.mjs and auth-endpoints.test.mjs
     ├── admin-recipients.js        ← WHO a notice for the admin may reach — one rule for every admin notice. See also auth-endpoints.test.mjs, documents-endpoints.test.mjs, overtime-endpoints.test.mjs.
     ├── push.js                    ← the web-push TRANSPORT: `fanOutPush` and `sendTargetedPush` (**fails closed, never falls back to everyone**); never what a payload says. See also push-transport.test.mjs.
+    ├── push-guards.js             ← the push TRANSPORT guards: only to a real push service, and delete only a dead subscription. Pure. Tested by roster-parse-helpers.test.mjs and push-transport.test.mjs
     ├── push-notices.js            ← the push DESIGN LANGUAGE and `buildPushPayload`, the one builder (`.claude/rules/notifications.md`). Pure
-    ├── roster-parse-helpers.js   ← pure roster-parse helpers
+    ├── roster-parse-helpers.js   ← pure roster-parse helpers, and the one server copy of the name → account derivation (`nameToEmail`, `nameToPassword`)
     ├── roster-geometry.js        ← what the roster PDF's OWN GRID says about where each cell is — the import's only witness that is not the model. Its header. Tested by roster-geometry.test.mjs
     ├── roster-sunday-repair.js   ← layer 1 of the day-drift defence: the Sunday-anchored repair. Tested by roster-parse-helpers.test.mjs + index-endpoints.test.mjs
     ├── roster-week-heading.js   ← the week the roster SAYS it is for, read from its printed heading; a sheet for another week is refused. Tested by roster-geometry.test.mjs + index-endpoints.test.mjs
@@ -731,6 +754,7 @@ roster-app/
     ├── member-identity.js         ← which member a verified ID token speaks for, or none — the server twin of `isMember()`. Its header. See also member-identity.test.mjs.
     ├── request-helpers.js         ← the request plumbing every endpoint shares, in one copy. See also doc-url-core.test.mjs.
     ├── caught.js                  ← the fields a `catch` reads off a thrown value, typed for the `unknown` it is (`fieldsOf`). Requires nothing
+    ├── region.js                  ← `REGION`, the one region every function deploys to; function-url.js is the browser's half. Requires nothing
     ├── web-push.d.ts              ← types for the part of `web-push` push.js calls (the package ships none); read only by the type-checker
     ├── jsconfig.json              ← the Functions' own strict type-check (`npm run typecheck` runs it beside the root one)
     ├── doc-url-core.js            ← who may be handed a document URL, for which document and for how long — a door that MIRRORS firestore.rules, taking a KIND, never a path. Design: AUTH_PLAN.md §5

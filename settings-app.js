@@ -3,6 +3,9 @@
  * settings-app.js — Coordinator for settings.html.
  *
  * Owns: login/session check and the page's cards, each reporting its state to settings-status.js.
+ * Three left for modules of their own on 25 Nov 2026, when this file reached its size cap: the `?`
+ * panels' content (settings-tips.js), the Password card (settings-password-card.js) and the Install
+ * card (settings-install-card.js). The Work Email and Pay Calculator Data cards are still wired here.
  * Session is shared with admin-app.js via the same AUTH_KEY in localStorage —
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
@@ -10,20 +13,20 @@
 import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom, teamMembers } from './roster-data.js';
 import { payCalculatorPrices } from './pay-audience.js';
 import { formatDayMonthYear } from './date-format.js';
-import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, changeOwnPassword, withClaimRetry } from './firebase-client.js';
-import { isPasswordMigrated, validateNewPassword, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
+import { getStaffContact, saveStaffContact, deleteStaffContact, withClaimRetry } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { initNotificationsCard } from './notif-card.js';
-import { timetableListed } from './notif-card-core.js';
-import { isIOS, isStandalonePWA, onPagesMirror } from './notif.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
-import { summarise, shouldOpen, installNeed } from './settings-status.js';
+import { summarise, shouldOpen } from './settings-status.js';
+import { CARD_TIPS } from './settings-tips.js';
+import { initPasswordCard, passwordSaving } from './settings-password-card.js';
+import { captureInstallOffer, initDeviceCard } from './settings-install-card.js';
 import { setStatus } from './status-text.js';
-import { unconfirmedWriteLine, trackBackgroundWrite } from './claim-retry.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut } from './page-session.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, continueAfterSignIn } from './page-session.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 import { inventoryOf, inventorySummary } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
@@ -35,97 +38,8 @@ import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
-import { runPasswordSave } from './own-password.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
-
-/** True from a password save's first write until its outcome is known — the two writes (re-auth,
- *  then the update) must never have a release's reload land between them (v24.61, iOS audit B2). */
-let _passwordSaving = false;
-
-// ── The `?` panels ──────────────────────────────────────────────────────────────────────────────
-// Static content at module scope, so it exists before anything in init() runs (Nov 2026 review): it
-// was a `const` declared half-way down init(), still in its temporal dead zone while the cards wired.
-const CARD_TIPS = {
-    'password': {
-        title: 'Password',
-        sections: [
-            { items: [
-                { icon: '🔑', html: 'Replace your <strong>surname default</strong> with a password only you know — anyone who knows your name can guess the default.' },
-                { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, unless you’ve set your own since your last reset), then a new one of <strong>at least 8 characters</strong> that isn’t your surname — even with numbers added.' },
-                { icon: '↩️', html: 'Forgotten it? Ask the admin — or, when you’re signed out, select <strong>“Can’t get in?”</strong> on the sign-in card, which asks them for you. They reset it to your surname, and you choose a new one as you sign in.' },
-                { icon: '🔒', html: 'Your password is never shown to anyone, not even the admin.' },
-            ]},
-        ],
-    },
-    'work-email': {
-        title: 'Work Email',
-        sections: [
-            { items: [
-                // The field takes the part before the @ (placeholder firstname.surname) and shows the domain beside it (settings.html).
-                { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong>. Type only the part before the @ — firstname.surname — and the rest is already shown beside the box.' },
-                { icon: '🔑', html: 'It is for <strong>account recovery</strong>. Self-service recovery isn’t available yet. For now, ask the admin if you forget your password — or, when you’re signed out, select <strong>“Can’t get in?”</strong> on the sign-in card, which asks them for you. They reset it to your surname, and you choose a new one as you sign in.' },
-                { icon: '🔒', html: 'Only you and the admin can see this email. It is not shown to your manager or to anyone else. It doesn’t change how you sign in.' },
-            ]},
-        ],
-    },
-    'notifications': {
-        title: 'Notifications',
-        sections: [
-            // Every kind the card lists (settings.html), and nothing else: a member turning notifications
-            // on agrees to this list. It named two kinds while four were sent, then four while the card
-            // said five — so tips-content.test.mjs now holds the two lists to each other.
-            { heading: 'What you’ll get', items: [
-                { icon: '📋', html: '<strong>Daily Huddle</strong> — when a new Huddle is uploaded, usually the evening before the day it covers.' },
-                { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
-                { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
-                { icon: '💷', html: '<strong>Pay reminder</strong> — for CEA and CES colleagues: on the cut-off Saturday, six days before payday, to enter your hours.' },
-                { icon: '🚆', html: '<strong>Timetable changes</strong> — the evening before Chiltern’s timetable changes, with what changes at Marylebone.' },
-            ]},
-            { heading: 'How it works', items: [
-                { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
-                { icon: '🔕', html: 'Select <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
-                { icon: '🚫', html: 'If you chose <strong>Don’t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn them back on in your phone’s or browser’s settings — the card shows you where.' },
-            ]},
-            { heading: 'iPhone users', items: [
-                // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).
-                { icon: '🍎', html: 'Notifications only work on iPhone if the roster has been <strong>added to your Home Screen</strong> — tap your browser’s Share button (under ••• on iOS 26 or later), then Add to Home Screen, then open the roster from your Home Screen and turn notifications on there.' },
-            ]},
-        ],
-    },
-    // The Install card gained its siblings' header, `?` included (settings review, Nov 2026).
-    'install': {
-        title: 'Install on this device',
-        sections: [
-            { items: [
-                { icon: '📱', html: 'Installing gives the roster its <strong>own icon</strong>, so it opens like an app — from your home screen, or from a computer’s desktop.' },
-                { icon: '🔔', html: 'On an <strong>iPhone</strong> it is the only way to get notifications: an iPhone sends them only to a roster opened from the Home Screen.' },
-                { icon: '💾', html: 'Pay Calculator figures saved in the installed roster are far less likely to be cleared to free up space. On an iPhone the Home Screen app starts <strong>without</strong> the figures saved in Safari — copy them across first with <strong>Move Your Pay Data</strong> on the Pay page.' },
-                { icon: '🙂', html: 'On an Android phone or a computer, installing is up to you. This card shows only while your browser can offer it.' },
-            ]},
-        ],
-    },
-    // ADDED v20.09. This card was the only one of the four with no `?`, which reads as a
-    // control that failed to render rather than as a card too simple to need one — and it is
-    // not too simple: it is the one place in the app where something does NOT follow your
-    // account, which is the opposite of every expectation the rest of the app sets.
-    'pay-data': {
-        title: 'Pay Calculator Data',
-        sections: [
-            { heading: 'Why this card exists', items: [
-                { icon: '💾', html: 'Your pay calculator figures are saved <strong>in this browser on this device</strong>, not to your account — so they do not follow you to a new phone, to another browser or to a different link. On an iPhone, Safari and the Home Screen app each keep their own copy.' },
-                { icon: '🔒', html: 'That is deliberate: <strong>pay data is never sent to the server</strong>. The trade is that moving it is something you have to do yourself.' },
-            ]},
-            { heading: 'Moving it', items: [
-                { icon: '📄', html: 'The button opens the <strong>pay calculator</strong>, where you can download a backup or copy it as text — the controls live there because that is where the data is.' },
-                { icon: '⚠️', html: 'Restoring <strong>replaces</strong> what is on the device — it does not merge. Take a backup of the new device first if it already has figures on it.' },
-                { icon: '🙋', html: 'A backup belongs to the member who made it. Restoring somebody else’s is refused, because staff share devices.' },
-            ]},
-        ],
-    },
-};
-// Timetable changes are listed only while one is scheduled, as the card lists them (notif-card-core.js).
-if (!timetableListed()) for (const s of CARD_TIPS.notifications?.sections ?? []) s.items = s.items.filter(it => it.icon !== '🚆');
 
 /**
  * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init() invoked by
@@ -248,9 +162,9 @@ export function init() {
             onSignOut:   () => signOutAndLeave({ to: './' }),
             // A SAVE ON ITS WAY IS ASKED ABOUT FIRST (settings review, Nov 2026). Signing out mid-save said
             // nothing: the email's write and the password's change are counted by `writesInFlight`, and
-            // the password's re-authentication — before anything is written — by `_passwordSaving`, which asks
+            // the password's re-authentication — before anything is written — by `passwordSaving()`, which asks
             // "without saving?" only until the change is sent: after that "still saving" is the whole truth.
-            beforeSignOut: askBeforeSignOut(() => _passwordSaving && writesInFlight() === 0),
+            beforeSignOut: askBeforeSignOut(() => passwordSaving() && writesInFlight() === 0),
         });
     }
 
@@ -260,8 +174,8 @@ export function init() {
     // reload, and a notification tap, while a save is on its way (v24.61): the contact card's writes are
     // counted by slow-save; the password's change and its "own password" record by `trackBackgroundWrite`
     // (claim-retry.js), which `writesInFlight` reads; and the re-authentication before them, which
-    // writes nothing, by `_passwordSaving`. Behaviour-tested in e2e/settings.spec.js.
-    const _busy = () => writesInFlight() > 0 || _passwordSaving;
+    // writes nothing, by `passwordSaving()` (settings-password-card.js). Behaviour-tested in e2e/settings.spec.js.
+    const _busy = () => writesInFlight() > 0 || passwordSaving();
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
     initTipsLightbox(CARD_TIPS);   // the ? buttons are static markup, signed in or not
@@ -280,11 +194,8 @@ export function init() {
         // On success, initialise in place via initAuthorised(), falling back to a reload if it throws
         // mid-wiring (never less robust than reload). Don't resolveSession(false) here, or the one-shot
         // sessionReady is poisoned before initAuthorised can resolve it true.
-        // Reload (fresh overlay) rather than run initAuthorised() with a null identity if getSession()
-        // is null by then — belt and braces, because a failed save never reaches onSuccess
-        // (`runNamedSignIn` refuses with kind 'storage' first). See operations-app.js.
-        const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } initAuthorised(); } catch { window.location.reload(); } };
-        initLoginOverlay({ pageLabel: 'Settings', onSuccess });
+        // The rest of the recipe — no session, a throw, the Back guard — is `continueAfterSignIn`'s.
+        initLoginOverlay({ pageLabel: 'Settings', onSuccess: continueAfterSignIn(initAuthorised) });
     } else {
         initAuthorised();
     }
@@ -339,8 +250,8 @@ export function init() {
         // Work Email card
         wireCard('work-email', initContactCard);
 
-        // Password card (PASSWORD_DESIGN.md — chosen password + migration status)
-        wireCard('password', initPasswordCard);
+        // Password card (PASSWORD_DESIGN.md — chosen password + migration status; settings-password-card.js)
+        wireCard('password', () => initPasswordCard({ member: currentUser, reportSetting, cardHandles: _cardHandles }));
 
         // Notifications card. It reports its own state — notif-card-core.js's words are the authority, and a second
         // `peekNotifState` read here could disagree with the screen. It names the pay reminder only to CEA and CES
@@ -621,275 +532,6 @@ export function init() {
         }
     }
 
-    // ── Password card (PASSWORD_DESIGN.md — self-service chosen password + migration status) ────────
-
-    function initPasswordCard() {
-        const curEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwCurrent'));
-        const newEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwNew'));
-        const confEl  = /** @type {HTMLInputElement|null} */ (document.getElementById('pwConfirm'));
-        const saveBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('pwSaveBtn'));
-        const feedback = document.getElementById('pwFeedback');
-        const chip    = document.getElementById('passwordStatusChip');
-        const nudge   = document.getElementById('passwordNudge');
-        // Same rule as the work-email card above — a missing form must not silence the summary.
-        if (!curEl || !newEl || !confEl || !saveBtn || !feedback) { reportSetting('password', 'error', 'Couldn’t check'); return; }
-        _cardHandles['password'] = initCardCollapse('passwordToggleHeader', 'passwordBody', 'passwordChevron');
-
-        // ONE reveal control, covering all THREE fields (v22.37, owner review). The old `Show`
-        // button sat beside New and also governed Confirm — defensible, and not what its placement
-        // said. A labelled checkbox states which of its two positions it is in, and reaches Current
-        // as well, which is where a mistyped password most often comes from.
-        const pwShow = /** @type {HTMLInputElement|null} */ (document.getElementById('pwShowAll'));
-        /** @param {boolean} reveal */
-        const setRevealed = (reveal) => {
-            curEl.type = newEl.type = confEl.type = reveal ? 'text' : 'password';
-            if (pwShow) pwShow.checked = reveal;
-        };
-        pwShow?.addEventListener('change', () => setRevealed(!!pwShow.checked));
-
-        // The two halves of the card body, and the latch that keeps the form open once opened.
-        const settled   = document.getElementById('pwSettled');
-        const form      = /** @type {HTMLFormElement|null} */ (document.getElementById('pwForm'));
-        const changeBtn = document.getElementById('pwChangeBtn');
-        const cancelBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('pwCancelBtn'));
-        let _pwFormOpened = false;
-        changeBtn?.addEventListener('click', () => {
-            _pwFormOpened = true;
-            if (settled) settled.hidden = true;
-            if (form)    form.hidden    = false;
-            if (cancelBtn) cancelBtn.hidden = false;
-            curEl.focus();
-        });
-        // CANCEL PUTS THE SETTLED STATE BACK (settings review, Nov 2026). Change password opened a door
-        // with no way back but a reload. It is offered only on that path, takes what was typed with it
-        // (re-masked, as a save does, for the next person on a shared device), and waits out a save.
-        cancelBtn?.addEventListener('click', () => {
-            if (_passwordSaving) return;
-            _pwFormOpened = false;
-            curEl.value = newEl.value = confEl.value = '';
-            setRevealed(false);
-            setFeedback('');
-            cancelBtn.hidden = true;
-            if (form)    form.hidden    = true;
-            if (settled) settled.hidden = false;
-            changeBtn?.focus();
-        });
-        /** A save is on its way, or no longer — Cancel waits for it. @param {boolean} on */
-        const setSaving = (on) => { _passwordSaving = on; if (cancelBtn) cancelBtn.disabled = on; };
-
-        const member = currentUser;
-        // THE FORM IS FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026; the sign-in card's shape): it
-        // files a new password under the username in the SAME form — this member's roster name. It never
-        // goes anywhere: every submit is cancelled, and it is submitted only once a write is CONFIRMED
-        // (`onWriteConfirmed`), so a password manager is never offered one the account does not have.
-        const userEl = /** @type {HTMLInputElement|null} */ (document.getElementById('pwUsername'));
-        if (userEl) userEl.value = member ?? '';
-        form?.addEventListener('submit', e => e.preventDefault());
-        // The return key does what the keyboard labels it: Next moves on, Done (Confirm's) saves — never the Enter that accepts an input method's suggestion (password-force.js's rule).
-        form?.addEventListener('keydown', e => {
-            const next = e.target === curEl ? newEl : e.target === newEl ? confEl : null;
-            if (e.key !== 'Enter' || e.isComposing || saveBtn.disabled || (!next && e.target !== confEl)) return;
-            e.preventDefault();
-            if (next) next.focus(); else saveBtn.click();
-        });
-        const setFeedback = (/** @type {string} */ msg, /** @type {string} */ state = '') => {
-            setStatus(feedback, msg);   // a leading ✓ is decoration, not a word to announce (status-text.js)
-            feedback.className   = `contact-feedback${state ? ' ' + state : ''}`;
-        };
-
-        // Reflect migration status (header chip + nudge banner). Best-effort — a failed read leaves
-        // both blank. Migrated ⇔ passwordSetAt exists AND is at least as new as any resetAt (§6).
-        // `optimisticMigrated` lets the just-completed save flip the UI to migrated WITHOUT waiting on
-        // the serverTimestamp() to resolve (an immediate local-cache read returns passwordSetAt:null
-        // right after the write, which would briefly flash "using surname" under the ✓ message).
-        //
-        // ── ONLY THE LATEST READ PAINTS, AND A CONFIRMED WRITE IS LATCHED (settings review, Nov 2026) ──
-        // The first read can be the slow one — a cold connection — while the read after a successful
-        // change is answered at once from the local cache. Painting each answer as it landed let the
-        // FIRST read, arriving last, turn "✓ Password set" back into "Using surname" (or "Couldn’t
-        // check") under the member who had just set it. So every call is numbered and only the newest
-        // may paint; and once a password write on this device is confirmed (`optimisticMigrated` — the
-        // card's own save, or the forced overlay's event) migrated is held for the page's life: no read
-        // made before the write can know about it, and nothing on this page un-sets a password.
-        let _statusRead = 0;
-        let _writeConfirmed = false;
-        async function refreshStatus(optimisticMigrated = false) {
-            // No identity to ask about — nothing was learnt, and the summary must be told that
-            // rather than waiting for an answer that is never coming.
-            if (!member) { reportSetting('password', 'error', 'Couldn’t check'); return; }
-            if (optimisticMigrated) _writeConfirmed = true;
-            const mine = ++_statusRead;
-            const paint = (/** @type {boolean} */ migrated) => {
-                // Every path into `paint(true)` is real evidence: the server says migrated, or a password
-                // write on THIS device just succeeded (`optimisticMigrated` — the card's own save, and the
-                // forced overlay's `myb:password-set`). Nothing paints migrated on a guess.
-                // Through `setStatus`: this chip leads with a tick, and a live header a screen
-                // reader walks would otherwise announce it as a word (status-text.js).
-                if (chip) setStatus(chip, migrated ? '✓ Password set' : 'Using surname');
-                if (nudge) {
-                    nudge.hidden = migrated;
-                    // "Still" was wrong after an admin reset, when the surname is the password AGAIN (settings review).
-                    if (!migrated) nudge.textContent =
-                        'Your password is your surname — anyone who knows your name could guess it. Set one only you know below.';
-                }
-                // THE FORM IS BEHIND A DOOR ONCE THERE IS NOTHING TO FIX (v22.37, owner review).
-                // A migrated member met three empty password fields on every visit, which reads as
-                // a form they have to fill in rather than as a setting that is already right.
-                // `_pwFormOpened` makes this ONE-WAY: once Change password has been pressed, a
-                // later refresh (the optimistic repaint after a successful save, say) must not
-                // fold the form away under someone who is typing in it.
-                if (settled && form) {
-                    settled.hidden = !migrated || _pwFormOpened;
-                    form.hidden    = migrated && !_pwFormOpened;
-                }
-                reportSetting('password', migrated ? 'ok' : 'action',
-                    migrated ? '✓ Password set' : 'Using surname');
-            };
-            if (_writeConfirmed) paint(true);
-            try {
-                // Gate the owner-only read on the Firebase session (like initContactCard) — a cold-load
-                // read before auth.currentUser exists is rejected by the rules and would blank the chip.
-                await sessionReady;
-                const st = await withClaimRetry(() => getPasswordStatus(member));   // a stale token, refreshed once (the work email's reason)
-                if (mine !== _statusRead) return;   // a newer read was asked for: its answer is the one
-                // isPasswordMigrated (auth-identity.js) is the single, unit-tested source (§6).
-                paint(isPasswordMigrated(st) || _writeConfirmed);
-            } catch {
-                if (mine !== _statusRead) return;
-                // Leave the chip/nudge as the optimistic paint left them — but the SUMMARY must
-                // hear about it. Silence here would let "✓ You’re all set" appear over a password
-                // status nobody actually read, which is the one thing that line must never do.
-                if (!_writeConfirmed) reportSetting('password', 'error', 'Couldn’t check');
-            }
-        }
-        refreshStatus();
-        // The forced overlay (password-force.js) can change the password AFTER this card has already
-        // read passwordStatus, leaving the header chip saying "using surname" until a reload (FIX,
-        // v18.94). It dispatches this when it succeeds; optimistic because the serverTimestamp hasn't
-        // resolved yet.
-        document.addEventListener('myb:password-set', () => refreshStatus(true));
-
-        /** True while a password write has passed its deadline but may still be in flight. */
-        let _pwIndeterminate = false;
-
-        /** The write completed. Shared by the in-time and the LATE success paths.
-         *  @param {any} res the changeOwnPassword result ({ stamp }): the password HAS changed */
-        const onWriteConfirmed = (res) => {
-            // Only now tell the password manager, before the fields clear: earlier, a wrong CURRENT password
-            // left Keychain offering a new password that was never set (the submit itself is cancelled).
-            form?.requestSubmit();
-            const done = '✓ Password updated. Use it the next time you sign in.';
-            setFeedback(done, 'ok');   // a stamp that then FAILS is a soft note, and amends only this line
-            // …and says what is true (review, Nov 2026). It promised "Your status will refresh shortly",
-            // but nothing retries the stamp: without it the app still believes the surname is in use,
-            // so the next sign-in may ask for a new password again. The password itself HAS changed.
-            res?.stamp?.then((/** @type {boolean} */ ok) => { if (!ok && feedback?.textContent === done)
-                setFeedback('✓ Password updated — use it next time you sign in. The app couldn’t record the change, so it may ask you to choose a password again.', 'ok'); });
-            curEl.value = newEl.value = confEl.value = '';
-            // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
-            // reveal state the member chose, so the NEXT password typed into this card — possibly
-            // by someone else on a shared device — would appear in the clear with no warning.
-            setRevealed(false);
-            // A first save folds the form away with focus in it, or already dropped to the page by the
-            // disabled Save: it goes to Change password, which brings the form back (Nov 2026 review).
-            const follow = !!form?.contains(document.activeElement) || document.activeElement === document.body;
-            refreshStatus(true);   // optimistic: the password changed, so show migrated immediately
-            if (follow && form?.hidden) changeBtn?.focus();
-        };
-
-        /**
-         * The write passed its deadline and is still running. Say exactly that — the one thing we must
-         * NOT say is that it failed, because it may be about to succeed, and the member would then be
-         * signing in with a password that no longer exists (external review, v18.97).
-         *
-         * The fields are deliberately left FILLED: if the write did land, what they typed is now their
-         * password, and clearing it would destroy the only copy on screen.
-         * @param {Promise<{status:string, value?:any}>} settled
-         */
-        const onIndeterminate = (settled) => {
-            _pwIndeterminate = true;
-            saveBtn.disabled = true;                  // no racing second write
-            saveBtn.textContent = 'Still saving…';
-            setFeedback('We couldn’t confirm whether your password was updated. Remember the new password you just entered: try it first the next time you sign in, and your old one if it doesn’t work.', 'err');
-            settled.then(late => {
-                _pwIndeterminate = false;
-                setSaving(false);
-                saveBtn.disabled = false; saveBtn.textContent = 'Set password';
-                if (late.status === 'ok') onWriteConfirmed(late.value);   // it landed after all
-                else setFeedback('Your password wasn’t updated — try again.', 'err');
-            });
-        };
-
-        saveBtn.addEventListener('click', async () => {
-            if (!member) return;
-            const current = curEl.value;
-            const next    = newEl.value.trim();
-            const confirm = confEl.value.trim();
-            if (!current.trim())  { setFeedback('Enter your current password.', 'err'); curEl.focus(); return; }
-            // Length / match / surname-block now come from the SHARED validator (auth-identity.js,
-            // v18.92) so this card and the forced overlay can never disagree about what a valid
-            // password is — two copies of a rule is how the Other-day grammar drifted (v18.91). The
-            // messages and their order are unchanged.
-            const invalid = validateNewPassword(member, next, confirm);
-            if (invalid) {
-                setFeedback(invalid, 'err');
-                (newPasswordProblemField(next, confirm) === 'confirm' ? confEl : newEl).focus();
-                return;
-            }
-            // The last attempt's message goes as this one starts (sign-in check, 11 Nov 2026 — a
-            // "✓ Password updated" or an old refusal sat beside "Saving…").
-            setFeedback('');
-            const startFocus = document.activeElement;   // see the caret, in `finally`
-            saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
-            setSaving(true);
-            // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"
-            // (the old catch mapped every non-rate-limit/weak error to that, so a network blip during the
-            // update told the member their correct password was incorrect → needless retries + admin reset).
-            let reauthed = false;
-            /** Where the caret goes after a refusal — never left on the page (sign-in check, 11 Nov 2026). */
-            let refocus = /** @type {HTMLElement|null} */ (null);
-            try {
-                // Wait for the session like every other write here (v18.84): initApp() runs while
-                // ensureNamedSession is in flight, so an early save could meet a null auth.currentUser
-                // ("Not signed in", read as a wrong CORRECT password) or, on a shared device mid-switch,
-                // the PREVIOUS member's account.
-                await sessionReady;
-                // The sequence is own-password.js's (`runPasswordSave`, shared with the forced change, whose
-                // header says why each call is time-boxed as it is). The write is COUNTED while it runs, so
-                // `writesInFlight` sees it: the update reload holds and signing out asks (settings review).
-                const outcome = await runPasswordSave({ member, current, next,
-                    reauthenticate: reauthenticateWithPassword, change: changeOwnPassword, track: trackBackgroundWrite });
-                if (outcome.status === 'pending') { onIndeterminate(outcome.settled); return; }
-                if (outcome.status === 'failed')  { reauthed = outcome.reauthed; throw outcome.error; }
-                onWriteConfirmed(outcome.value);
-            } catch (e) {
-                const code = /** @type {any} */ (e)?.code || '';
-                refocus = saveBtn;
-                // Map by CAUSE and by STAGE — the ladder the forced change reads too (auth-identity.js).
-                // A stale sign-in is this card's own: its remedy here is to sign out and back in.
-                // Effectively unreachable today: the card re-authenticates with the current password
-                // just above, which is exactly what makes a sign-in "recent". It stays as a guard: if
-                // that step were ever skipped, reordered or changed, Firebase would refuse with this
-                // code, and the generic "wasn’t updated — try again shortly" line would send the member
-                // to retry something only signing out and back in can fix.
-                if (code === 'auth/requires-recent-login') setFeedback('For your security, sign out and back in, then change your password.', 'err');
-                else {
-                    const f = passwordChangeFailure(code, reauthed);
-                    setFeedback(f.message, 'err');
-                    if (f.focus) refocus = f.focus === 'current' ? curEl : newEl;
-                }
-            } finally {
-                // Not re-enabled while a write may still be in flight — onIndeterminate owns the
-                // button until the real outcome arrives, so a second save can't race the first.
-                if (!_pwIndeterminate) { setSaving(false); saveBtn.disabled = false; saveBtn.textContent = 'Set password'; }
-                // Only where the member left it (review, 11 Nov 2026): a save can wait out the re-auth
-                // deadline, and one who moved on meanwhile — a field, the drawer — keeps their place.
-                const here = document.activeElement;
-                if (refocus && (here === startFocus || here === saveBtn || here === document.body || !here)) refocus.focus();
-            }
-        });
-    }
-
     // ── Icon lightbox ─────────────────────────────────────────────────────────────
     // About panel (version, update status, bug link) is the shared about-lightbox.js.
     function initIconLightbox() {
@@ -904,97 +546,4 @@ export function init() {
         // Android Back, focus trap). Do not re-wire it here — a duplicate handler used to
         // live in this function and left the nav-panel state flags out of sync (v11.50).
     }
-}
-
-/**
- * Hold the browser's install offer from page start until the Device card can use it.
- * @returns {{ event: any, onChange: null | (() => void) }}
- */
-function captureInstallOffer() {
-    /** @type {{ event: any, onChange: null | (() => void) }} */
-    const offer = { event: null, onChange: null };
-    // The Pages mirror is refused below; leave Chrome's own infobar alone there.
-    if (onPagesMirror()) return offer;
-    window.addEventListener('beforeinstallprompt', (e) => {
-        // Chrome's own mini-infobar is suppressed only for a member ALREADY signed in, for whom the
-        // Device card is about to offer the install instead (v25.06, whole-app review). The card is
-        // wired only after sign-in, so suppressing it for a signed-out visitor took Chrome's offer
-        // away and put nothing in its place — "strictly worse than nothing" (install-prompt.js).
-        // The event is KEPT either way: an in-place sign-in still gets its install row (Sep 2026),
-        // and `prompt()` works on an event whose default was not prevented.
-        if (getSession()) e.preventDefault();
-        offer.event = e;
-        offer.onChange?.();
-    });
-    return offer;
-}
-
-/**
- * The conditional "Install on this device" card (v22.13; its own card since v22.37, owner review).
- *
- * It earns its place because installing makes push possible on iOS and makes pay data saved IN
- * the installed app durable — the two subjects this page is about, and neither something a member
- * knows. The whole CARD is conditional: it appears only while there is an install to offer, since
- * a permanent "✓ Installed" row would be a card that never does anything again. Chromium's
- * `beforeinstallprompt` (never on WebKit, never inside an installed PWA) is the offer on Android;
- * it is single-use, so the card goes the moment it is spent, or on `appinstalled`. On an iPhone the
- * card states the taps instead — and, since the Home Screen app keeps storage of its own, what does
- * NOT come with the install: the sign-in, and the pay figures (iPhone audit, 7 Nov 2026).
- */
-function initDeviceCard(/** @type {(state: import('./settings-status.js').CardState, chip?: string) => void} */ report,
-                        /** @type {{ event: any, onChange: null | (() => void) }} */ offer,
-                        /** @type {boolean} */ holdsPayFigures) {
-    const row   = document.getElementById('deviceCard');
-    const btn   = /** @type {HTMLElement|null} */ (document.getElementById('installBtn'));
-    const steps = /** @type {HTMLElement|null} */ (document.getElementById('installSteps'));
-    // A card whose markup is not there cannot be a thing to finish — and must not hold the
-    // summary on "Checking…" for ever by never reporting at all.
-    if (!row || !btn || !steps) { report('n/a'); return; }
-
-    // Already installed, or the Pages mirror — the calendar's install strip refuses both, for the same
-    // reasons: there is nothing to install, and installing FROM the mirror would pin a member to the
-    // address we are migrating off. (An iPhone there is sent to the main address instead, below.)
-    const installed = isStandalonePWA();
-    const onMirror  = onPagesMirror();
-
-    // **The report is synchronous and definite, and that is load-bearing.** The summary waits on
-    // every card it speaks for, so a state that only arrived with `beforeinstallprompt` would leave a
-    // browser that never fires it on "Checking your settings…" for ever. WHEN installing is a thing
-    // to finish rather than an offer, and where the app is added from, is `installNeed`.
-    const need = installNeed({ ios: isIOS(), installed, onMirror });
-    report(need.state, need.chip);
-
-    if (need.from) {
-        btn.hidden   = true;         // WebKit fires no event, so there is nothing to press
-        const iosLine = document.getElementById('installNoteIos');   // …and here installing is what notifications need
-        if (iosLine) iosLine.hidden = false;
-        steps.hidden = false;        // say what to tap instead
-        // …starting with the figures, where there are any: the Home Screen app keeps its own storage.
-        const payStep = document.getElementById('installStepPay');
-        if (payStep) payStep.hidden = !holdsPayFigures;
-        const fromHere = document.getElementById('installStepSafari'), fromMain = document.getElementById('installStepMain');
-        if (fromHere) fromHere.hidden = need.from !== 'here';           // …and, on the mirror, at the
-        if (fromMain) fromMain.hidden = need.from !== 'main-address';   // address it is added from
-        row.hidden   = false;
-    }
-
-    /** @type {any} */
-    let deferred = null;
-    // The offer is captured at page start (`captureInstallOffer`), since it may already have fired.
-    const adopt = () => {
-        if (installed || onMirror || !offer.event) return;
-        deferred = offer.event;
-        offer.event = null;          // single-use, like the prompt it holds
-        row.hidden = false;          // …but still 'n/a': an offer, not a to-do
-    };
-    offer.onChange = adopt;
-    adopt();
-    window.addEventListener('appinstalled', () => { deferred = null; row.hidden = true; });
-    btn.addEventListener('click', () => {
-        if (!deferred) { row.hidden = true; return; }
-        const p = deferred;
-        deferred = null;             // single-use: a spent prompt cannot be shown again
-        row.hidden = true;
-        try { p.prompt(); } catch { /* the browser withdrew it — nothing to recover */ }
-    });
 }

@@ -15,7 +15,7 @@
  * Factory rather than plain module for the reasons documented at the top of documents.js:
  * index.js stays the composition root, the static guards keep one home for the shared
  * literals, and the deps seam is what a future Node test drives fake boundaries through.
- * The pure DECISIONS in these endpoints already live in roster-parse-helpers.js
+ * The pure DECISIONS in these endpoints already live in account-rules.js
  * (resolveRosterAuthConfig, claimsForTier, computeOrphanLabels; summariseAccountGaps and
  * summariseSignIns for the reads), member-identity.js and account-lifecycle.js (passwordWriteRefused,
  * unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids, sweepAgainstPreview), and are unit-tested there —
@@ -28,15 +28,13 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { nameToEmail, nameToPassword, buildPushPayload } = require('./roster-parse-helpers');
 const {
-    nameToEmail,
-    nameToPassword,
-    buildPushPayload,
     parseSetupActionFlags,
     resolveRosterAuthConfig,
     claimsForTier,
     computeOrphanLabels,
-} = require('./roster-parse-helpers');
+} = require('./account-rules');
 const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push');
 const { requireAdmin, readJsonBody } = require('./request-helpers');
 const { mustReclaim, claimedByAnotherMember, unlinkOtherProviders } = require('./member-identity');
@@ -44,6 +42,7 @@ const { buildResetRequestEndpoint } = require('./reset-request');
 const { buildAccountReadEndpoints, listAllUsers } = require('./account-reads');
 const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids, sweepAgainstPreview } = require('./account-lifecycle');
 const { fieldsOf } = require('./caught');
+const { REGION } = require('./region');
 
 /**
  * Stamp `passwordStatus/{member}.resetAt`, the marker a device's SILENT sign-in is refused against
@@ -133,7 +132,7 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  */
 const setupRosterAuth = onRequest(
     {
-        region:        'europe-west2',
+        region:        REGION,
         timeoutSeconds: 120,
         cors:          ADMIN_FUNCTION_ORIGINS,
     },
@@ -443,7 +442,7 @@ const setupRosterAuth = onRequest(
  */
 const resetMemberPassword = onRequest(
     // The VAPID secret is for the "your password was reset" push below: without it the key reads '' in production.
-    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS, secrets: [VAPID_PRIVATE_KEY] },
+    { region: REGION, timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS, secrets: [VAPID_PRIVATE_KEY] },
     async (req, res) => {
         if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 

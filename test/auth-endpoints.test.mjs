@@ -87,7 +87,7 @@ const require = createRequire(REPO_ROOT_URL);
 // Functions deploy the leaver checklist waits for, with nothing wrong (test audit, 7 Nov 2026).
 // Equality, not `>=`, so a run that skips somebody still fails.
 const expectedAccounts = () => {
-    const { resolveRosterAuthConfig } = require('./functions/roster-parse-helpers.js');
+    const { resolveRosterAuthConfig } = require('./functions/account-rules.js');
     const n = resolveRosterAuthConfig(require('./functions/roster-members.json')).processMembers.length;
     assert.ok(n > 0, 'the server roster names somebody');
     return n;
@@ -793,7 +793,7 @@ describe('coalescing counts notifications SENT, not requests arrived (v21.85)', 
 // read → send → stamp let every request read the rows before any push had been stamped: a reviewer
 // drove this handler with fifty names at once and the admin's phone got fifty pushes.
 describe('a burst of reset requests rings the admin ONCE, however parallel', () => {
-    const { resolveRosterAuthConfig } = require('./functions/roster-parse-helpers.js');
+    const { resolveRosterAuthConfig } = require('./functions/account-rules.js');
     const burst = resolveRosterAuthConfig(require('./functions/roster-members.json')).processMembers
         .filter((n) => n !== ADMIN).slice(0, 20);
     const seededClaim = (claimMs) => ({ seed: { resetRequests: {
@@ -2009,7 +2009,7 @@ test('the module never reaches for a broadcast sender', () => {
 // ── getAccountSetupGaps ───────────────────────────────────────────────────────
 
 /**
- * The provisioning audit, driven for real. `summariseAccountGaps` is thoroughly tested next door in
+ * The provisioning audit, driven for real. `summariseAccountGaps` (account-rules.js) is thoroughly tested next door in
  * roster-parse-helpers.test.mjs, and that is exactly the shape this file exists to distrust: a
  * perfect rule reached with the wrong argument, in the wrong access context, or with its answer
  * discarded. Four properties are WIRING and cannot be seen from the pure side —
@@ -2024,8 +2024,8 @@ test('the module never reaches for a broadcast sender', () => {
  * the strip on the other end renders those two identically unless the endpoint keeps them apart.
  */
 describe('getAccountSetupGaps — the provisioning audit', () => {
-    const { resolveRosterAuthConfig, claimsForTier, nameToEmail } =
-        require('./functions/roster-parse-helpers.js');
+    const { resolveRosterAuthConfig, claimsForTier } = require('./functions/account-rules.js');
+    const { nameToEmail } = require('./functions/roster-parse-helpers.js');
     const rosterCfg = resolveRosterAuthConfig(require('./functions/roster-members.json'));
     const SETS = {
         adminSet:    new Set(rosterCfg.admin),
@@ -2181,7 +2181,8 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
  * a count taken from the wrong population is a wrong number on a card that calls itself exact.
  */
 describe('getSignInStats — the exact sign-in count', () => {
-    const { resolveRosterAuthConfig, nameToEmail } = require('./functions/roster-parse-helpers.js');
+    const { resolveRosterAuthConfig } = require('./functions/account-rules.js');
+    const { nameToEmail } = require('./functions/roster-parse-helpers.js');
     const rosterCfg = resolveRosterAuthConfig(require('./functions/roster-members.json'));
     const adminSet = new Set(rosterCfg.admin);
     const members = rosterCfg.processMembers.filter((n) => !adminSet.has(n));

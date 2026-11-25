@@ -40,18 +40,18 @@ import {
     classifyShift,
     normaliseCustomShift, normalisePatterns,
     calcCoverage,
-    generateLink,
     hmFromHours, hoursFigure,
     lineTotals,
     weeklyHours,
     MIN_REST_MINUTES,
     SPARE_WORKED_DAYS,
 } from './links-design.js';
+import { generateLink } from './links-generate.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { createGridInput, trackPaintBarHeight } from './links-grid-input.js';
 import { DAY_LABELS, shiftLabel, cellName, cellAriaName, emptyPattern, isUnfilledPattern, editCellHtml, coverCellsHtml } from './links-grid-cells.js';
 import { deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
-import { splitDesignDocs, binOldOnLoad, binOldOnRefresh, readCannotAnswer, migratesLegacy, byDesignName, designToOpen } from './links-design-load.js';
+import { splitDesignDocs, binOldOnLoad, binOldOnRefresh, readCannotAnswer, migratesLegacy, byDesignName, designToOpen, emptyStateFor } from './links-design-load.js';
 import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { PROPOSALS, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
@@ -70,7 +70,7 @@ import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { createQueuedSaves, stillUnsaved, refusedMakeLine } from './links-queued-saves.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, leaveAfterAsking } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, leaveAfterAsking, continueAfterSignIn } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
     sortByDeleted, deleteOutcomeLine, renameRefusedLine,
@@ -114,10 +114,8 @@ export function init() {
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'links');
     if (_access.decision === 'login') {
         // The in-place sign-in runs init() again, once, with the new session. Never resolveSession(false) here: the
-        // one-shot sessionReady would be spent before that pass. A reload if init() throws, or if the session did
-        // not save (iOS private mode) — re-entering then would soft-lock.
-        const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
-        initLoginOverlay({ pageLabel: 'Links', onSuccess });
+        // one-shot sessionReady would be spent before that pass. The rest is `continueAfterSignIn`'s.
+        initLoginOverlay({ pageLabel: 'Links', onSuccess: continueAfterSignIn(init) });
         return;
     }
     if (_access.decision === 'forbidden') {
@@ -1007,24 +1005,18 @@ export function init() {
 
         if (!design) {
             renderSummary();   // hidden with the save row, but a stale strip would flash on the next design
-            // FOUR states, and only the last two may offer to make a design: while LOADING it would be replaced when the
-            // list lands (links-app-1), and after a FAILURE — or a cached answer that cannot tell "none" from "never read
-            // here" (links-app-5) — "No designs yet" would be a lie, and a new design a duplicate.
-            const state = listLoading ? 'loading' : loadFailed ? 'failed' : binnedOnLoad && _bin().length ? 'binned' : 'empty';
-            const offers = state === 'binned' || state === 'empty';
+            // FOUR states, and only the last two may offer to make a design — the words and the rule are
+            // `emptyStateFor` (links-design-load.js); this only puts them on the card.
+            const empty = emptyStateFor({ listLoading, loadFailed, binnedOnLoad, binSize: _bin().length, loading: LOADING_COPY });
+            const offers = empty.offers;
             const emptyMsg   = document.getElementById('linksEmptyMsg');
             const emptyTitle = document.querySelector('#linksEmptyState .links-empty-title');
             const emptyActs  = /** @type {HTMLElement|null} */ (document.querySelector('#linksEmptyState .links-empty-actions'));
             const retry      = document.getElementById('linksEmptyRetry');
-            if (emptyTitle) emptyTitle.textContent = state === 'loading' ? LOADING_COPY.title : state === 'failed' ? 'Couldn’t load your designs' : state === 'binned' ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
-            if (emptyMsg) emptyMsg.innerHTML = state === 'loading' ? LOADING_COPY.msg
-                : state === 'failed' ? `Check your connection and try again. Nothing has been lost — saved designs are kept on the server.`
-                // No month: the day the new link starts is not set (owner, 8 Nov 2026); the length is true whenever read.
-                : state === 'binned' ? `The link is now ${TOTAL_POS} lines, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
-                : `Build a rotating pattern from staffing targets with the Build a link card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
+            if (emptyTitle) emptyTitle.textContent = empty.title;
+            if (emptyMsg) emptyMsg.innerHTML = empty.msg;
             if (emptyActs) emptyActs.style.display = offers ? '' : 'none';
-            // An installed app has no reload button.
-            if (retry) retry.style.display = state === 'failed' ? '' : 'none';
+            if (retry) retry.style.display = empty.retry ? '' : 'none';
             _setGridHint(false);
             _renderOverLengthNotice();   // `design` is null here, so this hides it
             if (wrapper)    wrapper.style.display    = 'none';

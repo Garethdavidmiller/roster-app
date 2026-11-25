@@ -413,8 +413,29 @@ test('admin: editing a week-grid time ends as the time meant or as unfinished �
     await end.press('Home');
     await end.press('ArrowRight');
     await end.press('Backspace');
+    await expect(end, 'the box keeps what is there: the colon does not move').toHaveValue('2:30');
     await leave();
-    await expect(end, 'never read as a time with a zero dropped').toHaveValue('23:0');
+    await expect(end, 'never read as a time with a zero dropped').toHaveValue('2:30');
+    await expect(end).toHaveClass(/\binput-error\b/);
+
+    // …and the digit typed in its place lands there (24-hour review, 25 Nov 2026): re-split as "23:0", the
+    // caret jumped to the end and a 1 meant for 12:30 made 23:01, a valid time.
+    await end.focus();
+    await end.press('Home');
+    await end.press('1');
+    await leave();
+    await expect(end, 'the edit finished where it was typed').toHaveValue('12:30');
+    await expect(end).not.toHaveClass(/\binput-error\b/);
+
+    // Typing over PART of the time is an edit too: the 30 selected and a 4 typed is what is left of 22:30,
+    // never 02:24.
+    await fresh();
+    await end.press('End');
+    await end.press('Shift+ArrowLeft');
+    await end.press('Shift+ArrowLeft');
+    await end.press('4');
+    await leave();
+    await expect(end, 'never 02:24').toHaveValue('22:4');
     await expect(end).toHaveClass(/\binput-error\b/);
 
     // The colon deleted: the same four digits, so the same time.
@@ -2597,7 +2618,7 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
     // "2026: 32 left" on a perfectly correct page and the assertion would fail for the wrong reason.
     // This is the one that would catch a THIRD surface printing the figure.
     const visible = await page.locator('#book-annual-leave').innerText();
-    expect(visible, 'no readable balance over a read that failed').not.toMatch(/\b\d{4}: -?\d+ left\b|AL left:/i);
+    expect(visible, 'no readable balance over a read that failed').not.toMatch(/\b\d{4}: -?\d+ (left|over)\b|AL left:/i);
 });
 
 // ── THE LIST COUNTS WHAT THE ENTITLEMENT COUNTS (v23.72, owner report) ─────────────────────────
@@ -5095,12 +5116,17 @@ for (const w of [320, 360, 390]) {
 
         // THE PREMISE, asserted rather than assumed: if the seeding stopped pushing him over, the
         // message would be hidden and every check below would pass by not looking.
-        const remaining = Number(await page.locator('#alBannerRemaining').textContent());
-        expect(remaining, 'the fixture must put the member OVER limit, or this tests nothing')
-            .toBeLessThan(0);
+        // OVER, NOT MINUS (owner, 25 Nov 2026): past the allowance the figure has no minus and its label
+        // says "Over", as on the Calendar's leave panel (`balanceFace`, al-entitlement.js).
+        await expect(page.locator('#alBannerLblRemaining'), 'the fixture must put the member OVER limit, or this tests nothing')
+            .toHaveText('Over');
+        const over = Number(await page.locator('#alBannerRemaining').textContent());
+        expect(over, 'the figure is how far over, never a minus').toBeGreaterThan(0);
+        await expect(page.locator('#alHeaderBalance'), 'and the collapsed card\'s chip says it the same way')
+            .toHaveText(`2026: ${over} over`);
         const warn = page.locator('#alBannerWarn');
         await expect(warn).toBeVisible();
-        await expect(warn).toHaveText(`${Math.abs(remaining)} over allowance`);
+        await expect(warn).toHaveText(`${over} over allowance`);
 
         const box = await page.evaluate(() => {
             const card = document.getElementById('book-annual-leave');

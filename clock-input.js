@@ -101,15 +101,26 @@ export function finaliseClockInput(raw, { edited = false } = {}) {
 // made that 02:23: a valid time, so it saved, and it looked like an answer. Deleting the 1 of 16:30 did
 // the same while typing ("630" became 06:30 at once). A string cannot tell the two apart, because
 // "130" typed new and "22:3" left over are both three digits, so each box remembers the one fact that
-// can: whether its digits were left by deleting from a time it held. If so, neither shortcut applies, and
+// can: whether its digits are what is left of a time it held. If so, neither shortcut applies, and
 // the box keeps what is there: incomplete, and refused at Save like any other unfinished time.
 //
-// The memory is a WeakMap keyed by the box, holding what the box last showed. A deletion that leaves two
-// or three digits is an edit when the box held a time before it, or when the box was never seen (its
-// first input was the deletion, so what it held came from the page: a stored time). The flag clears when
-// the box is emptied to one digit or none, which is how a new time is started, select-all and type
-// included. A box whose remembered value is not what it now shows was set by the page since; its digits
-// are treated as an edit, the safe reading.
+// The memory is a WeakMap keyed by the box, holding what the box last showed. Its rules (24-hour review,
+// 25 Nov 2026, which found the first version's three gaps):
+//   1. AN EDIT KEEPS WHAT IS IN THE BOX — the digits and the colon where the member left them, never
+//      re-split as HH:MM (with no colon left in it, it goes after the hour as usual). Re-splitting moved the colon: the first 2 of 22:30 deleted showed "23:0", the
+//      caret jumped to the end, and the 1 typed to make 12:30 made 23:01, a valid time, so it saved.
+//      Kept as "2:30", the 1 lands where it is typed.
+//   2. TYPING OVER PART OF A TIME IS AN EDIT, as deleting from one is. Selecting the 30 of 22:30 and typing
+//      4 left "22:4", read as new and settled to 02:24 — the very answer rule 1's deletion case was written
+//      to stop. The event says what was typed (`data`): when some of the held time's digits survive beside
+//      it, it is an edit; when none do (select all, then type or paste) it is a new time, shortcuts and all.
+//   3. A deletion that leaves two or three digits is an edit when the box held a time before it, or when
+//      the box was never seen (what it held came from the page: a stored time).
+//   4. THE FLAG CLEARS when the box holds a complete time again, or is emptied to one digit or none, which is
+//      how a new time is started. It stayed on after an edit was finished, and a time pasted in later lost
+//      its shortcut.
+// A box whose remembered value is not what it now shows was set by the page since; its digits are treated
+// as an edit, the safe reading.
 
 /** @type {WeakMap<object, { last: string, edited: boolean }>} */
 const boxes = new WeakMap();
@@ -124,34 +135,68 @@ function leftAfterDeleting(few, many) {
     return few.length < many.length && i === few.length;
 }
 
+/** The box as the member left it (rule 1): its digits, at most four, and the first colon where it stands.
+ *  @param {string} v @returns {string} */
+function asLeft(v) {
+    let out = '', digits = 0, colon = false;
+    for (const c of String(v ?? '')) {
+        if (c >= '0' && c <= '9' && digits < 4) { out += c; digits++; }
+        else if (c === ':' && !colon) { out += c; colon = true; }
+    }
+    return out;
+}
+
+/** Rule 1 applies: an unfinished edit whose colon the member left in place.
+ *  @param {string} v @param {string} d  its digits @param {boolean} edited */
+const keepsAsLeft = (v, d, edited) => edited && d.length < 4 && String(v ?? '').includes(':');
+
+/** Did typing `typed` over the held digits `before` leave some of them beside it (rule 2)?
+ *  @param {string} now  the digits now @param {string} before  the digits held @param {string} typed  the digits typed */
+function typedOverPart(now, before, typed) {
+    const kept = now.length - typed.length;
+    return kept > 0 && now.length <= before.length;
+}
+
 /**
  * What a text clock box should show after an INPUT event: `formatClockInput`, told whether this entry is
- * an edit of a time the box held. Call it from the box's `input` handler, with the event.
+ * an edit of a time the box held — and, while it is one and unfinished, the box as the member left it
+ * (rule 1). Call it from the box's `input` handler, with the event.
  * @param {{ value: string }} box  the input element
- * @param {{ inputType?: string } | null} [event]  the `input` event; its `inputType` says whether this was a deletion
+ * @param {{ inputType?: string, data?: string | null } | null} [event]  the `input` event: `inputType` says
+ *   whether this was a deletion, `data` what was typed
  * @returns {string}
  */
 export function shapeClockBox(box, event) {
     const d = digitsOf(box.value);
     const seen = boxes.get(box);
+    const kind = String(event?.inputType ?? '');
     let edited = false;
     if (d.length > 1) {
-        if (String(event?.inputType ?? '').startsWith('delete')) {
+        if (kind.startsWith('delete')) {
             const before = seen?.last;
             edited = before === undefined || !leftAfterDeleting(d, before)
                 || isClockTime(formatClockInput(before)) || seen?.edited === true;
         } else {
-            edited = seen?.edited === true;
+            // What was typed: the event's own `data` — one digit when a browser leaves it out of a keystroke.
+            const typed = event?.data == null ? (kind === 'insertText' ? 'x' : '') : digitsOf(event.data);
+            const before = seen?.last;
+            const overTime = before === undefined
+                ? kind === 'insertText'                       // a keystroke into a box the page filled: its stored time
+                : isClockTime(formatClockInput(before));
+            edited = seen?.edited === true
+                || (overTime && typed !== '' && typedOverPart(d, before ?? '9999', typed));
         }
     }
-    const shaped = formatClockInput(box.value, { edited });
-    boxes.set(box, { last: digitsOf(shaped), edited });
+    const shaped = keepsAsLeft(box.value, d, edited) ? asLeft(box.value) : formatClockInput(box.value, { edited });
+    // Rule 4: a complete time again ends the edit.
+    boxes.set(box, { last: digitsOf(shaped), edited: edited && !isClockTime(shaped) });
     return shaped;
 }
 
 /**
  * What a text clock box should hold once it is LEFT: `finaliseClockInput`, told whether its digits are
- * what is left of a time it held (`shapeClockBox`). Call it on blur, or before the value is read.
+ * what is left of a time it held (`shapeClockBox`) — and an unfinished edit left as it is (rule 1).
+ * Call it on blur, or before the value is read.
  * @param {{ value: string }} box  the input element
  * @returns {string}
  */
@@ -160,11 +205,12 @@ export function settleClockBox(box) {
     const seen = boxes.get(box);
     // Never typed in: nothing was deleted. Set by the page since it was last typed in: the safe reading.
     const edited = seen === undefined ? false : (seen.last === d ? seen.edited : d.length === 3);
+    if (keepsAsLeft(box.value, d, edited)) return asLeft(box.value);
     return finaliseClockInput(box.value, { edited });
 }
 
 /** What is wrong with a FILLED-IN pair of clock times, or `''` — the ONE rule a Shift's times and an
- *  Other day's share (`composeTimedValue` here, `composeOtherValue` in override-utils.js; review, 21 Nov
+ *  Other day's share (`composeTimedValue` here, `composeOtherValue` in other-day.js; review, 21 Nov
  *  2026: the week grid's save had its own copy). Equal times are refused because a 0h shift PAYS as
  *  24h through the overnight wrap in the duration maths. @param {string} s @param {string} e @returns {string} */
 export function timePairError(s, e) {

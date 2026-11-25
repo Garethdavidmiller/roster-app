@@ -62,7 +62,7 @@ import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, ACCESS_DECISION_BUDGET_MS } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, continueAfterSignIn } from './page-session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -124,11 +124,7 @@ export function init() {
             new Promise(resolve => setTimeout(resolve, ACCESS_DECISION_BUDGET_MS)),
         ]).then(() => { document.body.classList.add('auth-ready'); initLoginOverlay({
             pageLabel: 'Trains', about: SIGN_IN_ABOUT,
-            // No session here: reload into a fresh sign-in. Belt and braces — a session that failed to
-            // save never reaches onSuccess (`runNamedSignIn` refuses with kind 'storage' first, and
-            // Private Browsing has not refused storage since iOS 11), so only a session lost in between
-            // (another tab signing out, site data cleared) lands here. The page is now theirs (`rebaseRestoreGuard`, as Pay).
-            onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } rebaseRestoreGuard(); init(); } catch { window.location.reload(); } },
+            onSuccess: continueAfterSignIn(init),
         }); });
         return;
     }

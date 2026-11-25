@@ -15,21 +15,21 @@
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
-import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, DISCARD_QUESTION, continueAfterSignIn } from './page-session.js';
 import { createDraftSlot, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
-import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
+import { deleteIfUnchanged } from './admin-override-store.js';
 import { PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
 import { typePillHtml } from './admin-shift-types.js';
-import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
+import { syncWeekAfterOwnWrite } from './admin-own-write.js';
 import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
 import { setLeaveYear } from './admin-leave-year-save.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
+import { createConfirmBar } from './admin-confirm-bar.js';
 import { initSickSection } from './admin-sick.js';
 import { initSelectSheets } from './select-sheet.js';
 import { openDatePicker } from './date-picker.js';
@@ -44,10 +44,11 @@ import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './admin-tips.js';
 import { mergeBookedPeriods } from './override-utils.js';
 import { collectWeekRows } from './admin-week-collect.js';
-import { alPosition, consumesEntitlement, costsWithoutSpareCap, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
+import { alPosition, balanceFace, consumesEntitlement, costsWithoutSpareCap, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
-import { planAlWeekSave, planAlDelete } from './admin-al-week-save.js';
-import { createBookedPeriods, fadeFeedback, holdFeedback, periodDelete } from './admin-booked-periods.js';
+import { planAlWeekSave } from './admin-al-week-save.js';
+import { createBookedPeriods } from './admin-booked-periods.js';
+import { createPeriodDelete } from './admin-period-delete.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -131,11 +132,20 @@ export function init() {
         initLoginOverlay({
             pageLabel: 'Admin',
             about: ADMIN_SIGN_IN_ABOUT,
-            // A first sign-in initialises in place, falling back to a reload if that throws. A session lost
-            // LATER is the shared card's (`guardNamedSession`), which reloads: sessionReady is one-shot.
-            onSuccess: () => {
-                try { initAuthorised(); } catch { window.location.reload(); }
-            },
+            // A first sign-in initialises in place (`continueAfterSignIn`). A session lost LATER is the
+            // shared card's (`guardNamedSession`), which reloads: sessionReady is one-shot.
+            // …and re-decided for whoever signed in (24-hour review, 25 Nov 2026): the gate below ran signed OUT, so an
+            // Other Staff login made on THIS card got the whole page — and its leave and absence cards under their own
+            // name — instead of the role card the same login gets when it opens Admin (owner, 24 Nov 2026).
+            onSuccess: continueAfterSignIn(() => {
+                currentUser = getSession()?.name ?? null;
+                if (requirePage({ status: 'named', member: currentUser }, 'admin').decision === 'forbidden') {
+                    dismissLoginOverlay();
+                    refuseThisLogin();
+                    return;
+                }
+                initAuthorised();
+            }),
         });
     }
 
@@ -363,7 +373,7 @@ export function init() {
             lastFieldDate = fieldDate.value;
             renderWeekGrid();
             // As the swipe and the date field: a Dec→Jan jump must not leave last year's figures showing.
-            updateALBanner(); updateALBookedBox(); updateSickBookedBox();
+            refreshLeaveViews();
         };
         if (confirmNavigate(go)) go();
     }
@@ -378,7 +388,7 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('thisWeekBtn')).addEventListener('click', () => {
         const go = () => {
             fieldDate.value = formatISO(new Date()); lastFieldDate = fieldDate.value; renderWeekGrid();
-            updateALBanner(); updateALBookedBox(); updateSickBookedBox();   // keep the banner year in sync
+            refreshLeaveViews();   // keep the banner year in sync
         };
         if (confirmNavigate(go)) go();
     });
@@ -397,9 +407,7 @@ export function init() {
         onWeekCommitted: (iso) => {
             lastFieldDate = iso;
             updateWeekNavLabel(iso);
-            updateALBanner();
-            updateALBookedBox();
-            updateSickBookedBox();
+            refreshLeaveViews();
             userMadeChanges = false;
         },
         onSettled: (redrawn) => { if (redrawn) renderWeekGrid(); resetBulkPills(); updateSaveBtn(); },
@@ -418,7 +426,7 @@ export function init() {
         getMember: () => teamMembers.find(m => m.name === alMember?.value) ?? null,
         hasAuthority: hasOverrideAuthorityFor, getOverrides: getAllOverrides,
         save: (args) => setLeaveYear({ ...args, changedBy: currentUser ?? '' }),
-        onSaved: () => { updateALBanner(); updateALBookedBox(); },
+        onSaved: () => refreshLeaveViews(),
     });
 
     /**
@@ -471,7 +479,12 @@ export function init() {
         // checked — they are null together — so the type checker can prove the arithmetic never sees one.
         if (entitlement === null || remaining === null) { showNothing(); return; }
 
-        remEl.textContent    = String(remaining);
+        // OVER, NOT MINUS, as the Calendar's leave panel says it (`balanceFace`; owner, 25 Nov 2026): past the
+        // allowance the figure loses its minus and its label says "Over" — "-3" read as an error code.
+        const face = balanceFace(remaining);
+        remEl.textContent    = face.figure;
+        const remLbl = document.getElementById('alBannerLblRemaining');
+        if (remLbl) remLbl.textContent = face.label;
         takenEl.textContent  = String(taken);
         bookedEl.textContent = String(booked);
         entEl.textContent    = String(entitlement);
@@ -489,8 +502,8 @@ export function init() {
         }
 
         banner.hidden = false;
-        banner.classList.toggle('al-banner-warning', remaining <= 0);
-        banner.classList.toggle('al-banner-low',     remaining > 0 && remaining <= 5);
+        banner.classList.toggle('al-banner-warning', face.tone === 'none');
+        banner.classList.toggle('al-banner-low',     face.tone === 'low');
 
         warnEl.hidden      = remaining > 0;
         warnEl.textContent = remaining === 0 ? 'Allowance used up' : `${Math.abs(remaining)} over allowance`;
@@ -499,7 +512,10 @@ export function init() {
         const headerBalEl = document.getElementById('alHeaderBalance');
         const headerRemEl = document.getElementById('alHeaderRemaining');
         if (headerBalEl && headerRemEl) {
-            headerRemEl.textContent = String(remaining);
+            headerRemEl.textContent = face.figure;
+            // "2026: 3 over", never "2026: -3 left" (`balanceFace`).
+            const headerWordEl = document.getElementById('alHeaderWord');
+            if (headerWordEl) headerWordEl.textContent = face.short;
             // …AND WHICH YEAR (review, Nov 2026): the banner's, which can be next year's in December. "2026: 12
             // left" rather than "2026 AL left: 12", which wrapped the card's title onto two lines at 375px.
             const headerYearEl = document.getElementById('alHeaderYear');
@@ -507,7 +523,7 @@ export function init() {
             headerBalEl.hidden = false;
             // The shared .card-year-chip; .al-left-chip modifiers colour the low/none states.
             headerBalEl.className = 'card-year-chip al-left-chip'
-                + (remaining <= 0 ? ' balance-none' : remaining <= 5 ? ' balance-low' : '');
+                + (face.tone === 'none' ? ' balance-none' : face.tone === 'low' ? ' balance-low' : '');
         }
     }
 
@@ -522,8 +538,6 @@ export function init() {
 
         // Clear any previous row-level errors
         weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
-        _alPendingSkipped = [];   // and the last save's skipped days: this one answers for itself
-        _alPendingKept    = [];
 
         // What the rows ask to write, and why any cannot be (admin-week-collect.js, review 21 Nov 2026).
         const collected = collectWeekRows({ rows: /** @type {NodeListOf<HTMLElement>} */ (weekGrid.querySelectorAll('.day-row')),
@@ -589,14 +603,15 @@ export function init() {
             return showError(refusedLine(alPlan.changedUnder));
         }
         toSave = alPlan.toSave;
-        _alPendingSkipped = alPlan.skipped;      // the receipt names them: never a silent drop
-        _alPendingKept    = alPlan.keptLeave;    // …and which of them the reader will still see leave on
+        // The receipt names the days the plan leaves alone — never a silent drop — and which of them the reader
+        // will still see leave on; held with the batch while the bar asks (admin-confirm-bar.js).
+        const skipped = alPlan.skipped, kept = alPlan.keptLeave;
         if (alPlan.overage) {
-            showALConfirm(alPlan.overage.headline, alPlan.overage.detail, toSave, toDelete);
+            _confirmBar.show({ msg: alPlan.overage.headline, sub: alPlan.overage.detail, batch: { toSave, toDelete, skipped, kept } });
             return;
         }
 
-        await executeSave(toSave, toDelete, _alPendingSkipped, _alPendingKept);
+        await executeSave(toSave, toDelete, skipped, kept);
         } catch (err) {
             console.error('[Admin] Save handler error:', err);
             showError('Unexpected error — please reload and try again.');
@@ -648,6 +663,16 @@ export function init() {
     /** @type {(() => void) | null} */ let _refreshAlPreview   = null;
     /** @type {(() => void) | null} */ let _refreshSickPreview = null;
 
+    /** EVERYTHING ON THE PAGE THAT SHOWS THIS MEMBER'S LEAVE AND ABSENCE, redrawn together (25 Nov 2026): the
+     *  AL banner and its chip, both Recorded-dates lists, and both range previews. Every path that changes
+     *  what is on record, or which member or week is in view, calls THIS — the lists it replaced were typed
+     *  by hand at each site and drifted: an AL booking's save left the Absence preview drawn over the days it
+     *  had just booked. A preview that is not set up yet is skipped. */
+    function refreshLeaveViews() {
+        updateALBanner(); updateALBookedBox(); updateSickBookedBox();
+        _refreshAlPreview?.(); _refreshSickPreview?.();
+    }
+
     let lastFieldMember = fieldMember.value;
     /** Point the AL/Absence cards, banner, booked lists and previews at `name` (fieldMember and
      *  fieldDate already set). ONE list for every path that switches member: ✏️ Edit and the jump
@@ -661,9 +686,7 @@ export function init() {
         _setSelectValue(sickMember, name);
         syncMemberDisplay();
         syncSickMemberDisplay();
-        updateALBanner(); updateALBookedBox(); updateSickBookedBox();
-        _refreshAlPreview?.();   // an already-picked range must not keep naming the previous member
-        _refreshSickPreview?.();
+        refreshLeaveViews();   // an already-picked range must not keep naming the previous member
         // The over-limit bar was for the PREVIOUS view: "Save anyway" must not book the new member unchecked.
         hideALConfirm();
     }
@@ -693,9 +716,7 @@ export function init() {
             fieldDate.value = newVal;
             lastFieldDate = newVal;
             renderWeekGrid();
-            updateALBanner();
-            updateALBookedBox();
-            updateSickBookedBox();
+            refreshLeaveViews();
         };
         if (confirmNavigate(go)) { go(); return; }
         // Revert the date picker while the banner waits for a decision
@@ -830,96 +851,35 @@ export function init() {
         hideALConfirm('week');
     }
 
-    // ---- AL over-limit confirm bar ----
-    /** @type {any} */ let _alPendingSave   = null;
-    /** @type {any[]} */ let _alPendingDelete = [];
-    /** @type {string[]} */ let _alPendingSkipped = [];   // staged days the projection leaves alone
-    /** @type {string[]} */ let _alPendingKept    = [];   // …of those, the ones that still hold leave
-    /** @type {HTMLElement|null} */ let _alOpener = null;
-    /** @type {(() => void)|null} */ let _alResume = null;   // a range card's own "Save anyway" (the Absence card's, admin-sick.js)
-    // WHOSE QUESTION THE BAR IS ASKING (review, 21 Nov 2026). Four cards share one bar — the week grid,
-    // Annual Leave, Absence and Saved Changes — and each took it down on its own routine events, so
-    // editing an AL range dismissed the week grid's question unanswered, and the week's Save the AL
-    // card's. A card now takes down only its OWN question; a member change, Cancel and Save anyway
-    // still clear whatever is showing, because each of those ends the question for everybody.
-    /** @type {'week'|'al'|'sick'|'saved'|null} */ let _alOwner = null;
-    const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
-    const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
-    const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
-    const alConfirmSaveBtn   = /** @type {HTMLButtonElement} */ (document.getElementById('alConfirmSaveBtn'));
-    const alConfirmCancelBtn = /** @type {HTMLElement} */ (document.getElementById('alConfirmCancelBtn'));
+    // ---- AL over-limit confirm bar (admin-confirm-bar.js) ----
+    const _confirmBar = createConfirmBar({
+        bar:           /** @type {HTMLElement} */ (document.getElementById('alConfirmBar')),
+        msgEl:         /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg')),
+        subEl:         /** @type {HTMLElement} */ (document.getElementById('alConfirmSub')),
+        saveAnywayBtn: /** @type {HTMLButtonElement} */ (document.getElementById('alConfirmSaveBtn')),
+        cancelBtn:     /** @type {HTMLElement} */ (document.getElementById('alConfirmCancelBtn')),
+        activeElement: () => document.activeElement, body: document.body,
+        fallbackOpener: ({ batch, resume }) => batch ? saveBtn : document.getElementById(resume ? 'sickSaveBtn' : 'alSaveBtn'),
+        beforeShow:    () => clearTimeout(_feedbackTimer),   // an earlier success line's fade must not take the question down (Oct 2026)
+        isSaveInFlight, onBusy: showError,
+        saveBatch:     executeSave,
+        resumeDefault: triggerConfirmedALSave,
+        // Staged rows govern Save: the bar is the AL card's too.
+        afterCancel:   () => { saveBtn.textContent = 'Save changes'; updateSaveBtn(); },
+    });
 
     /**
-     * Shows the AL over-entitlement confirmation bar with a warning and two options.
-     * In the week editor path, pendingSave is the toSave array to resume with.
-     * In the AL booking path, pendingSave is null — the bar re-triggers alSaveBtn.click(), or runs `resume`.
-     * @param {string}      msg          Main warning line
-     * @param {string}      sub          Secondary detail line
-     * @param {any[]|null}  pendingSave  toSave batch to resume, or null for AL booking path
-     * @param {string[]}    pendingDelete  IDs to delete in the same batch
-     * @param {(() => void)|null} [resume] what "Save anyway" runs for a range card other than AL's
-     * @param {'week'|'al'|'sick'|'saved'} [owner] the card asking; by default the week grid when it
-     *        hands a batch, else the AL card
+     * Ask the over-allowance question — the five-argument form the range cards are handed.
+     * @param {string} msg @param {string} sub
+     * @param {any[]|null} pendingSave the week grid's batch, or null for a range card
+     * @param {any[]} [pendingDelete] @param {(() => void)|null} [resume] what "Save anyway" runs for a range card
+     * @param {'week'|'al'|'sick'|'saved'} [owner] the card asking (admin-confirm-bar.js)
      */
     function showALConfirm(msg, sub, pendingSave, pendingDelete = [], resume = null, owner) {
-        _alOwner = owner ?? (pendingSave ? 'week' : 'al');
-        clearTimeout(_feedbackTimer);   // an earlier success line's fade must not take the question down (Oct 2026)
-        _alPendingSave   = pendingSave;
-        _alPendingDelete = pendingDelete;
-        _alResume        = resume;
-        alConfirmMsg.textContent = msg;
-        alConfirmSub.textContent = sub;
-        alConfirmSaveBtn.disabled = false;   // re-arm (the click handler disables to block a double-tap)
-        const asker = document.activeElement;   // the Save that asked, which Cancel goes back to — on Safari, which focuses no button on a tap, this path's Save
-        _alOpener = asker && asker !== document.body ? /** @type {HTMLElement} */ (asker) : pendingSave ? saveBtn : document.getElementById(resume ? 'sickSaveBtn' : 'alSaveBtn');
-        alConfirmBar.classList.add('visible');
-        alConfirmSaveBtn.focus();
+        _confirmBar.show({ msg, sub, batch: pendingSave ? { toSave: pendingSave, toDelete: pendingDelete } : null, resume, owner });
     }
-    /** Hides the AL over-entitlement confirmation bar and clears pending save state — or, given a card,
-     *  only when the question showing is that card's (`_alOwner`). @param {'week'|'al'|'sick'|'saved'} [onlyFor] */
-    function hideALConfirm(onlyFor) {
-        if (onlyFor && _alOwner && onlyFor !== _alOwner) return;
-        _alOwner = null;
-        alConfirmBar.classList.remove('visible');
-        _alPendingSave   = null;
-        _alPendingDelete = [];
-        _alResume        = null;
-        _alPendingSkipped = [];
-        _alPendingKept    = [];
-        // Disarm the button too: hit-testable through the 0.25s slide-out, a tap would fall through to
-        // the AL-booking branch unchecked. showALConfirm re-arms it.
-        alConfirmSaveBtn.disabled = true;
-    }
-
-    alConfirmSaveBtn.addEventListener('click', async () => {
-        // Disabled at once, for the same slide-out: a double-tap would fall into the unchecked AL branch.
-        if (alConfirmSaveBtn.disabled) return;
-        // ONE WRITE AT A TIME, this button too: a booking still sending holds the lock.
-        if (_alPendingSave && isSaveInFlight()) return showError('Another change is still saving — try again when it has finished.');
-        alConfirmSaveBtn.disabled = true;
-        if (_alPendingSave) {
-            // Week editor path — toSave is an array of override entries
-            const toSave   = _alPendingSave;
-            const toDelete = _alPendingDelete;
-            const skipped  = _alPendingSkipped;
-            const kept     = _alPendingKept;
-            hideALConfirm();
-            await executeSave(toSave, toDelete, skipped, kept);
-        } else {
-            // A range card — delegate to the card that asked (admin-al.js or admin-sick.js), which owns its button and flag
-            const resume = _alResume;
-            hideALConfirm();
-            (resume ?? triggerConfirmedALSave)();
-        }
-    });
-
-    alConfirmCancelBtn.addEventListener('click', () => {
-        hideALConfirm();
-        saveBtn.textContent = 'Save changes';
-        updateSaveBtn();   // staged rows govern Save: the bar is the AL card's too
-        // …and focus back to the Save that asked, not a hidden button.
-        if (_alOpener?.isConnected && !(/** @type {any} */ (_alOpener)).disabled) _alOpener.focus();
-    });
+    /** Take the question down — given a card, only that card's. @param {'week'|'al'|'sick'|'saved'} [onlyFor] */
+    function hideALConfirm(onlyFor) { _confirmBar.hide(onlyFor); }
 
     // ============================================
     // ANNUAL LEAVE BOOKING  (logic in admin-al.js)
@@ -937,7 +897,7 @@ export function init() {
         alMember,
         syncMemberDisplay,
         populateMemberDropdown, lastMember,
-        updateALBanner, updateALBookedBox, updateSickBookedBox,
+        updateALBanner, updateALBookedBox, refreshLeaveViews,
         // ONLY the AL picker feeds this: the Absence card has no per-year figure (admin-sick.js).
         setALPickerYear: (/** @type {number} */ y) => { alPickerViewYear = y; },
         getCurrentUser: () => currentUser, showALConfirm, hideALConfirm: () => hideALConfirm('al'), showInChangeAShift,
@@ -950,112 +910,24 @@ export function init() {
     _refreshSickPreview = initSickSection({
         sickMember,
         syncSickMemberDisplay, populateMemberDropdown, lastMember,
-        updateALBanner, updateALBookedBox, updateSickBookedBox, getCurrentUser: () => currentUser, showInChangeAShift,
+        updateSickBookedBox, refreshLeaveViews, getCurrentUser: () => currentUser, showInChangeAShift,
         showSuccess,   // an absence can take back a day in lieu (admin-sick.js): the bar, as the Absence card's
         showALConfirm: (/** @type {string} */ m, /** @type {string} */ sub, /** @type {any} */ p, /** @type {any[]} */ d, /** @type {any} */ r) => showALConfirm(m, sub, p, d, r, 'sick'),
         hideALConfirm: () => hideALConfirm('sick'),
     })?.updateSickPreview ?? null;
 
 
-    /**
-     * Deletes all overrides of the given type for a member within a date range.
-     * Used by the period-row delete buttons in the AL and sick booked boxes.
-     * @param {string}      type       'annual_leave' | 'sick'
-     * @param {string}      memberName
-     * @param {string}      start      YYYY-MM-DD — inclusive
-     * @param {string}      end        YYYY-MM-DD — inclusive
-     * @param {HTMLElement} feedbackEl Feedback div to write success/error into
-     * @param {HTMLButtonElement} btn  The delete button (disabled during the request)
-     * @param {number} [listedCount]  How many days the row showed — what the confirmation reports
-     * @param {{ resume?: (atPress: any) => void, atPress?: { shown: any[], said: string } }} [ask] the over-allowance
-     *        question's two ends: `resume` runs the delete again, through the list's control, once "Save anyway"
-     *        answers it, carrying `atPress` — what was on screen at the first tap
-     * @returns {Promise<void|'asked'>} 'asked' when the question is up and nothing was deleted
-     */
-    async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn, listedCount, ask = {}) {
-        // WHICH RECORDS GO, AND WHAT THE LINE SAYS: `periodDelete` (admin-booked-periods.js) — scoped so a Sunday RD
-        // correction another range still needs is kept (edge Sunday, A1), a stored Christmas day stays the Christmas
-        // row's, and the line counts the DAYS the row listed (not documents), naming any uncounted ones it takes too.
-        const allForDelete = getAllOverrides();
-        const memberObj = teamMembers.find(m => m.name === memberName);
-        const fresh = ask.atPress ? null : periodDelete({ overrides: allForDelete, type, memberName, start, end,
-            isRestGap: d => isRestGap(d, memberObj), listedCount });
-        // THE ROWS AS SHOWN: compared with the server below, and — answered "Save anyway" — the ones first shown, so
-        // the answer deletes what it was asked about and a colleague's change since is still refused (review, 21 Nov 2026).
-        const listed = new Set(fresh?.ids ?? []);
-        const shown = ask.atPress?.shown ?? allForDelete.filter(o => listed.has(o.id));
-        const said = ask.atPress?.said ?? fresh?.said ?? '';
-        // THE BUTTON'S IDLE STATE IS admin-booked-periods.js's, restored when this promise settles.
-        if (!shown.length) return;
-        // THE OVER-ALLOWANCE QUESTION A DELETE OWES (external review of v26.58), as Saved Changes' ✕ and Delete selected
-        // ask it (`planAlDelete`): deleting December leave in a Spare week over New Year moves its four onto January's
-        // days, and deleting a worked day's record can take back a day in lieu — either can leave a year over.
-        const overage = ask.atPress || !ask.resume ? null
-            : planAlDelete({ rows: shown, members: teamMembers, overrides: allForDelete, isRead: hasOverrideAuthorityFor });
-        if (overage && ask.resume) {
-            const resume = ask.resume, atPress = { shown, said };
-            btn.focus?.();   // what the bar's Cancel goes back to
-            showALConfirm(overage.headline, overage.detail, null, [], () => resume(atPress), type === 'sick' ? 'sick' : 'al');
-            return 'asked';
-        }
-        const idSet = new Set(shown.map(o => o.id));
-        // IN FLIGHT FROM THE CONFIRMING TAP, BEFORE ANYTHING IS AWAITED (review, 22 Nov 2026). Marked only after
-        // the session wait, a second confirming tap during that wait still found the control armed and
-        // enabled, passed `twoTap`, and started a second delete of the same days. A disabled control takes no
-        // tap, and the `finally` below gives it back on every path, the signed-out one included.
-        btn.disabled    = true;
-        btn.textContent = '…';
-        try {
-            // Wait for the session, as executeSave() does: auth.currentUser is briefly null while a returning
-            // session restores, and a delete then would report a false "Delete failed".
-            await sessionReady;
-            if (!auth.currentUser) {
-                if (feedbackEl) {
-                    holdFeedback(feedbackEl);
-                    setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
-                    feedbackEl.className = 'feedback error';
-                }
-                feedbackEl?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-                return;
-            }
-            // The rows this card LISTED are compared with the server and deleted in ONE transaction.
-            await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(shown)), { held: false });
-            removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage
-            renderTable();
-            updateALBanner();
-            updateALBookedBox();
-            updateSickBookedBox();
-            _refreshAlPreview?.(); _refreshSickPreview?.();   // a range already picked was drawn over the deleted days (admin-2-2)
-            // The week follows the delete (admin-own-write.js): a change staged on a deleted day is cleared, named below.
-            const cleared = syncWeekAfterOwnWrite(shown);
-            if (feedbackEl) {
-                setStatus(feedbackEl, withClearedDays(said, cleared));
-                feedbackEl.className = 'feedback success';
-                if (!cleared.length) fadeFeedback(feedbackEl, 'feedback', 6000);   // the line's ONE fade, which a later message cancels (admin-2-7)
-            }
-            // The inline line can be a screen above the deleted row, so the same toast Save gets.
-            showToast(said);
-        } catch (err) {
-            console.error('[Admin] Period delete failed:', err);
-            if (feedbackEl) {
-                // Never blamed on the connection when it was a refusal (admin-2-10): `saveFailureMessage` words each cause.
-                const msg = (/** @type {any} */ (err)).code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
-                    : (/** @type {any} */ (err)).code === 'unavailable'
-                    ? '⚠ You appear to be offline — reconnect and try again.'
-                    : unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
-                        ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
-                        : '⚠ ' + saveFailureMessage(err);
-                holdFeedback(feedbackEl);   // an earlier delete's fade must not take this error down (admin-2-7)
-                setStatus(feedbackEl, msg);   // the ⚠ is decoration, not a word to announce (status-text.js)
-                feedbackEl.className = 'feedback error';
-                // An error has to be READ, so it stays inline rather than in a 4s toast — and is
-                // brought into view, because the control that failed can be a screen below it.
-                feedbackEl.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-            }
-        } finally {
-            btn.disabled = false;
-        }
-    }
+    // A RECORDED-DATES ROW'S ✕ (admin-period-delete.js): every page handle and Firebase call is handed in here.
+    const deletePeriodOverrides = createPeriodDelete({
+        getOverrides: getAllOverrides, members: teamMembers, isRestGap, isRead: hasOverrideAuthorityFor,
+        showConfirm: showALConfirm,
+        sessionReady, signedIn: () => !!auth.currentUser,
+        commit: (shown) => withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(shown)), { held: false }),
+        removeFromCache,
+        afterDelete: () => { renderTable(); refreshLeaveViews(); },
+        syncWeek: syncWeekAfterOwnWrite,
+        showToast,
+    });
 
     // THE RECORDED-DATES LIST is admin-booked-periods.js (its date helpers admin-period-dates.js);
     // every handle it needs is passed in here, and nothing about the list is decided in this file.
@@ -1197,7 +1069,11 @@ export function init() {
     // (applyPermissions), not the page. 'login' iff no local session; 'forbidden' only for an "Other Staff"
     // login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague to record it for.
     const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
-    if (_access.decision === 'forbidden') {
+    if (_access.decision === 'forbidden') { refuseThisLogin(); return; }
+
+    /** The page for a login it is not for: the role card, on both routes here — the page loaded for that login,
+     *  or that login made on this page's own sign-in card (`showAdminLogin`). */
+    function refuseThisLogin() {
         // NOT FOR THIS LOGIN (owner, 24 Nov 2026): the page says why, as the Pay Calculator's role card does,
         // instead of sending them back to the Calendar with nothing said — its 📝 Admin button and "Record
         // leave" both land here. The card replaces the page (admin.css → `body.role-unsupported`), and the
@@ -1212,7 +1088,6 @@ export function init() {
         resolveSession(ensureNamedSession(currentUser));
         registerServiceWorker();
         sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); });
-        return;
     }
     if (_access.decision === 'login') {
         // Not signed in → show login overlay; do not load any Firestore data. On a confirmed sign-in,
@@ -1282,12 +1157,9 @@ export function init() {
             showSuccess,
             showError,
             onAfterSave: () => {   // does NOT touch userMadeChanges: loads call this too (review A4)
-                updateALBanner();
-                updateALBookedBox();
-                updateSickBookedBox();
-                // …and a range already picked, drawn while this member's records were still loading
-                // — it asked about rest days its records answer (whole-app review, Oct 2026).
-                _refreshAlPreview?.(); _refreshSickPreview?.();
+                // …the previews too: a range already picked, drawn while this member's records were still
+                // loading, asked about rest days its records answer (whole-app review, Oct 2026).
+                refreshLeaveViews();
                 if (!hasUnsavedChanges()) _draft.forget();   // saved: the kept copy is not work any more
             },
             markChanged,

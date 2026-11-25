@@ -25,6 +25,7 @@ import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { initRosterUpload } from './admin-roster-upload.js';
+import { functionUrl } from './function-url.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocumentUploadCards } from './operations-doc-uploads.js';
 import { initDocLinksCard, docLinksRequestInFlight } from './operations-doc-links.js';
@@ -33,11 +34,11 @@ import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
 import { resetQuestion, resetFailure, resetOutcome } from './operations-reset.js';
-import { twoTap, disarmConfirm } from './admin-booked-periods.js';
+import { twoTap, disarmConfirm } from './two-tap.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, leaveAfterAsking } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, leaveAfterAsking, continueAfterSignIn } from './page-session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox, registerPopInterceptor, suppressNextPop, whenHistorySettled } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -85,13 +86,8 @@ export function init() {
     if (_access.decision === 'login') {
         // Not signed in → the shared in-place sign-in. On success init() runs again, and the authorised
         // body below runs exactly ONCE. Do NOT resolveSession(false) here: sessionReady is one-shot.
-        // A reload instead if init() throws, or if there is no session by then: the 'login' branch
-        // again would find the overlay mounted and soft-lock on "Signed in…". The no-session case is
-        // belt and braces — a session that failed to save never reaches onSuccess (`runNamedSignIn`
-        // refuses with kind 'storage' first, and Private Browsing has not refused storage since
-        // iOS 11), so only a session lost in between (another tab signing out, site data cleared).
-        const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
-        initLoginOverlay({ pageLabel: 'Operations', onSuccess });
+        // A reload instead if init() throws or there is no session by then (`continueAfterSignIn`).
+        initLoginOverlay({ pageLabel: 'Operations', onSuccess: continueAfterSignIn(init) });
         return;
     }
     if (_access.decision === 'forbidden') {
@@ -143,7 +139,7 @@ export function init() {
     initRosterUpload({
         currentUser,
         currentIsAdmin: true,
-        parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
+        parseUrl:   functionUrl('parseRosterPDF'),
         getIdToken: async () => { await sessionReady; return auth.currentUser?.getIdToken(); },
         // Nothing to re-read: this page has no Saved Changes list (and importing Admin's loads a dozen modules).
         loadOverrides: async () => {},

@@ -5,10 +5,11 @@
  *
  * Owns: `computeCellStates` — the classification (MATCH · DIFF · CONFLICT · COVERED ·
  *   REMOVE_IMPORT · UNREADABLE · GUARDED), the `chosen` default that decides what a Save writes,
- *   what one Save writes and says (`collectRosterWrites`, `reviewOutcome`), and which answers survive
- *   a refused Save (`carryReviewAnswers`). The `UNKNOWN|` /
- *   `RDW|` review encodings are roster-cell-rules.js's, re-exported here for the renderer.
- * Does NOT own: the parse, the review table's DOM, the entry control, or any write.
+ *   what one Save writes and says (`collectRosterWrites`, `reviewOutcome`), which answers survive
+ *   a refused Save (`carryReviewAnswers`), and which of a person's days get a row (`personSummary`).
+ *   The `UNKNOWN|` / `RDW|` review encodings are roster-cell-rules.js's, re-exported here for the renderer.
+ * Does NOT own: the parse, the review table's DOM, the rows' markup beside `guardedRowHtml`
+ *   (roster-review-rows.js), the entry control, or any write.
  * Edit here for: a new cell state, or a change to what is ticked by default.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
@@ -702,6 +703,40 @@ export function outcomeHtml(o) {
             o.anySuspect ? ' Rows flagged as possibly a day out start unticked; tick only what you have checked against the PDF.' : ''}</p>`
         : '';
     return `<h4 class="ro-h">When you tap “Save changes”</h4>${lines.join('')}${hint}`;
+}
+
+/** The states that get a row in the review: a change, a question, or a day the app declined to record. */
+const ROW_STATES = new Set(['DIFF', 'REMOVE_IMPORT', 'CONFLICT', 'UNREADABLE', 'GUARDED']);
+
+/**
+ * One person's section of the review: which of their days get a row, what the badge counts, and
+ * whether Skip all is offered. Moved out of admin-roster-upload.js's render loop (25 Nov 2026), with
+ * its reasons:
+ *
+ * THE BADGE COUNTS CHANGES; A GUARDED ROW IS A NOTICE (v23.97). It is rendered in this person's list
+ * so the day is not invisible, but nothing about it is pending — counting it would inflate "3" on a
+ * week with two real changes and one day the app declined to record, and the admin would go looking
+ * for a third thing to approve.
+ *
+ * SKIP ALL IS OFFERED WHEREVER A ROW CAN WRITE (v24.96, the 72-hour review): an answered rest-day
+ * question writes too, and v24.90 — which made Skip all take that answer back — also removed the
+ * button for a person whose rows are all guarded, so their answer could never return to "unanswered,
+ * writes nothing". The badge still counts pending rows alone.
+ * @param {string} memberName
+ * @param {string[]} dates the week's dates, in order
+ * @param {Map<string, any>} cellStates keyed `member|date`
+ * @returns {{ changedDates: string[], pendingCount: number, canWrite: boolean }}
+ *   no `changedDates` means the person gets no section at all
+ */
+export function personSummary(memberName, dates, cellStates) {
+    const stateOf = (/** @type {string} */ d) => cellStates.get(`${memberName}|${d}`);
+    const changedDates = dates.filter(d => ROW_STATES.has(stateOf(d)?.state));
+    const pendingCount = changedDates.filter(d => stateOf(d)?.state !== 'GUARDED').length;
+    const canWrite = pendingCount > 0 || changedDates.some(d => {
+        const s = stateOf(d);
+        return s?.state === 'GUARDED' && swapQuestionApplies(s);
+    });
+    return { changedDates, pendingCount, canWrite };
 }
 
 /**

@@ -207,7 +207,13 @@ const CAPS = {
     // 1550 → 1450 (Nov 2026 debt pass), brought DOWN with what left (1,500 measured lines to 1,400):
     // the payslip pricing (pricePayslip, paycalc-calc.js), the background calendar refresh
     // (paycalc-roster-hint.js) and the back-pay card's state and re-pricing (paycalc-backpay.js).
-    'paycalc-app.js':          1450,
+    // 1450 → 1310 on 25 Nov 2026, brought DOWN with what left (1,439 measured lines to 1,279): the rules
+    // that decide what the payslip on screen is priced on (takeHomeInputs, paycalc-calc.js — tested by
+    // calling it, where the guards had read this file's source), what the Settings card says for a tax
+    // year (paycalc-settings.js), the Year to Date card's wiring (paycalc-ytd-card.js), the banners'
+    // ticks and links (paycalc-money-banner.js) and the two-tap Clear (paycalc-clear-confirm.js). The
+    // room is about 30 lines, not the usual 50–99: the next change here should extract first.
+    'paycalc-app.js':          1310,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
@@ -276,14 +282,22 @@ const CAPS = {
     // 1744 → 1500 on 16 Nov 2026 (tidy-up), brought DOWN (1,744 measured lines to 1,429): the `?` panels' content left for
     // admin-tips.js — content, not coordination, as Operations' did — and the comments that had become a
     // changelog were cut to their reasons. Measured + 50, rounded up.
-    'admin-app.js':            1500,
+    // 1500 → 1285 on 25 Nov 2026, brought DOWN (1,393 measured lines to 1,253): the over-allowance bar left for
+    // admin-confirm-bar.js and the Recorded-dates delete for admin-period-delete.js — each a rule a test can now run
+    // without a page — and the refresh lists became one `refreshLeaveViews`. Measured + ~30, as the extraction asked.
+    'admin-app.js':            1285,
     // 1500 → 1503 in the second whole-app check (Nov 2026), a RAISE, said so: two RULES grew where rules belong — the rest
     // repair tries the earlier duty of a short turnaround when no swap of the later one works, and the shift balance counts a
     // cover week as its duties — each pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
     // 1503 → 1513 (Nov 2026), a RAISE, said so: two rules where rules belong — `lineTotals` counts a lone spare day as a
     // floor (`loneSpare`), and `hoursFigure` is the one way a weeklyHours average is stated ("(partial)" included), both
     // pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
-    'links-design.js':         1513,   // a DOMAIN module: large is less alarming here, but still capped
+    // 1513 → 870 (25 Nov 2026, at 1511 of 1513): the generator left for links-generate.js, its comments with it, and the
+    // turnaround formula's second copy became a call to `restBetween`. The ceiling comes down to the new size plus room.
+    'links-design.js':          870,   // a DOMAIN module: large is less alarming here, but still capped
+    // NEW 25 Nov 2026: the generator moved out of links-design.js whole (`generateLink`, the two constructions, the rest
+    // repair), its long argued comments included. A pure DOMAIN module, so capped at the measured size plus room.
+    'links-generate.js':        740,
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
     // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same
@@ -291,7 +305,9 @@ const CAPS = {
     // is at its own cap. A pure DOMAIN module like links-design.js, so capped where it stands.
     // 928 → 900 (16 Nov 2026, at 928 of 928): changelog narrative in its comments cut to the rule and
     // its reason (git log keeps the history), 928 lines down to 847 — the ceiling comes down with them.
-    'override-utils.js':        900,
+    // 900 → 775 (25 Nov 2026, at 745 of 899): the Other-day grammar and its pay resolver left for other-day.js,
+    // re-exported here so no importer changed. Measured plus about 30.
+    'override-utils.js':        775,
     // 1350 → 1100 at v21.90. The three date-keyed document collections left for
     // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
     // them: signature check, versioned path, and what a failed or ambiguous commit does to the
@@ -338,8 +354,13 @@ const CAPS = {
     // the notification prompt strip and silent renewal (an IIFE that closed over nothing the
     // coordinator owns) left for calendar-notif-prompt.js, 1,346 down to 1,267. The ceiling comes
     // down with it rather than banking eighty lines as headroom, per the header's rule.
-    'calendar-app.js':         1310,
-                                       //   ← 1320 until v23.69, when the month LEGEND left for calendar-legend.js (1264 now)
+    // 1310 → 1190 on 25 Nov 2026, an EXTRACT: the member's own-roster copy (calendar-own-copy.js, its
+    // record rule now pure and tested), the month-jump picker (calendar-month-jump.js) and the page's
+    // keyboard shortcuts (calendar-keyboard.js → `initCalendarShortcuts`) left, and the legend's two
+    // copies of "what this month shows" became the renderer's `monthOnScreen` — 1,277 measured lines
+    // down to 1,158. The ceiling comes down with them, with thirty lines of room, not the saving.
+    'calendar-app.js':         1190,
+                                       //   ← 1320 until v23.69, when the month LEGEND left for calendar-legend.js (1264 then)
     'roster-data.js':          1200,   // mostly data, not logic
     // 1250 → 1200 on 16 Nov 2026 (v26.2x), an EXTRACT at 1250 of 1250: the seam the v22.50 note below names,
     // taken. The leave allowance — `getALEntitlement`, `dispatcherBaseAL` and the bank-holiday count it could
@@ -402,7 +423,9 @@ const CAPS = {
     // 37 lines of room again. The setting rule would put a fresh cap at 1250, so it does not move.
     // Stays at 1200 at v25.92: the Save left for roster-import-save.js (1176 → 1120, its refusal
     // handling staying here). The setting rule puts a fresh cap for 1120 at 1200, so it does not move.
-    'admin-roster-upload.js':  1200,
+    // 1200 → 1040 on 25 Nov 2026, brought DOWN (1,139 measured lines to 1,006): the review rows' markup left for
+    // roster-review-rows.js and the person-section rule for `personSummary` (roster-review-states.js). Measured + ~30.
+    'admin-roster-upload.js':  1040,
     // 1300 → 1150 at v23.52 — a cap coming DOWN, which is the direction this mechanism is for and
     // the one it had not yet demonstrated. `computeCellStates` left for roster-review-states.js:
     // ~206 lines that touch no DOM, hold no state, and decide what a Save writes. It was the second
@@ -446,7 +469,11 @@ const CAPS = {
     'overlay.js':              1050,
     // settings-app.js crossed 900 on 18 Nov 2026, 900 → 908: the Work Email card's slow-load branch now marks the card
     // saved as an ordinary load does. Wiring, not a rule. 908 measured, plus 50, to the next 50.
-    'settings-app.js':         1000,
+    // 1000 → 580 (25 Nov 2026, at 552 of 1,000), a SPLIT at the cap: the `?` panels' content left for
+    // settings-tips.js, the Password card for settings-password-card.js and the Install card for
+    // settings-install-card.js; the coordinator wires them. Measured plus about 30, so the next card brings its
+    // own module rather than a raise.
+    'settings-app.js':          580,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
@@ -648,7 +675,12 @@ const CAPS = {
     // See SCANNED_DIRS above for why they were never here. Each is the size it was on the day the
     // scan first reached it, plus the usual room; none is an accusation, and the two domain files
     // are large because the domains are.
-    'functions/roster-parse-helpers.js': 1400,   // ← 1,351 when capped (1,312 in Nov 2026), named "helpers", and the
+    // 1400 → 990 on 25 Nov 2026, a SPLIT at 1,386 of 1,400: the file did three jobs besides the parse.
+    // The account rules left for functions/account-rules.js, the reset-request queue's rules for
+    // functions/reset-request-rules.js and the push transport guards for functions/push-guards.js
+    // (962 measured after). Brought down with the code, measured + ~30 rather than the usual round
+    // fifty, so the room the split made is not banked as headroom for the next rule to land here.
+    'functions/roster-parse-helpers.js':  990,   // ← 1,351 when capped (1,312 in Nov 2026), named "helpers", and the
                                                  //   day-drift defence is among them. The clearest
                                                  //   candidate in this block for a rule to leave.
     'functions/overtime.js':             1400,   // the Overtime endpoints + Firestore orchestration

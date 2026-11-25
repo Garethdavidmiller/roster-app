@@ -65,7 +65,7 @@ export const HELP_CONTENT = {
       { heading: 'Training and other days', items: [
         // R3-9: Christmas Day and Boxing Day can never be Training or Other days (owner, Jul and 21 Nov
         // 2026), so the panel no longer routes one to the Boxing Day box; and a bank holiday over-run is
-        // Bank Holiday Overtime, as `resolveOtherPay` (override-utils.js) fills it.
+        // Bank Holiday Overtime, as `resolveOtherPay` (other-day.js) fills it.
         { icon: '🎓', html: 'Training, induction, assessment, team days, union courses and meetings — the <strong>Other</strong> days on your calendar — pay as the day they replace, so one on a normal weekday needs nothing here. The <strong>Peer Training</strong> row is only for days you spent training a colleague. A <strong>training rest-day</strong> pre-fills <strong>8 hours</strong> as a default — change it to the hours you actually did. It goes into the box the day itself calls for: normally RDW, or <strong>Bank Holiday Overtime</strong> if the day is a bank holiday. If training ran past your rostered shift, the extra time is overtime — <strong>Bank Holiday Overtime</strong> on a bank holiday, <strong>Overtime</strong> otherwise; Fill from calendar puts it there when the actual times are on your calendar.' },
       ]},
       { heading: 'Good to know', items: [

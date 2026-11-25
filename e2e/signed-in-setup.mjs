@@ -25,10 +25,11 @@ export default async function provisionAccounts() {
     const { initializeApp, getApps } = require('firebase-admin/app');
     const { getAuth } = require('firebase-admin/auth');
     const helpers = require('./roster-parse-helpers.js');
+    const accountRules = require('./account-rules.js');
     const rosterMembers = require('./roster-members.json');
 
     if (!getApps().length) initializeApp({ projectId: PROJECT });
-    const cfg = helpers.resolveRosterAuthConfig(rosterMembers);
+    const cfg = accountRules.resolveRosterAuthConfig(rosterMembers);
     if (cfg.error) throw new Error(`signed-in setup: the server roster config is broken (${cfg.error})`);
 
     const adminName = cfg.admin[0];
@@ -41,7 +42,7 @@ export default async function provisionAccounts() {
         if (err.code !== 'auth/email-already-exists') throw err;
         user = await getAuth().getUserByEmail(email);
     }
-    await getAuth().setCustomUserClaims(user.uid, helpers.claimsForTier(adminName, {
+    await getAuth().setCustomUserClaims(user.uid, accountRules.claimsForTier(adminName, {
         adminSet: new Set(cfg.admin), managerSet: new Set(cfg.manager), designerSet: new Set(cfg.designer),
     }));
 

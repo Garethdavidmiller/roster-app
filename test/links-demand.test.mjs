@@ -4,7 +4,8 @@ import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, demandAt, peakCars, demandBucket,
     movementsOutside, dutySpans, summariseDemand, describeHours, describeMovements,
 } from '../links-demand.js';
-import { DAYS, ROTATING_LINES, dayClass, calcHourlyCoverage, generateLink, startMinutes, endMinutesAbs } from '../links-design.js';
+import { DAYS, ROTATING_LINES, dayClass, calcHourlyCoverage, startMinutes, endMinutesAbs } from '../links-design.js';
+import { generateLink } from '../links-generate.js';
 import { PROPOSALS } from '../links-proposals.js';
 import { buildDefaultTargets } from '../links-default-targets.js';
 

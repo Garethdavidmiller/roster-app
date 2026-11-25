@@ -24,9 +24,10 @@ import {
     TARGET_DAYS_PER_WEEK, EVENING_TURNS_FROM_22,
 } from '../links-default-targets.js';
 import {
-    generateLink, weeklyHours, targetExSundayMinutes,
+    weeklyHours,
     CONTRACTED_HOURS_PER_WEEK, ROTATING_LINES, startMinutes, endMinutesAbs,
 } from '../links-design.js';
+import { generateLink, targetExSundayMinutes } from '../links-generate.js';
 import { DEFAULT_WINDOW, windowMinutes } from '../links-window.js';
 import { DEC_2026_DEMAND } from '../links-demand.js';
 import { buildRosterTargets } from '../links-seed.js';

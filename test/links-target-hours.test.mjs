@@ -25,7 +25,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { assessTargetHours, targetHoursLines, targetProvenanceNote } from '../links-target-hours.js';
-import { CONTRACTED_HOURS_PER_WEEK, ROTATING_LINES, targetExSundayMinutes } from '../links-design.js';
+import { CONTRACTED_HOURS_PER_WEEK, ROTATING_LINES } from '../links-design.js';
+import { targetExSundayMinutes } from '../links-generate.js';
 
 /** A table that pays the contract EXACTLY, built from the contract rather than hand-tuned — so it
  *  stays exact if the rotation length or the contracted week ever changes. */

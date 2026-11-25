@@ -56,9 +56,10 @@
  * (e2e/operations.spec.js).
  */
 import { fetchWithTimeout, serverRefusal } from './fetch-timeout.js';
+import { functionUrl } from './function-url.js';
 
 /** Admin-only Cloud Function — a preview unless the body says `rotate: true`. */
-export const ROTATE_LINKS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/rotateDocumentLinks';
+export const ROTATE_LINKS_URL = functionUrl('rotateDocumentLinks');
 /** Past the endpoint's own 300 s limit, so the platform's answer arrives before this gives up. */
 const ROTATE_TIMEOUT_MS = 310_000;
 

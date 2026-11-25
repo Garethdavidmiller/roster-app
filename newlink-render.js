@@ -22,6 +22,10 @@
  */
 import { escapeHtml as esc } from './roster-data.js';
 import { proposalDisplayName } from './links-proposals.js';
+// The shift rules are the Links workspace's, read rather than restated (25 Nov 2026): this page counted a cover week only when
+// all SEVEN days were SPARE while `isCoverWeek` deliberately ignores Sunday, so a cover week written with a rest-day Sunday
+// was drawn as a week of loose cells and left out of the count. links-design.js already loads here, via links-proposals.js.
+import { DAYS, isCoverWeek, startMinutes, classifyShift } from './links-design.js';
 import { formatDayMonthYear } from './date-format.js';
 
 /** @typedef {import('./newlink-data.js').Persona} Persona */
@@ -29,8 +33,9 @@ import { formatDayMonthYear } from './date-format.js';
 /** @typedef {import('./newlink-data.js').PackFile} PackFile */
 /** @typedef {import('./links-proposals.js').Proposal} Proposal */
 
-const DAYS = /** @type {const} */ (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
+/** @type {Record<string, string>} */
 const DAY_SHORT = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' };
+/** @type {Record<string, string>} */
 const DAY_LONG = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
 
 /** Short on screen, whole to a screen reader. @param {string} shown @param {string} said */
@@ -190,7 +195,7 @@ export function renderStatus({ proposals, closes, starts = null, timetable = nul
 function weeksShape(proposals) {
     const shapes = proposals.map(p => {
         const weeks = Object.values(p.patterns);
-        return { weeks: weeks.length, cover: weeks.filter(r => DAYS.every(d => r[d] === 'SPARE')).length };
+        return { weeks: weeks.length, cover: weeks.filter(isCoverWeek).length };
     });
     const [{ weeks, cover }] = shapes;
     if (!cover || !shapes.every(s => s.weeks === weeks && s.cover === cover)) return '';
@@ -361,16 +366,32 @@ export function renderPersonaChips(personas, chosen) {
 export function dutyKind(s) {
     if (s === 'RD') return 'rest';
     if (s === 'SPARE') return 'cover';
-    const m = /^(\d\d):(\d\d)-\d\d:\d\d$/.exec(s);
-    if (!m) return 'unknown';
-    const start = +m[1] * 60 + +m[2];
-    if (start < 4 * 60 || start >= 21 * 60) return 'night';
-    return start < 11 * 60 ? 'early' : 'late';
+    // The boundaries are `classifyShift`'s (links-design.js), never restated here; what it cannot read it calls a night,
+    // which is right for the Links grid's `N:` flag and wrong for a cell drawn on this page — so an unreadable value is
+    // asked first, through the same strict reading of a time, and stays 'unknown'.
+    if (startMinutes(s) === null) return 'unknown';
+    return /** @type {'early'|'late'|'night'} */ (classifyShift(s));
 }
 
 /**
- * One proposal's 26 weeks, Sunday to Saturday as the paper rosters run. A cover week (every day SPARE) is one cell
- * across the week, because its four shifts are not set until nearer the time.
+ * One roster cell of a proposal, coloured by its kind.
+ * @param {string} s
+ */
+function dayCell(s) {
+    const kind = dutyKind(s);
+    if (kind === 'early' || kind === 'late' || kind === 'night') {
+        const [from, to] = s.split('-');
+        return `<td class="nl-d nl-d--${kind}"><span>${from}</span><span class="visually-hidden"> to </span><span>${to}</span></td>`;
+    }
+    if (kind === 'rest') return `<td class="nl-d nl-d--rest">${short('RD', 'Rest day')}</td>`;
+    if (kind === 'cover') return `<td class="nl-d nl-d--cover">Cover</td>`;
+    return `<td class="nl-d">${esc(s)}</td>`;
+}
+
+/**
+ * One proposal's weeks, Sunday to Saturday as the paper rosters run. A cover week (`isCoverWeek`: SPARE Monday to Saturday)
+ * is one cell across the week, because its four shifts are not set until nearer the time. Its Sunday is not contracted and
+ * not asked about, so one written as anything but SPARE — a rest day, an overtime duty — keeps its own cell beside it.
  * @param {Proposal} p
  */
 export function renderWeeks(p) {
@@ -379,17 +400,11 @@ export function renderWeeks(p) {
     const rows = weeks.map(w => {
         const row = p.patterns[w];
         const lead = `<th scope="row">${esc(w)}</th>`;
-        if (DAYS.every(d => row[d] === 'SPARE')) return `<tr class="nl-wk-cover">${lead}<td colspan="7" class="nl-d nl-d--cover">Cover week</td></tr>`;
-        return `<tr>${lead}${DAYS.map(d => {
-            const s = row[d], kind = dutyKind(s);
-            if (kind === 'early' || kind === 'late' || kind === 'night') {
-                const [from, to] = s.split('-');
-                return `<td class="nl-d nl-d--${kind}"><span>${from}</span><span class="visually-hidden"> to </span><span>${to}</span></td>`;
-            }
-            if (kind === 'rest') return `<td class="nl-d nl-d--rest">${short('RD', 'Rest day')}</td>`;
-            if (kind === 'cover') return `<td class="nl-d nl-d--cover">Cover</td>`;
-            return `<td class="nl-d">${esc(s)}</td>`;
-        }).join('')}</tr>`;
+        if (isCoverWeek(row)) {
+            const sunday = row.sun === 'SPARE' ? '' : dayCell(row.sun);
+            return `<tr class="nl-wk-cover">${lead}${sunday}<td colspan="${sunday ? 6 : 7}" class="nl-d nl-d--cover">Cover week</td></tr>`;
+        }
+        return `<tr>${lead}${DAYS.map(d => dayCell(row[d])).join('')}</tr>`;
     }).join('');
     return `<p class="nl-flag"><span aria-hidden="true">⚠️</span> A proposal — not your roster</p>
     <div class="nl-weeks-wrap" tabindex="0" role="group" aria-label="${esc(designName(p))}’s ${weeks.length} weeks"><table class="nl-weeks">

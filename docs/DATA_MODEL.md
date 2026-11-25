@@ -35,7 +35,7 @@ type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "
              none left (owner, 7 Nov 2026). The names survive in `replacedType`
 value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
              an Other day uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — the flavours are the keys
-             of `OTHER_FLAVOURS` (override-utils.js, the grammar's single source), then an optional
+             of `OTHER_FLAVOURS` (other-day.js, the grammar's single source), then an optional
              rest-day marker and optional actual times (see OTHER_DAYS.md)
 note         WRITE-ONLY, and always `""`. The rules require the field present and a string, so every
              write still sends it — but nothing in the app can produce a value for it and nothing

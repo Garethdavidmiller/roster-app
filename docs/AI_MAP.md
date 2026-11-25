@@ -36,15 +36,16 @@ below, and run `npm run generate:ai-map`.
 | Calendar swipe carousel | `calendar-swipe.js` |
 | Calendar annual-leave panel and day-detail panel | `calendar-al-lightbox.js` |
 | Calendar first three-month read and the sync chip | `calendar-initial-fetch.js` |
-| Calendar keyboard navigation and hover tooltip | `calendar-keyboard.js` |
+| Calendar keyboard navigation, the page shortcuts and hover tooltip | `calendar-keyboard.js` |
+| Calendar month/year jump picker (from the month heading) | `calendar-month-jump.js` |
 | Calendar override cache | `calendar-overrides.js` |
 | What the Calendar knows about each month, and so what it may show | `calendar-data-state.js` |
 | The Calendar's access gate, the cards that stand in for it, and its pure rules | `calendar-access.js` · `calendar-lock-cards.js` · `calendar-lock-slot.js` · `calendar-access-core.js` |
-| The member's own roster kept on the device, shown labelled before the sign-in check finishes | `calendar-snapshot.js` |
+| The member's own roster kept on the device, shown labelled before the sign-in check finishes | `calendar-snapshot.js` · `calendar-own-copy.js` (when it is shown and kept) |
 | The Calendar page's one-time notices (which are live: the new-notice skill → "Current notices") | `calendar-notices.js` |
 | Calendar member selection | `calendar-member.js` |
 | The phone's text scale, measured rather than asked, for the Calendar's control rows | `text-scale.js` |
-| Calendar rendering — the grid, the header and the day cells | `calendar-renderer.js` |
+| Calendar rendering — the grid, the header and the day cells, and what a month shows (`monthOnScreen`) | `calendar-renderer.js` |
 | The month legend — which keys apply, and whether it shows at all | `calendar-legend.js` |
 | The document gate on the Calendar — may the Huddle, Circular and Newsletter be read (opened on the grant, shut on access lost) | `calendar-doc-access.js` |
 | Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
@@ -56,14 +57,14 @@ below, and run `npm run generate:ai-map`.
 | Which Huddle cells are physically in column 1 (`firstColumnMask`), for the sticky job column | `huddle-table-grid.js` |
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
 | Team Week View, and which week it opens on | `calendar-team-view.js` |
-| Override priority, member start, rest shifts, the shared display ladder (`resolveEffectiveShift`), the Sunday rule, the training value grammar and its pay resolver | `override-utils.js` |
+| Override priority, member start, rest shifts, the shared display ladder (`resolveEffectiveShift`), the Sunday rule, the training value grammar and its pay resolver | `override-utils.js` (the grammar and its pay resolver: `other-day.js`, re-exported) |
 | Body scroll lock, overlay history, focus trap, the lightbox lifecycle, the in-app dialogs, card collapse | `overlay.js` |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
 | Service worker registration + update lifecycle (every app page) | `sw-register.js` |
 | Auth/session helpers — the local session and re-establishing Firebase on load | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` (+ `admin-boot.js`) + `admin.html` |
-| Settings page — Password, Work email, Notifications, Install, Pay Calculator data | `settings-app.js` + `settings.html` |
+| Settings page — Password, Work email, Notifications, Install, Pay Calculator data | `settings-app.js` + `settings.html` (Password: `settings-password-card.js`; Install: `settings-install-card.js`; `?` panels: `settings-tips.js`) |
 | Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` (the Circular and Newsletter cards' configuration: `operations-doc-uploads.js`) |
 | Error Log card (ops page) — uncaught error capture, the card, Copy for Claude | `error-reporter.js`, `firebase-client.js`, `client-errors.js` (ordering/retention policy), `operations-errors.js`, `operations.css` · the admin's phone told of new entries: `functions/error-log-notify.js` (the rules: `functions/error-log-notice.js`) |
@@ -71,7 +72,8 @@ below, and run `npm run generate:ai-map`.
 | Document links card (ops page) — a new key for every stored Huddle, Circular and Newsletter file, so every old copy of a link stops working | `operations-doc-links.js` (the card) · `functions/documents.js` (`rotateDocumentLinks`, the endpoint) · `functions/doc-link-rotation.js` (the rules) |
 | Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · plan of record `docs/AL_UPLOADER_PLAN.md` |
 | Links design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `links-app.js` + `links.html` + `links.css` |
-| Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) |
+| Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), the rest between two duties, design quality checks | `links-design.js` (pure — no DOM/Firebase, imports nothing; tested by `links-design.test.mjs`) |
+| The link generator — the two constructions, the contract gate, the minimum-rest repair | `links-generate.js` (pure; imports its constants from `links-design.js`; tested by `links-design.test.mjs` and `links-contract.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |
 | Which AL days consume entitlement, and a member's taken/booked/remaining position | `al-entitlement.js` (pure — no DOM/Firebase; tested by `al-entitlement.test.mjs`) |
 | CHRISTMAS LEAVE — who is shown on leave on 25/26 December, never counted, and the Boxing Day day in lieu | `christmas-leave.js` (pure; `christmas-leave.test.mjs`) · the whole allowance `entitlementFor` in `al-entitlement.js` |
@@ -109,7 +111,7 @@ below, and run `npm run generate:ai-map`.
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers | `ls.js` |
 | Cross-file localStorage key constants | `storage-keys.js` |
-| Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts (`functions/auth-endpoints.js` with `functions/account-lifecycle.js`, the reset-request doorbell `functions/reset-request.js`, and the retired PIN's shared account, `functions/retired-viewer-account.js`); push (`functions/push.js`, and what every payload looks like, `functions/push-notices.js`); the pay reminder's audience (`functions/pay-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
+| Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts (`functions/auth-endpoints.js` with `functions/account-lifecycle.js` and the account rules `functions/account-rules.js`, the reset-request doorbell `functions/reset-request.js` and its rules `functions/reset-request-rules.js`, and the retired PIN's shared account, `functions/retired-viewer-account.js`); push (`functions/push.js`, its transport guards `functions/push-guards.js`, and what every payload looks like, `functions/push-notices.js`); the deploy region (`functions/region.js`, and the browser's address of every function, `function-url.js`); the pay reminder's audience (`functions/pay-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, every guide) | `guide-back.js` |
@@ -144,7 +146,10 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `initInitialFetch`
 
 ### `calendar-keyboard.js`
-- **Exports:** `initCalendarTooltip` · `initCalendarKeyboard`
+- **Exports:** `initCalendarTooltip` · `initCalendarKeyboard` · `initCalendarShortcuts`
+
+### `calendar-month-jump.js`
+- **Exports:** `initMonthJump`
 
 ### `calendar-access.js`
 - **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
@@ -157,6 +162,9 @@ below, and run `npm run generate:ai-map`.
 
 ### `calendar-snapshot.js`
 - **Exports:** `SNAPSHOT_VERSION` · `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `LEAVE_YEARS_AROUND` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
+
+### `calendar-own-copy.js`
+- **Exports:** `ownCopyWindow` · `ownMonthsToStore` · `createOwnCopy`
 
 ### `calendar-access-core.js`
 - **Exports:** `CALENDAR_VIEWER_UID` · `CALENDAR_VIEWER_CLAIM` · `isViewerUser` · `noticeAudienceAllows` · `personalActionsAllowed` · `decideAccess`
@@ -206,6 +214,9 @@ below, and run `npm run generate:ai-map`.
 ### `functions/caught.js`
 - **Exports:** `fieldsOf`
 
+### `functions/region.js`
+- **Exports:** `REGION`
+
 ### `functions/london-clock.js`
 - **Exports:** `londonOffsetMinutes` · `londonTimestamp` · `londonIsoDate` · `isValidIsoDate` · `isoDayOfWeek` · `addDays`
 
@@ -219,7 +230,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `takeStaleMemberName` · `getDefaultMemberIndex` · `isFirstRun` · `getSelectedMemberIndex` · `_resetSelectionFallbackForTest` · `saveSelectedMember` · `populateTeamMemberDropdown` · `getCurrentMember` · `validateTeamMembers`
 
 ### `calendar-renderer.js`
-- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `buildCalendarContainer`
+- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer`
 
 ### `calendar-huddle-viewer.js`
 - **Exports:** `wrapTables` · `initHuddleViewer`
@@ -244,6 +255,15 @@ below, and run `npm run generate:ai-map`.
 
 ### `settings-app.js`
 - **Exports:** `init`
+
+### `settings-tips.js`
+- **Exports:** `CARD_TIPS`
+
+### `settings-password-card.js`
+- **Exports:** `passwordSaving` · `initPasswordCard`
+
+### `settings-install-card.js`
+- **Exports:** `captureInstallOffer` · `initDeviceCard`
 
 ### `overlay.js`
 - **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `pinCloseButton` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
@@ -343,7 +363,10 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `DEFAULT_TABLE_FIGURES` · `CARD_TIPS`
 
 ### `links-design.js`
-- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `WEEKENDS_OFF_AIM_PCT` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `hoursFigure` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
+- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `WEEKENDS_OFF_AIM_PCT` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `hoursFigure` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `restBetween` · `runDesignChecks`
+
+### `links-generate.js`
+- **Exports:** `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `repairShortRest` · `generateLink`
 
 ### `links-target-sets-store.js`
 - **Exports:** `createTargetSetStore`
@@ -355,7 +378,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `LEGACY_DOC_ID` · `LINK_26_FROM` · `PREVIOUS_LINK_LENGTH` · `isPre26Design` · `deepCopyPatterns` · `designFromDoc` · `binEntryFromDoc` · `docPayload` · `workingCopy` · `binEntryFrom` · `restoredEntryFrom` · `recordSave` · `lastSavedLabel`
 
 ### `links-design-load.js`
-- **Exports:** `splitDesignDocs` · `binOldOnLoad` · `binOldOnRefresh` · `readCannotAnswer` · `migratesLegacy` · `byDesignName` · `designToOpen`
+- **Exports:** `splitDesignDocs` · `binOldOnLoad` · `binOldOnRefresh` · `readCannotAnswer` · `migratesLegacy` · `byDesignName` · `designToOpen` · `emptyStateFor`
 
 ### `links-generator-targets.js`
 - **Exports:** `CUSTOM_SHIFT_PROMPT` · `customShiftRefusal` · `createTargetPanel`
@@ -430,7 +453,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `allowanceRole` · `countsAsDispatcherBankHoliday` · `countDispatcherBankHolidaysWorked` · `dispatcherBaseAL` · `getALEntitlement`
 
 ### `al-entitlement.js`
-- **Exports:** `entitlementFor` · `boxingDayLieuYear` · `boxingDayLieuSplit` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `rosteredSpareDay` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
+- **Exports:** `entitlementFor` · `boxingDayLieuYear` · `boxingDayLieuSplit` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `rosteredSpareDay` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `balanceFace` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
 - **Exports:** `LEAVE_FILE_FORMAT` · `LEAVE_FILE_VERSION` · `LEAVE_FILE_MAX_AGE_DAYS` · `LEAVE_FILE_MAX_BYTES` · `GRADES` · `FOUND_IN` · `NOT_IMPORTED_REASONS` · `canonicalJson` · `leaveFileDigest` · `sealLeaveFile` · `isRealIsoDate` · `isSundayIso` · `isChristmasIso` · `leaveFileAgeDays` · `londonDayOf` · `usedRow` · `personSums` · `readLeaveFile` · `validateLeaveFile` · `describeRefusal`
@@ -532,7 +555,19 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `addDays` · `isRestGap` · `fmtPeriodDate` · `fmtPeriodRange` · `formatDisplay` · `namedDays`
 
 ### `admin-booked-periods.js`
-- **Exports:** `periodDelete` · `TWO_TAP_MIN_MS` · `twoTap` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
+- **Exports:** `periodDelete` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
+
+### `admin-period-delete.js`
+- **Exports:** `createPeriodDelete`
+
+### `admin-confirm-bar.js`
+- **Exports:** `createConfirmBar`
+
+### `two-tap.js`
+- **Exports:** `TWO_TAP_MIN_MS` · `twoTap` · `disarmConfirm`
+
+### `feedback-line.js`
+- **Exports:** `holdFeedback` · `fadeFeedback`
 
 ### `admin-sick.js`
 - **Exports:** `initSickSection`
@@ -556,7 +591,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `initSavedChanges` · `resetTableMemberFilter` · `renderTable`
 
 ### `admin-override-store.js`
-- **Exports:** `initOverrideStore` · `whenOverridesReady` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `OVERRIDES_QUERY_CAP` · `getAllOverrides` · `mutateCache` · `coversAllStaff` · `loadFailedFor` · `isTruncated` · `setAllOverrides` · `idsReplacedBy` · `withManualDuplicates` · `deleteChunks` · `removeFromCache` · `whenLoadSettled` · `loadOverrides` · `CHANGED_ELSEWHERE_LINE` · `UNCHECKED_DELETE_LINE` · `staleDeleteVerdict` · `DELETE_REFUSED` · `asShown` · `commitIfUnchanged` · `deleteIfUnchanged` · `commitChecked` · `LEAVE_YEAR_CHANGED_LINE` · `ensureMemberLoaded`
+- **Exports:** `initOverrideStore` · `whenOverridesReady` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `OVERRIDES_QUERY_CAP` · `getAllOverrides` · `mutateCache` · `coversAllStaff` · `loadFailedFor` · `isTruncated` · `setAllOverrides` · `idsReplacedBy` · `withManualDuplicates` · `deleteChunks` · `removeFromCache` · `whenLoadSettled` · `loadOverrides` · `CHANGED_ELSEWHERE_LINE` · `UNCHECKED_DELETE_LINE` · `staleDeleteVerdict` · `DELETE_REFUSED` · `deleteFailureLine` · `asShown` · `commitIfUnchanged` · `deleteIfUnchanged` · `commitChecked` · `LEAVE_YEAR_CHANGED_LINE` · `ensureMemberLoaded`
 
 ### `override-id.js`
 - **Exports:** `manualOverrideId`
@@ -607,10 +642,13 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `defaultWeekEnding` · `detectShiftedRow` · `ALIGNMENT_BLOCK_THRESHOLD` · `assessRosterAlignment` · `geometryCopy` · `driftCopy` · `stopCopy`
 
 ### `roster-review-states.js`
-- **Exports:** `CHRISTMAS_NOTE` · `RDW_PREFIX` · `isRdwEncoded` · `stripRdw` · `UNKNOWN_PREFIX` · `isUnknownEncoded` · `stripUnknown` · `computeCellStates` · `guardCopy` · `swapQuestionApplies` · `guardedWriteValue` · `replacedFromState` · `guardedWrites` · `restOverRest` · `collectRosterWrites` · `reviewOutcome` · `outcomeHtml` · `guardedRowHtml` · `unreadableTagClass` · `carryReviewAnswers`
+- **Exports:** `CHRISTMAS_NOTE` · `RDW_PREFIX` · `isRdwEncoded` · `stripRdw` · `UNKNOWN_PREFIX` · `isUnknownEncoded` · `stripUnknown` · `computeCellStates` · `guardCopy` · `swapQuestionApplies` · `guardedWriteValue` · `replacedFromState` · `guardedWrites` · `restOverRest` · `collectRosterWrites` · `reviewOutcome` · `outcomeHtml` · `personSummary` · `guardedRowHtml` · `unreadableTagClass` · `carryReviewAnswers`
+
+### `roster-review-rows.js`
+- **Exports:** `reviewRow`
 
 ### `admin-roster-upload.js`
-- **Exports:** `normaliseCellValue` · `shiftValueToOverrideType` · `isZeroLengthRange` · `computeCellStates` · `PARSE_ABORT_MS` · `statusFailureLine` · `shiftDisplay` · `manualShiftDisplay` · `_saveOverrideBatches` · `fetchOverridesForWeek` · `initRosterUpload`
+- **Exports:** `normaliseCellValue` · `shiftValueToOverrideType` · `isZeroLengthRange` · `computeCellStates` · `PARSE_ABORT_MS` · `PARSE_EXPECTED_MS` · `parseFailureLine` · `statusFailureLine` · `shiftDisplay` · `manualShiftDisplay` · `_saveOverrideBatches` · `fetchOverridesForWeek` · `initRosterUpload`
 
 ### `roster-import-save.js`
 - **Exports:** `IMPORT_CHANGED_CODE` · `UNSENT_SAVES_DETAIL` · `saveRosterWrites` · `refusalLine`
@@ -622,22 +660,25 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `headlineLabels` · `renderResultHeadline` · `renderUnpricedPayslip` · `renderActualCheck` · `renderYtdLine` · `wireYtdLine`
 
 ### `paycalc-ytd-card.js`
-- **Exports:** `ytdHasFigures` · `refreshYtdSrc` · `updateYtdNote`
+- **Exports:** `ytdHasFigures` · `refreshYtdSrc` · `updateYtdNote` · `wireYtdCard`
 
 ### `paycalc-disclosures.js`
 - **Exports:** `setDisclosure` · `toggleDisclosure` · `toggleHoursExtra` · `toggleHppNote` · `toggleBD` · `toggleDisclaimer`
 
+### `paycalc-clear-confirm.js`
+- **Exports:** `CLEAR_CONFIRM_MIN_MS` · `createClearConfirm`
+
 ### `paycalc-money-banner.js`
-- **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner`
+- **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner` · `wireBannerTicks`
 
 ### `paycalc-lightboxes.js`
 - **Exports:** `initPaycalcAbout` · `initPaycalcLightboxes`
 
 ### `paycalc-periods.js`
-- **Exports:** `CONFIG` · `getPeriods` · `payslipPeriodNum` · `computeEarliestVisiblePNum` · `payslipsShownTo` · `setEarliestVisiblePeriod` · `getEarliestVisiblePNum` · `visiblePeriods` · `isTaxYearVisible` · `todaysPeriodNum` · `currentPeriodNum` · `hasBoxingDay` · `bhsForYear` · `hasBankHoliday` · `CONDITIONAL_ROWS` · `updateBhRows` · `_setSelectPeriod` · `appendPayslipOptions` · `offerRecordedPayslip` · `periodLinkMissNote` · `periodPaidInMonth` · `buildPeriodSelect` · `payslipMayBeInHand` · `ytdSourceOffered` · `ytdAutoSource` · `ytdSourceToStamp` · `YTD_SRC_EARLY` · `ytdSourceAfterRetype` · `ytdAnchorStatus` · `buildYtdSourceSelect` · `buildBackPayPeriodSelect` · `updateTyTabs` · `jumpToTaxYear` · `prevPeriod` · `nextPeriod` · `ytdUpdateFrom`
+- **Exports:** `CONFIG` · `getPeriods` · `periodByNum` · `payslipPeriodNum` · `computeEarliestVisiblePNum` · `payslipsShownTo` · `setEarliestVisiblePeriod` · `getEarliestVisiblePNum` · `visiblePeriods` · `isTaxYearVisible` · `todaysPeriodNum` · `currentPeriodNum` · `viewedPeriod` · `hasBoxingDay` · `bhsForYear` · `hasBankHoliday` · `CONDITIONAL_ROWS` · `updateBhRows` · `_setSelectPeriod` · `appendPayslipOptions` · `offerRecordedPayslip` · `periodLinkMissNote` · `periodPaidInMonth` · `buildPeriodSelect` · `payslipMayBeInHand` · `ytdSourceOffered` · `ytdAutoSource` · `ytdSourceToStamp` · `YTD_SRC_EARLY` · `ytdSourceAfterRetype` · `ytdAnchorStatus` · `buildYtdSourceSelect` · `buildBackPayPeriodSelect` · `updateTyTabs` · `jumpToTaxYear` · `prevPeriod` · `nextPeriod` · `ytdUpdateFrom`
 
 ### `paycalc-settings.js`
-- **Exports:** `gradeForRole` · `getGradeSetting` · `gradeDaysFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `isPeriodPriced` · `unpricedLineFor` · `getEffectiveContr` · `getProRateFactor` · `isPensionOptedOut` · `applyPensionOptOutUI` · `buildPensionFromSelect` · `periodDefaultPension` · `wirePensionControls` · `getPensionDefault` · `settledRate` · `settledRateFor` · `awardGrade` · `periodRate` · `settingsSummary` · `updateRateForPeriod` · `updateYtdForTaxYear` · `settingsKey` · `saveSettings` · `confirmSettings` · `setSettingsCardOpen` · `wireSettingsCard` · `loadSettings`
+- **Exports:** `gradeForRole` · `getGradeSetting` · `gradeDaysFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `isPeriodPriced` · `unpricedLineFor` · `getEffectiveContr` · `getProRateFactor` · `isPensionOptedOut` · `applyPensionOptOutUI` · `buildPensionFromSelect` · `periodDefaultPension` · `wirePensionControls` · `getPensionDefault` · `settledRate` · `settledRateFor` · `awardGrade` · `periodRate` · `settingsSummary` · `updateRateForPeriod` · `updateYtdForTaxYear` · `settingsKey` · `saveSettings` · `confirmSettings` · `setSettingsCardOpen` · `paintSettingsForYear` · `wireSettingsCard` · `loadSettings`
 
 ### `paycalc-grade-setting.js`
 - **Exports:** `getGradeSetting` · `gradeDaysFor` · `isPeriodPriced` · `unpricedLineFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `saveGradeSetting` · `loadGradeSetting`
@@ -701,7 +742,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `PAY_DATA_GENERATION` · `memberSlug` · `keyOwnerSlug` · `pcPrefix` · `SK` · `setPaycalcNamespace` · `periodKey` · `parseSavedPeriod` · `readSavedPeriod` · `hppEstKey` · `hppActualKey` · `hppIncKey` · `hppModeKey` · `bpKey` · `ytdPayKey` · `ytdSrcKey` · `ytdTaxKey` · `NOTICE_YTD_KEY` · `NOTICE_HPP_KEY` · `isActualsDev` · `readPayslipActuals` · `writePayslipActuals` · `clearPayslipActuals` · `DEVICE_KEYS` · `RETIRED_DEVICE_KEYS` · `hasPendingLegacyMigration` · `resolveLegacyMigration` · `runMigrations`
 
 ### `paycalc-calc.js`
-- **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL` · `pricePayslip`
+- **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `periodInTaxYear` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL` · `pricePayslip` · `takeHomeInputs`
 
 ### `paycalc-roster-suggestions.js`
 - **Exports:** `_setOverridesForTest` · `_addBhDateForTest` · `_removeBhDateForTest` · `resetOverrides` · `getOverridesFetchState` · `fetchOverridesForPeriod` · `getRosterSuggestion`
@@ -733,6 +774,9 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `document-url.js`
 - **Exports:** `DOCUMENT_URL_ENDPOINT` · `DOCUMENT_URL_TIMEOUT_MS` · `requestSignedDocumentUrl`
 
+### `function-url.js`
+- **Exports:** `FUNCTIONS_BASE` · `functionUrl`
+
 ### `functions/cell-day-rules.js`
 - **Exports:** `BLANK_CELL_TOKEN` · `LONE_DASHES` · `BLANK_READINGS` · `NOT_AVAILABLE_TOKENS` · `NOT_AVAILABLE_SUNDAY_TOKENS` · `SUNDAY` · `isBlankReading` · `isLoneDash` · `isPhysicallyBlank` · `printsNothing` · `isNotAvailable` · `isNotAvailableSunday` · `blankCellMeaning`
 
@@ -746,7 +790,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `isClaimRetryable` · `isAccessFailure` · `runWithClaimRetry` · `SIGNED_OUT_CODE` · `signedOutLine` · `UNCONFIRMED_CODE` · `UNCONFIRMED_LINE` · `hasUnconfirmedWrite` · `_resetUnconfirmedWrites` · `trackBackgroundWrite` · `backgroundWritesInFlight` · `runGatedWrite` · `unconfirmedWriteLine` · `OWN_WRITES_WAIT_MS` · `ownWritesSent` · `recordsClearOfOwnWrites` · `LEFTOVER_NOTE_MS` · `leftoverNote` · `ownWritesSentFor` · `watchOwnWritesWaits` · `saveFailureMessage` · `abandonOnSignOut` · `runWatchedClaimRetry` · `watchIdentityLoss`
 
 ### `page-session.js`
-- **Exports:** `LEAVE_QUESTION` · `DISCARD_QUESTION` · `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `LEAVE_ANSWERED` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_IDENTITY_NOTICE` · `LATE_RELOAD_GAP_MS` · `SIGNED_OUT_NOTICE` · `guardNamedSession`
+- **Exports:** `LEAVE_QUESTION` · `DISCARD_QUESTION` · `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `LEAVE_ANSWERED` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `continueAfterSignIn` · `lateReloadAllowed` · `LATE_IDENTITY_NOTICE` · `LATE_RELOAD_GAP_MS` · `SIGNED_OUT_NOTICE` · `guardNamedSession`
 
 ### `unsaved-draft.js`
 - **Exports:** `DRAFT_PREFIX` · `DRAFT_MAX_AGE_MS` · `draftKey` · `encodeDraft` · `decodeDraft` · `restoreQuestion` · `draftBaseline` · `weekRestoredLine` · `createDraftSlot`
@@ -799,7 +843,10 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `shapeClockBox` · `settleClockBox` · `timePairError` · `composeTimedValue`
 
 ### `override-utils.js`
-- **Exports:** `nextLeaveYear` · `isRestShift` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `resolveEffectiveShift` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`
+- **Exports:** `nextLeaveYear` · `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `resolveEffectiveShift` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`
+
+### `other-day.js`
+- **Exports:** `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay`
 
 ### `guide-chips.js`
 - **Exports:** none
@@ -934,17 +981,26 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 ### `functions/admin-recipients.js`
 - **Exports:** `enabledAdminUids` · `isMembersOwnAccount`
 
+### `functions/account-rules.js`
+- **Exports:** `parseSetupActionFlags` · `resolveRosterAuthConfig` · `claimsForTier` · `summariseSignIns` · `computeOrphanLabels` · `MANAGED_CLAIMS` · `summariseAccountGaps`
+
 ### `functions/account-lifecycle.js`
 - **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids` · `sweepAgainstPreview`
 
 ### `functions/reset-request.js`
 - **Exports:** `buildResetRequestEndpoint`
 
+### `functions/reset-request-rules.js`
+- **Exports:** `shouldRecordResetRequest` · `shouldNotifyAdmin` · `buildResetRequestNotice`
+
 ### `functions/retired-viewer-account.js`
 - **Exports:** `CALENDAR_VIEWER_UID` · `isViewerAccount`
 
 ### `functions/push.js`
 - **Exports:** `getWebPush` · `setupWebPush` · `sendTargetedPush` · `fanOutPush` · `releasePushForOwner` · `pushSendOptions` · `PUSH_TTL_BY_TAG`
+
+### `functions/push-guards.js`
+- **Exports:** `shouldDeleteSubscription` · `isAllowedPushEndpoint` · `PUSH_SERVICE_HOSTS`
 
 ### `functions/push-notices.js`
 - **Exports:** `NOTIFICATION_FEATURES` · `buildPushPayload`
@@ -965,7 +1021,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `DAY_LABELS` · `SHIFT_VOCABULARY` · `buildCellTable` · `renderCellTable` · `buildCellPrompt` · `reviewBlankReadsOfFilledCells` · `reviewRestReadsOfEmptyCells` · `repeatedMembers` · `MODEL_REQUEST` · `DECLINED_ERROR`
 
 ### `functions/roster-parse-helpers.js`
-- **Exports:** `shouldDeleteSubscription` · `isAllowedPushEndpoint` · `PUSH_SERVICE_HOSTS` · `normaliseShift` · `fileSignatureMatches` · `buildWeekDates` · `extractAIJson` · `HEADER_TO_INDEX` · `headerToDayIndex` · `mapColumnHeadersToDates` · `memberRows` · `buildSafeEntries` · `BLANK_CELL_TOKEN` · `isPhysicallyBlank` · `applyColumnScanCrossCheck` · `normaliseScanValue` · `reviewLabel` · `parseStrictIsoDate` · `isPayCutoffDay` · `nameToEmail` · `nameToPassword` · `surnameCore` · `NOTIFICATION_FEATURES` · `buildPushPayload` · `parseSetupActionFlags` · `resolveRosterAuthConfig` · `claimsForTier` · `computeOrphanLabels` · `summariseAccountGaps` · `shouldRecordResetRequest` · `buildResetRequestNotice` · `shouldNotifyAdmin` · `summariseSignIns`
+- **Exports:** `normaliseShift` · `fileSignatureMatches` · `buildWeekDates` · `extractAIJson` · `HEADER_TO_INDEX` · `headerToDayIndex` · `mapColumnHeadersToDates` · `memberRows` · `buildSafeEntries` · `BLANK_CELL_TOKEN` · `isPhysicallyBlank` · `applyColumnScanCrossCheck` · `normaliseScanValue` · `reviewLabel` · `parseStrictIsoDate` · `isPayCutoffDay` · `nameToEmail` · `nameToPassword` · `surnameCore` · `NOTIFICATION_FEATURES` · `buildPushPayload`
 
 ### `calendar-notif-prompt.js`
 - **Exports:** `initNotifPrompt`
