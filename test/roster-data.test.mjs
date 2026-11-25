@@ -1662,10 +1662,10 @@ describe('dayMarkers ↔ getSpecialDayBadges — one icon per day, three surface
         const boxing = new Date(2026, 11, 26, 12);
         assert.deepEqual(getSpecialDayBadges(boxing), [],
             'Boxing Day gained an admin badge — index.css leaves the cell plain on purpose');
-        // Asked of the real function with every flag it takes set, and the names a Boxing Day flag
-        // would plausibly be given: no chip it can produce names Boxing Day.
-        const every = dayMarkers({ isToday: true, isBH: true, isXmas: true, isEaster: true, isPay: true,
-            isCutoff: true, isBoxing: true, isBoxingDay: true });
+        // Asked of the real function with EVERY flag it reads set — a stand-in that answers true for any
+        // name, so a chip behind a flag nobody thought to name is produced too (review, 25 Nov 2026:
+        // a list of guessed names let `isStStephen` through): no chip it can produce names Boxing Day.
+        const every = dayMarkers(new Proxy({}, { get: () => true, has: () => true }));
         assert.equal(every.some(m => /boxing/i.test(m.label)), false,
             'dayMarkers gained a Boxing Day chip — the cell has no marker for it to explain');
     });

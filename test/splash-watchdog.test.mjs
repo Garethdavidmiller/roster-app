@@ -509,7 +509,9 @@ describe('Reset app clears THIS app, and still clears it', () => {
             assert.ok(name, `${decl} not found in service-worker.js`);
             return name + '1.0';
         });
-        const theirs = ['other-app-v3', 'workbox-precache-v2', 'roster-myb-v1'];
+        // `other-myb-roster-v1` holds our prefix in the MIDDLE: only a filter that matches anywhere in the name takes it
+        // (review, 25 Nov 2026 — without it, `indexOf(…) !== -1` in place of `=== 0` passed this test).
+        const theirs = ['other-app-v3', 'workbox-precache-v2', 'roster-myb-v1', 'other-myb-roster-v1'];
         const { deleted, reloads } = await pressReset({ cacheNames: [...theirs, ...ours] });
         assert.deepEqual(deleted, ours,
             'the reset leaves a cache the SW names in place and appears to do nothing, or takes another app\'s');
@@ -569,7 +571,13 @@ describe('Reset app clears THIS app, and still clears it', () => {
 
     test('a worker whose script address cannot be read is skipped, not swept', async () => {
         // The direction of the filter's failure: what cannot be identified is left alone.
-        const gone = await reset({ regs: [{ scope: '/roster-app/', url: 'not a url' }] });
-        assert.deepEqual(gone, [], 'an unparseable script URL must be skipped, not swept');
+        // Beside one of OURS, which must still go (review, 25 Nov 2026): alone, a filter whose unreadable entry threw and
+        // ended the whole sweep removed nothing either, and passed as "skipped".
+        const gone = await reset({ regs: [
+            { scope: '/roster-app/', url: 'not a url' },
+            { scope: '/roster-app/', script: '/roster-app/service-worker.js' },
+        ] });
+        assert.deepEqual(gone, ['/roster-app/@/roster-app/service-worker.js'],
+            'an unparseable script URL must be skipped, not swept — and must not stop our own worker being swept');
     });
 });
