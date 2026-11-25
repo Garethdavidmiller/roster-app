@@ -20,7 +20,7 @@ import { parseSmartFloat } from './roster-data.js';
 import {
   getTaxYearForOffset, taxYearForPeriod, awardRatesFor, awardFromForYear,
 } from './paycalc-calc.js';
-import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
+import { getPeriods, currentPeriodNum, periodByNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
 import { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod, awardWindow } from './paycalc-backpay-accrual.js';
 import { awardGrade, getEffectiveContr, getProRateFactor, settledRate } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -128,7 +128,7 @@ export function applyBpMode(mode = '') {
  * @param {number} fromPNum - Period number the award is backdated from.
  */
 export function _bpAwardTaxYear(fromPNum) {
-  const p = fromPNum ? getPeriods().find(/** @param {any} x */ x => x.num === fromPNum) : null;
+  const p = fromPNum ? periodByNum(fromPNum) : null;
   // The `fromPNum` falsy fallback is dead in the card flows (callers pass _backdatedFromPNum(), never
   // 0); kept as currentPeriodNum for the existing contract/test.
   return getTaxYearForOffset((p ? p.num : currentPeriodNum()) - 48);
@@ -146,7 +146,7 @@ export function prefillBackPay() {
   // The VIEWED period's award (per-year viewing, v17.86): the card follows the payslip on screen,
   // with per-year saved state (bpKey(ty)) keeping each year's figures and tick independent.
   const pNum = currentPeriodNum();
-  const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+  const curP = periodByNum(pNum);
   const ty   = taxYearForPeriod(curP);
   const oldRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('oldRate'));
   const newRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('newRateInput'));
@@ -577,7 +577,7 @@ export function calcBackPay() {
     if (_tgt && +bpSel.value !== _tgt) _setSelectPeriod(bpSel, _tgt);
   }
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
-  const bpP       = bpPNum ? getPeriods().find(/** @param {any} x */ x => x.num === bpPNum) : null;
+  const bpP       = bpPNum ? periodByNum(bpPNum) : null;
   const hasRate   = oldRate   > 0 && newRate   > 0 && newRate   > oldRate;
   const hasLondon = oldLondon > 0 && newLondon > 0 && newLondon > oldLondon;
   // Opt-in tick (OFF by default): the lump is only ADDED to the paid-in payslip's take-home when

@@ -353,8 +353,9 @@ Binds this page and the Calendar's 💷 / ✂️ markers.
 - **Deductions STOP from a specific payslip:** earlier payslips keep theirs, so they still reconcile
   (setting the plan to None would wrongly strip them too). The `#slPaidOffFrom` select in Settings
   (visible only when a loan is active) records the **first payslip with no deduction** (p.num,
-  member-level `SK.slPaidOff` — once-ever, NOT per tax year); `calculate()` zeroes BOTH loan legs for
-  `p.num >=` it, the summary row reads "Student Loan — not deducted from your ⟨date⟩ payslip
+  member-level `SK.slPaidOff` — once-ever, NOT per tax year); `takeHomeInputs` (`paycalc-calc.js`,
+  rule 4) zeroes BOTH loan legs for `p.num >=` it — the select's choice, else the stored stop — the
+  summary row reads "Student Loan — not deducted from your ⟨date⟩ payslip
   onwards", and the cutover outranks the per-period `slSkip`. It applies to both loans together.
 
   **The wording is the OBSERVABLE fact, never "repaid in full".** Being moved to DIRECT DEBIT for the
@@ -473,7 +474,8 @@ below are in the comments of `prefillBackPay`, `restoreBpState` and `calcBackPay
   on a year switch. Saved in `calcBackPay` only once the member has changed that year's card, or once
   that year already has a saved blob — **viewing alone writes nothing** — and restored by
   `restoreBpState()` at init. `syncBackPayForViewedYear()` (`paycalc-backpay.js`) runs on EVERY period
-  change, not only while the card is open; the lump joins take-home only when `_bpPNum === _pNum`.
+  change, not only while the card is open; the lump joins take-home only on its own paid-in payslip
+  (`takeHomeInputs`, rule 1).
 - **Amount source toggle (`bpMode`):** COMPUTE the lump from your hours or ENTER the figure from your
   payslip (`#bpManualAmt`). The **current award defaults to compute**; a **prior/already-paid award
   defaults to enter-from-payslip** (`_defaultBpMode`). `applyBpMode()` toggles `#bpComputeFields` /
@@ -550,7 +552,10 @@ clear that must stick) → recompute the saved figures; **false** → `refreshBa
 the DEFAULT estimate with the card closed. **The lump only JOINS take-home when the member ticks "Add
 this lump sum to this payslip's take-home estimate" (`#bpIncludeTick`, in the paid-in wrap) — OFF by
 default (owner, Jul 2026).** The tick is persisted in the bp blob (`inc`) and returned by
-`calcBackPay` as `bpIncluded`; the coordinator gates the gross addition (`_bpThisPeriod`) on it.
+`calcBackPay` as `bpIncluded`; `takeHomeInputs` (`paycalc-calc.js`) gates the gross addition
+(`bpThisPeriod`) on it, and on the paid-in payslip being the one on screen — the HPP tick likewise
+gates `hppForPeriod`. Both rules are CALLED by `paycalc-money-banner.test.mjs` (contracts 1 and 3),
+which also holds `calculate()` to handing the banners those same two sums.
 - **The gate is guarded by the RENDERED £, paired with the banner sentence** (`e2e/paycalc.spec.js` →
   "the back-pay lump joins take-home ONLY when the tick is on", and its Holiday Pay Premium twin):
   `paycalc-money-banner.test.mjs` pins the words against the `included` flag it is handed, so only a
@@ -695,10 +700,11 @@ sits beside a short one.
 
 ## State management
 
-**`_clearState` object** (`paycalc-app.js`) — groups all state for the two-tap destructive clear
-action so it resets atomically. Includes `countdownTimer` for the live countdown in the button label,
-and `armedAt`: a confirming tap within 500 ms of arming (`CLEAR_CONFIRM_MIN_MS`) is ignored as part
-of the same gesture.
+**The two-tap "Clear all entries"** — `createClearConfirm` in `paycalc-clear-confirm.js` (25 Nov 2026;
+it was the coordinator's `_clearState`) holds the arm, the live countdown and both timers so they reset
+together; a confirming tap within 500 ms of arming (`CLEAR_CONFIRM_MIN_MS`, read on `performance.now()`)
+is the same gesture and is ignored. The coordinator calls its `reset` on a change of payslip and when
+the tab is hidden; the module's header numbers the rules, `paycalc-clear-confirm.test.mjs` holds them.
 
 **`CONDITIONAL_ROWS`** (`paycalc-periods.js`, beside `updateBhRows(p)`, which iterates it) — a
 data-driven array: condition → row IDs → field IDs. It holds the bank holiday rows alone: the Boxing
@@ -802,8 +808,8 @@ cut-off the picker offers it too, because payslips are issued before payday).
   year's first cut-off file last year's March totals against April's payslip. A load never re-stamps
   the marker; typing figures in again is a first entry (`refreshYtdSrc`'s `typed`). Pinned by
   `e2e/paycalc.spec.js` → "typed before the year's first payslip is in hand".
-- **The cumulative PAYE method in `calculate()` engages ONLY on the payslip immediately after the
-  source** (`p.num === src + 1`); any other payslip nulls the Year to Date inputs and falls back to the
+- **The cumulative PAYE method engages ONLY on the payslip immediately after the source**
+  (`takeHomeInputs`, `paycalc-calc.js` — rule 5, `p.num === ytdSrc + 1`); any other payslip nulls the Year to Date inputs and falls back to the
   standard non-cumulative method. **That guard is one line and its regression is quiet on screen**:
   the chip and the note follow `computeTax`'s `usingCumulative`, so without it they call the figures
   "in use" on every payslip, beside a £ priced on stale totals. `e2e/paycalc.spec.js` → "Year to Date

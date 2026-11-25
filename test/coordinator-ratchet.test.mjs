@@ -207,7 +207,13 @@ const CAPS = {
     // 1550 → 1450 (Nov 2026 debt pass), brought DOWN with what left (1,500 measured lines to 1,400):
     // the payslip pricing (pricePayslip, paycalc-calc.js), the background calendar refresh
     // (paycalc-roster-hint.js) and the back-pay card's state and re-pricing (paycalc-backpay.js).
-    'paycalc-app.js':          1450,
+    // 1450 → 1310 on 25 Nov 2026, brought DOWN with what left (1,439 measured lines to 1,279): the rules
+    // that decide what the payslip on screen is priced on (takeHomeInputs, paycalc-calc.js — tested by
+    // calling it, where the guards had read this file's source), what the Settings card says for a tax
+    // year (paycalc-settings.js), the Year to Date card's wiring (paycalc-ytd-card.js), the banners'
+    // ticks and links (paycalc-money-banner.js) and the two-tap Clear (paycalc-clear-confirm.js). The
+    // room is about 30 lines, not the usual 50–99: the next change here should extract first.
+    'paycalc-app.js':          1310,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.

@@ -25,7 +25,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { backPayBannerCopy, hppBannerCopy, paintBanner } from '../paycalc-money-banner.js';
+import { backPayBannerCopy, hppBannerCopy, paintBanner, wireBannerTicks } from '../paycalc-money-banner.js';
+import { hppIncKey } from '../paycalc-migrations.js';
+import { takeHomeInputs, getThresholds } from '../paycalc-calc.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -157,6 +159,81 @@ describe('the HPP tick carries its year', () => {
     });
 });
 
+// THE TICKS AND LINKS (wireBannerTicks, out of paycalc-app.js on 25 Nov 2026). The tick is the
+// member's answer to "add it?", and what it sets is what takeHomeInputs reads — so a tick that sets the
+// wrong year's flag, or none, is a banner whose word and figure part company on the next render.
+describe('the ticks set what the take-home reads, and the links open the card they name', () => {
+    /** A fake page: elements that record listeners, clicks, scrolls and dispatched events. */
+    function wiredPage() {
+        /** @type {Record<string, any>} */ const els = {};
+        const store = new Map();
+        /** @type {any} */ (globalThis).localStorage = {
+            getItem: (/** @type {string} */ k) => (store.has(k) ? store.get(k) : null),
+            setItem: (/** @type {string} */ k, /** @type {any} */ v) => { store.set(k, String(v)); },
+            removeItem: (/** @type {string} */ k) => { store.delete(k); },
+        };
+        const mk = (/** @type {string} */ id) => {
+            const cls = new Set(); /** @type {Record<string, Function[]>} */ const on = {};
+            return els[id] = {
+                id, checked: false, dataset: {}, clicks: 0, scrolled: 0, /** @type {string[]} */ fired: [],
+                classList: { contains: (/** @type {string} */ c) => cls.has(c), add: (/** @type {string} */ c) => cls.add(c) },
+                addEventListener(/** @type {string} */ t, /** @type {Function} */ fn) { (on[t] ??= []).push(fn); },
+                fire(/** @type {string} */ t) { for (const fn of on[t] ?? []) fn({}); },
+                click() { this.clicks++; },
+                scrollIntoView() { this.scrolled++; },
+                dispatchEvent(/** @type {any} */ e) { this.fired.push(e.type); return true; },
+            };
+        };
+        for (const id of ['hppBannerTick', 'bpBannerTick', 'bpIncludeTick', 'bpBannerViewLink', 'hppBannerViewLink', 'hppBackPayLink',
+            'backPayCard', 'backPayBody', 'backPayCardToggle', 'hppCard', 'hppCardBody', 'hppCardToggle']) mk(id);
+        globalThis.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => els[id] ?? null });
+        let priced = 0;
+        wireBannerTicks({ calculate: () => { priced++; } });
+        return { els, store, priced: () => priced };
+    }
+    const TY = { label: '2025/26' };
+
+    test('the HPP tick sets — and clears — the flag for the year stamped on it, then re-prices', () => {
+        const { els, store, priced } = wiredPage();
+        els.hppBannerTick.dataset.year = '2025/26';
+        els.hppBannerTick.checked = true; els.hppBannerTick.fire('change');
+        assert.equal(store.get(hppIncKey(TY)), '1');
+        assert.equal(priced(), 1);
+        els.hppBannerTick.checked = false; els.hppBannerTick.fire('change');
+        assert.equal(store.has(hppIncKey(TY)), false, 'un-ticking removes the flag');
+        assert.equal(priced(), 2);
+    });
+
+    test('a year that is not on record sets nothing', () => {
+        const { els, store, priced } = wiredPage();
+        els.hppBannerTick.dataset.year = '1999/00';
+        els.hppBannerTick.checked = true; els.hppBannerTick.fire('change');
+        assert.equal(store.size, 0);
+        assert.equal(priced(), 0);
+    });
+
+    test('the back-pay tick hands its state to the card\'s own tick, and fires its change', () => {
+        const { els } = wiredPage();
+        els.bpBannerTick.checked = true; els.bpBannerTick.fire('change');
+        assert.equal(els.bpIncludeTick.checked, true);
+        assert.deepEqual(els.bpIncludeTick.fired, ['change'], 'the card\'s persist-and-re-price runs');
+    });
+
+    test('each link opens a shut card through its header, and only scrolls to an open one', () => {
+        const { els } = wiredPage();
+        els.bpBannerViewLink.fire('click');
+        assert.equal(els.backPayCardToggle.clicks, 1, 'the shut back-pay card is opened by its header');
+        assert.equal(els.backPayCard.scrolled, 1);
+        els.backPayBody.classList.add('open');
+        els.hppBackPayLink.fire('click');
+        assert.equal(els.backPayCardToggle.clicks, 1, 'an open card is not toggled shut');
+        assert.equal(els.backPayCard.scrolled, 2, 'the HPP card\'s link goes to the back-pay card too');
+        els.hppBannerViewLink.fire('click');
+        assert.equal(els.hppCardToggle.clicks, 1);
+        assert.equal(els.hppCard.scrolled, 1);
+    });
+});
+
 test('a missing banner element does not throw', () => {
     globalThis.document = /** @type {any} */ ({ getElementById: () => null });
     assert.doesNotThrow(() => paintBanner({ ...IDS.bp, available: true, included: true, copy: BP() }));
@@ -186,31 +263,29 @@ function fakeDom() {
 //
 //     a banner may only say "Includes" when the sum is actually IN THE FIGURE ABOVE IT.
 //
-// "The figure above it" is `net`, computed in `calculate()` from `grossWithBp = gross +
-// _bpThisPeriod + _hppForPeriod`. So the invariant holds exactly while the value handed to the copy
-// builder is the SAME value folded into the gross. Pass `_bpAmount` (the lump available on this
-// payslip) instead of `_bpThisPeriod` (the lump actually added) and every assertion above still
-// passes, while a member reading an opted-OUT estimate is told it includes £476 it does not.
+// "The figure above it" is `net`, priced in `calculate()` from the gross `takeHomeInputs`
+// (paycalc-calc.js) returns: `grossWithBp`, the hours' gross plus `bpThisPeriod` plus
+// `hppForPeriod`. So the invariant holds exactly while (a) those two are the sums that went into the
+// gross, (b) each exists only once the member has ticked it in, on the payslip that carries it, and
+// (c) calculate() hands the copy builder THOSE two rather than the sums merely available. Pass
+// `_bpAmount` instead of `_bpThisPeriod` and every assertion above still passes, while a member
+// reading an opted-OUT estimate is told it includes £476 it does not.
 //
-// ── WHY THIS IS STATIC, AND WHAT IT CANNOT SEE ──────────────────────────────────────────────────
+// (a) and (b) are RULES, and since 25 Nov 2026 they are run: `takeHomeInputs` is a pure function, so
+// contracts 1 and 3 call it over each case. Before that they were lines inside `calculate()` — a
+// closure inside `init()` with no seam — and this file sliced them out of the source text and ran
+// them through `new Function`.
 //
-// `calculate()` is a nested function inside `init()` in `paycalc-app.js`. It is not exported, not
-// attached to `window`, and closes over ~40 pieces of coordinator state — so there is no seam a unit
-// test can reach it through, and the only behavioural route is a rendered page. That route EXISTS
-// and is used: `e2e/paycalc.spec.js` drives the tick and asserts the rendered £ beside the rendered
-// sentence, which is the real guard. This is the cheap one that runs on every branch.
-//
-// It reads SOURCE TEXT, so it can be defeated by rewriting the call site in a shape it does not
-// recognise — a variable renamed, the amount computed inline, the whole block moved to another
-// module. Each of those would fail here loudly rather than silently, which is the behaviour wanted
-// from a static guard; none of them would be a silent pass. What it genuinely cannot see is a change
-// to what `_bpThisPeriod` MEANS: if its own expression stopped requiring the tick, the two sides
-// would still match and the banner would faithfully describe a wrong figure. Contract 3 below closes
-// that one by RUNNING the two expressions over each case (since 7 Nov 2026 — it used to look for the
-// tick's name, which `(_bpIncluded || true)` satisfies).
+// (c) is the HAND-OFF, and it stays static, because `calculate()` still has no seam a unit test can
+// reach it through. It reads SOURCE TEXT, so it can be defeated by rewriting the call site in a shape
+// it does not recognise — a variable renamed, the amount computed inline, the whole block moved to
+// another module. Each of those fails here loudly rather than silently, which is the behaviour wanted
+// from a static guard. The behavioural guard of the whole chain is the rendered page:
+// `e2e/paycalc.spec.js` drives the tick and asserts the rendered £ beside the rendered sentence.
 
 describe('the CALLER passes the added sum, not the available one', () => {
     const APP = readFileSync(new URL('./paycalc-app.js', REPO_ROOT_URL), 'utf8');
+    const CODE = APP.replace(/\/\/[^\n]*/g, '');
 
     /** The `paintBanner({...})` / `xBannerCopy({...})` block for one banner, comments stripped. */
     const callSite = (/** @type {string} */ fn) => {
@@ -219,15 +294,35 @@ describe('the CALLER passes the added sum, not the available one', () => {
         return APP.slice(at, APP.indexOf('})', at)).replace(/\/\/[^\n]*/g, '');
     };
 
-    test('1 — the value fed to the back-pay banner is the value folded into the gross', () => {
-        const gross = APP.match(/const grossWithBp = ([^;]+);/);
-        assert.ok(gross, 'grossWithBp is no longer assembled in paycalc-app.js — re-read this guard');
-        const added = gross[1];
-        assert.match(added, /_bpThisPeriod/, 'the back-pay lump is not what joins the gross any more');
-        assert.match(added, /_hppForPeriod/, 'the Holiday Pay Premium is not what joins the gross any more');
+    /** A 2026/27 payslip's inputs with nothing on it but `over` (paycalc-calc.js → takeHomeInputs). */
+    const inputs = (/** @type {Record<string, any>} */ over = {}) => takeHomeInputs({
+        p: { num: 55 }, ty: { first: 2 }, gross: 3000, thresholds: getThresholds('2026/27'),
+        plan: 'none', pgLoan: false, slSkip: false, taxCode: '1257L',
+        backPay: { pNum: 0, amount: 0, included: false }, premium: { amount: 0, included: false },
+        pensionBox: null, pensionDefault: 151.86, slStopShown: '', slStopStored: null,
+        ytdPay: null, ytdTax: null, ytdSrc: 0, ...over,
+    });
+    const LUMP = 476.18, HPP = 1843.01;
 
-        // The copy builder must be handed the SAME names. Handing it `_bpAmount`/`_hppAmount` — the
-        // sums merely AVAILABLE — is the defect, and it is one identifier apart from correct.
+    test('1 — the sums the banners are told about are the sums folded into the gross that is priced', () => {
+        const r = inputs({ backPay: { pNum: 55, amount: LUMP, included: true }, premium: { amount: HPP, included: true } });
+        assert.equal(r.grossWithBp, 3000 + r.bpThisPeriod + r.hppForPeriod, 'the gross is not the hours plus the two added sums');
+        assert.equal(r.bpThisPeriod, LUMP, 'premise: the lump was added');
+        assert.equal(r.hppForPeriod, HPP, 'premise: the premium was added');
+        assert.equal(r.pricing.gross, r.grossWithBp, 'the payslip is priced on a gross other than the one the banners describe');
+
+        // The hand-off, which only the source can show: calculate() takes the two sums, the gross and
+        // the pricing from ONE takeHomeInputs call, prices that pricing, and hands the copy builders the
+        // SAME names. Handing them `_bpAmount`/`_hppAmount` — the sums merely AVAILABLE — is the
+        // defect, and it is one identifier apart from correct.
+        const decl = CODE.match(/const\s*\{([^}]*)\}\s*=\s*takeHomeInputs\(/);
+        assert.ok(decl, 'calculate() no longer takes its inputs from takeHomeInputs — re-read this guard');
+        assert.match(decl[1], /bpThisPeriod:\s*_bpThisPeriod\b/, 'the back-pay sum calculate() keeps is not takeHomeInputs\' added one');
+        assert.match(decl[1], /hppForPeriod:\s*_hppForPeriod\b/, 'the premium calculate() keeps is not takeHomeInputs\' added one');
+        assert.match(decl[1], /\bpricing\b/, 'the pricing is not taken from the same call');
+        assert.match(CODE, /\bpricePayslip\(\s*pricing\s*\)/, 'calculate() prices something other than takeHomeInputs\' pricing');
+        assert.doesNotMatch(CODE, /const\s+(_bpThisPeriod|_hppForPeriod|grossWithBp)\s*=/,
+            'an added sum or the gross is worked out again in calculate(), beside takeHomeInputs\'');
         assert.match(callSite('backPayBannerCopy'), /thisPeriod:\s*_bpThisPeriod\b/,
             'the back-pay banner is told about a different sum from the one in the total');
         assert.match(callSite('hppBannerCopy'), /forPeriod:\s*_hppForPeriod\b/,
@@ -245,30 +340,31 @@ describe('the CALLER passes the added sum, not the available one', () => {
         assert.match(bp, /included:\s*_bpIncluded\b/, 'the back-pay tick no longer reflects the opt-in state');
         const hppPaint = APP.slice(APP.indexOf('hppActiveBanner'));
         assert.match(hppPaint.slice(0, 400), /included:\s*_hppIncluded\b/, 'the HPP tick no longer reflects the opt-in state');
+        // …and those are the ticks takeHomeInputs was handed for the two sums.
+        const call = CODE.slice(CODE.search(/=\s*takeHomeInputs\(/));
+        const args = call.slice(0, call.indexOf('});'));
+        assert.match(args, /backPay:\s*\{[^}]*included:\s*_bpIncluded\b/, 'the lump is gated on a tick other than the banner\'s');
+        assert.match(args, /premium:\s*\{[^}]*included:\s*_hppIncluded\b/, 'the premium is gated on a tick other than the banner\'s');
     });
 
     test('3 — and the sum only exists once the member has opted in, on the payslip that carries it', () => {
         // What contract 1 cannot see: the two sides agreeing about a value that stopped meaning
-        // "added". Both are defined from their own tick, and if either definition drops it the
-        // banner would say "Includes" truthfully about a figure nobody asked for.
-        const bp = APP.match(/const _bpThisPeriod\s*=\s*([^;]+);/);
-        const hpp = APP.match(/const _hppForPeriod\s*=\s*([^;]+);/);
-        assert.ok(bp && hpp, 'the two added-sum variables are no longer declared here — re-read this guard');
-        // RUN the two expressions over every case, rather than looking for the tick's NAME in them (test
-        // audit, 7 Nov 2026): `(_bpIncluded || true)` names the tick, ignores it, and passed. Any name an
-        // expression uses that is not handed in here throws, so a rewrite fails loudly, never quietly.
-        const bpAdded  = new Function('_bpPNum', '_pNum', '_bpIncluded', '_bpAmount', `return ${bp[1]};`);
-        const hppAdded = new Function('_hppIncluded', '_hppAmount', `return ${hpp[1]};`);
-        const LUMP = 476.18, HPP = 1843.01;
-        assert.equal(bpAdded(55, 55, true, LUMP), LUMP, 'ticked, on the payslip that carries it: the lump is added');
-        assert.equal(bpAdded(55, 55, false, LUMP), 0, 'the back-pay lump joins the total without consulting the tick');
-        // The payslip gate as well (PAY-3): deleting `_bpPNum === _pNum` put the lump on EVERY payslip
+        // "added". Both are defined from their own tick, and if either definition drops it the banner
+        // would say "Includes" truthfully about a figure nobody asked for. Run over every case (test
+        // audit, 7 Nov 2026: looking for the tick's NAME passed `(_bpIncluded || true)`).
+        const bpAdded = (/** @type {number} */ pNum, /** @type {number} */ num, /** @type {boolean} */ included) =>
+            inputs({ p: { num }, backPay: { pNum, amount: LUMP, included } }).bpThisPeriod;
+        const hppAdded = (/** @type {boolean} */ included) => inputs({ premium: { amount: HPP, included } }).hppForPeriod;
+        assert.equal(bpAdded(55, 55, true), LUMP, 'ticked, on the payslip that carries it: the lump is added');
+        assert.equal(bpAdded(55, 55, false), 0, 'the back-pay lump joins the total without consulting the tick');
+        // The payslip gate as well (PAY-3): deleting the payslip check put the lump on EVERY payslip
         // of the year while the banner, which has a gate of its own, hid on all but one.
-        assert.equal(bpAdded(55, 56, true, LUMP), 0, 'ticked, but this is another payslip: nothing is added');
-        // No paid-in payslip, and none on screen yet (an empty period list reads as 0).
-        assert.equal(bpAdded(0, 0, true, LUMP), 0, 'no payslip carries the lump: nothing is added');
-        assert.equal(hppAdded(true, HPP), HPP, 'ticked: the premium is added');
-        assert.equal(hppAdded(false, HPP), 0, 'the Holiday Pay Premium joins the total without consulting the tick');
+        assert.equal(bpAdded(55, 56, true), 0, 'ticked, but this is another payslip: nothing is added');
+        assert.equal(bpAdded(0, 0, true), 0, 'no payslip carries the lump, and none is on screen: nothing is added');
+        assert.equal(hppAdded(true), HPP, 'ticked: the premium is added');
+        assert.equal(hppAdded(false), 0, 'the Holiday Pay Premium joins the total without consulting the tick');
+        // And what is not added is not priced: the gross is the hours alone.
+        assert.equal(inputs({ backPay: { pNum: 55, amount: LUMP, included: false }, premium: { amount: HPP, included: false } }).pricing.gross, 3000);
     });
 
     test('4 — every banner the page paints goes through this module', () => {

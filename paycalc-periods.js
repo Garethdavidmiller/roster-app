@@ -12,7 +12,7 @@
  */
 
 import {
-  P_YR, TAX_YEARS, getTaxYearForOffset, readTaxCode,
+  P_YR, TAX_YEARS, getTaxYearForOffset, readTaxCode, periodInTaxYear,
 } from './paycalc-calc.js';
 import { getBankHolidays } from './roster-data.js';
 import { periodsInTaxYear } from './paycalc-hpp-schedule.js';
@@ -73,6 +73,16 @@ export function getPeriods() {
 }
 
 /**
+ * The period whose internal number is `n` — undefined when the grid has none, exactly as the
+ * `getPeriods().find(x => x.num === n)` every paycalc module once wrote by hand.
+ * @param {number} n  an internal `p.num` (37…62), never the number printed on the payslip
+ * @returns {any}
+ */
+export function periodByNum(n) {
+  return getPeriods().find((/** @type {any} */ x) => x.num === n);
+}
+
+/**
  * The period number as PRINTED ON THE CHILTERN PAYSLIP. The payslip counts the cumulative
  * WEEK within the tax year — each 4-weekly period advances it by 4 — and RESETS every April.
  * So period 1 of a tax year (April) is "Period 4", period 2 is "Period 8", … period 12 is
@@ -88,8 +98,7 @@ export function getPeriods() {
  */
 export function payslipPeriodNum(p) {
   const ty = getTaxYearForOffset(p.num - 48);
-  // (p.num - firstNumOfTaxYear + 1) = 1-based period index within the tax year; ×4 = weeks.
-  return 4 * (p.num - (48 + ty.first) + 1);
+  return 4 * periodInTaxYear(p, ty);   // the 1-based period within the tax year; ×4 = weeks
 }
 
 // ── MEMBER VISIBILITY CLAMP ────────────────────────────────────────────────────
@@ -188,6 +197,12 @@ export function todaysPeriodNum() {
 /** Return the period number currently shown in the period selector. */
 export function currentPeriodNum() {
   return +(/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'))).value;
+}
+
+/** The period on screen — the one the period selector shows — or undefined before it is built.
+ *  @returns {any} */
+export function viewedPeriod() {
+  return periodByNum(currentPeriodNum());
 }
 
 /** True if 26 Dec falls within this period's shift window. */
@@ -326,7 +341,7 @@ export function appendPayslipOptions(sel, periods, { currentPNum } = {}) {
  */
 export function offerRecordedPayslip(sel, num) {
   if (!num || Array.from(sel.options).some(o => Number(o.value) === num)) return;
-  const p = getPeriods().find(/** @param {any} x */ x => x.num === num);
+  const p = periodByNum(num);
   /** @type {Node} */ let node;
   if (p) {
     node = document.createDocumentFragment();
@@ -524,7 +539,7 @@ export function ytdSourceToStamp(raw, hasFigures, ty, now = new Date(), firstPNu
   // against it, so last year's totals were read as April's after all. A K code, exempt from the
   // under-the-code check, then charged May's payslip about £1,650 where £770.40 was right; any other
   // code was told the figures were "from your 10 Apr payslip". So the marker is recorded instead.
-  const srcP = getPeriods().find((/** @type {any} */ x) => x.num === src);
+  const srcP = periodByNum(src);
   return srcP && ytdSourceOffered(srcP, ty, now, firstPNum) ? src : YTD_SRC_EARLY;
 }
 
@@ -586,9 +601,9 @@ export function ytdSourceAfterRetype(raw, { p, ty, now = new Date(), firstPNum =
  * @returns {{ note: string, noteLive: boolean, chip: string, chipLive: boolean }}
  */
 export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode = '', misfit = false, now = new Date(), firstPNum = _firstEmployed() }) {
-  const srcP = src ? getPeriods().find((/** @type {any} */ x) => x.num === src) : null;
+  const srcP = src ? periodByNum(src) : null;
   const next = !!srcP && p.num === src + 1;
-  const first = (p.num - 48) - ty.first + 1 <= 1;   // 1-based HMRC period within the tax year
+  const first = periodInTaxYear(p, ty) <= 1;
   const chip = (!hasFigures || !srcP || first) ? '' : (inUse ? '✓ in use' : 'not in use');
   const out = { noteLive: inUse, chip, chipLive: inUse && !!chip };
   if (first) return { ...out, note: `This is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.` };
@@ -610,13 +625,13 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
   // one before it, the payslip before this one is OLDER than the figures already held — so the note
   // asked the member to replace good figures with stale ones, the opposite of the January notice that
   // had just sent them to the newest. The next payslip then found them misfitting its code.
-  const prevP = getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1);
+  const prevP = periodByNum(p.num - 1);
   const upd = prevP && prevP.num > src && prevP.num >= firstPNum && prevP.num < _todayAt(now).today
     ? ` To sharpen this one, copy the figures from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}).`
     : '';
   // The payslip they DO sharpen is named (21 Nov 2026): "the payslip straight after it … to sharpen
   // it" used one "it" for the source and the next for this payslip, in a 32-word sentence.
-  const nextP = getPeriods().find((/** @type {any} */ x) => x.num === src + 1);
+  const nextP = periodByNum(src + 1);
   const sharpens = nextP ? `your <strong>${fdShort(nextP.payday)} payslip</strong>` : 'the payslip straight after it';
   return { ...out, note: `Your Year to Date figures are from ${from}, so they only sharpen ${sharpens}. This payslip's tax is worked out from this payslip alone.${upd}` };
 }
@@ -766,7 +781,7 @@ export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, recognised = true, m
  * @returns {any}
  */
 function ytdCopyFrom({ p, ty, now, firstPNum }) {
-  const prevP = p ? getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1) : null;
+  const prevP = p ? periodByNum(p.num - 1) : null;
   if (!prevP) return null;
   if (p.num < _todayAt(now).today) return null;
   if (p.num <= 48 + ty.first) return null;
