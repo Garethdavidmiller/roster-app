@@ -212,6 +212,7 @@ roster-app/
 ├── auth-identity.js        ← pure account-identity helpers (`normaliseSurname`, the account email, password validation); surname-parity.test.mjs holds the functions copy to this file. See also auth-identity.test.mjs.
 ├── storage-utils.js        ← pure Storage helpers, including the download-URL allowlist (a security control); re-exported by firebase-client.js. See also storage-utils.test.mjs, calendar-doc-viewer.test.mjs.
 ├── document-url.js         ← asks `getDocumentUrl` for a SHORT-LIVED document URL; null means "use the stored URL". Never throws. See also document-url.test.mjs.
+├── function-url.js         ← the ONE address of the Cloud Functions, `functionUrl(name)`; every name passed is checked against the deployed list (functions-surface.test.mjs). Pure
 ├── client-errors.js        ← the pure RULES of the client error log. **A filter too broad silently swallows real errors.**. See also error-reporter.test.mjs.
 ├── claim-retry.js          ← what a `permission-denied` means: retry once after a token refresh, or a refusal rather than a network fault (the one home). Tested by claim-retry.test.mjs. See also AUTH_AND_SESSIONS.md.
 ├── page-session.js         ← how a signed-in page LEAVES a session and what it does when the session leaves it, including the late-identity reload guard (`lateReloadAllowed`). Its header. Tested by page-session.test.mjs and page-contract-parity.test.mjs
@@ -717,11 +718,14 @@ roster-app/
     ├── auth-endpoints.js          ← the ACCOUNT-AND-CREDENTIAL domain: setupRosterAuth, resetMemberPassword and the account reads
     ├── account-reads.js           ← the account domain's two admin READS, built by auth-endpoints.js. Tested by auth-endpoints.test.mjs
     ├── account-lifecycle.js       ← the pure rules at the edges of an account's life (Set up accounts, the admin reset). Tested by account-lifecycle.test.mjs and auth-endpoints.test.mjs
+    ├── account-rules.js           ← the pure ACCOUNT rules: claim tiers, leaver orphans, the provisioning audit, the sign-in counts. Its header. Tested by roster-parse-helpers.test.mjs and auth-endpoints.test.mjs
     ├── reset-request.js           ← `requestPasswordReset`, the public doorbell a locked-out member rings: records a request, pushes to the admin's devices only. Tested by auth-endpoints.test.mjs
+    ├── reset-request-rules.js     ← the reset-request queue's RULES: the throttle, the one-push-per-burst window, the notice's words. Pure. Tested by roster-parse-helpers.test.mjs and auth-endpoints.test.mjs
     ├── admin-recipients.js        ← WHO a notice for the admin may reach — one rule for every admin notice. See also auth-endpoints.test.mjs, documents-endpoints.test.mjs, overtime-endpoints.test.mjs.
     ├── push.js                    ← the web-push TRANSPORT: `fanOutPush` and `sendTargetedPush` (**fails closed, never falls back to everyone**); never what a payload says. See also push-transport.test.mjs.
+    ├── push-guards.js             ← the push TRANSPORT guards: only to a real push service, and delete only a dead subscription. Pure. Tested by roster-parse-helpers.test.mjs and push-transport.test.mjs
     ├── push-notices.js            ← the push DESIGN LANGUAGE and `buildPushPayload`, the one builder (`.claude/rules/notifications.md`). Pure
-    ├── roster-parse-helpers.js   ← pure roster-parse helpers
+    ├── roster-parse-helpers.js   ← pure roster-parse helpers, and the one server copy of the name → account derivation (`nameToEmail`, `nameToPassword`)
     ├── roster-geometry.js        ← what the roster PDF's OWN GRID says about where each cell is — the import's only witness that is not the model. Its header. Tested by roster-geometry.test.mjs
     ├── roster-sunday-repair.js   ← layer 1 of the day-drift defence: the Sunday-anchored repair. Tested by roster-parse-helpers.test.mjs + index-endpoints.test.mjs
     ├── roster-week-heading.js   ← the week the roster SAYS it is for, read from its printed heading; a sheet for another week is refused. Tested by roster-geometry.test.mjs + index-endpoints.test.mjs
@@ -732,6 +736,7 @@ roster-app/
     ├── member-identity.js         ← which member a verified ID token speaks for, or none — the server twin of `isMember()`. Its header. See also member-identity.test.mjs.
     ├── request-helpers.js         ← the request plumbing every endpoint shares, in one copy. See also doc-url-core.test.mjs.
     ├── caught.js                  ← the fields a `catch` reads off a thrown value, typed for the `unknown` it is (`fieldsOf`). Requires nothing
+    ├── region.js                  ← `REGION`, the one region every function deploys to; function-url.js is the browser's half. Requires nothing
     ├── web-push.d.ts              ← types for the part of `web-push` push.js calls (the package ships none); read only by the type-checker
     ├── jsconfig.json              ← the Functions' own strict type-check (`npm run typecheck` runs it beside the root one)
     ├── doc-url-core.js            ← who may be handed a document URL, for which document and for how long — a door that MIRRORS firestore.rules, taking a KIND, never a path. Design: AUTH_PLAN.md §5

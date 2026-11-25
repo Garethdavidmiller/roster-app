@@ -57,6 +57,7 @@ const { buildAuthEndpoints }     = require('./auth-endpoints');
 const { buildOvertimeEndpoints } = require('./overtime');
 const { purgeArmedAt }           = require('./overtime-core');   // the retention purge's arming DATE
 const { fieldsOf } = require('./caught');
+const { REGION } = require('./region');
 const rosterMembers = require('./roster-members.json');
 
 initializeApp();
@@ -190,7 +191,7 @@ Object.assign(exports, buildDocumentEndpoints({
 exports.parseRosterPDF = onRequest(
     {
         secrets:        [ANTHROPIC_API_KEY],
-        region:         'europe-west2',
+        region:         REGION,
         cors:           ADMIN_FUNCTION_ORIGINS,
         timeoutSeconds: 120,            // the model call is held to PARSE_MODEL_DEADLINE_MS inside this
         memory:         '512MiB',       // a 20 MB PDF held as base64 and bytes, plus the pdfjs grid read

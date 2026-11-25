@@ -653,7 +653,12 @@ const CAPS = {
     // See SCANNED_DIRS above for why they were never here. Each is the size it was on the day the
     // scan first reached it, plus the usual room; none is an accusation, and the two domain files
     // are large because the domains are.
-    'functions/roster-parse-helpers.js': 1400,   // ← 1,351 when capped (1,312 in Nov 2026), named "helpers", and the
+    // 1400 → 990 on 25 Nov 2026, a SPLIT at 1,386 of 1,400: the file did three jobs besides the parse.
+    // The account rules left for functions/account-rules.js, the reset-request queue's rules for
+    // functions/reset-request-rules.js and the push transport guards for functions/push-guards.js
+    // (962 measured after). Brought down with the code, measured + ~30 rather than the usual round
+    // fifty, so the room the split made is not banked as headroom for the next rule to land here.
+    'functions/roster-parse-helpers.js':  990,   // ← 1,351 when capped (1,312 in Nov 2026), named "helpers", and the
                                                  //   day-drift defence is among them. The clearest
                                                  //   candidate in this block for a rule to leave.
     'functions/overtime.js':             1400,   // the Overtime endpoints + Firestore orchestration

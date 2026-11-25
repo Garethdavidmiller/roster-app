@@ -110,7 +110,7 @@ below, and run `npm run generate:ai-map`.
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers | `ls.js` |
 | Cross-file localStorage key constants | `storage-keys.js` |
-| Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts (`functions/auth-endpoints.js` with `functions/account-lifecycle.js`, the reset-request doorbell `functions/reset-request.js`, and the retired PIN's shared account, `functions/retired-viewer-account.js`); push (`functions/push.js`, and what every payload looks like, `functions/push-notices.js`); the pay reminder's audience (`functions/pay-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
+| Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts (`functions/auth-endpoints.js` with `functions/account-lifecycle.js` and the account rules `functions/account-rules.js`, the reset-request doorbell `functions/reset-request.js` and its rules `functions/reset-request-rules.js`, and the retired PIN's shared account, `functions/retired-viewer-account.js`); push (`functions/push.js`, its transport guards `functions/push-guards.js`, and what every payload looks like, `functions/push-notices.js`); the deploy region (`functions/region.js`, and the browser's address of every function, `function-url.js`); the pay reminder's audience (`functions/pay-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, every guide) | `guide-back.js` |
@@ -206,6 +206,9 @@ below, and run `npm run generate:ai-map`.
 
 ### `functions/caught.js`
 - **Exports:** `fieldsOf`
+
+### `functions/region.js`
+- **Exports:** `REGION`
 
 ### `functions/london-clock.js`
 - **Exports:** `londonOffsetMinutes` · `londonTimestamp` · `londonIsoDate` · `isValidIsoDate` · `isoDayOfWeek` · `addDays`
@@ -737,6 +740,9 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `document-url.js`
 - **Exports:** `DOCUMENT_URL_ENDPOINT` · `DOCUMENT_URL_TIMEOUT_MS` · `requestSignedDocumentUrl`
 
+### `function-url.js`
+- **Exports:** `FUNCTIONS_BASE` · `functionUrl`
+
 ### `functions/cell-day-rules.js`
 - **Exports:** `BLANK_CELL_TOKEN` · `LONE_DASHES` · `BLANK_READINGS` · `NOT_AVAILABLE_TOKENS` · `NOT_AVAILABLE_SUNDAY_TOKENS` · `SUNDAY` · `isBlankReading` · `isLoneDash` · `isPhysicallyBlank` · `printsNothing` · `isNotAvailable` · `isNotAvailableSunday` · `blankCellMeaning`
 
@@ -938,17 +944,26 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 ### `functions/admin-recipients.js`
 - **Exports:** `enabledAdminUids` · `isMembersOwnAccount`
 
+### `functions/account-rules.js`
+- **Exports:** `parseSetupActionFlags` · `resolveRosterAuthConfig` · `claimsForTier` · `summariseSignIns` · `computeOrphanLabels` · `MANAGED_CLAIMS` · `summariseAccountGaps`
+
 ### `functions/account-lifecycle.js`
 - **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids` · `sweepAgainstPreview`
 
 ### `functions/reset-request.js`
 - **Exports:** `buildResetRequestEndpoint`
 
+### `functions/reset-request-rules.js`
+- **Exports:** `shouldRecordResetRequest` · `shouldNotifyAdmin` · `buildResetRequestNotice`
+
 ### `functions/retired-viewer-account.js`
 - **Exports:** `CALENDAR_VIEWER_UID` · `isViewerAccount`
 
 ### `functions/push.js`
 - **Exports:** `getWebPush` · `setupWebPush` · `sendTargetedPush` · `fanOutPush` · `releasePushForOwner` · `pushSendOptions` · `PUSH_TTL_BY_TAG`
+
+### `functions/push-guards.js`
+- **Exports:** `shouldDeleteSubscription` · `isAllowedPushEndpoint` · `PUSH_SERVICE_HOSTS`
 
 ### `functions/push-notices.js`
 - **Exports:** `NOTIFICATION_FEATURES` · `buildPushPayload`
@@ -969,7 +984,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `DAY_LABELS` · `SHIFT_VOCABULARY` · `buildCellTable` · `renderCellTable` · `buildCellPrompt` · `reviewBlankReadsOfFilledCells` · `reviewRestReadsOfEmptyCells` · `repeatedMembers` · `MODEL_REQUEST` · `DECLINED_ERROR`
 
 ### `functions/roster-parse-helpers.js`
-- **Exports:** `shouldDeleteSubscription` · `isAllowedPushEndpoint` · `PUSH_SERVICE_HOSTS` · `normaliseShift` · `fileSignatureMatches` · `buildWeekDates` · `extractAIJson` · `HEADER_TO_INDEX` · `headerToDayIndex` · `mapColumnHeadersToDates` · `memberRows` · `buildSafeEntries` · `BLANK_CELL_TOKEN` · `isPhysicallyBlank` · `applyColumnScanCrossCheck` · `normaliseScanValue` · `reviewLabel` · `parseStrictIsoDate` · `isPayCutoffDay` · `nameToEmail` · `nameToPassword` · `surnameCore` · `NOTIFICATION_FEATURES` · `buildPushPayload` · `parseSetupActionFlags` · `resolveRosterAuthConfig` · `claimsForTier` · `computeOrphanLabels` · `summariseAccountGaps` · `shouldRecordResetRequest` · `buildResetRequestNotice` · `shouldNotifyAdmin` · `summariseSignIns`
+- **Exports:** `normaliseShift` · `fileSignatureMatches` · `buildWeekDates` · `extractAIJson` · `HEADER_TO_INDEX` · `headerToDayIndex` · `mapColumnHeadersToDates` · `memberRows` · `buildSafeEntries` · `BLANK_CELL_TOKEN` · `isPhysicallyBlank` · `applyColumnScanCrossCheck` · `normaliseScanValue` · `reviewLabel` · `parseStrictIsoDate` · `isPayCutoffDay` · `nameToEmail` · `nameToPassword` · `surnameCore` · `NOTIFICATION_FEATURES` · `buildPushPayload`
 
 ### `calendar-notif-prompt.js`
 - **Exports:** `initNotifPrompt`

@@ -404,7 +404,7 @@ test('the real web-push accepts what push.js sends it', async () => {
     assert.equal(details.timeout, 10000, 'the per-send bound reaches the request');
     assert.match(details.headers.Authorization, /^vapid t=/, 'the VAPID details set by setupWebPush sign the request');
 
-    const { shouldDeleteSubscription } = require('./functions/roster-parse-helpers.js');
+    const { shouldDeleteSubscription } = require('./functions/push-guards.js');
     const gone = new wp.WebPushError('Received unexpected response code', 410, {}, '', subscription.endpoint);
     assert.equal(shouldDeleteSubscription(gone.statusCode), true, 'a 410 from the real library is still a dead subscription');
 });

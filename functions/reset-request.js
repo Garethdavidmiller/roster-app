@@ -16,24 +16,20 @@
  * `true` opens the door, so a builder that forgets to pass it closes it — the visible failure.
  *
  * The pure decisions it asks — the throttle, the coalescing window, the notice's words — are in
- * roster-parse-helpers.js and unit-tested there; auth-endpoints.test.mjs drives this handler for real.
+ * reset-request-rules.js and unit-tested; auth-endpoints.test.mjs drives this handler for real.
  */
 
 const { onRequest } = require('firebase-functions/v2/https');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const {
-    nameToEmail,
-    buildPushPayload,
-    resolveRosterAuthConfig,
-    shouldRecordResetRequest,
-    buildResetRequestNotice,
-    shouldNotifyAdmin,
-} = require('./roster-parse-helpers');
+const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
+const { resolveRosterAuthConfig } = require('./account-rules');
+const { shouldRecordResetRequest, buildResetRequestNotice, shouldNotifyAdmin } = require('./reset-request-rules');
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { enabledAdminUids } = require('./admin-recipients');
 const { readJsonBody } = require('./request-helpers');
 const { fieldsOf } = require('./caught');
+const { REGION } = require('./region');
 const rosterMembers = require('./roster-members.json');
 
 /**
@@ -218,7 +214,7 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
 
 const requestPasswordReset = onRequest(
     {
-        region: 'europe-west2', timeoutSeconds: 30, cors: ADMIN_FUNCTION_ORIGINS, maxInstances: 3,
+        region: REGION, timeoutSeconds: 30, cors: ADMIN_FUNCTION_ORIGINS, maxInstances: 3,
         // Needed for the admin notification (Phase 2). Recording the request does not depend on it —
         // a missing/rotated key degrades to "the row is there, the phone stays quiet".
         secrets: [VAPID_PRIVATE_KEY],

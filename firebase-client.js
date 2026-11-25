@@ -107,6 +107,7 @@ export const COLLECTIONS = {
 import { isSafeStorageUrl, isDocxUpload, resolveDocumentOpenUrl, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { requestSignedDocumentUrl } from './document-url.js';
+import { functionUrl } from './function-url.js';
 export { isSafeStorageUrl, resolveDocumentOpenUrl };
 
 // ---- Firebase Authentication ----
@@ -720,7 +721,7 @@ export async function fetchSignedDocumentUrl(kind) {
 }
 
 /** Admin-only Cloud Function returning the EXACT unique-account sign-in counts (v18.96). */
-const SIGN_IN_STATS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/getSignInStats';
+const SIGN_IN_STATS_URL = functionUrl('getSignInStats');
 
 /**
  * How many distinct accounts have actually signed in (admin only — enforced server-side).
