@@ -48,7 +48,9 @@
  * keeps THIS page out of the history; every page the member visited earlier is still there, so the
  * guard has to be on all of them. Since v24.56 it also reloads a page left OPEN in another tab when
  * the session there changes to a different member, or to nobody. `rebaseRestoreGuard()` tells it a
- * page has been rebuilt in place for whoever just signed in, so a restore for them is not reloaded.
+ * page has been rebuilt in place for whoever just signed in, so a restore for them is not reloaded —
+ * which the in-place sign-in's continuation calls (`startPage`, page-start.js, the start-up every
+ * card-opening page goes through, and that installs this guard first).
  *
  * `guardNamedSession({ page, member, established, signIn })` — the follow-up every named page runs
  * once its Firebase session settles: an own session that cannot be confirmed is asked to sign in
@@ -381,37 +383,6 @@ export function reloadIfRestoredForSomeoneElse() {
  */
 export function rebaseRestoreGuard() {
     _builtFor = getSession()?.name ?? null;
-}
-
-/**
- * The `onSuccess` of a page's in-place sign-in (`initLoginOverlay`): ONE recipe, which eight pages each
- * spelled out by hand until four of them had lost a step (extraction review, Nov 2026).
- *
- *   1. NO SESSION BY NOW → RELOAD into a fresh sign-in, never run the page for nobody: re-entering the
- *      page's 'login' branch would find the overlay still mounted and soft-lock on "Signed in…". Belt and
- *      braces — a session that failed to save never reaches onSuccess (`runNamedSignIn` refuses with kind
- *      'storage' first, and Private Browsing has not refused storage since iOS 11), so only a session lost
- *      in between lands here (another tab signing out, site data cleared). `needName` also asks for the
- *      session's NAME, for a page whose data is keyed by it (the Pay Calculator's per-member storage).
- *   2. THE PAGE IS NOW THEIRS (`rebaseRestoreGuard`): without it the Back/forward guard still compares with
- *      the nobody the page was loaded for, and a Back to it reloads for nothing and loses the reader's place.
- *   3. RUN THE PAGE IN PLACE, and RELOAD IF THAT THROWS mid-wiring, so the in-place path is never less
- *      robust than the reload one. Nothing in `run` may be awaited before it returns (the login freeze,
- *      PASSWORD_DESIGN.md §3.6), and the page must not `resolveSession(false)` before it: `sessionReady`
- *      is one-shot.
- * @param {() => void} run  the page's own start, for whoever has just signed in
- * @param {{ needName?: boolean }} [opts]
- * @returns {() => void}
- */
-export function continueAfterSignIn(run, { needName = false } = {}) {
-    return () => {
-        try {
-            const session = getSession();
-            if (!session || (needName && !session.name)) { window.location.reload(); return; }
-            rebaseRestoreGuard();
-            run();
-        } catch { window.location.reload(); }
-    };
 }
 
 /** sessionStorage (one tab's journey): when this page's start-up stalled and the identity then landed

@@ -30,9 +30,9 @@ import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } fr
 import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { paintRoleCard, PAYCALC_SIGN_IN_ABOUT } from './paycalc-role-card.js';
-import { signOutAndLeave, reloadIfRestoredForSomeoneElse, continueAfterSignIn } from './page-session.js';
+import { signOutAndLeave } from './page-session.js';
+import { startPage } from './page-start.js';
 import {
   CONFIG, getPeriods, currentPeriodNum, periodByNum, viewedPeriod, todaysPeriodNum, payslipPeriodNum,
   hasBoxingDay, hasBankHoliday,
@@ -125,11 +125,6 @@ function _showUnsupportedRole(member) {
 }
 
 export function init() {
-    // BACK/FORWARD CACHE ON A SHARED DEVICE: a page restored from the bfcache does not re-run init(),
-    // so after a sign-out (or another member signing in on another tab) Back could show the previous
-    // member's pay page, figures and all. page-session.js's guard runs FIRST, so no early return
-    // below (sign-in, unsupported role) can skip it.
-    reloadIfRestoredForSomeoneElse();
     registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Links: a signed-out view must still take an update
     // Tear down a lingering privileged Firebase identity whose local session has expired, so a direct
     // deep-link here can't keep an old credential live — BEFORE the session guard's early return, as
@@ -137,47 +132,45 @@ export function init() {
     // valid session, and it stands down if a sign-in supersedes it.
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
-    // ── SESSION GUARD (local-identity precondition) ───────────────────────────────
-    // Not signed in → the shared in-place sign-in (no redirect elsewhere). getSession() (session.js)
-    // enforces the 60-day absolute expiry — a raw localStorage read would treat an expired session as
-    // valid forever. The early return halts the rest of init() while the overlay is shown.
+    // ── THE START-UP (page-start.js): the Back guard FIRST, so no early return below can skip it — a page
+    // restored from the bfcache does not re-run init(), so after a sign-out (or another member signing in on
+    // another tab) Back could show the previous member's pay page, figures and all — then the decision, the
+    // in-place sign-in (init() runs again, once, with the just-saved session, and runMigrations() selects the
+    // right namespace for free — AUTH_ARCHITECTURE.md Phase 9) and the refusal.
     //
-    // DELIBERATELY NOT routed through requirePage('paycalc') (AUTH_ARCHITECTURE.md Phase 7): the
-    // policy is `soft`, which by its tested invariant NEVER returns 'login', but the calculator needs a
-    // member identity to namespace its per-member storage (pcPrefix/SK), so a *local name* is a hard
-    // precondition, stricter than the policy. `soft` governs only the Firebase confirmation
-    // (_initErrorReporting below). "Simplifying" this into requirePage would render with no identity.
-    if (!getSession()?.name) {
-      // On success, re-invoke init() in place — the body below never ran on this pass, so it runs
-      // once with the just-saved session, and runMigrations() selects the right namespace for free
-      // (AUTH_ARCHITECTURE.md Phase 9). The reloads and the Back guard are `continueAfterSignIn`'s; it
-      // asks for a NAMED session here, because every pay key is the member's (`pcPrefix`).
-      initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess: continueAfterSignIn(init, { needName: true }), about: PAYCALC_SIGN_IN_ABOUT });
-      return;
-    }
-    // In-place sign-in: remove the still-mounted overlay if we re-entered via onSuccess. No-op on a
-    // normal already-signed-in load (no overlay present).
-    dismissLoginOverlay();
-
+    // The decision is the page's OWN, not requirePage('paycalc') (AUTH_ARCHITECTURE.md Phase 7): the policy is
+    // `soft`, which by its tested invariant NEVER returns 'login', but the calculator needs a member identity to
+    // namespace its per-member storage (pcPrefix/SK), so a *local name* is a hard precondition, stricter than the
+    // policy. `soft` governs only the Firebase confirmation (_initErrorReporting below), which is why the
+    // start-up's session step is off (`establish: false`): this page owns its auth chain. "Simplifying" this into
+    // requirePage would render with no identity. getSession() (session.js) enforces the 60-day absolute expiry.
+    //
     // A ROLE WITH NO CONFIRMED RATES REFUSES RATHER THAN GUESSING: the grade lookup treats "no grade
     // stored" as CEA at every consumer, so every Dispatcher and manager account was handed a polished
-    // estimate at somebody else's rate. Before every other init step, so nothing can render a figure
-    // first. Why: `gradeForRole`'s JSDoc (roster-data.js). It asks the role AT THE TIME (owner, 16 Nov
-    // 2026; pay-audience.js): a CES promoted into management keeps the CES payslips on this page, and
-    // each payslip under a role with no rates is refused on its own (calculate(), unpricedLineFor).
+    // estimate at somebody else's rate. Decided here, before every other init step, so nothing can render a
+    // figure first — and decided AGAIN for whoever signs in on this page's own card. Why: `gradeForRole`'s
+    // JSDoc (roster-data.js). It asks the role AT THE TIME (owner, 16 Nov 2026; pay-audience.js): a CES
+    // promoted into management keeps the CES payslips on this page, and each payslip under a role with no
+    // rates is refused on its own (calculate(), unpricedLineFor).
     //
     // A SESSION NAME THE ROSTER DOES NOT HOLD REFUSES TOO: a leaver or a renamed
     // member keeps a valid local session, `getLoggedMember()` returns null, and a null used to skip
     // this check — so the calculator ran on CEA rates and `setPaycalcNamespace(undefined)` opened the
     // bare `myb_pc_` namespace, i.e. the shared legacy keys of everyone on the device.
-    const _roleMember = getLoggedMember();
-    if (!payCalculatorPrices(_roleMember, { periods: payslipsShownTo(_roleMember) })) {
-      // No calculator follows, so nothing will read the sign-in timer: drop it, or the next page
-      // opened within two minutes would count this visit as its sign-in time (App Speed review).
-      clearLoginStart();
-      _showUnsupportedRole(_roleMember ?? { name: getSession()?.name });
-      return;
-    }
+    if (!startPage({ page: 'paycalc', label: 'Pay Calculator', about: PAYCALC_SIGN_IN_ABOUT, again: init, establish: false,
+        decide: (session) => {
+            if (!session?.name) return { decision: 'login', reason: 'no local member — the calculator keys every figure by name' };
+            const member = getLoggedMember();
+            return payCalculatorPrices(member, { periods: payslipsShownTo(member) })
+                ? { decision: 'allow', reason: 'a role this calculator has rates for' }
+                : { decision: 'forbidden', reason: 'no confirmed rates for this role, or a name the roster does not hold' };
+        },
+        refuse: (_decision, { member }) => {
+            // No calculator follows, so nothing will read the sign-in timer: drop it, or the next page
+            // opened within two minutes would count this visit as its sign-in time (App Speed review).
+            clearLoginStart();
+            _showUnsupportedRole(getLoggedMember() ?? { name: member });
+        } })) return;
 
     // ── COORDINATOR STATE ─────────────────────────────────────────────────────────
     // The back-pay card keeps its own state (bpState, paycalc-backpay.js); calculate() reads it to add

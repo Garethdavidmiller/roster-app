@@ -228,6 +228,7 @@ roster-app/
 ├── client-errors.js        ← the pure RULES of the client error log. **A filter too broad silently swallows real errors.**. See also error-reporter.test.mjs.
 ├── claim-retry.js          ← what a `permission-denied` means: retry once after a token refresh, or a refusal rather than a network fault (the one home). Tested by claim-retry.test.mjs. See also AUTH_AND_SESSIONS.md.
 ├── page-session.js         ← how a signed-in page LEAVES a session and what it does when the session leaves it, including the late-identity reload guard (`lateReloadAllowed`). Its header. Tested by page-session.test.mjs and page-contract-parity.test.mjs
+├── page-start.js           ← the ONE start-up every card-opening page goes through (`startPage`, the Template Method): the Back guard, the decision at load AND after an in-place sign-in, the refusal, the session step. Its header. Tested by page-start.test.mjs and page-contract-parity.test.mjs
 ├── unsaved-draft.js        ← unsaved work kept for a page that goes without asking; offered on the next load, never applied silently. Its header. Tested in page-session.test.mjs
 ├── ls.js                   ← iOS-safe localStorage wrappers, including the two that refuse to leave a half state. See also ls-persist.test.mjs.
 ├── storage-keys.js         ← the single source for the CROSS-FILE storage keys. Pinned by storage-key-parity.test.mjs
@@ -588,6 +589,7 @@ roster-app/
 │   ├── overtime-endpoints.test.mjs ← the Overtime endpoints executed against fakes. Runs in test:functions
 │   ├── page-visibility-parity.test.mjs ← **`hidden` must actually hide** (an author `display:` out-specifies it). Part of test:hygiene
 │   ├── pre-commit-parity.test.mjs ← the pre-commit hook can READ what it checks. Part of test:hygiene
+│   ├── page-start.test.mjs   ← the start-up's ORDER: Back guard before any decision, the re-decision after an in-place sign-in, the reload with no session. Part of test:unit
 │   ├── page-session.test.mjs ← the shared sign-out and session-loss routines, asserted as an ORDER, and the back/forward-cache guard. Part of test:unit
 │   ├── page-contract-parity.test.mjs ← **a new app page joins EVERY contract, or fails here**. Part of test:hygiene
 │   ├── overtime-data.test.mjs ← the Overtime clock and what a call says when it does not come back (--experimental-test-module-mocks)

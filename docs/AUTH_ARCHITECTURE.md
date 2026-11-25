@@ -43,7 +43,7 @@ In git (above) → Phase 4.
 ## Appendix: Phase 9
 
 In git (above) → Phase 9. The mechanism's safety
-net is live code: an in-place `onSuccess` (`continueAfterSignIn`, `page-session.js`) reloads if `init()`/`initAuthorised()` throws or the session
+net is live code: an in-place `onSuccess` (the continuation inside `startPage`, `page-start.js`) reloads if `init()`/`initAuthorised()` throws or the session
 save failed (`e2e/auth.spec.js`, the no-reload tests). The "Phase 10" note (scoped, deliberately not
 built) is `DECISIONS.md` → "What ROADMAP_HISTORY.md held that still binds".
 

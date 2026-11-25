@@ -16,9 +16,9 @@ import { formatDayMonthYear } from './date-format.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, withClaimRetry } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { initNotificationsCard } from './notif-card.js';
-import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, navGatesFor } from './auth-policy.js';
+import { getSession, sessionReady, reconcileExpiredIdentity } from './session.js';
+import { navGatesFor } from './auth-policy.js';
+import { startPage } from './page-start.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { summarise, shouldOpen } from './settings-status.js';
 import { CARD_TIPS } from './settings-tips.js';
@@ -26,7 +26,7 @@ import { initPasswordCard, passwordSaving } from './settings-password-card.js';
 import { captureInstallOffer, initDeviceCard } from './settings-install-card.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, continueAfterSignIn } from './page-session.js';
+import { signOutAndLeave, askBeforeSignOut } from './page-session.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 import { inventoryOf, inventorySummary } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
@@ -36,10 +36,7 @@ import { lsKeys } from './ls.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
-import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce } from './password-force.js';
-import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { markPageReady } from './perf-reporter.js';
 
 /**
  * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init() invoked by
@@ -49,7 +46,6 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
  * Node-tested modules it calls (settings-status.js, own-password.js, paycalc-inventory.js).
  */
 export function init() {
-    reloadIfRestoredForSomeoneElse();
     // Listen for the browser's install offer NOW, before the sign-in wait (Sep 2026 review):
     // Chromium fires `beforeinstallprompt` once, early, and the Device card is wired only after
     // sign-in — so the event had come and gone before anything listened, and the row never showed.
@@ -135,9 +131,8 @@ export function init() {
     // ── Check session ─────────────────────────────────────────────────────────────
     // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these two are refreshed
     // inside initAuthorised() from the just-saved session — the module loaded while signed out, so the
-    // load-time values are null. `isAuthenticated` is read once, for the sign-in decision below.
+    // load-time values are null.
     let currentSession   = getSession();
-    const isAuthenticated = !!currentSession;
     let currentUser      = currentSession?.name ?? null;
 
     // Assigned by initIconLightbox (runs inside initApp when signed in); the closure
@@ -145,7 +140,7 @@ export function init() {
     /** @type {any} */
     let openAboutLightbox = null;
 
-    // Nav panel. NOT wired at module scope for a signed-out visitor — see the call site below, which defers it to initAuthorised() so the drawer renders ONCE
+    // Nav panel. NOT wired at module scope for a signed-out visitor — initAuthorised() wires it, so the drawer renders ONCE
     // with the signed-in identity. (This comment said "always initialised … so the user can navigate
     // rather than being stranded" for as long as that had been untrue, which is the sentence a reader
     // would have restored the two-identity double render from. A signed-out visitor is not stranded:
@@ -170,35 +165,28 @@ export function init() {
 
     // ── Wired BEFORE the sign-in decision, as Operations does (Nov 2026 review) ──────────────────────
     // initAuthorised() has no try/catch on the signed-in path, so a throw in any card's wiring used to
-    // skip all of these (the set-password step now runs first in initAuthorised). Hold a release's
+    // skip all of these (the set-password step now runs in the start-up, before initAuthorised). Hold a release's
     // reload, and a notification tap, while a save is on its way (v24.61): the contact card's writes are
     // counted by slow-save; the password's change and its "own password" record by `trackBackgroundWrite`
     // (claim-retry.js), which `writesInFlight` reads; and the re-authentication before them, which
     // writes nothing, by `passwordSaving()` (settings-password-card.js). Behaviour-tested in e2e/settings.spec.js.
     const _busy = () => writesInFlight() > 0 || passwordSaving();
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
-    sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
     initTipsLightbox(CARD_TIPS);   // the ? buttons are static markup, signed in or not
 
-    // Page-access via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 7). Settings'
-    // policy is "any named user" (role null) — no 'forbidden' path. The snapshot maps the LOCAL
-    // session-existence flag (isAuthenticated = !!currentSession) to an optimistic 'named' status —
-    // preserving the exact prior trigger — so requirePage returns 'login' iff there is no local session
-    // (decision identical to the old `if (!isAuthenticated)`). member is irrelevant: Settings needs no role.
-    const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'settings');
-    // Wire the nav now EXCEPT on the login path, where it is deferred to initAuthorised() so it renders
-    // ONCE with the signed-in identity (the full-screen overlay covers the burger meanwhile).
-    if (_access.decision !== 'login') wireNavPanel();
-
-    if (_access.decision === 'login') {
-        // On success, initialise in place via initAuthorised(), falling back to a reload if it throws
-        // mid-wiring (never less robust than reload). Don't resolveSession(false) here, or the one-shot
-        // sessionReady is poisoned before initAuthorised can resolve it true.
-        // The rest of the recipe — no session, a throw, the Back guard — is `continueAfterSignIn`'s.
-        initLoginOverlay({ pageLabel: 'Settings', onSuccess: continueAfterSignIn(initAuthorised) });
-    } else {
-        initAuthorised();
-    }
+    // The start-up every card-opening page shares (page-start.js): the Back guard, the Phase-3 policy
+    // (auth-policy.js → AUTH_ARCHITECTURE.md Phase 7) decided from the LOCAL session — "any named user"
+    // (role null, Other Staff admitted), so 'login' iff there is no local session — and the in-place
+    // sign-in, which runs initAuthorised() in place and reloads if it throws mid-wiring. Before
+    // initAuthorised runs, the start-up re-establishes the member's own Firebase session, fulfils
+    // `sessionReady`, guards it (an own session that cannot be confirmed signs in again now; one revoked
+    // LATER does too), runs the forced set-password step (PASSWORD_DESIGN.md Phase 2) NOW with the session
+    // as its barrier — before any card can throw, so the sign-in's one-shot marker is spent as the page
+    // opens — and starts the error reporter and the usage and latency counts behind it.
+    startPage({ page: 'settings', label: 'Settings', run: initAuthorised,
+        // Not reachable while the policy admits every named member: a refusal added later fails closed,
+        // back to the roster, rather than open.
+        refuse: () => window.location.replace('./') });
 
     /**
      * The authorised (signed-in) init body. Called directly on a normal already-signed-in load, or from
@@ -209,27 +197,10 @@ export function init() {
         // session (saveSession ran before onSuccess). Identical no-op re-read on a normal signed-in load.
         currentSession  = getSession();
         currentUser     = currentSession?.name ?? null;
-        // In-place: remove the still-mounted overlay to reveal the page. No-op on a normal load.
-        dismissLoginOverlay();
-        // Re-establish Firebase Auth in the background. A returning user skips the login handler, so
-        // auth.currentUser may still be null for a moment and an immediate Firestore write would fail the
-        // request.auth rule. resolveSession() fulfils sessionReady so feature modules (initApp handlers)
-        // can import sessionReady instead of reading window._mybSession.
-        const _setAuth = ensureNamedSession(currentUser);
-        resolveSession(_setAuth);
-        // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2), fire-and-forget: HERE, where `currentUser` is right on both
-        // paths and before any card can throw, and NOW with the session as its barrier, so the sign-in's one-shot marker is
-        // spent as the page opens (password-force.js) — behind `sessionReady.then`, a member who left first was asked later.
-        initPasswordForce(currentUser, { ready: sessionReady });
-        // B1.2 enforcement, decided via the policy: once the named session resolves, the store (fed by the
-        // Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
-        // `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN named
-        // session could not be confirmed.
-        // An own session that cannot be confirmed signs in again now; one revoked LATER does too
-        // (page-session.js — the same follow-up every named page runs).
-        guardNamedSession({ page: 'settings', pageLabel: 'Settings', member: currentUser, established: _setAuth });
+        // The drawer, ONCE, with the signed-in identity, and BEFORE the cards: initApp() has no try/catch,
+        // so a throw in any card's wiring must not leave a signed-in member without Sign out.
+        wireNavPanel();
         initApp();
-        wireNavPanel();   // deduped by initNavPanel's navPanelInit guard if the nav was already wired above
         // Usable from here: the cards are wired. On the sign-in path that is AFTER the sign-in, which
         // is where the sign-in timing ends (perf-reporter.js). It was marked when the sign-in FORM
         // appeared from v21.71 until the App Speed review (Oct 2026) — a second meaning of "usable"

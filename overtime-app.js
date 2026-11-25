@@ -18,17 +18,15 @@
 
 import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every innerHTML value goes through it
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
-import { initLoginOverlay, dismissLoginOverlay, sayStaffPinEndedIn } from './login-overlay.js';
-import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, isOvertimeReviewer, navGatesFor, overtimeEnabled } from './auth-policy.js';
+import { sayStaffPinEndedIn } from './login-overlay.js';
+import { getSession, sessionReady, reconcileExpiredIdentity } from './session.js';
+import { isOvertimeReviewer, navGatesFor, overtimeEnabled } from './auth-policy.js';
+import { startPage } from './page-start.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, continueAfterSignIn, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
+import { askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
-import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce } from './password-force.js';
-import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import * as OTD from './overtime-data.js';
 import {
@@ -45,9 +43,12 @@ import { createReviewController } from './overtime-review-controller.js';
  */
 const DETAIL_REFRESH_DEBOUNCE_MS = 60_000;
 
+/** The start-up's answer while Overtime is switched off for everyone (`CONFIG.OVERTIME_ENABLED`): a refusal, signed in or
+ *  not, told apart from the beta's by identity. @type {import('./auth-policy.js').AuthDecision} */
+const PAUSED = Object.freeze({ decision: 'forbidden', reason: 'Overtime is paused for everyone' });
+
 /** Coordinator body, invoked by overtime-boot.js. Exported so a test can import without running. */
 export function init() {
-    reloadIfRestoredForSomeoneElse();
     // Tear down a lingering privileged Firebase identity whose local session has expired, so a
     // direct deep-link cannot keep an old credential live. Fire-and-forget, login-safe.
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
@@ -131,13 +132,9 @@ export function init() {
         });
     }
 
-    // PAUSED (owner, Nov 2026; OVERTIME_AVAILABILITY.md → Paused) — before the gate, so everyone gets the same answer,
-    // signed in or not. Nothing is queried and no sign-in is offered: the endpoints are undeployed while it is off.
-    if (!overtimeEnabled()) { document.body.dataset.otPaused = ''; wireNavPanel(); wireChrome(); renderUnavailable(true); resolveSession(false); return; }
+    // ── Access gate — the start-up every card-opening page shares (page-start.js) ─────────────────────
 
-    // ── Access gate ─────────────────────────────────────────────────────────────────────────────
-
-    // DECIDE FROM THE LOCAL SESSION, not from `getAuthSnapshot()`.
+    // DECIDE FROM THE LOCAL SESSION, not from `getAuthSnapshot()` — which is what the start-up does.
     //
     // The auth store is often still `initialising` when a coordinator runs, and `requirePageAuth`
     // maps that to `pending` — which every other page can treat as "carry on", because they admit
@@ -149,47 +146,42 @@ export function init() {
     // The local session is the client's own identity assertion and is available synchronously.
     // `auth-policy` is explicitly CLIENT UX rather than a boundary, so feeding it that is honest —
     // and it produces an answer immediately, which is the whole difficulty here.
-    const decision = requirePage(
-        { status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'overtime');
-
-    if (decision.decision === 'login') {
-        wireNavPanel();
-        initLoginOverlay({
-            pageLabel: 'Overtime',
-            // No session: a reload into a fresh sign-in rather than refuse a real participant (v24.56) —
-            // that, the Back guard and a throw are `continueAfterSignIn`'s.
-            onSuccess: continueAfterSignIn(() => {
-                currentSession = getSession();
-                currentUser = currentSession?.name ?? null;
-                dismissLoginOverlay();
-                resetNavPanel(); wireNavPanel();   // the drawer, rebuilt for whoever signed in
-                // The gate above ran signed OUT — re-decide for whoever actually signed in.
-                if (requirePage({ status: 'named', member: currentUser }, 'overtime').decision === 'forbidden') {
-                    // No page follows, so nothing will read the sign-in timer: drop it, or the next
-                    // page opened within two minutes would count this visit as its sign-in time.
-                    clearLoginStart();
-                    renderUnavailable(); wireChrome();
-                    resolveSession(false);
-                    return;
-                }
-                start();
-            }),
-        });
-        return;
-    }
-
-    if (decision.decision === 'forbidden') {
-        // A named member without reviewer rights during the restricted beta. Say so briefly and
-        // leave the drawer working; do not query anything, and do not imply they did wrong.
-        wireNavPanel(); wireChrome();
-        renderUnavailable();
-        // Nothing on this path needs Firebase, but `sessionReady` is a ONE-SHOT promise that other
-        // modules await — leaving it pending would strand anything wired later on this load.
-        resolveSession(false);
-        return;
-    }
-
-    start();
+    //
+    // PAUSED (owner, Nov 2026; OVERTIME_AVAILABILITY.md → Paused) is decided FIRST, so everyone gets the same answer,
+    // signed in or not: a refusal for every visitor. Nothing is queried and no sign-in is offered: the endpoints are
+    // undeployed while it is off. A refusal leaves `sessionReady` settled `false` (the start-up's), because nothing on
+    // this path needs Firebase but other modules await that one-shot promise.
+    startPage({ page: 'overtime', label: 'Overtime',
+        decide: (_session, byPolicy) => (overtimeEnabled() ? byPolicy() : PAUSED),
+        // Signed out: the drawer first (so an unauthorised visitor can leave), then the card. After the sign-in the
+        // start-up decides again for whoever signed in, and the drawer is rebuilt for them (`inPlace`, below).
+        beforeCard: wireNavPanel,
+        // The sign-in that covers the page is hidden in print, so what the lost account read goes
+        // first — or Ctrl+P printed the availability sheet from behind it (overtime-ui-4).
+        beforeSignInAgain: () => review.standDown({ clear: true }),
+        // Timed here, after the load — see `start` (THE `ready` MILESTONE IS LATE ON THIS PAGE).
+        recordLatency: false,
+        refuse: (decision, { member, inPlace }) => {
+            if (decision === PAUSED) { document.body.dataset.otPaused = ''; wireNavPanel(); wireChrome(); renderUnavailable(true); return; }
+            // A named member without reviewer rights during the restricted beta. Say so briefly and
+            // leave the drawer working; do not query anything, and do not imply they did wrong.
+            currentSession = getSession();
+            currentUser = member;
+            if (inPlace) {
+                resetNavPanel();   // the drawer wired signed out, rebuilt for whoever signed in
+                // No page follows, so nothing will read the sign-in timer: drop it, or the next
+                // page opened within two minutes would count this visit as its sign-in time.
+                clearLoginStart();
+            }
+            wireNavPanel(); wireChrome();
+            renderUnavailable();
+        },
+        run: (member, { inPlace }) => {
+            currentSession = getSession();
+            currentUser = member;
+            if (inPlace) resetNavPanel();   // the drawer, rebuilt for whoever signed in (start() wires it)
+            start();
+        } });
 
     // ── Start ───────────────────────────────────────────────────────────────────────────────────
 
@@ -225,20 +217,13 @@ export function init() {
         // wrong answer prints a page of blank capsules and gets taken to a desk.
         document.body.dataset.otView = 'mine';
 
-        // ESTABLISH the Firebase session, then fulfil `sessionReady`. Nothing else does this: the
-        // promise is created pending in session.js and resolved only by whichever coordinator owns
-        // the page. Awaiting it without calling this is a page that loads and then waits for ever —
-        // no error, no timeout, just "Loading…" — which is exactly what it did until this line.
-        const setAuth = currentUser ? ensureNamedSession(currentUser) : false;
-        resolveSession(setAuth);
-        // Every named page's follow-up (page-session.js): an unconfirmed OWN session is asked to sign
-        // in again — and, since v24.52, so is one revoked LATER. This page alone never watched for
-        // that, so a revoked member was left on a form whose every send would fail.
-        // The sign-in that covers the page is hidden in print, so what the lost account read goes
-        // first — or Ctrl+P printed the availability sheet from behind it (overtime-ui-4).
-        // The shared card (external review of v26.67), so this page too says "signed in again" with Try again.
-        if (currentUser) guardNamedSession({ page: 'overtime', pageLabel: 'Overtime', member: currentUser, established: setAuth,
-            beforeSignIn: () => review.standDown({ clear: true }) });
+        // The Firebase session was ESTABLISHED, and `sessionReady` fulfilled, by the start-up before this ran
+        // (page-start.js): the promise is created pending in session.js and resolved only by whoever owns the
+        // page's start, and awaiting it without that is a page that loads and then waits for ever — no error,
+        // no timeout, just "Loading…" — which is exactly what it did until v20. The same step guards it (an
+        // unconfirmed OWN session is asked to sign in again, and so is one revoked LATER — this page alone
+        // never watched for that until v24.52), runs the forced set-password step, and starts the error
+        // reporter and the usage count, behind `sessionReady`, ahead of the load below.
 
         // ── THE `ready` MILESTONE IS LATE ON THIS PAGE, AND THAT IS THE POINT ───────────────────
         //
@@ -248,14 +233,7 @@ export function init() {
         // therefore runs AFTER the load (the mark must exist before the read), in a `finally`: a
         // page that failed to load still took time, and dropping its sample would bias the figures
         // towards loads that went well.
-        // The forced set-password step, as on every page that mounts the sign-in (v23.21). Fails open; never awaited; called
-        // NOW, with the session as its barrier, so the sign-in's one-shot marker is spent as the page opens (password-force.js).
-        initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});   // the `.catch` only stops an unhandled rejection
-        sessionReady.then(() => {
-            initErrorReporter();
-            recordUsage('overtime', currentUser);
-            return loadEverything();
-        }).then(() => {
+        sessionReady.then(() => loadEverything()).then(() => {
             // Not marked when the member's own surface FAILED. An error is not a usable page, and
             // an absent `ready` is rendered as "—" by the card, which is honest — where a number
             // would be a measurement of something nobody could use.
