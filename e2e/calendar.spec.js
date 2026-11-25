@@ -5022,11 +5022,13 @@ for (const [width, height] of /** @type {const} */ ([[1024, 600], [1280, 593], [
     });
 }
 
-// …and its help is read whole there (laptop polish, 13 Nov 2026). The panel was capped at 78% of the
-// window, 463px of a 593px one, and its help is about 500px, so the last lines scrolled inside it, cut at
-// the panel's edge with nothing to say there was more.
+// …and its help is reachable whole there. Until 25 Nov 2026 it was a glass panel of its own, sized to be read
+// without scrolling on a 593px window (laptop polish, 13 Nov 2026). It is the app's shared white Tips panel now
+// (owner: every ? looks the same), which scrolls on a short window as every other page's does — so what must hold
+// is the shared panel's own promise: it stays inside the window, and scrolled to its end its title and ✕ are still
+// in sight, so nothing reads as cut off with no way out.
 for (const [width, height] of /** @type {const} */ ([[1280, 593], [1366, 650]])) {
-    test(`calendar: on a laptop the Team View help is read whole, ${width}×${height}`, async ({ page }, info) => {
+    test(`calendar: on a laptop the Team View help stays in the window, its title in sight when scrolled, ${width}×${height}`, async ({ page }, info) => {
         test.skip(isTouchProject(info), 'a laptop window');
         await page.setViewportSize({ width, height });
         await seedMemberSession(page, 'G. Miller');
@@ -5034,14 +5036,17 @@ for (const [width, height] of /** @type {const} */ ([[1280, 593], [1366, 650]]))
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         await page.locator('#teamViewBtn').click();
         await page.locator('#teamHelpBtn').click();
-        await expect(page.locator('#teamInfoLightbox')).toBeVisible();
-        const g = await page.locator('#teamInfoContent').evaluate(el => {
+        await expect(page.locator('#tipsLightbox')).toHaveClass(/\bopen\b/);
+        await expect(page.locator('#tipsLbTitle')).toHaveText('Team Week View');
+        const g = await page.locator('#tipsLightboxContent').evaluate(el => {
+            el.scrollTop = el.scrollHeight;
             const r = el.getBoundingClientRect();
-            return { scrollH: el.scrollHeight, clientH: el.clientHeight, top: r.top, bottom: r.bottom, vh: innerHeight };
+            const t = /** @type {HTMLElement} */ (document.getElementById('tipsLbTitle')).getBoundingClientRect();
+            return { top: r.top, bottom: r.bottom, vh: innerHeight, titleTop: t.top };
         });
-        expect(g.scrollH, 'the help scrolls inside its panel').toBeLessThanOrEqual(g.clientH + 1);
         expect(g.top, 'the panel starts inside the window').toBeGreaterThanOrEqual(0);
         expect(g.bottom, 'the panel ends inside the window').toBeLessThanOrEqual(g.vh);
+        expect(g.titleTop, 'scrolled to its end, the title is still at the top of the panel').toBeGreaterThanOrEqual(g.top);
     });
 }
 
@@ -5760,7 +5765,7 @@ test('desktop: the header logo wears the light focus ring, and the glass panels\
     const panels = [
         ['dayDetailClose', () => page.locator('.calendar-day:not(.other-month)').nth(10).click(), '#dayDetailLightbox'],
         ['alLightboxClose', () => page.locator('#alBtn').click(), '#alLightbox'],
-        ['teamInfoClose', async () => { await page.locator('#teamViewBtn').click(); await page.locator('#teamHelpBtn').click(); }, '#teamInfoLightbox'],
+        // Team Week View's ? is the white Tips panel since 25 Nov 2026, whose ✕ keeps a white dialog's navy ring.
     ];
     for (const [close, open, panel] of panels) {
         await open();
@@ -5856,7 +5861,11 @@ test('desktop: 📍 says "Today" beside it, and the Team view help is not all ta
     await expect(btn).toBeVisible();
     expect((await btn.innerText()).trim(), 'the word beside 📍').toMatch(/Today$/);
     await expect(btn, 'what is shown is in the name, for a voice user').toHaveAccessibleName(/today/i);
-    const help = await page.locator('#teamInfoContent li:not(.touch-only)').allTextContents();
+    await page.locator('#teamViewBtn').click();
+    await page.locator('#teamHelpBtn').click();
+    const help = await page.locator('#tipsLbBody .tips-lb-item').allTextContents();
+    await page.locator('#tipsLightboxClose').click();
+    await page.locator('#teamViewBtn').click();
     expect(help.length).toBeGreaterThan(2);
     expect(help.filter(t => /^\s*Tap\b/.test(t)), 'the help tells a mouse user to tap').toEqual([]);
     await page.setViewportSize({ width: 390, height: 844 });

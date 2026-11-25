@@ -233,6 +233,9 @@ below, and run `npm run generate:ai-map`.
 ### `calendar-team-view.js`
 - **Exports:** `weekStartForMonth` · `weekAfterDateChange` · `initTeamView`
 
+### `calendar-tips.js`
+- **Exports:** `CARD_TIPS`
+
 ### `admin-app.js`
 - **Exports:** `init`
 

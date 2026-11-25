@@ -223,9 +223,10 @@ export function buildWeekGridInto(container, dateStr) {
         // A Spare saved here before Spare turns were refused is not drawn on the Calendar (override-utils.js,
         // `isOverrideDisplaySuppressed`), so the row says so beside it rather than "nothing to record"
         // (review, 20 Nov 2026) — and says how it goes: its pill is on for that one act.
-        const hiddenSpare = existing?.type === 'spare_shift' && isChristmasOrBoxingDay(dateISO);
-        const christmasNote = hiddenSpare
-                ? `${xmasDay}: an old Spare entry is saved here but doesn’t show on the Calendar — select Other to remove it`
+        // …and an Other day (Training, a Meeting) saved there before they were refused, the same way (owner, 25 Nov 2026).
+        const hiddenKind = !isChristmasOrBoxingDay(dateISO) ? '' : existing?.type === 'spare_shift' ? 'Spare' : existing?.type === 'other' ? 'Other day' : '';
+        const christmasNote = hiddenKind
+                ? `${xmasDay}: an old ${hiddenKind} entry is saved here but doesn’t show on the Calendar — select Other to remove it`
             : !xmasDue ? ''
             : xmasShows === 'AL'
                 ? `${xmasDay}: due at work, so on annual leave that is never counted — nothing to record`

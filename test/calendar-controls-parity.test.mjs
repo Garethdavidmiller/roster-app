@@ -97,7 +97,7 @@ test('4. the month heading row wraps — the net for the longest month name and 
 // the page's. This names the rule; e2e/calendar.spec.js proves the cascade lets it win.
 test('5. every control on the Calendar\'s navy surfaces names a ring drawn for a dark one', () => {
     const ON_NAVY = ['.title-icon:focus-visible', '.top-prompt-action:focus-visible', '.top-prompt-dismiss:focus-visible',
-        '#dayDetailClose:focus-visible', '#alLightboxClose:focus-visible', '#teamInfoClose:focus-visible',
+        '#dayDetailClose:focus-visible', '#alLightboxClose:focus-visible',
         '#huddleViewerClose:focus-visible', '.day-detail-pay-btn:focus-visible', '.day-detail-leave-btn:focus-visible',
         '.al-lb-yearbtn:focus-visible', '.al-lb-link:focus-visible'];
     /** @type {Record<string, string>} */ const ring = {};
@@ -182,7 +182,8 @@ test('8. every overlay panel wears a dialog\'s or a glass sheet\'s corner, never
         .filter(s => panels.includes(s))
         .map(s => ({ s, radius: declared(r.body, 'border-radius') }))
         .filter(x => x.radius));
-    assert.ok(worn.length >= 5, `the page's own panels and their corners are found (${worn.map(x => x.s).join(' ')})`);
+    // Four since 25 Nov 2026: Team Week View's ? opens the shared Tips panel, whose corner is shared.css's.
+    assert.ok(worn.length >= 4, `the page's own panels and their corners are found (${worn.map(x => x.s).join(' ')})`);
     const wrong = worn.filter(x => !/^var\(--radius-(?:xl|panel)\)$/.test(x.radius ?? '')).map(x => `${x.s} → ${x.radius}`);
     assert.deepEqual(wrong, [], 'an overlay panel takes --radius-xl (a dialog) or --radius-panel (a glass sheet)');
     const borrowed = NESTED.filter(r => /var\(--radius-xl\)/.test(r.body))

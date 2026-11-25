@@ -517,6 +517,16 @@ jobs:
     # shard runs a couple of minutes longer than its siblings: each test's time is on its line in the
     # job log, and the cut goes where the time is equal.
     #
+    # ── FOUR WORKERS, TWO SHARDS EACH (25 Nov 2026; owner: "make CI twice as fast", free tuning only) ──
+    #
+    # The run was ~16 minutes, and the account's ceiling is 20 jobs at once: six of 26 waited up to two
+    # minutes for a runner, so a shard added is a job queued. Chrome is not the engine whose workers
+    # contend (playwright.webkit.mjs has WebKit's record): on four cores, four workers ran admin.spec.js in
+    # 2m17s against 3m29s on two, all 183 green. So Chrome runs four workers on two shards a project, and
+    # the two jobs it gives up go to WebKit (below), which has no such headroom. The cuts are #1860's
+    # per-test times from its six job logs: 24.3 and 24.2 test-minutes on desktop Chrome, 20.0 and 20.0 on
+    # the Pixel — about 8 and 7 minutes on four workers. deploy-hosting.yml runs the same list and workers.
+    #
     # THE VARIABLE IS PLAYWRIGHT'S OWN BUT NOT IN ITS DOCUMENTATION. If an upgrade drops it, the cut
     # quietly goes back to equal counts, so workflow-hygiene.test.mjs fails when the installed
     # Playwright no longer reads it. deploy-hosting.yml runs this same list, weights included.
@@ -529,12 +539,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: chromium, shard: 1, shards: 3, weights: '341:599:835' }
-          - { project: chromium, shard: 2, shards: 3, weights: '341:599:835' }
-          - { project: chromium, shard: 3, shards: 3, weights: '341:599:835' }
-          - { project: mobile-chrome, shard: 1, shards: 3, weights: '466:506:803' }
-          - { project: mobile-chrome, shard: 2, shards: 3, weights: '466:506:803' }
-          - { project: mobile-chrome, shard: 3, shards: 3, weights: '466:506:803' }
+          - { project: chromium, shard: 1, shards: 2, weights: '948:961' }
+          - { project: chromium, shard: 2, shards: 2, weights: '948:961' }
+          - { project: mobile-chrome, shard: 1, shards: 2, weights: '811:1097' }
+          - { project: mobile-chrome, shard: 2, shards: 2, weights: '811:1097' }
     # 15 → 20 (4 Sep 2026), when a 7-minute `npm ci` cancelled the suite mid-run. 20 → 30 (25 Oct
     # 2026): the suite took ~10 minutes when 20 was set and takes 16–19½ now — the six green runs
     # before v24.98 spent 16m15s–18m48s in the tests, and v24.98's first PR run passed all 1,601 in
@@ -611,7 +619,7 @@ jobs:
           browser: chromium
 
       - name: Run smoke tests
-        run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
+        run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=4
         env:
           CI: true
           # Where the cut falls: the entry's `weights` (e2e.yml's smoke job says why and how they were measured).
@@ -725,7 +733,15 @@ jobs:
   # across several runs before re-cutting, and re-cut by the same method: the cut goes where the
   # averaged time is equal.
   #
-  # THE COST, STATED: eleven jobs (ten until the fifth iPhone shard) pay the ~1m18s setup instead of two, so total runner minutes go up
+  # AND ONE MORE SHARD EACH, RE-CUT (25 Nov 2026). On #1860's run the shards had drifted: the iPhone's ran
+  # 15.2 to 25.9 test-minutes and desktop's 16.9 to 20.6, and the last of them set the ~16-minute run. The
+  # two jobs the Chrome shards gave up (four workers, above) come here, so the run starts the same number
+  # of jobs and queues no more. Cut from that run's eleven logs where the time is equal: desktop WebKit's
+  # 72.6 test-minutes in five shards of 14.5 to 14.6, the iPhone's 105.3 in six of 17.4 to 17.7 — about
+  # 7.3 and 8.8 minutes on two workers, where the longest had been 13. Still two workers: WebKit's lever
+  # is contention, and the flake history says so (playwright.webkit.mjs).
+  #
+  # THE COST, STATED: thirteen jobs (eleven until 25 Nov 2026) pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here
   # is a person waiting on a merge, not runner minutes.
   webkit:
@@ -738,16 +754,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: webkit, shard: 1, shards: 4, weights: '293:489:438:472' }
-          - { project: webkit, shard: 2, shards: 4, weights: '293:489:438:472' }
-          - { project: webkit, shard: 3, shards: 4, weights: '293:489:438:472' }
-          - { project: webkit, shard: 4, shards: 4, weights: '293:489:438:472' }
+          - { project: webkit, shard: 1, shards: 5, weights: '181:321:456:332:407' }
+          - { project: webkit, shard: 2, shards: 5, weights: '181:321:456:332:407' }
+          - { project: webkit, shard: 3, shards: 5, weights: '181:321:456:332:407' }
+          - { project: webkit, shard: 4, shards: 5, weights: '181:321:456:332:407' }
+          - { project: webkit, shard: 5, shards: 5, weights: '181:321:456:332:407' }
           - { project: webkit-links, shard: 1, shards: 1, weights: '1' }
-          - { project: mobile-safari, shard: 1, shards: 5, weights: '235:374:406:294:383' }
-          - { project: mobile-safari, shard: 2, shards: 5, weights: '235:374:406:294:383' }
-          - { project: mobile-safari, shard: 3, shards: 5, weights: '235:374:406:294:383' }
-          - { project: mobile-safari, shard: 4, shards: 5, weights: '235:374:406:294:383' }
-          - { project: mobile-safari, shard: 5, shards: 5, weights: '235:374:406:294:383' }
+          - { project: mobile-safari, shard: 1, shards: 6, weights: '149:370:378:171:207:422' }
+          - { project: mobile-safari, shard: 2, shards: 6, weights: '149:370:378:171:207:422' }
+          - { project: mobile-safari, shard: 3, shards: 6, weights: '149:370:378:171:207:422' }
+          - { project: mobile-safari, shard: 4, shards: 6, weights: '149:370:378:171:207:422' }
+          - { project: mobile-safari, shard: 5, shards: 6, weights: '149:370:378:171:207:422' }
+          - { project: mobile-safari, shard: 6, shards: 6, weights: '149:370:378:171:207:422' }
           - { project: mobile-safari-links, shard: 1, shards: 1, weights: '1' }
     # Each job carries ONE engine and a share of its tests. The TEST STEP carries the budget (25 minutes,
     # below); this job cap is only the backstop against a hung runner, and it is wider than the

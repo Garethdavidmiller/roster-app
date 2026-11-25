@@ -91,6 +91,7 @@ roster-app/
 ├── perf-reporter.js        ← the shared anonymous latency recorder behind the App Speed card; only time somebody spent waiting is counted. See also perf-reporter.test.mjs.
 ├── perf-stats.js           ← pure latency maths behind the App Speed card
 ├── calendar-team-view.js        ← Team Week View; its overrides come from the SHARED month fetch, with no Firestore read of its own. See also CALENDAR_DATA.md, team-week-start.test.mjs, calendar.spec.js.
+├── calendar-tips.js             ← CARD_TIPS for Team Week View's `?`, in the shared Tips panel (tips-lightbox.js). See also tips-content.test.mjs.
 ├── al-contract.js ← a member's CONTRACT leave allowance for a year; read it through `entitlementFor`. Pure; tested by al-entitlement.test.mjs
 ├── al-entitlement.js ← which annual-leave days consume entitlement and where that leaves a member — the ONE answer every surface asks. Its header. Pure; tested by al-entitlement.test.mjs
 ├── al-leave-file.js ← THE LEAVE FILE: the sealed contract between the session that reads the clerks' workbook and the Operations card. Pure; tested by al-leave-file.test.mjs
@@ -338,7 +339,7 @@ roster-app/
 │   ├── SECURITY_RELEASE_PLAN.md ← the security tracks' status: **the CANONICAL TRACK STATUS table** (update a stage there and nowhere else; `auth-plan-parity.test.mjs`), plus each track's ordering, decisions and lessons
 │   ├── CREDENTIAL_LIFECYCLE.md ← POINTER: merged into PASSWORD_DESIGN.md (24 Nov 2026); maps its old §N to LN
 │   ├── PASSWORD_DESIGN.md ← the chosen-password design (Track C, email deferred), and the credential lifecycle: how a credential is issued, recovered and retired, in order (L1–L10; **L7 is an OPEN owner decision**). Status: SECURITY_RELEASE_PLAN.md
-│   ├── AUTH_PLAN.md ← the full-app authentication design (Track E): what "behind authentication" can mean for static files on public hosting, and the E0–E6 phases. Status: SECURITY_RELEASE_PLAN.md
+│   ├── AUTH_PLAN.md ← Track E, full-app authentication, in its ONE home: what "behind authentication" can mean for static files on public hosting, and the E0–E6 phases, their order, risks and owner questions. Status: SECURITY_RELEASE_PLAN.md's table, whose Track E section points here
 │   ├── AUTH_ARCHITECTURE.md     ← POINTER: folded into AUTH_AND_SESSIONS.md → Architecture (24 Nov 2026); the Track 1 phases are in git
 │   ├── RECOVERY_RUNBOOK.md      ← the "break glass" backup, rollback and disaster-recovery runbook
 │   ├── LINKS_DEC2026_PLAN.md ← the Links workspace against the December 2026 timetable change ("Dec 26" is the timetable, NOT Boxing Day): the service, the window, the baseline and the current 26-line state
@@ -623,7 +624,7 @@ roster-app/
 │   ├── shadow-parity.test.mjs ← the box-shadow count may only come down. Part of test:hygiene
 │   ├── lightbox-transform-parity.test.mjs ← **the lightbox entry animation must not be frozen by SPECIFICITY**. Part of test:hygiene
 │   ├── chip-radius-parity.test.mjs ← a chip must not wear the lightbox/panel corner. Part of test:hygiene
-│   ├── auth-plan-parity.test.mjs ← AUTH_PLAN.md (design) and SECURITY_RELEASE_PLAN.md (sequencing) kept in step on Track E. Part of test:hygiene
+│   ├── auth-plan-parity.test.mjs ← Track E written once: AUTH_PLAN.md's phase list whole, SECURITY_RELEASE_PLAN.md's Track E section kept a pointer, shipped versions agreeing with the status table; and the credential lifecycle's unadopted C5 route. Part of test:hygiene
 │   ├── tips-content.test.mjs ← every page's tips and HELP_CONTENT in the shape their renderers require. Part of test:hygiene
 │   ├── workflow-hygiene.test.mjs ← the CI workflows: pins, timeouts, concurrency and the job list
 │   ├── guide-app-parity.test.mjs ← the Staff & Admin Guide against the app's own lists. Part of test:hygiene

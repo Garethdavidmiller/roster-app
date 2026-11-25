@@ -2291,6 +2291,22 @@ test('admin: a Spare saved on Boxing Day before it was refused is removed by sel
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written in its place').toBe(0);
 });
 
+// …AND AN OTHER DAY SAVED THERE BEFORE IS SAID THE SAME WAY (owner, 25 Nov 2026). The Calendar draws Boxing Day as
+// leave over it, and the row said "on annual leave that is never counted — nothing to record" beside an active Other pill.
+test('admin: an Other day saved on Boxing Day before it was refused says it does not show, and how it goes', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'm_2026-12-26_G.%20Miller', memberName: 'G. Miller', date: '2026-12-26',
+            type: 'other', value: 'TRG RDW', note: '', source: 'manual', changedBy: 'G. Miller' }] };
+    });
+    await adminOnWeek(page, 'G. Miller', '2026-12-21');
+    const boxing = page.locator('.day-row[data-date="2026-12-26"]');
+    await expect(boxing.locator('.pill-other'), 'the saved Other day is drawn under Other').toHaveAttribute('aria-pressed', 'true');
+    await expect(boxing.locator('.col-pills'))
+        .toContainText('an old Other day entry is saved here but doesn’t show on the Calendar — select Other to remove it');
+    await expect(boxing.locator('.col-pills')).not.toContainText('nothing to record');
+});
+
 // A DAY BEFORE A MEMBER'S START DATE TAKES NO CHANGE (whole-app check, Nov 2026; decided default). The
 // Calendar, its legend and Team Week never show one (`isBeforeMemberStart`), so a change saved there was
 // accepted, receipted and then invisible for ever.

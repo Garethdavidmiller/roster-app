@@ -1729,12 +1729,13 @@ describe('team view retry recovery', () => {
 // stale-month re-read (v24.67), and wrong for every page left open since. It now states the re-read's
 // worst case: a month read just after one check is released at the second, so twice STALE_MONTH_MS.
 // Read from both files, so the figure on screen cannot drift from the timer behind it.
-test('Team View\'s help note states the re-read\'s real worst case — twice STALE_MONTH_MS', () => {
+test('Team View\'s help note states the re-read\'s real worst case — twice STALE_MONTH_MS', async () => {
     const src  = readFileSync(new URL('./calendar-initial-fetch.js', REPO_ROOT_URL), 'utf8');
-    const html = readFileSync(new URL('./index.html', REPO_ROOT_URL), 'utf8');
     const minutes = Number(/const STALE_MONTH_MS = (\d+) \* 60_000;/.exec(src)?.[1]);
     assert.ok(minutes > 0, 'STALE_MONTH_MS is no longer written as minutes × 60_000 — read it another way');
-    const note = /<p class="team-info-note">([^<]*)<\/p>/.exec(html)?.[1] ?? '';
+    // The note is the Tips panel's "When changes show" item since 25 Nov 2026 (calendar-tips.js).
+    const { CARD_TIPS } = await import('../calendar-tips.js');
+    const note = CARD_TIPS['team-week'].sections.find((/** @type {any} */ s) => s.heading === 'When changes show')?.items[0]?.html ?? '';
     assert.match(note, new RegExp(`within ${minutes * 2} minutes while it stays open`),
         `the note says "${note}" — the re-read reaches an open page within ${minutes * 2} minutes`);
     assert.doesNotMatch(note, /next time this page loads/, 'the note still says only a reload shows a change');

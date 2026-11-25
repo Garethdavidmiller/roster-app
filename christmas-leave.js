@@ -191,7 +191,10 @@ export function boxingDayLieuDays(member, year, overrides = []) {
     for (const o of overrides || []) {
         if (o && o.memberName === member.name && o.date === dateStr && shouldReplaceOverride(winner, o)) winner = o;
     }
-    return winner && isWorkedShift(winner.value) ? 1 : 0;
+    // A record the Calendar does not DRAW earns nothing (owner, 25 Nov 2026): an Other day saved there before Save
+    // refused one (`isOverrideDisplaySuppressed`) shows as Christmas leave, so it cannot also be work that earns a day.
+    if (!winner || isOverrideDisplaySuppressed(winner, getPatternShift(member, boxingDay), boxingDay.getDay() === 0, true)) return 0;
+    return isWorkedShift(winner.value) ? 1 : 0;
 }
 
 /**

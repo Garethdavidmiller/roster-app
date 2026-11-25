@@ -479,21 +479,24 @@ describe('getRosterSuggestion — training days', () => {
     assert.equal(s.rdwCount, 0);
   });
 
-  test('TRG RDW on BOXING DAY → box bucket at 3× (confirmed rule: 26 Dec is always Boxing Day)', () => {
-    // 2026-12-26 is a Saturday, C. Reen base RD. A plain rdw override that day lands in box —
-    // a training rest-day must do the same, not 1.25× RDW (~14h pay under-suggestion on 8h).
-    _setOverridesForTest(new Map([
-      ['2026-12-26', { type: 'other', value: 'TRG RDW', _ts: 1, _manual: true }],
-    ]));
+  // A (LEGACY) OTHER DAY ON CHRISTMAS DAY OR BOXING DAY IS PRICED AS THE DAY UNDERNEATH (owner, 25 Nov 2026), as a
+  // Sunday's is: neither day can be an Other day, so the Calendar draws one saved before as the day without it. Priced as
+  // Boxing Day overtime, it put 8 hours at 3× into the suggestion for a day the member's own calendar showed as rest.
+  test('a (legacy) Other day on Boxing Day or Christmas Day suggests nothing over a rest day', () => {
+    for (const date of ['2026-12-25', '2026-12-26']) {
+      for (const value of ['TRG RDW', 'TRG RDW 09:00-18:00', 'MEET']) {
+        _setOverridesForTest(new Map([[date, { type: 'other', value, _ts: 1, _manual: true }]]));
+        assert.strictEqual(getRosterSuggestion(period(date), cReen), null, `${date} ${value}`);
+      }
+    }
+  });
+  // …while a PLAIN rest-day working record on Boxing Day is still Boxing Day overtime at 3×.
+  test('an rdw record on Boxing Day is still the box bucket at 3×', () => {
+    _setOverridesForTest(new Map([['2026-12-26', { type: 'rdw', value: '06:00-14:00', _ts: 1, _manual: true }]]));
     const s = getRosterSuggestion(period('2026-12-26'), cReen);
     assert.ok(s);
     assert.equal(s.boxCount, 1);
-    assert.equal(s.boxH, 8);
-    assert.equal(s.rdwCount, 0, 'must not land in the 1.25× RDW bucket');
-    // …and the 8h is a DEFAULT, so the Boxing Day row must say so. The flag follows the minutes into
-    // the box bucket; deleting it left this file green (test audit, 7 Nov 2026), and the row would then
-    // have read "Recorded change" over a guess the member is meant to correct.
-    assert.deepEqual(s.defaulted8h, { rdw: false, bhOt: false, box: true });
+    assert.equal(s.rdwCount, 0);
   });
 
   test('NEVER-LESS floor: timed training that ran SHORT of a BH shift still pays the full shift', () => {

@@ -428,13 +428,13 @@ mapping): weekday → contracted basic (nothing suggested); rostered Sat/BH/Boxi
 bucket at base hours; actual times on a rostered day → base-cap + excess→Overtime (BH over-run →
 `bhOt`, matching "Bank Holiday Overtime 1.25"); **`TRG RDW` (training rest-day) → RDW bucket, 8h
 default** (`OTHER_RDW_DEFAULT_MINS`) that the member adjusts — an RDW day is all-RDW, never split into
-overtime — and the minutes ROUTE BY DAY exactly like a plain rdw override: **Boxing Day → `box` (3×),
-a bank holiday → `bhOt`, anything else → `rdw`**; a rest-day base without the RDW flag still resolves
+overtime — and the minutes ROUTE BY DAY exactly like a plain rdw override: **a bank holiday → `bhOt`,
+anything else → `rdw`**; a rest-day base without the RDW flag still resolves
 to rdw (belt and braces — as-base would pay £0). A member is **never paid less than their rostered
 shift** even if training runs short. **Sundays, Christmas Day and Boxing Day can never be training days**
-(confirmed by Gareth: Boxing Day Jul 2026, Christmas Day 21 Nov 2026) — so the `Boxing Day → box (3×)` routing above is a defensive fallback
-for a case that does not occur in practice. Tests assert all of this in
-`paycalc-roster-suggestions.test.mjs`.
+(confirmed by Gareth: Boxing Day Jul 2026, Christmas Day 21 Nov 2026), so a legacy Other day on any of
+them is priced as the day underneath — what the Calendar draws there — and earns no Boxing Day day in
+lieu (owner, 25 Nov 2026). Tests assert all of this in `paycalc-roster-suggestions.test.mjs`.
 
 **A Training day from the PATTERN has no times, and on a bank holiday it is the 7-hour day (owner,
 7 Nov 2026).** Fixed pattern 3 is a bare `TRG` Monday to Friday — a trainee's weeks — and the engine

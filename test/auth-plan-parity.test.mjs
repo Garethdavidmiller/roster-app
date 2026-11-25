@@ -1,11 +1,10 @@
 /**
- * Track E doc parity — AUTH_PLAN.md ↔ SECURITY_RELEASE_PLAN.md.
+ * Track E doc parity — AUTH_PLAN.md is Track E's one home; SECURITY_RELEASE_PLAN.md holds its status.
  * Run: node scripts/run-tests.mjs test/auth-plan-parity.test.mjs   (part of `npm run test:hygiene`)
  *
- * WHY THIS FILE EXISTS. Track E is described in two places on purpose: AUTH_PLAN.md is authoritative
- * for DESIGN, SECURITY_RELEASE_PLAN.md for SEQUENCING. Nothing kept the two phase lists in step, and
- * they drifted in the way split ownership always drifts — silently, and only in the file nobody was
- * editing that day:
+ * WHY THIS FILE EXISTS. Track E used to be written in two places — AUTH_PLAN.md for design,
+ * SECURITY_RELEASE_PLAN.md for sequencing — and the two drifted in the way split ownership always
+ * drifts, silently and only in the file nobody was editing that day:
  *
  *   - SECURITY_RELEASE_PLAN.md numbered a phase E2 TWICE and lost the offline-grace phase entirely,
  *     so a reader counting phases got a different plan depending on which file they opened (v19.08).
@@ -13,12 +12,17 @@
  *
  * Neither is a typo: a security plan whose phase numbering disagrees with itself is one someone
  * follows halfway and stops, believing they are further along than they are. Track E's whole point is
- * that E1 is client preparation and E2 is the first real boundary — an off-by-one there is the exact
- * misreading that ships a client gate and calls the data protected.
+ * that E1 is client preparation and the read rule is the first real boundary — an off-by-one there is
+ * the exact misreading that ships a client gate and calls the data protected.
  *
- * These are STRUCTURAL contracts, not a review of the plan's content. They say the two documents
- * describe the same phases and agree on which have shipped. They say nothing about whether the plan
- * is any good.
+ * On 25 Nov 2026 the second copy was removed: SECURITY_RELEASE_PLAN.md's Track E section is a pointer
+ * to AUTH_PLAN.md, and the only Track E fact left in that file is its STATUS (the canonical table's
+ * E row). So the checks are now: the phase list is whole in the one home; the pointer stays a pointer
+ * (the commonest way a duplicate comes back is somebody "helpfully" summarising the phases again); and
+ * the shipped versions in AUTH_PLAN's headings and prose agree with the status table.
+ *
+ * These are STRUCTURAL contracts, not a review of the plan's content. They say nothing about whether
+ * the plan is any good.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -62,34 +66,7 @@ function authPhases(md) {
 }
 
 /**
- * Phase blocks in SECURITY_RELEASE_PLAN.md are `- **E<n>…` bullets inside the Track E section.
- * Each block runs to the next phase bullet, or to the end of the section.
- * @param {string} md
- * @returns {{id: string, block: string}[]}
- */
-function secPhases(md) {
-    const lines = md.split('\n');
-    const starts = [];
-    lines.forEach((line, i) => {
-        const m = /^- \*\*(E\d)\b/.exec(line);
-        if (m) starts.push({ id: m[1], line: i });
-    });
-    return starts.map((s, i) => {
-        let end = starts[i + 1]?.line ?? lines.length;
-        // The LAST bullet has no following bullet to bound it — stop at the next heading so the
-        // block can't swallow the rest of the document and pick up an unrelated SHIPPED marker.
-        if (!starts[i + 1]) {
-            for (let j = s.line + 1; j < lines.length; j++) {
-                if (/^#{2,4} /.test(lines[j])) { end = j; break; }
-            }
-        }
-        return { id: s.id, block: lines.slice(s.line, end).join('\n') };
-    });
-}
-
-/**
- * The shipped version a phase block claims, if any. Both documents use the same marker:
- * "✓ SHIPPED v<major>.<minor>".
+ * The shipped version a phase block claims, if any: "✓ SHIPPED v<major>.<minor>".
  * @param {string} block
  * @returns {string|null}
  */
@@ -104,89 +81,92 @@ const shippedMap = (phases) => new Map(
 );
 
 const AUTH_PHASES = authPhases(AUTH);
-const SEC_PHASES  = secPhases(SEC);
 
-describe('Track E parity — both plans describe the same phases', () => {
-    for (const [label, phases] of [['docs/AUTH_PLAN.md', AUTH_PHASES], ['docs/SECURITY_RELEASE_PLAN.md', SEC_PHASES]]) {
-        test(`${label} declares E0–E6, each exactly once`, () => {
-            const ids = phases.map(p => p.id);
-            const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
-            assert.deepEqual(dupes, [],
-                `${label} declares a phase id more than once: ${[...new Set(dupes)].join(', ')}. ` +
-                'Two phases sharing a number is how the offline-grace phase went missing — renumber, ' +
-                'do not add a suffix.');
+/**
+ * The canonical table's Track E row — the one place Track E's STATUS is written. Its "Current stage"
+ * cell marks shipped phases as "E<n> ✓ v<x.yy>".
+ */
+const E_ROW = SEC.split('\n').find(l => l.startsWith('| **E — full-app auth**')) || '';
+const tableShipped = new Map(
+    [...(E_ROW.split('|')[2] ?? '').matchAll(/\bE(\d) ✓ v(\d+\.\d+)/g)].map(m => [`E${m[1]}`, m[2]]),
+);
 
-            const missing = EXPECTED_PHASES.filter(id => !ids.includes(id));
-            const extra   = ids.filter(id => !EXPECTED_PHASES.includes(id));
-            assert.deepEqual({ missing, extra }, { missing: [], extra: [] },
-                `${label} phase list is ${ids.join(', ')} — expected exactly ${EXPECTED_PHASES.join(', ')}. ` +
-                'If Track E genuinely gained or lost a phase, update EXPECTED_PHASES here AND both ' +
-                'documents in the same commit.');
-        });
-    }
+/**
+ * SECURITY_RELEASE_PLAN.md's Track E section: from its `### Track E` heading to the next heading.
+ * @returns {{heading: string, body: string}|null}
+ */
+const SEC_TRACK_E = (() => {
+    const lines = SEC.split('\n');
+    const at = lines.findIndex(l => /^### Track E\b/.test(l));
+    if (at < 0) return null;
+    let end = lines.length;
+    for (let j = at + 1; j < lines.length; j++) if (/^#{1,3} |^---$/.test(lines[j])) { end = j; break; }
+    return { heading: lines[at], body: lines.slice(at + 1, end).join('\n') };
+})();
 
-    test('the two plans agree on which phases have shipped, and at which version', () => {
-        const a = shippedMap(AUTH_PHASES);
-        const s = shippedMap(SEC_PHASES);
-        const ids = [...new Set([...a.keys(), ...s.keys()])].sort();
+/** The pointer's size cap. It is ~560 characters today; a paragraph of pointer fits well inside this,
+ *  and a re-grown phase list (the old section was ~13,000) does not. */
+const POINTER_MAX_CHARS = 1000;
 
-        const disagree = ids
-            .filter(id => a.get(id) !== s.get(id))
-            .map(id => `${id}: AUTH_PLAN says ${a.get(id) ? `v${a.get(id)}` : 'not shipped'}, ` +
-                       `SECURITY_RELEASE_PLAN says ${s.get(id) ? `v${s.get(id)}` : 'not shipped'}`);
+describe('Track E — AUTH_PLAN.md is the one home', () => {
+    test('AUTH_PLAN.md declares E0–E6, each exactly once', () => {
+        const ids = AUTH_PHASES.map(p => p.id);
+        const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+        assert.deepEqual(dupes, [],
+            `AUTH_PLAN.md declares a phase id more than once: ${[...new Set(dupes)].join(', ')}. ` +
+            'Two phases sharing a number is how the offline-grace phase went missing — renumber, ' +
+            'do not add a suffix.');
 
-        assert.deepEqual(disagree, [],
-            'The two Track E documents disagree about shipped status:\n  ' + disagree.join('\n  ') +
-            '\nWhen a phase ships, mark it "✓ SHIPPED v<x.yy>" in BOTH files in the same commit — a ' +
-            'sequencing doc that still calls a shipped phase future work is one someone re-does.');
+        const missing = EXPECTED_PHASES.filter(id => !ids.includes(id));
+        const extra   = ids.filter(id => !EXPECTED_PHASES.includes(id));
+        assert.deepEqual({ missing, extra }, { missing: [], extra: [] },
+            `AUTH_PLAN.md's phase list is ${ids.join(', ')} — expected exactly ${EXPECTED_PHASES.join(', ')}. ` +
+            'If Track E genuinely gained or lost a phase, update EXPECTED_PHASES here in the same commit.');
+    });
+
+    test("SECURITY_RELEASE_PLAN.md's Track E section is a pointer to AUTH_PLAN.md, not a second copy", () => {
+        assert.ok(SEC_TRACK_E, 'SECURITY_RELEASE_PLAN.md has no "### Track E" section — the pointer is gone, ' +
+            'so a reader of the security plan no longer learns where Track E lives.');
+        const { heading, body } = SEC_TRACK_E;
+        assert.ok(body.includes('`AUTH_PLAN.md`'),
+            'The Track E section of SECURITY_RELEASE_PLAN.md no longer names `AUTH_PLAN.md`. It is a pointer; ' +
+            'a pointer that does not say where is a dead end.');
+        assert.ok(body.length <= POINTER_MAX_CHARS,
+            `The Track E section of SECURITY_RELEASE_PLAN.md is ${body.length} characters (cap ${POINTER_MAX_CHARS}). ` +
+            'It is growing back into a second copy of AUTH_PLAN.md — the two copies drifted before. Put ' +
+            'the content in AUTH_PLAN.md and leave the pointer a pointer.');
+        const status = [heading, ...body.split('\n')].filter(l => /✓|SHIPPED/i.test(l));
+        assert.deepEqual(status, [],
+            'The Track E pointer states a status. Status lives in the canonical table\'s E row, once.');
+    });
+
+    test('SECURITY_RELEASE_PLAN.md defines no Track E phase anywhere', () => {
+        const defs = SEC.split('\n').filter(l => /^- \*\*E\d\b/.test(l) || /^#{2,4} E\d — /.test(l));
+        assert.deepEqual(defs, [],
+            'SECURITY_RELEASE_PLAN.md defines Track E phases again:\n  ' + defs.join('\n  ') +
+            '\nThe phases live in AUTH_PLAN.md only; this file carries their status in its table.');
     });
 });
 
-// The phase HEADINGS were guarded from v19.09; the prose that tells a maintainer what order to work
-// in was not. So a stale "E1 → E2-soft → E3-hard" rollout line survived the v19.08 renumbering in
-// the sequencing doc — naming the wrong stage "hard", implying E1 begins the rollout, and dropping
-// the offline-grace phase — while every structural check stayed green. A one-line summary is what
-// people actually follow when they are in a hurry, so it needs pinning at least as much as the
-// headings do.
-const CANONICAL_SEQUENCE = 'E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5';
+describe('Track E — the shipped versions agree with the status table', () => {
+    test('the canonical table has a Track E row that marks shipped phases', () => {
+        assert.ok(E_ROW, 'SECURITY_RELEASE_PLAN.md has no "| **E — full-app auth**" row in its canonical table.');
+        assert.ok(tableShipped.size > 0,
+            'The Track E row marks no phase "E<n> ✓ v<x.yy>" — either the marker format changed (repoint ' +
+            'this parser) or the row lost its shipped phases. Every check below would compare against nothing.');
+    });
 
-describe('Track E parity — the canonical rollout sequence', () => {
-    for (const [label, src] of [['docs/AUTH_PLAN.md', AUTH], ['docs/SECURITY_RELEASE_PLAN.md', SEC]]) {
-        test(`${label} states the canonical sequence verbatim`, () => {
-            assert.ok(src.includes(CANONICAL_SEQUENCE),
-                `${label} does not contain "${CANONICAL_SEQUENCE}". Both Track E documents must state ` +
-                'the order of work identically — a summary line is what gets followed under time ' +
-                'pressure, and a stale one sends someone past the offline-grace phase or straight to ' +
-                'named-only rules.');
-        });
-
-        test(`${label} carries no superseded phase shorthand`, () => {
-            // The specific shapes that predate the E0–E6 numbering. "soft"/"hard" as phase SUFFIXES
-            // are the tell: the real model has a soft posture INSIDE E3 and enforcement at E5, so
-            // "E2-soft"/"E3-hard" is always the old model leaking through.
-            const stale = [...src.matchAll(/E\d\s*-\s*(soft|hard)\b/gi)].map(m => m[0]);
-            assert.deepEqual(stale, [],
-                `${label} still uses superseded phase shorthand: ${stale.join(', ')}. The soft posture ` +
-                'belongs to E3 and hard enforcement to E5 — naming a phase "-soft"/"-hard" is the old ' +
-                'pre-renumbering model.');
-        });
-    }
-});
-
-describe('Track E parity — each plan agrees with itself', () => {
-    test("SECURITY_RELEASE_PLAN's Track E heading names exactly the phases its bullets mark shipped", () => {
-        const heading = SEC.split('\n').find(l => /^### Track E\b/.test(l));
-        assert.ok(heading, 'Track E section heading not found in SECURITY_RELEASE_PLAN.md');
-
-        // The heading summarises progress, e.g. "… — E0+E1 SHIPPED, REST UNDECIDED".
-        const claim = /((?:E\d[+,\s–-]*)+)SHIPPED/i.exec(heading);
-        const claimed = new Set(claim ? (claim[1].match(/E\d/g) ?? []) : []);
-        const actual  = new Set(shippedMap(SEC_PHASES).keys());
-
-        assert.deepEqual([...claimed].sort(), [...actual].sort(),
-            `The Track E heading claims ${[...claimed].sort().join('+') || 'nothing'} shipped, but its ` +
-            `phase bullets mark ${[...actual].sort().join('+') || 'nothing'}. The heading is the first ` +
-            'thing read and the last thing updated — keep it in step.');
+    test("AUTH_PLAN's phase headings agree with the canonical table about what has shipped", () => {
+        const a = shippedMap(AUTH_PHASES);
+        const ids = [...new Set([...a.keys(), ...tableShipped.keys()])].sort();
+        const disagree = ids
+            .filter(id => a.get(id) !== tableShipped.get(id))
+            .map(id => `${id}: AUTH_PLAN heading says ${a.get(id) ? `v${a.get(id)}` : 'not shipped'}, ` +
+                       `the canonical table says ${tableShipped.get(id) ? `v${tableShipped.get(id)}` : 'not shipped'}`);
+        assert.deepEqual(disagree, [],
+            'AUTH_PLAN.md and the canonical status table disagree about shipped status:\n  ' + disagree.join('\n  ') +
+            '\nWhen a phase ships, mark the table row "E<n> ✓ v<x.yy>" and the heading "✓ SHIPPED v<x.yy>" ' +
+            'in the same commit — a plan that still calls a shipped phase future work is one someone re-does.');
     });
 
     test("AUTH_PLAN's status prose agrees with its phase headings about what has shipped", () => {
@@ -208,6 +188,45 @@ describe('Track E parity — each plan agrees with itself', () => {
             '\nThe summary at the top and the phase headings are read by different people; both must ' +
             'say the same thing.');
     });
+});
+
+// The phase HEADINGS were guarded from v19.09; the prose that tells a maintainer what order to work
+// in was not. So a stale "E1 → E2-soft → E3-hard" rollout line survived the v19.08 renumbering in
+// the sequencing doc — naming the wrong stage "hard", implying E1 begins the rollout, and dropping
+// the offline-grace phase — while every structural check stayed green. A one-line summary is what
+// people actually follow when they are in a hurry, so it needs pinning at least as much as the
+// headings do.
+const CANONICAL_SEQUENCE = 'E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5';
+
+describe('Track E — the canonical rollout sequence', () => {
+    test("AUTH_PLAN.md's Rollout discipline line states the canonical sequence verbatim", () => {
+        const line = AUTH.split('\n').find(l => l.startsWith('**Rollout discipline:**')) || '';
+        assert.ok(line.includes(CANONICAL_SEQUENCE),
+            `AUTH_PLAN.md's "**Rollout discipline:**" line does not contain "${CANONICAL_SEQUENCE}" ` +
+            `(it reads: ${JSON.stringify(line)}). A summary line is what gets followed under time ` +
+            'pressure, and a stale one sends someone past the offline-grace phase or straight to ' +
+            'named-only rules.');
+    });
+
+    for (const [label, src] of [['docs/AUTH_PLAN.md', AUTH], ['docs/SECURITY_RELEASE_PLAN.md', SEC]]) {
+        test(`${label}: every rollout-sequence line is the canonical one`, () => {
+            // The v19.08 failure was a SECOND, stale sequence line, not a missing one.
+            const stale = src.split('\n').filter(l => /\bE0 → E1\b/.test(l) && !l.includes(CANONICAL_SEQUENCE));
+            assert.deepEqual(stale, [],
+                `${label} states a rollout sequence that is not the canonical one:\n  ${stale.join('\n  ')}`);
+        });
+
+        test(`${label} carries no superseded phase shorthand`, () => {
+            // The specific shapes that predate the E0–E6 numbering. "soft"/"hard" as phase SUFFIXES
+            // are the tell: the real model has a soft posture INSIDE E3 and enforcement at E5, so
+            // "E2-soft"/"E3-hard" is always the old model leaking through.
+            const stale = [...src.matchAll(/E\d\s*-\s*(soft|hard)\b/gi)].map(m => m[0]);
+            assert.deepEqual(stale, [],
+                `${label} still uses superseded phase shorthand: ${stale.join(', ')}. The soft posture ` +
+                'belongs to E3 and hard enforcement to E5 — naming a phase "-soft"/"-hard" is the old ' +
+                'pre-renumbering model.');
+        });
+    }
 });
 
 

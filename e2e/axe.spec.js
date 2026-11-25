@@ -250,7 +250,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         const panels = [
             [() => page.locator('.calendar-day:not(.other-month)').nth(10).click(), '#dayDetailLightbox'],
             [() => page.locator('#alBtn').click(), '#alLightbox'],
-            [async () => { await page.locator('#teamViewBtn').click(); await page.locator('#teamHelpBtn').click(); }, '#teamInfoLightbox'],
+            [async () => { await page.locator('#teamViewBtn').click(); await page.locator('#teamHelpBtn').click(); }, '#tipsLightbox'],
         ];
         for (const [open, panel] of panels) {
             await open();
