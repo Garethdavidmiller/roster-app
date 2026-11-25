@@ -14,9 +14,10 @@ import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-c
 import { parseOtherValue } from './override-utils.js';
 import { overrideFromSnapshot } from './override-compare.js';
 import { shapeClockBox, settleClockBox } from './clock-input.js';
-import { entryControlHtml, paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
+import { paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml, CHRISTMAS_NOTE, carryReviewAnswers } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, collectRosterWrites, reviewOutcome, outcomeHtml, carryReviewAnswers, personSummary } from './roster-review-states.js';
+import { reviewRow } from './roster-review-rows.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -35,8 +36,9 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  *  admin-roster-upload.test.mjs. */
 export const PARSE_ABORT_MS = 130_000;
 
-/** How long the waiting line says a read takes; one that fails sooner cannot have "taken longer". */
-const PARSE_EXPECTED_MS = 15_000;
+/** How long the waiting line says a read takes; one that fails sooner cannot have "taken longer".
+ *  Exported for admin-roster-upload.test.mjs, which pins `parseFailureLine`'s boundaries against it. */
+export const PARSE_EXPECTED_MS = 15_000;
 /** The second sentence is for a phone: iOS suspends a page left for another app, request and all. */
 const PARSE_WAIT_LINE = `Reading the PDF — this takes about ${PARSE_EXPECTED_MS / 1000} seconds. Keep this screen open until it finishes.`;
 
@@ -47,10 +49,12 @@ const PARSE_WAIT_LINE = `Reading the PDF — this takes about ${PARSE_EXPECTED_M
  * admin to shrink a PDF that was fine. It is a DROPPED CONNECTION when the device is offline, when the
  * screen was left during the read, or when a "Load failed" comes before the read could have finished;
  * only a late one, or this page's own timeout while online, is a slow read.
+ * Exported for admin-roster-upload.test.mjs (25 Nov 2026): it was sliced out of this file's source and
+ * run through `new Function`, a test that broke on any rename or reflow and checked a copy.
  * @param {any} err @param {{ online: boolean, elapsedMs: number, wasHidden: boolean }} seen
  * @returns {string|null}  null for anything that is not a failure in transit
  */
-function parseFailureLine(err, { online, elapsedMs, wasHidden }) {
+export function parseFailureLine(err, { online, elapsedMs, wasHidden }) {
     const aborted = err?.name === 'AbortError';
     const msg = err instanceof TypeError ? String(err.message || '') : '';
     const loadFailed = msg.includes('Load failed');
@@ -703,26 +707,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
             if (!member) continue;
 
-            const changedDates = dates.filter(/** @param {any} d */ d => {
-                const s = cellStates.get(`${entry.memberName}|${d}`);
-                return s && (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT' || s.state === 'CONFLICT'
-                          || s.state === 'UNREADABLE' || s.state === 'GUARDED');
-            });
+            // Which of this person's days get a row, what the badge counts and whether Skip all is offered:
+            // `personSummary` (roster-review-states.js), where the reasons are.
+            const { changedDates, pendingCount, canWrite } = personSummary(entry.memberName, dates, cellStates);
             if (changedDates.length === 0) continue;
-            // THE BADGE COUNTS CHANGES; A GUARDED ROW IS A NOTICE (v23.97). It is rendered in this
-            // person's list so the day is not invisible, but nothing about it is pending — counting
-            // it would inflate "3" on a week with two real changes and one day the app declined to
-            // record, and the admin would go looking for a third thing to approve.
-            const pendingCount = changedDates.filter(/** @param {any} d */ d =>
-                cellStates.get(`${entry.memberName}|${d}`)?.state !== 'GUARDED').length;
-            // Skip all is offered wherever a row can WRITE (v24.96, the 72-hour review): an answered
-            // rest-day question writes too, and v24.90 — which made Skip all take that answer back —
-            // also removed the button for a person whose rows are all guarded, so their answer could
-            // never return to "unanswered, writes nothing". The badge still counts pending rows alone.
-            const canWrite = pendingCount > 0 || changedDates.some(/** @param {any} d */ d => {
-                const s = cellStates.get(`${entry.memberName}|${d}`);
-                return s?.state === 'GUARDED' && swapQuestionApplies(s);
-            });
 
             const section = document.createElement('div');
             section.className = 'roster-person-section' + (alignment.blocked ? ' roster-blocked' : '');
@@ -759,132 +747,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const dateStr = `${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
 
                 const row = document.createElement('div');
-                row.className  = `roster-change-row${s.state === 'CONFLICT' ? ' roster-change-conflict' : s.state === 'DIFF' || s.state === 'REMOVE_IMPORT' ? ' roster-change-diff' : ''}`;
+                // The row's markup, per state, is roster-review-rows.js's; the clicks on it are wired below.
+                const drawn = reviewRow({ key, s, date, dayName, dateStr, shiftDisplay, manualShiftDisplay });
+                row.className   = drawn.className;
                 row.dataset.key = key;
-
-                if (s.state === 'DIFF') {
-                    const approved = s.chosen !== false;
-                    if (!approved) row.classList.add('is-skipped');
-                    row.innerHTML = `
-                        <button type="button" class="roster-tick${approved ? '' : ' off'}" data-key="${esc(key)}" aria-pressed="${approved}" aria-label="Save this change">${approved ? '✓' : ''}</button>
-                        <div class="roster-chg-day">
-                            <span class="roster-day-abbr">${dayName}</span>
-                            <span class="roster-day-date">${dateStr}</span>
-                        </div>
-                        <div class="roster-chg-vals">
-                            <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
-                            <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
-                            ${s.christmas ? `<span class="roster-remove-note">${CHRISTMAS_NOTE}</span>` : ''}
-                        </div>
-                        <span class="roster-act act-update">Update</span>`;
-                } else if (s.state === 'REMOVE_IMPORT') {
-                    // A stale previous PDF import whose day now matches the base roster. Approving
-                    // DELETES the stale override (writes nothing) so it can't mask a future base change.
-                    // from = the currently-saved import value, to = the base it now matches.
-                    const approved = s.chosen !== false;
-                    if (!approved) row.classList.add('is-skipped');
-                    row.innerHTML = `
-                        <button type="button" class="roster-tick${approved ? '' : ' off'}" data-key="${esc(key)}" aria-pressed="${approved}" aria-label="Clear this old entry">${approved ? '✓' : ''}</button>
-                        <div class="roster-chg-day">
-                            <span class="roster-day-abbr">${dayName}</span>
-                            <span class="roster-day-date">${dateStr}</span>
-                        </div>
-                        <div class="roster-chg-vals">
-                            <span class="roster-from-val">${manualShiftDisplay(s)}</span>
-                            <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.baseShift, date)}</span>
-                            <span class="roster-remove-note">${s.christmas ? CHRISTMAS_NOTE : 'no longer on the roster'}</span>
-                        </div>
-                        <span class="roster-act act-clear">Clear old</span>`;
-                } else if (s.state === 'GUARDED') {
-                    // Said / did / why, plus the rest-day swap question (v24.42) — roster-review-states.js.
-                    row.classList.add('roster-change-guarded');
-                    row.innerHTML = guardedInner(key, s);
-                } else if (s.state === 'UNREADABLE' && s.options) {
-                    // The two reads disagreed and we know BOTH readings — offer them rather than a
-                    // dead end (owner, Jul 2026: "there is no way to choose the correct option from
-                    // the results screen"). Same control as a CONFLICT row, with one difference that
-                    // matters: there is no safe default here, so it starts on NEITHER. `chosen` stays
-                    // null until the admin picks, and null still writes nothing — the pre-v19.32
-                    // behaviour is exactly what you get by leaving it alone.
-                    const picked = typeof s.chosen === 'number' ? s.chosen : -1;
-                    if (picked < 0) row.classList.add('roster-change-unreadable');
-                    row.innerHTML = `
-                        <div class="roster-choicebox">
-                            <div class="roster-cb-day">
-                                <div class="roster-chg-day">
-                                    <span class="roster-day-abbr">${dayName}</span>
-                                    <span class="roster-day-date">${dateStr}</span>
-                                </div>
-                                <span class="roster-act ${unreadableTagClass(s)}">${picked < 0 && s.chosen !== 'entered' ? "Couldn't read" : 'Your choice'}</span>
-                            </div>
-                            ${s.isManual && s.manualValue ? `<div class="roster-cb-opt">
-                                <span class="roster-cb-lab">Saved</span>
-                                <span class="roster-cv-manual">${manualShiftDisplay(s)}</span>
-                            </div>` : ''}
-                            <div class="roster-pick" role="group" aria-label="Choose the correct value">
-                                ${s.options.map(/** @param {any} o @param {number} i */ (o, i) => `<button type="button" class="roster-choice-btn ${picked === i ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="${i}" aria-pressed="${picked === i}">${shiftDisplay(o.display, date)}</button>`).join('')}
-                                <button type="button" class="roster-choice-btn roster-choice-btn--skip ${picked < 0 && s.chosen !== 'entered' ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="skip" aria-pressed="${picked < 0 && s.chosen !== 'entered'}">Skip</button>
-                                <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" data-idle="Neither — enter it" data-done="Entered — change it" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Neither — enter it'}</button>
-                            </div>
-                            ${s.draft?.open ? entryControlHtml(key, s, date) : ''}
-                        </div>`;
-                } else if (s.state === 'UNREADABLE') {
-                    // No readings to offer: the cell couldn't be parsed. No tick, and nothing is written
-                    // unless the admin enters the day below (roster-entry-control.js).
-                    row.classList.add('roster-change-unreadable', 'roster-change-row--stacked');
-                    // The head keeps the ordinary day/value pairing side by side; the ROW becomes a
-                    // column so the entry control sits underneath at full width. Without the wrapper
-                    // the row's own flex made the pills a ~90px vertical column (measured — the
-                    // layout reads fine in the source, which is why this needed a screenshot).
-                    row.innerHTML = `
-                        <div class="roster-unread-head">
-                            <div class="roster-chg-day">
-                                <span class="roster-day-abbr">${dayName}</span>
-                                <span class="roster-day-date">${dateStr}</span>
-                            </div>
-                            <span class="roster-act ${entryLeftAsRest(s) ? 'act-none' : unreadableTagClass(s)}">${s.chosen === 'entered' && s.entered ? 'Your entry' : entryLeftAsRest(s) ? 'Not recorded' : "Couldn't read"}</span>
-                            <div class="roster-chg-vals">
-                                ${shiftDisplay(s.parsedShift)}
-                                <span class="roster-remove-note">${s.chosen === 'entered' && s.entered
-                                    ? '\u2713 you entered the shift below'
-                                    : entryLeftAsRest(s) ? 'a rest day \u2014 nothing is recorded' : 'check the paper roster, or enter it below'}</span>
-                            </div>
-                        </div>
-                        ${s.isManual && s.manualValue ? `<div class="roster-cb-opt">
-                            <span class="roster-cb-lab">Saved</span>
-                            <span class="roster-cv-manual">${manualShiftDisplay(s)}</span>
-                        </div>` : ''}
-                        <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" data-idle="Enter the shift" data-done="Entered — change it" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Enter the shift'}</button>
-                        ${s.draft?.open ? entryControlHtml(key, s, date) : ''}`;
-                } else {
-                    // CONFLICT — you already recorded something that differs from the new roster.
-                    // Defaults to keeping yours (chosen='manual', writes nothing); "Use new roster"
-                    // switches to chosen='pdf'. Plain labels replace the old Manual/PDF jargon; the
-                    // data-pick values are unchanged so the save path is identical.
-                    const usesPDF = s.chosen === 'pdf';
-                    row.innerHTML = `
-                        <div class="roster-choicebox">
-                            <div class="roster-cb-day">
-                                <div class="roster-chg-day">
-                                    <span class="roster-day-abbr">${dayName}</span>
-                                    <span class="roster-day-date">${dateStr}</span>
-                                </div>
-                                <span class="roster-act act-choice">Your choice</span>
-                            </div>
-                            <div class="roster-cb-opt">
-                                <span class="roster-cb-lab">Saved</span>
-                                <span class="roster-cv-manual${usesPDF ? ' cv-dim' : ''}">${manualShiftDisplay(s)}</span>
-                            </div>
-                            <div class="roster-cb-opt">
-                                <span class="roster-cb-lab">New roster</span>
-                                <span class="roster-cv-pdf${usesPDF ? '' : ' cv-dim'}">${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
-                            </div>
-                            <div class="roster-pick" role="group" aria-label="Resolve conflict">
-                                <button type="button" class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Keep saved</button>
-                                <button type="button" class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf" aria-pressed="${usesPDF}">Use new roster</button>
-                            </div>
-                        </div>`;
-                }
+                row.innerHTML   = drawn.html;
                 section.appendChild(row);
             }
             // A refused read's controls do nothing (v22.16), so they SAY so: disabled, and off the Tab

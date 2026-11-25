@@ -428,6 +428,36 @@ export function alPosition({ overrides, member, year, todayStr }) {
 }
 
 /**
+ * How a `remaining` figure is SHOWN — one rule for every surface that prints a balance: the
+ * Calendar's leave panel, and Admin's AL banner and its collapsed card's chip.
+ *
+ * OVER, NOT MINUS (v24.46 on the Calendar; Admin since 25 Nov 2026, owner: Admin says "3 over" like
+ * the Calendar). "-16 REMAINING" read as an error code, so past the allowance the figure is shown
+ * WITHOUT its minus and the words say "over"; the tone is the same red. Admin printed "-3" in its
+ * banner and "2026: -3 left" on the chip until the rule had one home.
+ *
+ * The tone thresholds are the ones every surface already used: nothing left (0 or over) is `none`,
+ * one to five days is `low`, anything more is `ok`. Each surface maps the tone onto its own class.
+ *
+ * Give it a number: a null `remaining` means no entitlement on record (`alPosition`), and the caller
+ * shows no figure at all rather than asking for one.
+ * @param {number} remaining entitlement less taken and booked — may be negative
+ * @returns {{ tone: 'none'|'low'|'ok', over: boolean, figure: string, label: 'Remaining'|'Over', short: 'left'|'over' }}
+ *   `figure` the number to print (never with a minus); `label` the figure's caption ("Remaining" /
+ *   "Over"); `short` the word after it where the space is a chip's ("12 left" / "3 over").
+ */
+export function balanceFace(remaining) {
+    const over = remaining < 0;
+    return {
+        tone: remaining <= 0 ? 'none' : remaining <= 5 ? 'low' : 'ok',
+        over,
+        figure: String(Math.abs(remaining)),
+        label: over ? 'Over' : 'Remaining',
+        short: over ? 'over' : 'left',
+    };
+}
+
+/**
  * The January leave days that may come out of the PREVIOUS year's allowance, grouped by January,
  * with where both years stand (v25.18 — the owner's decisions are in leave-year.js's header).
  *

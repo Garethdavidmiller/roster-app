@@ -2597,7 +2597,7 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
     // "2026: 32 left" on a perfectly correct page and the assertion would fail for the wrong reason.
     // This is the one that would catch a THIRD surface printing the figure.
     const visible = await page.locator('#book-annual-leave').innerText();
-    expect(visible, 'no readable balance over a read that failed').not.toMatch(/\b\d{4}: -?\d+ left\b|AL left:/i);
+    expect(visible, 'no readable balance over a read that failed').not.toMatch(/\b\d{4}: -?\d+ (left|over)\b|AL left:/i);
 });
 
 // ── THE LIST COUNTS WHAT THE ENTITLEMENT COUNTS (v23.72, owner report) ─────────────────────────
@@ -5095,12 +5095,17 @@ for (const w of [320, 360, 390]) {
 
         // THE PREMISE, asserted rather than assumed: if the seeding stopped pushing him over, the
         // message would be hidden and every check below would pass by not looking.
-        const remaining = Number(await page.locator('#alBannerRemaining').textContent());
-        expect(remaining, 'the fixture must put the member OVER limit, or this tests nothing')
-            .toBeLessThan(0);
+        // OVER, NOT MINUS (owner, 25 Nov 2026): past the allowance the figure has no minus and its label
+        // says "Over", as on the Calendar's leave panel (`balanceFace`, al-entitlement.js).
+        await expect(page.locator('#alBannerLblRemaining'), 'the fixture must put the member OVER limit, or this tests nothing')
+            .toHaveText('Over');
+        const over = Number(await page.locator('#alBannerRemaining').textContent());
+        expect(over, 'the figure is how far over, never a minus').toBeGreaterThan(0);
+        await expect(page.locator('#alHeaderBalance'), 'and the collapsed card\'s chip says it the same way')
+            .toHaveText(`2026: ${over} over`);
         const warn = page.locator('#alBannerWarn');
         await expect(warn).toBeVisible();
-        await expect(warn).toHaveText(`${Math.abs(remaining)} over allowance`);
+        await expect(warn).toHaveText(`${over} over allowance`);
 
         const box = await page.evaluate(() => {
             const card = document.getElementById('book-annual-leave');

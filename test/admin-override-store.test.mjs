@@ -1194,3 +1194,43 @@ describe('8b · a record this device has not sent yet is read as the page\'s own
         assert.deepEqual(_txDeleted, []);
     });
 });
+
+// ── A FAILED DELETE SAYS IT FAILED TO DELETE (25 Nov 2026) ──────────────────────────────────────────
+// Three Admin deletes worded their failures three ways, and the Recorded-dates ✕ fell through to the
+// SAVE path's words: a manager who had pressed ✕ was told something "Couldn't save". `deleteFailureLine`
+// is the one wording; each surface's use of it is driven in admin-saved-changes.test.mjs and
+// admin-period-delete.test.mjs.
+describe('deleteFailureLine — one wording for every failed delete', () => {
+    /** @type {(err: any, what: string) => string} */
+    let line;
+    beforeEach(async () => { ({ store: { deleteFailureLine: line } } = await freshStore()); });
+
+    test('a refusal shows its own line, which names the days', async () => {
+        const { store } = await freshStore();
+        const err = Object.assign(new Error('x'), { code: store.DELETE_REFUSED, line: 'Someone else has changed Mon 2 Nov since your list loaded, so nothing was deleted.' });
+        assert.equal(line(err, 'Could not delete'), '⚠ Someone else has changed Mon 2 Nov since your list loaded, so nothing was deleted.');
+    });
+
+    test('offline is offline, never blamed on anything else', () => {
+        assert.equal(line({ code: 'unavailable' }, 'Could not delete'), '⚠ You appear to be offline — reconnect and try again.');
+    });
+
+    test('an unknown outcome is never called a failure — it may still land', () => {
+        assert.equal(line({ code: 'auth/signed-out-during-request' }, 'Could not delete'),
+            '⚠ You were signed out before this delete was confirmed. Sign in again, then check Saved Changes.');
+        assert.match(line({ code: 'writes/unconfirmed' }, 'Bulk delete failed'), /^⚠ An earlier change on this page was not confirmed/);
+    });
+
+    test('anything else leads with what failed, and says where the fix is', () => {
+        assert.equal(line({ code: 'permission-denied' }, 'Could not delete'), '⚠ Could not delete — you may have been signed out. Please sign in again.');
+        assert.equal(line(new Error('network'), 'Bulk delete failed'), '⚠ Bulk delete failed — check your connection and try again.');
+    });
+
+    test('never "Couldn\'t save", whatever the cause', async () => {
+        const { store } = await freshStore();
+        for (const err of [{ code: 'permission-denied' }, new Error('x'), { code: 'unavailable' }, { code: 'auth/signed-out-during-request' },
+            { code: store.DELETE_REFUSED, line: 'Nothing was deleted.' }, null, undefined]) {
+            assert.doesNotMatch(line(err, 'Could not delete'), /couldn.t save|could not save|save failed/i, String(err?.code ?? err));
+        }
+    });
+});

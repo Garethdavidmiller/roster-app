@@ -50,7 +50,7 @@ function sickCfg(/** @type {any[]} */ confirms = []) {
     _cfgs.length = 0;
     initSickSection(/** @type {any} */ ({
         sickMember: select('F. Fixture'), syncSickMemberDisplay: noop, populateMemberDropdown: noop, lastMember: null,
-        updateALBanner: noop, updateALBookedBox: noop, updateSickBookedBox: noop,
+        updateALBanner: noop, updateALBookedBox: noop, updateSickBookedBox: noop, refreshLeaveViews: noop,
         getCurrentUser: () => 'A. Admin', showInChangeAShift: noop, showSuccess: noop,
         showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm: noop,
     }));
@@ -62,7 +62,7 @@ function alCfg(/** @type {any[]} */ confirms = []) {
     _cfgs.length = 0;
     initALSection(/** @type {any} */ ({
         alMember: select('F. Fixture'), syncMemberDisplay: noop, populateMemberDropdown: noop, lastMember: null,
-        updateALBanner: noop, updateALBookedBox: noop, updateSickBookedBox: noop, setALPickerYear: noop,
+        updateALBanner: noop, updateALBookedBox: noop, updateSickBookedBox: noop, refreshLeaveViews: noop, setALPickerYear: noop,
         getCurrentUser: () => 'A. Admin', showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm: noop,
         showInChangeAShift: noop, showSuccess: noop,
     }));

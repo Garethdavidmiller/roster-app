@@ -430,7 +430,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `allowanceRole` · `countsAsDispatcherBankHoliday` · `countDispatcherBankHolidaysWorked` · `dispatcherBaseAL` · `getALEntitlement`
 
 ### `al-entitlement.js`
-- **Exports:** `entitlementFor` · `boxingDayLieuYear` · `boxingDayLieuSplit` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `rosteredSpareDay` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
+- **Exports:** `entitlementFor` · `boxingDayLieuYear` · `boxingDayLieuSplit` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `rosteredSpareDay` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `balanceFace` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
 - **Exports:** `LEAVE_FILE_FORMAT` · `LEAVE_FILE_VERSION` · `LEAVE_FILE_MAX_AGE_DAYS` · `LEAVE_FILE_MAX_BYTES` · `GRADES` · `FOUND_IN` · `NOT_IMPORTED_REASONS` · `canonicalJson` · `leaveFileDigest` · `sealLeaveFile` · `isRealIsoDate` · `isSundayIso` · `isChristmasIso` · `leaveFileAgeDays` · `londonDayOf` · `usedRow` · `personSums` · `readLeaveFile` · `validateLeaveFile` · `describeRefusal`
@@ -532,7 +532,19 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `addDays` · `isRestGap` · `fmtPeriodDate` · `fmtPeriodRange` · `formatDisplay` · `namedDays`
 
 ### `admin-booked-periods.js`
-- **Exports:** `periodDelete` · `TWO_TAP_MIN_MS` · `twoTap` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
+- **Exports:** `periodDelete` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
+
+### `admin-period-delete.js`
+- **Exports:** `createPeriodDelete`
+
+### `admin-confirm-bar.js`
+- **Exports:** `createConfirmBar`
+
+### `two-tap.js`
+- **Exports:** `TWO_TAP_MIN_MS` · `twoTap` · `disarmConfirm`
+
+### `feedback-line.js`
+- **Exports:** `holdFeedback` · `fadeFeedback`
 
 ### `admin-sick.js`
 - **Exports:** `initSickSection`
@@ -556,7 +568,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `initSavedChanges` · `resetTableMemberFilter` · `renderTable`
 
 ### `admin-override-store.js`
-- **Exports:** `initOverrideStore` · `whenOverridesReady` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `OVERRIDES_QUERY_CAP` · `getAllOverrides` · `mutateCache` · `coversAllStaff` · `loadFailedFor` · `isTruncated` · `setAllOverrides` · `idsReplacedBy` · `withManualDuplicates` · `deleteChunks` · `removeFromCache` · `whenLoadSettled` · `loadOverrides` · `CHANGED_ELSEWHERE_LINE` · `UNCHECKED_DELETE_LINE` · `staleDeleteVerdict` · `DELETE_REFUSED` · `asShown` · `commitIfUnchanged` · `deleteIfUnchanged` · `commitChecked` · `LEAVE_YEAR_CHANGED_LINE` · `ensureMemberLoaded`
+- **Exports:** `initOverrideStore` · `whenOverridesReady` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `OVERRIDES_QUERY_CAP` · `getAllOverrides` · `mutateCache` · `coversAllStaff` · `loadFailedFor` · `isTruncated` · `setAllOverrides` · `idsReplacedBy` · `withManualDuplicates` · `deleteChunks` · `removeFromCache` · `whenLoadSettled` · `loadOverrides` · `CHANGED_ELSEWHERE_LINE` · `UNCHECKED_DELETE_LINE` · `staleDeleteVerdict` · `DELETE_REFUSED` · `deleteFailureLine` · `asShown` · `commitIfUnchanged` · `deleteIfUnchanged` · `commitChecked` · `LEAVE_YEAR_CHANGED_LINE` · `ensureMemberLoaded`
 
 ### `override-id.js`
 - **Exports:** `manualOverrideId`
@@ -607,10 +619,13 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `defaultWeekEnding` · `detectShiftedRow` · `ALIGNMENT_BLOCK_THRESHOLD` · `assessRosterAlignment` · `geometryCopy` · `driftCopy` · `stopCopy`
 
 ### `roster-review-states.js`
-- **Exports:** `CHRISTMAS_NOTE` · `RDW_PREFIX` · `isRdwEncoded` · `stripRdw` · `UNKNOWN_PREFIX` · `isUnknownEncoded` · `stripUnknown` · `computeCellStates` · `guardCopy` · `swapQuestionApplies` · `guardedWriteValue` · `replacedFromState` · `guardedWrites` · `restOverRest` · `collectRosterWrites` · `reviewOutcome` · `outcomeHtml` · `guardedRowHtml` · `unreadableTagClass` · `carryReviewAnswers`
+- **Exports:** `CHRISTMAS_NOTE` · `RDW_PREFIX` · `isRdwEncoded` · `stripRdw` · `UNKNOWN_PREFIX` · `isUnknownEncoded` · `stripUnknown` · `computeCellStates` · `guardCopy` · `swapQuestionApplies` · `guardedWriteValue` · `replacedFromState` · `guardedWrites` · `restOverRest` · `collectRosterWrites` · `reviewOutcome` · `outcomeHtml` · `personSummary` · `guardedRowHtml` · `unreadableTagClass` · `carryReviewAnswers`
+
+### `roster-review-rows.js`
+- **Exports:** `reviewRow`
 
 ### `admin-roster-upload.js`
-- **Exports:** `normaliseCellValue` · `shiftValueToOverrideType` · `isZeroLengthRange` · `computeCellStates` · `PARSE_ABORT_MS` · `statusFailureLine` · `shiftDisplay` · `manualShiftDisplay` · `_saveOverrideBatches` · `fetchOverridesForWeek` · `initRosterUpload`
+- **Exports:** `normaliseCellValue` · `shiftValueToOverrideType` · `isZeroLengthRange` · `computeCellStates` · `PARSE_ABORT_MS` · `PARSE_EXPECTED_MS` · `parseFailureLine` · `statusFailureLine` · `shiftDisplay` · `manualShiftDisplay` · `_saveOverrideBatches` · `fetchOverridesForWeek` · `initRosterUpload`
 
 ### `roster-import-save.js`
 - **Exports:** `IMPORT_CHANGED_CODE` · `UNSENT_SAVES_DETAIL` · `saveRosterWrites` · `refusalLine`

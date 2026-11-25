@@ -33,7 +33,7 @@ import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
 import { resetQuestion, resetFailure, resetOutcome } from './operations-reset.js';
-import { twoTap, disarmConfirm } from './admin-booked-periods.js';
+import { twoTap, disarmConfirm } from './two-tap.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';

@@ -101,7 +101,8 @@ export function triggerConfirmedALSave() {
  * @param {Function}          deps.updateALBanner      Refreshes the AL entitlement banner
  * @param {Function}          deps.setALPickerYear     Records the year the range picker is DISPLAYING
  * @param {Function}          deps.updateALBookedBox   Refreshes the AL booked-periods box
- * @param {Function}          deps.updateSickBookedBox Refreshes the sick booked-periods box
+ * @param {() => void}        deps.refreshLeaveViews   Redraws every view of the member's leave and absence —
+ *   banner, both lists, both previews (admin-app.js) — once a booking is saved
  * @param {() => (string|null)} deps.getCurrentUser     Live getter for the logged-in user name (for the
  *   changedBy field) — a getter, not a value, so an in-place sign-in (Phase 9) is reflected at write time
  * @param {Function}          deps.showALConfirm       Shows the over-entitlement confirmation bar
@@ -113,7 +114,7 @@ export function initALSection({
     alMember,
     syncMemberDisplay,
     populateMemberDropdown, lastMember,
-    updateALBanner, updateALBookedBox, updateSickBookedBox, setALPickerYear,
+    updateALBanner, updateALBookedBox, refreshLeaveViews, setALPickerYear,
     getCurrentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
 }) {
     // Captured at the top of each save click (before the member/dates guard) so an early
@@ -288,7 +289,9 @@ export function initALSection({
         // so re-running only the banner left the two naming different years — the figures for 2027
         // above a list still showing 2026. Found by the review; pinned by e2e.
         onViewYearChange: (/** @type {number} */ y) => { setALPickerYear(y); updateALBanner(); updateALBookedBox(); },
-        afterSave: () => { updateALBanner(); updateALBookedBox(); updateSickBookedBox(); },
+        // EVERY view of the member's leave and absence, the Absence card's preview included (25 Nov 2026):
+        // the hand-typed list here left it drawn over the days just booked.
+        afterSave: () => refreshLeaveViews(),
         onClick: () => { confirmedOverLimit = _alBookingConfirmed; _alBookingConfirmed = false; },
         preSave: checkEntitlement,
     });

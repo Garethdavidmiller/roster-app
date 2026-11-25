@@ -276,7 +276,10 @@ const CAPS = {
     // 1744 → 1500 on 16 Nov 2026 (tidy-up), brought DOWN (1,744 measured lines to 1,429): the `?` panels' content left for
     // admin-tips.js — content, not coordination, as Operations' did — and the comments that had become a
     // changelog were cut to their reasons. Measured + 50, rounded up.
-    'admin-app.js':            1500,
+    // 1500 → 1285 on 25 Nov 2026, brought DOWN (1,393 measured lines to 1,253): the over-allowance bar left for
+    // admin-confirm-bar.js and the Recorded-dates delete for admin-period-delete.js — each a rule a test can now run
+    // without a page — and the refresh lists became one `refreshLeaveViews`. Measured + ~30, as the extraction asked.
+    'admin-app.js':            1285,
     // 1500 → 1503 in the second whole-app check (Nov 2026), a RAISE, said so: two RULES grew where rules belong — the rest
     // repair tries the earlier duty of a short turnaround when no swap of the later one works, and the shift balance counts a
     // cover week as its duties — each pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
@@ -402,7 +405,9 @@ const CAPS = {
     // 37 lines of room again. The setting rule would put a fresh cap at 1250, so it does not move.
     // Stays at 1200 at v25.92: the Save left for roster-import-save.js (1176 → 1120, its refusal
     // handling staying here). The setting rule puts a fresh cap for 1120 at 1200, so it does not move.
-    'admin-roster-upload.js':  1200,
+    // 1200 → 1040 on 25 Nov 2026, brought DOWN (1,139 measured lines to 1,006): the review rows' markup left for
+    // roster-review-rows.js and the person-section rule for `personSummary` (roster-review-states.js). Measured + ~30.
+    'admin-roster-upload.js':  1040,
     // 1300 → 1150 at v23.52 — a cap coming DOWN, which is the direction this mechanism is for and
     // the one it had not yet demonstrated. `computeCellStates` left for roster-review-states.js:
     // ~206 lines that touch no DOM, hold no state, and decide what a Save writes. It was the second

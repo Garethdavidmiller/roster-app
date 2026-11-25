@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote, isWorkingDate } from '../al-entitlement.js';
+import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote, isWorkingDate, balanceFace } from '../al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getBankHolidays, CONFIG } from '../roster-data.js';
 import { getALEntitlement, dispatcherBaseAL, allowanceRole, countDispatcherBankHolidaysWorked, countsAsDispatcherBankHoliday } from '../al-contract.js';
 import { allowanceForBoxingDay, boxingDayLieuDays, isChristmasLeaveDay } from '../christmas-leave.js';
@@ -1160,5 +1160,28 @@ describe('a Spare week costs at most four days of leave', () => {
             const ch = leaveYearChoices({ overrides: january, member: ny, todayStr: '2026-11-22' });
             assert.deepEqual(ch.map(c => c.days.map(x => x.date)), [['2027-01-01', '2027-01-02']]);
         });
+    });
+});
+
+// ── HOW A BALANCE IS SHOWN: OVER, NOT MINUS (owner, 25 Nov 2026) ─────────────────────────────────
+// The Calendar's leave panel has said "Over 3" since v24.46; Admin's banner printed "-3" and its chip
+// "2026: -3 left". One rule now, `balanceFace`, for both. Driven through the Admin surface in
+// e2e/admin.spec.js ("the over-limit message is not clipped") and the Calendar's in
+// calendar-al-lightbox.test.mjs.
+describe('balanceFace — the figure, its words and its tone', () => {
+    test('past the allowance: the figure has no minus, and the words say "over"', () => {
+        assert.deepEqual(balanceFace(-3), { tone: 'none', over: true, figure: '3', label: 'Over', short: 'over' });
+        assert.doesNotMatch(balanceFace(-16).figure, /-/);
+    });
+
+    test('exactly used up is "0 left" in the none tone — not over', () => {
+        assert.deepEqual(balanceFace(0), { tone: 'none', over: false, figure: '0', label: 'Remaining', short: 'left' });
+    });
+
+    test('one to five days is low, six and up is ok', () => {
+        assert.equal(balanceFace(1).tone, 'low');
+        assert.equal(balanceFace(5).tone, 'low');
+        assert.equal(balanceFace(6).tone, 'ok');
+        assert.deepEqual(balanceFace(12), { tone: 'ok', over: false, figure: '12', label: 'Remaining', short: 'left' });
     });
 });

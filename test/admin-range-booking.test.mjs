@@ -905,7 +905,7 @@ describe('H. the Sunday a range sets as a rest day is named in the preview and t
     const deps = (/** @type {string} */ name) => ({
         alMember: memberSelect(name), sickMember: memberSelect(name),
         syncMemberDisplay() {}, syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {},
+        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, setALPickerYear() {},
         getCurrentUser: () => 'A. Admin', showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {},
     });
     const open = (/** @type {string} */ prefix, /** @type {string} */ from, /** @type {string} */ to) => {
@@ -977,7 +977,7 @@ describe('I. a message on the feedback line is never taken down by an earlier on
     });
 
     test('a fade started elsewhere on the same line does not hide a receipt that names days', async () => {
-        const { fadeFeedback } = await import('../admin-booked-periods.js');
+        const { fadeFeedback } = await import('../feedback-line.js');
         const { section } = wire({ cfg: { swapQuestion: () => [], project: () => ({ counts: { writing: 1 }, answeredFree: ['2026-10-06'] }) } });
         fadeFeedback(el('alFeedback'), 'feedback', 6000);    // the list below reported a delete
         setRange(section, '2026-10-05', '2026-10-06');
@@ -1031,7 +1031,7 @@ describe('L. days that already hold leave are counted apart from the new ones', 
     /** @type {string[]} */ let toasts = [];
     const deps = (/** @type {string} */ name) => ({
         alMember: memberSelect(name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {},
+        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, setALPickerYear() {},
         getCurrentUser: () => 'A. Admin', showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {},
         showSuccess: (/** @type {string} */ t) => { toasts.push(t); },
     });
@@ -1083,7 +1083,7 @@ describe('M. the Absence card names a day before the start date and the Christma
     beforeEach(() => { _realWorkingDate = true; });
     const deps = (/** @type {string} */ name) => ({
         sickMember: memberSelect(name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, getCurrentUser: () => 'A. Admin',
+        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, getCurrentUser: () => 'A. Admin',
         showInChangeAShift() {}, showSuccess() {}, showALConfirm() {}, hideALConfirm() {},
     });
     /** The Absence card for `name` with `from`–`to` on screen; its preview. */
@@ -1169,7 +1169,7 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
         /** @type {any[][]} */ const confirms = [];
         for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
         const card = initALSection(/** @type {any} */ ({ alMember: memberSelect(m.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
             showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
         el('alFrom').value = work; el('alTo').value = rest;
         for (const fn of el('alTo')._on.change ?? []) fn();
@@ -1209,7 +1209,7 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
         /** @type {any[][]} */ const confirms = [];
         for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
         initALSection(/** @type {any} */ ({ alMember: memberSelect(m.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
             showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
         el('alFrom').value = day; el('alTo').value = day;
         for (const fn of el('alTo')._on.change ?? []) fn();
@@ -1225,6 +1225,37 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
         assert.equal(confirms.length, 1, 'premise: a booking in the year that is over is asked about');
     });
 
+    // ONE REFRESH AFTER A SAVE, FOR EVERY VIEW OF LEAVE AND ABSENCE (25 Nov 2026). Each card's afterSave was a
+    // hand-typed list of the page's refreshers, and the AL card's left out the Absence card's preview, which
+    // stayed drawn over the days just booked. Both cards now hand the page's one `refreshLeaveViews`.
+    test('both cards redraw every view of leave and absence after a save, through the page\'s one refresh', async () => {
+        const m = QX;
+        _allOv = []; _ovMap = new Map();
+        const [day] = workdays(m, new Date(2027, 5, 1), 1);
+        let refreshed = 0;
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ ({ alMember: memberSelect(m.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, refreshLeaveViews() { refreshed++; }, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
+        el('alFrom').value = day; el('alTo').value = day;
+        for (const fn of el('alTo')._on.change ?? []) fn();
+        await save();
+        assert.equal(_writes.length, 1, 'premise: the booking saved');
+        assert.equal(refreshed, 1, 'the Annual Leave card\'s save redraws every view, the Absence preview included');
+
+        _writes.length = 0; refreshed = 0;
+        for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
+        initSickSection(/** @type {any} */ ({ sickMember: memberSelect(m.name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateSickBookedBox() {}, refreshLeaveViews() { refreshed++; }, getCurrentUser: () => 'A. Admin', showInChangeAShift() {},
+            showSuccess() {}, showALConfirm() {}, hideALConfirm() {} }));
+        const [absent] = workdays(m, new Date(2027, 6, 1), 1);
+        el('sickFrom').value = absent; el('sickTo').value = absent;
+        for (const fn of el('sickTo')._on.change ?? []) fn();
+        for (const fn of el('sickSaveBtn')._on.click ?? []) await fn({});
+        assert.equal(_writes.length, 1, 'premise: the absence saved');
+        assert.equal(refreshed, 1, 'the Absence card\'s save redraws every view too');
+    });
+
     test('Absence: the same for the bar an absence raises when it takes back a day in lieu', async () => {
         const p = QX;
         const worked = { id: 'n-boxing', memberName: p.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual', createdAt: { seconds: 1_798_000_000 } };
@@ -1234,7 +1265,7 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
         /** @type {any[][]} */ const confirms = [];
         for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
         initSickSection(/** @type {any} */ ({ sickMember: memberSelect(p.name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, getCurrentUser: () => 'A. Admin', showInChangeAShift() {},
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, getCurrentUser: () => 'A. Admin', showInChangeAShift() {},
             showSuccess() {}, showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm() {} }));
         el('sickFrom').value = worked.date; el('sickTo').value = worked.date;
         for (const fn of el('sickTo')._on.change ?? []) fn();
@@ -1277,7 +1308,7 @@ describe('O. the Absence card names a rest day it leaves as it is, and records n
         _ovMap = new Map([[rest, rdw]]); _allOv = [rdw];
         for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
         initSickSection(/** @type {any} */ ({ sickMember: memberSelect(m.name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, getCurrentUser: () => 'A. Admin', showInChangeAShift() {},
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, getCurrentUser: () => 'A. Admin', showInChangeAShift() {},
             showSuccess() {}, showALConfirm() {}, hideALConfirm() {} }));
         el('sickFrom').value = from; el('sickTo').value = to;
         for (const fn of el('sickTo')._on.change ?? []) fn();
@@ -1343,7 +1374,7 @@ describe('P. the Spare line and the receipt say what the booking charges', () =>
         _allOv = saved; _ovMap = new Map(saved.map(o => [o.date, o]));
         for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
         initALSection(/** @type {any} */ ({ alMember: memberSelect(QS.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
             showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
         el('alFrom').value = from; el('alTo').value = to;
         for (const fn of el('alTo')._on.change ?? []) fn();
@@ -1407,7 +1438,7 @@ describe('Q. the Spare line follows the grade held on the booked days', () => {
     test('a Spare week booked whole while a CEA says the cap, whatever the grade today', () => {
         for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
         initALSection(/** @type {any} */ ({ alMember: memberSelect(QD.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
             showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
         el('alFrom').value = week[0]; el('alTo').value = week[5];
         for (const fn of el('alTo')._on.change ?? []) fn();
@@ -1431,7 +1462,7 @@ describe('Q. leave over a worked Boxing Day: the receipt counts the day and says
         _allOv = [rdw]; _ovMap = new Map([[BOX, rdw]]);
         for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
         initALSection(/** @type {any} */ ({ alMember: memberSelect(QB.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
             showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
         el('alFrom').value = BOX; el('alTo').value = BOX;
         for (const fn of el('alTo')._on.change ?? []) fn();
@@ -1466,7 +1497,7 @@ describe("R. a Dispatcher’s worked bank holiday: the receipt counts the day on
         _allOv = []; _ovMap = new Map();
         for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
         initALSection(/** @type {any} */ ({ alMember: memberSelect(QR.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
-            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, refreshLeaveViews() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
             showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
         el('alFrom').value = BH; el('alTo').value = BH;
         for (const fn of el('alTo')._on.change ?? []) fn();
