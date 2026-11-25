@@ -2443,6 +2443,26 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(row).toHaveClass(/ot-day--saved/);
     });
 
+    // AN EDIT, NOT A NEW TIME (edit-sequence tests, 25 Nov 2026): a saved 10:00 with its last digit deleted is what is
+    // left of it, "10:0". Read as a time with a zero dropped it was 01:00 — a valid finish, so the day would have
+    // become 06:00 to 01:00 overnight. It stays unfinished, and the day is no longer the saved one.
+    test('a digit deleted from a saved custom time leaves it unfinished, never another time', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        const saved = Object.fromEntries(D.map(d => [d, { mode: 'unavailable' }]));
+        saved[D[0]] = { mode: 'custom', start: '06:00', end: '10:00', nextDay: false };
+        await stubWithRoster(page, [winOver({ submission: { currentRevision: 1, days: saved } })], OVR);
+        await page.goto('/overtime.html');
+        const row = page.locator(`[data-day="${D[0]}"]`);
+        await expect(row).toHaveClass(/ot-day--saved/);
+        const end = row.locator('.ot-custom-input[data-which="end"]');
+        await end.click();
+        await end.press('End');
+        await end.press('Backspace');
+        await end.blur();
+        await expect(end, 'what is left of 10:00 stays as it is').toHaveValue('10:0');
+        await expect(row).not.toHaveClass(/ot-day--saved/);
+    });
+
     // THE SAME MEANING READS THE SAME ON BOTH PAGES (owner, Nov 2026). Admin's week grid has two gold
     // washes: a row TICKED with no type yet (8% — it saves nothing until it has one) and a row READY TO
     // SAVE (20%). An answer chosen here and not yet submitted is the second; a Sunday release request on a

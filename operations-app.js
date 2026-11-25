@@ -417,9 +417,11 @@ export function init() {
             input.value = emailMap.get(m.name) || '';
             input.setAttribute('aria-label', `Work email address for ${m.name}`);
             input.enterKeyHint = 'done';
+            // Completed by the one rule Settings and the save use (`workEmailFrom`), which leaves an address
+            // whose `@` was deleted as it is, rather than adding the domain a second time.
             input.addEventListener('blur', () => {
                 const v = input.value.trim();
-                if (v && !v.includes('@')) input.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
+                if (v) input.value = workEmailFrom(v);
             });
 
             const saveBtn = document.createElement('button');

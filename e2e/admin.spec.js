@@ -383,6 +383,74 @@ test('admin: a week-grid time box formats as typed, moves on, and flags an impos
     await expect(end, 'and is refused like any unfinished time').toHaveClass(/\binput-error\b/);
 });
 
+// ── EVERY WAY OF EDITING ONE TIME (edit-sequence tests, 25 Nov 2026) ─────────────────────────────
+// The 22:30 → 02:23 regression passed every test, because every test typed a time into an EMPTY box. An
+// edit is a different sequence of input events — a deletion, an insertion into a full box, a selection
+// replaced — and each must end as the time meant, or as an unfinished time the box refuses. Never as a
+// different, valid time. Driven by real key presses, because the rule reads which kind of input it was.
+test('admin: editing a week-grid time ends as the time meant or as unfinished — never as another time', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    const start = row.locator('.day-start');
+    const end = row.locator('.day-end');
+    /** Put 22:30 in the finish box, typed, and leave the caret at its end. */
+    const fresh = async () => { await end.fill(''); await end.pressSequentially('2230'); await expect(end).toHaveValue('22:30'); };
+    const leave = () => start.focus();
+
+    // A digit typed into a full box goes nowhere: the box holds five characters.
+    await fresh();
+    await end.press('End');
+    await end.press('5');
+    await leave();
+    await expect(end, 'a key pressed in a full box changes nothing').toHaveValue('22:30');
+
+    // A digit deleted from the MIDDLE leaves what is left of 22:30, which is no time.
+    await fresh();
+    await end.press('Home');
+    await end.press('ArrowRight');
+    await end.press('Backspace');
+    await leave();
+    await expect(end, 'never read as a time with a zero dropped').toHaveValue('23:0');
+    await expect(end).toHaveClass(/\binput-error\b/);
+
+    // The colon deleted: the same four digits, so the same time.
+    await fresh();
+    await end.press('Home');
+    for (let i = 0; i < 3; i++) await end.press('ArrowRight');
+    await end.press('Backspace');
+    await leave();
+    await expect(end, 'the colon is put back; the time is the same').toHaveValue('22:30');
+    await expect(end).not.toHaveClass(/\binput-error\b/);
+
+    // One digit selected and typed over: the time meant.
+    await fresh();
+    await end.press('End');
+    await end.press('Shift+ArrowLeft');
+    await end.press('5');
+    await leave();
+    await expect(end).toHaveValue('22:35');
+    await expect(end).not.toHaveClass(/\binput-error\b/);
+
+    // The last digit deleted and another typed: still the time meant.
+    await fresh();
+    await end.press('Backspace');
+    await end.press('5');
+    await leave();
+    await expect(end).toHaveValue('22:35');
+
+    // Everything selected and a new time typed short: a new time, so the shortcut applies.
+    await fresh();
+    await end.selectText();
+    await end.pressSequentially('130');
+    await leave();
+    await expect(end, 'a new time typed short takes its zero').toHaveValue('01:30');
+    await expect(end).not.toHaveClass(/\binput-error\b/);
+});
+
 // ── LEAVING ADMIN BY THE DRAWER OR THE LOGO ASKS FIRST (whole-app review, Oct 2026) ────────────
 // Only the browser's own unload prompt guarded those exits, and a phone never shows it, so staged
 // rows were discarded without a word. The drawer asks in a dialog (the page's banner would sit under

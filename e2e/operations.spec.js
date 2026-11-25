@@ -1170,6 +1170,31 @@ test('operations account status: a work-email Remove of unknown outcome says so,
 // by the first tap, went on running through the delete and turned "Removing…" back into "Remove".
 const ACCT_EMAIL_ROWS = { staffContact: [{ id: 'A. Hared', memberName: 'A. Hared', workEmail: 'a.hared@chilternrailways.co.uk' }], passwordStatus: [], resetRequests: [] };
 
+// AN EDIT, NOT A LOCAL PART (edit-sequence tests, 25 Nov 2026). The form opens a saved address whole, and the box
+// adds the domain when it is left without an "@". With the "@" deleted that made
+// "a.haredchilternrailways.co.uk@chilternrailways.co.uk" — a valid Chiltern address, so Save took it.
+test('operations account status: deleting the @ from a saved email is refused, never completed with the domain again', async ({ page }) => {
+    await page.addInitScript((byPath) => {
+        /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: byPath };
+    }, ACCT_EMAIL_ROWS);
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').filter({ has: page.locator('.email-set-btn--remove') }).first();
+    await row.locator('.email-set-btn').first().click();
+    const input = row.locator('.email-set-form input');
+    await expect(input).toHaveValue('a.hared@chilternrailways.co.uk');
+    await input.press('End');
+    for (let i = 0; i < 'chilternrailways.co.uk'.length; i++) await input.press('ArrowLeft');
+    await input.press('Backspace');
+    await expect(input).toHaveValue('a.haredchilternrailways.co.uk');
+    await row.locator('.email-set-save').click();
+    await expect(input, 'the domain is not added a second time').toHaveValue('a.haredchilternrailways.co.uk');
+    await expect(row.locator('.email-set-error')).toHaveText('Please enter a valid email address');
+    await expect(row.locator('.email-set-form'), 'nothing was saved').toHaveCount(1);
+});
+
 test('operations account status: a Remove waiting on the server says so, and keeps saying "Removing…"', async ({ page }) => {
     await page.clock.install();
     await page.addInitScript((byPath) => {
