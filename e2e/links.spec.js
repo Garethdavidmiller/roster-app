@@ -991,7 +991,7 @@ test('links: deleting a design writes a SOFT delete and leaves the document in p
 
 // STORE RULE 5 (v25.96): every transaction waits for this device's own queued saves first. The store's
 // own tests prove the rule; this proves the PAGE hands the store the real wait (links-app.js →
-// `ownWritesSent: whenOwnWritesSent`) — a stand-in that answered at once would let the delete read a
+// `ownWritesSent: (refs) => whenOwnWritesSentFor(refs)`) — a stand-in that answered at once would let the delete read a
 // server that does not yet hold this device's queued save, and the queued save then brought the
 // design back without its `deletedAt`. The queue is the stub's (fixtures.js → waitForPendingWrites).
 test('links: a delete waits for the saves this device has not sent yet, then goes ahead', async ({ page }) => {
@@ -1012,6 +1012,36 @@ test('links: a delete waits for the saves this device has not sent yet, then goe
     const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
     expect(writes.find((/** @type {any} */ w) => w.data && w.data.deletedAt), 'the delete, once the queue had gone').toBeTruthy();
 });
+
+// A PHONE KNOWN TO HOLD A LEFTOVER (25 Nov 2026): its note set, a checked write asks the design's own
+// record first (claim-retry.js → ownWritesSentFor). Clear, it goes straight on — no eight-second wait
+// for another account's write that can never leave. Still queued from this device, it waits as before.
+// Both halves prove the page passes the store's RECORD through: handed none, the records would always
+// read clear, and the second test's delete would land before this device's own save.
+for (const ownSaveQueued of [false, true]) {
+    test(`links: on a phone known to hold a leftover, a delete ${ownSaveQueued ? 'still waits when the design has its own save queued' : 'asks the design\'s record and skips the wait'}`, async ({ page }) => {
+        await page.addInitScript((queued) => {
+            try { localStorage.setItem('myb_queue_leftover', String(Date.now())); } catch { /* private mode */ }
+            const w = /** @type {any} */ (window);
+            w.__E2E = { ...(w.__E2E || {}), queuedWrites: true, pendingIds: queued ? ['d1', 'd2'] : [] };
+        }, ownSaveQueued);
+        await openLinksWithDesigns(page);
+        await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.setWrites = []; e.cacheAsked = []; });
+        await sheetAction(page, 'designDeleteBtn');
+        await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+        if (ownSaveQueued) {
+            await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.queueWaits || 0),
+                { message: 'a design with its own save queued did not wait for it' }).toBeGreaterThan(0);
+            expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites), 'written before this device\'s own save had gone').toEqual([]);
+            await page.evaluate(() => /** @type {any} */ (window).__E2E.sendQueuedWrites());
+        }
+        await expect(designOptions(page)).toHaveCount(1);
+        const e2e = await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; return { asked: e.cacheAsked, waits: e.queueWaits || 0, writes: e.setWrites || [] }; });
+        expect(e2e.asked.filter((/** @type {string} */ id) => id === 'd1' || id === 'd2'), 'the wait was not asked about the design being deleted').not.toEqual([]);
+        if (!ownSaveQueued) expect(e2e.waits, 'a phone known to hold a leftover waited for the queue again').toBe(0);
+        expect(e2e.writes.find((/** @type {any} */ w) => w.data && w.data.deletedAt), 'the delete').toBeTruthy();
+    });
+}
 
 // A RENAME OR A DELETE THAT FINDS THE DESIGN ALREADY GONE (links-design-5, and the delete's twin). The
 // store now asks, inside its transaction, whether the design is still live; the page says what it found.

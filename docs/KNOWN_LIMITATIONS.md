@@ -126,7 +126,7 @@ field and the record's revision (`sameOverrideRecord`, `override-compare.js`). T
 days ("Someone else has changed Tue 16 Jun since the page loaded, so nothing was saved. Reload the
 page to see the latest, then try again."). A commit whose answer is lost is re-run by Firestore and
 recognised as the save's own records, never called a colleague's. Every check first waits for this
-device's own unsent saves (`whenOwnWritesSent`), because the server does not hold them yet.
+device's own unsent saves to the records it touches (`whenOwnWritesSentFor`), because the server does not hold them yet.
 
 **The weekly roster import** (`saveRosterWrites`, `roster-import-save.js`): a manual record always
 outranks an import, so only a record the import DELETES can lose a colleague's edit. Each deleting
@@ -203,8 +203,17 @@ against the viewer's, which is why it looks like a few people's phones and not e
   held as a batch, or refused if it removes something. Admin's checked saves and deletes and the
   weekly roster import use it. **The price:** a phone with full bars and no data now spends the wait
   AND a transaction's own retries (about eight seconds more) before a save is held — about sixteen
-  seconds in all, accepted. **And it still waits:** an affected phone's checked save still spends its
-  eight seconds before the records are asked.
+  seconds in all, accepted.
+- **A phone known to hold a leftover asks the records FIRST** (v26.83, owner's choice, 25 Nov 2026 —
+  the leftover note in `ownWritesSentFor`, claim-retry.js; the key `myb_queue_leftover`,
+  firebase-client.js). The first time the wait runs out while online with the records clear, the
+  phone notes it; from then on, online, a checked save asks its records first and goes straight to
+  the server when they are clear — no eight seconds. A record of this account's still queued, or
+  unreadable, still waits as before. Offline never skips and is never noted. The note is forgotten
+  when the wait drains, and lapses after a week (`LEFTOVER_NOTE_MS`), so the phone waits once more
+  and finds out afresh. Admin's checked saves, the roster import and the Links workspace all use it.
+  The diagnostic reads "skipped, its records clear" for such a save. **The price:** on a phone with
+  the note, this account's own unsent write to a record the save does NOT touch is not waited for.
 - **The diagnostic line says how the wait went** (`trackOwnWritesWaits`, slow-save.js): "own-saves
   wait 8.0s, ran out, its records clear" means the eight seconds were spent there and the save then
 went on to the server ("a record still queued" or "records unreadable": it was held, or refused); "drained" with a small figure means
@@ -214,16 +223,13 @@ went on to the server ("a record still queued" or "records unreadable": it was h
 
 **What is still open:**
 
-- **An affected device still spends eight seconds on every checked save**, though since v26.63 the
-  save then goes through. The leftover itself never leaves: with the PIN retired nobody can sign that
+- **An affected device spends eight seconds on its first checked save, and once a week after** —
+  the save that notes the leftover, and the one that re-checks it. The leftover itself never leaves: with the PIN retired nobody can sign that
   account in to send its queue. To remove it, clear the site's stored data in the browser (or remove
   and re-add the installed app) and sign in again — which also clears the Pay Calculator's figures
   on that device, so use its "Move Your Pay Data" export first. Not yet tried on an affected phone.
   Clearing the leftover from Firestore's own on-device storage at start-up was offered and not
   chosen (owner, 24 Nov 2026): it edits the SDK's private storage, which an update could change.
-- **The Links workspace's transactions are not covered.** Its store runs a transaction function
-  without naming the documents first (`runTx`, links-design-store.js), so it keeps the whole-queue
-  wait; a designer's phone holding a leftover would still answer a rename or delete as offline.
 - **Whether anything else is slow is unmeasured.** Long-polling on iPhones was prepared and NOT
   shipped (5 Oct 2026): App Speed's data contradicted the premise. Every "Slow save (diagnostic)"
   entry in the Error Log carries the save's time, how much of it the app spent **in the background**,

@@ -1413,6 +1413,37 @@ describe('rule 5 — every transaction waits for this device\'s own queued write
         assert.equal(q.current().deletedAt, undefined);
     });
 
+    // 25 Nov 2026: the wait is asked about THIS design's record, so a phone whose queue holds another
+    // account's leftover write can be answered by the record (claim-retry.js → ownWritesSentFor) rather
+    // than wait eight seconds for a queue that will never drain. A wait handed no record — or another
+    // design's — could only ever say "unknown" or, worse, "clear" about the wrong document.
+    test('every transaction hands the wait exactly the record it is about to read', async () => {
+        const ops = {
+            save: (/** @type {any} */ s) => saveNew(s),
+            rename: (/** @type {any} */ s) => s.rename({ id: ID, name: 'B', by: ME, preBaseline: null }),
+            softDelete: (/** @type {any} */ s) => s.softDelete(ID, ME),
+            restore: (/** @type {any} */ s) => s.restore(ID, ME),
+            purge: (/** @type {any} */ s) => s.purge(ID),
+            binIfStill: (/** @type {any} */ s) => s.binIfStill(ID, ME, () => false),
+        };
+        for (const [name, run] of Object.entries(ops)) {
+            const db = makeDb({ initial: { ...SERVER, deletedAt: name === 'restore' || name === 'purge' ? ts(500) : undefined } });
+            /** @type {Map<string, any>} */ const made = new Map();
+            db.api.doc = (/** @type {any} */ _db, /** @type {any} */ _path, /** @type {string} */ id) => {
+                if (!made.has(id)) made.set(id, { id });
+                return made.get(id);
+            };
+            /** @type {any[][]} */ const asked = [];
+            db.api.ownWritesSent = async (/** @type {any} */ refs) => { asked.push([...(refs ?? [])]); return true; };
+            await run(createDesignStore(db.api)).catch(() => {});
+            assert.ok(asked.length >= 1, `${name}: the wait was never asked`);
+            for (const refs of asked) {
+                assert.equal(refs.length, 1, `${name}: one record per transaction`);
+                assert.equal(refs[0], made.get(ID), `${name}: the record handed to the wait is the design's own`);
+            }
+        }
+    });
+
     test('the store refuses to be built without the wait', () => {
         const { api } = makeDb();
         delete (/** @type {any} */ (api)).ownWritesSent;
