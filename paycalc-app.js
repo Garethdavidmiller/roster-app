@@ -132,7 +132,7 @@ export function init() {
     // valid session, and it stands down if a sign-in supersedes it.
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
-    // ── THE START-UP (page-start.js): the Back guard FIRST, so no early return below can skip it — a page
+    // ── THE START-UP (page-start.js): the Back guard BEFORE any decision, so no early return can skip it — a page
     // restored from the bfcache does not re-run init(), so after a sign-out (or another member signing in on
     // another tab) Back could show the previous member's pay page, figures and all — then the decision, the
     // in-place sign-in (init() runs again, once, with the just-saved session, and runMigrations() selects the

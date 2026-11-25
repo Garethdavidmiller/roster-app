@@ -26,7 +26,7 @@
  */
 
 import { TIME_RE } from './roster-data.js';
-import { shapeClockBoxInPlace, settleClockBox } from './clock-input.js';
+import { shapeClockBoxInPlace, settleClockBox, noteClockBoxBefore } from './clock-input.js';
 
 let _formatting = false;
 let _wired = false;
@@ -35,6 +35,11 @@ let _wired = false;
 export function initTimeInputs() {
     if (_wired) return;
     _wired = true;
+    // What the box held before each change (clock-input.js rule 7) — the edit rule asks it, never guesses.
+    document.addEventListener('beforeinput', e => {
+        const t = /** @type {Element} */ (e.target);
+        if (t?.classList?.contains('time-input')) noteClockBoxBefore(/** @type {HTMLInputElement} */ (t));
+    });
     // Typing 4 digits auto-inserts the colon: "0730" → "07:30"
     document.addEventListener('input', e => {
         if (_formatting || !/** @type {Element} */ (e.target).classList.contains('time-input')) return;

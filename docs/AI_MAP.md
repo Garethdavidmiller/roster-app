@@ -879,7 +879,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `PRINT_UNAVAILABLE_TEXT` · `OPEN_IN_SAFARI_LABEL` · `printIsBlocked` · `openInSafari` · `printOrExplain` · `explainNoPrint`
 
 ### `clock-input.js`
-- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `shapeClockBox` · `shapeClockBoxInPlace` · `settleClockBox` · `timePairError` · `composeTimedValue`
+- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `noteClockBoxBefore` · `shapeClockBox` · `shapeClockBoxInPlace` · `settleClockBox` · `timePairError` · `composeTimedValue`
 
 ### `override-utils.js`
 - **Exports:** `nextLeaveYear` · `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `resolveEffectiveShift` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`

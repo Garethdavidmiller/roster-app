@@ -72,7 +72,7 @@ roster-app/
 ├── calendar-drawer.js ← the Calendar's menu for the saved session, and its rebuild after an in-place sign-in. Its header. Tested by calendar-drawer.test.mjs and e2e/calendar-access.spec.js
 ├── text-scale.js ← how much larger the phone draws text than the stylesheet asks, and the tier the Calendar's rows key on (`data-text-scale`). Its header. Tested by text-scale.test.mjs. See also calendar-phone-layout.spec.js.
 ├── notif.js                ← shared Web Push: support and state, enable/disable, sign-out release, and the platform reads (iOS, standalone, Pages mirror). See also notif.test.mjs.
-├── select-sheet.js ← the app's OWN dropdown in place of the OS's; the native `<select>` stays as the value holder. The rules an edit can break: its header and select-sheet-parity.test.mjs. Tested by select-sheet.test.mjs and select-sheet-pick.test.mjs. See also calendar.spec.js.
+├── select-sheet.js ← the app's OWN dropdown in place of the OS's; the native `<select>` stays as the value holder. The rules an edit can break: its header and select-sheet-parity.test.mjs. Tested by select-sheet.test.mjs and select-sheet-pick.test.mjs. See also calendar-member-picker.spec.js.
 ├── overlay.js              ← the overlay layer's front door: `createLightbox`, the scroll lock, `openNoticeIfClear` and the in-app confirm/prompt dialogs; re-exports the four below, so every import comes from here. See also overlay.test.mjs, overlay-history.test.mjs.
 ├── overlay-history.js      ← the Android Back stack, `whenHistorySettled` and `followLinkOutOf`; re-exported by overlay.js. Tested by overlay-history.test.mjs
 ├── overlay-focus.js        ← the Tab trap and the guard for focus moves no key reports; re-exported by overlay.js. See also overlay.test.mjs.

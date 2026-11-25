@@ -57,6 +57,10 @@
  *       same number of digits before it (one more if a 0 was supplied). The colon may move; the caret
  *       may not jump past a digit. Bug (2) above is this check: "2:30" with the caret at 0 re-split
  *       to "23:0" with it at the end. (b) alone cannot see it — 23:01 is the digits the box showed.
+ *   (e) THE SHORTCUT STILL HAPPENS — the other direction (review, 25 Nov 2026). While the window is open,
+ *       three digits starting 3 to 9 show with their 0 at once, and three left in the box settle with it
+ *       when that reads as a time ("130" → 01:30). (a)–(d) only ask that nothing is invented, so a shortcut
+ *       that stopped happening — or one that came back too eagerly, "2400" padded to 02:40 — passed them.
  *
  * ── SEEDS, REPLAY, AND COST ──────────────────────────────────────────────────────────────────────
  *
@@ -67,14 +71,12 @@
  * printed sequence alone. A block collects the first counterexample of EACH check before failing,
  * so one defect does not hide another.
  *
- * WHEN IT WAS WRITTEN it failed on the code it was written against, with two defects it found itself, so a
- * red run here may be those until they are fixed: (d) a deleted COLON is put back with the caret thrown to
- * the end — 22:30, the caret after the colon, Backspace twice and a 1 saves 22:31 where the member was
- * making 21:30 — and the same jump when a fourth digit re-splits an unfinished edit ("15:2", Home, 1 →
- * "11:52", caret at the end); (b) a box the page WRITES a time into after it was typed in is judged by its
- * stale memory — emptied, then 10:55 prefilled, the "55" selected and an 8 typed, it settles to 01:08.
- * Against clock-input.js as it stood before 25 Nov 2026 (`257b5313`) it finds both shipped defects: the
- * exact 22:54 → "22:4" → 02:24 of (1) under (b), and the re-split of (2) under (d).
+ * WHAT IT HAS FOUND. Written against clock-input.js as it stood before 25 Nov 2026 (`257b5313`), it finds both
+ * shipped defects: the exact 22:54 → "22:4" → 02:24 under (b), and the re-split of "2:30" under (d). It then found
+ * two more in the code that fixed them — a deleted colon put back with the caret thrown to the end, and a box the
+ * page wrote judged by a stale memory (rules 5 and 6) — and a model of it run 200,000 times found the gaps in
+ * those fixes that rule 7 closed: a page-written time beginning with the member's own digits, and a paste,
+ * composition or autofill over part of a time. Each is in clock-input.js's header.
  *
  * Desktop projects only (`chromium`, `webkit`): the keys reach the box the same way under touch
  * emulation, so the phone projects would double the minutes and prove nothing new. Keys go through
@@ -109,8 +111,10 @@ function weighted(rnd, table) {
 // of them read as a time with a zero dropped (22:4 → 02:24), and the two times the shipped bugs used.
 const FAVOURITE_TIMES = ['22:30', '16:30', '12:30', '23:45', '21:15', '13:05', '10:20', '19:30'];
 // What a 'page' box was last typed to before the page wrote its time: its memory, which the next key is judged by.
-const PRIORS = ['', '7', '13', '223', '2230', '0915'];
-const PASTES = ['630', '130', '1:30', '0730', '22:30', '2400', '12', '7', '9:5', '12345', '1a3'];
+// Two-digit priors that BEGIN a favourite time matter most: the page writes the time back over what the member typed
+// (Links' window editor does), and a memory that matched the new time's start fooled rule 5 (review, 25 Nov 2026).
+const PRIORS = ['', '7', '13', '223', '2230', '0915', '10', '22', '19', '1', '135'];
+const PASTES = ['630', '130', '1:30', '0730', '22:30', '2400', '12', '7', '9:5', '12345', '1a3', '4', '8', '5', '1'];
 
 /** @param {() => number} rnd */
 function randomTime(rnd) {
@@ -151,7 +155,9 @@ function randomSequence(rnd) {
             // A selection is usually more than one key wide (the "30" of 22:30), and a key typed over it is
             // where both shipped bugs began, so a selecting key is often doubled and followed by a digit.
             actions.push(a, a);
-            if (rnd() < 0.5) actions.push(randomDigit(rnd));
+            // …and as often by a single digit PASTED over it — a paste, a composition and an autofill are
+            // changes too, and only a typed key used to count as typing over (review, 25 Nov 2026).
+            if (rnd() < 0.5) actions.push(rnd() < 0.3 ? `paste:${randomDigit(rnd)}` : randomDigit(rnd));
         } else actions.push(a);
     }
     return { start: { kind, value, caret, prior }, actions };
@@ -312,11 +318,17 @@ function judge(seq, o) {
         if (digits(raw.v).length <= 1) open = true;
         // (a) what the box shows.
         if (!wellFormed(shaped.v)) fail('a', `${step}: the box shows something that is neither a time nor an unfinished one`);
-        // (b) the digits typed, past the fourth dropped, or one leading 0 while the window is open.
+        // (b) the digits typed, past the fourth dropped, or one leading 0 while the window is open — and while
+        // TYPING only where no fourth digit could follow, a first digit of 3 to 9: a 0 supplied to "240" makes
+        // 02:40 a full box, and the last 0 of 24:00 can never be typed (the Oct 2026 bug; review, 25 Nov 2026).
         const rd = digits(raw.v), sd = digits(shaped.v);
-        const padded = open && rd.length === 3 && sd === `0${rd}`;
+        const padded = open && rd.length === 3 && +rd[0] >= 3 && sd === `0${rd}`;
         if (sd !== rd.slice(0, 4) && !padded)
             fail('b', `${step}: the box changed the digits typed${rd.length === 3 && sd === `0${rd}` ? ' — a leading 0 supplied to what is left of a time' : ''}`);
+        // (e) …and the other direction: a NEW time typed short takes its zero where nothing else can follow.
+        // Three digits starting 3 to 9 cannot begin an hour, so while the window is open they show with it at once.
+        if (open && rd.length === 3 && +rd[0] >= 3 && sd !== `0${rd}`)
+            fail('e', `${step}: three digits typed as a new time, starting ${rd[0]}, did not take their leading 0`);
         // (d) the caret keeps its digits.
         if (shaped.v !== raw.v && raw.s === raw.e) {
             const want = Math.min(digits(raw.v.slice(0, raw.s)).length + (padded ? 1 : 0), sd.length);
@@ -334,6 +346,11 @@ function judge(seq, o) {
         fail('b', `${step}: leaving the box changed its digits`);
     else if (isTime(o.settled) && sd !== ld && !open)
         fail('b', `${step}: a leading 0 supplied to what is left of a time — a valid time nobody typed`);
+    // (e) A new time typed short, left with three digits, is read with its zero dropped when that is a time — the
+    // owner's "130" → 01:30 (24 Nov 2026). Without this the test could not see a shortcut that stopped happening.
+    const dropped = ld.length === 3 ? `0${ld[0]}:${ld.slice(1)}` : '';
+    if (open && dropped && isTime(dropped) && o.settled !== dropped)
+        fail('e', `${step}: three digits typed as a new time were not read with their zero dropped (${dropped})`);
     if (!changed && o.settled !== o.start)
         fail('c', `${step}: no key changed the box, yet leaving it changed "${o.start}"`);
     return [...found].map(([check, why]) => ({ check, why }));
