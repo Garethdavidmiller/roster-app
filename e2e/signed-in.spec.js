@@ -980,7 +980,7 @@ test('a new password whose record is still on its way: Settings opened meanwhile
     expect(await readCollection('passwordStatus'), 'nothing has landed').toEqual([]);
 
     // Settings opened again with the record still queued on this device. It is evidence the password
-    // was set (settings-app.js → refreshStatus: "every path into paint(true) is real evidence"). Until
+    // was set (settings-password-card.js → refreshStatus: "every path into paint(true) is real evidence"). Until
     // v25.98 the read handed it back with its pending server time as null, and the card said the
     // opposite — found here first, kept as a fixme, and fixed by reading the time as its estimate
     // (`getPasswordStatus`, firebase-client.js).

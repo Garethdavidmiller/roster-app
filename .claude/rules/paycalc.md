@@ -423,7 +423,7 @@ all of this in `paycalc-roster-suggestions.test.mjs`.
 
 **Training / Induction / Assessment / Team Day pays as the day underneath (OTHER_DAYS.md, confirmed
 by Gareth Jul 2026).** A `training` override is the ONLY override that falls back to the base instead
-of replacing it — resolved solely via `resolveOtherPay` in `override-utils.js` (never inline the
+of replacing it — resolved solely via `resolveOtherPay` in `other-day.js` (never inline the
 mapping): weekday → contracted basic (nothing suggested); rostered Sat/BH/Boxing → that day's premium
 bucket at base hours; actual times on a rostered day → base-cap + excess→Overtime (BH over-run →
 `bhOt`, matching "Bank Holiday Overtime 1.25"); **`TRG RDW` (training rest-day) → RDW bucket, 8h

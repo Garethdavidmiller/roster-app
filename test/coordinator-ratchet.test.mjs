@@ -296,7 +296,9 @@ const CAPS = {
     // is at its own cap. A pure DOMAIN module like links-design.js, so capped where it stands.
     // 928 → 900 (16 Nov 2026, at 928 of 928): changelog narrative in its comments cut to the rule and
     // its reason (git log keeps the history), 928 lines down to 847 — the ceiling comes down with them.
-    'override-utils.js':        900,
+    // 900 → 775 (25 Nov 2026, at 745 of 899): the Other-day grammar and its pay resolver left for other-day.js,
+    // re-exported here so no importer changed. Measured plus about 30.
+    'override-utils.js':        775,
     // 1350 → 1100 at v21.90. The three date-keyed document collections left for
     // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
     // them: signature check, versioned path, and what a failed or ambiguous commit does to the
@@ -456,7 +458,11 @@ const CAPS = {
     'overlay.js':              1050,
     // settings-app.js crossed 900 on 18 Nov 2026, 900 → 908: the Work Email card's slow-load branch now marks the card
     // saved as an ordinary load does. Wiring, not a rule. 908 measured, plus 50, to the next 50.
-    'settings-app.js':         1000,
+    // 1000 → 580 (25 Nov 2026, at 552 of 1,000), a SPLIT at the cap: the `?` panels' content left for
+    // settings-tips.js, the Password card for settings-password-card.js and the Install card for
+    // settings-install-card.js; the coordinator wires them. Measured plus about 30, so the next card brings its
+    // own module rather than a raise.
+    'settings-app.js':          580,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix

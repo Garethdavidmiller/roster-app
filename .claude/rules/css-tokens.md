@@ -82,7 +82,8 @@ is the shared uppercase micro field label (GRADE, TAX CODE, …). Every card-bea
   360px), so a wider gap, a wider header chip or a bigger title size spends that line.
 - **The header shares the card's surface**: `--surface` with a hairline beneath it, the title
   `--type-body` at 700 with `-0.01em` tracking and `text-wrap: balance`. The `?` Tips circle is 24px
-  with `--type-small`, the size of the shared `.help-btn`, and keeps its 44px target.
+  with `--type-small`, the size of the Pay Calculator's `.help-btn` (paycalc.css — its one user, so it
+  left shared.css on 25 Nov 2026), and keeps its 44px target.
 - **Settings' status chips are coloured by their card's state** (`data-tone`), by the SAME
   declarations as the summary strip, so the two cannot disagree; notifications switched off on purpose
   report `'plain'`, not `ok` (settings.css → "THE CARD CHIPS WEAR THE STRIP'S COLOURS"). Pinned by
@@ -587,7 +588,8 @@ Centred text is fine for a line or two and works against the reader beyond that 
 a different x. **A one-time notice is left-aligned throughout** — badge, title, date and body
 (`.notice-head { align-items: flex-start }`, `shared.css`; the new-notice skill's template says the same).
 The About panel and the drawer's App Notices panel keep a CENTRED masthead over their own short rows: a
-different family. (`.lightbox-privacy` stays centred: its one use is a one-line note on the Pay Calculator.)
+different family. (`.lightbox-privacy` stays centred: its one use is a one-line note in the Pay Calculator's About panel, so
+it lives in paycalc.css.)
 
 **A link in prose** — an explainer or a Tips panel — is navy at 600 with a 2px underline offset
 (`#tipsLightboxContent a, .card-explainer a`, in `shared.css`), as the guides' links are — never the

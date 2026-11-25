@@ -402,7 +402,7 @@ service cloud.firestore {
         // 'other' (OTHER_DAYS.md) uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"]
         // — flavour TRG/IND/ASSESS/TEAM/UNION/MEET, optional rest-day marker, optional actual times
         // (bounded, so an impossible time can never ride in on a training value).
-        // Keep this alternation in sync with _OTHER_RE in override-utils.js.
+        // Keep this alternation in sync with _OTHER_RE in other-day.js.
         (
           (request.resource.data.type in ['shift', 'rdw'] &&
            // Bounded HH:MM-HH:MM — hours 00-23, minutes 00-59 (rejects impossible times

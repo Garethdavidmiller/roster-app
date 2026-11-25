@@ -49,7 +49,7 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 const PAGES = [
     { js: 'admin-tips.js',     html: 'admin.html' },
     { js: 'operations-tips.js', html: 'operations.html', scope: { LEAVE_FILE_MAX_AGE_DAYS } },
-    { js: 'settings-app.js',   html: 'settings.html' },
+    { js: 'settings-tips.js',  html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, DEFAULT_TABLE_FIGURES, WEEKENDS_OFF_AIM_PCT } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
     // The Calendar's one ? is drawn by Team View (calendar-team-view.js), so that file is where its button is read.
@@ -266,12 +266,12 @@ describe('operations — the document cards promise only what the app does', () 
 describe('settings — the ? panel names the notifications the card lists', () => {
     const card = [...readFileSync('settings.html', 'utf8').matchAll(/<span class="notif-kind"[^>]*>([^<]+?)(?: ·)?<\/span>/g)]
         .map(m => m[1].trim());
-    const got = readCardTips('settings-app.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
+    const got = readCardTips('settings-tips.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
     const named = (got?.items ?? []).map((/** @type {any} */ i) => /<strong>([^<]+)<\/strong>/.exec(i.html)?.[1] ?? '');
 
     test('premise: both lists were found', () => {
         assert.ok(card.length >= 4, `settings.html: found ${card.length} .notif-kind spans`);
-        assert.ok(named.length >= 4, 'settings-app.js: no "What you\'ll get" section in the notifications tips');
+        assert.ok(named.length >= 4, 'settings-tips.js: no "What you\'ll get" section in the notifications tips');
     });
     test('every kind on the card is in the panel', () => {
         const missing = card.filter(k => !named.some(n => n.endsWith(k)));
@@ -291,12 +291,12 @@ describe('settings — the ? panel says who the pay reminder is for', () => {
     const server = readFileSync('functions/pay-reminder.js', 'utf8');
     const list = /PAY_REMINDER_GRADES\s*=\s*Object\.freeze\(\[([^\]]*)\]\)/.exec(server)?.[1] ?? '';
     const grades = [...list.matchAll(/'(\w+)'/g)].map(m => m[1].toUpperCase());
-    const got = readCardTips('settings-app.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
+    const got = readCardTips('settings-tips.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
     const item = (got?.items ?? []).map((/** @type {any} */ i) => String(i.html)).find((/** @type {string} */ h) => h.startsWith('<strong>Pay reminder</strong>')) ?? '';
 
     test('premise: the server\'s grades and the panel\'s item were found', () => {
         assert.ok(grades.length > 0, 'functions/pay-reminder.js: PAY_REMINDER_GRADES was not found');
-        assert.ok(item, 'settings-app.js: no Pay reminder item in "What you\'ll get"');
+        assert.ok(item, 'settings-tips.js: no Pay reminder item in "What you\'ll get"');
     });
     test('the item names every grade the server sends it to', () => {
         for (const g of grades) assert.match(item, new RegExp(`\\b${g}\\b`), `the panel promises the reminder without saying it is for ${g} colleagues: ${item}`);
@@ -349,7 +349,7 @@ describe('the pay reminder is promised only to the grades it is sent to, everywh
 describe('settings — the Work Email ? panel says what the card says the email is for', () => {
     const html = readFileSync('settings.html', 'utf8').replace(/\s+/g, ' ');
     const sentence = /Self-service recovery isn’t available yet\. For now, ask the admin if you forget your password/.exec(html)?.[0];
-    const tip = readCardTips('settings-app.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
+    const tip = readCardTips('settings-tips.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
         .map((/** @type {any} */ i) => i.html.replace(/<[^>]+>/g, '')).join(' ');
 
     test('premise: the card states the convention', () => {
@@ -391,7 +391,7 @@ describe('the work email and password lines state today, and promise nothing', (
 describe('who can see the saved work email is said of the email, never of the password', () => {
     const settings = readFileSync('settings.html', 'utf8').replace(/\s+/g, ' ');
     const guide = readFileSync('staff-guide.html', 'utf8').replace(/\s+/g, ' ');
-    const tip = readCardTips('settings-app.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
+    const tip = readCardTips('settings-tips.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
         .map((/** @type {any} */ i) => i.html.replace(/<[^>]+>/g, '')).join(' ');
 
     for (const [where, text] of [['the Work Email card', settings], ['its ? panel', tip], ['the Staff Guide', guide]]) {

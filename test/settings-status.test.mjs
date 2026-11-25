@@ -235,10 +235,10 @@ describe('the list itself', () => {
 // ── THE MINIMUM A MEMBER IS TOLD IS THE MINIMUM THE SAVE ENFORCES (sign-in audit E4, 13 Nov 2026) ─────────────────
 // `validateNewPassword` refuses anything shorter than MIN_PASSWORD_LENGTH (auth-identity.js), and the forced overlay
 // words its hint from the constant. Three places a member reads the figure are HTML and prose instead — the Password
-// card's label, its `?` panel (settings-app.js's CARD_TIPS, which tips-content.test.mjs evaluates with no scope, so it
+// card's label, its `?` panel (settings-tips.js's CARD_TIPS, which tips-content.test.mjs evaluates with no scope, so it
 // cannot interpolate the constant) and the staff guide — so a change to the constant left them stating the old rule.
 describe('the password minimum the page states', () => {
-    const SOURCES = ['settings.html', 'settings-app.js', 'staff-guide.html'];
+    const SOURCES = ['settings.html', 'settings-tips.js', 'staff-guide.html'];
     /** Every "at least N characters" in a file, tags between the words ignored. @param {string} file */
     const stated = (file) => [...readFileSync(new URL(`./${file}`, REPO_ROOT_URL), 'utf8')
         .replace(/<[^>]+>/g, '').matchAll(/at least (\d+) characters/g)].map(m => Number(m[1]));
