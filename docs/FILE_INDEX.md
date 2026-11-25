@@ -121,7 +121,8 @@ roster-app/
 ├── admin-booked-periods.js ← the recorded-dates list on admin.html and which year of it is shown, plus the shared two-tap and feedback fade. Its header. Tested by admin-booked-periods.test.mjs
 ├── print-guard.js      ← whether `window.print()` can do anything here (it does nothing in an iOS home-screen app); every print control goes through `printOrExplain`. Tested by print-guard.test.mjs. See also print.spec.js.
 ├── clock-input.js      ← the rules of a TEXT clock box, shared by every page with one, and each box's memory of whether its digits are an EDIT. Tested by clock-input.test.mjs
-├── override-utils.js   ← override, member-start and shift helpers, including `resolveEffectiveShift` (the override→display ladder). See also coordinator-ratchet.test.mjs.
+├── override-utils.js   ← override, member-start and shift helpers, including `resolveEffectiveShift` (the override→display ladder); re-exports other-day.js. See also coordinator-ratchet.test.mjs.
+├── other-day.js        ← the Other-day value grammar (`OTHER_FLAVOURS`, parse/compose) and how one pays (`resolveOtherPay`); `isRestShift`. Pure; tested by override-utils.test.mjs. See also firestore-contract-parity.test.mjs.
 ├── admin-app.js            ← coordinator for admin.html; its body is an exported `init()` run by admin-boot.js. See also coordinator-ratchet.test.mjs.
 ├── admin-tips.js           ← CARD_TIPS for admin.html's `?` panels. Pure data
 ├── admin-boot.js           ← two-line bootstrap for admin.html (CSP blocks inline module scripts)
@@ -140,6 +141,9 @@ roster-app/
 ├── operations-boot.js      ← two-line bootstrap for operations.html (CSP blocks inline module scripts)
 ├── settings-status.js ← what the Settings cards' states MEAN and which open; runs no reads. **Silence is not success.** Pure; tested by settings-status.test.mjs. See also settings.spec.js.
 ├── settings-app.js         ← coordinator for settings.html; body is `init()`, run by settings-boot.js; driven by e2e/settings.spec.js
+├── settings-tips.js        ← CARD_TIPS for settings.html's `?` panels. Pure data. See also tips-content.test.mjs, settings-status.test.mjs.
+├── settings-password-card.js ← the Settings Password card: migration status and the change-password form; `passwordSaving()` holds the reload and sign-out. Driven by e2e/settings.spec.js
+├── settings-install-card.js ← the Settings Install card, and the hold on the browser's install offer from page start. Driven by e2e/settings.spec.js
 ├── settings-boot.js        ← two-line bootstrap for settings.html (CSP blocks inline module scripts)
 ├── huddle.js               ← the Daily Huddle manual upload card on Operations. See also dependency-pin-parity.test.mjs.
 ├── notif-card.js           ← the Settings Notifications card's wiring. Tested by notif-card.test.mjs. See also settings.spec.js.

@@ -164,7 +164,7 @@ export function settleClockBox(box) {
 }
 
 /** What is wrong with a FILLED-IN pair of clock times, or `''` — the ONE rule a Shift's times and an
- *  Other day's share (`composeTimedValue` here, `composeOtherValue` in override-utils.js; review, 21 Nov
+ *  Other day's share (`composeTimedValue` here, `composeOtherValue` in other-day.js; review, 21 Nov
  *  2026: the week grid's save had its own copy). Equal times are refused because a 0h shift PAYS as
  *  24h through the overnight wrap in the duration maths. @param {string} s @param {string} e @returns {string} */
 export function timePairError(s, e) {

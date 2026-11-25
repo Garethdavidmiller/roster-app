@@ -289,7 +289,7 @@ describe('runPasswordSave', () => {
 
     test('one deadline for both surfaces, and it is the sign-in\'s 8 seconds', () => {
         assert.equal(SAVE_TIMEOUT_MS, 8000);
-        for (const f of ['password-force.js', 'settings-app.js']) {
+        for (const f of ['password-force.js', 'settings-password-card.js']) {
             assert.doesNotMatch(readFileSync(new URL(`./${f}`, REPO_ROOT_URL), 'utf8'), /SAVE_TIMEOUT_MS\s*=/, `${f} declares its own deadline again`);
         }
     });
