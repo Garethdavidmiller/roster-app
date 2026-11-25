@@ -623,8 +623,8 @@ architectural decision.
 **Revisit — do not auto-adopt — when either:**
 
 1. **You want real TypeScript types.** `tsc --noEmit` already runs the checker without the emit, so
-   this is about types in the source, not about checking. Note the scope limit: not over `functions/`
-   or the service worker (`typecheck-scope.test.mjs`).
+   this is about types in the source, not about checking. Note the scope limit: not over the service
+   worker (`typecheck-scope.test.mjs`); `functions/` has its own strict project since 25 Nov 2026.
 2. **A bug is traced to drift in a hand-maintained list.** That is the failure the lists' CI locks
    exist to prevent; one getting through is evidence the locks are not enough.
 

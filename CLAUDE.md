@@ -284,7 +284,7 @@ access, or names a person:
 npm test                    # test:hygiene + test:parse + test:unit (every file in test/ but the Functions-only and rules suites) — needs NOTHING installed
 npm run check               # lint + typecheck + npm test (full pre-push gate)
 npm run lint                # ESLint on all JS files
-npm run typecheck           # tsc --noEmit on all root JS modules
+npm run typecheck           # tsc --noEmit, strict: the root JS modules AND functions/ (needs functions/node_modules)
 npm run test:hygiene        # the no-emulator, no-mock suites; the list is package.json `test:hygiene`, not restated here
 npm run test:parse          # module-parse (--experimental-vm-modules)
 npm run test:unit           # all --experimental-test-module-mocks tests

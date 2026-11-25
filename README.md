@@ -32,23 +32,27 @@ unverified after an install failed in their sandbox. Almost none of it depends o
 |---|---|---|
 | Cloud Functions handlers | `npm run test:functions` | `cd functions && npm ci` — these `require()` the real Firebase Admin SDK, and the roster-geometry suite drives the real PDF parser |
 | Security rules | `npm run test:rules` | the Firebase emulator binary, plus a root `npm ci` |
-| Lint, typecheck, browser tests | `npm run lint` · `npm run typecheck` · `npm run test:e2e` | a root `npm ci` |
+| Lint, browser tests | `npm run lint` · `npm run test:e2e` | a root `npm ci` |
+| Typecheck — the browser modules AND the Cloud Functions | `npm run typecheck` | a root `npm ci` and `cd functions && npm ci` — the Functions' types are firebase-admin's, firebase-functions' and Node's own |
 | Signed-in browser journeys | `npm run test:signed-in` | Java 21 for the Firestore emulator, a root `npm ci`, `cd functions && npm ci`, and Playwright's Chromium and WebKit |
 
-With a root install, `npm run check` is the full pre-push gate: lint, typecheck, then `npm test`.
+With a root install and the Functions install, `npm run check` is the full pre-push gate: lint, typecheck, then `npm test`.
 
 ### Do not substitute `npx tsc`
 
-`npm run typecheck` runs the TypeScript version this project pins, against `jsconfig.json`. If that
-compiler is not installed the command now **refuses and says so** rather than reaching for `npx`.
+`npm run typecheck` runs the TypeScript version this project pins against two projects: `jsconfig.json`
+(the browser modules) and `functions/jsconfig.json` (the Cloud Functions, CommonJS on Node, equally
+`strict`). If that compiler is not installed — or the Functions' own install is missing, without
+which every `require` of the Firebase SDKs reads as a missing module — the command **refuses and
+says so** rather than reaching for `npx` or reporting the install's noise as defects.
 
 That refusal replaced a fallback, because the fallback was actively misleading: on a tree with no
 `node_modules` it resolved an unpinned compiler and reported missing-module errors for
 devDependencies that were never installed. Those look like application defects in a report and are
 not. A reviewer was right to discount them; the repository should not have produced them.
 
-What the typecheck actually covers — and the two areas `jsconfig.json` deliberately excludes — is
-recorded, with the measurements behind that decision, in `typecheck-scope.test.mjs`.
+What the typecheck actually covers — the service worker is the one area still outside both projects —
+is recorded, with the measurements behind that decision, in `typecheck-scope.test.mjs`.
 
 ### There are no secrets in this tree
 
