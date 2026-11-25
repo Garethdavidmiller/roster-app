@@ -26,7 +26,7 @@ import { initPasswordCard, passwordSaving } from './settings-password-card.js';
 import { captureInstallOffer, initDeviceCard } from './settings-install-card.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, continueAfterSignIn } from './page-session.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 import { inventoryOf, inventorySummary } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
@@ -194,11 +194,8 @@ export function init() {
         // On success, initialise in place via initAuthorised(), falling back to a reload if it throws
         // mid-wiring (never less robust than reload). Don't resolveSession(false) here, or the one-shot
         // sessionReady is poisoned before initAuthorised can resolve it true.
-        // Reload (fresh overlay) rather than run initAuthorised() with a null identity if getSession()
-        // is null by then — belt and braces, because a failed save never reaches onSuccess
-        // (`runNamedSignIn` refuses with kind 'storage' first). See operations-app.js.
-        const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } initAuthorised(); } catch { window.location.reload(); } };
-        initLoginOverlay({ pageLabel: 'Settings', onSuccess });
+        // The rest of the recipe — no session, a throw, the Back guard — is `continueAfterSignIn`'s.
+        initLoginOverlay({ pageLabel: 'Settings', onSuccess: continueAfterSignIn(initAuthorised) });
     } else {
         initAuthorised();
     }

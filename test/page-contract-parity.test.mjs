@@ -963,6 +963,21 @@ test('every page reloads when Back restores it for a different member', () => {
         'coordinators that never install page-session.js\'s back/forward-cache guard');
 });
 
+// …AND SIGNS IN IN PLACE THROUGH ONE RECIPE (extraction review, Nov 2026). Eight pages each wrote the
+// sign-in card's `onSuccess` by hand, and four of them had lost the step that tells the Back guard the
+// page is now the signed-in member's — a Back to it reloaded and lost the reader's place. The recipe is
+// `continueAfterSignIn` (page-session.js); what it DOES is page-session.test.mjs. The Calendar is not a
+// card-opening coordinator: its lock cards sign in through `finishSignIn`, which rebuilds the month.
+test('every page that opens the sign-in card continues through continueAfterSignIn', () => {
+    const opening = APP_PAGE_ENTRIES.map(p => p.coordinator).filter(f => /\binitLoginOverlay\(/.test(codeOf(f)));
+    assert.ok(opening.length >= 8, `expected the eight card-opening pages, found ${opening.join(', ')}`);
+    for (const f of opening) {
+        const code = codeOf(f);
+        assert.match(code, /onSuccess(:\s*|\s*=\s*)continueAfterSignIn\(/, `${f}: the sign-in card's onSuccess must be continueAfterSignIn(…)`);
+        assert.doesNotMatch(code, /rebaseRestoreGuard\(/, `${f} rebases the Back guard by hand — continueAfterSignIn does it`);
+    }
+});
+
 test('every page signs out through signOutAndLeave — never a hand-rolled clear-and-navigate', () => {
     for (const p of APP_PAGE_ENTRIES) {
         const code = codeOf(p.coordinator);

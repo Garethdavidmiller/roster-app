@@ -15,7 +15,7 @@
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, DISCARD_QUESTION, continueAfterSignIn } from './page-session.js';
 import { createDraftSlot, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -132,11 +132,9 @@ export function init() {
         initLoginOverlay({
             pageLabel: 'Admin',
             about: ADMIN_SIGN_IN_ABOUT,
-            // A first sign-in initialises in place, falling back to a reload if that throws. A session lost
-            // LATER is the shared card's (`guardNamedSession`), which reloads: sessionReady is one-shot.
-            onSuccess: () => {
-                try { initAuthorised(); } catch { window.location.reload(); }
-            },
+            // A first sign-in initialises in place (`continueAfterSignIn`). A session lost LATER is the
+            // shared card's (`guardNamedSession`), which reloads: sessionReady is one-shot.
+            onSuccess: continueAfterSignIn(initAuthorised),
         });
     }
 

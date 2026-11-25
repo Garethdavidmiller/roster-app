@@ -383,6 +383,37 @@ export function rebaseRestoreGuard() {
     _builtFor = getSession()?.name ?? null;
 }
 
+/**
+ * The `onSuccess` of a page's in-place sign-in (`initLoginOverlay`): ONE recipe, which eight pages each
+ * spelled out by hand until four of them had lost a step (extraction review, Nov 2026).
+ *
+ *   1. NO SESSION BY NOW → RELOAD into a fresh sign-in, never run the page for nobody: re-entering the
+ *      page's 'login' branch would find the overlay still mounted and soft-lock on "Signed in…". Belt and
+ *      braces — a session that failed to save never reaches onSuccess (`runNamedSignIn` refuses with kind
+ *      'storage' first, and Private Browsing has not refused storage since iOS 11), so only a session lost
+ *      in between lands here (another tab signing out, site data cleared). `needName` also asks for the
+ *      session's NAME, for a page whose data is keyed by it (the Pay Calculator's per-member storage).
+ *   2. THE PAGE IS NOW THEIRS (`rebaseRestoreGuard`): without it the Back/forward guard still compares with
+ *      the nobody the page was loaded for, and a Back to it reloads for nothing and loses the reader's place.
+ *   3. RUN THE PAGE IN PLACE, and RELOAD IF THAT THROWS mid-wiring, so the in-place path is never less
+ *      robust than the reload one. Nothing in `run` may be awaited before it returns (the login freeze,
+ *      PASSWORD_DESIGN.md §3.6), and the page must not `resolveSession(false)` before it: `sessionReady`
+ *      is one-shot.
+ * @param {() => void} run  the page's own start, for whoever has just signed in
+ * @param {{ needName?: boolean }} [opts]
+ * @returns {() => void}
+ */
+export function continueAfterSignIn(run, { needName = false } = {}) {
+    return () => {
+        try {
+            const session = getSession();
+            if (!session || (needName && !session.name)) { window.location.reload(); return; }
+            rebaseRestoreGuard();
+            run();
+        } catch { window.location.reload(); }
+    };
+}
+
 /** sessionStorage (one tab's journey): when this page's start-up stalled and the identity then landed
  *  late, the last time it reloaded for that. Local to this module — one reader, one writer. */
 const LATE_IDENTITY_RELOAD = 'myb_late_identity_reload';

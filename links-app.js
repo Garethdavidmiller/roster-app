@@ -70,7 +70,7 @@ import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { createQueuedSaves, stillUnsaved, refusedMakeLine } from './links-queued-saves.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, leaveAfterAsking } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, leaveAfterAsking, continueAfterSignIn } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
     sortByDeleted, deleteOutcomeLine, renameRefusedLine,
@@ -114,10 +114,8 @@ export function init() {
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'links');
     if (_access.decision === 'login') {
         // The in-place sign-in runs init() again, once, with the new session. Never resolveSession(false) here: the
-        // one-shot sessionReady would be spent before that pass. A reload if init() throws, or if the session did
-        // not save (iOS private mode) — re-entering then would soft-lock.
-        const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
-        initLoginOverlay({ pageLabel: 'Links', onSuccess });
+        // one-shot sessionReady would be spent before that pass. The rest is `continueAfterSignIn`'s.
+        initLoginOverlay({ pageLabel: 'Links', onSuccess: continueAfterSignIn(init) });
         return;
     }
     if (_access.decision === 'forbidden') {

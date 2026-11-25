@@ -22,7 +22,7 @@ import { initLoginOverlay, dismissLoginOverlay, sayStaffPinEndedIn } from './log
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, navGatesFor, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, continueAfterSignIn, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
@@ -156,16 +156,13 @@ export function init() {
         wireNavPanel();
         initLoginOverlay({
             pageLabel: 'Overtime',
-            onSuccess: () => {
+            // No session: a reload into a fresh sign-in rather than refuse a real participant (v24.56) —
+            // that, the Back guard and a throw are `continueAfterSignIn`'s.
+            onSuccess: continueAfterSignIn(() => {
                 currentSession = getSession();
-                // No session: reload into a fresh sign-in rather than refuse a real participant (v24.56).
-                // Belt and braces — a failed save never reaches onSuccess (`runNamedSignIn` refuses with
-                // kind 'storage' first; iOS Private Browsing stopped refusing storage at iOS 11).
-                if (!currentSession) { window.location.reload(); return; }
-                currentUser = currentSession.name ?? null;
+                currentUser = currentSession?.name ?? null;
                 dismissLoginOverlay();
-                resetNavPanel(); wireNavPanel();   // the drawer, rebuilt for whoever signed in…
-                rebaseRestoreGuard();              // …and the page is theirs, so a Back to it need not reload
+                resetNavPanel(); wireNavPanel();   // the drawer, rebuilt for whoever signed in
                 // The gate above ran signed OUT — re-decide for whoever actually signed in.
                 if (requirePage({ status: 'named', member: currentUser }, 'overtime').decision === 'forbidden') {
                     // No page follows, so nothing will read the sign-in timer: drop it, or the next
@@ -176,7 +173,7 @@ export function init() {
                     return;
                 }
                 start();
-            },
+            }),
         });
         return;
     }
