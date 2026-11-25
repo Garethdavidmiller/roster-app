@@ -596,6 +596,9 @@ its marker. The banner goes when the last provisional row does.
   is the answer no national page gives.
 - **No prices, ever.** Re-set annually and three-way variable; a stale one is a mis-sell. Deliberately
   stricter than the railcard guide's two min-fare figures.
+- **Not a national catalogue, and not customer-facing.** It is a Marylebone guide: `railrover.org` and
+  National Rail already do the catalogue, and the page is written for staff at the gateline, as the
+  railcard guide is (the retired plan's won't-do list, 2 Sep 2026).
 - **The date box gets the `.gotcha`.** It is the only ranger/rover rule a gateline can enforce by
   looking, and the one most likely to be unknown.
 - **A list of things we have NOT checked must not wear the "valid" tick.** The green ✓ is the token
