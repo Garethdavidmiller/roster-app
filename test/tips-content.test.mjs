@@ -467,7 +467,7 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
 
     test('the refusal is described both ways, each with its own remedies', async () => {
         const { CARD_TIPS } = await import('../links-tips.js');
-        const gen = src('links-design.js');
+        const gen = src('links-generate.js');   // the generator moved out of links-design.js (25 Nov 2026)
         for (const reason of ['short-hours', 'over-hours']) assert.ok(gen.includes(`'${reason}'`), `generateLink no longer refuses with ${reason}`);
         // The generator's panel, since Nov 2026: the refusal is the generator's, of a table of targets.
         const tip = words(CARD_TIPS, 'links-generator');

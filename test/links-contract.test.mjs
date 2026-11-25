@@ -29,9 +29,10 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-    generateLink, generatePatterns, weeklyHours, targetExSundayMinutes,
+    weeklyHours,
     CONTRACTED_HOURS_PER_WEEK, ROTATING_LINES,
 } from '../links-design.js';
+import { generateLink, generatePatterns, targetExSundayMinutes } from '../links-generate.js';
 import { buildRosterTargets } from '../links-seed.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).

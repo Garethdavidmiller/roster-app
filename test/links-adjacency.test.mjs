@@ -6,7 +6,8 @@ import {
     breakLength, boundaryRest, scoreOrder, cost, reorderLines, applyOrder,
     blockRuns, longestBlockOf, blockExcess, spareSpread, longestRunFor, runExcess,
 } from '../links-adjacency.js';
-import { generatePatterns, generateLink, runDesignChecks, ROTATING_LINES, DEFAULT_MAX_RUN } from '../links-design.js';
+import { runDesignChecks, ROTATING_LINES, DEFAULT_MAX_RUN } from '../links-design.js';
+import { generatePatterns, generateLink } from '../links-generate.js';
 import { buildRosterTargets } from '../links-seed.js';
 import { buildDefaultTargets } from '../links-default-targets.js';
 
@@ -306,7 +307,7 @@ describe('blockRuns — how many weeks in a row on much the same shift', () => {
         const p = design();
         const s = scoreOrder(p, Object.keys(p));
         assert.ok(s.longestBlock > DEFAULT_BLOCK_TARGET,
-            'if the raw generator is already varied, the interleave is back — read the note in links-design.js');
+            'if the raw generator is already varied, the interleave is back — read the note in links-generate.js');
     });
 });
 

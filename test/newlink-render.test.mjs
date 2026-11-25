@@ -151,6 +151,30 @@ test('NOT YOUR ROSTER: each proposal\'s weeks are flagged, numbered 1 to 26, and
     assert.match(renderWeeksKey(), /starts before 11:00/);
 });
 
+// A COVER WEEK IS SPARE MONDAY TO SATURDAY; ITS SUNDAY IS NOT ASKED ABOUT (25 Nov 2026). This page counted one only when all
+// SEVEN days were SPARE, while `isCoverWeek` (links-design.js) — the hours, the contracted-days ceiling, the spare spread —
+// ignores Sunday on purpose. So a cover week written with a rest-day Sunday was drawn as six loose "Cover" cells and left
+// out of the count at the top of the page. The shortlist writes every cover Sunday SPARE, so it is rewritten here.
+test('a cover week with a rest-day Sunday is drawn as a cover week, and counted', () => {
+    const restSunday = PROPOSALS.map(p => ({
+        ...p,
+        patterns: Object.fromEntries(Object.entries(p.patterns).map(([w, row]) =>
+            [w, Object.values(row).every(v => v === 'SPARE') ? { ...row, sun: 'RD' } : row])),
+    }));
+    const before = renderStatus({ proposals: PROPOSALS, closes: null }).match(/(\d+) <strong>cover weeks<\/strong>/);
+    assert.ok(before, 'the shape sentence was not rendered — this would check nothing');
+    for (const p of restSunday) {
+        const body = renderWeeks(p);
+        assert.equal(count(body, /class="nl-wk-cover"/g), 5, `${designName(p)}: five cover weeks, their Sundays rest days`);
+        assert.equal(count(body, /<tr class="nl-wk-cover"><th scope="row">\d+<\/th><td class="nl-d nl-d--rest">/g), 5,
+            `${designName(p)}: the rest-day Sunday keeps its own cell`);
+        assert.equal(count(body, /<td colspan="6" class="nl-d nl-d--cover">Cover week<\/td>/g), 5, 'and the cover spans Monday to Saturday');
+    }
+    const after = renderStatus({ proposals: restSunday, closes: null }).match(/(\d+) <strong>cover weeks<\/strong>/);
+    assert.ok(after, 'a rest-day Sunday made the page stop saying what a proposal is');
+    assert.equal(after[1], before[1], 'the same cover weeks, counted the same');
+});
+
 test('the review\'s fixes stay fixed (2 Nov 2026)', () => {
     // a label row labels ITS row group, so its header scope is rowgroup — not colgroup
     for (const p of PERSONAS) {

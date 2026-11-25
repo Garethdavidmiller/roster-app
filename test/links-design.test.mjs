@@ -14,10 +14,6 @@ import {
     MIN_REST_MINUTES,
     calcCoverage,
     calcHourlyCoverage,
-    generatePatterns,
-    generateLink,
-    groupIntoWaves,
-    WAVE_SPAN_MINUTES,
     runDesignChecks,
     dayClass,
     canonicaliseShift,
@@ -26,12 +22,13 @@ import {
     weeklyHours,
     lineTotals, hoursFigure,
     isCoverWeek,
-    repairShortRest, restBetween,
+    restBetween,
     dutyMinutes,
     CONTRACTED_HOURS_PER_WEEK,
     hmFromHours,
     SPARE_WORKED_DAYS,
 } from '../links-design.js';
+import { generatePatterns, generateLink, groupIntoWaves, WAVE_SPAN_MINUTES, repairShortRest } from '../links-generate.js';
 import { CONFIG, weeklyRoster } from '../roster-data.js';
 import { buildDefaultTargets } from '../links-default-targets.js';
 

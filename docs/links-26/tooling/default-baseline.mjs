@@ -2,7 +2,8 @@
 // Moved from docs/links-24/tooling on 7 Nov 2026 (it was written at 24 lines, which this line used to say), unchanged
 // but for this note: .claude/rules/links-design.md and docs/LINKS_DEC2026_PLAN.md quote what it prints. From this
 // folder: node default-baseline.mjs — the `adj` line's gentleMean, gentleWorst and gentleOver are the quoted figures.
-import { generateLink, runDesignChecks, weeklyHours, lineTotals, ROTATING_LINES } from '../../../links-design.js';
+import { runDesignChecks, weeklyHours, lineTotals, ROTATING_LINES } from '../../../links-design.js';
+import { generateLink } from '../../../links-generate.js';
 import { buildDefaultTargets } from '../../../links-default-targets.js';
 import { assessFatigue } from '../../../links-fatigue.js';
 import { assessHardLimits } from '../../../links-limits.js';
