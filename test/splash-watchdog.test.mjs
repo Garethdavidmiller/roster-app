@@ -19,10 +19,12 @@
 // the same direction: too strict and the watchdog reloads a healthy page out from under somebody
 // mid-read; too loose and it goes back to watching nothing. Both are invisible without assertions.
 //
-// splash-watchdog.js is a CLASSIC (non-module) IIFE — it cannot be imported. So this uses the same
-// technique as sw-internals.test.mjs: read the source, slice the function out BY NAME, and evaluate
-// that exact source in a sandbox. The assertions run against the file's REAL code, there is no
-// duplicate copy to drift, and a rename makes the extraction throw rather than silently pass.
+// splash-watchdog.js is a CLASSIC (non-module) IIFE — it cannot be imported, and nothing inside it is
+// reachable from outside. So every test here evaluates the WHOLE file, as `<script defer>` does,
+// against a fake page, and judges what it DID: whether it stood down, reloaded or drew its panel, and
+// what the panel's Reset button removed. Until 25 Nov 2026 `pageIsUsable` and `resetApp` were sliced
+// out of the source by brace-matching and run on their own — a copy, which broke on any move of code
+// and could not see how the file calls them.
 //
 // Part of test:hygiene (no mocks).
 
@@ -38,21 +40,8 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 const ROOT = fileURLToPath(REPO_ROOT_URL);
 const SRC = readFileSync(join(ROOT, 'splash-watchdog.js'), 'utf8');
 
-/** Slice a top-level `function <name>(…) { … }` out of source by brace-matching.
- *  @param {string} src @param {string} name */
-function extractFn(src, name) {
-    const start = src.indexOf(`function ${name}(`);
-    assert.ok(start >= 0, `splash-watchdog.js no longer defines function ${name}() — update this test`);
-    let i = src.indexOf('{', start);
-    for (let depth = 0; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}' && --depth === 0) { i++; break; }
-    }
-    return src.slice(start, i);
-}
-
 /**
- * Build a fake `document` exposing only what `pageIsUsable` reads.
+ * Build a fake page with the splash already gone, holding exactly what `pageIsUsable` reads.
  * @param {{ lock?: boolean|string, snapshot?: boolean, skeleton?: boolean, banner?: 'visible'|'hidden'|'absent', display?: 'filled'|'empty'|'absent' }} state
  */
 function fakeDocument({ lock = false, snapshot = false, skeleton = false, banner = 'absent', display = 'absent' } = {}) {
@@ -77,14 +66,41 @@ function fakeDocument({ lock = false, snapshot = false, skeleton = false, banner
     };
 }
 
-/** The real source, evaluated with an injected `document`. @param {any} document */
-function usableWith(document) {
-    return new Function('document', `${extractFn(SRC, 'pageIsUsable')}\nreturn pageIsUsable();`)(document);
+/**
+ * Is a page with the splash gone, in this state, judged usable? The whole file runs against it and its
+ * window ends: a usable page stands the watchdog down (no reload), anything else is a stuck launch,
+ * which spends the session's one reload. @param {Parameters<typeof fakeDocument>[0]} state
+ */
+function usableWith(state) {
+    const page = fakeDocument(state);
+    /** @type {Function[]} */ const timers = [];
+    let reloads = 0;
+    runWatchdog({
+        document: { ...page, visibilityState: 'visible', body: { contains: () => false, appendChild() {} },
+                    createElement: el, addEventListener() {}, removeEventListener() {} },
+        sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+        location: { reload: () => { reloads++; } },
+        setTimeout: (/** @type {Function} */ fn) => timers.push(fn),
+        clearTimeout() {},
+    });
+    assert.equal(timers.length, 1, 'the watchdog armed no window');
+    /** @type {Function} */ (timers.pop())();
+    return reloads === 0;
+}
+
+/**
+ * Evaluate the whole of splash-watchdog.js with these as its globals — `navigator`, `window` and
+ * `caches` included, so a Node global of the same name never answers for the page's.
+ * @param {Record<string, any>} globals
+ */
+function runWatchdog(globals) {
+    const g = { navigator: {}, window: {}, caches: undefined, ...globals };
+    new Function(...Object.keys(g), SRC)(...Object.values(g));
 }
 
 // ── THE WHOLE FILE, RUN AS THE BROWSER RUNS IT (7 Nov 2026, iPhone audit) ───────────────────────
 //
-// The conditions are sliced out and judged one at a time below. What decides WHEN they are asked is
+// The conditions are judged one page at a time below. What decides WHEN they are asked is
 // the file's own top level — the timer, the visibility listener and the reload flag — and that is
 // where the iPhone defect was: one 20s timer from load, so a page reloaded while hidden (as every
 // Calendar update is) was judged stuck the moment somebody came back to it. So this evaluates the
@@ -111,7 +127,10 @@ function el(tag) {
         setAttribute(/** @type {string} */ k, /** @type {string} */ v) { this.attrs[k] = String(v); },
         appendChild(/** @type {any} */ c) { this.children.push(c); return c; },
         removeChild(/** @type {any} */ c) { this.children = this.children.filter(x => x !== c); return c; },
-        addEventListener() {},
+        /** @type {Record<string, Function[]>} */ listeners: {},
+        addEventListener(/** @type {string} */ t, /** @type {Function} */ f) { (this.listeners[t] ||= []).push(f); },
+        /** A press: every click listener the file added, run in order. */
+        click() { for (const f of this.listeners.click ?? []) f(); },
         focus() { lastFocused = this; },
     };
 }
@@ -129,9 +148,12 @@ const textUnder = (node) => [node.textContent, ...node.children.map(textUnder)].
  * `blank` (splash gone, nothing rendered), `usable-under-splash` (rendered, splash never came down)
  * or `healthy` (splash gone, Calendar drawn). `store` is the tab's sessionStorage — pass the same Map
  * to two launches and they are a reload in one tab.
- * @param {{ hidden?: boolean, page?: 'stuck'|'blank'|'usable-under-splash'|'healthy', store?: Map<string, string> }} [o]
+ * `world` is what the Reset button meets: the page's address, the service worker registrations and
+ * Cache Storage (`navigator`, `location.pathname`, `window.caches`).
+ * @param {{ hidden?: boolean, page?: 'stuck'|'blank'|'usable-under-splash'|'healthy', store?: Map<string, string>,
+ *           world?: { navigator?: any, caches?: any, path?: string } }} [o]
  */
-function launch({ hidden = false, page = 'stuck', store = new Map() } = {}) {
+function launch({ hidden = false, page = 'stuck', store = new Map(), world = {} } = {}) {
     let state = page;
     let reloads = 0;
     /** @type {{ fn: Function, ms: number, live: boolean }[]} */ const timers = [];
@@ -161,11 +183,11 @@ function launch({ hidden = false, page = 'stuck', store = new Map() } = {}) {
         setItem: (/** @type {string} */ k, /** @type {string} */ v) => { store.set(k, String(v)); },
         removeItem: (/** @type {string} */ k) => { store.delete(k); },
     };
-    const location = { reload: () => { reloads++; } };
+    const location = { pathname: world.path ?? '/roster-app/index.html', reload: () => { reloads++; } };
     const setTimeout = (/** @type {Function} */ fn, /** @type {number} */ ms) => { timers.push({ fn, ms, live: true }); return timers.length; };
     const clearTimeout = (/** @type {number} */ id) => { if (timers[id - 1]) timers[id - 1].live = false; };
-    new Function('document', 'sessionStorage', 'location', 'setTimeout', 'clearTimeout', SRC)(
-        document, sessionStorage, location, setTimeout, clearTimeout);
+    runWatchdog({ document, sessionStorage, location, setTimeout, clearTimeout,
+        navigator: world.navigator ?? {}, window: world.caches ? { caches: world.caches } : {}, caches: world.caches });
     const live = () => timers.filter(t => t.live);
     return {
         store,
@@ -174,6 +196,8 @@ function launch({ hidden = false, page = 'stuck', store = new Map() } = {}) {
         panel: () => [splash, ...built].some(s => s.attrs.role === 'alertdialog' && /couldn.t finish loading/.test(textUnder(s))),
         /** The surface the panel was drawn on, or null. */
         panelEl: () => [splash, ...built].find(s => s.attrs.role === 'alertdialog') ?? null,
+        /** The surfaces the panel had to build, the splash being gone. */
+        built: () => built,
         /** The delays of the windows still running. */
         pending: () => live().map(t => t.ms),
         /** Every window ever started, ended or not. */
@@ -197,54 +221,54 @@ function launch({ hidden = false, page = 'stuck', store = new Map() } = {}) {
 
 describe('pageIsUsable — what counts as a working page', () => {
     test('a rendered Calendar is usable', () => {
-        assert.equal(usableWith(fakeDocument({ display: 'filled' })), true);
+        assert.equal(usableWith({ display: 'filled' }), true);
     });
 
     test('an unlock / sign-in card is usable — there is a next step on it', () => {
         // Both v20.12's PIN card and v20.79's member sign-in card carry this id. Neither is a happy
         // outcome, and both are a page the member can act on: reloading over them would be wrong.
-        assert.equal(usableWith(fakeDocument({ lock: true })), true);
+        assert.equal(usableWith({ lock: true }), true);
         // …and the card saying the sign-in form could not load, whose id is its own (whole-app review, 24 Nov 2026):
         // an id list missed it, so a working card was reloaded and then covered by the recovery panel.
-        assert.equal(usableWith(fakeDocument({ lock: 'calendarSignInUnavailable' })), true, 'the sign-in-unavailable card');
+        assert.equal(usableWith({ lock: 'calendarSignInUnavailable' }), true, 'the sign-in-unavailable card');
     });
 
     test("the member's own stored roster is usable — it is their shifts, labelled", () => {
         // `calendarSnapshot`, painted before the access decision (CALENDAR_DATA.md 17). Not counting
         // it meant a stored roster still up at 20s was reloaded once and then covered by the
         // recovery panel — the watchdog took away the one thing on screen worth having.
-        assert.equal(usableWith(fakeDocument({ snapshot: true })), true);
-        assert.equal(usableWith(fakeDocument({ snapshot: true, display: 'empty' })), true,
+        assert.equal(usableWith({ snapshot: true }), true);
+        assert.equal(usableWith({ snapshot: true, display: 'empty' }), true,
             'the empty live container beside it must not outvote it');
     });
 
     test('a VISIBLE error banner is usable — the app ran and is reporting', () => {
         // calendar-app.js's own catch. Reloading here would destroy the only message on screen.
-        assert.equal(usableWith(fakeDocument({ banner: 'visible' })), true);
+        assert.equal(usableWith({ banner: 'visible' }), true);
     });
 
     test('an error banner that is PRESENT but not visible is NOT usable', () => {
         // The banner is static markup in index.html — it exists on every load. Treating its mere
         // presence as a working page would disable the watchdog on every single launch, which is
         // the failure mode nobody would ever notice.
-        assert.equal(usableWith(fakeDocument({ banner: 'hidden' })), false);
+        assert.equal(usableWith({ banner: 'hidden' }), false);
     });
 
     test('an EMPTY calendar container is NOT usable — this is the blank page (v20.80)', () => {
         // `#calendarDisplay` is static markup too, so existence proves nothing. The whole hole this
         // guard was opened for is a page that has all its containers and none of its content.
-        assert.equal(usableWith(fakeDocument({ display: 'empty' })), false);
+        assert.equal(usableWith({ display: 'empty' }), false);
     });
 
     test('nothing at all is NOT usable', () => {
-        assert.equal(usableWith(fakeDocument()), false);
+        assert.equal(usableWith({}), false);
     });
 
     test('the boot SKELETON does not count as usable', () => {
         // At 20s a skeleton is a load that failed, not one in progress — the bounds inside
         // `resolveAccess` cap the decision far below that. The check reads specific ids and never
         // asks "is anything on the page", which is what keeps this true without a rule for it.
-        assert.equal(usableWith(fakeDocument({ skeleton: true, display: 'empty' })), false);
+        assert.equal(usableWith({ skeleton: true, display: 'empty' }), false);
     });
 });
 
@@ -304,10 +328,15 @@ describe('the watchdog stands down on the RIGHT condition', () => {
     test('the recovery panel can be built where the splash has already gone', () => {
         // The other half: the blank-page case has no splash left to overwrite, so `showRecovery`
         // has to create its own surface. Without this the new condition would detect the fault and
-        // then have nowhere to report it.
-        const fn = extractFn(SRC, 'showRecovery');
-        assert.ok(/createElement\('div'\)/.test(fn), 'showRecovery cannot build a surface of its own');
-        assert.ok(/position:fixed/.test(fn), 'the built surface is not full-screen — it would render into a broken layout');
+        // then have nowhere to report it — and the surface must cover the screen, because what is
+        // under it is a layout that did not finish.
+        const w = launch({ page: 'blank', store: new Map([[RELOAD_KEY, '1']]) });
+        w.fire();
+        const [surface] = w.built();
+        assert.ok(surface, 'showRecovery built no surface of its own');
+        assert.equal(w.panelEl(), surface, 'the panel was not drawn on the surface it built');
+        assert.match(surface.style.cssText ?? '', /position:fixed;inset:0/,
+            'the built surface is not full-screen — it would render into a broken layout');
     });
 });
 
@@ -434,19 +463,57 @@ describe('the watch — only a page that has been SEEN for a whole window is jud
 // the broken device that needed it.
 describe('Reset app clears THIS app, and still clears it', () => {
     const SW = readFileSync(new URL('./service-worker.js', REPO_ROOT_URL), 'utf8');
-    const fn = extractFn(SRC, 'resetApp');
 
-    test('the cache prefix still matches what the service worker names its caches', () => {
-        const prefix = fn.match(/k\.indexOf\('([^']+)'\)\s*===\s*0/)?.[1];
-        assert.ok(prefix, 'resetApp no longer filters caches by prefix — it is origin-wide again');
-        // Both cache names the SW creates: the versioned app cache and the SDK cache.
-        for (const decl of ['CACHE_NAME', 'SDK_CACHE_NAME']) {
+    /**
+     * A stuck launch whose one reload is spent, so the recovery panel is up; then its Reset button,
+     * pressed. Reports which registrations were unregistered and which caches deleted, read after the
+     * microtask queue has drained — the reset returns nothing, it ends in a reload. Its 4-second
+     * fallback reload is only queued on the fake clock, never run.
+     * @param {{ path?: string, regs?: {scope: string, script?: string|null, slot?: string, url?: string}[], cacheNames?: string[] }} world
+     */
+    async function pressReset({ path = '/roster-app/index.html', regs = [], cacheNames }) {
+        /** @type {string[]} */ const unregistered = [];
+        /** @type {string[]} */ const deleted = [];
+        const navigator = {
+            serviceWorker: {
+                getRegistrations: async () => regs.map(r => {
+                    const scriptURL = r.url ?? 'https://x.invalid' + (r.script ?? '/roster-app/service-worker.js');
+                    const worker = r.script === null ? null : { scriptURL };
+                    return {
+                        scope: 'https://x.invalid' + r.scope,
+                        active: (r.slot ?? 'active') === 'active' ? worker : null,
+                        waiting: r.slot === 'waiting' ? worker : null,
+                        installing: r.slot === 'installing' ? worker : null,
+                        unregister: async () => { unregistered.push(r.scope + '@' + (r.url ?? r.script ?? '/roster-app/service-worker.js')); },
+                    };
+                }),
+            },
+        };
+        const caches = cacheNames && { keys: async () => [...cacheNames], delete: async (/** @type {string} */ k) => { deleted.push(k); return true; } };
+        const w = launch({ page: 'stuck', store: new Map([[RELOAD_KEY, '1']]), world: { navigator, caches, path } });
+        w.fire();
+        const button = allUnder(w.panelEl() ?? el('none')).find(n => /^Still stuck\?/.test(n.textContent));
+        assert.ok(button, 'the recovery panel has no Reset button');
+        button.click();
+        for (let i = 0; i < 8; i++) await Promise.resolve();
+        return { unregistered, deleted, reloads: w.reloads() };
+    }
+    /** @param {Parameters<typeof pressReset>[0]} world */
+    const reset = async (world) => (await pressReset(world)).unregistered;
+
+    test('the caches it clears are the ones the service worker names, and no one else\'s', async () => {
+        // Both cache names the SW creates: the versioned app cache and the SDK cache, each read off the
+        // SW's own declaration with an example version on the end.
+        const ours = ['CACHE_NAME', 'SDK_CACHE_NAME'].map(decl => {
             const name = SW.match(new RegExp('const ' + decl + '\\s*=\\s*`([^`$]*)'))?.[1];
             assert.ok(name, `${decl} not found in service-worker.js`);
-            assert.ok(name.startsWith(prefix),
-                `the SW names a cache "${name}…" which does not start with resetApp's "${prefix}" — ` +
-                'the reset would leave it in place and appear to do nothing');
-        }
+            return name + '1.0';
+        });
+        const theirs = ['other-app-v3', 'workbox-precache-v2', 'roster-myb-v1'];
+        const { deleted, reloads } = await pressReset({ cacheNames: [...theirs, ...ours] });
+        assert.deepEqual(deleted, ours,
+            'the reset leaves a cache the SW names in place and appears to do nothing, or takes another app\'s');
+        assert.equal(reloads, 1, 'the reset ends in exactly one reload');
     });
 
     // ── THE SW FILTER IS RUN, NOT READ ──────────────────────────────────────────────────────────
@@ -457,38 +524,6 @@ describe('Reset app clears THIS app, and still clears it', () => {
     // everything. So the reset unregistered it — which is precisely what the filter was added to
     // stop. A test that reads the code can only confirm the author's intention; it cannot see the
     // set that comes out. This one runs the real function over a real registration list.
-
-    /** Run the real `resetApp` against a fake SW/cache world and report what it removed.
-     *  @param {{path?: string, regs: {scope: string, script?: string|null, slot?: string}[]}} world */
-    async function reset({ path = '/roster-app/index.html', regs }) {
-        /** @type {string[]} */ const unregistered = [];
-        const navigator = {
-            serviceWorker: {
-                getRegistrations: async () => regs.map(r => {
-                    const worker = r.script === null ? null : { scriptURL: 'https://x.invalid' + (r.script ?? '/roster-app/service-worker.js') };
-                    return {
-                        scope: 'https://x.invalid' + r.scope,
-                        active: (r.slot ?? 'active') === 'active' ? worker : null,
-                        waiting: r.slot === 'waiting' ? worker : null,
-                        installing: r.slot === 'installing' ? worker : null,
-                        unregister: async () => { unregistered.push(r.scope + '@' + (r.script ?? '/roster-app/service-worker.js')); },
-                    };
-                }),
-            },
-        };
-        const window = {}; // no `caches` — this block is about service workers only
-        const location = { pathname: path, reload() {} };
-        const sessionStorage = { removeItem() {} };
-        // `resetApp` returns nothing — it is a fire-and-forget recovery that ends in a reload — so
-        // the observable result is what it DID, read after the microtask queue has drained. The
-        // internal 4-second reload timer is stubbed out; letting it run would prove nothing here
-        // and is covered by its own reasoning in the module.
-        new Function('navigator', 'window', 'location', 'sessionStorage', 'setTimeout',
-            `${fn}\nresetApp();`
-        )(navigator, window, location, sessionStorage, () => 0);
-        for (let i = 0; i < 8; i++) await Promise.resolve();
-        return unregistered;
-    }
 
     test('another app\'s ROOT-scoped worker survives — the case a scope prefix could not see', async () => {
         // `/` is a prefix of `/roster-app/` by definition, so the old rule swept it. On the Pages
@@ -532,11 +567,9 @@ describe('Reset app clears THIS app, and still clears it', () => {
         assert.deepEqual(gone, []);
     });
 
-    test('the cache filter still fails towards doing LESS', () => {
-        // Unlike the SW filter this one is a name prefix with no lifecycle to it, and the test
-        // above already pins it against the SW's own constants. What is asserted here is only the
-        // direction of its failure.
-        assert.match(fn, /catch \(_e\) \{ return false; \}/,
-            'an unparseable script URL must be skipped, not swept');
+    test('a worker whose script address cannot be read is skipped, not swept', async () => {
+        // The direction of the filter's failure: what cannot be identified is left alone.
+        const gone = await reset({ regs: [{ scope: '/roster-app/', url: 'not a url' }] });
+        assert.deepEqual(gone, [], 'an unparseable script URL must be skipped, not swept');
     });
 });

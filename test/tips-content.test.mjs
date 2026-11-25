@@ -1,7 +1,7 @@
-// @lane hygiene
+// @lane unit
 /**
- * Static guard for the four pages' CARD_TIPS content.
- * Run: node scripts/run-tests.mjs test/tips-content.test.mjs   (part of `npm run test:hygiene`)
+ * Guard for the pages' CARD_TIPS content.
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/tips-content.test.mjs   (part of `npm run test:unit`)
  *
  * WHY THIS FILE EXISTS — a real staff-reported error, v19.13:
  *
@@ -20,18 +20,20 @@
  *
  * These checks are STRUCTURAL — they say the content matches the shape the renderer consumes, and
  * that every `?` button has content behind it. They say nothing about whether the wording is any good.
+ *
+ * Each page's `CARD_TIPS` is IMPORTED from its tips module, so what is checked is the object the page
+ * renders, built from the constants its own module imports. Until 25 Nov 2026 the object literal was
+ * cut out of the source text by brace-matching and evaluated with a hand-passed list of constants —
+ * a copy, and a list that had to be kept in step with each module's imports by hand. Where a test
+ * needs a tip built from a DIFFERENT constant (a stand-in, to prove the words follow it), the
+ * constant's module is replaced for one fresh import of the tips module (`tipsWith`), which is why
+ * this file is in the unit lane.
  */
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, WEEKENDS_OFF_AIM_PCT } from '../links-design.js';
+import { ROTATING_LINES, MIN_REST_MINUTES, WEEKENDS_OFF_AIM_PCT } from '../links-design.js';
 import { DEFAULT_TABLE_FIGURES } from '../links-tips.js';
-// trains-tips.js reads its dates and numbers from the page's own modules (v24.83), so it is evaluated
-// with the same values.
-import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from '../trains-data.js';
-import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, JOURNEY_PLANNER_URL } from '../trains-change.js';
-import { DAYTIME, renderFurtherChanges } from '../trains-render.js';
-import { LEAVE_FILE_MAX_AGE_DAYS } from '../al-leave-file.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -39,49 +41,48 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 /**
  * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
  *
- * `scope` names the constants a page's tips strings interpolate (Links, Trains, and Operations' leave-file age). Links:
+ * Links, Trains and Operations' leave-file age interpolate constants into their tips strings. Links:
  * four of its entries state the rotation length and one states the main cycle's length, and
  * `links-rotation-parity.test.mjs` requires the former to be DERIVED rather than typed (the length
- * went 28 → 22 at v19.98 and left prose behind in fifteen places). So the two guards pull in
- * opposite directions unless this one supplies the binding — and it supplies the modules' REAL
- * constants, not stand-ins, so a tips string quoting the wrong number would still have to be wrong
- * about something else to pass.
+ * went 28 → 22 at v19.98 and left prose behind in fifteen places). Importing the module builds each
+ * string from the module's REAL constants, so a tips string quoting the wrong number would still have
+ * to be wrong about something else to pass.
  */
 const PAGES = [
     { js: 'admin-tips.js',     html: 'admin.html' },
-    { js: 'operations-tips.js', html: 'operations.html', scope: { LEAVE_FILE_MAX_AGE_DAYS } },
+    { js: 'operations-tips.js', html: 'operations.html' },
     { js: 'settings-tips.js',  html: 'settings.html' },
-    { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, DEFAULT_TABLE_FIGURES, WEEKENDS_OFF_AIM_PCT } },
+    { js: 'links-tips.js',     html: 'links.html' },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
     // The Calendar's one ? is drawn by Team View (calendar-team-view.js), so that file is where its button is read.
     { js: 'calendar-tips.js',  html: 'calendar-team-view.js', noCardHeading: true },
-    { js: 'trains-tips.js',    html: 'trains.html', scope: { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, DAYTIME, JOURNEY_PLANNER_URL, renderFurtherChanges } },
+    { js: 'trains-tips.js',    html: 'trains.html' },
 ];
 
+// settings-tips.js lists Timetable changes only while one is due (`timetableListed`, notif-card-core.js),
+// as the card does at runtime; settings.html carries the card's kind in its markup either way. So the
+// settings panel is read as it stands while a change is due — the state in which both list it — and
+// the runtime filter is asserted on its own below. Without this the comparison would change its answer
+// on the evening before the change date.
+const NOTIF_CARD_CORE = await import('../notif-card-core.js');
+let timetableDue = true;
+mock.module('../notif-card-core.js', { namedExports: { ...NOTIF_CARD_CORE, timetableListed: () => timetableDue } });
+
+/** @type {Record<string, any>} */
+const TIPS = {};
+for (const { js } of PAGES) TIPS[js] = (await import(`../${js}`)).CARD_TIPS;
+
+let fresh = 0;
 /**
- * Extract and evaluate the CARD_TIPS object literal. Evaluating rather than regexing is deliberate:
- * the defect that prompted this file was a SHAPE error, and a regex for `sections:` would have
- * happily matched the string "sections" anywhere in the entry's HTML.
- * @param {string} file
- * @param {Record<string, unknown>} [scope] coordinator constants the strings interpolate
+ * A tips module's CARD_TIPS built with one of its constants replaced: the constant's module is
+ * swapped for this one fresh import of the tips module, then put back.
+ * @param {string} tipsFile  @param {string} constFile  @param {Record<string, unknown>} overrides
  */
-function readCardTips(file, scope = {}) {
-    const src = readFileSync(file, 'utf8');
-    const at = src.indexOf('CARD_TIPS = {');
-    assert.ok(at > -1, `${file}: no CARD_TIPS block found`);
-    const start = src.indexOf('{', at);
-    let depth = 0, end = -1;
-    for (let i = start; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}' && --depth === 0) { end = i; break; }
-    }
-    assert.ok(end > -1, `${file}: CARD_TIPS block is not brace-balanced`);
-    // The scope is passed as real parameters rather than assembled into the source string: a
-    // textual prelude would make an undefined identifier resolve to whatever the harness happened
-    // to have lying about, which is how a guard stops guarding without anyone noticing.
-    const names = Object.keys(scope);
-    return new Function(...names, 'return (' + src.slice(start, end + 1) + ');')(
-        ...names.map(n => scope[n]));
+async function tipsWith(tipsFile, constFile, overrides) {
+    const real = await import(`../${constFile}`);
+    const swap = mock.module(`../${constFile}`, { namedExports: { ...real, ...overrides } });
+    try { return (await import(`../${tipsFile}?stand-in-${++fresh}`)).CARD_TIPS; }
+    finally { swap.restore(); }
 }
 
 /** The `data-card` values actually wired to a `?` button. @param {string} file */
@@ -207,7 +208,7 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
     });
 
     test('the ? panel quotes the link in full', () => {
-        const first = readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS })['reset-requests'].sections[0].items[0].html;
+        const first = TIPS['operations-tips.js']['reset-requests'].sections[0].items[0].html;
         assert.equal(/“([^”]+)”/.exec(first)?.[1], link);
     });
 });
@@ -221,7 +222,7 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
 // a developer's words, for a link that opens the NEWEST issue, not the one just filed. The reset queue's
 // panel title also wore an emoji, the only Operations panel title that did.
 describe('operations — the document cards promise only what the app does', () => {
-    const tips = readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS });
+    const tips = TIPS['operations-tips.js'];
 
     test('the Huddle header says staff open the latest, not today\'s', () => {
         const hint = /Daily Huddle<\/h2>\s*<span class="hint">(.*)<\/span>\s*<\/div>/.exec(readFileSync('operations.html', 'utf8'))?.[1];
@@ -267,7 +268,7 @@ describe('operations — the document cards promise only what the app does', () 
 describe('settings — the ? panel names the notifications the card lists', () => {
     const card = [...readFileSync('settings.html', 'utf8').matchAll(/<span class="notif-kind"[^>]*>([^<]+?)(?: ·)?<\/span>/g)]
         .map(m => m[1].trim());
-    const got = readCardTips('settings-tips.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
+    const got = TIPS['settings-tips.js'].notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
     const named = (got?.items ?? []).map((/** @type {any} */ i) => /<strong>([^<]+)<\/strong>/.exec(i.html)?.[1] ?? '');
 
     test('premise: both lists were found', () => {
@@ -284,6 +285,23 @@ describe('settings — the ? panel names the notifications the card lists', () =
     });
 });
 
+// ── …AND THE TIMETABLE CHANGE ONLY WHILE ONE IS DUE ─────────────────────────────────────────────
+// The card stops listing Timetable changes once the change has passed (notif-card-core.js), and the ?
+// panel drops its item at the same moment, by the same function — run here both ways.
+describe('settings — the ? panel lists the timetable change exactly while the card does', () => {
+    /** @param {any} tips */
+    const trains = (tips) => tips.notifications.sections.flatMap((/** @type {any} */ s) => s.items)
+        .filter((/** @type {any} */ i) => i.icon === '🚆');
+    test('while a change is due, the panel names it', () => {
+        assert.equal(trains(TIPS['settings-tips.js']).length, 1);
+    });
+    test('once it has passed, the panel says nothing of it', async () => {
+        timetableDue = false;
+        try { assert.deepEqual(trains((await import('../settings-tips.js?timetable-passed')).CARD_TIPS), []); }
+        finally { timetableDue = true; }
+    });
+});
+
 // ── THE PAY REMINDER SAYS WHO IT REACHES (whole-app check, 10 Nov 2026) ─────────────────────────
 // Since contracts-b-3 the server sends it only to the grades the Pay Calculator prices, and the panel
 // still promised it to everybody — a Dispatcher or a manager agreed to a reminder that never comes.
@@ -292,7 +310,7 @@ describe('settings — the ? panel says who the pay reminder is for', () => {
     const server = readFileSync('functions/pay-reminder.js', 'utf8');
     const list = /PAY_REMINDER_GRADES\s*=\s*Object\.freeze\(\[([^\]]*)\]\)/.exec(server)?.[1] ?? '';
     const grades = [...list.matchAll(/'(\w+)'/g)].map(m => m[1].toUpperCase());
-    const got = readCardTips('settings-tips.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
+    const got = TIPS['settings-tips.js'].notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
     const item = (got?.items ?? []).map((/** @type {any} */ i) => String(i.html)).find((/** @type {string} */ h) => h.startsWith('<strong>Pay reminder</strong>')) ?? '';
 
     test('premise: the server\'s grades and the panel\'s item were found', () => {
@@ -350,7 +368,7 @@ describe('the pay reminder is promised only to the grades it is sent to, everywh
 describe('settings — the Work Email ? panel says what the card says the email is for', () => {
     const html = readFileSync('settings.html', 'utf8').replace(/\s+/g, ' ');
     const sentence = /Self-service recovery isn’t available yet\. For now, ask the admin if you forget your password/.exec(html)?.[0];
-    const tip = readCardTips('settings-tips.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
+    const tip = TIPS['settings-tips.js']['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
         .map((/** @type {any} */ i) => i.html.replace(/<[^>]+>/g, '')).join(' ');
 
     test('premise: the card states the convention', () => {
@@ -392,7 +410,7 @@ describe('the work email and password lines state today, and promise nothing', (
 describe('who can see the saved work email is said of the email, never of the password', () => {
     const settings = readFileSync('settings.html', 'utf8').replace(/\s+/g, ' ');
     const guide = readFileSync('staff-guide.html', 'utf8').replace(/\s+/g, ' ');
-    const tip = readCardTips('settings-tips.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
+    const tip = TIPS['settings-tips.js']['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
         .map((/** @type {any} */ i) => i.html.replace(/<[^>]+>/g, '')).join(' ');
 
     for (const [where, text] of [['the Work Email card', settings], ['its ? panel', tip], ['the Staff Guide', guide]]) {
@@ -543,10 +561,10 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
     // THE MINIMUM REST IS THE GENERATOR'S OWN CONSTANT (links-analysis-14's twins, routed here): the
     // rest tip and the line-order card's load-bearing note each TYPED "12 hours". Both are 12 today, so
     // the tip is evaluated with a stand-in minimum, and the note must be a stamped span, never a figure.
-    test('the minimum rest is read from MIN_REST_MINUTES in the tip, and stamped into the page\'s note', () => {
-        const tip = (/** @type {number} */ min) => words(readCardTips('links-tips.js', { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES: min, DEFAULT_TABLE_FIGURES, WEEKENDS_OFF_AIM_PCT }), 'links-checks');
-        assert.match(tip(MIN_REST_MINUTES), new RegExp(`for less than ${MIN_REST_MINUTES / 60} hours rest`));
-        assert.match(tip(11 * 60), /for less than 11 hours rest/, 'a moved minimum moves the tip');
+    test('the minimum rest is read from MIN_REST_MINUTES in the tip, and stamped into the page\'s note', async () => {
+        assert.match(words(TIPS['links-tips.js'], 'links-checks'), new RegExp(`for less than ${MIN_REST_MINUTES / 60} hours rest`));
+        const moved = await tipsWith('links-tips.js', 'links-design.js', { MIN_REST_MINUTES: 11 * 60 });
+        assert.match(words(moved, 'links-checks'), /for less than 11 hours rest/, 'a moved minimum moves the tip');
         const note = src('links.html').match(/<p class="gen-obj-note">([\s\S]*?)<\/p>/)?.[1] ?? '';
         assert.match(note, /less than <span class="js-min-rest-hours">\d+<\/span> hours between a Saturday finish/,
             'the note states the minimum through the stamped span');
@@ -555,9 +573,9 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
     });
 });
 
-for (const { js, html, scope, noCardHeading } of PAGES) {
+for (const { js, html, noCardHeading } of PAGES) {
     describe(`${js} — tips content`, () => {
-        const tips = readCardTips(js, scope);
+        const tips = TIPS[js];
 
         test('every entry has a title and a non-empty sections ARRAY', () => {
             const broken = Object.entries(tips)
@@ -641,11 +659,11 @@ for (const { js, html, scope, noCardHeading } of PAGES) {
 }
 
 // ── THE LEAVE SHEET'S AGE LIMIT IS THE FILE'S OWN CONSTANT (R2-19) ──────────────────────────────
-// "14 days" was typed twice in the panel while al-leave-file.js holds LEAVE_FILE_MAX_AGE_DAYS. Evaluated
+// "14 days" was typed twice in the panel while al-leave-file.js holds LEAVE_FILE_MAX_AGE_DAYS. Built
 // with a stand-in, the panel must say the stand-in in both places.
 describe('operations-tips.js — the leave sheet panel reads LEAVE_FILE_MAX_AGE_DAYS', () => {
-    test('both of its age lines follow the constant', () => {
-        const text = JSON.stringify(readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS: 21 })['annual-leave-sheet']);
+    test('both of its age lines follow the constant', async () => {
+        const text = JSON.stringify((await tipsWith('operations-tips.js', 'al-leave-file.js', { LEAVE_FILE_MAX_AGE_DAYS: 21 }))['annual-leave-sheet']);
         assert.equal(text.match(/more than 21 days old/g)?.length, 2, text);
         assert.doesNotMatch(text, /\b14 days\b/);
     });

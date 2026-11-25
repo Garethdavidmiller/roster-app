@@ -22,8 +22,8 @@ import { formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data
 import { printedStamp, formatClock } from './date-format.js';
 import {
   RATE_125, RATE_150, RATE_300,
-  taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, pricePayslip, takeHomeInputs,
+  taxYearForPeriod, getThresholds,
+  payslipGross, pricePayslip, takeHomeInputs,
 } from './paycalc-calc.js';
 import { resetOverrides } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
@@ -572,8 +572,6 @@ export function init() {
       syncNoSpecialTick();   // hours on screen, typed or gold, supersede the no-special-rate-hours tick
       const _ty     = taxYearForPeriod(_curP);
       const thresholds = getThresholds(_ty.label);
-      const _proRateFactor = getProRateFactor(_curP);
-      const LONDON = getLondonAllowanceForPeriod(_curP, _ty) * _proRateFactor;
 
       // The payslip's rate from the one source the rate field and the Settings hint also read
       // (periodRate): its grades' rates weighted by their days, UNROUNDED. The field shows it to the
@@ -593,28 +591,18 @@ export function init() {
       const r300 = rate * RATE_300;
       const peer = +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent;
 
-      const satHrs  = hhmmDec('satH',  'satM');
-      // Guard: only count BH/Boxing hours if this period actually contains those days.
-      // localStorage can restore saved values into hidden rows, so we must sanitise here
-      // rather than relying solely on the DOM row being hidden.
-      const _hasBh = hasBankHoliday(_curP);
-      const bhHrs   = _hasBh ? hhmmDec('bhH',   'bhM')   : 0;
-      const bhOtHrs = _hasBh ? hhmmDec('bhOtH', 'bhOtM') : 0;
-      const oHrs    = hhmmDec('otH',   'otM');
-      const rHrs    = hhmmDec('rdwH',  'rdwM');
-      const sHrs    = hhmmDec('sunH',  'sunM');
-      const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
-
-      const _effContr = getEffectiveContr(_curP);
       const _adjRaw   = Math.abs(numVal('otherAdj') || 0);
       const otherAdj  = _adjNegative ? -_adjRaw : _adjRaw;
 
-      // Pure gross calculation — all DOM reads done; no more DOM access until UI writes below
-      const { gross, satCapped, bhCapped, nonBhNorm,
+      // The hours each row counts, the London Allowance and contracted hours a joiner's share of the
+      // payslip scales, and the gross they price to: payslipGross (paycalc-calc.js), which reads the
+      // boxes through hhmmDec. All DOM reads done; no more DOM access until UI writes below.
+      const { london: LONDON, satHrs, bhHrs, bhOtHrs, oHrs, rHrs, sHrs, bHrs,
+              gross, satCapped, bhCapped, nonBhNorm,
               gBasicNorm, gBasicSat, gBankHol, gBhOt, gOvertime,
-              gRdw, gSunday, gBoxing, gPeer } = computeGross({
-        effContr: _effContr, rate, satHrs, bhHrs, bhOtHrs, oHrs, rHrs, sHrs, bHrs,
-        peerDays: peer, otherAdj, london: LONDON,
+              gRdw, gSunday, gBoxing, gPeer } = payslipGross(_curP, _ty, {
+        rate, peerDays: peer, otherAdj,
+        hours: hhmmDec, hasBankHoliday, hasBoxingDay, getProRateFactor, getEffectiveContr,
       });
 
       // The back-pay card's lump, its paid-in payslip and the member's opt-in tick — whether it JOINS
