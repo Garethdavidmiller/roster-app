@@ -11,134 +11,105 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Documentation milestone | `26.70` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Documentation milestone | `26.70` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The stamp in every stamped doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
-| Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; the **primary install + notification target**). A GitHub Pages mirror is served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path** (the bare origin is a separate empty repo that 404s). **Most staff still open the app there** (owner, Sep 2026 — the changeover to the canonical URL is deliberate and gradual, not a rump to be discounted). The mirror serves **no redirects and no HTTP headers**, so a change relying on something only Firebase Hosting can do — a rename protected by a `redirects` entry, a policy carried by a header — reaches the smaller half of the staff: weigh it against the mirror, not the canonical URL. That is why every page carries a `<meta>` CSP. `STAFF_SITE_URL` in `functions/index.js` is the bare canonical origin; it only sets the notification payload's path/hash, and each device's service worker re-bases that onto its own scope, so github.io installs keep working. See the API key note below. |
-| Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name: |
-| | `ingestHuddle` — the Daily Huddle upload from Power Automate, server to server (bearer `HUDDLE_SECRET`) |
-| | `parseRosterPDF` — the weekly roster import (`.claude/rules/roster-import.md`) |
-| | `setupRosterAuth` — provisions accounts and their claim tiers from the server-owned `functions/roster-members.json` |
-| | `resetMemberPassword` — admin-only break-glass: resets a member's password to their surname default (PASSWORD_DESIGN.md Track C) and TELLS THE MEMBER on their own devices via `sendTargetedPush` (never `fanOutPush`, never with the password: a push renders on a lock screen) — **except for a lost or stolen phone**: no notice, its push records deleted. Stages: `.claude/rules/notifications.md` |
-| | `getDocumentUrl` — a SHORT-LIVED URL for the latest Huddle / Circular / Newsletter. The caller names a KIND, never a path; the door mirrors `firestore.rules`. **Needs `roles/iam.serviceAccountTokenCreator` on the runtime service account, granted to ITSELF** — without it every call 503s and the client falls back to the stored URL. The opening surfaces mint BEFORE the click (awaited in a handler, the spent gesture gets `window.open` pop-up-blocked), and a signed link opens only the file on screen (`resolveDocumentOpenUrl`). AUTH_PLAN.md §5 |
-| | `rotateDocumentLinks` — admin-only (Operations → Document links): new keys for the permanent links; old copies die. EXC-007 |
-| | `getSignInStats` — admin-only READ: the EXACT unique-account sign-in counts, from Firebase Auth's own `lastSignInTime`. Four integers; no identity |
-| | `getAccountSetupGaps` — admin-only READ: who on the roster has no login, whose claim tier is wrong, and which leaver can still sign in. It returns NAMES, so it stays apart from `getSignInStats` (the header says why) and changes nothing |
-| | `requestPasswordReset` — the only public unauthenticated endpoint: a locked-out member asks the admin for a reset. It records a request, never resets anything, and pushes it to the **admin's devices only** via `sendTargetedPush` — never `fanOutPush` |
-| | The five Overtime endpoints: `createOvertimeWindow` · `getOvertimeManagerOverview` · `getMyOvertimeState` · `submitOvertimeAvailability` · `withdrawOvertimeParticipant` — not deployed while Overtime is paused (OVERTIME_AVAILABILITY.md) |
+| Staff-facing URL | `https://myb-roster.web.app` — canonical, the **primary install + notification target**. The GitHub Pages mirror `https://garethdavidmiller.github.io/roster-app/` (**note the `/roster-app/` path**; the bare origin 404s) is where **most staff still open the app** (owner, Sep 2026 — a deliberate, gradual changeover). It serves **no redirects and no HTTP headers**, so weigh any change that relies on Firebase Hosting against the mirror, not the canonical URL — which is why every page carries a `<meta>` CSP. ARCHITECTURE.md EXC-006; the API key note below. |
+| Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name. Each endpoint's header holds its rules; the two that are easy to get wrong are marked: |
+| | `ingestHuddle` (Power Automate, server to server, bearer `HUDDLE_SECRET`) · `parseRosterPDF` (`.claude/rules/roster-import.md`) · `setupRosterAuth` (accounts and claim tiers from `functions/roster-members.json`) · `rotateDocumentLinks` (admin, EXC-007) · `getSignInStats` (admin READ, four integers, no identity) · `getAccountSetupGaps` (admin READ; it returns NAMES, so it stays apart from `getSignInStats`) |
+| | `resetMemberPassword` — admin break-glass to the surname default, and `requestPasswordReset` — the only public unauthenticated endpoint, which records a request and resets nothing. **Both push through `sendTargetedPush`, never `fanOutPush`, and never carry a password** (a push renders on a lock screen); a reset for a lost or stolen phone sends no notice and deletes its push records. `.claude/rules/notifications.md` |
+| | `getDocumentUrl` — a SHORT-LIVED URL for the latest Huddle / Circular / Newsletter; the caller names a KIND, never a path. **It needs `roles/iam.serviceAccountTokenCreator` on the runtime service account, granted to ITSELF**, or every call 503s (RECOVERY_RUNBOOK.md). AUTH_PLAN.md §5 |
+| | The five Overtime endpoints — not deployed while Overtime is paused (OVERTIME_AVAILABILITY.md) |
 | Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
 
-**Secrets** (Firebase Secret Manager unless stated — no workflow reads any of these; deploys authenticate by WIF):
+**Secrets** (Firebase Secret Manager; no workflow reads any of them — deploys authenticate by Workload
+Identity Federation, and the old `FIREBASE_SERVICE_ACCOUNT` key is retired: SECURITY_RELEASE_PLAN.md →
+Appendix A2): `HUDDLE_SECRET` (bearer for `ingestHuddle`) · `ANTHROPIC_API_KEY` (`parseRosterPDF`) ·
+`VAPID_PRIVATE_KEY` (Web Push; the PUBLIC key is a literal in `functions/index.js` **and** `notif.js`,
+and the two must match) · `CALENDAR_VIEWER_PIN` (the RETIRED staff PIN, bound by nothing — the owner
+destroys it, then this entry goes: OPERATIONS_REFERENCE.md → "The staff PIN (retired)").
 
-| Secret | What it is |
-|--------|-----------|
-| ~~`FIREBASE_SERVICE_ACCOUNT`~~ | **Retired.** Every deploy authenticates by Workload Identity Federation (below); the old key and the GitHub secret are both deleted, so no standing full-project deploy credential remains in GitHub. Pool, provider and service account: SECURITY_RELEASE_PLAN.md → Appendix A2. |
-| `HUDDLE_SECRET` | Bearer token for `ingestHuddle` |
-| `ANTHROPIC_API_KEY` | Claude AI key for `parseRosterPDF` |
-| `VAPID_PRIVATE_KEY` | Web Push private key. The PUBLIC key is a literal in `functions/index.js` **and** `notif.js`, and the two must match (see Change impact) |
-| `CALENDAR_VIEWER_PIN` | The RETIRED staff PIN — never committed, and bound by no function since the server release. **The owner destroys it; delete this row then** (OPERATIONS_REFERENCE.md → "The staff PIN (retired)", step 2) |
+**Workflows:** `deploy-functions.yml` · `deploy-hosting.yml` · `deploy-rules.yml`, all by Workload
+Identity Federation, each `deploy` job alone holding `id-token: write` and running no test
+(`workflow-hygiene.test.mjs`). **The three fire in PARALLEL from one push, with no ordering
+guarantee**, so any change where the new client DEPENDS on new rules (a new override field, a new
+analytics counter id, a new collection) ships **backend-first, in its own push**: rules that ACCEPT the
+field first, the client that WRITES it only after the rules deploy is confirmed — in one push every
+such write permission-denies for minutes, and it has happened. Loosening the other way is always safe.
+**The Pages mirror** is published by `deploy-mirror.yml`, only from a commit a passing Hosting run
+released. The root **`.nojekyll`** marker is the way back to a branch-built mirror — do not delete it
+(OPERATIONS_REFERENCE.md → "The Pages mirror").
 
-**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA → Firebase Hosting) · `deploy-rules.yml` (Firestore/Storage rules). **All three authenticate via Workload Identity Federation** (`google-github-actions/auth`, pinned `v3.0.0`). In each, only the `deploy` job holds `id-token: write`, and it installs with `npm ci --ignore-scripts` and runs no test — the tests are gate jobs it waits for (`workflow-hygiene.test.mjs`). One other workflow signs in to Google: the weekly read-only `backup-check.yml`, as `vars.BACKUP_CHECK_SERVICE_ACCOUNT` — or as the deploy account until the owner sets that (SECURITY_RELEASE_PLAN.md → A2 → "Tightening it"). **The three fire in PARALLEL from one push, with no ordering guarantee** (successive pushes QUEUE per workflow — a `concurrency` group with `cancel-in-progress: false` — so an older push can never release last, and a re-run a newer run has overtaken stops itself, `.github/actions/refuse-overtaken-rerun`). So any change where the new client DEPENDS on new rules (a schema expansion: a new override field, a new analytics counter id, a new collection) must ship **backend-first, in its own push**: rules that ACCEPT the field first, the client that WRITES it only after the rules deploy is confirmed. In one push there is a minutes-long window where the live client writes a field the live rules' `hasOnly()` still rejects, and every such write permission-denies — it has happened. Loosening in the opposite direction (rules gaining a field no client writes yet) is always safe. **The GitHub Pages mirror** is published by **`deploy-mirror.yml`**, only from a commit a passing Hosting run released, under a minute after it (Settings → Pages → Source has been GitHub Actions since 10 November 2026). The root **`.nojekyll`** marker (empty file — do not delete) is for the way back: set the source to the branch again and it stops that build running Jekyll, which hard-times-out at 10 minutes.
-
-**⚠️ Firebase API key referrer restriction — add every domain the app is served from:**
-The Firebase web API key is restricted to specific HTTP referrers in GCP Console → APIs & Services → Credentials. If a domain is missing, **every Firebase Auth call fails** — sign-ins, Firestore writes and push subscriptions all break, and nothing on screen names the cause (a typed sign-in says only "Couldn’t sign you in"). Current allowlist must include:
-- `myb-roster.firebaseapp.com/*`
-- `myb-roster.web.app/*`
-- `garethdavidmiller.github.io/*` ← staff-facing URL, must stay until GitHub Pages is retired
-
-If a new custom domain is ever added, update the GCP allowlist **and `ADMIN_FUNCTION_ORIGINS` in `functions/index.js`** in the same change. The rule is KNOWN_LIMITATIONS.md task #1; its history is ROADMAP_HISTORY.md → "The four v11 security tasks".
+**⚠️ Firebase API key referrer restriction — add every domain the app is served from.** The web API
+key is restricted to HTTP referrers (GCP Console → APIs & Services → Credentials). If a domain is
+missing, **every Firebase Auth call fails** — sign-ins, Firestore writes, push subscriptions — and
+nothing on screen names the cause. The allowlist must include `myb-roster.firebaseapp.com/*`,
+`myb-roster.web.app/*` and `garethdavidmiller.github.io/*` (until GitHub Pages is retired). A new
+domain means updating the allowlist **and `ADMIN_FUNCTION_ORIGINS` in `functions/index.js`** in the same
+change — KNOWN_LIMITATIONS.md task #1.
 
 ---
 
 ## Deployment health check — do this occasionally (and in every review)
 
-> **⚠️ The installed PWA hides live-site breakage.** The app is offline-first, so
-> a phone that already has it installed launches — and even updates — straight
-> from the service-worker cache, **even when the live site is completely broken**
-> (splash that never clears, `404`, CSP failure, expired API-key referrer). You
-> will NOT see the problem from your own installed app — a real outage went
+> **⚠️ The installed PWA hides live-site breakage.** An installed phone launches, and even updates,
+> from the service-worker cache **even when the live site is completely broken** — a real outage went
 > unnoticed exactly this way. **"My phone works" is never evidence the site is up.**
 
 **Verify the LIVE URLs in a fresh browser / private window (no cache, no SW):**
 
 - [ ] `https://myb-roster.web.app` — loads *past* the splash to the calendar
-- [ ] `https://garethdavidmiller.github.io/roster-app/` — loads (not `404`); the GitHub Pages staff mirror (**note the `/roster-app/` path** — the bare origin is a separate empty repo that 404s)
+- [ ] `https://garethdavidmiller.github.io/roster-app/` — loads (not `404`; **note the `/roster-app/` path**)
 - [ ] A sub-page deep-link works (`/admin.html`, `/paycalc.html`) — not just the root
 - [ ] DevTools → Console on each shows **no red errors** (CSP / failed module / `404` / `api-key-not-valid` / referrer-blocked)
 
-**Cadence:** every code/app review, **and** immediately after any change to
-`firebase.json` (CSP/headers), the Firebase SDK version in `firebase-client.js`,
-the GCP API-key referrer allowlist, or the hosting/Pages setup. Full rationale
-and the symptom table: KNOWN_LIMITATIONS.md → "The installed PWA masks live-site
-breakage".
-
-**After every merge that deploys, run `npm run test:live` once Deploy Firebase Hosting, and the
-mirror's deploy that follows it, have FINISHED** — not at the merge. The deploy runs the whole
-browser suite before it releases anything (six and a half minutes, not ten, when the PR's own run already
-passed it on the identical tree — `deploy-hosting.yml`'s `tested` job; `safari` runs either way), so a check started at the
-merge reads the previous release, and its pass says nothing about the new one. A merge whose files all sit in that workflow's
-`paths-ignore` (docs, tests, workflows, Functions, rules) starts no Hosting deploy, so there is
-nothing to wait for.
+**Cadence:** every review, **and** immediately after any change to `firebase.json` (CSP/headers), the
+Firebase SDK version, the API-key referrer allowlist, or the hosting/Pages setup. Rationale and the
+symptom table: KNOWN_LIMITATIONS.md → "The installed PWA masks live-site breakage". **After every merge
+that deploys, run `npm run test:live` once Deploy Firebase Hosting and the mirror's deploy have
+FINISHED** — not at the merge, which reads the previous release (README.md → "The test lanes").
 
 ---
 
 ## Version bumping (MANDATORY on every change)
 
 **Every change a user can see or experience is bumped, with `npm run bump <version>` (e.g.
-`npm run bump 13.48`) — never by hand-editing.** That means logic, data, UI text, CSS
-layout/appearance, security rules, HTTP headers, the manifest and service-worker caching. Pure `.md`
-edits, tests, CI and dev scripts do not bump. **A comment-only change to a served file does** — any
-`.js`, `.css` or `.html` the app serves, or anything under `functions/`: it alters nothing a user
-sees, but CI's `version` job (`e2e.yml`) cannot tell a comment from code and fails the branch without
-one. **If in doubt,
-bump** — it costs nothing, while a missed bump serves staff a stale cached asset, and fixing it in a
-follow-up commit is worse than bumping unnecessarily. **Before every `git commit`, ask: did this
-touch anything a user can see or experience?**
+`npm run bump 13.48`) — never by hand-editing.** That means logic, data, UI text, CSS, security rules,
+HTTP headers, the manifest and service-worker caching. Pure `.md` edits, tests, CI and dev scripts do
+not bump. **A comment-only change to a served file does** — any `.js`, `.css` or `.html` the app serves,
+or anything under `functions/` — because CI's `version` job (`e2e.yml`) cannot tell a comment from
+code. **If in doubt, bump**: a missed bump serves staff a stale cached asset. **Before every `git
+commit`, ask: did this touch anything a user can see or experience?**
 
-The rules, each with its reason. The incidents behind them are DECISIONS.md → "Version bumping and
-merging — the incidents behind the rules".
+The rules; the incident behind each is DECISIONS.md → "Version bumping and merging — the incidents
+behind the rules".
 
-- **Bump against `main`, NOT against the branch you started from.** Re-check
-  `git show origin/main:roster-data.js | grep APP_VERSION` immediately before merging, and re-bump if
-  somebody got there first. Two parallel branches bump to the same number and the second merge does
-  not conflict; `service-worker.js` is then byte-identical across two releases, so the browser
-  installs no new worker and every device that took the first keeps its files until the next bump.
-  Nothing heals that; the remedy is a fresh bump and a redeploy.
-- **A gap in the version space is the rule working.** A caught collision skips a number. Never reuse
-  one to close it up: the version only ever increases, and a number that briefly named two trees
-  should never name a third.
-- **The increment is exactly 0.01 per change — never 0.10.** A batch goes `15.90 → 15.91 → 15.92`.
-  The "every 0.10 version" documentation rule below is only about when to re-stamp the docs, not the
-  step size. Never set a value ≤ what is already on `main`: the version names the SW cache.
-- **"CI is green" means the run that COMPLETED included the `version` job, and no run FAILED.** Every
-  PR fires a `push` and a `pull_request` run in one concurrency group, so one is normally cancelled
-  within seconds — that is the design (`e2e.yml`; DECISIONS.md). Do not go looking for a second full
-  green run. **A red `version` job on a release that shipped fine is probably the two-runs trap**: a
-  run fired when the PR was opened compared the branch against a `main` that already contained it.
-  The job now skips a branch `main` already contains, judged by content because `main` squash-merges.
-- **Do not stack a branch on an unmerged one.** `main` squash-merges, so a child branch cannot be
-  rebased once its parent lands — every commit replays and conflicts. Wait for the parent to merge,
-  or accept cutting a fresh branch from `main` and cherry-picking. The backend-first rule forces a
-  split in TIME, not in branches. **Once your own PR has squash-merged, restart its branch from
-  `main`.** Where a force push is refused, `git checkout -B <branch> origin/main && git merge -s ours
-  origin/<branch>` makes the restart a fast-forward: the tree is main's and the old head stays
-  reachable as the second parent.
-- **One Playwright run at a time, and do not switch branches under one.** The suites share a dev
-  server and `test-results/`; either mistake shows up only as a confusing false failure.
+- **Bump against `main`, NOT the branch you started from** — re-check `git show
+  origin/main:roster-data.js | grep APP_VERSION` immediately before merging. Two branches on one number
+  merge without conflict and ship a byte-identical `service-worker.js`, so no device updates.
+- **A gap in the version space is the rule working** — never reuse a number to close it up.
+- **The increment is exactly 0.01 per change — never 0.10**, and never a value ≤ `main`'s: the version
+  names the SW cache. The "every 0.10" rule below is only when to re-stamp the docs.
+- **"CI is green" means the run that COMPLETED included the `version` job, and no run FAILED** — one of
+  each PR's two runs is cancelled by design. A red `version` job on a release that shipped fine is
+  probably the two-runs trap (`e2e.yml`).
+- **Do not stack a branch on an unmerged one** — `main` squash-merges. **Once your own PR has
+  squash-merged, restart its branch from `main`**; where a force push is refused, `git checkout -B
+  <branch> origin/main && git merge -s ours origin/<branch>` makes the restart a fast-forward.
+- **One Playwright run at a time, and do not switch branches under one** — they share a dev server
+  and `test-results/`.
 
-**2 runtime bump locations** — `npm run bump` (`scripts/bump-version.mjs`) writes both, and
-`sw-asset-check.test.mjs` checks both:
+**2 runtime bump locations**, both written by `npm run bump` (`scripts/bump-version.mjs`) and checked by
+`sw-asset-check.test.mjs`: `export const APP_VERSION` in `roster-data.js` (the **primary source**) and
+`const APP_VERSION` in `service-worker.js` (names the SW cache). No version comment stamps and no `?v=`
+strings — do not add either back; freshness is `Cache-Control: no-cache` plus the version-named cache.
 
-| File | Location |
-|------|----------|
-| `roster-data.js` | `export const APP_VERSION = '...'` — **primary source** (every runtime read; the About panel shows it) |
-| `service-worker.js` | `const APP_VERSION = '...'` — names the SW cache (the freshness lever) |
+**Documentation update policy:** every **0.10 version** (e.g. 10.10 → 10.20), or immediately on: new pay
+grade, auth/Firestore model change, SW strategy change, new page or module, data model change.
 
-There are no version comment stamps and no `?v=` cache-busting strings — do not add either back.
-Cache freshness is `Cache-Control: no-cache` in `firebase.json` plus the version-named SW cache.
-
-**Documentation update policy:** Update every **0.10 version** (e.g. 10.10 → 10.20), or immediately on: new pay grade, auth/Firestore model change, SW strategy change, new page or module, data model change.
-
-**Same-commit rule:** Any commit that adds, removes, or renames a JS module — **or removes/renames an exported symbol** from one — must also update `docs/FILE_INDEX.md` and `docs/AI_MAP.md` in the same commit (an entry's export line is written by `npm run generate:ai-map`, never by hand). The pre-commit hook (`githooks/pre-commit`) enforces both (modules must be listed in both docs; a staged module whose exported surface changed vs `HEAD` requires `AI_MAP.md` to be staged too). It **also blocks** a commit when any stamped doc's "Last updated" line has fallen behind the latest 0.10 milestone (mirroring `sw-asset-check.test.mjs`), runs ESLint on staged JS files (if ESLint is installed), and checks that `firebase-client.js` does not import more than one Firebase SDK version.
+**Same-commit rule:** a commit that adds, removes or renames a JS module — **or removes/renames an
+exported symbol** — updates `docs/FILE_INDEX.md` and `docs/AI_MAP.md` too (the export line is written by
+`npm run generate:ai-map`, never by hand). `githooks/pre-commit` enforces it, and also blocks a stale
+doc stamp, runs ESLint on staged JS, and refuses a second Firebase SDK version in `firebase-client.js`.
 
 ---
 
@@ -169,41 +140,36 @@ When compacting, always preserve:
 ## Area rules — what loads only when you open an area's files
 
 Each `.claude/rules/*.md` file loads automatically when a file matching its `paths:` globs is read or
-edited, so an area's decisions cost nothing to a session working somewhere else. **Read the one for
-your area before changing it.** Each holds the "never change without discussion" decisions that bind
-only that area; a decision that binds more than one area stays in this file.
+edited. **Read the one for your area before changing it**: it holds the "never change without
+discussion" decisions that bind only that area. A decision that binds more than one area stays here.
 
 | Rule file | What it holds | Loaded by |
 |---|---|---|
-| `calendar.md` | the Calendar page — month announcements, the swipe seam, a removed member, the sync chip, the notification strip, Team Week, the day panel, the pay jump | `index.html` · `index.css` · `calendar-*` · `e2e/calendar*.spec.js` |
-| `admin.md` | the Admin page — the pill types, "Recording for", AL on a rest day, Sunday corrections, checked saves, the range picker | `admin.*` · `admin-*` · `al-*` · `e2e/admin.spec.js` |
-| `nav-drawer.md` | the drawer, About and the header logo, sign-out, the bell, App Notices, Android Back, the topmost overlay | `nav-panel.js` · `nav-destinations.js` · `nav-guide-search.js` · `overlay.js` · `about-lightbox.js` and their tests |
-| `pwa.md` | the service worker's caching and update lifecycle, the offline fallback, the manifest, Firestore's local cache | `service-worker.js` · `sw-register.js` · `sw-*.test.mjs` · `manifest.json` · `firebase-client.js` · the offline lane |
-| `sessions.md` | one local session, re-establishing Firebase on load, strict write isolation, the claim tiers, `normaliseSurname` | `session.js` · `silent-sign-in.js` · `page-session.js` · `login-overlay.js` · `login-core.js` · `auth-*` · `claim-retry.js` · `password-force.js` · `own-password.js` · `firebase-client.js` · `firestore.rules` · the functions' auth and identity files |
+| `calendar.md` | the Calendar page | `index.html` · `index.css` · `calendar-*` · `e2e/calendar*.spec.js` |
+| `admin.md` | the Admin page, Change a Shift, leave on a rest day | `admin.*` · `admin-*` · `al-*` · `e2e/admin.spec.js` |
+| `nav-drawer.md` | the drawer, About, sign-out, the bell, Android Back, the topmost overlay | `nav-panel.js` · `nav-destinations.js` · `nav-guide-search.js` · `overlay.js` · `about-lightbox.js` and their tests |
+| `pwa.md` | the service worker's caching and update lifecycle, the manifest, Firestore's local cache | `service-worker.js` · `sw-register.js` · `sw-*.test.mjs` · `manifest.json` · `firebase-client.js` · the offline lane |
+| `sessions.md` | one local session, re-establishing Firebase on load, write isolation, the claim tiers | the session, sign-in and auth modules · `firestore.rules` · the functions' auth and identity files |
 | `roster-data.md` | the member fields, `rosterChanges`, the cycles and fixed patterns, `APP_VERSION` | `roster-data.js` · `roster-cycle-data.js` · `roster-member-data.js` · `roster-roles.js` |
-| `roster-import.md` | the weekly roster import, and every defence against a week written onto the wrong days | the import modules and `functions/roster-*` |
-| `paycalc.md` | the Pay Calculator — rates, payroll rules, state, layout, the real-payslip net | `paycalc*` |
+| `roster-import.md` | the weekly roster import, and every defence against a week on the wrong days | the import modules and `functions/roster-*` |
+| `paycalc.md` | the Pay Calculator | `paycalc*` |
 | `links-design.md` | the Links workspace | `links*` |
 | `css-tokens.md` | surfaces, colour, type, motion, spacing, focus, the app-drawn controls | every `*.css` |
-| `guide-pages.md` | the guide pages' shell, design principles and factual standards | the guide pages |
+| `guide-pages.md` | the guide pages | the guide pages |
 | `notifications.md` | the push notification language and the single builder | the push senders, `notif.js`, `notif-card*.js`, `service-worker.js` |
-| `operations.md` | the Operations page — who opens it, the "Needs attention" strip, unknown is never "none", Reset, Document links, the upload cards, the Annual leave sheet | `operations*` · `al-leave-*` · `e2e/operations.spec.js` |
-| `staff-copy.md` | the owner's standard for words that teach (Plain English that TEACHES, in full) | every page's HTML · `*-words.js` · `*-tips.js` · `*-render.js` · the notices |
+| `operations.md` | the Operations page | `operations*` · `al-leave-*` · `e2e/operations.spec.js` |
+| `staff-copy.md` | the owner's standard for words that teach, and the reasons behind the wording conventions below | every page's HTML · `*-words.js` · `*-tips.js` · `*-render.js` · the notices |
 
 ---
 
 ## Feature contracts — read one BEFORE changing a feature
 
-> **Lost? `ARCHITECTURE.md` is the index.** One page: which document is authoritative for
-> each subject, **what is actually deployed where that differs from what the documents describe**
-> (the `EXC-*` table — when it is empty, documented and deployed have converged), and what the four
-> status words mean. It holds no design and no history; if it has not sent you somewhere else, it has
-> failed.
+> **Lost? `ARCHITECTURE.md` is the index**: which document is authoritative for each subject, **what is
+> deployed where that differs from what the documents describe** (the `EXC-*` table), and what the four
+> status words mean.
 
-Five documents state, as numbered invariants, what each feature must never stop doing. They are
-**routing tables, not explanations**: each row names the property and points at the module header
-where the reasoning lives beside the code. That is the same three-homes discipline as the file
-index — a contract that restated its own reasoning would be a fourth copy of it.
+Five documents state, as numbered invariants, what each feature must never stop doing — routing
+tables, each row pointing at the module header that argues it:
 
 | Feature | Contract | What it protects |
 |---|---|---|
@@ -226,17 +192,17 @@ regression somewhere the author was not looking.
 | `resolveEffectiveShift` (`override-utils.js`) | Calendar · Team Week View · Admin · Overtime roster context | `override-utils.test.mjs` · `e2e/overtime.spec.js` |
 | the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects were both invisible to behaviour | `e2e/calendar.spec.js` (the `day detail:` block) · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
 | `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
-| `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on the Calendar, Team Week, the legend, Overtime's roster and Admin's week grid, the leave records, the allowance (`entitlementFor`) and Admin's save checks | `christmas-leave.test.mjs` · `admin-al-projection.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
-| `session.js` · `silent-sign-in.js` · `login-overlay.js` · `login-core.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` (the overlay on every sign-in page) · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
+| `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on every surface that draws a day, the leave records, the allowance (`entitlementFor`) and Admin's save checks | `christmas-leave.test.mjs` · `admin-al-projection.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
+| `session.js` · `silent-sign-in.js` · `login-overlay.js` · `login-core.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
 | `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, what it reports when its outcome is unknown, and when any page may reload for an update | `claim-retry.test.mjs` · `sw-register.test.mjs` · `e2e/admin.spec.js` · `e2e/operations.spec.js` |
-| a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` — it runs the REAL writers of `overrides` (`buildOverrideWrite`), `analytics`, `clientErrors`, `linkTargetSets` and the three documents, and `al-leave-save.test.mjs` pins the `alUploads` writer to the rule's own list; for `staffContact`, `passwordStatus`, `pushSubscriptions` and `linkDesigns` check the writer's keys against the rule's `hasOnly()` BY HAND (`firestore-contract-parity.test.mjs` checks ids and allowlists, not field sets) |
+| a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` runs the REAL writers of `overrides` (`buildOverrideWrite`), `analytics`, `clientErrors`, `linkTargetSets` and the three documents, and `al-leave-save.test.mjs` pins `alUploads`; for `staffContact`, `passwordStatus`, `pushSubscriptions` and `linkDesigns` check the writer's keys against the rule's `hasOnly()` BY HAND |
 | `firestore.rules` | client and server together — the client copies of ownership rules only drive BUTTONS | `npm run test:rules` **and** `firestore-contract-parity.test.mjs` |
 | `firebase.json` CSP header | every page's `<meta>` CSP, because the Pages mirror serves no headers — run `npm run generate:copies`, which writes them | `generated-copies.test.mjs` · `csp-meta-parity.test.mjs` · `npm run test:csp` |
 | the Mammoth version (`huddle.js`) | the CSP `script-src` in `firebase.json` and every page's `<meta>`, which name that version's folder | `dependency-pin-parity.test.mjs` |
 | any `overlay.js` lifecycle | every lightbox in the app, including the one-time notices | `overlay.test.mjs` · `overlay-history.test.mjs` |
-| adding a PAGE | ONE entry in `scripts/app-pages.mjs` — the test suites read their pages from it — plus the app's own lists (SW, auth policy, nav pill, rules analytics id, report names, guide back-arrow), which stay hand-written because there is no build step | `page-contract-parity.test.mjs` — it names each app-side list the page has not joined, and checks the page list against the files on disk |
+| adding a PAGE | ONE entry in `scripts/app-pages.mjs`, plus the app's own hand-written lists (SW, auth policy, nav pill, rules analytics id, report names, guide back-arrow) | `page-contract-parity.test.mjs` names each list the page has not joined |
 | adding a MODULE or changing its exports | `docs/FILE_INDEX.md` + `docs/AI_MAP.md`, same commit | `githooks/pre-commit` · `doc-parity.test.mjs` |
-| `CONFIG.ADMIN_NAMES` / `MANAGER_NAMES` / `LINKS_DESIGNERS` / `OVERTIME_BETA` / `OVERTIME_ENABLED` / `MAX_YEAR` / `FIRST_PAYDAY` / `PAYDAY_INTERVAL_DAYS`, or any `teamMembers` row (`signInMembers()` is the server's sign-in list since v26.59) | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
+| `CONFIG.ADMIN_NAMES` / `MANAGER_NAMES` / `LINKS_DESIGNERS` / `OVERTIME_BETA` / `OVERTIME_ENABLED` / `MAX_YEAR` / `FIRST_PAYDAY` / `PAYDAY_INTERVAL_DAYS`, or any `teamMembers` row | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
 | a Firebase SDK bump (`firebase-client.js`) | `FIREBASE_SDK_VERSION` in `service-worker.js` and every page's SDK preloads — run `npm run generate:copies`, which writes both | `generated-copies.test.mjs` |
 | the VAPID key | `functions/index.js` **and** `notif.js` — a mismatch is silent AND permanent | `sw-asset-check.test.mjs` |
 
@@ -251,69 +217,47 @@ and it is not a changelog. Three homes, one fact each:
 |---|---|---|
 | **Routing** — what a file is, what it owns | `FILE_INDEX.md`, one line | it is what you need before you have opened anything |
 | **Design reasoning** — the invariants an edit can silently break | the module's own header | it is where an editor is already looking, and it cannot drift from the code beside it |
-| **Release history** — what changed at which version | git log, and the plan docs | it describes the past; it cannot be checked, and it is read almost never |
+| **Release history** — what changed at which version | git log | it describes the past; it cannot be checked, and it is read almost never |
 
 A fact kept in two places drifts, and that drift is behind every stale doc claim this repo has had to
-correct. So when you add a module, give it a one-line entry in `FILE_INDEX.md` and put the argument
-in its header; see `AI_MAP.md` for each module's routing card and generated export list. Reasoning leaves a doc
-only after it is verified in the module header. `doc-parity.test.mjs` caps each catalogue entry and
-the version stamps in it, refuses a file routed twice, and caps this file's total size, because it is
+correct. So a new module gets a one-line `FILE_INDEX.md` entry and its argument in its header
+(`AI_MAP.md` carries each module's routing card and generated export list). Reasoning leaves a doc only
+after it is verified in the module header. `doc-parity.test.mjs` caps this file's size, because it is
 loaded into every session.
 
-**The rule tested, the wiring not** — the named risk. This repo's breadth of rule, contract and
-hygiene tests is its strength and also its blind spot: a helper can be perfect and the answer still
+**The rule tested, the wiring not** — the named risk. A helper can be perfect and the answer still
 wrong, because the production line that calls it passed the wrong argument, was never called, ran in
 the wrong access context, or had its result discarded. So, for anything that moves money, decides
 access, or names a person:
 
-- **Test the entry point, not only the helper.** At least one test that runs the real production path
-  through to the resulting behaviour — the rendered £, the written payload, the sent audience.
-- **Mutate before you claim a guard, and use `scripts/mutate.mjs` to do it.** Delete or invert the
-  line and re-run. If nothing fails, the rule is documented, not protected. Say which line you
-  deleted and what stayed green. **Never a hand-rolled `sed`/`replace`:** a search string the source
-  does not contain is a silent no-op, and a replace-first can land on the wrong copy of a repeated
-  block — both look exactly like a green run, and both argue for WEAKENING a test that is fine, the
-  worst direction for an error here. The script refuses an absent, ambiguous (`--in` narrows) or
-  no-op edit and a command that fails unmutated, and always puts the file back (its header says how).
+- **Test the entry point, not only the helper** — at least one test through the real production path
+  to the resulting behaviour: the rendered £, the written payload, the sent audience.
+- **Mutate before you claim a guard, with `scripts/mutate.mjs`.** Delete or invert the line and re-run;
+  if nothing fails, the rule is documented, not protected. Say which line you deleted and what stayed
+  green. **Never a hand-rolled `sed`/`replace`**: a search string the source lacks is a silent no-op
+  that looks exactly like a green run. The script refuses an absent, ambiguous (`--in` narrows) or
+  no-op edit, and always puts the file back.
 - **A harness that discards is a harness that cannot see.** A mock that answers `set: () => {}` can
   assert nothing about a payload; record what it is given.
 - **Access context is a dimension.** Safe-for-a-member is not safe-for-every-unlock-mode.
 
-**Run the tests** — what each lane needs, proves and gets wrong: README.md → "The test lanes".
+**Run the tests** — every lane, what it needs, proves and gets wrong, and the traps (visual baselines,
+WebKit's install, a `RELAYED` `test:live`, the absent payslip fixture, Functions on Node 24): **README.md
+→ "The test lanes"**. The everyday ones:
 ```
-npm test                    # test:hygiene + test:parse + test:unit (every file in test/ but the Functions-only and rules suites) — needs NOTHING installed
+npm test                    # test:hygiene + test:parse + test:unit — needs NOTHING installed
 npm run check               # lint + typecheck + npm test (full pre-push gate)
-npm run lint                # ESLint on all JS files
-npm run typecheck           # tsc --noEmit, strict: the root JS modules AND functions/ (needs functions/node_modules)
-npm run test:hygiene        # the no-emulator, no-mock suites; the list is package.json `test:hygiene`, not restated here
-npm run test:parse          # module-parse (--experimental-vm-modules)
-npm run test:unit           # all --experimental-test-module-mocks tests
-npm run test:nodeps         # every suite that needs nothing installed; gates every branch and PR as the `nodeps` job
-npm run test:payslip-local  # the real-payslip regression; FAILS without the gitignored fixture — run it before any pay-maths release
-npm run test:functions      # Cloud Functions handler + parser suites (needs functions/node_modules); gates every PR on Node 24
-npm run test:rules          # Firestore + Storage security rules (the Firebase emulator starts automatically)
-npm run test:e2e            # the smoke suite in headless Chromium — the axe accessibility gate runs inside it, blocking
-npm run test:a11y           # that accessibility gate on its own (A11Y_BASELINE.md)
-npm run test:csp            # the real firebase.json CSP, served by the Hosting emulator; gated in CI (`csp` job)
-npm run test:visual         # Chromium visual baselines — REPORT-ONLY in branch CI
-npm run test:visual:webkit  # a small Safari-engine visual set — report-only
-npm run test:webkit         # the smoke suite under WebKit — branch CI; the deploy gate runs every-page.spec.js
-npm run test:live           # the DEPLOYMENT HEALTH CHECK against the real site, both origins; gates nothing
-npm run test:offline        # SW/offline paths with the network cut — weekly, non-blocking (offline.yml)
-npm run test:mutation       # breaks each wiring line in scripts/mutation-manifest.mjs; red on a survivor — weekly, non-blocking (mutation.yml)
-npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; both halves gate Hosting
+npm run test:functions      # Cloud Functions suites (needs functions/node_modules)
+npm run test:rules          # Firestore + Storage security rules (the emulator starts automatically)
+npm run test:e2e            # the smoke suite in headless Chromium, with the blocking axe gate
+npm run test:payslip-local  # the real-payslip regression — run it before any pay-maths release
+npm run test:live           # the DEPLOYMENT HEALTH CHECK against the real site, both origins
 ```
-**Five traps, each in full in README.md → "The test lanes", beside its lane:** read the `visual
-baselines` CHECK, never the `visual` job (regenerate from CI's render with
-`scripts/refresh-visual-baselines.mjs`, then revert what you cannot explain); WebKit needs
-`npx playwright install webkit && npx playwright install-deps webkit` (Chromium is pre-installed); a
-`RELAYED` `test:live` pass is partial; `npm test` skips the payslip regression when the fixture is
-absent; the Functions job stays on Node 24.
 
 **Service worker caching:** every asset is served from the version-named cache `myb-roster-v{APP_VERSION}`
-and **a cached file is never re-fetched**, so a change reaches devices only through a version bump →
-new worker → new cache; roster DATA is always live from Firestore. The lifecycle, the warm-up and the
-fallback rules — and the do-not-revert decisions behind them — are `.claude/rules/pwa.md`.
+and **a cached file is never re-fetched**, so a change reaches devices only through a version bump;
+roster DATA is always live from Firestore. The lifecycle and its do-not-revert decisions:
+`.claude/rules/pwa.md`.
 
 ---
 
@@ -326,58 +270,52 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 ## Architecture decisions — never change without discussion
 
 These bind more than one area. A decision that binds only one area is in that area's rule file
-(Area rules, above), and the rule files are where to look before changing an area.
+(Area rules, above).
 
 | Decision | Rule |
 |----------|------|
-| No framework (vanilla JS) | No build step. Do not introduce React, Vue, or any UI framework. A **few** vetted, self-contained libraries are allowed where they earn their place — currently Firebase (auth/Firestore/Storage), Mammoth (DOCX→HTML for the Huddle), DOMPurify (sanitising that HTML) and PDF.js (the in-app PDF viewer, `pdf-viewer.js` — owner, 10 Nov 2026); on the server, `pdfjs-dist` (the roster grid read). Adding another runtime library is a discuss-first decision, not a default. |
-| No bundler | External dependencies load without a build step: **vendored** (served from origin) where offline-first or CSP demands it — DOMPurify (`purify.es.mjs`), PDF.js (`pdfjs/<version>/` — its worker must be same-origin, and a new version is a new folder) and the Inter font are vendored — otherwise **from a pinned CDN** with SRI where practical (Firebase from gstatic, Mammoth from jsdelivr). Prefer vendoring for anything the app must work offline without. |
-| **When a build step earns its keep (threshold, not yet crossed)** | The no-build rule is a deliberate trade — zero toolchain, direct debuggability, no build-supply-chain — paid for by hand-maintained work a bundler does for free (the SW precache, the 2-location version bump, `generate-*` codegen, the CSP `*-boot.js` shims, the pure-helper splits, the `normaliseSurname` duplication). **Revisit — do not auto-adopt — when either (a) you want real TypeScript types, or (b) a bug is traced to drift in a hand-maintained list.** Until then the trade favours no build. The full cost list, why the figures are COUNTED rather than written down, and the third input that is measured but is NOT a trigger: **DECISIONS.md → "No build step"**. |
-| **Self-hosted Inter is the app's ONLY typeface** | `fonts/inter-latin.woff2` is served from origin, NOT Google Fonts CDN: CSP is `font-src 'self'`, and self-hosting keeps the app offline-first with no third-party request. `--font-sans` in `:root` is where the stack is defined (`shared.css`, and again in `guide-shell.css` for the guide pages, which do not import `shared.css`), and every page's `body` and form control uses it. Do not re-add a Google Fonts `<link>`. A display face was tried and reverted (owner decision) — don't add a second face without a fresh discussion. Detail: `css-tokens.md` → "Self-hosted Inter typeface". |
-| **No native `<select>` POPUP** | A select's list is drawn by the OS, so the app's design stops at its edge — on Android it is a full-bleed Material radio sheet, which is how a ~50-name roster arrived as fifty oversized ungrouped rows. **Every dropdown a reader READS goes through `enhanceSelect` / `initSelectSheets` (`select-sheet.js`)**; the `<select>` stays as the value holder, so consumers are untouched. The rules an ENHANCEMENT breaks without touching the call site — the `.fieldpick` and `#<id>Trigger` CSS counterparts, never `.focus()` an enhanced select, announce a selection changed IN CODE, never enhance a `hidden` one — are numbered contracts in **`select-sheet-parity.test.mjs`**, each failing with its own fix. That file also holds every native-by-decision exclusion with its reason and carries the argument; DECISIONS.md has the history, including the sign-in cascade (decided and enhanced, 9 Sep 2026). |
-| **The OS draws nothing the app can draw** | The `<select>` rule above, generalised: where the platform draws a control, the app's design stops at its edge. Checkboxes and radios (ONE recipe in `shared.css` — recolour through `--check-fill`/`--check-border`, and never set a size or an `accent-color`), textarea resize grips, scrollbars, `::selection`, `::placeholder`, `caret-color`, autofill's repaint and the password field's OS buttons are all app-drawn now. **`title` tooltips were REMOVED, not rebuilt** — a hover-only surface is the wrong answer on a phone, so the few that explained a DISABLED state became a line in the row instead. Safari's strong-password button is LEFT: a feature, not a duplicate. `native-surface-parity.test.mjs` enforces every recipe; the reasoning is each recipe's own header, `.claude/rules/css-tokens.md` → Checkboxes and radios / The six the first audit missed, and DECISIONS.md → Tooltips. |
-| Pointer Events API for swipe | Handles touch, mouse, and trackpad in one handler (the Calendar's month swipe, the Admin week swipe, the range picker). Do not revert to Touch Events. |
-| CSS variables for all colours | Defined in `:root`. Never hardcode hex anywhere in CSS or JS — `css-hex-parity.test.mjs` enforces it. Four structural exemptions (a token DEFINITION, a `var()` fallback, a mask channel, `@media print`) and one named JS exemption, each argued in that file's header: do not add a fifth without one. The surfaces, motion and type scale — never below 16px on a focusable field (iOS focus-zoom) — are `.claude/rules/css-tokens.md`. |
+| No framework (vanilla JS) | No build step. Do not introduce React, Vue, or any UI framework. A **few** vetted, self-contained libraries are allowed — Firebase, Mammoth (DOCX→HTML for the Huddle), DOMPurify and PDF.js (`pdf-viewer.js` — owner, 10 Nov 2026); on the server, `pdfjs-dist`. Adding another runtime library is a discuss-first decision. |
+| No bundler | Dependencies load without a build step: **vendored** where offline-first or CSP demands it (DOMPurify `purify.es.mjs`, PDF.js `pdfjs/<version>/` — a new version is a new folder — and the Inter font), otherwise **from a pinned CDN** with SRI where practical (Firebase from gstatic, Mammoth from jsdelivr). |
+| **When a build step earns its keep (threshold, not yet crossed)** | The no-build trade is paid for in hand-maintained work a bundler does for free. **Revisit — do not auto-adopt — when (a) you want real TypeScript types, or (b) a bug is traced to drift in a hand-maintained list.** The cost list and the measured input that is NOT a trigger: **DECISIONS.md → "No build step"**. |
+| **Self-hosted Inter is the app's ONLY typeface** | `fonts/inter-latin.woff2`, served from origin (CSP `font-src 'self'`, offline-first). `--font-sans` in `:root` (`shared.css`, and `guide-shell.css`). Do not re-add a Google Fonts `<link>`; a second face was tried and reverted (owner decision). `css-tokens.md` → "Self-hosted Inter typeface". |
+| **No native `<select>` POPUP** | The OS draws a select's list, so the app's design stops at its edge. **Every dropdown a reader READS goes through `enhanceSelect` / `initSelectSheets` (`select-sheet.js`)**; the `<select>` stays as the value holder. The rules an enhancement breaks without touching the call site, and every native-by-decision exclusion, are numbered contracts in **`select-sheet-parity.test.mjs`**. |
+| **The OS draws nothing the app can draw** | Checkboxes and radios (ONE recipe in `shared.css` — recolour through `--check-fill`/`--check-border`, never a size or an `accent-color`), resize grips, scrollbars, `::selection`, `::placeholder`, `caret-color`, autofill and the password field's OS buttons are app-drawn. **`title` tooltips were REMOVED, not rebuilt** (hover-only is wrong on a phone). Safari's strong-password button is LEFT. `native-surface-parity.test.mjs`; `css-tokens.md`; DECISIONS.md → Tooltips. |
+| Pointer Events API for swipe | Touch, mouse and trackpad in one handler (the Calendar's month swipe, the Admin week swipe, the range picker). Do not revert to Touch Events. |
+| CSS variables for all colours | Defined in `:root`. Never hardcode hex in CSS or JS — `css-hex-parity.test.mjs`, whose header argues its few exemptions: do not add one without an argument. Never below 16px on a focusable field (iOS focus-zoom). `.claude/rules/css-tokens.md`. |
 | Semantic elements (`<nav>`, `<header>`, `<main>`) | Screen readers depend on these landmarks. Do not revert to `<div>`. |
-| `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. **Christmas LEAVE sits on top of it** in `christmas-leave.js`: from 2026 a member whose PATTERN had them at work is shown on leave there, never counted and never stored, and every surface draws a day through `resolveDayShift` — `CALENDAR_DATA.md` 19. |
+| `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. **Christmas LEAVE sits on top** in `christmas-leave.js`: every surface draws a day through `resolveDayShift` — `CALENDAR_DATA.md` 19. |
 | `getBaseShift(member, date)` for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and future base-shift logic. Always call `getBaseShift()`, never read `roster.data` directly. |
 | `isBeforeMemberStart(member, date)` in `override-utils.js` | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
-| **Sundays are non-contracted — AL and Absent cannot be recorded on Sundays** | Sundays are uncontracted for all grades. The forbidden write types are declared ONCE, as `SUNDAY_FORBIDDEN_TYPES` in `override-utils.js` — `annual_leave`, `sick`, `other` and plain `shift` (a worked Sunday is `rdw`, deliberately absent). **Do not restate the list in prose or in a new call site**; consult it, or be pinned to it by `override-utils.test.mjs`. **SEVEN enforcement layers, none removable alone** — numbered in the code comments, so APPEND rather than renumber: (1) week-grid disables the AL/Absent pills on Sunday rows and the Shift pill too; (2) bulk-apply skips Sunday rows; (3) `recordRangeOverrides` filters Sundays out of `workingDates`; (4) roster upload normalises a Sunday `AL`/`SICK` to `RD`; (5) display — `isOverrideDisplaySuppressed` hides a leave, absence or Other override on a Sunday, so legacy data never renders; (6) the single-row save (`collectWeekRows`, `admin-week-collect.js`), a different answer per type (`shift` → `rdw`; `other` refused unless Spare; leave and absence refused), so pinned to the list by a test; (7) the leave sheet's Save never writes one (`writableDate`, `al-leave-plan.js`). A worked Sunday time is always RDW, never AL/Absent. |
+| **Sundays are non-contracted — AL and Absent cannot be recorded on Sundays** | The forbidden write types are declared ONCE, `SUNDAY_FORBIDDEN_TYPES` in `override-utils.js` (a worked Sunday is `rdw`) — **do not restate the list**. **SEVEN enforcement layers, none removable alone**, numbered in code comments, so APPEND rather than renumber: (1) the week grid's pills; (2) bulk-apply; (3) `recordRangeOverrides`; (4) the roster upload's normalising; (5) display, `isOverrideDisplaySuppressed`; (6) the single-row save, `collectWeekRows` (`admin-week-collect.js`); (7) the leave sheet's Save, `writableDate` (`al-leave-plan.js`). |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `lsGet` / `lsSet` / `lsDel` / `lsKeys` from `ls.js` | iOS Safari private mode throws `SecurityError` on any `localStorage` access. **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers. `lsKeys()` is for code that must enumerate storage. |
-| Per-member paycalc localStorage namespacing | On a shared device two staff must not read each other's pay data: **never a paycalc key without `pcPrefix()`/`SK`**, never a namespaced device flag, and a retired device flag stays declared. The rules and why: `.claude/rules/paycalc.md` invariant 3. |
-| 3-digit time input auto-correction — `formatClockInput` / `finaliseClockInput` in `clock-input.js` | While typing, three digits whose FIRST is 3–9 take a leading `'0'` (`"630"` → `"06:30"`, never `"63:0"`). A first pair of 24–29 (`"240"`) may be the start of `"2400"`, so it waits for the box to be LEFT, when any three digits that read as a time take the zero (`"130"` → `"01:30"`, owner, 24 Nov 2026); every consumer calls both. One rule for every text clock box — no page keeps its own copy. |
-| **Calendar access: a named session only** | The shared staff PIN is RETIRED (owner, 23 Nov 2026): the Calendar and Trains open only to a person signed in by name, and somebody with no roster of their own gets an **Other Staff** login (OPERATIONS_REFERENCE.md → "Adding an Other Staff login"). `overrides` reads need a bound member (`isMember()`) or `admin`; the retired `calendarViewer` claim grants nothing since the server release. **Anonymous grants nothing**: the Calendar used to sign every visitor in anonymously, so `request.auth != null` would re-admit exactly the people it closes out — ask for a CLAIM, never a session. The removal ships in three releases (client, server, cleanup) — DECISIONS.md → "The staff PIN retired", which says what each removes. **The invariants are NOT restated here**: `CALENDAR_DATA.md` 3/4/11/12 and `AUTH_AND_SESSIONS.md` 8/9/17/19. Before the grant, a member may see their own stored roster, labelled (owner, 5 Oct 2026 — `CALENDAR_DATA.md` 17). |
-| `cors: ADMIN_FUNCTION_ORIGINS` on every endpoint the browser calls | Each restricts CORS to the explicit origin allowlist `ADMIN_FUNCTION_ORIGINS` in `functions/index.js` — defence-in-depth on top of the real control, each endpoint's own check (an ID token and claim for all but the public ones). Add any new hosting domain to that array, with the API key allowlist (Project identity). `ingestHuddle` keeps `cors: false` (server-to-server). |
-| Canonical lightbox lifecycle | Every `.lb-overlay` lightbox is built with **`createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` in `overlay.js`** — do NOT hand-write the lifecycle in a page module. It owns focus save/restore, the scroll lock, Android Back, Escape (the topmost overlay only), the Tab trap, backdrop/close-button close and the mandatory `transitionend` fallback. Close controls are `<button class="lb-close">`, never `<span>` — not keyboard-focusable. **A one-time notice opens through `openNoticeIfClear(lightbox)`, never `lightbox.open()`.** **A link that leaves the page from inside a lightbox goes through `followLinkOutOf(lightbox, click)`**, which replaces the lightbox's history entry, so Back never lands on a step nothing answers. **Three exceptions, each with its reason: `createLightbox`'s JSDoc in `overlay.js`** — the drawer's two lightboxes (they share the drawer's history entry, which is why they hand-roll it) and the huddle viewer (a full-bleed panel). The mechanism: `.claude/rules/nav-drawer.md`. |
-| Page chrome — the header and the drawer | Every app page has the burger `#navMenuBtn` and the shared drawer (`initNavPanel`), spreading its pill gates from `navGatesFor` (`auth-policy.js`), `onLogoClick: () => openAboutLightbox?.()` and its `onSignOut`. Sign-out lives only in the drawer footer and About opens from the drawer head. A sub-page's header logo goes back to the calendar (`wireHeaderLogo`, `about-lightbox.js`) and there is no header back button; the Calendar's own header logo opens About and must not navigate. Detail: `.claude/rules/nav-drawer.md`. |
-| Overtime page — the two audiences | **PAUSED**: `CONFIG.OVERTIME_ENABLED` false closes it to all, admin included (OVERTIME_AVAILABILITY.md → Paused). **Reviewing** (`isOvertimeReviewer`, the `admin`/`manager` claim) sees everybody's declarations; **participating** (a name in `CONFIG.OVERTIME_BETA` — **regenerate in the same commit**) answers only for oneself. The pill and the page policy gate on `canOpenOvertime` (either). **Never widen `isOvertimeReviewer` to make the pill work** — it hands a beta tester everybody's availability (AUTH_AND_SESSIONS.md 14). |
-| Huddle notification → `#huddle` hash pattern | The three documents' viewers open **only** via their hash (`#huddle`, `#circular`, `#newsletter`), from the drawer and a notification tap alike; two viewer paths that must not be unified, and the sign-in gate. In full: `.claude/rules/calendar.md` → "The document viewers open by hash". |
-| `initErrorReporter()` call pattern | It writes to Firestore `clientErrors`, so a valid auth token is required. **Never call it bare** — without an auth context every write is silently rejected by the rules, so the error log looks HEALTHY because it is broken. **Three canonical call sites**, differing because the pages establish identity differently: the Calendar (`calendarAuthReady`, which resolves only once access is granted — a locked Calendar starts no reporter), the pages with `sessionReady`, and the Pay Calculator (which has none). The exact shapes: the header of **`error-reporter.js`**; the rule: `AUTH_AND_SESSIONS.md` invariant 13. |
+| Per-member paycalc localStorage namespacing | On a shared device two staff must not read each other's pay data: **never a paycalc key without `pcPrefix()`/`SK`** — `.claude/rules/paycalc.md` invariant 3. |
+| 3-digit time input auto-correction — `formatClockInput` / `finaliseClockInput` in `clock-input.js` | `"630"` → `"06:30"` while typing; a first pair of 24–29 waits for the box to be LEFT (`"130"` → `"01:30"`, owner, 24 Nov 2026). Every consumer calls both; one rule for every text clock box. |
+| **Calendar access: a named session only** | The staff PIN is RETIRED (owner, 23 Nov 2026): the Calendar and Trains open only to a person signed in by name, and somebody with no roster gets an **Other Staff** login. **Anonymous grants nothing** — ask for a CLAIM, never a session. The invariants: `CALENDAR_DATA.md` 3/4/11/12/17 and `AUTH_AND_SESSIONS.md` 8/9/17/19; the releases: DECISIONS.md → "The staff PIN retired". |
+| `cors: ADMIN_FUNCTION_ORIGINS` on every endpoint the browser calls | The explicit origin allowlist in `functions/index.js` — defence-in-depth on top of each endpoint's own check. Add any new hosting domain to it with the API key allowlist (Project identity). `ingestHuddle` keeps `cors: false` (server-to-server). |
+| Canonical lightbox lifecycle | Every `.lb-overlay` lightbox is built with **`createLightbox` in `overlay.js`** — never a hand-written lifecycle (focus, scroll lock, Android Back, Escape, the Tab trap, the `transitionend` fallback). Close controls are `<button class="lb-close">`. **A one-time notice opens through `openNoticeIfClear(lightbox)`**, and **a link out of a lightbox goes through `followLinkOutOf(lightbox, click)`**. The three exceptions: `createLightbox`'s JSDoc. `.claude/rules/nav-drawer.md`. |
+| Page chrome — the header and the drawer | Every app page has the burger `#navMenuBtn` and the shared drawer (`initNavPanel`, its pill gates from `navGatesFor`). Sign-out lives only in the drawer footer; a sub-page's header logo goes back to the calendar (`wireHeaderLogo`), and the Calendar's opens About. `.claude/rules/nav-drawer.md`. |
+| Overtime page — the two audiences | **PAUSED** (`CONFIG.OVERTIME_ENABLED`). **Reviewing** (`isOvertimeReviewer`, the `admin`/`manager` claim) sees everybody's declarations; **participating** (`CONFIG.OVERTIME_BETA`) answers only for oneself. **Never widen `isOvertimeReviewer` to make the pill work** — AUTH_AND_SESSIONS.md 14. |
+| Huddle notification → `#huddle` hash pattern | The documents' viewers open **only** via their hash (`#huddle`, `#circular`, `#newsletter`). `.claude/rules/calendar.md` → "The document viewers open by hash". |
+| `initErrorReporter()` call pattern | It writes `clientErrors`, so it needs an auth context. **Never call it bare** — every write is silently rejected and the error log looks HEALTHY because it is broken. The three canonical call sites: the header of **`error-reporter.js`**; AUTH_AND_SESSIONS.md 13. |
 
 ---
 
 ## One-time notice pattern
 
-**Invoke `/new-notice` to add, re-post or retire a notice.** The skill (`.claude/skills/new-notice/`)
-holds the HTML template, the JS patterns, the rules, the lessons of past notices and **the
-current-notices table**, which is kept current there.
-
-- **A notice is for signed-in members only** (23 Nov 2026): with the staff PIN retired, nobody reads the
-  Calendar signed out, so the `'signed-out'` and `'everyone'` audiences are gone — the skill → "Audience".
-- **A notice opens through `openNoticeIfClear(lightbox)`**, and its link leaves through `followLinkOutOf` (on the Calendar, `_wireNoticeLink` in `calendar-notices.js`) — Canonical lightbox lifecycle, above.
-- **A notice goes INERT the moment `isNoticeExpired` fires** — it is marked seen *without being
-  shown*, long before the removal rule below — so the table's Status column must say so.
-- **Monthly cleanup:** on the 1st of each month, remove every notice where `(today − Posted) > 180 days`
-  — delete the HTML block and the JS IIFE, remove its row from the skill's table, and bump the version.
+**Invoke `/new-notice` to add, re-post or retire a notice** — the skill holds the template, the rules,
+the lessons and **the current-notices table**. A notice is for signed-in members only, opens through
+`openNoticeIfClear`, and goes INERT the moment `isNoticeExpired` fires. **Monthly cleanup:** on the 1st,
+remove every notice where `(today − Posted) > 180 days` — the HTML block, the JS IIFE and its table row —
+and bump the version.
 
 ---
 
 ## Payday calculator — integrated
 
 Paydays and cut-offs come from `getPaydaysAndCutoffs` / `isPayday` / `isCutoffDate` (`roster-data.js`)
-and draw as 💷 / ✂️ on the Calendar; where each piece lives, and the roster-assist's permanent
-never-infer policy: `.claude/rules/paycalc.md` → "Paydays, cut-offs and the roster-assist".
+and draw as 💷 / ✂️ on the Calendar; the rest is `.claude/rules/paycalc.md` → "Paydays, cut-offs and
+the roster-assist".
 
 ---
 
@@ -392,7 +330,7 @@ never-infer policy: `.claude/rules/paycalc.md` → "Paydays, cut-offs and the ro
 | `'AL'` | 🏖️ AL | Annual leave |
 | `'SICK'` | 🪑 Absent | Sick/absent day — recorded via override |
 | `'HH:MM-HH:MM'` | ☀️/🌙/🦉 | Worked shift |
-| `'TRG'` / `'IND'` / `'ASSESS'` / `'TEAM'` / `'UNION'` / `'MEET'` (+ optional `' RDW'`, `' HH:MM-HH:MM'`) | 🏷️ Train / Ind / Assess / Team / Union / Meet | The **"Other" family** (OTHER_DAYS.md): Training / Induction / Assessment / Team Day / Union course / Meeting. `'TEAM'` appears on the roster as the multi-word label "Team Day", `'UNION'` as "Union course", and `'MEET'` as the code "MTG" (also "MEETING"); the parser collapses each to its sentinel. LEAF-GREEN `other-day` family (`--other`; why not bronze is beside it in `shared.css`); hours slot shows actual times → `RDW` → base time — **except Meeting/Union (`hideBaseTime` in `OTHER_FLAVOURS`, which says why), which show the badge with NO time** unless a time is actually entered; tap shows the FULL word; pays as the day underneath (`resolveOtherPay` in `override-utils.js` — flavour-agnostic, unaffected by `hideBaseTime`); Sundays, Christmas Day and Boxing Day (25 and 26 Dec) can never be training/Other days (Gareth: Boxing Day Jul 2026, Christmas Day 21 Nov 2026) |
+| `'TRG'` / `'IND'` / `'ASSESS'` / `'TEAM'` / `'UNION'` / `'MEET'` (+ optional `' RDW'`, `' HH:MM-HH:MM'`) | 🏷️ Train / Ind / Assess / Team / Union / Meet | The **"Other" family** (OTHER_DAYS.md, `OTHER_FLAVOURS`): LEAF-GREEN `--other`; pays as the day underneath (`resolveOtherPay`); never on a Sunday, Christmas Day or Boxing Day (Gareth: Jul and 21 Nov 2026) |
 
 **Classification:** Early 04:00–10:59 · Late 11:00–20:59 · Night 21:00–03:59
 
@@ -404,39 +342,27 @@ never-infer policy: `.claude/rules/paycalc.md` → "Paydays, cut-offs and the ro
 
 ### teamMembers fields
 
-> **⚠️ The member table is WORLD-READABLE.** It lives in `roster-member-data.js` (re-exported by
-> `roster-data.js`), and both are served from both origins with no session and no token:
-> every name on the roster, each one's pattern and cycle position, and whatever optional fields an
-> entry carries — join dates, a joining year's pro-rated leave, scheduled roster moves, earlier
-> grades and when each ended, and which people hold a BILINGUAL CONTRACT, which is a fact about
-> their terms rather than their rota. That the base roster is public is a deliberate classification
-> (owner, 4 Sep 2026 — shift patterns are on the station's own printed rosters); the reasoning is
-> `AUTH_PLAN.md` §2. **A field added there is
-> published the moment it ships**, so anything a stranger should not read belongs in Firestore behind
-> a claim — as `staffContact` (the work email) already does. `public-data-classification.test.mjs`
-> fails on an unclassified field. State the exposure as KINDS of field, never as counts: a tally
-> describes the file only until the next edit. **A PATTERN IS PUBLIC; A PAYSLIP IS NOT** —
-> `payroll-anonymity.test.mjs` fails when a roster name sits on the same line as a payroll term
-> anywhere in the tracked tree, because the Pages mirror serves the test files themselves (measured:
-> 200 there, 404 on Firebase). Keep the arithmetic, drop the attribution.
+> **⚠️ The member table is WORLD-READABLE**, served from both origins with no session — a field added
+> to `roster-member-data.js` is **published the moment it ships**, so anything a stranger should not read
+> belongs in Firestore behind a claim (`public-data-classification.test.mjs`). **A PATTERN IS PUBLIC; A
+> PAYSLIP IS NOT** (`payroll-anonymity.test.mjs`). In full: `.claude/rules/roster-data.md`.
 
-The field reference — every field with its meaning, `rosterChanges`, the cycles and the fixed
-patterns — is **`.claude/rules/roster-data.md`**, which loads with `roster-data.js`. Three facts every
-area needs:
+The field reference — every field, `rosterChanges`, the cycles and the fixed patterns — is
+**`.claude/rules/roster-data.md`**. Three facts every area needs:
 
 - `name` **MUST match Firestore `memberName` exactly**.
 - `rosterChanges` (scheduled roster moves) are applied by `getBaseShift` and `getWeekNumberForDate`
   through `resolveMemberRoster`, so **no call site needs special handling**.
 - Each rotating cycle's length is a `CONFIG.*_ROSTER_WEEKS` constant (never write the number down).
-  `fixed` never rotates: its `currentWeek` selects a `fixedRoster` pattern, and **a pattern is SHARED,
-  so editing one member's hours there edits everyone on that line.**
+  `fixed` never rotates, and **a `fixedRoster` pattern is SHARED, so editing one member's hours there
+  edits everyone on that line.**
 
 **AL entitlement** — read the whole allowance through `entitlementFor` in `al-entitlement.js`, never
-`getALEntitlement` (`al-contract.js`) directly: it adds a worked Boxing Day's day in lieu (due
-at work) to the NEXT year's allowance, and `christmas-leave.test.mjs` fails on any other caller.
-`proRatedAL[year]` takes priority for every role **except Dispatcher**, where it scales the BASE only
-and the lieu days are still added on top (owner decision): the 22 is an allowance a part-year
-deserves part of, a lieu day is owed because a specific day was worked.
+`getALEntitlement` (`al-contract.js`) directly: it adds a worked Boxing Day's day in lieu to the NEXT
+year's allowance, and `christmas-leave.test.mjs` fails on any other caller. `proRatedAL[year]` takes
+priority for every role **except Dispatcher**, where it scales the BASE only and the lieu days are still
+added on top (owner decision): the 22 is an allowance a part-year deserves part of, a lieu day is owed
+because a specific day was worked.
 
 | Role / type | Days |
 |-------------|------|
@@ -444,41 +370,28 @@ deserves part of, a lieu day is owed because a specific day was worked.
 | CEA, every other contract (main, fixed) | 32/year |
 | CES (`ces`) | 34/year |
 | Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) — a joining year's `proRatedAL` replaces the **22**, never the total |
-| anything else, an unresolved member, or a year before the member joined | **`null`** — no entitlement on record, never a guessed figure; `getALEntitlement`'s comments say which case is reachable today. **Callers must TEST for null and refuse to render**: `null - taken - booked` is a NUMBER, not NaN, so the arithmetic that looks harmless is the one that invents a balance. |
+| anything else, an unresolved member, or a year before the member joined | **`null`** — never a guessed figure; `getALEntitlement`'s comments say which case is reachable today. **Callers must TEST for null and refuse to render**: `null - taken - booked` is a NUMBER, not NaN. |
 
 ### Firestore collections
 
 Every collection's fields, meanings, access summary and retention: **`docs/DATA_MODEL.md`**.
-`firestore.rules` remains the authority on access.
-
-Override cache key: `"memberName|YYYY-MM-DD"`
+`firestore.rules` remains the authority on access. Override cache key: `"memberName|YYYY-MM-DD"`
 
 ## Key rules
 
 - **Offline first** — Firestore is an enhancement. Every Firestore call needs a silent fallback. Never block rendering waiting for Firestore.
 - **Mobile is primary — TWO platforms, served EQUALLY** (owner, 8 Sep 2026). Test every change at
   375px, on both engines. **Who runs what is an OWNER FACT: do not infer it from a screenshot, a bug
-  report or one device** — this line has been wrong in both directions.
-  - **Android and iOS are both first class. Neither is the default and neither is the edge case.**
-    The owner's own phone is Android and the personal-phone population is mixed, so there is no
-    majority path to design toward.
-  - **The work phone is Android, and getting the app INSTALLED on it is the GOAL.** The company does
-    not permit the install today, so on the device staff carry on shift there is no home-screen
-    icon, no standalone window, and nothing that only an installed PWA gets — a feature that assumes
-    the install is invisible to somebody at work. Treat that as a **current restriction with a
-    direction of travel**, not a permanent property: the Android install path
-    (`beforeinstallprompt`) is as load-bearing as the iOS one, not a fallback behind it.
-  - **The iOS hazards stay defended — they are PLATFORM FACTS, not a claim about numbers.** Web Push
-    exists only inside an installed PWA, there is no system Back, `localStorage` can throw, a Safari
-    tab loses ALL its storage after a week away while the Home Screen app keeps a separate store, and
-    Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a backgrounded tab.
-    `install-prompt.js` and `notif.js` already branch correctly for both engines. **Oldest iOS
-    supported: 16.4** (owner, 7 Nov 2026 — DECISIONS.md).
-  - **Every release passes the Chromium suite** (on the deploy, or on its PR for the identical tree)
-    **and a few Safari tests, on the deploy itself** (owner, 17 Nov 2026): every page
-    opening and the signed-in journeys, on the iPhone's engine. The whole WebKit suite runs on branches
-    only (DECISIONS.md → "A few Safari tests gate the release"). **Weigh a WebKit failure on a branch
-    accordingly**: it is still the only lane that sees most of Safari before release.
+  report or one device.**
+  - **Android and iOS are both first class**; the personal-phone population is mixed.
+  - **The work phone is Android, and getting the app INSTALLED on it is the GOAL** — the company does
+    not permit it today, so the Android install path (`beforeinstallprompt`) is as load-bearing as iOS's.
+  - **The iOS hazards are PLATFORM FACTS**: Web Push only inside an installed PWA, no system Back,
+    `localStorage` can throw, a Safari tab loses ALL its storage after a week away, and Safari fires
+    neither `beforeprint` for AirPrint nor `transitionend` on a backgrounded tab. **Oldest iOS
+    supported: 16.4** (owner, 7 Nov 2026).
+  - **Every release passes the Chromium suite and a few Safari tests on the deploy** (owner, 17 Nov
+    2026); the whole WebKit suite runs on branches only, so weigh a branch WebKit failure seriously.
 - **Print CSS** — any new shift type, cell class, or badge needs `@media print` rules.
 - **No `alert()`** — `console.error()` for developer errors. No visible error text for recoverable failures.
 - **Code quality** — pure functions where possible, JSDoc on all functions, meaningful variable names, error handling on all async operations.
@@ -488,9 +401,8 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 ## Known issues & deferred work
 
 Active constraints and deferred fixes, including task #1 of the four v11 security tasks: **see
-`KNOWN_LIMITATIONS.md`**. Future capabilities: **see `ROADMAP.md`**; UX experiments tried and
-reverted, and everything closed: `ROADMAP_HISTORY.md` → "Tried and held back". Decisions already
-taken, so they are not re-argued: **`DECISIONS.md`**.
+`KNOWN_LIMITATIONS.md`**. Future capabilities: **see `ROADMAP.md`**. Decisions already taken, so they
+are not re-argued — the UX experiments tried and held back among them: **`DECISIONS.md`**.
 
 **Do-not-change UI labels (Claude-relevant):**
 - **Admin button label** — "Admin" = administration, not administrator. Intentional. Do not rename.
@@ -499,80 +411,61 @@ taken, so they are not re-argued: **`DECISIONS.md`**.
 
 ### Staff-facing wording conventions
 
-Applies to **all user-visible copy** (cards, hints, tips, lightboxes, error banners, notifications) — not to code identifiers, data values, or comments.
+Applies to **all user-visible copy** (cards, hints, tips, lightboxes, error banners, notifications) —
+not to code identifiers, data values, or comments. The reason behind each: `.claude/rules/staff-copy.md`.
 
-**"the admin" vs "your manager" — who a staff member is told to contact:**
-- **App / account matters → "the admin".** Anything about the app itself or a staff member's account: password reset, who can read a saved work email, a technical failure (roster won't display, a Huddle link is broken, data won't load). The admin (developer/app owner) fixes these.
-- **Work / operational matters → "your manager".** Anything about the roster as work: booking annual leave, recording absence, shift changes, general rota queries. The manager owns these.
-- Rationale: staff can't fix app faults by asking a line manager, and the admin isn't the right contact for an AL request. Matching the contact to the problem is the whole point. When in doubt, ask: *"is this a broken-app problem or a work problem?"*
-- Note on data access: only the **owner + admin** can read a `staffContact` work email (Firestore rules) — a manager cannot — so "only you and the admin can see this email" is the factually correct phrasing, not "your manager".
-
-**Canonical terms (use these exact forms in visible copy):**
-- **"Change a Shift"** — never "override", "Recording a Shift Change", or "shift override" (the word "override" stays in code/data only).
-- **"Absent" / "record an absence"** — never "sick"/"sickness" in UI copy (the reason is never stored — GDPR). The internal data value `SICK` and ids are fine.
-- **"Year to Date"** — always spelled out, never bare "YTD". The two payslip figures are exactly **"Taxable Pay"** and **"Tax Paid"** (never "Gross Pay" for the YTD figure). See `.claude/rules/paycalc.md` → payslip line names.
-- **"Fill from calendar" / "From your calendar" / "Replace with calendar values"** — the paycalc pre-fill reads the *calendar* function, not the base roster; do not reword to "roster".
-- **"account recovery"** is the term for what a saved work email is FOR (owner decision; it replaced "self-service password reset (in a future update)", which was accurate and read like a product roadmap). It separates the two questions a member actually has. **Why you are giving us this:** "Save your Chiltern work email for account recovery." **What works today:** "Self-service recovery isn't available yet. For now, ask the admin if you forget your password." Never "coming soon". The future email route is SECURITY_RELEASE_PLAN.md track C2. A password *reset* exists **today** via the admin (Operations → Account status → Reset), and staff can set their own password (Settings → Password), so do NOT say a password reset is flatly "not available" — only the *email self-service* route is future. Present-day recovery copy is "To reset a password today, contact the admin."
-- **App name "Marylebone Roster"** — the on-screen name everywhere (incl. bug-report `appLabel` as "Marylebone Roster — <Page>"). **Never "MYB" for the APP or one of its tools** — not "MYB Roster", not "MYB Pay Calculator", not "MYB member". As the app name it survives only in the iOS home-screen `apple-mobile-web-app-title` meta, the manifest's `short_name` (exempt by key in `app-name-parity.test.mjs`) and comments.
-  **But MYB as the STATION CODE is correct and stays** — it is Marylebone's three-letter code, staff use it daily, and the guides carry "Chiltern Railways · MYB Station" and "MYB mornings" correctly. The test is what the letters NAME: the station, fine; the software, never. Enforced by `app-name-parity.test.mjs`.
+- **App / account matters → "the admin"; work / operational matters → "your manager".** A password,
+  a saved work email, a broken page is the admin's; leave, absence, shift changes and rota queries are
+  the manager's. Ask: *is this a broken-app problem or a work problem?* Only the owner and the admin can
+  read a `staffContact` work email, so "only you and the admin can see this email" is the right phrasing.
+- **"Change a Shift"** — never "override" (that word stays in code and data).
+- **"Absent" / "record an absence"** — never "sick"/"sickness" in UI copy (the reason is never stored — GDPR).
+- **"Year to Date"** — never bare "YTD"; the two payslip figures are exactly **"Taxable Pay"** and **"Tax Paid"** (`.claude/rules/paycalc.md` → payslip line names).
+- **"Fill from calendar" / "From your calendar" / "Replace with calendar values"** — not "roster".
+- **"account recovery"** is what a saved work email is FOR (owner decision). Today's copy: "Self-service recovery isn't available yet. For now, ask the admin if you forget your password." Never "coming soon"; and never say a password reset is flatly unavailable — the admin can reset one today ("To reset a password today, contact the admin").
+- **App name "Marylebone Roster"** everywhere (bug reports: "Marylebone Roster — <Page>"). **Never "MYB" for the APP or one of its tools** — not "MYB Roster", not "MYB Pay Calculator". **MYB as the STATION CODE is correct and stays.** `app-name-parity.test.mjs`.
 - **Documents:** "Daily Huddle" (proper noun), "Weekly Retail Circular", "Marylebone Newsletter".
-- **Never name an internal document in staff-facing copy.** "The draft roster has been planned" was date-accurate and still read as untrue, because the draft is the roster office's own artefact and "the roster" to staff means the one released on the Thursday. Describe the reader's own position instead. The **reviewer's** surfaces and OPERATIONS_REFERENCE may name it freely; it is their document. Pinned by `overtime-format.test.mjs`.
-- **Tone:** calm and factual — no exclamation marks, no marketing voice (mirrors `.claude/rules/notifications.md`).
+- **Never name an internal document in staff-facing copy** — describe the reader's own position instead (`overtime-format.test.mjs`).
+- **Tone:** calm and factual — no exclamation marks, no marketing voice.
 
-**Plain English that TEACHES — write for the colleague who has never heard the term** (owner, 3 Sep 2026).
-Many colleagues do not know what HPP is, how back pay works, or how a FIP coupon is used, and at 22:00 on a
-late turn there is nobody to ask: the app is the source. So every surface works for somebody who does not
-yet know the word, and teaches in place — **Discover** it exists → **Understand** it in one sentence →
-**Act** → **Deep dive** on demand. Progressive disclosure may hide the fourth, never the first; one
-question decides any hiding: *what knowledge disappears if this is hidden?* Searchability is not
-discoverability. The rules in full, each learned the hard way — audience first, educate at the point of
-use, a collapsed header is a teaching surface, fewer decisions not fewer words, test it on the reader —
-are **`.claude/rules/staff-copy.md`**, which loads with every file that carries staff-facing words.
-See ROADMAP.md → "Plain-English education pass".
+**Plain English that TEACHES — write for the colleague who has never heard the term** (owner, 3 Sep
+2026). At 22:00 on a late turn there is nobody to ask, so every surface works for somebody who does not
+yet know the word: **Discover** → **Understand** in one sentence → **Act** → **Deep dive** on demand.
+Disclosure may hide the fourth, never the first. In full: **`.claude/rules/staff-copy.md`**.
 
 ## Huddle ingest
 
-Daily Huddle PDF/DOCX → Power Automate → `ingestHuddle` → Firebase Storage + Firestore `huddles` collection + push notification. Full flow diagram, request format, gotchas, and Security Rules: **see `OPERATIONS_REFERENCE.md`**.
-
-**Push notification design language:** all Web Push payloads must follow `.claude/rules/notifications.md` — leading emoji = the feature's in-app icon, "Latest X" for document arrivals, calm/no-exclamation tone, monochrome badge, and a single `buildPushPayload` builder. Never hand-write a payload literal.
+Daily Huddle PDF/DOCX → Power Automate → `ingestHuddle` → Firebase Storage + Firestore `huddles` + a push notification: **see `OPERATIONS_REFERENCE.md`**. **Every Web Push payload follows `.claude/rules/notifications.md`** — the feature's own emoji first, "Latest X" for documents, a calm tone, the monochrome badge, and the single `buildPushPayload` builder. Never hand-write a payload literal.
 
 ---
 
 ## Weekly Roster Upload
 
-Admin uploads PDF → `parseRosterPDF` (model and settings: `MODEL_REQUEST` in `functions/roster-prompt.js`) → JSON → review UI → Firestore. Works for CEA/Bilingual, CES, and Dispatcher rosters. **`source: 'roster_import'`** on all roster-upload overrides — used by `computeCellStates()` for COVERED/DIFF/CONFLICT classification.
-
-**Everything else about the import is `.claude/rules/roster-import.md`**, which loads whenever the
-parser, the alignment check, the review states or the cell controls are opened. **Read it before
-changing anything in the import** — every rule in it is there because a week was written onto the
-wrong days, or nearly was. Full request/response format and review pipeline: **see `OPERATIONS_REFERENCE.md`**.
+Admin uploads PDF → `parseRosterPDF` (`MODEL_REQUEST` in `functions/roster-prompt.js`) → review UI → Firestore, for every grade's roster. **`source: 'roster_import'`** on every roster-upload override (`computeCellStates()` reads it). **Read `.claude/rules/roster-import.md` before changing anything in the import** — every rule in it is there because a week was written onto the wrong days, or nearly was. The request/response format: `OPERATIONS_REFERENCE.md`.
 
 ---
 
 ## Firebase Auth
 
-All staff have Firebase Auth accounts. **Firestore writes need a claim, never a bare
-`request.auth != null`** (AUTH_AND_SESSIONS 9). The contract is `docs/AUTH_AND_SESSIONS.md`; the
-working notes are `.claude/rules/sessions.md`, which loads with the session and auth modules.
+**Firestore writes need a claim, never a bare `request.auth != null`** (AUTH_AND_SESSIONS 9). The
+contract is `docs/AUTH_AND_SESSIONS.md`; the working notes are `.claude/rules/sessions.md`.
 
 - **Every write page re-establishes the Firebase session on load** (`ensureNamedSession(name)`,
   `session.js`) — without it a returning member's every write fails. Do not remove the call.
-- **Per-member write isolation is STRICT**: an `overrides` write needs the member's own bound name, or
-  an `admin`/`manager` claim writing on behalf (AUTH_AND_SESSIONS 4, 19).
-- **Three claim tiers** from `setupRosterAuth` — admin, manager, member, `linksDesigner` on top
-  (AUTH_AND_SESSIONS 3). **The `manager` tier is load-bearing** (on-behalf edits, daily); **do NOT
-  grant managers `admin: true`.** A newly listed manager needs `npm run generate:roster-members` in the same
-  commit, then — once Deploy Firebase Functions has finished — Set up accounts and a token refresh.
-- **An Other Staff login** (v26.59) is a named sign-in for somebody with no roster of their own: only
-  pages whose `PAGE_POLICIES` entry says `otherStaff: true` admit it (`auth-policy.js` — the Calendar,
-  Settings and Trains). It replaced the retired staff PIN for them (DECISIONS.md → "An 'Other staff'
-  login", "The staff PIN retired").
+- **Per-member write isolation is STRICT** — the member's own bound name, or an `admin`/`manager` claim
+  writing on behalf (AUTH_AND_SESSIONS 4, 19).
+- **Three claim tiers** from `setupRosterAuth`, `linksDesigner` on top. **The `manager` tier is
+  load-bearing; do NOT grant managers `admin: true`.** A newly listed manager needs `npm run
+  generate:roster-members` in the same commit, then — once Deploy Firebase Functions has finished — Set
+  up accounts and a token refresh.
+- **An Other Staff login** admits only pages whose `PAGE_POLICIES` entry says `otherStaff: true`
+  (`auth-policy.js`).
 
-**New starter:** invoke `/new-starter` — the skill has the full checklist, in the order it must run (the account step comes only after the roster change has deployed), the mid-year field reference and the pro-rata formula invariant.
+**New starter:** invoke `/new-starter` — the ordered checklist (the account step comes only after the roster change has deployed).
 
-**The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave. **Read `docs/AL_WORKBOOK.md` §0 before answering from the spreadsheet** — answering first has gone wrong twice: `AL over depot quota` days are real leave, invisible in the calendar grid. **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
+**The depot annual-leave workbook:** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave. **Read `docs/AL_WORKBOOK.md` §0 before answering from the spreadsheet** — `AL over depot quota` days are real leave, invisible in the calendar grid. **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
 
-**Removing a staff member:** invoke `/leaver` — the ordered checklist. The step everybody gets wrong: **upload their final roster PDF FIRST** (`hidden` drops them from the import's name list). Reasoning: OPERATIONS_REFERENCE.md → "Removing a staff member".
+**Removing a staff member:** invoke `/leaver`. The step everybody gets wrong: **upload their final roster PDF FIRST** (`hidden` drops them from the import's name list).
 
 Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 
@@ -580,18 +473,13 @@ Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 
 ## Pay calculator
 
-Manual-entry: staff enter hours, and the calculator computes tax, NI, pension and take-home.
-**The pay rates, London Allowance and pension defaults — and how a mid-year award step and the opt-in
-back-pay lump work — live in `.claude/rules/paycalc.md` alone** (code: `paycalc-calc.js`). Do not
-restate the figures; when the next award is announced, follow paycalc.md → Current rates. Roster-assist
-pre-fills Sat/Sun/BH/RDW; standard weekday hours are not pre-filled.
-
-**Example payslips for testing:** the pay-maths regression net is real payslips, kept OUT of the
-repository — what it is, why it is gitignored, and what `npm run test:payslip-local`'s green proves:
-`.claude/rules/paycalc.md` → Example payslips, which loads whenever a paycalc file is open.
+Manual-entry: staff enter hours, and the calculator computes tax, NI, pension and take-home. **The
+rates, allowances and pension defaults live in `.claude/rules/paycalc.md` alone** (code:
+`paycalc-calc.js`) — never restate them. The pay-maths regression net is real payslips kept OUT of the
+repository: paycalc.md → Example payslips.
 
 ---
 
 ## Guide pages
 
-The guide pages — one per `NAV_GUIDES` entry in `nav-destinations.js` — share `guide-shell.css` (sticky header, back/PDF buttons, print rules, brand palette tokens). Each has its own CSS file. No `shared.css` import. No inline scripts or `onclick` (CSP blocks them). Full design principles, factual accuracy notes, and shell spec in `.claude/rules/guide-pages.md`.
+The guide pages — one per `NAV_GUIDES` entry in `nav-destinations.js` — share `guide-shell.css`, each with its own CSS file and no `shared.css`. No inline scripts or `onclick` (CSP blocks them). `.claude/rules/guide-pages.md`.

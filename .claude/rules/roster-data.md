@@ -31,9 +31,26 @@ Always invoke `/new-starter` — it has the full checklist, including:
 ## Member fields, `rosterChanges` and the cycles
 
 `CLAUDE.md` → *teamMembers fields* keeps what every area needs: the table is WORLD-READABLE, so a
-field added here is published the moment it ships (`public-data-classification.test.mjs` fails on an
-unclassified field), and the AL entitlement rules, which Admin, the Calendar and the Pay Calculator
-all read. The field reference is here, beside the data.
+field added here is published the moment it ships, and the AL entitlement rules, which Admin, the
+Calendar and the Pay Calculator all read. The field reference is here, beside the data, and so is the
+warning in full (moved from CLAUDE.md, 25 Nov 2026):
+
+> **⚠️ The member table is WORLD-READABLE.** It lives in `roster-member-data.js` (re-exported by
+> `roster-data.js`), and both are served from both origins with no session and no token:
+> every name on the roster, each one's pattern and cycle position, and whatever optional fields an
+> entry carries — join dates, a joining year's pro-rated leave, scheduled roster moves, earlier
+> grades and when each ended, and which people hold a BILINGUAL CONTRACT, which is a fact about
+> their terms rather than their rota. That the base roster is public is a deliberate classification
+> (owner, 4 Sep 2026 — shift patterns are on the station's own printed rosters); the reasoning is
+> `AUTH_PLAN.md` §2. **A field added there is
+> published the moment it ships**, so anything a stranger should not read belongs in Firestore behind
+> a claim — as `staffContact` (the work email) already does. `public-data-classification.test.mjs`
+> fails on an unclassified field. State the exposure as KINDS of field, never as counts: a tally
+> describes the file only until the next edit. **A PATTERN IS PUBLIC; A PAYSLIP IS NOT** —
+> `payroll-anonymity.test.mjs` fails when a roster name sits on the same line as a payroll term
+> anywhere in the tracked tree, because the Pages mirror serves the test files themselves (measured:
+> 200 there, 404 on Firebase). Keep the arithmetic, drop the attribution.
+
 
 ```javascript
 {

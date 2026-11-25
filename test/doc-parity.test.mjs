@@ -174,8 +174,14 @@ test('a doc that says "`symbol` in `file.js`" is right about the file', () => {
     // CONDITIONAL_ROWS and PILL_TYPES), and the first the guard was live for and missed. Allowing
     // up to three intervening words was measured over both docs before landing: it adds exactly one
     // new match — the defect itself — and no false positives.
+    // WIDENED to every routing doc and rule file (25 Nov 2026), when CLAUDE.md and AI_MAP.md shrank
+    // to routing and the two of them alone carried barely the floor below: the claims did not go away,
+    // they moved to the files that now hold the reasoning, and a guard that reads only the old homes
+    // stops guarding.
     const claims = [];
-    for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md']) {
+    for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/FILE_INDEX.md',
+        ...readdirSync(new URL('./.claude/rules/', REPO_ROOT_URL)).filter(f => f.endsWith('.md')).sort()
+            .map(f => `./.claude/rules/${f}`)]) {
         for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?(?:[a-z]+\s+){0,3}in\s+`([\w.-]+\.(?:js|mjs))`/g))
             claims.push({ doc, sym: m[1], file: m[2] });
     }
@@ -1109,7 +1115,9 @@ test('the CLAUDE.md file tree stays a routing table', () => {
 // A cap with slack is a cap nobody meets. The pass that moved those five out left the longest row at
 // 1,249, so this sits just above the survivor rather than at a round number, and the next pass should
 // bring it toward ~900 to match the tree.
-const ARCH_ROW_CAP = 1_300;
+// RATCHETED 1,300 -> 650 (25 Nov 2026): every row was cut to its rule and a pointer, the reasoning left
+// in the headers and rule files it pointed at, and the longest row is 631 characters.
+const ARCH_ROW_CAP = 650;
 test('the CLAUDE.md architecture table states decisions, not retrospectives', () => {
     const lines = CLAUDE.split('\n');
     const start = lines.findIndex(l => l.includes('Architecture decisions — never change'));
@@ -1183,10 +1191,14 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
 // left the architecture table for path-scoped `.claude/rules/` files, the test lanes' history for
 // README.md and the version-bump incidents for DECISIONS.md — moved, never cut — taking the file from
 // 122,788 characters to ~70,500. The floor below came down with it: it proves the file was READ.
-const CLAUDE_MD_CAP = 72_000;
+// **RATCHETED DOWN 72,000 -> 43,000 on 25 Nov 2026**, the same move a fourth time: the Cloud Function
+// rows, the workflow detail, the test lanes and the wording conventions' reasons left for the headers,
+// README.md, OPERATIONS_REFERENCE.md, `roster-data.md` and `staff-copy.md` that already held or now
+// hold them, taking the file from 66,491 characters to ~42,400. The floor came down with it.
+const CLAUDE_MD_CAP = 43_000;
 test('CLAUDE.md stays affordable — it is loaded into every session', () => {
     const chars = CLAUDE.length;
-    assert.ok(chars > 50_000, 'CLAUDE.md was not read — this test is checking nothing');
+    assert.ok(chars > 30_000, 'CLAUDE.md was not read — this test is checking nothing');
     assert.ok(chars <= CLAUDE_MD_CAP,
         `CLAUDE.md is ${chars.toLocaleString()} characters, over the ${CLAUDE_MD_CAP.toLocaleString()} ratchet.\n` +
         'This file is loaded into EVERY session, so this is a cost paid on every task regardless of\n' +
