@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * operations-errors.js — the Error Log card: two reads that overlap paint only the NEWEST.
  *

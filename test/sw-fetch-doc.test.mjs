@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // sw-fetch-doc.test.mjs — the service worker's DOCUMENT branch, run as the real worker script (Oct 2026
 // external review: "add a SW no-cache-fallback navigation test").
 //

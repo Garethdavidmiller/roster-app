@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-design-load.test.mjs — what a read of the design collection MEANS (links-design-load.js).
  * Run: node scripts/run-tests.mjs test/links-design-load.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for calendar-state.js — display month/year state machine.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-state.test.mjs

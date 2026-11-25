@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * doc-url-core.test.mjs — the rules behind the short-lived document URL.
  * Run with: node scripts/run-tests.mjs test/doc-url-core.test.mjs   (no mocks; part of test:hygiene)

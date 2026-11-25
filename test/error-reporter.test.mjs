@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Tests for the Error Log noise filters in error-reporter.js.
  * Run: node scripts/run-tests.mjs test/error-reporter.test.mjs   (part of `npm run test:hygiene`)

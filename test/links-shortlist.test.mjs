@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-shortlist.test.mjs — "Keep only the shortlist" (v25.09).
  *

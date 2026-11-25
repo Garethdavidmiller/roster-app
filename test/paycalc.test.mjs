@@ -1,3 +1,4 @@
+// @lane unit payslip-local
 // paycalc.test.mjs — unit tests for paycalc-calc.js
 // Run with: node scripts/run-tests.mjs test/paycalc.test.mjs
 import { test, describe } from 'node:test';

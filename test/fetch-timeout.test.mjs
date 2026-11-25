@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Tests for fetch-timeout.js — the bound on every Cloud Function call.
  * Run with: node scripts/run-tests.mjs test/fetch-timeout.test.mjs   (no mocks; part of test:hygiene)

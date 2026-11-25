@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * admin-own-write.test.mjs — what a write the Admin page makes ITSELF does to the week on screen.
  * Run: node scripts/run-tests.mjs test/admin-own-write.test.mjs   (part of `npm run test:hygiene`)

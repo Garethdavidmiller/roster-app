@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for paycalc-transfer.js — pay-data backup and restore.
  * Run: node scripts/run-tests.mjs test/paycalc-transfer.test.mjs   (part of `npm run test:hygiene`)

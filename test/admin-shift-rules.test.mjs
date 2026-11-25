@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Tests for admin-shift-rules.js — the maximum shift length and the minimum rest gap.
  *

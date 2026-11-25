@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * select-sheet-parity.test.mjs — EVERY `<select>` IN THE APP IS EITHER ENHANCED OR NATIVE BY
  * DECISION, and the page's CSS reaches the control that replaced it.

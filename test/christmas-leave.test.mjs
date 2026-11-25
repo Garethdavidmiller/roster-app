@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * christmas-leave.test.mjs — CHRISTMAS DAY AND BOXING DAY (v25.37, the owner's rules of 5 Nov 2026).
  * Run: node scripts/run-tests.mjs test/christmas-leave.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * day-detail-explains.test.mjs — IF A SYMBOL CAN APPEAR IN A CELL, THE DAY PANEL EXPLAINS IT IN
  * FULL WORDS.

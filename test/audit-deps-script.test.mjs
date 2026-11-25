@@ -1,3 +1,4 @@
+// @lane hygiene
 // audit-deps-script.test.mjs — scripts/audit-functions-deps.sh, RUN against canned npm reports.
 //
 // The script exists to tell "npm audit found a high-severity advisory" from "npm audit could not run",

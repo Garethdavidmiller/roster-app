@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * coordinator-ratchet.test.mjs — an already-large module may not get larger.
  * Run: node scripts/run-tests.mjs test/coordinator-ratchet.test.mjs   (part of `npm run test:hygiene`)

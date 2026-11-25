@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * guide-search.test.mjs — the pure cross-guide search rules, organised by what a wrong answer
  * COSTS at the gateline or in the mess room:

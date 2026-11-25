@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * stylesheet-ratchet.test.mjs — an already-large stylesheet may not get larger (v25.23).
  * Run: node scripts/run-tests.mjs test/stylesheet-ratchet.test.mjs   (part of `npm run test:hygiene`)

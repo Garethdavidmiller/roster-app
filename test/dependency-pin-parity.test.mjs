@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * dependency-pin-parity.test.mjs — a library the app loads TWICE must be the same version twice.
  * Run: node scripts/run-tests.mjs test/dependency-pin-parity.test.mjs   (part of `npm run test:hygiene`)

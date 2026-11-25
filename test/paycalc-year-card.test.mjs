@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * paycalc-year-card.test.mjs — THE "THIS TAX YEAR SO FAR" BLOCK AND ITS BULK-FILL CONTROL.
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/paycalc-year-card.test.mjs

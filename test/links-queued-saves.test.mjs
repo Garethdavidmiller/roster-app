@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-queued-saves.test.mjs — which copy of a QUEUED Links save is kept, on which baseline, and whether
  * an answer still counts (links-queued-saves.js; v26.03). Organised by its rules.

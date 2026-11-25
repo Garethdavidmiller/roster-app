@@ -1,3 +1,4 @@
+// @lane functions
 /**
  * account-lifecycle.test.mjs — the pure rules at the edges of an account's life
  * (functions/account-lifecycle.js, sign-in audit Nov 2026).

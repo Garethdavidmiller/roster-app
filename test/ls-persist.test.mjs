@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * ls-persist.test.mjs — `requestPersistentStorage`, the durability request behind the pay data.
  *

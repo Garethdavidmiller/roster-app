@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * password-force-wiring.test.mjs — the forced set-password overlay's ENTER key, driven through the
  * real module against a minimal fake DOM.

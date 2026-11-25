@@ -1,3 +1,4 @@
+// @lane hygiene
 // admin-shift-types.test.mjs — the shift-type table, and what a Saved Changes row prints.
 //
 // `rowValueText` exists because the Admin page's list of everything ever recorded was printing the

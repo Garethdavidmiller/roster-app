@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * paycalc-inventory.test.mjs — what a stored pay key IS, and what a set of them adds up to.
  *

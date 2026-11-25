@@ -1,3 +1,4 @@
+// @lane hygiene
 // calendar-data-state.test.mjs — the Calendar's override-knowledge model.
 //
 // Organised around the two failure directions rather than around the functions, because a

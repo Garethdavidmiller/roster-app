@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * al-leave-compare.test.mjs — the clerks' leave sheet beside the app, person by person and day by day
  * (al-leave-compare.js, the annual leave uploader's Phase 1; docs/AL_UPLOADER_PLAN.md §4).

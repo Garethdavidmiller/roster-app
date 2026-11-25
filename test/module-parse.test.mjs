@@ -1,3 +1,4 @@
+// @lane parse
 // Verifies every root JS module parses as an ES module.
 //
 // Added at v12.50 after a leftover fragment of deleted code in settings-app.js

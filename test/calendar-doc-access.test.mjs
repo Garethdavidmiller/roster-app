@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * calendar-doc-access.test.mjs — the DOCUMENT gate, by what a wrong answer costs.
  * Run: node scripts/run-tests.mjs test/calendar-doc-access.test.mjs   (part of `npm run test:hygiene`)

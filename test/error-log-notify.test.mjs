@@ -1,4 +1,5 @@
 // @ts-check
+// @lane functions
 /**
  * error-log-notify.test.mjs — the admin's Error Log notification EXECUTED (functions/error-log-notify.js,
  * v26.04): the real check against a fake Firestore, a fake Auth and a recording push transport, then the

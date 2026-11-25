@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * doc-upload.js — the pure file-type gate (isPdfFile / isDocxFile), and the CARD itself, driven.
  *

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * firestore-contract-parity.test.mjs — the CLIENT ↔ firestore.rules contracts that nothing guarded.
  *

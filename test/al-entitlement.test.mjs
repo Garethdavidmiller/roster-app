@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * Tests for al-entitlement.js — which AL days consume entitlement, and where a member stands.
  *

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * public-data-classification.test.mjs — what may be shipped in a WORLD-READABLE file.
  * Run: node scripts/run-tests.mjs test/public-data-classification.test.mjs   (part of `npm run test:hygiene`)

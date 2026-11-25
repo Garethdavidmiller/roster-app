@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * paycalc-money-banner.test.mjs — a banner may only say "Includes" when the sum is actually in it.
  * Run: node scripts/run-tests.mjs test/paycalc-money-banner.test.mjs   (part of `npm run test:hygiene`)

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * links-design-library.test.mjs — the import panel and the Recently deleted bin, driven through the
  * listeners the module actually wires (v24.51, when they left links-app.js).

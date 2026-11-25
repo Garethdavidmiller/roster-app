@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Track E doc parity — AUTH_PLAN.md is Track E's one home; SECURITY_RELEASE_PLAN.md holds its status.
  * Run: node scripts/run-tests.mjs test/auth-plan-parity.test.mjs   (part of `npm run test:hygiene`)

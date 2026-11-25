@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * calendar-snapshot.test.mjs — the member's own stored roster (v24.59): every rule that decides
  * whether a copy may be READ, and that a write keeps only what it should.

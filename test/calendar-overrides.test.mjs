@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for calendar-overrides.js — Firestore override cache.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-overrides.test.mjs

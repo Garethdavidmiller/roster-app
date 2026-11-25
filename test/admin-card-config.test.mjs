@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * admin-card-config.test.mjs — what the two range cards on Admin are CONFIGURED to write.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/admin-card-config.test.mjs   (part of test:unit)

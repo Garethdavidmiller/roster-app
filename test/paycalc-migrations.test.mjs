@@ -1,3 +1,4 @@
+// @lane unit
 // @ts-nocheck
 /**
  * paycalc-migrations.test.mjs — per-member localStorage namespacing (v14.11).

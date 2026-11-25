@@ -68,6 +68,12 @@ the repository — and out of the record of its retirement — is a rule, not a 
 What each lane proves, and what it cannot see. `CLAUDE.md` lists the commands; this is the detail
 behind them.
 
+**A test joins a lane by saying so, in one line near its top: `// @lane unit`** (or `hygiene`,
+`functions`, `rules`, `parse`, `payslip-local`; a file may name several). Each npm script runs
+`scripts/run-tests.mjs --lane <lane>`, which reads those lines (`scripts/test-lanes.mjs`), so adding a
+test edits no shared list. A file with no tag, or a lane misspelt, fails `doc-parity.test.mjs`. The
+lane is a choice: one that mocks a module (`mock.module`) needs `unit`, for its flag.
+
 - **`npm test`** — `test:hygiene` + `test:parse` + `test:unit`: every file in `test/` except the
   `test:rules` suites and the `test:functions` suites that need `functions/node_modules`, on a bare
   checkout with nothing installed (above). `roster-parse-helpers` is pure, so it runs in both lanes.
@@ -85,8 +91,8 @@ behind them.
   which is right for a public lane and means a green run cannot tell you whether the comparison RAN;
   this one can. Owner's checkout only, by design — run it before any pay-maths release
   (`.claude/rules/paycalc.md` → Example payslips).
-- **`npm run test:functions`** — the Cloud Functions handler and roster-parser suites (the list is
-  `package.json` → `test:functions`; it needs `functions/node_modules`). It gates every branch and
+- **`npm run test:functions`** — the Cloud Functions handler and roster-parser suites (every suite whose
+  `// @lane` line names `functions`; it needs `functions/node_modules`). It gates every branch and
   pull request as the `functions` job in `e2e.yml`, on Node 24, the runtime `functions/package.json`
   declares. It used to run only when a push to `main` deployed the functions, so a regression could
   not fail a pull request and was caught after the merge with the deploy blocked — and on Node 20, a

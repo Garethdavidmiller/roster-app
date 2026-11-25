@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * operations-doc-links.test.mjs — what Operations → Document links SAYS, and what it SENDS
  * (operations-doc-links.js; the server is functions/doc-link-rotation.js, tested by

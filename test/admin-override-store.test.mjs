@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * admin-override-store.test.mjs — WHAT ADMIN HAS, AND WHETHER IT REALLY HAS IT.
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/admin-override-store.test.mjs

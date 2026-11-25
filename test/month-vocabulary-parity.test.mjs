@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * month-vocabulary-parity.test.mjs — nothing in the shipped app may spell a month with ICU's table.
  *

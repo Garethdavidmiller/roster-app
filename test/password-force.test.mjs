@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for the PURE gate in password-force.js — `shouldForcePasswordSet` — and for the save sequence and
  * deadline helpers it shares with Settings (`runPasswordSave`, `withTimeout`, `settleOrTimeout`, own-password.js).

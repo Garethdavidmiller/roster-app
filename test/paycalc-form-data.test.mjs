@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for paycalc-form-data.js — the per-period form ↔ saved-data round trip.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/paycalc-form-data.test.mjs

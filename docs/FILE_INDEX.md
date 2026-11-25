@@ -711,7 +711,8 @@ roster-app/
 │   ├── generate-copies.mjs         ← `npm run generate:copies` — WRITES the facts kept in more than one file from the one place each is edited; its header lists them
 │   ├── audit-functions-deps.sh ← the Cloud Functions' production-dependency audit, for the deploy gate and the weekly monitor. Its header
 │   ├── signed-in.mjs             ← `npm run test:signed-in`: a throwaway Firebase project, the emulators and the accounts, then Playwright. Writes nothing into the checkout
-│   ├── test-nodeps.mjs           ← `npm run test:nodeps` — every suite that needs nothing installed; its exclusions are derived from package.json
+│   ├── test-lanes.mjs            ← which lane each Node suite runs in, read from its own `// @lane` line; `run-tests.mjs --lane` and `test-nodeps.mjs` ask it
+│   ├── test-nodeps.mjs           ← `npm run test:nodeps` — every suite that needs nothing installed; its exclusions are the `functions` and `rules` lanes
 │   ├── hosting-upload-check.mjs  ← refuses to publish anything to Hosting that git does not track (run by deploy-hosting.yml)
 │   ├── make-leave-file.mjs       ← STAGE 1 of the leave uploader, run in a session on the clerks' workbook (AL_UPLOADER_PLAN.md). Never run on a real workbook in CI
 │   ├── xlsx-read.mjs             ← just enough .xlsx reading for that script; the workbook is untrusted

@@ -1,3 +1,4 @@
+// @lane hygiene
 // Tests for paycalc-pension.js — the pension-status timeline.
 //
 // Organised by the two ways a wrong answer here costs a member money, NOT by function. A

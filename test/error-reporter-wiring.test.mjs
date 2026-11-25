@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * error-reporter-wiring.test.mjs — the reporter's WIRING, which error-reporter.test.mjs cannot see.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/error-reporter-wiring.test.mjs   (part of test:unit)

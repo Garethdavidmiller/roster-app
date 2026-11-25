@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * al-copy-parity.test.mjs — the Annual Leave help must teach the rule the app actually follows.
  *

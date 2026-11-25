@@ -1,3 +1,4 @@
+// @lane hygiene
 // server-identity.test.mjs — a Playwright run never tests a server that serves a DIFFERENT checkout.
 //
 // e2e/dev-server.mjs derives the dev server's port from the checkout's path, and every local config

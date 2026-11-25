@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for the pure date-range maths in admin-rangepicker.js.
  * Run with: node scripts/run-tests.mjs test/admin-rangepicker.test.mjs

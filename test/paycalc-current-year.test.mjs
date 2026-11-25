@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * paycalc-current-year.test.mjs — the tax year staff are actually being paid in.
  *

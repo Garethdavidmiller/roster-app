@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * pay-audience.test.mjs — who the Pay Calculator is for, by the role AT THE TIME (pay-audience.js).
  * Run: node scripts/run-tests.mjs test/pay-audience.test.mjs   (part of `npm run test:hygiene`)

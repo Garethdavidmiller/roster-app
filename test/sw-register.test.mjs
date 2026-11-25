@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // sw-register.test.mjs — tests for the registerServiceWorker update lifecycle (v16.09; v16.23):
 //   · the FIRST-INSTALL claim (no pre-existing registration, page uncontrolled) must NOT reload —
 //     the page was just loaded from the network, so it already is the newest version;

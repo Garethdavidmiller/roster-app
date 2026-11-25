@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * roster-cell-rules.test.mjs — the guards between "the PDF said X" and "we wrote Y".
  *

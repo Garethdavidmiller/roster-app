@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-target-sets-store.test.mjs — the Firestore half of the saved staffing sets.
  * Run: node scripts/run-tests.mjs test/links-target-sets-store.test.mjs   (part of `npm run test:hygiene`)

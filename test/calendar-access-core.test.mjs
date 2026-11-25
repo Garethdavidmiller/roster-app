@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * calendar-access-core.test.mjs — the Calendar access decision, pinned.
  * Run: node scripts/run-tests.mjs test/calendar-access-core.test.mjs   (part of `npm run test:hygiene`)

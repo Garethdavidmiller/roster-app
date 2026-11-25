@@ -1,3 +1,4 @@
+// @lane hygiene
 // lint-scope.test.mjs — each file is linted in the environment it actually RUNS in.
 //
 // For the Cloud Functions and the service worker the lint lane is the only mechanical check (neither

@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * paycalc-grade-setting.test.mjs — the grade setting LOADED and SAVED through its real entry points.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/paycalc-grade-setting.test.mjs

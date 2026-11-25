@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * trains-assemble.test.mjs — the Trains page's timetable builder joins a train continued on another page only to
  * the ONE continuation that carries it, and stops the build for anything less certain (external review of v26.67).

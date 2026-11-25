@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for auth-state-core.js — the pure identity state machine (Phase 1).
  * Pure logic, no mocks. Run as part of test:hygiene.

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * hosting-ignore-parity.test.mjs — TOOLING IS NOT PART OF THE SERVED APP, and the pattern
  * everybody assumed enforced that did not.

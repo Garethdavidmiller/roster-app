@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * paycalc-grade-wiring.test.mjs — the dated grade THROUGH the module that prices a payslip.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/paycalc-grade-wiring.test.mjs

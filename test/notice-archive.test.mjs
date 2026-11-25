@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * notice-archive.test.mjs — the App Notices archive read and written as storage, with no drawer.
  * Run: node scripts/run-tests.mjs test/notice-archive.test.mjs   (part of `npm run test:hygiene`)

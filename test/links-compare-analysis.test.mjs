@@ -1,3 +1,4 @@
+// @lane hygiene
 // links-compare-analysis.test.mjs — what the difference between two Links designs MEANS (v24.25).
 // Pure: no DOM, no install. The render is pinned in links-compare.test.mjs; this pins the arithmetic.
 //

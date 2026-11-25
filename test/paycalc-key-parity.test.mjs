@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Static guard: every paycalc localStorage key stays compatible with per-member isolation AND with
  * the backup format. Run: node scripts/run-tests.mjs test/paycalc-key-parity.test.mjs   (part of `npm run test:hygiene`)

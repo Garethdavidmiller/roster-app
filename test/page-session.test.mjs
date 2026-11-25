@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * page-session.test.mjs — the shared sign-out and session-loss routines every protected page uses.
  * Run with: node --test --experimental-test-module-mocks test/page-session.test.mjs

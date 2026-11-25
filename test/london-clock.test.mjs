@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * london-clock.test.mjs — WHAT THE SPLIT PUT AT RISK.
  * Run with: node scripts/run-tests.mjs test/london-clock.test.mjs   (no mocks; part of test:hygiene)

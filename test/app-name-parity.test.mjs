@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * app-name-parity.test.mjs — "MYB" may name the STATION. It may never name the SOFTWARE.
  * Run: node scripts/run-tests.mjs test/app-name-parity.test.mjs   (part of `npm run test:hygiene`)

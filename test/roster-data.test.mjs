@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for roster-data.js utility functions.
  * Run with: node scripts/run-tests.mjs test/roster-data.test.mjs

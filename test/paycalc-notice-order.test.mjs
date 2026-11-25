@@ -1,3 +1,4 @@
+// @lane hygiene
 // @ts-nocheck
 /**
  * paycalc-notice-order.test.mjs — the Pay page's notices open LAST, in their order, and only through

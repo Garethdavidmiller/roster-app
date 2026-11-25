@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * error-log-notice.test.mjs — the RULES of the admin's Error Log notification (functions/error-log-notice.js,
  * v26.04), one block per rule in its header. Pure, so it runs in the no-install lane (`npm run test:hygiene`);

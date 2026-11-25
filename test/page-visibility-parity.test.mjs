@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * page-visibility-parity.test.mjs — `hidden` must actually hide.
  * Run: node scripts/run-tests.mjs test/page-visibility-parity.test.mjs   (part of `npm run test:hygiene`)

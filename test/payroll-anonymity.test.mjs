@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * payroll-anonymity.test.mjs — NO ROSTER NAME SITS BESIDE A PAYROLL FACT IN THE TRACKED TREE.
  *

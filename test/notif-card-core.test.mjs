@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * notif-card-core.test.mjs — what the Settings Notifications card says, for every device it can meet.
  * Run: node scripts/run-tests.mjs test/notif-card-core.test.mjs   (part of `npm run test:hygiene`)

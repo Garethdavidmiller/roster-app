@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * huddle-table-grid.test.mjs — the physical-column walk behind the Huddle's sticky job column.
  *

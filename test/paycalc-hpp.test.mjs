@@ -1,3 +1,4 @@
+// @lane unit payslip-local
 /**
  * Unit tests for paycalc-hpp.js: the pure exports (_decodeHours, _varPayForPeriod, …; isDataEmpty, from paycalc-format.js)
  * and, against a fake `document`, the card itself — the prior-year block a member reads on the

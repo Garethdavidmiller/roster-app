@@ -1,3 +1,4 @@
+// @lane hygiene
 // paycalc-format.test.mjs — tests for the pure formatters/time-input helpers in paycalc-format.js.
 // clampMinute + decimalToHM were extracted from paycalc-app.js (Section G / G1) so the hrs/mins
 // arithmetic — previously inline and duplicated between the live preview and the on-blur split —

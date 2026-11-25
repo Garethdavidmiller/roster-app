@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for:
  *   paycalc-periods.js — period arithmetic, BH/Boxing Day detection, navigation

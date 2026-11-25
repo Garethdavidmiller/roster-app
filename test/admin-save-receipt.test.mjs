@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Tests for admin-save-receipt.js — what a save says it did.
  *

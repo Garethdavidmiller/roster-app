@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * paycalc-copy-parity.test.mjs — the copy that decides WHERE a member types a number.
  * Run: node scripts/run-tests.mjs test/paycalc-copy-parity.test.mjs   (part of `npm run test:hygiene`)

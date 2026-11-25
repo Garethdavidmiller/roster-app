@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * calendar-notif-prompt.test.mjs — the two ACCESS rules behind the Calendar's notification strip.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-notif-prompt.test.mjs   (part of test:unit)

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * calendar-al-lightbox.test.mjs — the Calendar's leave panel and day panel, through the real
  * `initCalendarLightboxes`.

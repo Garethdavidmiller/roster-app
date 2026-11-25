@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * al-leave-save.test.mjs — the Annual leave sheet's Save, its upload log and its Undo (al-leave-save.js;
  * docs/AL_UPLOADER_PLAN.md §4.9–4.10), run against a fake Firestore.

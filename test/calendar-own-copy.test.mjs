@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * calendar-own-copy.test.mjs — what the Calendar keeps of the member's own roster, and when it may
  * offer it (calendar-own-copy.js, 25 Nov 2026).

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * paycalc-clear-confirm.test.mjs — the Pay Calculator's two-tap "Clear all entries".
  * Run: node scripts/run-tests.mjs test/paycalc-clear-confirm.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * install-route.test.mjs — installRoute() against the REAL install-prompt.js, under a fake window.
  * Run: node --test --experimental-test-module-mocks test/install-route.test.mjs   (part of `npm run test:unit`)

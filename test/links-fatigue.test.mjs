@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-fatigue.test.mjs — the ORR p3 fatigue factors, assessed against a link design.
  * Run: node scripts/run-tests.mjs test/links-fatigue.test.mjs   (part of `npm run test:hygiene`)

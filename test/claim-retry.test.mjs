@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // Tests for claim-retry.js — the pure stale-claim self-heal runner extracted from firebase-client.js
 // (v18.28). No mocks needed; the runner is Firebase-agnostic (deps injected). Part of test:hygiene.
 import { test, describe, it } from 'node:test';

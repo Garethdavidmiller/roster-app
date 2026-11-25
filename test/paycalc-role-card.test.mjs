@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * paycalc-role-card.test.mjs — what the Pay Calculator says to somebody it will not price (v25.50).
  * Run: node scripts/run-tests.mjs test/paycalc-role-card.test.mjs   (part of `npm run test:hygiene`)

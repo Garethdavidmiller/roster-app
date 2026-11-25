@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * team-week-start.test.mjs — WHICH WEEK the team grid opens on, by what a wrong answer costs.
  *

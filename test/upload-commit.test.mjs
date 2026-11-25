@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * upload-commit.test.mjs — the ambiguous-commit verdict (v21.86).
  *

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * paycalc-roster-hint.test.mjs — "Fill from calendar" across an await.
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/paycalc-roster-hint.test.mjs

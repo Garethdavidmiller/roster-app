@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * admin-al-projection.test.mjs — the three layers of an AL booking must agree.
  * Run: node scripts/run-tests.mjs test/admin-al-projection.test.mjs   (part of `npm run test:hygiene`)

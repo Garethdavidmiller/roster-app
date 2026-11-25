@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * admin-auth.test.mjs — the provisioning audit AS THE CARD RUNS IT.
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/admin-auth.test.mjs   (part of `test:unit`)

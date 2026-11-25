@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * welcome-email-parity.test.mjs — the welcome email five times over, kept as ONE email.
  * Run: node scripts/run-tests.mjs test/welcome-email-parity.test.mjs   (part of `npm run test:hygiene`)

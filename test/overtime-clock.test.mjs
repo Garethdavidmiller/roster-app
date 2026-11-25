@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * overtime-clock.test.mjs — WHAT THE EXTRACTION PUT AT RISK.
  * Run with: node scripts/run-tests.mjs test/overtime-clock.test.mjs

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Static guard for the four pages' CARD_TIPS content.
  * Run: node scripts/run-tests.mjs test/tips-content.test.mjs   (part of `npm run test:hygiene`)

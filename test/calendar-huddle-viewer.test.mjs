@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * calendar-huddle-viewer.test.mjs — the Daily Huddle viewer obeys the document gate (CALENDAR_DATA.md 15).
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-huddle-viewer.test.mjs

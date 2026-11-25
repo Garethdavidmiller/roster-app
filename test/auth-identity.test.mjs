@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * Unit tests for auth-identity.js — the account-identity derivations extracted from
  * firebase-client.js (v16.50) so they're directly testable in Node.

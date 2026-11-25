@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // splash-watchdog.test.mjs — the RECOVERY CONDITION inside splash-watchdog.js.
 //
 // ── WHY THIS FILE EXISTS AT ALL ─────────────────────────────────────────────────────────────────

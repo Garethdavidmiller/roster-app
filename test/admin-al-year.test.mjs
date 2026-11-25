@@ -1,3 +1,4 @@
+// @lane hygiene
 // admin-al-year.test.mjs — WHICH YEAR the Admin AL figures describe.
 //
 // Organised by what a wrong answer COSTS, not by input, because every rung is trivially right on

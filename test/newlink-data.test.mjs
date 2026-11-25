@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * newlink-data.test.mjs — the new link page says what the pack says.
  * Run: node scripts/run-tests.mjs test/newlink-data.test.mjs   (part of `npm run test:hygiene`)

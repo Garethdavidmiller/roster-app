@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * links-print.test.mjs — preparing the Links page for paper, and putting it back (links-print.js).
  * Run: node scripts/run-tests.mjs test/links-print.test.mjs   (part of `npm run test:hygiene`)

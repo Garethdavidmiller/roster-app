@@ -1,3 +1,4 @@
+// @lane hygiene
 // mutate-script.test.mjs — scripts/mutate.mjs, tested by running it.
 //
 // Every "this guard has teeth" claim in the repo rests on that script: CLAUDE.md asks for a mutation

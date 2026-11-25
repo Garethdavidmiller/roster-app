@@ -23,25 +23,24 @@
  *   · the two rules suites — the Firebase emulator binary plus @firebase/rules-unit-testing;
  *   · lint, typecheck, and every Playwright suite — root `node_modules`.
  *
- * THE EXCLUSION LIST IS DERIVED, NEVER WRITTEN DOWN. It is read out of package.json's own
- * `test:functions` and `test:rules` scripts, so a suite added to either is excluded here
- * automatically and a new zero-dependency suite is picked up with no edit at all. A hand-kept
+ * THE EXCLUSION LIST IS DERIVED, NEVER WRITTEN DOWN. It is the `functions` and `rules` lanes, which
+ * each suite names in its own `// @lane` line (scripts/test-lanes.mjs), so a suite added to either is
+ * excluded here automatically and a new zero-dependency suite is picked up with no edit at all. A hand-kept
  * second list is precisely the drift this repo keeps having to correct — the enumerated CSS
  * classes, the rules-doc globs, the hand-listed `node --check`.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+import { fileURLToPath } from 'node:url';
+import { filesInLane } from './test-lanes.mjs';
 
-/** Test files named anywhere in a package script — those are the ones with dependencies. */
-function namedIn(script) {
-    return [...(pkg.scripts?.[script] ?? '').matchAll(/test\/[\w.-]+\.test\.mjs/g)].map(m => m[0]);
-}
+/** The suites of a lane — those in the functions and rules lanes are the ones with dependencies. */
+const namedIn = (/** @type {string} */ lane) => filesInLane(fileURLToPath(new URL('..', import.meta.url)), lane);
 
 /**
  * A SUITE DECLARES ITS OWN DEPENDENCY CONTRACT (v22.45, external review). Being listed in
- * `test:functions` used to be the whole answer, and that is too coarse in both directions:
+ * the functions lane used to be the whole answer, and that is too coarse in both directions:
  * `roster-parse-helpers.test.mjs` is listed there purely for convenience and needs nothing, and
  * `roster-geometry.test.mjs` is listed there because ONE block drives the real pdfjs — but that
  * block skips itself by name on a bare checkout, so thirty pure assertions were being left on the
@@ -59,7 +58,7 @@ const selfSkips = (f) => {
     catch { return false; }
 };
 const NEEDS_DEPS = new Set(
-    [...namedIn('test:functions'), ...namedIn('test:rules')].filter(f => !selfSkips(f)));
+    [...namedIn('functions'), ...namedIn('rules')].filter(f => !selfSkips(f)));
 
 const all = readdirSync(new URL('../test/', import.meta.url))
     .filter(f => f.endsWith('.test.mjs'))

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // text-scale.test.mjs — the compact-row decision, organised by what a wrong answer costs.
 // COMPACTING TOO EARLY changes the row on phones that were never short of space (Large text at
 // 412px fits with room); COMPACTING TOO LATE leaves exactly the phones this exists for on two rows.

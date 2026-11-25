@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * generated-copies.test.mjs — every copy `npm run generate:copies` writes is committed as it would
  * write it now. Run: node scripts/run-tests.mjs test/generated-copies.test.mjs   (part of `npm run test:hygiene`)

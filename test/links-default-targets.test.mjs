@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * links-default-targets.test.mjs — the table the generator starts from.
  * Run: node scripts/run-tests.mjs test/links-default-targets.test.mjs   (no mocks; part of `npm run test:hygiene`)

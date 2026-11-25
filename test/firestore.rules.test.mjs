@@ -1,3 +1,4 @@
+// @lane rules
 /**
  * Firestore security rules integration tests.
  *

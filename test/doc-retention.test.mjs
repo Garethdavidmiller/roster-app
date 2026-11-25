@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * doc-retention.test.mjs — the six-month sweep, driven against fakes (v21.86).
  *

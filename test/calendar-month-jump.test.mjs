@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * calendar-month-jump.test.mjs — the Calendar's month/year jump picker (calendar-month-jump.js,
  * moved from calendar-app.js on 25 Nov 2026).

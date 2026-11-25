@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * calendar-sequences.test.mjs — the Calendar's access, reads and redraws, driven through thousands of
  * seeded random ORDERS of events, with the rules that must hold whatever the order checked after every

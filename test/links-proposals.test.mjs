@@ -1,3 +1,4 @@
+// @lane hygiene
 // links-proposals.test.mjs — the built-in shortlist (v24.47).
 //
 // Three things are pinned, and each fails for its own reason. The designs must be what the

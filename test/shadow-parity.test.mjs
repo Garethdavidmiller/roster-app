@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * shadow-parity.test.mjs — the box-shadow rule has a NUMBER in it, and the number was wrong.
  *

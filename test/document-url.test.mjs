@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * document-url.test.mjs — what a server answer MEANS for a member trying to open a document.
  * Run (no mocks): node scripts/run-tests.mjs test/document-url.test.mjs   (part of test:hygiene)

@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * nav-bell.test.mjs — the drawer's notification bell: a refresh never paints over a tap, and the
  * toggle says its state once.

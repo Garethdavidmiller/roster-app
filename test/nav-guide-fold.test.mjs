@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * nav-guide-fold.test.mjs — the drawer's guide list follows the Reference fold, query or none.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/nav-guide-fold.test.mjs   (part of `npm run test:unit`)

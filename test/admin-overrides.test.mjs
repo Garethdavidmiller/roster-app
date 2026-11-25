@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * Unit tests for admin-overrides.js pure/near-pure exports.
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs test/admin-overrides.test.mjs

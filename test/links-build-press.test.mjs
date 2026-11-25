@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * links-build-press.test.mjs — what the Links Build press says and remembers (links-build-press.js).
  * Run: node scripts/run-tests.mjs test/links-build-press.test.mjs   (part of `npm run test:hygiene`)

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * card-collapse.test.mjs — the deep link that opens a collapsed card by name (`openCardNamedByHash`), and
  * overlay.js still handing out both card functions.

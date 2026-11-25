@@ -1,3 +1,4 @@
+// @lane hygiene
 // refresh-visual-script.test.mjs — scripts/refresh-visual-baselines.mjs, RUN in a scratch repository.
 //
 // The committed baselines are CI's render, and the script could only draw them from the local one,

@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 // calendar-controls-parity.test.mjs — the calendar's control rows have lost a rule to SOURCE ORDER
 // three releases running (v22.83, v22.84 twice), and each time the file's own comment warning
 // about it was the thing being ignored. The mechanism is always the same: a later rule at equal

@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * leave-year.test.mjs — which year's allowance a January leave day comes out of (v25.18).
  * Run: node scripts/run-tests.mjs test/leave-year.test.mjs   (part of `npm run test:hygiene`)

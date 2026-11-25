@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * admin-roster-upload.test.mjs — the roster import, from the parsed cell to what a Save writes.
  *

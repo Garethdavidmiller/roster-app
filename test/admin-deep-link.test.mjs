@@ -1,3 +1,4 @@
+// @lane hygiene
 /**
  * admin-deep-link.test.mjs — a deep link must arrive with the thing it NAMED already open.
  *

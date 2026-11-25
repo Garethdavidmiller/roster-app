@@ -1,3 +1,4 @@
+// @lane hygiene
 // @ts-nocheck
 /**
  * hidden-member-visibility.test.mjs — a leaver is off the roster everywhere it is LISTED.

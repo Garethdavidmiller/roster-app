@@ -1,3 +1,4 @@
+// @lane unit
 /**
  * firebase-client.test.mjs — the Firestore and Auth I/O layer, driven through the REAL module.
  *

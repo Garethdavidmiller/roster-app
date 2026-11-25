@@ -1,4 +1,5 @@
 // @ts-check
+// @lane unit
 /**
  * admin-period-delete.test.mjs — a Recorded-dates row's ✕ (admin-period-delete.js), through the real
  * delete with every page handle and Firebase call injected.

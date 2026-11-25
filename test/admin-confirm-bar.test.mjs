@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * admin-confirm-bar.test.mjs — the over-allowance question on admin.html (admin-confirm-bar.js).
  * Run with: node scripts/run-tests.mjs test/admin-confirm-bar.test.mjs   (part of `npm run test:hygiene`)

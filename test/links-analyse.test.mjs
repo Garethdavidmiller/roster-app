@@ -1,4 +1,5 @@
 // @ts-check
+// @lane hygiene
 /**
  * links-analyse.test.mjs — the one reading of a Links design the panels share (links-analyse.js).
  * Run: node scripts/run-tests.mjs test/links-analyse.test.mjs   (part of `npm run test:hygiene`)

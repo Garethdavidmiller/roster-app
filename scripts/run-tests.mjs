@@ -18,10 +18,26 @@
  * than no suite at all. This closes the runtime half of it.
  *
  * Usage: node [node flags] scripts/run-tests.mjs <test files…>  (flags are forwarded)
+ *        node [node flags] scripts/run-tests.mjs --lane <lane>  (the files whose `// @lane` names it —
+ *        scripts/test-lanes.mjs; how every npm test script names what it runs, 25 Nov 2026)
  */
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { filesInLane } from './test-lanes.mjs';
 
-const args = process.argv.slice(2);
+/** The arguments, with each `--lane <lane>` replaced by that lane's files. */
+function expandLanes(/** @type {string[]} */ raw) {
+    const out = [];
+    for (let i = 0; i < raw.length; i++) {
+        if (raw[i] !== '--lane') { out.push(raw[i]); continue; }
+        const lane = raw[++i];
+        try { out.push(...filesInLane(fileURLToPath(new URL('..', import.meta.url)), lane ?? '')); }
+        catch (e) { process.stderr.write(`✖ ${/** @type {Error} */ (e).message}\n`); process.exit(1); }
+    }
+    return out;
+}
+
+const args = expandLanes(process.argv.slice(2));
 // `process.execArgv` carries the flags the OUTER node was given — `--experimental-vm-modules`,
 // `--experimental-test-module-mocks`. Forwarding them is not optional: without it the child runs
 // without module mocking, and every suite that mocks an import fails to build… which is exactly the
