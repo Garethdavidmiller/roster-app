@@ -44,7 +44,7 @@ do not carry it into the page or the pack.
 > turn, five of them cover weeks as evenly spread as 26 allows, and 219 contracted days a year or fewer. It is the
 > CEA/main roster widened; those on a CEA bilingual contract keep their own links (owner, 8 Nov 2026). The line count is
 > `ROTATING_LINES` in `links-design.js` and nowhere else in code. The 24-line rows this dashboard carried until
-> November 2026 are under *Superseded* below the table.
+> November 2026 are in git (*Superseded*, below the table).
 
 | Item | Status | Needed by | Blocker / owner |
 |---|---|---|---|
@@ -66,43 +66,10 @@ do not carry it into the page or the pack.
 
 ### Superseded — the 24-line dashboard (before 1 October 2026)
 
-*Kept as the record of how the tool was built, not as status. Every figure here is the 24-line design; the 24-line
-work itself was removed on 7 Nov 2026 (`git checkout 924b9dbc -- docs/links-24` restores it). Designs of an old length
-are binned when the workspace loads them (`isPre26Design`, `links-design-doc.js`).*
-
-> **⚠️ THE LINK IS 24 LINES, AND EXCLUDES THE BILINGUAL ROSTER (owner, Aug 2026)**
->
-> The plan changed after most of this document was written. The new link **does not include the
-> bilingual roster at all** — not its lines, not its shift times, not its work. It is the CEA/main
-> roster **widened from 20** to increase staffing, and it carries the **same four spare weeks** the
-> roster has today. (A fifth was added at v20.01 and reverted at v20.02 — the FF11 finding that
-> motivated it turned out to be the line-order optimiser clustering the cover weeks, not the spare
-> count. See the generator section below.)
->
-> **The LENGTH has moved twice: 22 at v19.98, corrected to 24 at v20.01** (owner — the earlier figure
-> was misremembered). Evidence class **C** for both: no document behind either.
->
-> **Read every 28- and 22-line figure below, and every 5-spare-week figure, as history.** The
-> `Baseline` and `What the generator produces` sections are re-measured at **24 lines / 4 spare**
-> (v20.02); anything else quoting an older length or spare count describes a
-> superseded design and is left as the record of how the tool was built. `ROTATING_LINES` was 24
-> (26 since 1 Oct 2026 — the note at the top) and every literal derives from it — the 22 → 24 move was one constant, four static fallbacks the parity
-> test named, and a re-measure, against ~15 literals across five files for 28 → 22.
->
-> Three things the change does NOT undo, which is most of the value in this document: the ORR factor
-> work, the operating-window and demand features, and the finding that a service increase cannot be
-> absorbed by making existing lines denser. That last one is now the *argument that was won* — 22
-> widening to 24 is exactly the "the link has to get bigger" conclusion, arriving from the business
-> rather than from this tool.
-
-| Item | Status (then) | Needed by | Blocker / owner |
-|---|---|---|---|
-| **Rotation length** | ✅ **24, main-only** (owner, Aug 2026) — 22 at v19.98, corrected v20.01. Evidence class C | — | — |
-| **Spare weeks** | ✅ **4** — the same as the roster today. A fifth was added v20.01 and reverted v20.02 once its motivating FF11 finding proved to be an optimiser bug (owner) | — | — |
-| **Existing 28-line designs** | ✅ **DECIDED (owner, 30 Aug 2026): BIN THEM.** Not kept as a record — the 28-line link is described in this document and in the module comments, which is where a record belongs; a stale design in the picker is a thing somebody opens and edits by mistake. **Execution is a click in the app and is not done yet** (soft delete ✕ → they sit in 🗑 Recently deleted until removed for good). **Generate the new 24-line design FIRST**, because that is the order the work wants (until Nov 2026 `canSoftDelete` refused the last live design; it was retired, and binning the last one now opens a shortlisted proposal) | Before a proposal is frozen | **Gareth** — the clicks |
-| **Contracted hours — today's duties cannot fill a 24-line link** | ✅ **Answered (owner, 29 Sep 2026)**: the December 2026 staffing levels and a 24-person link are both confirmed verbally, so the December staffing supplies the extra duty. Every sheet but one pays the 35h week exactly — 42,000 minutes Monday to Saturday — carrying **94–99 timed duties a week against today's 76**; Fifteen Turns is 60 minutes a week over. Background (v20.04; generator gated v20.98/v20.99): seeded from today's duties, 24 lines averages **29h 53m** a week against 35h, and the generator refuses a table that misses the contract in either direction | — | — |
-| **Business staffing requirement** | ✅ **Confirmed verbally (owner, 29 Sep 2026)**, with the 24-person link and the Sunday cover (10 on a Sunday, worked as overtime): the December 2026 staffing levels behind the nine soft rules every sheet is scored against — four at the open, three at the close, five at 22:00, 10 on a Sunday, the ticket office in fixed pairs, and the rest (`sheetRules`, `docs/links-24/tooling/report-data.mjs`). Three more — 14 on a Saturday, evenly spread cover weeks and weekday closers from 15:45 — are flexible rules since 30 Sep 2026: designed to (`currentRules` keeps all of them for the searches), never shown on a sheet (`flexibleRules`). First relayed 27–28 Sep. Every sheet and the rules sheet say *confirmed verbally* | — | — |
-| **Proposals** | ✅ **Drawn — 11 sheets** in `docs/links-24/` (Silva Lining added 1 Oct 2026) (28 until twenty-one were withdrawn on 29–30 Sep 2026: the *By the Book*, *Same Turns* and *Pinned Turns* families, *Running Repair*, *Weeks 17-18 Swapped*, *Targeted Fatigue Redo*, *Three Mondays*, *Frozen Block*, *Tenth Sunday*, *Short Closer*, *Light Retime*, *Polished Clean* (restored 30 Sep, the ticket office pairs rule waived for it), *Cover at Seventeen*, *Saturday Four*, *Just Enough* and *Gates Mended* — and two added the same day), the first on 17 Sep 2026, the latest (Full Overhaul, of the Running Repair family) on 29 Sep; all of them in the plain edition v2 of 30 Sep, scored against the nine soft rules; ⚠️ **none frozen** | T−8 weeks | The four decisions above are settled (29 Sep 2026), so freezing one now waits on the management review. The folder's `README.md` is the index; each sheet is eight pages, compared only with today's link, and lists its open questions on page 1 (*Still to settle*); `Proposals-Summary.pdf` sets all 10 side by side |
+Deleted on 25 Nov 2026: every row described the 24-line design that the 26-line decisions above
+replaced (`git show 28b217d0:docs/LINKS_DEC2026_PLAN.md` restores it). Its owner decisions that still
+bind are restated in the table above (the staffing requirement, confirmed verbally on 29 Sep 2026);
+a design of an old length is binned when the workspace loads it (`isPre26Design`, `links-design-doc.js`).
 
 ## The backwards plan — because the only immovable deadline is outside this repository
 
@@ -567,129 +534,29 @@ from the first draft so the review correction under package 1 stays legible.
 v19.56. **4 was declined** (owner, Aug 2026 — a control built at v19.78 was removed at v19.83; see
 package 4). Nothing in this list remains open.
 
+Each shipped package's reasoning, and the defect each one found or fixed, is its module's header;
+the line below is the routing.
+
 ### 1. Operating-window setting — ✅ **SHIPPED v19.54**
 
-`links-window.js` + `links-window.test.mjs`. The window is editable on the Coverage card, persisted
-per design, shown above the heat map, stated on both compare column headers and on the printed
-sheet, and defaulted for every design saved before it.
-
-**The reason turned out to be stronger than this plan recorded.** The heat map derived its own span
-from the design — first worked hour to last — and flagged a gap only strictly *between* them. So
-missing cover at either END of the day was invisible: the span simply shrank to fit and those hours
-left the table. Measured on a 28-line design where everybody finishes at 14:20, leaving the station
-unstaffed until the 23:55 close: **zero gaps flagged**. It now flags **71**. The window did not just
-make the demand overlay expressible — it fixed a blind spot in the check that already existed.
-
-Two things worth knowing before changing it: `normaliseWindow` falls back per ROW but never per
-FIELD (pairing a stored start with a default end would invent a window nobody chose and then print
-it as deliberate), and the editor uses TEXT inputs because Chromium renders `<input type="time">` in
-the OS's 12-hour format **even at en-GB** — measured — which would have put "11:55 PM" beside a grid
-reading 23:55.
-
-<details><summary>Original scope</summary>
-
-
-Store the window **on each design**, with app defaults of Mon–Sat 06:20–23:55 and Sun 07:15–23:25.
-
-Per-design rather than global because a proposal may legitimately test a moved boundary — the Sunday
-finish is the live example — and compare mode then shows two designs with different spans side by
-side, which is the argument you would put to Nathan. It also travels with the design when printed, so
-the sheet states the window it was designed to. Designs saved before this carry no such field and
-fall back to the defaults, so nothing already saved changes.
-
-Two rows (Mon–Sat, Sun) matches the operation as described. Saturday can split from Mon–Fri later if
-it ever diverges; the generator already has three columns, so the plumbing exists.
-
-**The trap in making it per-design:** compare mode highlights differing *cells*, not differing
-*windows*, so two designs built to different spans would compare as though they were like for like.
-If the window is per-design, compare mode has to show it in both column headers, and the printed sheet
-has to state it. Otherwise the override becomes a way to make an unfair comparison look fair.
-
-**Correction (review pass).** The first draft of this plan put this package first, on the claim that
-"packages 2–4 all consume it". That is wrong. Package 2 does not touch it at all: FF2 needs start
-times, FF5/FF7 need durations, and FF15/FF8b/FF19/FF17 need the day sequence — none of them need to
-know when the station is staffed. Only the demand overlay (3) and the generator targets (4) consume
-the window. With the false dependency removed there is nothing holding package 2 back, and package 2
-is the one Nathan will actually assess against, so it goes first.
-
-Note it needs a `firestore.rules` allowlist change — the same shape as the `deletedAt`/`deletedBy`
-pair added at v19.41 — so a rules deploy rides alongside hosting.
-
-*Done when:* the window is editable, persisted per design, shown on the Coverage card so the heat map
-explains itself, printed on the sheet, and defaulted for existing designs.
-
-</details>
+`links-window.js` + `links-window.test.mjs`: the window is per design, shown on the Coverage card,
+both compare headers and the printed sheet. It also closed a blind spot — the heat map's own span
+shrank to fit the design, so missing cover at either END of the day was invisible.
 
 ### 2. Fatigue checks against p3 — ✅ **SHIPPED v19.46**
 
-`links-fatigue.js` + `links-fatigue.test.mjs`, rendered in the Design checks card. The baseline
-below ships with it. What it found on the live link the day it landed is recorded in "Baseline"
-above; the two design notes that survived contact are that FF11 needed its own rule (a single rest
-day is not a 48h break) and that a rotation with **no** 48h break anywhere has to report every
-worked day rather than the sequence length — the first implementation returned the length, counting
-rest days as shifts, and its own test caught it.
-
-Settled 28 Sep 2026 (owner, against ORR's *Managing rail staff fatigue*, Aug 2024): MRSF's 7×8h reads
-eight hours or more, FF17 is ORR's own definition, FF18 is ORR's cadence factor (standing on every weekly
-link, the step kept as information). **FF19 alone still renders "(definition to confirm)"**: the owner's
-reading (a rest day resets it) is more lenient than ORR's wording, and the assessing manager should see
-that.
-
-<details><summary>Original scope</summary>
-
-
-Extend `runDesignChecks` to cover every factor in the table above that applies, each labelled with its
-FF number, so a printed proposal is already annotated against the document it will be assessed with.
-
-The maths belongs in `links-design.js` (pure, tested) — the module already holds the turnaround and
-consecutive-run logic, and this is the same kind of reasoning over the same sequence.
-
-Three design notes, the third added in the review pass and the most important of the three:
-
-- The n/a factors should be *asserted* rather than silently omitted, so a design that somehow acquires
-  a night duty fails loudly.
-- The checks report factors **present**, not pass/fail — the ORR framing is explicitly that these are
-  not prescriptive limits, and a tool that renders them red/green would misrepresent the guidance.
-- **Separate standing characteristics from design-specific findings.** FF2 fires on *every* 06:20
-  duty, so on this link it is a property of the operation, not a signal about a proposal — and a check
-  that flags half the rotation on every design is the same cry-wolf failure this plan warns about for
-  the demand overlay. Present the unavoidable factors as a stated characteristic with a count; reserve
-  the per-design findings for the factors a designer can actually change (FF15, FF8b, FF19, FF11, the
-  duty-length and weekly-hours rules).
-
-**Liability posture — state this in the UI, not just here.** These checks are an aid to two designers,
-not a fatigue risk assessment. The greatest risk in this package is not a missing check but a design
-that shows no findings and is read as approved: false assurance on a safety-adjacent matter is worse
-than no tool at all. Nothing in the output should read as a certificate, and the ORR's own escalation
-— justify, minimise, then assess and control — is the frame to present findings in.
-
-*Done when:* every applicable factor is reported with its FF number, the inapplicable ones are
-asserted, and each rule has a unit test.
-
-</details>
+`links-fatigue.js` + `links-fatigue.test.mjs`, in the Design checks card; the factor readings settled
+by the owner on 28 Sep 2026 (FF19 alone still "(definition to confirm)") are in
+`.claude/rules/links-design.md` → Fatigue factors. **These checks are an aid to two designers, not a
+fatigue risk assessment**, and the UI says so.
 
 ### 3. Demand overlay on the coverage heat map — ✅ **SHIPPED v19.56**
 
-`links-demand.js` + `links-demand.test.mjs`. Three demand rows sit under the cover in the same
-table, one per day class, shaded in orange against their own peak — cars per hour, arrivals plus
-departures, per the answer to open question 1. The note names the disagreement between the two
-measures (08:00 by movement, 17:00 by cars), states the uncovered staffed hours as a finding, states
-the movements outside the window as a fact, and carries the timetable's provenance.
-
-**It shipped broken once, and the failure is worth keeping.** The first implementation held HOURLY
-buckets and asked the window an hourly question. The Sunday finish is **23:25**, so "is hour 23
-staffed" is true — and the five movements after it, the one live finding in this whole plan, were
-reported as fully covered. Every unit test passed: one of them was written with a synthetic
-`h <= 22` Sunday window rather than the real one, so it agreed with the bug. It was caught by
-rendering the actual page and reading the actual sentence.
-
-The fix stores movement TIMES rather than hourly buckets — and derives the hourly curve from them,
-so the shading and the boundary check cannot describe different timetables. That also made the
-mirror-image finding visible at the other end of the day: **three weekday trains (06:04, 06:11,
-06:16) run in the hour before the 06:20 opening** — the ones the overlay can mark, since they share
-an hour cell with the opening. A fourth, the 05:55 departure, is earlier still and sits in an hour
-the heat map does not draw at all; the window table above counts all four. Quote four, not three,
-if the subject is how much of the morning falls outside the link.
+`links-demand.js` + `links-demand.test.mjs`: three demand rows under the cover, one per day class. It
+stores movement TIMES, not hourly buckets (the hourly version reported the five Sunday movements after
+23:25 as covered). **Three weekday trains (06:04, 06:11, 06:16) run in the hour before the 06:20
+opening, and a fourth, the 05:55 departure, sits in an hour the heat map does not draw** — quote four,
+not three, if the subject is how much of the morning falls outside the link.
 
 ### 4. More people, same shape — ❌ **WON'T-DO (owner, Aug 2026: "over complicates it")**
 
@@ -729,20 +596,8 @@ it must carry, both of which cost a release to learn.
 
 ### 5. Midnight-crossing guard — ✅ **SHIPPED v19.47**
 
-`endMinutesAbs` in `links-design.js` is now the one reading of a duty that runs past midnight, and
-both callers use it: the heat map counts a wrapping duty on **both** days (Saturday spilling round to
-Sunday) instead of dropping its post-midnight hours, and the turnaround check lets that duty eat into
-the rest that follows it. `dutyMinutes` delegates to it rather than keeping a third copy — it now
-lives in `links-design.js`, and `links-fatigue.js` re-exports it.
-
-What the two defects had in common is the part worth remembering: **both erred towards *safer than
-the truth*.** The heat map lost hours from the artefact whose entire job is showing where cover is
-thin, and the turnaround check reported ~26h of rest for a 00:30 finish before an 06:20 start — 5h50
-in reality — so the most dangerous turnaround the module can express was the one it called compliant.
-
-Still unreachable from the CEA link (duties finish 23:55) and the `normaliseCustomShift` ban on a
-wrapping value stays — it is the input boundary, not a duplicate of this. Reachable only through
-legacy/imported data, the same route `canonicaliseShift` exists for.
+`endMinutesAbs` in `links-design.js` is the one reading of a duty that runs past midnight; both
+defects it fixed erred towards *safer than the truth*. Unreachable from the CEA link today.
 
 ## Not building
 

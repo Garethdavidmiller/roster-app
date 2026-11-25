@@ -891,43 +891,21 @@ named at the top of this file.*
 
 ## 11. Phase 2 as built (v18.92)
 
-**Scope: every page where a member signs in**, the Calendar included (it runs the overlay after a
-`named` grant). An admin-only first draft would have missed a member who signs in on the pay
-calculator and never opens Admin.
+**Scope: every page where a member signs in**, the Calendar included — an admin-only draft would have
+missed a member who signs in on the pay calculator and never opens Admin. **No wave selector:**
+`CONFIG.FORCE_PASSWORD_SET` is a plain kill switch, because the 60-day sessions already stagger the
+rollout. Since the staff PIN retired (23 Nov 2026) it reaches every reader, because every reader signs in.
 
-**No wave selector.** `CONFIG.FORCE_PASSWORD_SET` is a plain kill switch, not a tier control, because
-the 60-day session model already staggers the rollout by each member's own expiry.
+The review's four fixes are argued in `password-force.js`'s header: the gate keys on
+`authStatus === 'named'`; it fails open AFTER showing as well as before ("Continue for now", stamping
+nothing); the e2e harness defaults the flag OFF (`forcePasswordSet(page)` opts in, through ONE shared
+`roster-data.js` route); and the login marker is consumed even when the overlay is not shown. The browser
+tests assert VISIBILITY, not text, because two CSS defects hid or showed the overlay's parts while the
+text was right.
 
-**Reach, stated honestly.** This compels anyone who signs in. While the staff PIN existed it did NOT
-reach a member who only ever viewed the roster with the PIN: they had no session to expire and no
-sign-in to intercept (and `passwordStatus` is owner-or-admin read, so the Calendar cannot tell whether
-the selected member has migrated). The PIN's retirement (23 Nov 2026) closed that gap: every reader
-now signs in.
-
-**What the review changed, each closing a real failure** — the reasoning is in `password-force.js`'s
-header:
-
-1. **The gate keys on `authStatus === 'named'`, not "an auth user exists."** `updatePassword` cannot
-   succeed for any other identity, so the weaker test shows a hard block nobody can satisfy.
-2. **It fails open AFTER showing, not only before.** A quiet "Continue for now" appears on any failure
-   the member cannot type their way out of, and after three failures of any kind. It stamps nothing,
-   so the member is compelled again next sign-in.
-3. **The e2e harness defaults the flag OFF.** The hermetic Firebase stub reads every member as
-   un-migrated, so leaving it on would put the overlay over every sign-in test; `forcePasswordSet(page)`
-   opts in. Playwright runs only the most-recent matching route handler, so the flag helpers share ONE
-   `roster-data.js` route — two separate routes would silently apply only one.
-4. **The login marker is consumed even when the overlay is not shown**, so it can never resurface on
-   a later ordinary page load (the v14.77 "Fix 4" ambush).
-
-**Two defects the rendered overlay caught that code review did not**, and the reason the assertions
-check visibility rather than text content: `.pwf-escape { display: block }` silently beat the `hidden`
-attribute, so the escape hatch showed from the moment the overlay opened; and `.login-error` stays
-`display: none` until a `.visible` class is added, so setting `textContent` alone left every error
-invisible.
-
-**Not verified here (no live Firebase in this environment):** whether a client-side password change
-signs that member's other devices out. The copy is written to be correct either way — "you'll need it
-the next time you sign in on any device" — so confirm it before writing anything more specific.
+**Not verified here (no live Firebase):** whether a client-side password change signs that member's
+other devices out. The copy is correct either way ("you'll need it the next time you sign in on any
+device"); confirm it before writing anything more specific.
 
 ---
 
@@ -1081,65 +1059,31 @@ to establish that the request is genuine.
 
 ## 15. What the second review round found (v18.95)
 
-Five defects, four introduced by a polish pass, and three invisible to every existing gate. The rules
-they left:
-
-- **A page stylesheet must never reach into the shared login overlay.** A Settings-only rule on
-  `.login-pw-wrap` — also the class `login-overlay.js` injects on every page — grew one page's sign-in
-  card; it is scoped now, and `e2e/auth.spec.js` measures the login card's geometry on every page and
-  requires them equal.
-- **Every network wait inside a request handler is time-boxed**, because a try/catch survives only a
-  rejection and a promise that never settles is not one. The queue's notify path is raced against its
-  own budget inside the request's.
-- **The Settings Password card shares the overlay's timeout helpers** (`withTimeout` /
-  `settleOrTimeout`, exported from `password-force.js`), so there is one implementation.
-- **A revealed password is re-masked after a successful save**, so the next password typed on a shared
-  device does not appear in the clear.
-- **The notification headline names the queue, not "password reset"**, because a collapsed notification
-  shows only the title, and "Password reset — 1 waiting" on your own lock screen reads as something
-  about *your* password.
-
-The same round found three committed visual baselines that had drifted under the tolerance while
-passing; the current baseline procedure is CLAUDE.md → `test:visual`.
+Five defects, three invisible to every gate then. The rules they left, each now held where it binds:
+**a page stylesheet never reaches into the shared login overlay** (`e2e/auth.spec.js` requires the login
+card's geometry equal on every page); **every network wait inside a request handler is time-boxed** (a
+try/catch survives only a rejection); **one implementation of the deadline helpers**, `withTimeout` and
+`settleOrTimeout` in `own-password.js`; **a revealed password is re-masked after a successful save**; and
+**the notification headline names the queue, not "password reset"**, because a collapsed notification
+shows only its title.
 
 ---
 
 ## 16. What the external review found (v18.97)
 
-**A timed-out password write is INDETERMINATE, not failed.** `Promise.race` stops waiting; it does not
-cancel. So `updatePassword` could land a second after the UI had said "Couldn't connect", leaving the
-member believing their old password still worked — during a COMPULSORY migration, which makes it a route
-into the exact lockout the timeout was added to prevent.
-
-`settleOrTimeout` reports three outcomes — `ok` / `failed` / `pending` — and hands back a handle on the
-original work. On `pending` both surfaces:
-- say plainly that the result could not be confirmed, and to **keep the new password and try it
-  first** (the safe instruction under either outcome);
-- keep the Save button **disabled**, because a second write racing a first that may still land is the
-  worst version of this bug — the retry re-authenticates with a password the late write may already
-  have replaced;
-- keep watching: a late success finishes the flow normally, a late failure re-enables retry with the
-  real error;
-- still offer "Continue for now", so a compulsory overlay never holds someone on an outcome nobody
-  can resolve.
-
-`withTimeout` is kept for calls that change nothing (reads, the idempotent re-auth). **The rule: a
-state-changing call may never use a timeout that reports failure.** The browser tests that pin it drive
-the overlay through a deadline, a late success and a late failure (`__E2E.hangPasswordWrite`).
-
-**Sign-in statistics count only accounts on the roster.** `summariseSignIns` takes an ALLOWLIST built
-from the server-owned roster and fails closed — an empty allowlist counts nothing, because a
-visibly-wrong zero beats a plausible number drawn from an unknown population. An enabled account for a
-leaver (the orphan sweep is a manual admin action) used to inflate a card headed "exact".
-
-**Two quick Clears must not leave a ghost row.** Refreshes of the queue card are QUEUED, not dropped: a
-dropped refresh let an older snapshot repaint a row that had just been cleared, with nothing queued to
-correct it.
-
-**The kill switch reaches the endpoint.** `CONFIG.PASSWORD_RESET_REQUESTS` hides the client link; the
-public function stayed callable until `RESET_REQUESTS_ENABLED` in `functions/auth-endpoints.js` closed
-it with a 503. Deliberately a constant, not a Firestore flag: an incident switch must not depend on a
-read the incident might be affecting.
+- **A timed-out password write is INDETERMINATE, not failed** — `Promise.race` stops waiting, it does
+  not cancel. **The rule: a state-changing call may never use a timeout that reports failure**;
+  `settleOrTimeout` reports `ok` / `failed` / `pending`, and on `pending` both surfaces say the result is
+  unconfirmed and to try the new password first, keep Save disabled, keep watching, and still offer
+  "Continue for now". `own-password.js` and `fetch-timeout.js` carry it; `__E2E.hangPasswordWrite`
+  drives the browser tests through it.
+- **Sign-in statistics count only accounts on the roster**: `summariseSignIns` takes an allowlist and
+  an empty one counts nothing (`functions/roster-parse-helpers.js`).
+- **Two quick Clears must not leave a ghost row**: queue-card refreshes are QUEUED, never dropped
+  (`operations-app.js`).
+- **The kill switch reaches the endpoint**: `RESET_REQUESTS_ENABLED` in `functions/auth-endpoints.js`
+  closes it with a 503 — a constant, because an incident switch must not depend on a read the incident
+  might be affecting.
 
 ### Still accepted, unchanged
 
