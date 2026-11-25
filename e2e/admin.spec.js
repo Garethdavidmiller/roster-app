@@ -371,6 +371,16 @@ test('admin: a week-grid time box formats as typed, moves on, and flags an impos
     await start.focus();
     await expect(end, 'left as three digits, it is a dropped zero').toHaveValue('02:40');
     await expect(end).not.toHaveClass(/\binput-error\b/);
+    // AN EDIT IS NOT A NEW TIME TYPED SHORT (external review of v26.79): 22:30 with its last digit
+    // deleted was settled as 02:23 when the box was left — a valid time, so it saved.
+    await end.fill('');
+    await end.pressSequentially('2230');
+    await expect(end).toHaveValue('22:30');
+    await end.press('Backspace');
+    await expect(end).toHaveValue('22:3');
+    await start.focus();
+    await expect(end, 'what is left of 22:30 stays as it is').toHaveValue('22:3');
+    await expect(end, 'and is refused like any unfinished time').toHaveClass(/\binput-error\b/);
 });
 
 // ── LEAVING ADMIN BY THE DRAWER OR THE LOGO ASKS FIRST (whole-app review, Oct 2026) ────────────

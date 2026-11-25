@@ -268,6 +268,21 @@ let _loadInFlightKey = null;
 const _loadFailedFor = new Set();
 /** The one retry waiting for the signal to return, if a load failed offline. @type {(() => void)|null} */
 let _onlineRetry = null;
+/** Whether that retry re-reads everybody (`true`) or the member on screen. */
+let _onlineRetryEveryone = false;
+
+/**
+ * A read that SUCCEEDED answers the retry waiting for the signal, when it read at least what that retry
+ * would (external review of v26.79): the admin pressed Retry offline-then-online, it worked, and the
+ * signal's return later read the same thing again, for nothing. A member read does not answer a
+ * whole-collection retry; a whole-collection read answers either.
+ * @param {boolean} everyone  what the read that succeeded covered
+ */
+function settleOnlineRetry(everyone) {
+    if (!_onlineRetry || (_onlineRetryEveryone && !everyone)) return;
+    window.removeEventListener('online', _onlineRetry);
+    _onlineRetry = null;
+}
 
 /** @returns {Promise<void>} settles when any in-flight load has finished. Awaited by the write paths
  *  so a wholesale collection read cannot resolve on top of a just-committed cache mutation. */
@@ -654,6 +669,7 @@ async function _loadOverridesInner(opts) {
             _coverage = withMember(_coverage, member);
             _loadFailedFor.delete(member);
         }
+        settleOnlineRetry(everyone);
         // NEWEST FIRST, WHICHEVER READ FILLED IT (whole-app check, Nov 2026; admin-2-3). The member read has no
         // `orderBy`, so the list came in document-id order — no date order at all — until a save sorted it.
         _allOverrides.sort((a, b) => String(b.date).localeCompare(String(a.date)));
@@ -698,6 +714,7 @@ async function _loadOverridesInner(opts) {
             if (offline) {
                 if (_onlineRetry) window.removeEventListener('online', _onlineRetry);
                 _onlineRetry = () => { _onlineRetry = null; again(); };
+                _onlineRetryEveryone = everyone;
                 window.addEventListener('online', _onlineRetry, { once: true });
             }
             retry?.addEventListener('click', again);

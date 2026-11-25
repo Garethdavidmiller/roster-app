@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isClockTime, formatClockInput, finaliseClockInput } from '../clock-input.js';
+import { isClockTime, formatClockInput, finaliseClockInput, shapeClockBox, settleClockBox } from '../clock-input.js';
 
 // clock-input.test.mjs — the two rules of a TEXT clock box, moved here with the module at v24.61.
 // Organised by cost: accepting nonsense is the expensive direction for `isClockTime` (a `29:00`
@@ -112,5 +112,93 @@ describe('isClockTime — the guard TEXT boxes need and `<input type="time">` ga
     it('anything that is not two-and-two is refused, including the half-typed', () => {
         for (const v of ['6:00', '06:0', '0600', '9am', '', ':30', '06:00 ', null, undefined])
             assert.equal(isClockTime(/** @type {any} */ (v)), false, String(v));
+    });
+});
+
+// ── AN EDIT IS NOT A NEW TIME TYPED SHORT (external review of v26.79) ───────────────────────────────
+// An admin opened 22:30, deleted the last 0 and left the box: "22:3", the digits 223, which the
+// dropped-zero reading settled as 02:23 — a valid time, so it saved. These drive a box the way the
+// pages do: `shapeClockBox` on every input event, `settleClockBox` when the box is left.
+describe('a box remembers whether its digits are what is left of a time', () => {
+    /** A box as the page has it, holding `value`, and a key pressed into it. */
+    const box = (value = '') => ({ value });
+    /** @param {{ value: string }} b @param {string} digit */
+    const key = (b, digit) => { b.value += digit; b.value = shapeClockBox(b, { inputType: 'insertText' }); };
+    /** Backspace at the end of the box (a colon left trailing goes with it, as on a phone). @param {{ value: string }} b */
+    const backspace = b => { b.value = b.value.slice(0, -1).replace(/:$/, ''); b.value = shapeClockBox(b, { inputType: 'deleteContentBackward' }); };
+
+    it('22:30 with its last digit deleted stays unfinished when left — never 02:23', () => {
+        const b = box('22:30');   // drawn by the page from a stored time; never typed in
+        backspace(b);
+        assert.equal(b.value, '22:3');
+        assert.equal(settleClockBox(b), '22:3');
+        assert.equal(isClockTime(settleClockBox(b)), false, 'refused at Save like any unfinished time');
+    });
+
+    it('the same when the time was typed in this visit, then edited', () => {
+        const b = box();
+        for (const d of '2235') key(b, d);
+        assert.equal(b.value, '22:35');
+        backspace(b);
+        assert.equal(settleClockBox(b), '22:3');
+        backspace(b);
+        key(b, '5');
+        assert.equal(settleClockBox(b), '22:5', 'two digits deleted and one typed is still what is left of 22:35');
+    });
+
+    it('deleting the first digit of 16:30 does not make it 06:30 as it is typed', () => {
+        const b = box('16:30');
+        b.value = '6:30';
+        b.value = shapeClockBox(b, { inputType: 'deleteContentBackward' });
+        assert.equal(b.value, '63:0');
+        assert.equal(settleClockBox(b), '63:0');
+    });
+
+    it('a new time typed short still takes its zero: 130 is 01:30 and 630 is 06:30', () => {
+        const a = box();
+        for (const d of '130') key(a, d);
+        assert.equal(a.value, '13:0', 'still typing: it may yet be 1300');
+        assert.equal(settleClockBox(a), '01:30');
+        const c = box();
+        for (const d of '630') key(c, d);
+        assert.equal(c.value, '06:30');
+    });
+
+    it('emptying the box starts a new time, so the shortcut comes back', () => {
+        const b = box('22:30');
+        while (b.value) backspace(b);
+        for (const d of '130') key(b, d);
+        assert.equal(settleClockBox(b), '01:30');
+        // Select-all and type is the same: the first key leaves one digit.
+        const s = box('22:30');
+        s.value = '1'; s.value = shapeClockBox(s, { inputType: 'insertText' });
+        key(s, '3'); key(s, '0');
+        assert.equal(settleClockBox(s), '01:30');
+        // …even after an edit in the same visit: one digit left is a new start, whatever came before.
+        const e = box('22:30');
+        backspace(e);
+        e.value = '1'; e.value = shapeClockBox(e, { inputType: 'insertText' });
+        key(e, '3'); key(e, '0');
+        assert.equal(settleClockBox(e), '01:30');
+    });
+
+    it('a slip while typing a new time is not an edit: 1, 3, 5, delete, 0 is 01:30', () => {
+        const b = box();
+        for (const d of '135') key(b, d);
+        backspace(b);
+        key(b, '0');
+        assert.equal(settleClockBox(b), '01:30');
+    });
+
+    it('a box the page has set since it was last typed in is read the safe way', () => {
+        const b = box();
+        for (const d of '13') key(b, d);
+        b.value = '22:3';   // not by a key: the page put it there
+        assert.equal(settleClockBox(b), '22:3');
+    });
+
+    it('a box never typed in keeps what it holds', () => {
+        assert.equal(settleClockBox(box('07:00')), '07:00');
+        assert.equal(settleClockBox(box('')), '');
     });
 });

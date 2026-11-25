@@ -4,6 +4,14 @@ import sys, json, re, collections
 TIME = re.compile(r'^(\d{2})(\d{2})([a-z]?)$')
 def timed(c): return TIME.match(c['text'])
 def mins(t): m = TIME.match(t); return int(m.group(1)) * 60 + int(m.group(2))
+def checked(x, src, col):
+    """One printed time, as a stop — refused by name unless it is a time with a letter from the key (external
+    review of v26.79): four digits were all the pattern asked, so '0861' was taken as a departure, and the
+    Marylebone end, sliced to four characters later, published '0800z' as an ordinary 0800."""
+    m = TIME.match(x['text'])
+    if int(m.group(1)) > 23 or int(m.group(2)) > 59: stop(f"{x['text']!r} at {x['crs']} is not a time", src, col)
+    if m.group(3) not in LETTERS: stop(f"unknown time letter {x['text']!r} at {x['crs']}: read the book's key", src, col)
+    return dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text'])
 def build(cols, src):
     out = []
     used = set()
@@ -13,7 +21,7 @@ def build(cols, src):
         if cells[0]['text'] == 'f': continue                      # a continuation; reached from its 'e' column
         if i in used: continue                                    # already joined to the column it continues
         fac = list(c.get('fac', []))
-        stops = [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in cells if timed(x)]
+        stops = [checked(x, src, c) for x in cells if timed(x)]
         if any(x['text'] == 'e' for x in cells):
             if not stops: stop(f'a train continued on another page with no time before it', src, c)
             last = stops[-1]
@@ -36,7 +44,7 @@ def build(cols, src):
             if any(x['text'] == 'e' for x in d['cells']):
                 stop(f"its continuation (page/column {d['page']}/{d['col']}) is continued again — a train over three pages, which assemble.py does not join", src, c)
             k = next(n for n, x in enumerate(d['cells']) if x['crs'] == last['crs'] and x['text'] == last['t'])
-            onward = [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in d['cells'][k + 1:] if timed(x)]
+            onward = [checked(x, src, d) for x in d['cells'][k + 1:] if timed(x)]
             # …AND IT MUST TAKE THE TRAIN SOMEWHERE (external review of v26.69): a continuation printing only the
             # joining station published a train the book continues as terminating there. A second time at that
             # same station (its departure under its arrival) goes nowhere either.
@@ -113,12 +121,14 @@ for t in T:
         if s[0]['crs'] != 'MYB': continue
         on = usable(s[1:], 'dep')
         res.append(dict(kind='dep', day=t['day'], t=s[0]['t'][:4], dest=s[-1]['crs'], destName=s[-1]['name'], via_h=('H' in t['notes']) or t['src']=='main',
-                        calls=[x['crs'] for x in on], stops=timed_stops(on, 'first'), names=names, notes=t['notes'], src=t['src']))
+                        calls=[x['crs'] for x in on], stops=timed_stops(on, 'first'), names=names, notes=t['notes'], src=t['src'],
+                        at=f"{t['src']} book, page {t['page']}, column {t['col']}"))
     else:
         if s[-1]['crs'] != 'MYB': continue
         on = usable(s[:-1], 'arr')
         res.append(dict(kind='arr', day=t['day'], t=s[-1]['t'][:4], org=s[0]['crs'], orgName=s[0]['name'],
-                        calls=[x['crs'] for x in on], stops=timed_stops(on, 'last'), names=names, notes=t['notes'], src=t['src']))
+                        calls=[x['crs'] for x in on], stops=timed_stops(on, 'last'), names=names, notes=t['notes'], src=t['src'],
+                        at=f"{t['src']} book, page {t['page']}, column {t['col']}"))
 # the same train can appear in both PDFs (Aylesbury via High Wycombe): keep one, prefer the main-line copy
 def dedupe_calls(calls):
     out = []
@@ -130,11 +140,23 @@ DAYNOTE = {'MFO', 'MFX', 'WO'}
 def variant(r): return next((n for n in r['notes'] if n in DAYNOTE), '')
 # 1. The same train printed in both books (an Aylesbury train via High Wycombe): one row, the
 #    main-line copy. Keyed by its day variant too, so two variants are never mistaken for it.
+#    ONLY WHEN THE TWO COPIES AGREE (external review of v26.79): the key holds no stops, and it matched within
+#    one book as well as across the two, so a second column at the same time to the same end — a different
+#    train — was dropped and the build ended as though nothing had happened. One book prints one train once,
+#    so two of its columns must be identical to be one train; across the books, each prints only its own
+#    stations, so the times must agree at every station both print. Anything else stops, naming both columns.
+def disagree(a, r):
+    if a['src'] == r['src']: return a['stops'] != r['stops'] or a['calls'] != r['calls']
+    at_a = dict((c, t) for c, t in a['stops'])
+    return any(c in at_a and at_a[c] != t for c, t in r['stops'])
 seen = {}
 for r in res:
     key = (r['kind'], r['day'], r['t'], r.get('dest') or r.get('org'), variant(r))
     if key in seen:
         a = seen[key]
+        if disagree(a, r):
+            sys.exit(f"assemble.py: two trains at {r['t']} to the same end stop differently — {a['at']}, and {r['at']}, "
+                     f"{r['kind']} {r['day']}. Check the book, then teach assemble.py.")
         keep = r if r['src'] == 'main' else a
         seen[key] = dict(keep, notes=sorted(set(a['notes']) | set(r['notes'])), via_h=a.get('via_h') or r.get('via_h'))
         continue
@@ -158,7 +180,7 @@ for k, r in merged.items():
 for (kind, day, t, end, v) in seen:
     if v and (kind, day, t, end, '') in seen:
         print('WARN a day-variant and an every-day train at one time and end:', kind, day, t, end, v)
-R = sorted(seen.values(), key=lambda r: (r['kind'], r['day'], (mins(r['t']) - 180) % 1440))
+R = [{k: v for k, v in r.items() if k != 'at'} for r in sorted(seen.values(), key=lambda r: (r['kind'], r['day'], (mins(r['t']) - 180) % 1440))]
 json.dump({'trains': R, 'order': {'met': row_order(MET), 'main': row_order(MAIN)}}, open(sys.argv[3], 'w'), indent=1)
 print('dupes removed:', len(res) - len(R))
 print(collections.Counter((r['kind'], r['day']) for r in R))

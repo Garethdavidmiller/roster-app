@@ -19,7 +19,7 @@ The Admin page is `admin.html`, `admin.css` and the `admin-*.js` modules, plus t
 it books through (`al-swapped-days.js`, `al-entitlement.js`). These are its "never change without
 discussion" decisions, moved here from `CLAUDE.md`'s architecture table, which every session loads.
 Rules that bind more than this page stayed there: **Sundays are non-contracted** (seven enforcement
-layers, `SUNDAY_FORBIDDEN_TYPES`), the 🪑 absence emoji, `formatClockInput`, the AL entitlement
+layers, `SUNDAY_FORBIDDEN_TYPES`), the 🪑 absence emoji, the clock boxes' typing rule, the AL entitlement
 rules, and the wording conventions. The weekly roster import has its own file,
 `.claude/rules/roster-import.md`.
 

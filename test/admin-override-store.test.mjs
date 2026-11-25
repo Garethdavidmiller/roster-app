@@ -37,7 +37,7 @@
  * interleavings below cannot be produced by any ordering of real calls.
  */
 
-import { test, describe, mock, beforeEach } from 'node:test';
+import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 // The store reads the page for the selected member and paints into the table. Elements are created
@@ -520,6 +520,64 @@ describe('4 · the screen says something untrue', () => {
         fire('retryLoadLink', 'click');
         await store.whenLoadSettled();
         assert.deepEqual(_reads.map(r => r.member), ['A. One', 'B. Two']);
+    });
+
+    // A MANUAL RETRY THAT WORKED ANSWERS THE AUTOMATIC ONE (external review of v26.79). Offline, a failed
+    // load leaves one retry waiting for the signal. Retry pressed once the signal was back worked, and the
+    // later "online" event read the same thing a third time, for nothing.
+    describe('the retry that waits for the signal', () => {
+        /** @type {Array<[string, Function]>} */ let listeners = [];
+        const realWindow = global.window;
+        beforeEach(() => {
+            listeners = [];
+            global.window = /** @type {any} */ ({
+                addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners.push([t, fn]); },
+                removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners = listeners.filter(([u, g]) => u !== t || g !== fn); },
+            });
+        });
+        afterEach(() => { global.window = realWindow; });
+        const goOnline = () => { const due = listeners.filter(([t]) => t === 'online'); listeners = listeners.filter(([t]) => t !== 'online'); due.forEach(([, fn]) => fn()); };
+        const offlineRead = async () => { throw Object.assign(new Error('from cache'), { code: 'served-from-cache' }); };
+
+        test('Retry that succeeds cancels it: two reads, not three', async () => {
+            const { store } = await freshStore();
+            el('overrideTableBody'); el('listCount'); el('retryLoadLink');
+            el('fieldMember').value = 'A. One';
+            _handler = offlineRead;
+            await store.loadOverrides({ everyone: false, member: 'A. One' });
+            _handler = async () => [row('a1', 'A. One', '2026-09-01')];
+            fire('retryLoadLink', 'click');
+            await store.whenLoadSettled();
+            goOnline();
+            await store.whenLoadSettled();
+            assert.equal(_reads.length, 2, 'the signal returning read again what Retry had already read');
+        });
+
+        test('with no manual retry, the signal returning still reads again by itself', async () => {
+            const { store } = await freshStore();
+            el('overrideTableBody'); el('listCount'); el('retryLoadLink');
+            el('fieldMember').value = 'A. One';
+            _handler = offlineRead;
+            await store.loadOverrides({ everyone: false, member: 'A. One' });
+            _handler = async () => [row('a1', 'A. One', '2026-09-01')];
+            goOnline();
+            await store.whenLoadSettled();
+            assert.equal(_reads.length, 2);
+            assert.equal(store.getAllOverrides().length, 1);
+        });
+
+        test('a member read does not answer a whole-collection retry', async () => {
+            const { store } = await freshStore();
+            el('overrideTableBody'); el('listCount'); el('retryLoadLink');
+            el('fieldMember').value = 'A. One';
+            _handler = offlineRead;
+            await store.loadOverrides({ everyone: true });
+            _handler = async () => [row('a1', 'A. One', '2026-09-01')];
+            await store.loadOverrides({ everyone: false, member: 'A. One' });
+            goOnline();
+            await store.whenLoadSettled();
+            assert.deepEqual(_reads.map(r => r.member), [null, 'A. One', null], 'everybody is still to be read');
+        });
     });
 
     test('a failed REFRESH does not repaint over staged edits (review A10)', async () => {

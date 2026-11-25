@@ -13,7 +13,7 @@ import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday,
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { parseOtherValue } from './override-utils.js';
 import { overrideFromSnapshot } from './override-compare.js';
-import { formatClockInput, finaliseClockInput } from './clock-input.js';
+import { shapeClockBox, settleClockBox } from './clock-input.js';
 import { entryControlHtml, paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 import { computeCellStates, guardedRowHtml, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, collectRosterWrites, reviewOutcome, outcomeHtml, CHRISTMAS_NOTE, carryReviewAnswers } from './roster-review-states.js';
@@ -1091,12 +1091,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // `shape` is the keystroke rule while typing and the settled one when the box is LEFT: a
         // three-digit "240" stays as typed until then, because it may be the start of "2400"
         // (clock-input.js, whole-app review Oct 2026), and only leaving it says it is 02:40.
-        const entryTime = (/** @type {any} */ e, /** @type {(v: string) => string} */ shape) => {
+        const entryTime = (/** @type {any} */ e, /** @type {(el: HTMLInputElement) => string} */ shape) => {
             const el = /** @type {HTMLInputElement} */ (e.target);
             if (!el.classList?.contains('roster-entry-time')) return;
             const s = cellStates.get(el.dataset.key ?? '');
             if (!s) return;
-            const shaped = shape(el.value);   // a phone keypad has no colon (v24.61): "0730" → "07:30" as typed
+            const shaped = shape(el);   // a phone keypad has no colon (v24.61): "0730" → "07:30" as typed
             if (e.type === 'focusout' && shaped === el.value) return;
             el.value = shaped;
             s.draft = { ...s.draft, [el.dataset.part === 'to' ? 'to' : 'from']: el.value };
@@ -1108,8 +1108,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             paintUnreadableRow(el.closest('.roster-change-row'), s);
             refreshOutcome();
         };
-        changeList.addEventListener('input', /** @param {any} e */ e => entryTime(e, formatClockInput));
-        changeList.addEventListener('focusout', /** @param {any} e */ e => entryTime(e, finaliseClockInput));
+        changeList.addEventListener('input', /** @param {any} e */ e => entryTime(e, /** @param {HTMLInputElement} el */ el => shapeClockBox(el, e)));
+        changeList.addEventListener('focusout', /** @param {any} e */ e => entryTime(e, settleClockBox));
 
         // ---- Empty state ----
         if (sectionsShown === 0) {
