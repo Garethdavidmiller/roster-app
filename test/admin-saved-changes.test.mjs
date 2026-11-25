@@ -1061,7 +1061,7 @@ describe('15b. an Other day is listed by its word, as the save receipt names it'
 // Both controls used to leave the week grid alone whenever a change was staged there, so a row went on
 // comparing with a record this page had just deleted, and the week's next Save refused the admin's own
 // work as "Someone else has changed …". Each now hands the week what it deleted (`onOwnWrite`,
-// admin-own-write.js, which is unit-tested and driven in e2e/admin.spec.js); what only this file can see is
+// admin-own-write.js, which is unit-tested and driven in e2e/admin-saves.spec.js); what only this file can see is
 // that each control HANDS it the right rows — after the cache has dropped them — and says what came back.
 describe('16. the week grid follows the page\'s own delete, and a cleared change is named', () => {
     const LINE = 'Your unsaved change to Tue 1 Sep in Change a Shift was cleared, because that day has just changed. Set it again if you still want it.';

@@ -1057,7 +1057,7 @@ for the member who learned the old rule from this page, and a note they must ope
 one they will not open.
 
 **What holds it:** `paycalc-copy-parity.test.mjs` → "Settings: a fact the card stopped repeating still
-has a home"; `e2e/paycalc.spec.js` → "the loan's every-payslip line shows only once a loan is chosen";
+has a home"; `e2e/paycalc-entries.spec.js` → "the loan's every-payslip line shows only once a loan is chosen";
 `guide-sources.test.mjs` → "a box that tells of this guide's old wording leads with the rule, and its
 history follows".
 
@@ -1085,7 +1085,7 @@ app's own 2025 figures, so it is only as good as the 2025 leave recorded in the 
 not all recorded shows days left that were in fact taken.
 
 **What holds it:** `leave-year.test.mjs` → "where the choice is offered"; `al-entitlement.test.mjs` →
-"January 2026 is offered out of 2025's allowance, and the cap reads 2025"; `e2e/admin.spec.js` → "a
+"January 2026 is offered out of 2025's allowance, and the cap reads 2025"; `e2e/admin-leave-booking.spec.js` → "a
 January 2026 leave day can be moved to 2025's allowance". Each fails with the start year put back to
 2027.
 
@@ -1200,7 +1200,7 @@ notifications on.
 
 **What holds it:** `calendar-notices.test.mjs` block 8 drives the order on a desk and on a phone, for a
 member the New link page lets in and for one it turns away, across loads; the evening before the final
-week; the final week's first load; and the start and end dates. `e2e/calendar.spec.js` runs the order
+week; the final week's first load; and the start and end dates. `e2e/calendar-notices.spec.js` runs the order
 across real reloads, and the final week on a touch screen.
 
 ## The Pay page's second notice: estimate last year's Holiday Pay Premium before January (owner, 16 Nov 2026)
@@ -1322,8 +1322,8 @@ phone"); since v26.26 it reads every element and every run of text on all five g
 320px under 1.5× and 320px under 1.3× ("enlarged text runs nothing past a phone's edge"), and holds the
 Rangers badges to one line at the ordinary size and a clean wrap under large text (five mutations, each
 caught by its own assertion: the key's no-shrink rule removed, `nowrap` back, the 999px corner back,
-FIP's `<wbr>` removed, a month's `&nbsp;` removed). `e2e/paycalc.spec.js` sizes the calendar button against the page's main buttons at four widths
-and checks that its longer label never clips. `e2e/trains.spec.js` and `e2e/paycalc.spec.js` read the
+FIP's `<wbr>` removed, a month's `&nbsp;` removed). `e2e/paycalc-calendar-fill.spec.js` sizes the calendar button against the page's main buttons at four widths
+and checks that its longer label never clips. `e2e/trains.spec.js` and `e2e/paycalc-calendar-fill.spec.js` read the
 show-more corners; `card-header-parity.test.mjs` requires the canvas group labels to be `h2`s on both
 pages. Thirteen mutations — an off-scale sub-line, the sizes reaching paper, the sub-heading's weight, a
 guide's own top margin, two pay columns, a print size removed, the button at 12px, both 8px corners, a

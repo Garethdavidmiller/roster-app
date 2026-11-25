@@ -213,7 +213,7 @@ describe('the panel has somewhere to put each explanation', () => {
     });
 
     // THE ROW MUST DISAPPEAR WITH ITS CHILDREN (v22.98). The behaviour is asserted in
-    // e2e/calendar.spec.js, which is where it belongs; this is the cheap half that says the RULE is
+    // e2e/calendar-day-detail.spec.js, which is where it belongs; this is the cheap half that says the RULE is
     // still written, because deleting one selector is how it would go — and the day it goes, every
     // ordinary day gains 12px under a panel with no actions and nothing anywhere reports it.
     test('an action row with nothing to show collapses itself', () => {

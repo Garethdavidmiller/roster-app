@@ -4,7 +4,7 @@
  *
  * The rule and its watch, with the browser's two collaborators stood in for: a ResizeObserver that
  * RECORDS what it is given and fires when the test says the size changed, and a frame queue the test
- * flushes. The wiring — the real lines, really hidden, on a real resize — is e2e/calendar.spec.js
+ * flushes. The wiring — the real lines, really hidden, on a real resize — is e2e/calendar-team-view.spec.js
  * (Team view) and e2e/trains.spec.js (the stopping grid).
  */
 import { test, describe, beforeEach, afterEach } from 'node:test';

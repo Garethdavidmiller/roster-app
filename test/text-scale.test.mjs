@@ -2,7 +2,7 @@
 // text-scale.test.mjs — the compact-row decision, organised by what a wrong answer costs.
 // COMPACTING TOO EARLY changes the row on phones that were never short of space (Large text at
 // 412px fits with room); COMPACTING TOO LATE leaves exactly the phones this exists for on two rows.
-// The probe itself is measured in a browser by e2e/calendar.spec.js; here the decision is pinned,
+// The probe itself is measured in a browser by e2e/calendar-phone-layout.spec.js; here the decision is pinned,
 // and the probe's fallbacks — the cases where it cannot measure and must never say "compact".
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';

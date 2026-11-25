@@ -33,7 +33,7 @@
  * so the real function runs to completion. The row markup is then asserted as text. The one record
  * handed in (a worked Boxing Day) is there for the row's note, which is part of that markup. The prefill and
  * pill-interaction paths need a parser and are out of scope here; they are exercised in
- * e2e/admin.spec.js, where a real browser builds the rows.
+ * e2e/admin-week-grid.spec.js, where a real browser builds the rows.
  */
 
 import { test, describe, mock, beforeEach } from 'node:test';

@@ -266,7 +266,7 @@ estimated honestly; each row was checked against the code. The last column says 
 | 7 | the page itself | `noindex` meta + `color-scheme: only light` meta; a chip bar; the three script tags — `guide-back.js`, `guide-print.js` (a module) and `guide-chips.js` — once each; and `#savePdfBtn.btn-print` | enforced (#5, `page-contract-parity.test.mjs`) |
 | 8 | `e2e/axe.spec.js` | accessibility scan (blocking gate) | enforced (reads `GUIDE_PAGES`) |
 | 9 | `e2e/csp.spec.js` | deployed-CSP proof | enforced (reads `GUIDE_PAGES`) |
-| 10 | `e2e/calendar.spec.js` | each guide records its **own** open id, driven through the real drawer | remembered |
+| 10 | `e2e/calendar-drawer-guides.spec.js` | each guide records its **own** open id, driven through the real drawer | remembered |
 | 11 | `GUIDE_SOURCES.md` | a register row per high-risk claim | remembered |
 | 12 | `guide-sources.test.mjs` | the two-way `data-guide-source` contract. It reads every guide from `GUIDE_PAGES`, so a block on the new page citing a missing row fails at once; for its OWN rows to need anchoring, add its Guide value to `ANCHORED` and the register's `GUIDES` | enforced; `ANCHORED` remembered |
 | 13 | `scripts/guide-index-lib.mjs` | if the guide has CARDS that should be search results of their own, a `CARD_RULES` entry (a tag, an id pattern and a class, in any attribute order), and a line in `guide-index-parity.test.mjs` contract 10 (or 9) so every card is checked to be a unit | remembered |

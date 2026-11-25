@@ -146,7 +146,7 @@ discussion" decisions that bind only that area. A decision that binds more than 
 | Rule file | What it holds | Loaded by |
 |---|---|---|
 | `calendar.md` | the Calendar page | `index.html` · `index.css` · `calendar-*` · `e2e/calendar*.spec.js` |
-| `admin.md` | the Admin page, Change a Shift, leave on a rest day | `admin.*` · `admin-*` · `al-contract` · `al-entitlement*` · `al-swapped-days*` · `e2e/admin.spec.js` |
+| `admin.md` | the Admin page, Change a Shift, leave on a rest day | `admin.*` · `admin-*` · `al-contract` · `al-entitlement*` · `al-swapped-days*` · `e2e/admin*.spec.js` |
 | `nav-drawer.md` | the drawer, About, sign-out, the bell, Android Back, the topmost overlay | `nav-panel.js` · `nav-destinations.js` · `nav-guide-search.js` · `overlay.js` · `about-lightbox.js` and their tests |
 | `pwa.md` | the service worker's caching and update lifecycle, the manifest, Firestore's local cache | `service-worker.js` · `sw-register.js` · `sw-*.test.mjs` · `manifest.json` · `firebase-client.js` · the offline lane |
 | `sessions.md` | one local session, re-establishing Firebase on load, write isolation, the claim tiers | the session, sign-in and auth modules · `firestore.rules` · the functions' auth and identity files |
@@ -190,11 +190,11 @@ regression somewhere the author was not looking.
 | Change this | And you have changed | Verify with |
 |---|---|---|
 | `resolveEffectiveShift` (`override-utils.js`) | Calendar · Team Week View · Admin · Overtime roster context | `override-utils.test.mjs` · `e2e/overtime.spec.js` |
-| the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects were both invisible to behaviour | `e2e/calendar.spec.js` (the `day detail:` block) · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
+| the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects were both invisible to behaviour | `e2e/calendar-day-detail.spec.js` · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
 | `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
-| `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on every surface that draws a day, the leave records, the allowance (`entitlementFor`) and Admin's save checks | `christmas-leave.test.mjs` · `admin-al-projection.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
+| `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on every surface that draws a day, the leave records, the allowance (`entitlementFor`) and Admin's save checks | `christmas-leave.test.mjs` · `admin-al-projection.test.mjs` · the `christmas` e2e in `calendar-leave-panel.spec.js` and `admin-leave-records.spec.js` |
 | `session.js` · `silent-sign-in.js` · `login-overlay.js` · `login-core.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
-| `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, what it reports when its outcome is unknown, and when any page may reload for an update | `claim-retry.test.mjs` · `sw-register.test.mjs` · `e2e/admin.spec.js` · `e2e/operations.spec.js` |
+| `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, what it reports when its outcome is unknown, and when any page may reload for an update | `claim-retry.test.mjs` · `sw-register.test.mjs` · `e2e/admin-saves.spec.js` · `e2e/operations.spec.js` |
 | a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` runs the REAL writers of `overrides` (`buildOverrideWrite`), `analytics`, `clientErrors`, `linkTargetSets` and the three documents, and `al-leave-save.test.mjs` pins `alUploads`; for `staffContact`, `passwordStatus`, `pushSubscriptions` and `linkDesigns` check the writer's keys against the rule's `hasOnly()` BY HAND |
 | `firestore.rules` | client and server together — the client copies of ownership rules only drive BUTTONS | `npm run test:rules` **and** `firestore-contract-parity.test.mjs` |
 | `firebase.json` CSP header | every page's `<meta>` CSP, because the Pages mirror serves no headers — run `npm run generate:copies`, which writes them | `generated-copies.test.mjs` · `csp-meta-parity.test.mjs` · `npm run test:csp` |

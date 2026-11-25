@@ -6,7 +6,7 @@
  * No mocks. A small fake row, drawn with the same pills (`PILL_TYPES`) and Other chips
  * (`OTHER_FLAVOURS` + Spare) the week grid draws, is handed to the REAL `restrictDayPills` and the
  * REAL row state (`_activateRow`, `prefillRow`, admin-week-row-state.js). The browser half — the row
- * as the page builds it, and a Sunday or Boxing Day Spare saved through it — is e2e/admin.spec.js.
+ * as the page builds it, and a Sunday or Boxing Day Spare saved through it — is e2e/admin-week-grid.spec.js.
  *
  * Organised by what a wrong answer costs:
  *   1. A CHANGE OFFERED THAT CANNOT BE SAVED, or saved where it must not be: leave, absence or a plain

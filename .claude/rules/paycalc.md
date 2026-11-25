@@ -5,6 +5,8 @@ paths:
   - "paycalc.css"
   - "test/paycalc.test.mjs"
   - "test/paycalc-*.test.mjs"
+  - "e2e/paycalc*.spec.js"
+  - "e2e/paycalc-helpers.js"
 ---
 
 # Pay calculator — full reference
@@ -34,11 +36,11 @@ are about to break. Each states WHAT must hold; the WHY is below, or in the modu
 | 11 | **The roster-assist never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — and **viewing a period never persists it**. The settled exceptions are a plain `shift` on a rest-day SATURDAY or BANK HOLIDAY: the record's type decides, and it prices as a moved day, never RDW or Bank Holiday Overtime (owner, 19 and 20 Nov 2026 — *Chiltern Saturday payroll*, below). | `paycalc-roster-suggestions.js` · `paycalc-app.js` |
 | 12 | **A pension opt-out is DATED, and the date is EDITABLE in both directions.** It applies from the payslip the member named onwards and never earlier — a period storing `null` takes the period default, so a timeless flag rewrites history (measured: £115.92 onto one 2025/26 take-home). An empty or unreadable timeline means CONTRIBUTING. Correcting the date must MOVE the spell's start (`withOptOutStartAt`), and un-ticking must END the spell at the payslip on screen (`withRejoinAt`) — recording a raw change at a payslip silently swallows a forward correction and turns every rejoin into an erasure. A start moved to or before an earlier rejoin is refused (`withOptOutStartAt` returns the timeline unchanged), so a spell that has already ENDED is left alone. | `paycalc-pension.js` |
 | 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's — and nothing sends such a member to the page either (the Calendar's notices ask the same function, `calendar-notices.js`). **It is the role AT THE TIME** (owner, 16 Nov 2026): a member is admitted when they held a priced grade on any day of the payslips the page shows, or today, and each payslip with a day under a role with no rates shows NO figure (`unpricedPayslipLine`) — never CEA's rate in its place, on any surface. | `roster-data.js` → `gradeForRole` · `pay-audience.js` → `payCalculatorPrices` · `paycalc-grade.js` → `payslipPriced` · `functions/pay-reminder.js` (the pay reminder push goes to CEA and CES members only — owner, 10 Nov 2026) |
-| 14 | **The first period of an award window is a FRACTION**, not a whole period — its shifts run back into March and the award starts 1 April. Counting it whole made the lump 19% high against a real payslip. The rule is unit-tested; the thing that can silently regress is `calcBackPay` PASSING it, so `paycalc-backpay.test.mjs` drives the real `calcBackPay` against a fake `document` and asserts the returned £, alongside the rendered £ in `e2e/paycalc.spec.js` ("the back-pay lump scales the first period"). | `paycalc-backpay-accrual.js` → `awardWindowFactor` |
+| 14 | **The first period of an award window is a FRACTION**, not a whole period — its shifts run back into March and the award starts 1 April. Counting it whole made the lump 19% high against a real payslip. The rule is unit-tested; the thing that can silently regress is `calcBackPay` PASSING it, so `paycalc-backpay.test.mjs` drives the real `calcBackPay` against a fake `document` and asserts the returned £, alongside the rendered £ in `e2e/paycalc-backpay.spec.js` ("the back-pay lump scales the first period"). | `paycalc-backpay-accrual.js` → `awardWindowFactor` |
 | 15 | **What a pay key IS has ONE authority, and an unrecognised one is carried, never dropped.** `paycalc-inventory.js` classifies; the backup summary, the card's itemised list and the damage preflight all ask it. A hand-written list restating the key vocabulary silently under-reported tax years — and a backup states what it holds ITEMISED, because a payslip count describes neither side of a replace. | `paycalc-inventory.js` |
 | 16 | **The HPP and back-pay card HEADERS are the app's passive teaching of two entitlements, and the only route that reaches a member who does not already know to go looking.** Their collapsed title + hint ("Paid once a year on a January payslip — look for the green note on that payslip") is where a colleague who has never heard of HPP learns it exists. The result banners that promote both are gated on a STORED estimate (`_hppAvailableHere`, `_bpAvailableHere`), which needs prior-year hours — so the member who most needs the teaching gets no banner. The Pay Calculator Guide has an `<h2>` for each, so the headers are not the only EXPLANATION — they are the only route that costs the reader nothing and asks nothing of them first: a member who has never heard of HPP has no reason to open a guide looking for it. Never hide, group or shorten these headers without an owner decision; the case that nearly did is DECISIONS.md → "More pay tools" … DECLINED, and the principle is CLAUDE.md → "Plain English that TEACHES". | `paycalc.html` (card headers) · `paycalc-app.js` (banner gates) |
 | 17 | **A payslip is priced at the grade held on its days** (owner, 13 Nov 2026). The roster dates a grade (`roleHistory`), so a promotion re-prices nothing before it; a payslip that SPANS one is each grade's rate weighted by its days, UNROUNDED — `calculate()` asks `periodRate`, never the field's two decimals, which would leave 140 contracted hours 45p short of 35 at one rate and 105 at the other. A grade chosen by hand covers WHOLE payslips from the one the member names, and only the roster's own dates split one. A member who never changed grade is priced to the last binary digit as before (`byDays` hands back the shared figure itself). The back-pay card prices ONE grade, so a promotion dated inside an award's backdated months fails a data test before it can be priced. By days is the owner's reading, not yet a payslip's: VAL-PAY-005 holds it open until the real one settles it. | `paycalc-grade.js` · `paycalc-settings.js` (`periodRate`, `settledRateFor`, `awardGrade`) · `paycalc-grade.test.mjs` · `paycalc-grade-wiring.test.mjs` |
-| 18 | **Year to Date figures are used only when they FIT the tax code** (owner, 15 Nov 2026; both directions from 21 Nov). Tax Paid more than £2 over OR under what the code takes, worked out over the year, by the payslip the figures came from did not come from that code worked out the normal way: the payslip is then taxed ON ITS OWN and the line under Income Tax shows both figures. Over the code read as £0 tax and "a refund may be due"; under it charged the whole year's "shortfall" on the next payslip — most often a Settings code with less tax-free pay than the payslip's, or figures filed one payslip early. K codes are checked only over: the 50% limit leaves their Tax Paid short by design. | `paycalc-calc.js` → `computeTax` (`ytdMisfit`) · `paycalc.test.mjs` ("must fit the tax code") · `e2e/paycalc.spec.js` ("cannot come from the tax code") |
+| 18 | **Year to Date figures are used only when they FIT the tax code** (owner, 15 Nov 2026; both directions from 21 Nov). Tax Paid more than £2 over OR under what the code takes, worked out over the year, by the payslip the figures came from did not come from that code worked out the normal way: the payslip is then taxed ON ITS OWN and the line under Income Tax shows both figures. Over the code read as £0 tax and "a refund may be due"; under it charged the whole year's "shortfall" on the next payslip — most often a Settings code with less tax-free pay than the payslip's, or figures filed one payslip early. K codes are checked only over: the 50% limit leaves their Tax Paid short by design. | `paycalc-calc.js` → `computeTax` (`ytdMisfit`) · `paycalc.test.mjs` ("must fit the tax code") · `e2e/paycalc-ytd.spec.js` ("cannot come from the tax code") |
 
 Unverified assumptions behind these figures are in `VALIDATION_REGISTER.md`, not here; the back-pay
 accrual and the 28 Aug 2026 award step were settled against a real payslip and are in that file's
@@ -141,7 +143,7 @@ runs.
   payslip"), and that a part-year figure for a year that has ended may be low.
   **`_expectedNonPremiumYtd` pro-rates ALL non-premium components by `getProRateFactor(p)`** —
   London and pension as well as basic, mirroring `calculate()` (why: the comment in its loop). Locked
-  by a joiner ytd-mode e2e in `e2e/paycalc.spec.js`. Deliberately labelled **rough** (hours mode is
+  by a joiner ytd-mode e2e in `e2e/paycalc-notices.spec.js`. Deliberately labelled **rough** (hours mode is
   more accurate). Editing the Year to Date card re-runs `calculate()` → `calcHPP`, so HPP follows it.
 - **The 2025/26 premium, paid in January 2027, has no hours here** — the calculator did not exist
   that year. The Pay page's second notice (`hpp_2526`, 16 Nov 2026 – 8 Jan 2027, owner 16 Nov 2026)
@@ -165,7 +167,7 @@ runs.
   `_basicOnly` list both skip a period ENTIRELY before a mid-year joiner's start via
   `getProRateFactor(p) === 0` (0 only for a fully pre-start period; 1 for `noProRate` secondment
   returns and for members with no `startDate`). The £ is unchanged; only the count and the list.
-  Locked by the joiner e2e in `e2e/paycalc.spec.js`. HPP's all-paid-entered state says "You're up to
+  Locked by the joiner e2e in `e2e/paycalc-notices.spec.js`. HPP's all-paid-entered state says "You're up to
   date"; back-pay's wording notes those payslips accrued basic-rate arrears only.
 - **The HPP basis splits paid vs upcoming:** "N paid and M upcoming payslips entered" (`paidCount`
   in `_hoursEstimate`), matching the Year to Date card's "N of N paid" frame.
@@ -235,7 +237,7 @@ hours are an estimate on the same weighting, and the setting's shape: the header
 is not covered *yet* — never a date; a manager is told who it is for, with nothing promised. Each
 version, and the page's **sign-in card** (login-overlay.js → `about`), is argued in the header of `paycalc-role-card.js`. **The two are one door**: the refusal wears the sign-in card's panel (`.pc-role-card` joins the
 shared do-this-first recipe), its "What it does" box and its "← Back to roster", centred over the page on
-desktop rather than parked in the work columns — `e2e/paycalc.spec.js` pins the width and the centring.
+desktop rather than parked in the work columns — `e2e/paycalc-grades.spec.js` pins the width and the centring.
 
 `saveSettings` stores no member-level pension: each payslip keeps its own figure through the form
 round trip, and a payslip with none takes its period default (`periodDefaultPension`, pro-rated on a
@@ -261,7 +263,7 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   same hours twice. A pair the calendar filled and nobody touched (every filled box gold) is cleared
   when the calendar's answer for it is now nothing, in any category and on the background refresh too
   (display-only there, like the fill). A hand-typed figure is never gold, so `CLEARABLE_CATS` still
-  guards it. `e2e/paycalc.spec.js` → "a calendar figure that moves box".
+  guards it. `e2e/paycalc-calendar-fill.spec.js` → "a calendar figure that moves box".
 - **The single Fill re-checks that the payslip on screen is still the one it fetched for** before
   writing (the comment after its await in `paycalc-roster-hint.js`).
 - **A payslip with no special-rate hours is entered when it says so** (18 Nov 2026). Every hours box is
@@ -375,7 +377,7 @@ Binds this page and the Calendar's 💷 / ✂️ markers.
   Settings block shown only once a loan is chosen (`#slEveryPayslip`, the condition that also puts
   this tick under Hours), naming the tick by its label, and in the ? panel's Student loan tip — not
   under the plan box, which every first visit reads. `paycalc-copy-parity.test.mjs` holds the words
-  to the page's own labels; `e2e/paycalc.spec.js` → "the loan's every-payslip line shows only once a
+  to the page's own labels; `e2e/paycalc-entries.spec.js` → "the loan's every-payslip line shows only once a
   loan is chosen" holds the showing.
 
   **A resumption (ON → OFF → ON) is expressible, but only per payslip.** `slPaidOff` is monotonic, so it
@@ -556,7 +558,7 @@ default (owner, Jul 2026).** The tick is persisted in the bp blob (`inc`) and re
 (`bpThisPeriod`) on it, and on the paid-in payslip being the one on screen — the HPP tick likewise
 gates `hppForPeriod`. Both rules are CALLED by `paycalc-money-banner.test.mjs` (contracts 1 and 3),
 which also holds `calculate()` to handing the banners those same two sums.
-- **The gate is guarded by the RENDERED £, paired with the banner sentence** (`e2e/paycalc.spec.js` →
+- **The gate is guarded by the RENDERED £, paired with the banner sentence** (`e2e/paycalc-backpay.spec.js` →
   "the back-pay lump joins take-home ONLY when the tick is on", and its Holiday Pay Premium twin):
   `paycalc-money-banner.test.mjs` pins the words against the `included` flag it is handed, so only a
   browser can catch an arithmetic gate that has stopped reading the same flag — the figure gaining the
@@ -691,7 +693,7 @@ privacy note is FIRST-VISIT ONLY; the same line leads the `.disclaimer` note at 
 every visit) and `.pc-side` (col 3), so the take-home is level with whatever heads the work column ·
 `.guide-footer-link` row 2 · `.disclaimer` row 3 · the refusal card alone in row 1 across all three
 columns, when everything else is hidden. **Never give a note a grid row of its own again**: an
-empty row still takes its row-gap, and an unplaced one is auto-placed into a single column. `e2e/paycalc.spec.js` pins both halves — "a
+empty row still takes its row-gap, and an unplaced one is auto-placed into a single column. `e2e/paycalc-layout.spec.js` pins both halves — "a
 hidden setup banner or privacy note leaves no gap behind it" and "the grade note spans the work
 columns". `align-self:start` on the work cards and the
 sidebar, so an expanding accordion never stretches its neighbour. The occasional cards stack in the
@@ -807,12 +809,12 @@ cut-off the picker offers it too, because payslips are issued before payday).
   `YTD_SRC_EARLY`, never as nothing** (24 Nov 2026): recording nothing let the first load after the
   year's first cut-off file last year's March totals against April's payslip. A load never re-stamps
   the marker; typing figures in again is a first entry (`refreshYtdSrc`'s `typed`). Pinned by
-  `e2e/paycalc.spec.js` → "typed before the year's first payslip is in hand".
+  `e2e/paycalc-ytd.spec.js` → "typed before the year's first payslip is in hand".
 - **The cumulative PAYE method engages ONLY on the payslip immediately after the source**
   (`takeHomeInputs`, `paycalc-calc.js` — rule 5, `p.num === ytdSrc + 1`); any other payslip nulls the Year to Date inputs and falls back to the
   standard non-cumulative method. **That guard is one line and its regression is quiet on screen**:
   the chip and the note follow `computeTax`'s `usingCumulative`, so without it they call the figures
-  "in use" on every payslip, beside a £ priced on stale totals. `e2e/paycalc.spec.js` → "Year to Date
+  "in use" on every payslip, beside a £ priced on stale totals. `e2e/paycalc-ytd.spec.js` → "Year to Date
   figures sharpen ONLY the payslip after their source" asserts the two together, probing the figures by
   their EFFECT (clear the boxes; the £ must move on source + 1 and must not move anywhere else).
 - **`#ytdUptoNote` and `#ytdStatusChip`** (the header chip, readable while the card is collapsed:

@@ -8,7 +8,7 @@
  * assumed: the boundary day, a clock change inside the window, a date that is not a date. The storage
  * is a real Map behind the real `ls.js`, so a key the module writes under one spelling and reads under
  * another would fail here. The browser half (the drawer, the Calendar's check, an Operations upload)
- * is e2e/calendar.spec.js and e2e/operations.spec.js.
+ * is e2e/calendar-documents.spec.js and e2e/operations.spec.js.
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';

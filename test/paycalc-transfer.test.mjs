@@ -748,7 +748,7 @@ describe('applyRestore', () => {
 // ── THE LINE A RESTORE ENDS ON (17 Nov 2026) ──────────────────────────────────────────────────────
 // A backup can hold no payslips at all — settings and Year to Date figures only — and the card said
 // "Restored 0 payslips", which reads as a restore that did nothing. The card's use of it is driven in a
-// browser (e2e/paycalc.spec.js → "a backup with no payslips").
+// browser (e2e/paycalc-backup.spec.js → "a backup with no payslips").
 describe('the line a restore ends on', () => {
     test('a backup with no payslips says it was restored, not "Restored 0 payslips"', () => {
         const settingsOnly = makeBlob({ data: { [`${PREFIX}code`]: '1257L', [`${PREFIX}ytd_pay_2026_27`]: '21758.94' } });

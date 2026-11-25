@@ -5,7 +5,7 @@
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs test/calendar-keyboard.test.mjs   (part of test:unit)
  *
  * WHY THIS FILE EXISTS (v24.28 review). module-coverage-parity listed calendar-keyboard.js as
- * "driven by e2e/calendar.spec.js (arrow-key navigation and the hover tooltip)". Half of that was
+ * "driven by e2e/calendar.spec.js (arrow-key navigation and the hover tooltip)" (now calendar-swipe-redraw.spec.js and calendar-day-detail.spec.js). Half of that was
  * true: the tooltip and the Enter hand-over are driven there. No spec presses an arrow key or
  * PageUp/PageDown, so the roving tabindex — the only way a keyboard user moves around the month —
  * had no test at all, behind an exemption that said it did.

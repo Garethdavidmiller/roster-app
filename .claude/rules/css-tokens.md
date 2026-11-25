@@ -201,7 +201,7 @@ wears the same edge, or the join it exists to hide shows.
 **Use the tokens, never a literal**, for a new field or button. Nothing tests this app-wide; where it
 drifted it is pinned: the Calendar's two pairs of arrows (`calendar-controls-parity.test.mjs` 9), every
 Trains tab (`e2e/trains.spec.js`), and every show-more button on Trains and Pay (`e2e/trains.spec.js`,
-`e2e/paycalc.spec.js`). Trains' "Change station" and the grid's "Show every station" stay PILLS by
+`e2e/paycalc-calendar-fill.spec.js`). Trains' "Change station" and the grid's "Show every station" stay PILLS by
 decision: they act rather than reveal (`trains.css` says why); the Trains test leaves them out by name.
 
 ## Overlay sizing — three sizes, one cap, one idiom
@@ -269,7 +269,7 @@ element**:
   focusable field**; see "The 16px focusable-field rule" below)
 - primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) → `--type-button` (15px) — and Pay's
   "Fill from calendar" (`.fill-roster-btn`), whose longer label, "Replace with calendar values", fits
-  one line from 360px and takes two balanced lines at 320px rather than clipping (`e2e/paycalc.spec.js`
+  one line from 360px and takes two balanced lines at 320px rather than clipping (`e2e/paycalc-calendar-fill.spec.js`
   measures both)
 
 **The guides read on the same three steps** (`--type-body`/`--type-label`/`--type-small`, restated in
@@ -544,7 +544,7 @@ control genuinely should not stretch, cap the CONTROL and let its row span (`.we
 each one's own content, so a header's column drifts out of step with the column it labels.
 **A header and the rows it labels must share explicit tracks.** `--wg-base-col` is declared once and
 used by every template *and* by the badge's own `min-width`, so the three cannot drift. Pinned by
-`e2e/admin.spec.js` → "the week-grid header and its rows share ONE column template, at every width",
+`e2e/admin-week-grid.spec.js` → "the week-grid header and its rows share ONE column template, at every width",
 which compares the COMPUTED templates — static CSS cannot see this, because the stylesheet says the same
 thing in both places.
 
@@ -765,7 +765,7 @@ The Calendar's full-bleed `.header` (`index.css`) is separate, but **from 768px 
 header** (height, logo, gap, title, top edge, burger position); only the width differs
 (`--page-max-width`). Below 768px, and on a phone held on its side, the Calendar keeps its own compact
 header — asked and **kept as it is** (owner, 8 Nov 2026), so do not re-propose matching it there.
-Pinned by `e2e/calendar.spec.js` → "from 768px the Calendar's header is every other page's header",
+Pinned by `e2e/calendar-desktop.spec.js` → "from 768px the Calendar's header is every other page's header",
 which compares the computed metrics with Settings' at 768, 800 and 1366px.
 
 ## Touch-only UI, and never gating LAYOUT on hover

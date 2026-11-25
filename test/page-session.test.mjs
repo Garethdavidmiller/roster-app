@@ -863,7 +863,7 @@ describe('onReturnToPage — an installed app is not reloaded when it is reopene
 // ── unsaved-draft.js — THE KEPT COPY ITSELF ──────────────────────────────────────────────────────
 // The module's own suite lives here, beside the trigger that writes it: its rules are the five in
 // its header, and each test below names the one it holds. The browser half — a real hide, a reload
-// and the question on screen — is e2e/admin.spec.js and e2e/links.spec.js.
+// and the question on screen — is e2e/admin-unsaved-work.spec.js and e2e/links.spec.js.
 const ud = await import('../unsaved-draft.js');
 
 describe('unsaved-draft.js', () => {

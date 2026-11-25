@@ -1305,7 +1305,7 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
     // …AND NEVER FILED LATER EITHER (24 Nov 2026). Recording nothing only put the stamp off: the first
     // load after the 10 Apr payslip's cut-off filed March's figures against it, and the 8 May payslip
     // was priced cumulatively on last year's totals — on a K code, unchecked, about £1,650 of tax where
-    // £770.40 was right. Invented figures; the take-home e2e in paycalc.spec.js pins the £.
+    // £770.40 was right. Invented figures; the take-home e2e in paycalc-ytd.spec.js pins the £.
     test('figures typed before the year\'s first payslip could be in hand are never filed against it on a later load', () => {
         const MAR20 = new Date(2026, 2, 20, 10), APR20 = new Date(2026, 3, 20, 10), MAY1 = new Date(2026, 4, 1, 10);
         assert.equal(ytdSourceOffered(first, TY, APR20, 37), true, 'premise: by 20 Apr the 10 Apr payslip is in hand');

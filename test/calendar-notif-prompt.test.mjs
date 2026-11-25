@@ -5,7 +5,7 @@
  *
  * WHY THIS FILE EXISTS (v24.28 review). module-coverage-parity counted calendar-notif-prompt.js as
  * named only because a COMMENT in coordinator-ratchet.test.mjs mentions it. Nothing loaded it — and
- * headless Chromium has no push service, so the e2e suite can never reach it either (calendar.spec.js
+ * headless Chromium has no push service, so the e2e suite can never reach it either (calendar-notices.spec.js
  * says so and forces the strip on by hand). Yet its header states two rules with real teeth:
  *
  *   1. RENEWAL never runs under the shared Calendar viewer — it re-stamps a subscription's owner with

@@ -174,7 +174,7 @@ Found by the November 2026 review, each measured on its own background:
   `overflow: hidden` cut it away. The ring is drawn inside the button now (`outline-offset: -2px`).
 
 None was reachable by the scan: each needs a state no axe test drives. Each now has its own e2e test,
-in `e2e/admin.spec.js` or `e2e/operations.spec.js`. It is the BH badges' lesson again.
+in `e2e/admin-layout.spec.js`, `e2e/admin-leave-records.spec.js` or `e2e/operations.spec.js`. It is the BH badges' lesson again.
 
 ### Leave panel "Remaining" label — `color-contrast` (SERIOUS), phone layout — ✅ FIXED (10 Nov 2026)
 
@@ -276,7 +276,7 @@ stop (`tabindex="0"`, as the ARIA tabs pattern advises for a panel with no focus
 inset focus ring because the panel is the box that clips. **Being focusable was half of it**:
 ← → are how a focused box scrolls, and the page's own shortcut turned them into a week
 change first, so axe passed and the days stayed out of reach. The shortcut now leaves the panel's
-arrows alone; `e2e/calendar.spec.js` → "→ on the focused team week table scrolls it" holds the
+arrows alone; `e2e/calendar-team-view.spec.js` → "→ on the focused team week table scrolls it" holds the
 behaviour, which a scan cannot see.
 
 **The gate sees four kinds of calendar day; a unit test walks all of them.**

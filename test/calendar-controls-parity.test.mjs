@@ -94,7 +94,7 @@ test('4. the month heading row wraps — the net for the longest month name and 
 // The app-wide fallback ring is NAVY, so a control on the Calendar's navy glass with no rule of its own
 // is a Tab stop with no visible indicator: the leave panel's two links were, measured at 1.0–1.8:1
 // (whole-app review, Nov 2026). shared.css's navy controls are focus-ring-parity.test.mjs's; these are
-// the page's. This names the rule; e2e/calendar.spec.js proves the cascade lets it win.
+// the page's. This names the rule; e2e/calendar-desktop.spec.js proves the cascade lets it win.
 test('5. every control on the Calendar\'s navy surfaces names a ring drawn for a dark one', () => {
     const ON_NAVY = ['.title-icon:focus-visible', '.top-prompt-action:focus-visible', '.top-prompt-dismiss:focus-visible',
         '#dayDetailClose:focus-visible', '#alLightboxClose:focus-visible',

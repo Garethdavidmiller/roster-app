@@ -16,7 +16,7 @@
  * would actually make — every one of them looks like a tidy-up.
  *
  * The ownership-prompt half of the ordering IS covered behaviourally, in
- * `e2e/paycalc.spec.js` → "the data-ownership prompt opens for legacy data, and alone".
+ * `e2e/paycalc-notices.spec.js` → "the data-ownership prompt opens for legacy data, and alone".
  */
 
 import { test, describe } from 'node:test';
@@ -102,7 +102,7 @@ describe('the Pay notices queue behind everything else on the page', () => {
 // ── THE HOLIDAY PAY PREMIUM NOTICE (hpp_2526, owner 16 Nov 2026 — v26.22) ───────────────────────────
 // Second in the Pay sequence. These read the wiring, as the contracts above do, and each names the
 // regression an editor would make. What only a browser proves — the order across real loads, the link
-// landing, the route ending in a figure, the refusals — is `e2e/paycalc.spec.js` ("premium notice");
+// landing, the route ending in a figure, the refusals — is `e2e/paycalc-notices.spec.js` ("premium notice");
 // its reader (`premiumStillToEstimate`) and its dates and link against the REAL payslip grid are
 // `paycalc-hpp.test.mjs`, which can load that grid and this file cannot.
 const HTML = read('./paycalc.html');
@@ -129,7 +129,7 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
         // see the flag that notice's close had just set, and open the second straight after it.
         // …OR for that notice's END (App Notices review, 24 Nov 2026): its flag alone waits for ever once
         // the Year to Date notice's code is deleted, on a device that never saw it. The browser half of
-        // this — the code removed, the premium notice still arriving — is e2e/paycalc.spec.js → "still
+        // this — the code removed, the premium notice still arriving — is e2e/paycalc-notices.spec.js → "still
         // comes once the Year to Date notice's code is gone".
         const follows = HPP_IIFE.indexOf('if (!lsGet(NOTICE_YTD_KEY) && !isNoticeExpired(YTD_NOTICE_DATE, YTD_NOTICE_DAYS)) return noop;');
         assert.ok(follows > -1, 'the premium notice must wait for NOTICE_YTD_KEY, or for that notice\'s own end');
@@ -149,7 +149,7 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
             'the data-ownership prompt goes first on its load');
         // Not theirs ('none') or already done ('done') keeps it shut — and UNFLAGGED. NOTICE_HPP_KEY is
         // the DEVICE's flag, so setting it for one member's answer would take the notice from the next
-        // member signed in on that phone. e2e/paycalc.spec.js runs that shared phone.
+        // member signed in on that phone. e2e/paycalc-notices.spec.js runs that shared phone.
         assert.match(HPP_IIFE, /if \(!ty \|\| premiumStillToEstimate\(ty\) !== 'open'\) return noop;/,
             'a member it is not for, or who has done it, is kept out by premiumStillToEstimate');
         const reader = HPP_IIFE.split('\n').find(l => l.includes('premiumStillToEstimate(ty)')) ?? '';
@@ -177,7 +177,7 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
         // …and the link leaves by REPLACING the notice's history entry (overlay.js `followLinkOutOf`),
         // flagged first, for the click the browser follows itself (a new tab, a link to this page).
         // Already on that payslip (the Calendar's pay jump), the link only names a card: it closes the
-        // notice and opens the card in place — e2e/paycalc.spec.js → "already on that payslip".
+        // notice and opens the card in place — e2e/paycalc-notices.spec.js → "already on that payslip".
         assert.match(HPP_IIFE, /getElementById\('noticeHppGo'\)\?\.addEventListener\('click', ev => \{\s*const e = [^;]+;\s*markDone\(\);\s*if \(followLinkOutOf\(notice, e\)\) return;/);
         assert.match(HPP_IIFE, /getElementById\('noticeHppLater'\)\?\.addEventListener\('click', \(\) => notice\.close\(\)\)/);
         assert.match(HPP_IIFE, /onOpen: \(\) => \{\s*archiveNotice\(\{\s*id:\s*'hpp_2526',/,

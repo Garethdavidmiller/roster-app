@@ -404,7 +404,7 @@ describe('the day panel', () => {
 });
 
 // ── EVERY EXIT FROM A PANEL LEAVES NO DEAD STEP IN BACK (lightbox review, 22 Nov 2026) ──────────────
-// The browser proof is e2e/calendar.spec.js ("one Back from …"); this is the wiring, which the browser
+// The browser proof is e2e/calendar-day-detail.spec.js ("one Back from …"); this is the wiring, which the browser
 // can only show through the history it leaves behind.
 describe('a panel\'s ways out', () => {
     /** A day cell as the renderer writes one. @param {Record<string, string>} dataset */

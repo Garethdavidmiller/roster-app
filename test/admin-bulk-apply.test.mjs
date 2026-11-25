@@ -4,7 +4,7 @@
  *
  * No mocks: the rule reads the real `SUNDAY_FORBIDDEN_TYPES` (through `isForbiddenOnSunday`) and the
  * real `isSunday`, so a change to either is a change to what this greys out. The browser half — the
- * button really disabled, the line really under it — is e2e/admin.spec.js.
+ * button really disabled, the line really under it — is e2e/admin-layout.spec.js.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';

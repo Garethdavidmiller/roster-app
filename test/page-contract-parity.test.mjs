@@ -385,7 +385,7 @@ test('every coordinator that signs a member in also runs the forced set-password
 //
 // NOTHING CHECKED ANY OF IT until this block. Measured, not assumed (16 Sep 2026): deleting
 // `initErrorReporter();` from `calendar-app.js` left the whole unit estate green, and every chromium
-// test in `e2e/calendar.spec.js` with it. e2e cannot see it — the page renders identically whether
+// test in `e2e/calendar.spec.js` (now the calendar-*.spec.js files) with it. e2e cannot see it — the page renders identically whether
 // the reporter is installed or not, which is the entire problem.
 //
 // So this pins two things: that each coordinator calls all three, and that the call sits INSIDE

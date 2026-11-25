@@ -132,7 +132,7 @@ mock.module('../session.js', {
 });
 // The install notice asks install-prompt.js what this browser can do, and tells it when to stand the
 // strip down. Faked so a test can BE an iPhone, the mirror or a desktop; the real detection is driven
-// in a browser (e2e/calendar.spec.js). Every call is recorded, in order.
+// in a browser (e2e/calendar-notices.spec.js). Every call is recorded, in order.
 /** @type {{ how: 'prompt'|'ios'|'menu', mirror: boolean } | null} */
 let _route = { how: 'menu', mirror: false };
 /** @type {string[]} */ let _installCalls = [];
@@ -1481,7 +1481,7 @@ describe('12 · a follower never waits on a retired notice\'s code (16 Nov 2026)
 // stacked on top of the notice's own history entry, and one Back from there landed on a step of the Calendar that
 // nothing answered. Every link is wired through `_wireNoticeLink` now, which hands the click to `followLinkOutOf`
 // (overlay.js: replace that entry with the page — overlay-history.test.mjs drives it). Read from the MARKUP, so a
-// notice added later is held to it; the browser journey is e2e/calendar.spec.js.
+// notice added later is held to it; the browser journey is e2e/calendar-notices.spec.js.
 describe('13 · every notice\'s link replaces the notice\'s history entry rather than stacking on it', () => {
     const page = readFileSync(new URL('./index.html', REPO_ROOT_URL), 'utf8');
     const links = [...page.matchAll(/<a [^>]*\bid="(\w+NoticeGo)"/g)].map(m => m[1]);
