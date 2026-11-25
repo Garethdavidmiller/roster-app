@@ -2255,7 +2255,7 @@ test('paycalc: the loan rows name the plan picked and the payslip deductions sto
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
 });
 
-// THE TWO-TAP CLEAR (the coordinator's `_clearState`). The one destructive control on the page: the
+// THE TWO-TAP CLEAR (`createClearConfirm`, paycalc-clear-confirm.js). The one destructive control on the page: the
 // first tap only ARMS it, with a countdown; three seconds, or a change of payslip, disarms it; only a
 // second tap while armed wipes the payslip — and only the one on screen.
 test('paycalc: "Clear all entries" needs a second tap, and disarms itself', async ({ page }) => {

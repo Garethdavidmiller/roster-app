@@ -26,7 +26,7 @@
  * The second tap of a double tap met an armed control and deleted at once, so the two-tap asked
  * nothing of the hand that double-tapped — and iOS teaches double taps by swallowing a first tap with
  * the keypad up. The Pay Calculator's Clear had already learned this (`CLEAR_CONFIRM_MIN_MS`,
- * paycalc-app.js); here the minimum lives in the one way to arm a control, `twoTap`, so no caller can
+ * paycalc-clear-confirm.js); here the minimum lives in the one way to arm a control, `twoTap`, so no caller can
  * arm without it. `armConfirm` is deliberately NOT exported: a caller that armed it directly and
  * tested `confirming` itself would be the copy that forgot.
  */
