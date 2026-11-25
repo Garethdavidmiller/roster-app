@@ -1409,14 +1409,11 @@ not do, or cannot know:
   so it is recorded here rather than tuned in code. Raising the weight is a one-line change if the
   answer is the other way (`.claude/rules/links-design.md` → the run-cap switch has the measurements).
 
-- **Designs longer than the rotation are left exactly as they are.** They still load, render the
-  rotation's rows, are analysed over the rotation — and, because the working copy deep-copies the
-  whole patterns object, **save every line back**. Nothing trims them, deliberately: doing it on load
-  would destroy lines of somebody's work on a page visit, and doing it on save would do it at the
-  moment they least expect it. `#linksOverLengthNotice` states the two lengths and that the surplus
-  rows are neither shown nor counted but are still stored. **Binning them is one press** — the
-  admin's *Keep only the shortlist*, which bins every design saved before 2 Nov 2026 — and until it
-  is pressed a designer can open one and work on a proposal that describes a link nobody is building.
+- **Designs longer than the rotation are left exactly as they are** — kept whole and saved whole,
+  never trimmed (`.claude/rules/links-design.md` → Line numbering says why). **Binning them is one
+  press** — the admin's *Keep only the shortlist*, which bins every design saved before 2 Nov 2026 —
+  and until it is pressed a designer can open one and work on a proposal that describes a link nobody
+  is building.
 
 - **The fatigue-factor panel is an AID, not a fatigue risk assessment.** This is the limitation that
   matters most on this page, because the failure mode is not a wrong number — it is a design showing
@@ -1447,17 +1444,13 @@ not do, or cannot know:
     design's figures only mean anything once its lines genuinely are one rotation.
 
 - **The generator's objectives genuinely conflict, and no default is right for everyone.** Line ORDER
-  is one scarce resource with several claims on it, and two of them are direct opposites: `gentle`
-  minimises the week-to-week change, and taken to its limit that IS a long block of the same shift —
-  the smallest possible step is no step at all. `variety` caps the block length. It ships with both
-  on and variety weighted as a constraint, which lands on the live roster's own longest block.
-  **Turning variety off gives long blocks**, the shape the owner rejected as "excessive and
-  unpopular". The switches are the honest answer, not a better formula: the trade is real and the
-  designer should be the one making it (`.claude/rules/links-design.md` → Line ORDER).
-- **Interleaving the waves inside the generator is a WON'T-DO, measured.** It shortens the raw block
-  length but puts a late wave's 23:55 Saturday beside a morning wave's 06:20 Sunday — a 6h25
-  turnaround the construction was free of — and costs two long weekends for no gain. The generator
-  owns the SHAPE, `links-adjacency.js` owns the ORDER. A test fails if the interleave returns.
+  is one scarce resource with several claims on it, and `gentle` and `variety` are direct opposites
+  (`.claude/rules/links-design.md` → Line ORDER has the dial and the owner's verdict on long blocks).
+  The switches are the honest answer, not a better formula: the trade is real and the designer should
+  be the one making it.
+- **Interleaving the waves inside the generator is a WON'T-DO, measured** (`.claude/rules/links-design.md`
+  → the generator): besides the 6h25 turnaround it creates, it costs two long weekends for no gain. A
+  test fails if the interleave returns.
 
 - **The hard-limit check is a WORST CASE on a design, and it enforces nothing.** The
   consecutive-worked-days limit (`MAX_CONSECUTIVE_WORKED_DAYS` in `links-limits.js`) is **Chiltern's
@@ -1508,19 +1501,16 @@ not do, or cannot know:
   rotation is counted, including any line not yet designed. The design is patterns-only, so there is
   no distinction between named and unnamed positions. The heat map colour scale is relative to the
   week's own peak, so a lightly staffed day naturally shows cooler colours.
-- **EVERY line rotates and must be filled.** In a rotating link everyone passes through every line,
-  so an all-rest line is an *unfinished* line, not a vacancy — the link can't be agreed and then
-  re-cut each time a post is filled. The link is designed as a full rotation so it survives staff
-  changes; a member on fixed hours sits outside it, on a fixed pattern of their own
-  (`rosterType: 'fixed'`), not in this designer. A Design-checks row and amber grid marker
-  (`.row-unfilled`) flag any unfilled line until it is designed. The generator (Build a link) produces a
-  complete rotation in one step, and "Start with a blank grid" (`#linksEmptyNew`) and the importer
-  (`links-import.js`) create a design without it.
+- **EVERY line rotates and must be filled** — an all-rest line is unfinished, not a vacancy
+  (`.claude/rules/links-design.md` → Line numbering). The link can't be agreed and then re-cut each
+  time a post is filled, so it is designed as a full rotation that survives staff changes. The
+  generator produces a complete rotation in one step; "Start with a blank grid" (`#linksEmptyNew`) and
+  the importer (`links-import.js`) create a design without it, flagged until every line is designed.
 - **The rotation LENGTH is hardcoded by design.** `ROTATING_LINES` reflects the agreed link concept —
-  deliberately not derived from roster data — and is declared once, in `links-design.js`, and
-  imported. If the link concept changes, the constant changes with it. **Do not write the number down
-  here:** `links-rotation-parity.test.mjs` fails on a literal in the Links modules and `links.html`
-  only. It does not read the docs, which is how stale figures survived in this file before.
+  deliberately not derived from roster data — so if the concept changes, the constant changes with it
+  (`.claude/rules/links-design.md` → Line numbering, invariant 1). **Do not write the number down
+  here:** the parity test does not read the docs, which is how stale figures survived in this file
+  before.
 - **Save concurrency is warn-on-conflict, not merge.** Two designers saving at once get a confirm
   naming who saved last; the whole document is still replaced. A field-level merge is not worth the
   complexity for a small design tool. Declining the overwrite offers **"Save mine as new"**, so the
@@ -1543,16 +1533,11 @@ not do, or cannot know:
   turns, the weekly ceiling) are already computed and rendered as advisory ORR rows — promoting them
   is a rendering change plus the confirmed figures. Do not do it from recall; see
   `.claude/rules/links-design.md`.
-- **Delete is a SOFT delete and the bin is PERMANENT** (owner, 19 Sep 2026). A deleted design carries
-  `deletedAt`/`deletedBy`, drops out of the picker, and is restorable from "🗑 Recently deleted" until
-  somebody removes it by hand. **Nothing expires it and nothing will:** a soft-deleted design is
-  already invisible and restorable, storing it costs almost nothing, and the only thing an automatic
-  purge adds is the power to destroy a designer's work unattended — the exact failure the bin exists
-  to prevent (and no client-side age check survives a device clock running fast). The expiry
-  machinery was deleted rather than left dormant, so there is no constant for a countdown to come back
-  from, and `doc-parity.test.mjs` fails if one is re-added without re-pointing its guard. A sweep, if
-  one is ever wanted, would be a Cloud Function reading SERVER time (`.claude/rules/links-design.md` →
-  Access control).
+- **Delete is a SOFT delete and the bin is PERMANENT** (owner, 19 Sep 2026): a binned design is
+  restorable from "🗑 Recently deleted" until somebody removes it by hand, and **nothing expires it and
+  nothing will** (`.claude/rules/links-design.md` → Deletion; the argument is `links-deletion.js`'s
+  header). There is no constant for a countdown to come back from, and `doc-parity.test.mjs` fails if
+  one is re-added without re-pointing its guard.
 
 - **The generator's provenance is DEVICE-LOCAL** (external review, Sep 2026 — architectural, not
   fixed). Which target table produced a design — the remembered table, the saved set it came from,

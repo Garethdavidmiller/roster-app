@@ -59,47 +59,10 @@ or in the module header beside the code.
 The workspace is one coordinator over the pure or extracted modules below. Everything except
 `links-app.js` is testable without a browser, and that is deliberate: the rules that have produced
 bugs were pulled out of the coordinator, which keeps most of the Firestore and DOM state (the design
-library keeps its own). One-line routing is `FILE_INDEX.md`; the export lists are `AI_MAP.md`.
-**The table is the count** — do not write a number beside it, because that is a second copy of the
-list.
-
-| Module | Owns |
-|--------|------|
-| `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore read or write of its own — designs go through `links-design-store.js` (+ `links-boot.js`, the CSP bootstrap) |
-| `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and every read of the collection, which says whether the cache answered it (`loadAll`; `createDesignStore`) |
-| `links-queued-saves.js` | the saves only this browser's queue holds until the server answers: which copy is kept as the draft, on which baseline, whether an answer still counts (v26.03), and whether the server ever made the design |
-| `links-design-library.js` | the import panel, the Recently deleted bin and its list, and Keep only the shortlist (`createDesignLibrary`). Rename, duplicate and delete stay in `links-app.js`, because they change the open design's baseline |
-| `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the picker sheet, the Save buttons' label and the ··· More sheet |
-| `links-design.js` | the design maths — classification, coverage, hours, the generator and its rest repair, `runDesignChecks`, `endMinutesAbs` |
-| `links-fatigue.js` | the ORR p3 fatigue factors — ADVISORY, never pass/fail |
-| `links-limits.js` | the HARD limits — meet them or the design cannot be run |
-| `links-window.js` | the staffed OPERATING WINDOW — when the station is open |
-| `links-demand.js` | the SERVICE that window has to cover — the December 2026 trains |
-| `links-analysis.js` | the read-only panels — Coverage heat map, Design checks and the sticky summary strip — rendered from those pure results |
-| `links-grid-input.js` | how the grid is OPERATED — one Tab stop and the arrow keys, a mouse stroke that paints every cell it crosses, the paint bar's height for the sticky header; what a cell MEANS stays in the coordinator |
-| `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
-| `links-compare-analysis.js` | what the difference between two designs MEANS — cover, limits and fatigue for both (pure, `compareDesigns`) |
-| `links-analyse.js` | ONE reading of a design for every panel — `analyse`, keyed on CONTENT and computed part by part on first ask, and `readAgainstService` |
-| `links-grid-cells.js` | what one grid cell SAYS — its label, its name ("RD, rest day"), and the markup of the editable grid, the compare grids and their cover rows |
-| `links-build-press.js` | what the Build press SAYS and remembers — the refusals, the question before a build replaces a design, the status line, which build of these inputs it is, and the surplus lines a longer design keeps |
-| `links-today.js` | what the page reads from TODAY's roster — the shift times offered, and today's link against the fatigue factors, measured once |
-| `links-print.js` | the page prepared for paper and put back — every disclosure opened, and the print ended by the reader's next touch where iOS sends no `afterprint` |
-| `links-concurrency.js` | the pure co-editing rules (three historical silent-overwrite bugs, one test each), and how a list read answered after the page changed the list is applied (`mergeListAnswer`) |
-| `links-deletion.js` | the soft-delete rules: what counts as deleted, its label and order, and what a delete or a rename that found the design already gone says |
-| `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in |
-| `links-seed.js` | the roster SEED — read today's main cycle and produce a target table |
-| `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between them |
-| `links-design-load.js` | what a READ of the collection means — live, binned, old-length moves, a cached answer, the legacy migration, the list's one order, which design opens — for the load and the refresh alike |
-| `links-design-naming.js` | what a design or a staffing setup may be CALLED — one rule for new, import, duplicate and rename |
-| `links-target-hours.js` | does a target table pay the contract, and the words the card says so in |
-| `links-import.js` | somebody ELSE's proposal → a design, or a refusal — the TRUST BOUNDARY (invariant 6) |
-| `links-target-sets.js` | named, shared SNAPSHOTS of the generator targets (staffing setups), and who may overwrite one (invariant 9) |
-| `links-target-sets-store.js` | the Firestore half of those setups — reading the collection, and the one guarded write |
-| `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them; it writes a new setup itself |
-| `links-default-targets.js` | the table the generator STARTS from — the duty table of Short Run, in the pack (built in until 8 Nov 2026); not measured from today's roster |
-| `links-proposals.js` | the SHORTLISTED designs, built in as read-only proposals — a proposal id never reaches Firestore |
-| `links-shortlist.js` | "Keep only the shortlist" — the admin's one press that moves every design last saved before `OLDER_BEFORE` to the bin; the built-in shortlist stays read-only |
-| `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
+library keeps its own), and `links-app.js` makes no Firestore read or write of its own — designs go
+through `links-design-store.js`. **The list is `FILE_INDEX.md`'s `links-*.js` rows, one line each,
+and what each module owns, with the reason, is its own header** (this file carried a third copy as a
+table until 25 Nov 2026). Do not write a count of them anywhere: the rows are the count.
 
 ## Access control
 
@@ -140,7 +103,7 @@ list.
 - **The bin is PERMANENT** (owner, 19 Sep 2026). Nothing expires a design, and the expiry machinery was
   deleted rather than left dormant; `links-deletion.js`'s header has the argument. **A countdown in copy
   is a promise**: show none. If expiry is ever wanted, it is a scheduled Cloud Function reading SERVER
-  time, never a client clock (KNOWN_LIMITATIONS.md → Links).
+  time, never a client clock.
 - **`isDeleted` tests for the KEY, not a usable timestamp.** An unresolved `deletedAt` — what
   `serverTimestamp()` reads back as on the writing device — still counts as deleted, or the design
   sits in the picker on the device that just binned it.
