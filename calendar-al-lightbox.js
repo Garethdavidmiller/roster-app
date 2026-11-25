@@ -12,7 +12,7 @@
  * `dayMarkers` and `weekContext` (calendar-renderer.js) — so it can never colour or name a day
  * differently from the grid it was opened from. The layout reasoning sits beside each zone in
  * index.html and index.css, and the geometry is pinned by the `day detail:` block of
- * e2e/calendar.spec.js, because no behavioural assertion can see one box overlapping another.
+ * e2e/calendar-*.spec.js, because no behavioural assertion can see one box overlapping another.
  */
 
 import { createLightbox, followLinkOutOf, whenHistorySettled } from './overlay.js';
@@ -82,7 +82,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
   // open panel Admin was stacked on top of the panel's own history entry: one Back came back to that
   // entry, the Calendar reloaded with nothing to answer it, and the next Back did nothing. The link now
   // REPLACES the panel's entry, so Back from Admin lands on the Calendar and the next one leaves it. A
-  // new tab and a modified click are left to the browser. e2e/calendar.spec.js → "one Back".
+  // new tab and a modified click are left to the browser. e2e/calendar-day-detail.spec.js → "one Back".
   document.getElementById('alLightboxContent')?.addEventListener('click', (e) => { followLinkOutOf(alLb, e); });
 
   /** @param {number} step */

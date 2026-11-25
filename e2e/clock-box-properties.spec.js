@@ -10,7 +10,7 @@
  * shaper — and the imitation was wrong where the bug was. (1) The "30" of 22:30 selected, a 4 typed
  * over it and the box left settled to 02:24, a valid time nobody typed. (2) The first 2 of 22:30
  * deleted re-split the box to "23:0", which put the caret at the END, so the 1 typed to make 12:30
- * made 23:01. Both were fixed on 25 Nov 2026; the hand-written sequences in admin.spec.js now pin
+ * made 23:01. Both were fixed on 25 Nov 2026; the hand-written sequences in admin-week-grid.spec.js now pin
  * them. This spec is for the NEXT one: it lets a seeded generator choose the sequences, and the
  * browser — not an imitation — decide what each key does.
  *

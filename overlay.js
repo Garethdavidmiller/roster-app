@@ -270,7 +270,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
             // tab that runs no frames while it is hidden. Run late, it faded the closing panel back in
             // and took focus into it, so focus fell to <body> as the panel went, where the Calendar's
             // arrow keys change the month instead of the day. Headless WebKit draws slowly enough
-            // to lose that race about one run in five (calendar.spec.js, the day panel closed over a
+            // to lose that race about one run in five (calendar-swipe-redraw.spec.js, the day panel closed over a
             // rebuilt grid).
             if (frame !== _frameWanted) return;
             overlay.classList.add('open');

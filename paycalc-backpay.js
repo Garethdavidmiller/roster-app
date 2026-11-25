@@ -773,7 +773,7 @@ export function calcBackPay() {
         // real payslip). Every later period returns 1.
         // DELETE THIS LINE AND THE DEFECT RETURNS IN SILENCE: the accrual falls back to its
         // `== null ? 1` default with every unit test still green. Guarded by the rendered £ in
-        // e2e/paycalc.spec.js ("...scales the first period of the award window").
+        // e2e/paycalc-backpay.spec.js ("...scales the first period of the award window").
         windowFactor:  awardWindowFactor(p, _backdateDate),
         peer:          d.peer || 0,
         rateDiff, londonDiff,

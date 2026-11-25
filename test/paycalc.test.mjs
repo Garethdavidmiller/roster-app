@@ -753,7 +753,7 @@ describe('takeHomeInputs — what the payslip on screen is priced on, and the pr
 // and are CALLED here, with the page's lookups handed in. Until 25 Nov 2026 they were sliced out of
 // paycalc-app.js's source text and run through `new Function`, which tested a copy and broke whenever
 // the lines moved. The page's half — that calculate() hands payslipGross its own lookups — is the
-// last test of this block, and the joiner e2e in e2e/paycalc.spec.js drives the whole page.
+// last test of this block, and the joiner e2e in e2e/paycalc-*.spec.js drives the whole page.
 describe("calculate()'s own lines — a joiner's payslip, and the rows a payslip can hold", () => {
   // A JOINER'S FIRST PAYSLIP, AND THE ROWS A PAYSLIP CANNOT HOLD (review, 18 Nov 2026). calculate()
   // scales the London Allowance and the contracted hours by a joiner's share of the payslip, and

@@ -1529,7 +1529,7 @@
            end, so every row stays reachable. THE CEILING never binds while the flex chain bounds the box,
            which always leaves the header, controls and the card's own rows their room. It is there for
            an engine that ever sized the chain from the table, so the date row would still stay up.
-           Measured in Chromium and WebKit: e2e/calendar.spec.js → "the Team View table fills its card". */
+           Measured in Chromium and WebKit: e2e/calendar-team-view.spec.js → "the Team View table fills its card". */
         @media (max-width: 1023px) {
             .team-table-wrap {
                 flex: 1 1 0;
@@ -3115,7 +3115,7 @@
                path) — the chip is the only retry on screen.
            CSS, not a branch in calendar-initial-fetch.js: the header and the panel are rebuilt by
            every render in either order, so a selector on the result is right after every transition.
-           `e2e/calendar.spec.js` pins both halves. */
+           `e2e/calendar-*.spec.js` pins both halves. */
         .calendar-container:has(> .calendar-pending:not(.calendar-pending--failed)) .sync-chip,
         .calendar-container:has(> .calendar-pending .calendar-pending-retry) .sync-chip,
         .calendar-container[data-override-state="snapshot"] .sync-chip {

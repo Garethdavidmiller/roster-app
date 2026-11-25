@@ -13,7 +13,7 @@
  * ── THE RULES ─────────────────────────────────────────────────────────────────────────────────
  *
  * 1. The first tap ARMS: "Select again to confirm (3)", counting down a second at a time, and
- *    disarming itself after three seconds (e2e/paycalc.spec.js holds the words and the timing).
+ *    disarming itself after three seconds (e2e/paycalc-entries.spec.js holds the words and the timing).
  * 2. A confirming tap sooner than `CLEAR_CONFIRM_MIN_MS` after arming is the SAME gesture — a
  *    double-tap, which iOS teaches by swallowing a first tap with the keypad up — never a prompt read
  *    and answered. It is ignored, and the button stays armed for a real answer.

@@ -24,7 +24,7 @@
  * swiping from a withheld month onto a good one left the legend hidden until some later full
  * render, and swiping onto an unfetched one left it up over the wait panel. The legend update is
  * the one function every navigation path calls, which is what makes it the choke point — the same
- * argument that put the grid gate in `buildCalendarContainer`. `e2e/calendar.spec.js` pins the
+ * argument that put the grid gate in `buildCalendarContainer`. `e2e/calendar-*.spec.js` pins the
  * swipe case; the pure rules here are pinned by `calendar-legend.test.mjs`.
  *
  * **Team View owns the legend while it is active** (`applyTeamViewChrome` hides it), so this stands

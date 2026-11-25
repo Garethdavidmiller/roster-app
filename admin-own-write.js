@@ -48,7 +48,7 @@
  *
  * Tested by admin-own-write.test.mjs (the rule, the words, the sync over a fake grid drawn by the real
  * row state) and, through each writer, admin-saved-changes.test.mjs, admin-overrides.test.mjs and
- * e2e/admin.spec.js ("THE PAGE'S OWN WRITE IS NOT A COLLEAGUE'S").
+ * e2e/admin-saves.spec.js ("THE PAGE'S OWN WRITE IS NOT A COLLEAGUE'S").
  */
 
 import { sameOverrideRecord } from './override-compare.js';
