@@ -7,7 +7,7 @@
  * `syncWeekAfterOwnWrite` over a small fake grid whose rows are drawn by the real `prefillRow` and
  * staged by the real `_activateRow` / `_deactivateRow` (admin-week-row-state.js) — the same row state
  * the week save reads (`drawnDays`, `readRowDraft`). The browser half, each write path end to end
- * through the page, is e2e/admin.spec.js ("THE PAGE'S OWN WRITE IS NOT A COLLEAGUE'S").
+ * through the page, is e2e/admin-saves.spec.js ("THE PAGE'S OWN WRITE IS NOT A COLLEAGUE'S").
  *
  * Organised by what a wrong answer costs:
  *   1. THE ADMIN'S OWN WORK REFUSED — a row left comparing with a record the page itself deleted or

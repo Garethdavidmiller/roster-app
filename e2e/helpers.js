@@ -1,7 +1,8 @@
 // Shared helpers for the Playwright specs. Extracted from smoke.spec.js when it was split
 // into per-area files (v17.46) so every spec draws from one source. Imported by
-// calendar.spec.js, auth.spec.js, paycalc.spec.js, pages.spec.js, responsive.spec.js, and the
-// per-page specs split out of pages.spec.js (admin, links, operations, settings, guides).
+// the calendar-*, paycalc-* and admin-* specs (each set split by feature on 25 Nov 2026), auth.spec.js,
+// pages.spec.js, responsive.spec.js, and the other per-page specs split out of pages.spec.js (links,
+// operations, settings, guides).
 
 import { expect } from '@playwright/test';
 import { ROTATING_LINES } from '../links-design.js';

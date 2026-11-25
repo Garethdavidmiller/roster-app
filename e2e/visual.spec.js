@@ -900,7 +900,7 @@ test('calendar — mobile 360', async ({ page }) => {
 //
 // It cost nothing to drop, because the thing it was added to watch — the v22.89 width rule, which
 // puts the five action buttons back on ONE line below 360px — is covered behaviourally at 320, 333
-// and 360 in e2e/calendar.spec.js, on all four browser projects, in the lane that GATES. And a
+// and 360 in e2e/calendar-phone-layout.spec.js, on all four browser projects, in the lane that GATES. And a
 // baseline that reports drift on every run makes the drift comment worth ignoring, which is the
 // failure this repo already spent a release fixing. Do not re-add it without a runner that agrees.
 

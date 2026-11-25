@@ -1017,7 +1017,7 @@ describe('createLightbox — a text field takes focus synchronously, everything 
 // The frame `open()` defers to fades the overlay in and moves focus into it, and a close can come
 // before it runs: an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run
 // late, it faded the closing panel back in and took focus into it, so focus fell to <body> as the panel
-// went. Found by calendar.spec.js's day panel closed over a rebuilt grid, which lost the race on headless
+// went. Found by calendar.spec.js's (now calendar-swipe-redraw.spec.js's) day panel closed over a rebuilt grid, which lost the race on headless
 // WebKit about one run in five. The frames are HELD so each test chooses when they run.
 describe('createLightbox — a close before the first frame retires that frame', () => {
     /** @type {Function[]} */ let frames = [];

@@ -327,7 +327,7 @@ describe('payslip-actual lines — the phantom-£0 rule holds for every one of t
 // ── A SETTING CHANGE CARRIES ONLY ITS OWN FIELDS (whole-app review, Oct 2026) ──────────────────
 // The loan plan and the pension scheme ran the payslip's autosave, which writes the WHOLE form: the
 // calendar's display-only suggestion was saved as entered hours (invariant 11), and saved entries
-// that could not be read were written over. `e2e/paycalc.spec.js` drives both through the page.
+// that could not be read were written over. `e2e/paycalc-entries.spec.js` drives both through the page.
 describe('settingFieldsWrite — a setting change carries only its own fields', () => {
     const formNow = { ...emptyPeriodData(), satH: 8, satM: 30, slSkip: false, pension: null };
 

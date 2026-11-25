@@ -959,7 +959,7 @@ test('login overlay: Show is a plain button that names what it will do — never
 // itself on the card (login-overlay.js → `about`; the Pay Calculator does), which makes that card
 // taller by design. The explanation is hidden before measuring, so the rest of the card is still
 // compared to the pixel — a tolerance on height would let exactly the leak this test exists for
-// through. The explanation's own placement is `e2e/paycalc.spec.js`'s to check.
+// through. The explanation's own placement is `e2e/paycalc-page.spec.js`'s to check.
 test('login overlay geometry is identical across every page that shows it', async ({ page }) => {
     // Every page that puts up the shared sign-in, from scripts/app-pages.mjs (v25.21: this list was five
     // by hand and had missed Trains and New link). Not the Calendar, which opens on its own front door,

@@ -85,8 +85,8 @@ const UNNAMED_BY_DESIGN = {
     // Each was "named" only by a comment somewhere. Every reason below was checked against the spec
     // it cites; the three that were NOT covered by anything (calendar-keyboard's arrow keys,
     // error-reporter's wiring, paycalc-sticky-total, calendar-notif-prompt) got suites instead.
-    'admin-time-inputs.js':  'driven by e2e/admin.spec.js ("admin: a week-grid time box formats as typed, moves on, and flags an impossible time"); its typing rule is clock-input.js, unit-tested by clock-input.test.mjs',
-    'admin-week-swipe.js':   'driven by e2e/admin.spec.js ("the week label follows the swipe", "the week arrows and the swipe move the same state")',
+    'admin-time-inputs.js':  'driven by e2e/admin-week-grid.spec.js ("admin: a week-grid time box formats as typed, moves on, and flags an impossible time"); its typing rule is clock-input.js, unit-tested by clock-input.test.mjs',
+    'admin-week-swipe.js':   'driven by e2e/admin-week-grid.spec.js ("the week label follows the swipe", "the week arrows and the swipe move the same state")',
     'paycalc-transfer-card.js': 'driven by e2e/settings.spec.js (the Settings "Pay Calculator Data" pointer card renders and links)',
     'trains-status.js':      'driven by e2e/trains.spec.js ("a screen reader is told one short line per press, and the cards themselves are not read out"): every line it makes is read back from #trStatus after a real press',
 

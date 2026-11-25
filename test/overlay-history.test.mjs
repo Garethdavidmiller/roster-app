@@ -706,7 +706,7 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
 // lightbox's own history entry, and one Back from it landed on a step of this page that nothing answered.
 // `followLinkOutOf` closes the lightbox WITHOUT popping that entry and replaces it with the link's page, as the
 // drawer's links replace the drawer's entry. The wiring of each caller is calendar-notices.test.mjs's and the
-// browser journey e2e/calendar.spec.js's and e2e/settings.spec.js's.
+// browser journey e2e/calendar-notices.spec.js's and e2e/settings.spec.js's.
 describe('followLinkOutOf — the link\'s page takes the lightbox\'s history entry', () => {
     function fakeOverlay() {
         const classes = new Set();

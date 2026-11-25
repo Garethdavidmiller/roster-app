@@ -917,7 +917,7 @@ describe('knownYtdLumps — the award lump only once its payslip is covered', ()
 // pay. Three things here, each against the REAL payslip grid this file loads: who it is for
 // (`premiumStillToEstimate`), what the card says about the one lump the 2025/26 figure cannot take
 // out, and that the notice's own dates and link are the grid's. Its wiring is paycalc-notice-order.test.mjs;
-// the browser half is e2e/paycalc.spec.js ("premium notice").
+// the browser half is e2e/paycalc-notices.spec.js ("premium notice").
 
 const { readFileSync } = await import('node:fs');
 const { hppTaxYearForPayslip, periodsInTaxYear } = await import('../paycalc-hpp-schedule.js');   // hppPayslipForTaxYear: above

@@ -30,13 +30,13 @@ roster-app/
 ├── operations.html         ← admin-only Operations page: the Needs-attention strip, the document upload cards and links, the Roster upload, the Annual leave sheet, reset requests, account status, Staff Login Accounts, Error Log, Usage and App Speed
 ├── settings.html          ← the Settings STATUS page: Your account, This device, Your data — cards open by their state; what each state means is settings-status.js
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── calendar-app.js         ← coordinator for index.html: event wiring, the Prev/Next/Today buttons, the access hooks, notification wiring. See also calendar.spec.js, calendar-redraw.test.mjs.
+├── calendar-app.js         ← coordinator for index.html: event wiring, the Prev/Next/Today buttons, the access hooks, notification wiring. See also calendar-loading.spec.js, calendar-redraw.test.mjs.
 ├── calendar-state.js       ← display month/year state for index.html (getters/setters + persistViewedMonth). See also calendar-state.test.mjs.
-├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown. See also calendar.spec.js.
+├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown. See also calendar-swipe-redraw.spec.js.
 ├── calendar-al-lightbox.js ← the Calendar's annual-leave panel and day-detail panel (`initCalendarLightboxes`); every badge on the day panel comes from the grid's own authorities. Reasoning: its header. Tested by calendar-al-lightbox.test.mjs. See also lightbox-transform-parity.test.mjs, day-detail-explains.test.mjs.
 ├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_PLAN.md → E1). See also calendar-initial-fetch.test.mjs.
-├── calendar-keyboard.js    ← keyboard navigation, the page shortcuts (`initCalendarShortcuts`: they press the page's own buttons) and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar.spec.js.
-├── calendar-month-jump.js  ← the month/year jump picker opened from the month heading (`initMonthJump`). Tested by calendar-month-jump.test.mjs. See also calendar.spec.js.
+├── calendar-keyboard.js    ← keyboard navigation, the page shortcuts (`initCalendarShortcuts`: they press the page's own buttons) and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar-swipe-redraw.spec.js, calendar-day-detail.spec.js.
+├── calendar-month-jump.js  ← the month/year jump picker opened from the month heading (`initMonthJump`). Tested by calendar-month-jump.test.mjs. See also calendar-access.spec.js.
 ├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs a leftover staff-PIN session out. **Read its header first.** Tested by calendar-access.test.mjs. See also AUTH_AND_SESSIONS.md, calendar-access.spec.js.
 ├── calendar-lock-slot.js ← the ONE place a card can stand in for the Calendar grid, and the workspace it hides; at most one card, no decisions. Exercised through calendar-access.test.mjs and e2e/calendar-access.spec.js
 ├── calendar-lock-cards.js ← the cards that can stand where the Calendar goes (sign-in, its can't-load fallback, come-back): it DRAWS, `calendar-access.js` DECIDES. Its header
@@ -48,7 +48,7 @@ roster-app/
 ├── calendar-overrides.js   ← the Calendar's Firestore override cache: range fetches, the phase-1 cache read, the access gate, the read ticket and the write ordering — each rule argued beside its code. See also calendar-overrides.test.mjs.
 ├── calendar-notices.js     ← the Calendar page's one-time notices (`initCalendarNotices`); new index.html notices land here. Live ones: the new-notice skill
 ├── calendar-member.js      ← team member selection for index.html (dropdown, current member, stale-name handling). See also calendar-member.test.mjs.
-├── calendar-renderer.js    ← calendar cell/grid building for index.html, what a month shows (`monthOnScreen`, which the legend asks too), plus the pure helpers the day panel reads back. See also calendar-renderer.test.mjs, calendar.spec.js.
+├── calendar-renderer.js    ← calendar cell/grid building for index.html, what a month shows (`monthOnScreen`, which the legend asks too), plus the pure helpers the day panel reads back. See also calendar-renderer.test.mjs, calendar-day-detail.spec.js, calendar-loading.spec.js.
 ├── calendar-huddle-viewer.js    ← the Huddle viewer overlay (`#huddle`), including the per-table scroll boxes. See also calendar-huddle-viewer.test.mjs.
 ├── huddle-table-grid.js ← which Huddle cells are really in COLUMN 1, walking the grid as the browser does. Pure. Tested by huddle-table-grid.test.mjs. See also pages.spec.js.
 ├── calendar-doc-viewer.js  ← the Circular/Newsletter in-app viewer (`#circular` / `#newsletter`), separate from the Huddle viewer. See also calendar-doc-viewer.test.mjs.
@@ -59,7 +59,7 @@ roster-app/
 ├── nav-bell.js             ← the drawer footer's notification bell; the push logic is notif.js's. See also nav-bell.test.mjs.
 ├── nav-guide-fold.js       ← the drawer's Reference fold and the guide search's lazy load. See also nav-guide-fold.test.mjs, guide-index-parity.test.mjs.
 ├── nav-destinations.js     ← the drawer's destinations and pill gates as DATA; imports nothing
-├── newsletter-recency.js   ← whether the ☰ menu offers the Marylebone Newsletter (latest issue under six weeks old). See also calendar.spec.js, operations.spec.js.
+├── newsletter-recency.js   ← whether the ☰ menu offers the Marylebone Newsletter (latest issue under six weeks old). See also calendar-documents.spec.js, operations.spec.js.
 ├── notice-archive.js       ← the App Notices archive's rules and its never-throwing read. See also notice-archive.test.mjs.
 ├── guide-search.js         ← the PURE rules of cross-guide search, including the one tokeniser shared with the index generator. Tested by guide-search.test.mjs
 ├── guide-index.js          ← GENERATED cross-guide search index — do NOT hand-edit; `npm run generate:guide-index` with any guide-content change. Pinned by guide-index-parity.test.mjs
@@ -68,9 +68,9 @@ roster-app/
 ├── calendar-notif-prompt.js ← the Calendar's one-off notification prompt and the silent subscription renewal; never for a leftover staff-PIN viewer. Its header. Tested by calendar-notif-prompt.test.mjs
 ├── calendar-doc-access.js ← whether this Calendar may read the DOCUMENTS (Huddle, Circular, Newsletter): the gate their viewers and drawer links consult, read from `calendar-access-state.js`. Its header. Tested by calendar-doc-access.test.mjs
 ├── calendar-access-state.js ← whether Calendar access is HELD right now — the one copy, with one write, read by both the roster gate and the document gate. Its header. Tested by calendar-access-state.test.mjs
-├── calendar-redraw.js ← WHEN the Calendar page may draw and what its next draw owes (start-up stages, the swipe wait, owed focus); draws nothing. Its header. Tested by calendar-redraw.test.mjs. See also calendar.spec.js.
+├── calendar-redraw.js ← WHEN the Calendar page may draw and what its next draw owes (start-up stages, the swipe wait, owed focus); draws nothing. Its header. Tested by calendar-redraw.test.mjs. See also calendar-swipe-redraw.spec.js.
 ├── calendar-drawer.js ← the Calendar's menu for the saved session, and its rebuild after an in-place sign-in. Its header. Tested by calendar-drawer.test.mjs and e2e/calendar-access.spec.js
-├── text-scale.js ← how much larger the phone draws text than the stylesheet asks, and the tier the Calendar's rows key on (`data-text-scale`). Its header. Tested by text-scale.test.mjs. See also calendar.spec.js.
+├── text-scale.js ← how much larger the phone draws text than the stylesheet asks, and the tier the Calendar's rows key on (`data-text-scale`). Its header. Tested by text-scale.test.mjs. See also calendar-phone-layout.spec.js.
 ├── notif.js                ← shared Web Push: support and state, enable/disable, sign-out release, and the platform reads (iOS, standalone, Pages mirror). See also notif.test.mjs.
 ├── select-sheet.js ← the app's OWN dropdown in place of the OS's; the native `<select>` stays as the value holder. The rules an edit can break: its header and select-sheet-parity.test.mjs. Tested by select-sheet.test.mjs and select-sheet-pick.test.mjs. See also calendar.spec.js.
 ├── overlay.js              ← the overlay layer's front door: `createLightbox`, the scroll lock, `openNoticeIfClear` and the in-app confirm/prompt dialogs; re-exports the four below, so every import comes from here. See also overlay.test.mjs, overlay-history.test.mjs.
@@ -100,7 +100,7 @@ roster-app/
 ├── usage-stats.js          ← pure usage maths behind the Usage card
 ├── perf-reporter.js        ← the shared anonymous latency recorder behind the App Speed card; only time somebody spent waiting is counted. See also perf-reporter.test.mjs.
 ├── perf-stats.js           ← pure latency maths behind the App Speed card
-├── calendar-team-view.js        ← Team Week View; its overrides come from the SHARED month fetch, with no Firestore read of its own. See also CALENDAR_DATA.md, team-week-start.test.mjs, calendar.spec.js.
+├── calendar-team-view.js        ← Team Week View; its overrides come from the SHARED month fetch, with no Firestore read of its own. See also CALENDAR_DATA.md, team-week-start.test.mjs, calendar-team-view.spec.js.
 ├── calendar-tips.js             ← CARD_TIPS for Team Week View's `?`, in the shared Tips panel (tips-lightbox.js). See also tips-content.test.mjs.
 ├── al-contract.js ← a member's CONTRACT leave allowance for a year; read it through `entitlementFor`. Pure; tested by al-entitlement.test.mjs
 ├── al-entitlement.js ← which annual-leave days consume entitlement and where that leaves a member — the ONE answer every surface asks. Its header. Pure; tested by al-entitlement.test.mjs
@@ -109,7 +109,7 @@ roster-app/
 ├── al-leave-plan.js ← what one Save of the Annual leave sheet writes, its upload log and Undo. Pure; tested by al-leave-plan.test.mjs
 ├── al-leave-save.js ← the Annual leave sheet's Save against Firestore, the upload log and the Undo. Tested by al-leave-save.test.mjs
 ├── al-leave-words.js ← every sentence the Annual leave sheet card says. Pure; tested by al-leave-words.test.mjs
-├── christmas-leave.js ← Christmas Day and Boxing Day leave and the Boxing Day lieu day, derived, never stored; `resolveDayShift` is what every surface calls. Its header. Pure; tested by christmas-leave.test.mjs. See also CALENDAR_DATA.md, calendar.spec.js, admin.spec.js.
+├── christmas-leave.js ← Christmas Day and Boxing Day leave and the Boxing Day lieu day, derived, never stored; `resolveDayShift` is what every surface calls. Its header. Pure; tested by christmas-leave.test.mjs. See also CALENDAR_DATA.md, calendar-leave-panel.spec.js, admin-leave-records.spec.js.
 ├── leave-year.js ← WHICH YEAR'S ALLOWANCE a day of leave comes out of (a January day may carry `leaveYear`). Pure; tested by leave-year.test.mjs
 ├── admin-leave-year.js ← the Admin AL card's "Which year's allowance" panel; draws, decides nothing. Tested by admin-leave-year.test.mjs
 ├── admin-leave-year-save.js ← the save behind that panel, in one checked transaction. Tested in admin-overrides.test.mjs
@@ -119,14 +119,14 @@ roster-app/
 ├── admin-day-pills.js ← which changes one week-grid day takes, refused at its pills (layer 1 of the Sunday rule). Its header. See also admin-day-pills.test.mjs.
 ├── admin-own-write.js ← what the page's own write does to the week on screen: only the touched days redraw. Its header
 ├── admin-bulk-apply.js ← what the week card's bulk Apply is waiting for, and the days it left alone; not a layer of the Sunday rule
-├── admin-time-inputs.js ← the Admin week grid's time boxes. Its re-entry guard is load-bearing on iOS — the header says why. See also admin.spec.js.
+├── admin-time-inputs.js ← the Admin week grid's time boxes. Its re-entry guard is load-bearing on iOS — the header says why. See also admin-week-grid.spec.js.
 ├── admin-week-collect.js ← what one press of the week grid's Save asks to write (Sunday rule layer 6). Its header. Tested by override-utils.test.mjs
 ├── admin-al-week-save.js ← what one week-grid save does about its annual leave, and the same for a Saved Changes delete. Its header. Pure; tested by admin-al-week-save.test.mjs
 ├── overtime-sunday-release.js ← asking to be taken off a rostered Sunday: a request that grants nothing. Pure; tested by overtime-sunday-release.test.mjs
 ├── overtime-phase.js ← where the Overtime week stands, in the member's terms (words for TIME); re-exported from overtime-format.js. Pinned by overtime-format.test.mjs. See also OVERTIME_AVAILABILITY.md.
 ├── overtime-answer.js ← the one place a day's answer is edited on the Overtime form. Its header. Pure; tested by overtime-answer.test.mjs. See also overtime.spec.js.
-├── al-swapped-days.js ← which days in an AL booking need the swapped-day question, and the rest days an absence range leaves alone. Its header. Pure; tested by al-swapped-days.test.mjs and e2e/admin.spec.js
-├── admin-al-spare-note.js ← the one sentence the AL booking preview says about Spare days. Pure; tested by admin-al-spare-note.test.mjs and e2e/admin.spec.js
+├── al-swapped-days.js ← which days in an AL booking need the swapped-day question, and the rest days an absence range leaves alone. Its header. Pure; tested by al-swapped-days.test.mjs and e2e/admin-rest-day-swap.spec.js
+├── admin-al-spare-note.js ← the one sentence the AL booking preview says about Spare days. Pure; tested by admin-al-spare-note.test.mjs and e2e/admin-leave-spare.spec.js
 ├── admin-period-dates.js ← what a run of booked dates is and how it reads. **A gap is not a day off.** Pure; tested by admin-period-dates.test.mjs
 ├── admin-booked-periods.js ← the recorded-dates list on admin.html and which year of it is shown. Its header. Tested by admin-booked-periods.test.mjs
 ├── admin-period-delete.js ← a Recorded-dates row's ✕: what one period delete does, in order, every dependency injected. Its header. Tested by admin-period-delete.test.mjs
@@ -165,22 +165,22 @@ roster-app/
 ├── doc-upload.js           ← the shared Operations upload-card skeleton (Huddle, Circular, Newsletter): pick, validate, optional transform, upload, feedback. See also doc-upload.test.mjs.
 ├── admin-auth.js ← Staff Login Accounts: the provisioning button and the read-only audit above it. Its header. Tested by admin-auth.test.mjs
 ├── admin-al.js             ← the Annual Leave Booking card: a config wrapper over admin-range-booking.js. See also admin-range-booking.test.mjs, admin-al-projection.test.mjs.
-├── admin-sick.js           ← the Record Absence card: a config wrapper over admin-range-booking.js. See also admin.spec.js.
+├── admin-sick.js           ← the Record Absence card: a config wrapper over admin-range-booking.js. See also admin-leave-booking.spec.js.
 ├── admin-range-booking.js  ← the shared skeleton of the two date-range booking cards. See also admin-range-booking.test.mjs.
 ├── admin-save-receipt.js ← what a save actually DID, day by day; a removed day is named, not omitted. Pure; tested by admin-save-receipt.test.mjs
-├── slow-save.js ← the one line shown while a save waits for the server; never says "saved" (its header says why). Tested by slow-save.test.mjs and e2e/admin.spec.js
+├── slow-save.js ← the one line shown while a save waits for the server; never says "saved" (its header says why). Tested by slow-save.test.mjs and e2e/admin-saves.spec.js
 ├── admin-shift-types.js ← the shift-type table Change a Shift speaks. **`PILL_TYPES` is the ONE declaration of which pills exist and in what order.** Tested by admin-shift-types.test.mjs
-├── admin-week-editor.js ← the seven-day grid, its pills, the bulk bar and everything staged but not saved. Its header. See also admin-week-editor.test.mjs, admin.spec.js.
-├── admin-saved-changes.js ← the Saved Changes list and both delete paths; it may not claim completeness it does not have. Its header. See also admin-saved-changes.test.mjs, admin.spec.js.
+├── admin-week-editor.js ← the seven-day grid, its pills, the bulk bar and everything staged but not saved. Its header. See also admin-week-editor.test.mjs, admin-week-grid.spec.js.
+├── admin-saved-changes.js ← the Saved Changes list and both delete paths; it may not claim completeness it does not have. Its header. See also admin-saved-changes.test.mjs, admin-leave-records.spec.js, admin-saves.spec.js.
 ├── admin-override-store.js ← the Admin override cache, its staged reads and their on-screen states. Its header
 ├── override-id.js ← the ONE document id a manual override for a member and date is written to. Pure; its header. See also override-utils.test.mjs, admin-overrides.test.mjs.
 ├── override-compare.js ← whether the server's copy of a day is still the record the page showed. Pure; its header. See also admin-override-store.test.mjs, admin-roster-upload.test.mjs, admin-overrides.test.mjs, signed-in.spec.js.
 ├── admin-override-coverage.js ← what the Admin override cache KNOWS: authority comes from what was REQUESTED, never from the data. Pure; tested by admin-override-coverage.test.mjs
 ├── admin-shift-rules.js    ← shift-length, rest and day rules for Change a Shift; it decides, the caller paints. Its header. Tested by admin-shift-rules.test.mjs
 ├── admin-overrides.js      ← Change a Shift COORDINATION: the write paths, rule validation and the section wiring. See also admin-overrides.test.mjs.
-├── admin-week-swipe.js ← the week-grid SWIPE on admin.html (Pointer Events; not shared with calendar-swipe.js). Covered by e2e/admin.spec.js
+├── admin-week-swipe.js ← the week-grid SWIPE on admin.html (Pointer Events; not shared with calendar-swipe.js). Covered by e2e/admin-week-grid.spec.js
 ├── admin-rangepicker.js    ← the inline date-range calendar. See also admin-rangepicker.test.mjs.
-├── admin-deep-link.js ← where a hash on admin.html LANDS, including nested targets. Tested by admin-deep-link.test.mjs. See also admin.spec.js.
+├── admin-deep-link.js ← where a hash on admin.html LANDS, including nested targets. Tested by admin-deep-link.test.mjs. See also admin-leave-booking.spec.js.
 ├── roster-alignment.js ← whether a roster read is trustworthy or a day out, judged against the member's own base pattern; and which week the form offers first. Its header. Tested by admin-roster-upload.test.mjs. See also operations.spec.js.
 ├── roster-cell-rules.js ← what a parsed roster cell MEANS as an override; every path producing a review value goes through it. Its header. Tested by roster-cell-rules.test.mjs
 ├── roster-entry-control.js ← answering an unreadable roster cell in place. Its header. See also admin-roster-upload.test.mjs, operations.spec.js.
@@ -188,19 +188,19 @@ roster-app/
 ├── roster-review-rows.js ← one roster review row's markup per cell state; draws `chosen`, never decides it. Pure; its header. Tested by admin-roster-upload.test.mjs
 ├── admin-roster-upload.js  ← Weekly Roster Upload COORDINATION: the review table, the file pick, the parse call and a refused Save. See also coordinator-ratchet.test.mjs.
 ├── roster-import-save.js   ← what one Save of the roster review writes, and its refusal line
-├── paycalc-app.js          ← coordinator for paycalc.html (wiring, autosave, the result card); body is `init()`, run by paycalc-boot.js. See also paycalc.spec.js.
+├── paycalc-app.js          ← coordinator for paycalc.html (wiring, autosave, the result card); body is `init()`, run by paycalc-boot.js. See also the paycalc-*.spec.js files.
 ├── paycalc-boot.js         ← two-line bootstrap for paycalc.html (CSP blocks inline module scripts)
-├── paycalc-sticky-total.js ← the bar that keeps the take-home figure on screen; every guard fixes a reported iOS behaviour (its header). See also paycalc-sticky-total.test.mjs, paycalc.spec.js.
-├── paycalc-role-card.js ← what the calculator says to somebody it will not price; who is refused is pay-audience.js. See also paycalc-role-card.test.mjs, paycalc.spec.js.
+├── paycalc-sticky-total.js ← the bar that keeps the take-home figure on screen; every guard fixes a reported iOS behaviour (its header). See also paycalc-sticky-total.test.mjs, paycalc-hours-entry.spec.js, paycalc-layout.spec.js.
+├── paycalc-role-card.js ← what the calculator says to somebody it will not price; who is refused is pay-audience.js. See also paycalc-role-card.test.mjs, paycalc-grades.spec.js.
 ├── paycalc-result-headline.js ← which figure is the pay result's headline and what it is called. **An actual is never called an estimate.** Tested by paycalc-result-headline.test.mjs
 ├── paycalc-ytd-card.js     ← the Year to Date card on the page; owns no rule. Tested by paycalc-ytd-card.test.mjs
 ├── paycalc-disclosures.js  ← the Pay page's button-and-panel disclosures. Tested by paycalc-disclosures.test.mjs
-├── paycalc-clear-confirm.js ← the two-tap "Clear all entries": the arm, the countdown and which tap confirms. Tested by paycalc-clear-confirm.test.mjs. See also paycalc.spec.js.
-├── paycalc-money-banner.js ← the two opt-in money banners and their ticks and links; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc.spec.js.
-├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html. See also paycalc.spec.js.
+├── paycalc-clear-confirm.js ← the two-tap "Clear all entries": the arm, the countdown and which tap confirms. Tested by paycalc-clear-confirm.test.mjs. See also paycalc-entries.spec.js.
+├── paycalc-money-banner.js ← the two opt-in money banners and their ticks and links; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc-backpay.spec.js.
+├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html. See also paycalc-layout.spec.js.
 ├── paycalc-periods.js      ← period arithmetic and the period select, and the Year to Date source rules. See also paycalc-periods.test.mjs.
 ├── paycalc-settings.js     ← each payslip's rate, contracted hours, the pension controls and settings persistence. See also paycalc-settings.test.mjs.
-├── paycalc-grade-setting.js ← the member's grade setting on this device, whether a payslip can be priced, and what the page says about it. See also paycalc-grade-setting.test.mjs, paycalc-grade-wiring.test.mjs, paycalc.spec.js.
+├── paycalc-grade-setting.js ← the member's grade setting on this device, whether a payslip can be priced, and what the page says about it. See also paycalc-grade-setting.test.mjs, paycalc-grade-wiring.test.mjs, paycalc-grades.spec.js.
 ├── paycalc-grade.js        ← which grade each of a payslip's days was worked under, and its words. Pure. See also paycalc-grade.test.mjs.
 ├── paycalc-roster-hint.js  ← the roster-assist hint bar and its fills. See also paycalc-roster-hint.test.mjs.
 ├── paycalc-hpp.js          ← the Holiday Pay Premium estimator and shared period helpers. See also paycalc-hpp.test.mjs.
@@ -666,14 +666,44 @@ roster-app/
 │   ├── guide-colour-parity.test.mjs ← the guide palettes' contract with the app. Part of test:hygiene
 │   ├── module-parse.test.mjs   ← every root JS module parses as an ES module (`node --check` misses ES-module syntax errors)
 ├── e2e/                    ← the Playwright smoke suite (`npm run test:e2e`): every page in headless Chromium with the Firebase SDK stubbed. NOT part of `npm test`; CSP header violations need `npm run test:csp`
-│   ├── calendar.spec.js ← the Calendar for a signed-in member: render, stale member, dropdown, drawer and guide opens
+│   ├── calendar-day-detail.spec.js ← the Calendar's day-detail panel: what a day is, what it changed from, its personal actions, one Back out
+│   ├── calendar-documents.spec.js ← the Huddle, Circular and Newsletter buttons, drawer entries and viewers
+│   ├── calendar-leave-panel.spec.js ← the Calendar's leave panel: its balance, year, links and Christmas leave
+│   ├── calendar-team-view.spec.js ← Team Week View: the week it opens on, the week jump, its table and swipe hint
+│   ├── calendar-loading.spec.js ← a month withheld until its records are known: the retry, the sync chip, the saved copy, the month kept across a reload
+│   ├── calendar-swipe-redraw.spec.js ← the month swipe and the `redraw:` tests; focus kept across a rebuilt grid
+│   ├── calendar-notices.spec.js ← the install strip and the Calendar's one-time notices, and their order
+│   ├── calendar-drawer-guides.spec.js ← the drawer, guide links and guide search, the telemetry identity, the bug report
+│   ├── calendar-member-picker.spec.js ← the name picker, a member gone from the list, and the iPhone focus and touch checks
+│   ├── calendar-phone-layout.spec.js ← the Calendar at phone widths and under text scaling
+│   ├── calendar-desktop.spec.js ← the Calendar's desktop audit (CAL1–CAL12) and its header from 768px
+│   ├── calendar-helpers.js ← what more than one calendar-*.spec.js needs (not a spec)
 │   ├── calendar-access.spec.js ← the Calendar's access gate in a real browser: no roster data in a locked DOM, and a leftover staff-PIN session signed out on every page. Its header
 │   ├── auth.spec.js        ← the sign-in overlay and named-session enforcement on every authenticated page
-│   ├── paycalc.spec.js ← the Pay Calculator's sign-in, period selector, layout, notices and backup wiring
+│   ├── paycalc-page.spec.js ← the Pay Calculator's sign-in, period selector and picker, privacy note and desktop workspace
+│   ├── paycalc-calendar-fill.spec.js ← figures from the calendar: the gold highlight, Fill this tax year, Fill and Replace
+│   ├── paycalc-entries.spec.js ← entered hours and settings: what a settings change may save, the loan line, Clear all entries
+│   ├── paycalc-ytd.spec.js ← the payslip check and the Year to Date figures
+│   ├── paycalc-notices.spec.js ← the Pay notices and the Holiday Pay Premium, a joiner's included
+│   ├── paycalc-backup.spec.js ← backup and restore, the share sheet, a browser that will not save
+│   ├── paycalc-pension.spec.js ← the pension opt-out
+│   ├── paycalc-backpay.spec.js ← the back-pay and premium lumps, the take-home £ and the loan rows
+│   ├── paycalc-grades.spec.js ← grades and roles: the unsupported-role card, a manager, a promotion, a grade chosen by hand
+│   ├── paycalc-layout.spec.js ← how the Pay page is drawn, and its desktop audit (PAY1–PAY12)
+│   ├── paycalc-hours-entry.spec.js ← typing hours: decimal commas and minutes, the iPhone keypad, the Saturday hours
+│   ├── paycalc-helpers.js ← what more than one paycalc-*.spec.js needs, the roster rows chosen by shape included (not a spec)
 │   ├── paycalc-cards.spec.js ← the Pay Calculator's occasional cards against the rest of the page
 │   ├── pages.spec.js       ← the browser tests that SPAN pages: every-page sweeps, the drawer, dialogs, the select sheet, large text. The `@a11y` `KNOWN_SMALL` baseline only shrinks
 │   ├── every-page.spec.js  ← the release gate's iPhone check (deploy-hosting.yml's `safari` job): every page opens, every guide draws, every old address lands. Pages from scripts/app-pages.mjs
-│   ├── admin.spec.js       ← Admin in a real browser
+│   ├── admin-unsaved-work.spec.js ← Admin's staged work: leaving or signing out with edits, the kept draft, the week read again on return
+│   ├── admin-leave-booking.spec.js ← booking leave and absence: the AL banner, the leave year, the leave picker, the preview
+│   ├── admin-leave-spare.spec.js ← leave in a Spare week and what it costs
+│   ├── admin-rest-day-swap.spec.js ← leave on a rest day: the swap question and what each answer writes
+│   ├── admin-leave-records.spec.js ← the Recorded dates list by year, its deletes, and focus after one
+│   ├── admin-saves.spec.js ← Admin's saves: the receipt, a slow or revoked save, a colleague's change refused, the page's own write
+│   ├── admin-week-grid.spec.js ← the week grid: time boxes, the Sunday and Christmas rules, the bulk bar, its columns, the swipe and week jump
+│   ├── admin-layout.spec.js ← how Admin is drawn: readable chips, the Unsaved bar, the desktop audit
+│   ├── admin-helpers.js ← what more than one admin-*.spec.js needs (not a spec)
 │   ├── clock-box-properties.spec.js ← a real text clock box under seeded random edit sequences: never a time nobody typed, never a caret thrown past a digit. Desktop projects only; its header
 │   ├── links.spec.js       ← the Links workspace in a real browser (the shortlist's own row is links-shortlist.spec.js)
 │   ├── operations.spec.js  ← Operations in a real browser

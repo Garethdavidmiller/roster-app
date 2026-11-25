@@ -22,7 +22,7 @@
  * every test that draws, not only by the ones named after them.
  *
  * The coordinator cannot be loaded here, so its wiring is pinned from the SOURCE at the foot, and
- * walked in a real browser by e2e/calendar.spec.js (the `redraw:` tests).
+ * walked in a real browser by e2e/calendar-swipe-redraw.spec.js (the `redraw:` tests).
  *
  * Pure module: no DOM, no Firebase, no mocks.
  */
@@ -542,7 +542,7 @@ describe('what is owed can be read, and is a copy', () => {
 
 // ── THE PAGE'S WIRING, PINNED FROM THE SOURCE ───────────────────────────────────────────────────
 // calendar-app.js cannot be loaded here (it is the page). What these pin is that the page hands the
-// decisions over and keeps none of its own; that they WORK in a browser is e2e/calendar.spec.js.
+// decisions over and keeps none of its own; that they WORK in a browser is e2e/calendar-swipe-redraw.spec.js.
 describe('calendar-app.js hands the decisions over, and keeps none', () => {
     const app = read('calendar-app.js');
     const code = app.split('\n').filter(l => !l.trim().startsWith('//') && !l.trim().startsWith('*')).join('\n');

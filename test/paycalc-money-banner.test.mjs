@@ -282,7 +282,7 @@ function fakeDom() {
 // it does not recognise — a variable renamed, the amount computed inline, the whole block moved to
 // another module. Each of those fails here loudly rather than silently, which is the behaviour wanted
 // from a static guard. The behavioural guard of the whole chain is the rendered page:
-// `e2e/paycalc.spec.js` drives the tick and asserts the rendered £ beside the rendered sentence.
+// `e2e/paycalc-backpay.spec.js` drives the tick and asserts the rendered £ beside the rendered sentence.
 
 describe('the CALLER passes the added sum, not the available one', () => {
     const APP = readFileSync(new URL('./paycalc-app.js', REPO_ROOT_URL), 'utf8');

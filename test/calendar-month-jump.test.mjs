@@ -8,7 +8,7 @@
  * The lightbox lifecycle is overlay.js's and is mocked here (its own suites own it); what is asserted
  * is the picker's contract — the selects it fills, the month Go to month moves to, and the two ways a
  * lost grant stops it moving the month behind the lock card (17 Nov 2026). The journey in a browser
- * is e2e/calendar.spec.js's.
+ * is e2e/calendar-access.spec.js's.
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';

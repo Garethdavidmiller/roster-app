@@ -10,7 +10,7 @@
  * direction is a delete nobody confirmed: one tap, a double tap, or a confirm left armed on the
  * payslip before. The cheap direction — a confirm that never takes — is held too, because a guard
  * that ignores every second tap would pass the first half alone. The rendered countdown and the
- * whole page around it are e2e/paycalc.spec.js's ("Clear all entries" needs a second tap…).
+ * whole page around it are e2e/paycalc-entries.spec.js's ("Clear all entries" needs a second tap…).
  */
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';

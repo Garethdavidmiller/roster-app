@@ -26,7 +26,7 @@
 // Only `npm ci` and `npm ci --prefix functions`: the unit lanes and the Functions suites. No
 // browser, no emulator — the sweep is cheap enough to run weekly in full (mutation.yml). A wiring
 // line only a browser can see (the page coordinators — `navigateToPaycalc`'s gate in calendar-app.js
-// is e2e/calendar.spec.js's "offers no jump from a colleague's month") is the browser lanes' work,
+// is e2e/calendar-day-detail.spec.js's "offers no jump from a colleague's month") is the browser lanes' work,
 // and is not listed here as if it were covered. paycalc-app.js's `calculate()` shows the way out: the
 // rules that decided its pricing left it for a pure function (`takeHomeInputs`, paycalc-calc.js,
 // 25 Nov 2026), so they are listed below against the tests that call it.

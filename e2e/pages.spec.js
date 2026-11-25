@@ -5,7 +5,7 @@
  * and the large-text family that holds three pages to one layout rule.
  *
  * Until 3 Nov 2026 it also held every Admin, Links, Operations, Settings and guide test, in one
- * file of 10,599 lines. Those now live in admin.spec.js, links.spec.js,
+ * file of 10,599 lines. Those now live in the admin-*.spec.js files (split by feature on 25 Nov 2026), links.spec.js,
  * operations.spec.js, settings.spec.js and guides.spec.js, moved test for test and unchanged.
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';

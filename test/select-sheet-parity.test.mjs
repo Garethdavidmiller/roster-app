@@ -786,7 +786,7 @@ test('a `.value =` on an enhanced select announces itself, or rebuilds, or repai
 //
 // THE FIX THAT LOOKED RIGHT AND WAS NOT, recorded because it is the tempting one: pinning the
 // selects themselves with `top: 0; left: 0`. It cured the page height and moved the Calendar's
-// member select onto the ← Prev button — caught by `e2e/calendar.spec.js`'s overlap guard at six
+// member select onto the ← Prev button — caught by `e2e/calendar-phone-layout.spec.js`'s overlap guard at six
 // widths and two projects. The defect is that the CLIP does not reach the select, not that the
 // select is in the wrong place, and the fix has to say so. `position: relative` moves nothing.
 //
