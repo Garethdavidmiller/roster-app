@@ -25,7 +25,7 @@ import { getCurrentMember, isFirstRun } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { formatISO, paydayForCutoff, parseISODate, CONFIG } from './roster-data.js';
-import { countedAlDates, alPosition, entitlementNote } from './al-entitlement.js';
+import { countedAlDates, alPosition, entitlementNote, balanceFace } from './al-entitlement.js';
 import { christmasLeaveDates, christmasLeaveLine, boxingDayForAllowance, CHRISTMAS_LEAVE_FROM_YEAR } from './christmas-leave.js';
 import { carryLine } from './leave-year.js';
 import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './calendar-snapshot.js';
@@ -151,12 +151,13 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
     entEl.textContent    = String(s.entitlement);
     takenEl.textContent  = String(s.taken);
     bookedEl.textContent = String(s.booked);
-    // OVER, NOT MINUS (v24.46 polish). "-16 REMAINING" read as an error code; past the entitlement
-    // the cell says how far over, in the same red, and its label says so — the group is labelled by
-    // that label, so a screen reader hears "Over, 16" too.
-    remEl.textContent    = String(Math.abs(remaining));
-    if (remLblEl) remLblEl.textContent = remaining < 0 ? 'Over' : 'Remaining';
-    remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
+    // OVER, NOT MINUS (v24.46 polish; the rule is `balanceFace`, al-entitlement.js, which Admin shares).
+    // Past the entitlement the cell says how far over, in the same red, and its label says so — the
+    // group is labelled by that label, so a screen reader hears "Over, 16" too.
+    const face = balanceFace(remaining);
+    remEl.textContent    = face.figure;
+    if (remLblEl) remLblEl.textContent = face.label;
+    remEl.className      = 'al-lb-val' + (face.tone === 'none' ? ' empty' : face.tone === 'low' ? ' low' : '');
     // A footnote under the figures since 22 Nov 2026, not a caption inside the Entitlement cell, so it
     // names the figure it explains: "Entitlement 33: includes 1 day in lieu for working Boxing Day 2026".
     if (breakdownEl) {

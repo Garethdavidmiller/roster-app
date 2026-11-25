@@ -6,7 +6,7 @@
 import { expect } from '@playwright/test';
 import { ROTATING_LINES } from '../links-design.js';
 import { shouldReport } from '../client-errors.js';
-import { TWO_TAP_MIN_MS } from '../admin-booked-periods.js';
+import { TWO_TAP_MIN_MS } from '../two-tap.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid

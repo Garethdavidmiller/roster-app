@@ -74,9 +74,9 @@ function leftAloneLine(date, ov) {
  * @param {Function}          deps.syncSickMemberDisplay Updates the sick read-only member label
  * @param {Function}          deps.populateMemberDropdown Fills a <select> with teamMembers
  * @param {string|null}       deps.lastMember           Last-used member name from localStorage
- * @param {Function}          deps.updateALBanner       Refreshes the AL entitlement banner
- * @param {Function}          deps.updateALBookedBox    Refreshes the AL booked-periods box
  * @param {Function}          deps.updateSickBookedBox  Refreshes the sick booked-periods box
+ * @param {() => void}        deps.refreshLeaveViews    Redraws every view of the member's leave and absence —
+ *   banner, both lists, both previews (admin-app.js) — once an absence is saved
  * @param {() => (string|null)} deps.getCurrentUser      Live getter for the logged-in user name (for the
  *   changedBy field) — a getter, not a value, so an in-place sign-in (Phase 9) is reflected at write time
  * @param {Function}          deps.showInChangeAShift   Jumps the Change a Shift section to a member + date
@@ -88,7 +88,7 @@ function leftAloneLine(date, ov) {
 export function initSickSection({
     sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateALBanner, updateALBookedBox, updateSickBookedBox, getCurrentUser, showInChangeAShift, showSuccess,
+    updateSickBookedBox, refreshLeaveViews, getCurrentUser, showInChangeAShift, showSuccess,
     showALConfirm, hideALConfirm,
 }) {
     // "Save anyway" sets the flag and clicks Save again; the click takes it into `confirmed` FIRST
@@ -160,8 +160,8 @@ export function initSickSection({
         // A changed range makes a showing bar stale: "Save anyway" would record the new range unchecked.
         beforePreview: () => hideALConfirm?.(),
         afterDateChange: () => { updateSickBookedBox(); },
-        // Sick recording can overwrite AL days — refresh AL counts too.
-        afterSave: () => { updateALBanner(); updateALBookedBox(); updateSickBookedBox(); },
+        // Sick recording can overwrite AL days — so every view of leave and absence, not only this card's.
+        afterSave: () => refreshLeaveViews(),
         onClick: () => { confirmed = confirmNext; confirmNext = false; },
         // Only a FALLING allowance that leaves the member over raises the bar (header).
         preSave: ({ member, dates, memberObj }) => {

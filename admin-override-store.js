@@ -39,6 +39,7 @@ import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
 import { withOutrankedManualCopies } from './override-utils.js';
 import { sameOverrideRecord, overrideFromSnapshot } from './override-compare.js';
+import { unconfirmedWriteLine, isAccessFailure } from './claim-retry.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
 
 /** @type {any[]} The cache itself. */
@@ -410,6 +411,34 @@ export async function staleDeleteVerdict(items) {
 
 /** The code a refused delete or rewrite throws with; its `line` is what to show. */
 export const DELETE_REFUSED = 'overrides/delete-refused';
+
+/**
+ * What a FAILED DELETE says, for every Admin surface that deletes (a Saved Changes row, Delete
+ * selected, a Recorded-dates row's ✕) — one wording, so none can drift (25 Nov 2026).
+ *
+ * A DELETE NEVER SAYS "Couldn't save". The Recorded-dates delete fell through to the save path's
+ * `saveFailureMessage` and told a manager who had just pressed ✕ that something could not be SAVED.
+ * Each cause keeps its own branch, in the order nothing can confuse:
+ *   · REFUSED (`DELETE_REFUSED`) — the server held something the page did not show; nothing was
+ *     deleted, and the refusal's own line names the days;
+ *   · OFFLINE (`unavailable`) — never blamed on anything else (admin-2-10);
+ *   · UNKNOWN OUTCOME (`unconfirmedWriteLine`) — signed out while it waited, or an earlier write on
+ *     the page unconfirmed: it may still land, so it is never called a failure;
+ *   · anything else — "<what> — " and what to do about it, said for where the fix is: a refusal of
+ *     access is a sign-in, not a poor signal (`isAccessFailure`).
+ * The ⚠ is part of the line (status-text.js keeps it out of what a screen reader hears).
+ * @param {any} err
+ * @param {string} what the lead of the last branch: 'Could not delete', 'Bulk delete failed'
+ * @returns {string}
+ */
+export function deleteFailureLine(err, what) {
+    if (err?.code === DELETE_REFUSED) return '⚠ ' + err.line;
+    if (err?.code === 'unavailable') return '⚠ You appear to be offline — reconnect and try again.';
+    const unsure = unconfirmedWriteLine(err, 'this delete', 'Saved Changes');
+    if (unsure) return '⚠ ' + unsure;
+    return `⚠ ${what} — ` + (isAccessFailure(err)
+        ? 'you may have been signed out. Please sign in again.' : 'check your connection and try again.');
+}
 
 /**
  * The rows as this page shows them NOW, for `ids` — called at the moment the person acts, before any

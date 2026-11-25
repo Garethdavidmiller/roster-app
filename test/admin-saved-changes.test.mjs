@@ -172,8 +172,15 @@ mock.module('../firebase-client.js', {
         auth: _mockAuth,
         writeWithClaimRetry: (/** @type {Function} */ fn) => fn(),
         COLLECTIONS: { overrides: 'overrides' },
+        // Only so the REAL store below can load for its failure wording; nothing here reads Firestore.
+        ...Object.fromEntries(['collection', 'query', 'where', 'orderBy', 'limit', 'getDocs', 'getDoc', 'doc',
+            'runTransaction', 'writeBatch', 'whenOwnWritesSentFor'].map(n => [n, () => { throw new Error(`${n} is not used here`); }])),
     },
 });
+mock.module('../session.js', { namedExports: { sessionReady: Promise.resolve() } });
+/** A FAILED DELETE'S WORDS ARE THE STORE'S REAL ONES (`deleteFailureLine`, 25 Nov 2026), loaded under their
+ *  own query string beside the mocked store below, so the wording these tests read is what ships. */
+const { deleteFailureLine } = await import('../admin-override-store.js?real');
 /** Rows the store will hand back, and whether it claims to hold EVERY member. Both are `let`s
  *  because the render's two disclosure questions — whose rows are these, and do we know about
  *  everyone — are answered from them, and a fixed mock can only ever exercise one answer. */
@@ -221,6 +228,7 @@ mock.module('../admin-override-store.js', {
         asShown: (/** @type {string[]} */ ids) => ids.map(id => _rows.find(o => o.id === id) ?? id),
         staleDeleteVerdict: async () => _staleVerdict,
         DELETE_REFUSED: 'overrides/delete-refused',
+        deleteFailureLine,
         removeFromCache: (/** @type {string[]} */ ids) => { _removed.push([...ids]); },
         isTruncated: () => false,
         coversAllStaff: () => _coversAll,
@@ -257,7 +265,7 @@ mock.module('../admin-al-week-save.js', {
 let _bars = [];
 
 const { initSavedChanges, renderTable, resetTableMemberFilter } = await import('../admin-saved-changes.js');
-const { TWO_TAP_MIN_MS } = await import('../admin-booked-periods.js');
+const { TWO_TAP_MIN_MS } = await import('../two-tap.js');
 
 const PAGE_IDS = ['overrideTableBody', 'bulkDeleteBtn', 'listFeedback', 'selectAllOverrides',
                  'overridesMonthFilter', 'fieldMember', 'fieldDate', 'listCount',
@@ -341,7 +349,7 @@ beforeEach(() => { _commit = async () => {}; _deleted = []; _batchSizes = []; _h
 // Not `--test-force-exit`, which has silently dropped tests in this repo.
 //
 // THE TWO TAPS ARE TWO (confirm review, Nov 2026): a tap sooner than `TWO_TAP_MIN_MS` after arming is
-// the same gesture and confirms nothing (admin-booked-periods.js). That minimum is read on
+// the same gesture and confirms nothing (two-tap.js). That minimum is read on
 // `performance.now()`, which here moves on by the minimum at every read, so each tap in these cases
 // lands as a separate, considered one; the case that taps twice AT ONCE pins its own clock (section 1d).
 let _clock = 0;

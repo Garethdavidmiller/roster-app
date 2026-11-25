@@ -27,13 +27,14 @@ import { auth, writeWithClaimRetry } from './firebase-client.js';
 import { planAlDelete } from './admin-al-week-save.js';
 import { TYPES, rowValueText } from './admin-shift-types.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates,
-         asShown, deleteIfUnchanged, deleteChunks, staleDeleteVerdict, DELETE_REFUSED, hasOverrideAuthorityFor, loadFailedFor } from './admin-override-store.js';
+         asShown, deleteIfUnchanged, deleteChunks, staleDeleteVerdict, DELETE_REFUSED, deleteFailureLine, hasOverrideAuthorityFor, loadFailedFor } from './admin-override-store.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, isAccessFailure } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';
 import { withClearedDays } from './admin-own-write.js';
-// The two-tap ✕ and the feedback line's fade, shared with the Recorded-dates lists (their header says why).
-import { twoTap, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
+// The two-tap ✕ and the feedback line's fade, shared with the Recorded-dates lists (their headers say why).
+import { twoTap, disarmConfirm } from './two-tap.js';
+import { holdFeedback, fadeFeedback } from './feedback-line.js';
 
 const BULK_DELETE_CHUNK = 200;   // per transaction — under Firestore's 500, as the range booking's are
 
@@ -258,7 +259,7 @@ const _deleteOverage = (rows) => planAlDelete({ rows, members: teamMembers, over
 async function _handleDelete(e) {
     const btn     = /** @type {HTMLButtonElement|null} */ (/** @type {Element} */ (e.target).closest('.btn-delete'));
     if (!btn) return;
-    if (!twoTap(btn, 'Delete?', '✕')) return;   // arms, or the same gesture's second tap (admin-booked-periods.js)
+    if (!twoTap(btn, 'Delete?', '✕')) return;   // arms, or the same gesture's second tap (two-tap.js)
     await _deleteRow(btn, false);
 }
 
@@ -304,11 +305,7 @@ async function _deleteRow(btn, confirmed, atPress) {
         btn.disabled = false;
         disarmConfirm(btn, '✕');
         if (hadFocus) btn.focus();
-        _sayList((/** @type {any} */ (err))?.code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
-            : (/** @type {any} */ (err))?.code === 'unavailable'
-            ? '⚠ You appear to be offline — reconnect and try again.'
-            : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
-            : '⚠ Could not delete — ' + _cause(err), 'error');
+        _sayList(deleteFailureLine(err, 'Could not delete'), 'error');   // one wording for every delete (admin-override-store.js)
     }
 }
 
@@ -407,12 +404,11 @@ function _initOverridesTable() {
             if (committed.length) { removeFromCache(committed); renderTable(); cleared = _onOwnWrite(committed.map(id => shown.get(id))); }
             const refused = /** @type {any} */ (err)?.code === DELETE_REFUSED, cause = refused ? PART_REFUSED : _cause(err);
             const unsure = unconfirmedWriteLine(err, 'this delete', 'Saved Changes');
-            // AN UNKNOWN OUTCOME FIRST (it may still land), then PART DONE (a refusal says "nothing was deleted").
-            _sayList(withClearedDays(unsure ? '⚠ ' + unsure
-                : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
-                : refused ? '⚠ ' + /** @type {any} */ (err).line
-                : (/** @type {any} */ (err))?.code === 'unavailable' ? '⚠ You appear to be offline — reconnect and try again.'
-                : '⚠ Bulk delete failed — ' + cause, cleared), 'error');
+            // AN UNKNOWN OUTCOME FIRST (it may still land), then PART DONE (a refusal says "nothing was deleted"),
+            // then the one wording every delete shares (`deleteFailureLine`, admin-override-store.js).
+            _sayList(withClearedDays(committed.length && !unsure
+                ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
+                : deleteFailureLine(err, 'Bulk delete failed'), cleared), 'error');
             refocus = committed.length ? document.getElementById('listFeedback') : bulkDeleteBtn;
         } finally {
             // RESTORE THE LABEL ON EVERY PATH: no re-render replaces this button. Its VISIBILITY is renderTable's.

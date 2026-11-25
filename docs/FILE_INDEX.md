@@ -120,7 +120,11 @@ roster-app/
 ├── al-swapped-days.js ← which days in an AL booking need the swapped-day question, and the rest days an absence range leaves alone. Its header. Pure; tested by al-swapped-days.test.mjs and e2e/admin.spec.js
 ├── admin-al-spare-note.js ← the one sentence the AL booking preview says about Spare days. Pure; tested by admin-al-spare-note.test.mjs and e2e/admin.spec.js
 ├── admin-period-dates.js ← what a run of booked dates is and how it reads. **A gap is not a day off.** Pure; tested by admin-period-dates.test.mjs
-├── admin-booked-periods.js ← the recorded-dates list on admin.html and which year of it is shown, plus the shared two-tap and feedback fade. Its header. Tested by admin-booked-periods.test.mjs
+├── admin-booked-periods.js ← the recorded-dates list on admin.html and which year of it is shown. Its header. Tested by admin-booked-periods.test.mjs
+├── admin-period-delete.js ← a Recorded-dates row's ✕: what one period delete does, in order, every dependency injected. Its header. Tested by admin-period-delete.test.mjs
+├── admin-confirm-bar.js ← the over-allowance question's bar on admin.html: whose question it is, and what Save anyway does. Its header. Tested by admin-confirm-bar.test.mjs
+├── two-tap.js ← the two-tap destructive control (arm, then confirm), shared by Admin's lists and Operations. Its header. Tested by two-tap.test.mjs
+├── feedback-line.js ← a feedback line's one fade, cancelled by every later write to it. Tested by two-tap.test.mjs
 ├── print-guard.js      ← whether `window.print()` can do anything here (it does nothing in an iOS home-screen app); every print control goes through `printOrExplain`. Tested by print-guard.test.mjs. See also print.spec.js.
 ├── clock-input.js      ← the rules of a TEXT clock box, shared by every page with one, and each box's memory of whether its digits are an EDIT. Tested by clock-input.test.mjs
 ├── override-utils.js   ← override, member-start and shift helpers, including `resolveEffectiveShift` (the override→display ladder); re-exports other-day.js. See also coordinator-ratchet.test.mjs.
@@ -173,6 +177,7 @@ roster-app/
 ├── roster-cell-rules.js ← what a parsed roster cell MEANS as an override; every path producing a review value goes through it. Its header. Tested by roster-cell-rules.test.mjs
 ├── roster-entry-control.js ← answering an unreadable roster cell in place. Its header. See also admin-roster-upload.test.mjs, operations.spec.js.
 ├── roster-review-states.js ← the state of each roster-review cell, whether it is ticked, and what a Save writes. **Never "write it" where anything is in doubt.** Its header. See also admin-roster-upload.test.mjs.
+├── roster-review-rows.js ← one roster review row's markup per cell state; draws `chosen`, never decides it. Pure; its header. Tested by admin-roster-upload.test.mjs
 ├── admin-roster-upload.js  ← Weekly Roster Upload COORDINATION: the review table, the file pick, the parse call and a refused Save. See also coordinator-ratchet.test.mjs.
 ├── roster-import-save.js   ← what one Save of the roster review writes, and its refusal line
 ├── paycalc-app.js          ← coordinator for paycalc.html (wiring, autosave, the result card); body is `init()`, run by paycalc-boot.js. See also paycalc.spec.js.
@@ -428,8 +433,11 @@ roster-app/
 │   ├── admin-leave-year.test.mjs ← the Admin leave-year panel's markup and wiring. Part of test:hygiene
 │   ├── admin-al-year.test.mjs ← which year the Admin AL figures state. Part of test:hygiene
 │   ├── admin-booked-periods.test.mjs ← the booked-periods year selector and its precedence. Part of test:hygiene
+│   ├── two-tap.test.mjs ← the two-tap control and a feedback line's fade, driven directly. Part of test:hygiene
+│   ├── admin-confirm-bar.test.mjs ← the over-allowance bar: a card may hide only its own question. Part of test:hygiene
 │   ├── admin-week-editor.test.mjs ← the week grid's three silent failures and the Save button agreeing with staged edits (--experimental-test-module-mocks)
 │   ├── admin-saved-changes.test.mjs ← the Saved Changes controls, executed (--experimental-test-module-mocks)
+│   ├── admin-period-delete.test.mjs ← a Recorded-dates delete through the real function, every dependency injected (--experimental-test-module-mocks)
 │   ├── admin-range-booking.test.mjs ← the shared save path behind both booking cards
 │   ├── admin-card-config.test.mjs ← what each booking card hands the shared factory. Part of test:unit
 │   ├── paycalc-roster-hint.test.mjs ← "Fill from calendar" across its await: a payslip switched mid-fetch is written nothing

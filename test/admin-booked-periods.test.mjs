@@ -19,7 +19,8 @@
  */
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods, periodDelete, twoTap, TWO_TAP_MIN_MS } from '../admin-booked-periods.js';
+import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods, periodDelete } from '../admin-booked-periods.js';
+import { TWO_TAP_MIN_MS } from '../two-tap.js';
 import { isRestGap } from '../admin-period-dates.js';
 import { alPosition } from '../al-entitlement.js';
 
@@ -31,7 +32,7 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 // (test audit, 7 Nov 2026). Mocked, it is a fake timer the reset throws away. Not
 // `--test-force-exit`, which has silently dropped tests in this repo.
 //
-// The double-tap minimum is measured on `performance.now()` (admin-booked-periods.js says why), which
+// The double-tap minimum is measured on `performance.now()` (two-tap.js says why), which
 // the timer mock does not move, so `advance` moves both together: the clock a tap is measured on and
 // the timers that disarm.
 let _now = 1000;
@@ -730,40 +731,9 @@ describe('the two-tap ignores the second tap of a double tap', () => {
         assert.equal(del.calls.length, 1, 'a tap once the minimum has passed confirms');
     });
 
-    it('the bulk delete re-arms for a new selection, with its own minimum and count', () => {
-        const btn = new El('button');
-        btn.setAttribute('aria-label', 'Delete selected');
-        assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 2?', 'Delete selected', 'Confirm delete 2', 'a|b'), false, 'arms');
-        advance(TWO_TAP_MIN_MS);
-        assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 3?', 'Delete selected', 'Confirm delete 3', 'a|b|c'), false,
-            'a changed selection re-arms rather than deleting what was never asked about');
-        assert.equal(btn.textContent, 'Delete 3?');
-        assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 3?', 'Delete selected', 'Confirm delete 3', 'a|b|c'), false,
-            'the re-arm has its own minimum');
-        advance(TWO_TAP_MIN_MS);
-        assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 3?', 'Delete selected', 'Confirm delete 3', 'a|b|c'), true);
-    });
+    // The bulk delete's re-arm for a new selection is the control's own rule: two-tap.test.mjs.
 });
 
-// ── THE COORDINATOR'S DELETE IS IN FLIGHT FROM THE CONFIRMING TAP (review, 22 Nov 2026) ──────────
-// `deletePeriodOverrides` (admin-app.js, which imports Firebase and so cannot load here) marked its ✕
-// disabled only AFTER `await sessionReady`, so a second confirming tap during that wait found it armed
-// and enabled, passed `twoTap`, and started a second delete of the same days. A source guard, because
-// the coordinator has no unit seam: the control is disabled before the function's first `await`, and
-// given back in a `finally` that covers the session wait's signed-out return too.
-describe('admin-app.js marks a period delete in flight before it waits for anything', () => {
-    it('btn.disabled = true comes before the first await, inside a try whose finally re-enables it', async () => {
-        const { readFileSync } = await import('node:fs');
-        const src = readFileSync(new URL('./admin-app.js', REPO_ROOT_URL), 'utf8');
-        const start = src.indexOf('async function deletePeriodOverrides(');
-        assert.ok(start > 0, 'premise: the coordinator still holds the period delete');
-        const body = src.slice(start, src.indexOf('\n    }\n', start));
-        const disabled = body.indexOf('btn.disabled    = true;');
-        const firstAwait = body.indexOf('await ');
-        const tryAt = body.indexOf('try {');
-        assert.ok(disabled > 0 && firstAwait > 0, 'premise: both are there');
-        assert.ok(disabled < firstAwait, 'the control is disabled before the first await');
-        assert.ok(disabled < tryAt && tryAt < body.indexOf('await sessionReady'), 'the session wait is inside the try');
-        assert.match(body.slice(body.lastIndexOf('} finally {')), /btn\.disabled = false;/, 'and the finally gives the control back');
-    });
-});
+// ── THE DELETE IS IN FLIGHT FROM THE CONFIRMING TAP (review, 22 Nov 2026) ──────────────────────────
+// Was a source guard over admin-app.js, which imports Firebase. The delete is admin-period-delete.js now,
+// with every dependency injected, and admin-period-delete.test.mjs asserts it through the real function.

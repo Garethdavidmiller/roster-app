@@ -35,7 +35,7 @@ import { loadFailedFor, DELETE_REFUSED } from './admin-override-store.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { rangeSundayCorrections, yearShiftWords } from './admin-al-projection.js';
-import { holdFeedback, fadeFeedback } from './admin-booked-periods.js';
+import { holdFeedback, fadeFeedback } from './feedback-line.js';
 import { clearedDaysLine, withClearedDays } from './admin-own-write.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim-retry.js';
