@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for Marylebone Roster
 
-*Last updated: November 2026 — v26.70 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.80 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -796,7 +796,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `PRINT_UNAVAILABLE_TEXT` · `OPEN_IN_SAFARI_LABEL` · `printIsBlocked` · `openInSafari` · `printOrExplain` · `explainNoPrint`
 
 ### `clock-input.js`
-- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `timePairError` · `composeTimedValue`
+- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `shapeClockBox` · `settleClockBox` · `timePairError` · `composeTimedValue`
 
 ### `override-utils.js`
 - **Exports:** `nextLeaveYear` · `isRestShift` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `resolveEffectiveShift` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`

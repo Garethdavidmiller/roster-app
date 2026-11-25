@@ -37,7 +37,7 @@
 import * as OTD from './overtime-data.js';
 import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
-import { isClockTime, formatClockInput, finaliseClockInput } from './clock-input.js';
+import { isClockTime, shapeClockBox, settleClockBox } from './clock-input.js';
 import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
@@ -381,8 +381,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // SHAPED AS IT IS TYPED (7 Nov 2026, iPhone audit), by the rule every text clock box
             // shares (clock-input.js): the box is `inputmode="numeric"` and an iPhone's number pad has
             // no colon, so "0600" used to stay "0600" until the box was left.
-            inp.addEventListener('input', () => {
-                const shaped = formatClockInput(inp.value);
+            inp.addEventListener('input', e => {
+                const shaped = shapeClockBox(inp, /** @type {InputEvent} */ (e));
                 if (shaped !== inp.value) inp.value = shaped;
             });
             // COMMITTED ON BLUR AS WELL AS CHANGE: setting `.value` from `input` resets WebKit's
@@ -405,7 +405,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // time is stored as empty and the day stays unfinished. `isClockTime` is the app's one
         // definition of that, shared with the roster review's entry control. Leaving the box is
         // what settles a three-digit "630" or "240" (`finaliseClockInput`).
-        const raw = finaliseClockInput(inp.value);
+        const raw = settleClockBox(inp);
         cur[which] = isClockTime(raw) ? raw : '';
         // Write the settled form back so `0600` and `6:00` become `06:00` in the box the
         // member is looking at, rather than being silently discarded.

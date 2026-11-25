@@ -120,7 +120,7 @@ roster-app/
 ├── admin-period-dates.js ← what a run of booked dates is and how it reads. **A gap is not a day off.** Pure; tested by admin-period-dates.test.mjs
 ├── admin-booked-periods.js ← the recorded-dates list on admin.html and which year of it is shown, plus the shared two-tap and feedback fade. Its header. Tested by admin-booked-periods.test.mjs
 ├── print-guard.js      ← whether `window.print()` can do anything here (it does nothing in an iOS home-screen app); every print control goes through `printOrExplain`. Tested by print-guard.test.mjs. See also print.spec.js.
-├── clock-input.js      ← the rules of a TEXT clock box, pure, shared by every page with one. Tested by clock-input.test.mjs
+├── clock-input.js      ← the rules of a TEXT clock box, shared by every page with one, and each box's memory of whether its digits are an EDIT. Tested by clock-input.test.mjs
 ├── override-utils.js   ← override, member-start and shift helpers, including `resolveEffectiveShift` (the override→display ladder). See also coordinator-ratchet.test.mjs.
 ├── admin-app.js            ← coordinator for admin.html; its body is an exported `init()` run by admin-boot.js. See also coordinator-ratchet.test.mjs.
 ├── admin-tips.js           ← CARD_TIPS for admin.html's `?` panels. Pure data

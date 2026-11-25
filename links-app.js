@@ -60,7 +60,7 @@ import { assessTargetHours } from './links-target-hours.js';
 import { overCapacityLine, refusalLine, buildConfirm, withSurplusLines, createBuildCounter, builtStatusLine } from './links-build-press.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
-import { formatClockInput, finaliseClockInput } from './clock-input.js';
+import { shapeClockBox, settleClockBox } from './clock-input.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { createPrintPrep } from './links-print.js';
 import { shiftOptionLists, currentLinkBaseline } from './links-today.js';
@@ -225,7 +225,7 @@ export function init() {
         // `change` never fired on an iPhone. `commit` is idempotent.
         for (const row of /** @type {const} */ (['monSat', 'sun'])) {
             for (const el of [els[row].start, els[row].end]) {
-                el?.addEventListener('input', () => { el.value = formatClockInput(el.value); });
+                el?.addEventListener('input', e => { el.value = shapeClockBox(el, /** @type {InputEvent} */ (e)); });
                 el?.addEventListener('blur', () => commit(row));
             }
         }
@@ -247,7 +247,7 @@ export function init() {
         /** @param {'monSat'|'sun'} row */
         function commit(row) {
             if (!design) return;
-            const typed = [els[row].start, els[row].end].map(el => finaliseClockInput(el?.value ?? ''));   // "240" left as typed is 02:40
+            const typed = [els[row].start, els[row].end].map(el => (el ? settleClockBox(el) : ''));   // "240" left as typed is 02:40
             const refused = windowEditRefusal(typed[0], typed[1]);   // the reason that applies, or null
             if (refused) {
                 // Put the stored value back and say why — AFTER paint(), which clears the status line.

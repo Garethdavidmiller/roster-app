@@ -1,7 +1,9 @@
 // @ts-check
 /**
  * clock-input.js — the rules of a TEXT clock box: what counts as a time, what the box shows while
- * one is being typed, and what it holds once it is left. Pure; no DOM, no Firebase, no imports.
+ * one is being typed, and what it holds once it is left. No DOM calls, no Firebase, no imports: the
+ * rules are pure, and the one fact they cannot read from a string — whether an entry is an EDIT of a
+ * time the box held — is remembered per box (`shapeClockBox`, `settleClockBox`).
  *
  * Four places in the app type a time into a text box rather than an `<input type="time">`: the
  * roster review's entry control (`manualCellValue`, override-utils.js), the Admin week grid
@@ -58,11 +60,12 @@ export function isClockTime(v) {
  * is not how a box is filled. A first pair of 24 to 29 is now left as typed, and the dropped-zero
  * reading waits for the box to be left (`finaliseClockInput`), when no fourth digit is coming.
  * @param {string} raw  whatever is in the box
+ * @param {{ edited?: boolean }} [opts]  `edited`: three digits left by deleting from a time (`shapeClockBox`) — never padded
  * @returns {string}
  */
-export function formatClockInput(raw) {
+export function formatClockInput(raw, { edited = false } = {}) {
     let d = String(raw ?? '').replace(/[^0-9]/g, '').slice(0, 4);
-    if (d.length === 3 && +d[0] >= 3) d = '0' + d;
+    if (d.length === 3 && +d[0] >= 3 && !edited) d = '0' + d;
     return d.length >= 3 ? `${d.slice(0, 2)}:${d.slice(2)}` : d;
 }
 
@@ -73,18 +76,91 @@ export function formatClockInput(raw) {
  * no fourth digit is coming. Anything else is what `formatClockInput` shows, so a box that already
  * holds a time, or an impossible one, is unchanged.
  * @param {string} raw  whatever is in the box
+ * @param {{ edited?: boolean }} [opts]  `edited`: the digits are what is left of a time (`settleClockBox`) — never a dropped zero
  * @returns {string}
  */
-export function finaliseClockInput(raw) {
+export function finaliseClockInput(raw, { edited = false } = {}) {
     const d = String(raw ?? '').replace(/[^0-9]/g, '').slice(0, 4);
     // ANY three digits left in the box are a dropped zero when that reads as a time (owner, 24 Nov 2026): "130"
     // was left as "13:0" and refused at Save, though it can only mean 01:30 — and a keyboard that types a colon
     // makes it common ("1:30" is the digits 130). A reading that is no time ("199", 01:99) is left as typed.
-    if (d.length === 3) {
+    // NOT FOR AN EDIT (external review of v26.79): `edited` says the digits were left by deleting from a
+    // time, so they are what is left of THAT time, not a new one typed short.
+    if (d.length === 3 && !edited) {
         const dropped = `0${d[0]}:${d.slice(1)}`;
         if (isClockTime(dropped)) return dropped;
     }
-    return formatClockInput(raw);
+    return formatClockInput(raw, { edited });
+}
+
+// ── A NEW TIME TYPED SHORT, OR WHAT IS LEFT OF AN OLD ONE (external review of v26.79) ─────────────
+//
+// Both shortcuts above read three digits as a time with its leading zero dropped: "130" is 01:30, "630"
+// is 06:30. That is right for a time being TYPED, and wrong for one being EDITED. An admin who opens
+// 22:30, deletes the last 0 and leaves the box has "22:3", the digits 223, and the dropped-zero reading
+// made that 02:23: a valid time, so it saved, and it looked like an answer. Deleting the 1 of 16:30 did
+// the same while typing ("630" became 06:30 at once). A string cannot tell the two apart, because
+// "130" typed new and "22:3" left over are both three digits, so each box remembers the one fact that
+// can: whether its digits were left by deleting from a time it held. If so, neither shortcut applies, and
+// the box keeps what is there: incomplete, and refused at Save like any other unfinished time.
+//
+// The memory is a WeakMap keyed by the box, holding what the box last showed. A deletion that leaves two
+// or three digits is an edit when the box held a time before it, or when the box was never seen (its
+// first input was the deletion, so what it held came from the page: a stored time). The flag clears when
+// the box is emptied to one digit or none, which is how a new time is started, select-all and type
+// included. A box whose remembered value is not what it now shows was set by the page since; its digits
+// are treated as an edit, the safe reading.
+
+/** @type {WeakMap<object, { last: string, edited: boolean }>} */
+const boxes = new WeakMap();
+
+/** @param {string} v @returns {string} */
+const digitsOf = v => String(v ?? '').replace(/[^0-9]/g, '').slice(0, 4);
+
+/** Is `few` what is left of `many` after some of its digits are deleted? @param {string} few @param {string} many */
+function leftAfterDeleting(few, many) {
+    let i = 0;
+    for (const c of many) if (c === few[i]) i++;
+    return few.length < many.length && i === few.length;
+}
+
+/**
+ * What a text clock box should show after an INPUT event: `formatClockInput`, told whether this entry is
+ * an edit of a time the box held. Call it from the box's `input` handler, with the event.
+ * @param {{ value: string }} box  the input element
+ * @param {{ inputType?: string } | null} [event]  the `input` event; its `inputType` says whether this was a deletion
+ * @returns {string}
+ */
+export function shapeClockBox(box, event) {
+    const d = digitsOf(box.value);
+    const seen = boxes.get(box);
+    let edited = false;
+    if (d.length > 1) {
+        if (String(event?.inputType ?? '').startsWith('delete')) {
+            const before = seen?.last;
+            edited = before === undefined || !leftAfterDeleting(d, before)
+                || isClockTime(formatClockInput(before)) || seen?.edited === true;
+        } else {
+            edited = seen?.edited === true;
+        }
+    }
+    const shaped = formatClockInput(box.value, { edited });
+    boxes.set(box, { last: digitsOf(shaped), edited });
+    return shaped;
+}
+
+/**
+ * What a text clock box should hold once it is LEFT: `finaliseClockInput`, told whether its digits are
+ * what is left of a time it held (`shapeClockBox`). Call it on blur, or before the value is read.
+ * @param {{ value: string }} box  the input element
+ * @returns {string}
+ */
+export function settleClockBox(box) {
+    const d = digitsOf(box.value);
+    const seen = boxes.get(box);
+    // Never typed in: nothing was deleted. Set by the page since it was last typed in: the safe reading.
+    const edited = seen === undefined ? false : (seen.last === d ? seen.edited : d.length === 3);
+    return finaliseClockInput(box.value, { edited });
 }
 
 /** What is wrong with a FILLED-IN pair of clock times, or `''` — the ONE rule a Shift's times and an

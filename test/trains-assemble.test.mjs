@@ -6,9 +6,10 @@
  *
  * `assemble.py` took the FIRST later 'f' column with the same time at the same station, so two trains could both be
  * given one continuation's destination; and a train with none was published shortened after a WARN nobody had to
- * read; and one printing only the joining station published the train as ending there (review of v26.69). Each case
- * here runs the real script, under `python3 -I`, on a tiny synthetic book — never the real ones,
- * which are not committed (docs/timetable-dec26/tooling/README.md). Skipped, by name, where python3 is not installed.
+ * read; and one printing only the joining station published the train as ending there (review of v26.69). Since the
+ * review of v26.79 it also keeps one copy of a train printed twice only when the copies agree, and refuses a cell that
+ * is not a time. Each case here runs the real script, under `python3 -I`, on a tiny synthetic book — never the real
+ * ones, which are not committed (docs/timetable-dec26/tooling/README.md). Skipped, by name, where python3 is not installed.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,12 +32,12 @@ const continued = (/** @type {number} */ col, /** @type {string} */ t, /** @type
 /** Its continuation overleaf ('f'), from Haddenham at `at` to Aylesbury at `end`. */
 const overleaf = (/** @type {number} */ col, /** @type {string} */ at, /** @type {string} */ end) => column(2, col, [cell('', 'f'), cell('HDM', at), cell('AYS', end)]);
 
-/** Run the builder on a Met book of these columns (the main-line book empty). @param {any[]} met */
-function assemble(met) {
+/** Run the builder on a Met book of these columns (the main-line book empty unless given). @param {any[]} met @param {any[]} [main] */
+function assemble(met, main = []) {
     const dir = mkdtempSync(join(tmpdir(), 'assemble-'));
     try {
         writeFileSync(join(dir, 'met.json'), JSON.stringify(met));
-        writeFileSync(join(dir, 'main.json'), '[]');
+        writeFileSync(join(dir, 'main.json'), JSON.stringify(main));
         const r = spawnSync('python3', ['-I', SCRIPT, join(dir, 'met.json'), join(dir, 'main.json'), join(dir, 'out.json')], { encoding: 'utf8' });
         const out = r.status === 0 ? JSON.parse(readFileSync(join(dir, 'out.json'), 'utf8')) : null;
         return { status: r.status, stderr: r.stderr, out };
@@ -93,5 +94,56 @@ describe('assemble.py joins a continued train to exactly one continuation', { sk
         const r = assemble([continued(1, '0700', '0745'), overleaf(1, '0745', '0800'), overleaf(2, '0915', '0930')]);
         assert.notEqual(r.status, 0);
         assert.match(r.stderr, /a continuation no train on an earlier page reaches — met book, page 2, column 2/);
+    });
+});
+
+// ── A SECOND COLUMN AT THE SAME TIME TO THE SAME END (external review of v26.79) ──────────────────────
+// The duplicate check keyed on time, day and end, never the stops, and matched within one book as well as
+// across the two: a second 08:00 to Aylesbury by another route was dropped, and the build ended cleanly.
+describe('assemble.py keeps one copy of a train only when the copies agree', { skip: noPython }, () => {
+    const viaHdm = (/** @type {number} */ col) => column(1, col, [cell('MYB', '0800'), cell('HDM', '0845'), cell('AYS', '0900')]);
+    test('two columns in one book at one time to one end, stopping differently, stop the build naming both', () => {
+        const viaHwy = column(1, 2, [cell('MYB', '0800'), cell('HWY', '0840'), cell('AYS', '0910')]);
+        const r = assemble([viaHdm(1), viaHwy]);
+        assert.notEqual(r.status, 0, 'one of two different trains was dropped');
+        assert.match(r.stderr, /two trains at 0800 to the same end stop differently — met book, page 1, column 1, and met book, page 1, column 2/);
+    });
+
+    test('across the books, a train printed in both is one row, the main-line copy, when their times agree', () => {
+        // The main-line book prints its own stations too; only the ones both print are compared.
+        const main = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830'), cell('HDM', '0845'), cell('AYS', '0900')]);
+        const r = assemble([viaHdm(1)], [main]);
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(r.out.trains.length, 1);
+        assert.equal(r.out.trains[0].src, 'main');
+        assert.equal(r.out.trains[0].at, undefined, 'where a row came from is the build\'s, not the page\'s');
+    });
+
+    test('across the books, copies whose times disagree stop the build', () => {
+        const main = column(1, 1, [cell('MYB', '0800'), cell('HDM', '0845'), cell('AYS', '0910')]);
+        const r = assemble([viaHdm(1)], [main]);
+        assert.notEqual(r.status, 0);
+        assert.match(r.stderr, /met book, page 1, column 1, and main book, page 1, column 1/);
+    });
+});
+
+// ── EVERY PRINTED TIME IS A TIME (external review of v26.79) ──────────────────────────────────────────
+describe('assemble.py refuses a cell that is not a time, by book, page and column', { skip: noPython }, () => {
+    test('four digits that are no time stop the build — 0861 is not a departure', () => {
+        const r = assemble([column(1, 3, [cell('MYB', '0861'), cell('AYS', '0930')])]);
+        assert.notEqual(r.status, 0);
+        assert.match(r.stderr, /'0861' at MYB is not a time — met book, page 1, column 3/);
+    });
+
+    test('a letter outside the key stops the build at the Marylebone end too — 0800z is not 0800', () => {
+        const r = assemble([column(1, 3, [cell('MYB', '0800z'), cell('AYS', '0900')])]);
+        assert.notEqual(r.status, 0);
+        assert.match(r.stderr, /unknown time letter '0800z' at MYB.* — met book, page 1, column 3/);
+    });
+
+    test('and on a continuation, the continuation is named', () => {
+        const r = assemble([continued(1, '0700', '0745'), overleaf(1, '0745', '2400')]);
+        assert.notEqual(r.status, 0);
+        assert.match(r.stderr, /'2400' at AYS is not a time — met book, page 2, column 1/);
     });
 });

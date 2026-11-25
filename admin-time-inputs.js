@@ -26,7 +26,7 @@
  */
 
 import { TIME_RE } from './roster-data.js';
-import { formatClockInput, finaliseClockInput } from './clock-input.js';
+import { shapeClockBox, settleClockBox } from './clock-input.js';
 
 let _formatting = false;
 let _wired = false;
@@ -42,7 +42,7 @@ export function initTimeInputs() {
         timeInput.classList.remove('input-error');
         timeInput.removeAttribute('aria-invalid');
         _formatting = true;
-        timeInput.value = formatClockInput(timeInput.value);
+        timeInput.value = shapeClockBox(timeInput, /** @type {InputEvent} */ (e));
         _formatting = false;
         // A complete time moves on: start → its row's end, bulk start → bulk end. A REAL time, not
         // five characters: "24:00" fills the box too, and moving on from it would leave an
@@ -61,7 +61,7 @@ export function initTimeInputs() {
         const timeInput = /** @type {HTMLInputElement} */ (e.target);
         // Leaving the box is what settles a three-digit "240" as 02:40 (clock-input.js); the save
         // reads `.value`, so the settled form is the one written.
-        const val = finaliseClockInput(timeInput.value.trim());
+        const val = settleClockBox(timeInput).trim();
         if (val !== timeInput.value) timeInput.value = val;
         if (!val) { timeInput.classList.remove('input-error'); timeInput.removeAttribute('aria-invalid'); return; }
         const invalid = !TIME_RE.test(val);

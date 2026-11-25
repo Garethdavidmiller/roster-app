@@ -2690,6 +2690,14 @@ test('operations: an entered finish typed as 2400 is refused, and 240 settles as
     await from.focus();
     await expect(to, 'left as three digits, it is a dropped zero').toHaveValue('02:40');
     await expect(saveBtn, 'and the settled time is what the entry now holds').toHaveText(/Save 4 changes/);
+    // …but what is LEFT of a time is not a new one typed short (external review of v26.79): 22:30
+    // with its last digit deleted was settled as 02:23 when the box was left.
+    await to.fill('');
+    await to.pressSequentially('2230');
+    await to.press('Backspace');
+    await from.focus();
+    await expect(to, 'what is left of 22:30 stays as it is').toHaveValue('22:3');
+    await expect(saveBtn, 'and is no time, so nothing is entered').toHaveText(/Save 3 changes/);
 });
 
 // The same hole on the OTHER unreadable row shape (v24.28 review): a row with no readings can hold

@@ -62,7 +62,10 @@ new issue of the books legitimately moves them, and a parser regression looks th
   was published as ending there), or a continuation no train reaches (external review of v26.67: it took
   the first match, and only warned when there was none). `test/trains-assemble.test.mjs` runs it on synthetic books.
   It keeps Chiltern trains that
-  start or end at Marylebone, and folds a train printed in both books into one. A Mondays-and-Fridays
+  start or end at Marylebone, and folds a train printed in both books into one — only when the two copies agree
+  at every station both print; two columns at one time to one end that stop differently stop the build, naming
+  both (external review of v26.79). Every printed time must be a real time with a letter from the key, the
+  Marylebone end included ('0861' and '0800z' stop the build). A Mondays-and-Fridays
   and a not-Mondays-and-Fridays copy of the same train at the same time are ONE row — but only when
   they stop alike: the 17:45 to Oxford calls at High Wycombe on Mondays and Fridays and at
   Beaconsfield on the other days, and merging them sent it to Beaconsfield every weekday. Copies that
