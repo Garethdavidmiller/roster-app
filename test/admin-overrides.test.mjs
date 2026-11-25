@@ -2106,3 +2106,34 @@ describe('the week grid follows a range booking and a leave-year move', () => {
         assert.equal(rs.isStagedRow(rowOf(NEXT)), true, 'the other staged day was lost');
     });
 });
+
+// ── WHO A WEEK-GRID SAVE IS RECORDED AS (mutation sweep, 25 Nov 2026) ─────────────────────────────
+// `changedBy` on a week-grid save is the page's signed-in user, which only `initOverrides` hands the
+// module. No test here had ever called it, so every week-grid payload above carried `changedBy: ''`
+// and a save that recorded the MEMBER as the editor — a manager's change on their behalf filed as
+// their own — left every lane green (scripts/mutation-manifest.mjs → week-write-changed-by survived).
+// The range card's twin (`changedBy` is its argument) was already pinned. Fictitious names: the
+// cache is seeded for them, so nothing here reads the roster.
+describe('the week grid records who made the change, not whom it is for', () => {
+    const RECORDER = 'Y. Recorder', MEMBER = 'Z. Example', DAY = '2026-06-18';
+    test('a manager saving a colleague\'s day is the `changedBy` on the written payload', async () => {
+        const { initOverrides } = await import('../admin-overrides.js');
+        // The page's real init, as admin-app.js calls it. It wires the week editor's document-level
+        // listeners too, which this file's bare `document` has no methods for: lent for the call only.
+        const bare = global.document;
+        global.document = /** @type {any} */ ({ ...bare, addEventListener: () => {}, removeEventListener: () => {},
+            querySelector: () => null, querySelectorAll: () => [] });
+        try {
+            initOverrides({ currentUser: RECORDER, currentIsAdmin: false, currentIsManager: true,
+                showSuccess: () => {}, showError: () => {}, onAfterSave: () => {}, markChanged: () => {}, onEditRow: () => {} });
+        } finally { global.document = bare; }
+        setAllOverrides([]);
+        _failNextCommits = 0;
+        mockAuth.currentUser = /** @type {any} */ ({ uid: 'mgr', getIdToken: async () => {} });
+        const before = _batchWrites.length;
+        await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]);
+        const written = _batchWrites.slice(before).find(w => w.memberName === MEMBER && w.date === DAY);
+        assert.ok(written, 'the save wrote nothing — the assertion below would prove nothing');
+        assert.equal(written.changedBy, RECORDER, 'the editor, not the member, made this change');
+    });
+});
