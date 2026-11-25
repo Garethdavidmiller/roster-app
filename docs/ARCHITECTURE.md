@@ -73,7 +73,7 @@ live anchors:
 | Plan | State | Why it stays where it is |
 |---|---|---|
 | `SECURITY_RELEASE_PLAN.md` | **Live** | Carries the canonical track-status table for every security track |
-| `AUTH_PLAN.md` | **Live** (Track E undecided) | Owns the design; status lives in the plan above |
+| `AUTH_PLAN.md` | **Live** (Track E undecided) | **The one home of Track E** — design, phases, order, risks, owner questions. Its status is the table in the plan above, whose Track E section is a pointer here (25 Nov 2026) |
 | `PASSWORD_DESIGN.md` | **Live** (C2, C5 pending; C6 and F proposed) | Same split. §5's admin reset is INTERIM — superseded in design by C6. Its credential-lifecycle section (L1–L10) owns ORDER: L4 and L5 are done and L6 decided, the rest is not started; L7 is an OPEN owner decision and must not be actioned as though it were settled; L4 records the staff PIN's retirement (23 Nov 2026) |
 | `CREDENTIAL_LIFECYCLE.md` | **Pointer** — merged into `PASSWORD_DESIGN.md`, 24 Nov 2026 | Other documents cite it by §N, which maps to `PASSWORD_DESIGN.md`'s LN; a parity test reads it |
 | `AUTH_ARCHITECTURE.md` | **Pointer** — folded into `AUTH_AND_SESSIONS.md`, 24 Nov 2026 | Code comments cite it by Track 1, phase number and PAYSLIP_ACTUALS; the phase record is in git |
