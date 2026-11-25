@@ -12,8 +12,8 @@
   For a new starter, use welcome-email.html and make its choices there; for a
   CES, a Dispatcher or an Other Staff login, welcome-email-ces.html,
   welcome-email-dispatcher.html or welcome-email-other-staff.html.
-  A change to the wording belongs in ALL FIVE files: welcome-email-parity.test.mjs
-  builds this one from welcome-email.html and fails until they agree.
+  A change to the wording belongs in welcome-email.html ALONE: everything below
+  the GENERATED line is written from it by `npm run generate:copies`.
 
   Copy this whole file into the email body as HTML. Every comment block is an HTML
   comment, so anything left in is invisible to the reader — but the PLACEHOLDERS
@@ -41,6 +41,7 @@
   The design rules for editing it are in welcome-email.html's header.
 ════════════════════════════════════════════════════════════════════════════════
 -->
+<!-- GENERATED below this line by npm run generate:copies from welcome-email.html, with the CEA choices made. Edit the wording there, never here. -->
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f2f4f7;margin:0;padding:24px 12px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <tr><td align="center">
 

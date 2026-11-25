@@ -38,6 +38,12 @@
  *              the version firebase-client.js imports. A worker on the old name would warm the old
  *              SDK's files while every page imports the new one's.
  *
+ *   welcome-emails
+ *              the four ready-made welcome emails in .claude/skills/new-starter/ (one per grade a
+ *              colleague signs in under), below each one's own hand-written header, from the general
+ *              template welcome-email.html with that grade's either/or choices made. Not served.
+ *              welcome-email-parity.test.mjs holds the RULES the copies follow.
+ *
  * ── RUNNING IT ─────────────────────────────────────────────────────────────────────────────────
  *
  *   npm run generate:copies     writes whatever is out of date, and names each file it wrote
@@ -52,6 +58,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { APP_PAGES, servedFiles } from './app-pages.mjs';
+import { gradeForRole } from '../roster-data.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -202,6 +209,113 @@ function sdkVersion(read) {
     return [['service-worker.js', out]];
 }
 
+// ── welcome-emails ──────────────────────────────────────────────────────────────────────────────
+
+/** Where the welcome emails live: the general template and its ready-made copies. */
+export const WELCOME_DIR = '.claude/skills/new-starter/';
+export const WELCOME_TEMPLATE = 'welcome-email.html';
+/** Each ready-made copy, and the grade it is for: the label the sign-in list shows. */
+export const WELCOME_COPIES = Object.freeze({
+    'welcome-email-cea.html':         'CEA',
+    'welcome-email-ces.html':         'CES',
+    'welcome-email-dispatcher.html':  'Dispatcher',
+    'welcome-email-other-staff.html': 'Other Staff',
+});
+/** The grade whose login has no roster of its own (roster-member-data.js → `otherStaff`). */
+export const OTHER_STAFF = 'Other Staff';
+
+/**
+ * Replace the ONE match of `re`, or throw saying the general template has changed shape, which is a
+ * change to this script as much as to the template.
+ * @param {string} html @param {RegExp} re @param {string} by @param {string} what
+ */
+function templateOnce(html, re, by, what) {
+    const found = html.match(new RegExp(re.source, 'g')) || [];
+    if (found.length !== 1) {
+        throw new Error(`${WELCOME_TEMPLATE} should have ONE ${what} in the form generate-copies.mjs reads, and has `
+            + `${found.length}. If its either/or blocks were reworked, update chooseWelcomeEmail to match.`);
+    }
+    return html.replace(re, by);
+}
+
+/**
+ * The general template with one grade's choices made: the opening for somebody already working at
+ * Marylebone, the grade, What it does, and the Pay Calculator section the app says that grade gets
+ * — none at all for Other Staff, whose menu has no calculator. Which section a grade gets is
+ * `gradeForRole` (roster-data.js), the question the Pay Calculator asks before it shows a figure, so
+ * the day Dispatcher rates are added the Dispatcher email stops telling them to ignore it.
+ * Comments are left in: welcomeBody takes out the template's own.
+ * @param {string} template @param {string} grade @param {(role: string) => unknown} gradeForRole
+ */
+export function chooseWelcomeEmail(template, grade, gradeForRole) {
+    let html = template;
+    const other = grade === OTHER_STAFF;
+    // The opening: the new starter's paragraph goes (everything from its marker to the next one's),
+    // and the chosen one, written inside a comment, comes out of it; the third goes whole.
+    html = templateOnce(html, /<!-- OPENING A — NEW STARTER -->[\s\S]*?(?=<!-- OPENING B — EXISTING STAFF)/, '',
+        'OPENING A (new starter) block');
+    html = templateOnce(html, /<!-- OPENING B — EXISTING STAFF\s*([\s\S]*?)\s*-->/, other ? '' : '$1',
+        'OPENING B (existing staff) block');
+    html = templateOnce(html, /<!-- OPENING C — OTHER STAFF[^\n]*\s*([\s\S]*?)\s*-->/, other ? '$1' : '',
+        'OPENING C (Other Staff) block');
+    // What it does: a member's own roster (A, written live), or the station's (B, inside a comment).
+    if (other) {
+        html = templateOnce(html, /<!-- WHAT IT DOES A — WITH A ROSTER[\s\S]*?(?=<!-- WHAT IT DOES B — OTHER STAFF)/, '',
+            'WHAT IT DOES A (with a roster) block');
+        html = templateOnce(html, /<!-- WHAT IT DOES B — OTHER STAFF[^\n]*\s*([\s\S]*?)\s*-->/, '$1',
+            'WHAT IT DOES B (Other Staff) block');
+        // Section 4, heading and both variants: the Pay Calculator is not in their menu.
+        html = templateOnce(html, /<!-- ── 4\. PAY CALCULATOR[\s\S]*?(?=<!-- ── SIGN OFF)/, '',
+            'section 4 (the Pay Calculator), heading to sign-off');
+        return html.replaceAll('{{GRADE}}', grade);
+    }
+    html = templateOnce(html, /<!-- WHAT IT DOES B — OTHER STAFF[\s\S]*?-->/, '',
+        'WHAT IT DOES B (Other Staff) block');
+    if (gradeForRole(grade)) {
+        html = templateOnce(html, /<!-- VARIANT B — DISPATCHER[\s\S]*?-->/, '',
+            'Pay Calculator VARIANT B (it will not work for you) block');
+    } else {
+        html = templateOnce(html, /<!-- VARIANT A — CEA and CES -->[\s\S]*?(?=<!-- VARIANT B — DISPATCHER)/, '',
+            'Pay Calculator VARIANT A (it works for you) block');
+        html = templateOnce(html, /<!-- VARIANT B — DISPATCHER\s*([\s\S]*?)\s*-->/, '$1',
+            'Pay Calculator VARIANT B (it will not work for you) block');
+    }
+    return html.replaceAll('{{GRADE}}', grade);
+}
+
+/**
+ * What a ready-made copy carries below its own header: the chosen email, with the template's header
+ * and its either/or signposts ("KEEP ONE, DELETE THE OTHERS", the A/B/C markers) taken out — a
+ * sender of a ready-made copy has nothing to choose — and the blank lines a removed block leaves
+ * closed up. Section headings, the Outlook wrapper and the password-box note stay.
+ * @param {string} template @param {string} grade @param {(role: string) => unknown} gradeForRole
+ */
+export function welcomeBody(template, grade, gradeForRole) {
+    return chooseWelcomeEmail(template, grade, gradeForRole)
+        .replace(/^<!--[\s\S]*?-->\n/, '')                                      // the template's own header
+        .replace(/^[ \t]*<!-- ══[\s\S]*?-->[ \t]*\n/gm, '')                    // KEEP ONE, DELETE THE OTHER(S)
+        .replace(/^[ \t]*<!-- (?:OPENING|WHAT IT DOES|VARIANT) [A-C] —[^\n]*-->[ \t]*\n/gm, '')
+        .replace(/\n(?:[ \t]*\n){2,}/g, '\n\n');                               // one blank line at most
+}
+
+const WELCOME_MARK = (/** @type {string} */ grade) => `<!-- GENERATED below this line by npm run generate:copies from `
+    + `${WELCOME_TEMPLATE}, with the ${grade} choices made. Edit the wording there, never here. -->`;
+
+/** @param {Reader} read @returns {Owned} */
+function welcomeEmails(read) {
+    const template = read(WELCOME_DIR + WELCOME_TEMPLATE);
+    return Object.entries(WELCOME_COPIES).map(([name, grade]) => {
+        const file = WELCOME_DIR + name;
+        const src = read(file);
+        // The copy's own header is hand-written (who it is for, and why it exists): everything above
+        // the GENERATED line, or — the first time — the file's first comment.
+        const at = src.indexOf('\n<!-- GENERATED below this line by npm run generate:copies');
+        const header = at >= 0 ? src.slice(0, at + 1) : (src.match(/^<!--[\s\S]*?-->\n/) || [''])[0];
+        if (!header) throw new Error(`${file}: no header comment above the email — generate-copies.mjs keeps each copy's own`);
+        return /** @type {[string, string]} */ ([file, header + WELCOME_MARK(grade) + '\n' + welcomeBody(template, grade, gradeForRole)]);
+    });
+}
+
 // ── the list ────────────────────────────────────────────────────────────────────────────────────
 
 /** Every generated fact: its name, and the function that writes it. */
@@ -209,6 +323,7 @@ export const COPIES = Object.freeze(/** @type {Array<[string, (read: Reader) => 
     ['csp-meta', cspMeta],
     ['module-preloads', modulePreloads],
     ['sdk-version', sdkVersion],
+    ['welcome-emails', welcomeEmails],
 ]));
 
 /**

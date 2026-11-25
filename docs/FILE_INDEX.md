@@ -541,7 +541,7 @@ roster-app/
 │   ├── app-name-parity.test.mjs ← **"MYB" may name the STATION, never the SOFTWARE** ("Marylebone Roster"). Part of test:hygiene
 │   ├── rdw-term-parity.test.mjs ← **RDW has one name on screen: "Rest Day Working"**. Part of test:hygiene
 │   ├── uk-english-parity.test.mjs ← **the app speaks UK English**; its word list: its header. Part of test:hygiene
-│   ├── welcome-email-parity.test.mjs ← the welcome email's five copies are one email. Part of test:hygiene
+│   ├── welcome-email-parity.test.mjs ← the rules the welcome email's generated copies follow (grade, Pay Calculator section, phone fit). Part of test:hygiene
 │   ├── al-copy-parity.test.mjs ← the Annual Leave help teaches the rule the save follows. Part of test:hygiene
 │   ├── admin-al-week-save.test.mjs ← a week-grid save's annual leave. Part of test:hygiene
 │   ├── card-header-parity.test.mjs ← the card-header conventions. Part of test:hygiene
