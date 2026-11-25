@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.80';
+export const APP_VERSION = '26.81';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -1052,6 +1052,12 @@ export function workEmailLocalPart(v) {
  *
  * Idempotent on our own domain (so it is safe to call on a value autofill already
  * completed), and it never rewrites a foreign domain onto ours — same reason as above.
+ *
+ * NOR AN ADDRESS WHOSE `@` WAS DELETED (edit-sequence tests, 25 Nov 2026). Operations opens a saved
+ * address whole, and deleting its `@` left `a.haredchilternrailways.co.uk`, which was completed into
+ * `a.haredchilternrailways.co.uk@chilternrailways.co.uk`: a valid Chiltern address, so it saved. Text
+ * that already ends in our domain is what is left of an address, not a local part, so it is returned as
+ * it is, for `isValidEmail` to refuse.
  * @param {string} v  a local part, or a full address already
  * @returns {string}  '' when there is nothing to save
  */
@@ -1059,7 +1065,8 @@ export function workEmailFrom(v) {
     if (typeof v !== 'string') return '';
     const e = v.trim();
     if (!e) return '';
-    return e.includes('@') ? e : e + '@' + CONFIG.WORK_EMAIL_DOMAIN;
+    if (e.includes('@') || e.toLowerCase().endsWith(CONFIG.WORK_EMAIL_DOMAIN.toLowerCase())) return e;
+    return e + '@' + CONFIG.WORK_EMAIL_DOMAIN;
 }
 
 /**

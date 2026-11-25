@@ -235,18 +235,27 @@ export function init() {
     /**
      * The Saturday contracted-hours cap. It does not re-price: every caller follows it at once with
      * `autosave()`, which ends in `calculate()`, so a run here priced the same screen twice.
+     *
+     * CAPPED WHEN THE BOX IS LEFT, WARNED WHILE TYPING (edit-sequence tests, 25 Nov 2026). It capped on
+     * every keystroke, so an edit passing through a larger number on its way to the one meant — "32" to
+     * "36" by typing the 6 before deleting the 2 reads 362 for a moment — was rewritten to the cap, and
+     * the digits being edited were gone. Nothing is overpaid meanwhile: the pay maths caps Saturday hours
+     * itself (`capHours`, paycalc-calc.js), so the box only has to say so, and is rewritten once left.
      * @param {string} hId
      * @param {string} mId
      * @param {string | null} warnId
+     * @param {{ cap?: boolean }} [opts]  `cap: false` while the member is still typing in the pair
      */
-    function onHhMm(hId, mId, warnId) {
+    function onHhMm(hId, mId, warnId, { cap = true } = {}) {
       // Validate Saturday hours don't exceed contracted hours (pro-rated for joining periods)
       if (warnId) {
         const hrs   = hhmmDec(hId, mId);
         const warn  = document.getElementById(warnId);
         const curP  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
         const contr = getEffectiveContr(curP);
-        if (hrs > contr) {
+        if (hrs > contr && !cap) {
+          if (warn) { setStatus(warn, `⚠ More than ${contr} hrs, your contracted maximum for this period — it is capped there when you leave the box`); warn.classList.add('show'); }
+        } else if (hrs > contr) {
           /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(contr);
           /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = minutesFieldText(0);
           if (warn) { setStatus(warn, `⚠ Capped at ${contr} hrs — your contracted maximum for this period`); warn.classList.add('show'); }
@@ -1006,8 +1015,12 @@ export function init() {
     /** @type {HTMLElement|null} */ (document.getElementById('hoursCard'))?.addEventListener('input', () => { _hoursTouchedSinceFetch = true; });
 
     // Hours inputs — Saturday (has validation warn)
-    /** @type {HTMLElement} */ (document.getElementById('satH')).addEventListener('input', () => { onHhMm('satH','satM','satWarn'); autosave(); });
-    /** @type {HTMLElement} */ (document.getElementById('satM')).addEventListener('input', () => { clampMins('satM'); onHhMm('satH','satM','satWarn'); autosave(); });
+    // Warned as typed, capped when either box is left (onHhMm says why).
+    /** @type {HTMLElement} */ (document.getElementById('satH')).addEventListener('input', () => { onHhMm('satH','satM','satWarn', { cap: false }); autosave(); });
+    /** @type {HTMLElement} */ (document.getElementById('satM')).addEventListener('input', () => { clampMins('satM'); onHhMm('satH','satM','satWarn', { cap: false }); autosave(); });
+    for (const id of ['satH', 'satM']) {
+      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('blur', () => { onHhMm('satH','satM','satWarn'); autosave(); });
+    }
 
     // Hours inputs — minutes clamp + autosave
     ['bhH','bhOtH','otH','rdwH','sunH','boxH'].forEach(/** @param {string} id */ id => {

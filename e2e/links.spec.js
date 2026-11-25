@@ -4291,6 +4291,22 @@ test('links window: a refusal says why — not a time, a box left empty, or the 
     await expect(status).toHaveText('A start and a finish are both needed — that change wasn’t applied.');
 });
 
+// AN EDIT, NOT A NEW TIME (edit-sequence tests, 25 Nov 2026): 23:55 with its last digit deleted is "23:5", what is
+// left of a time, and the box is left. Read as a time with a zero dropped it was 02:35 — a valid start, so it would
+// have been applied. The refusal keeps the window the design had.
+test('links window: a digit deleted from a time and the box left is refused, never read as another time', async ({ page }) => {
+    await openWindowDesign(page);
+    const end = page.locator('#winMonSatEnd');
+    await end.click();
+    await end.press('End');
+    await end.press('Backspace');
+    await expect(end).toHaveValue('23:5');
+    await page.locator('#winMonSatStart').focus();
+    await expect(end, 'refused, and the window put back').toHaveValue('23:55');
+    // Refused as what it is — no time — not as a finish before the start, which is what 02:35 would have been.
+    await expect(page.locator('#winStatus')).toContainText('“23:5” is not a time of day');
+});
+
 test('links window: a time typed without a colon is shaped into one, so a phone keypad can fill the box', async ({ page }) => {
     // A numeric keypad has no colon (v24.61, iOS audit). Before this, "1420" typed on an iPhone was
     // refused as not a time and the box reverted — the window could not be edited from a phone at all.

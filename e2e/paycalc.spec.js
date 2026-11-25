@@ -5224,3 +5224,49 @@ test('paycalc: nothing a mouse or a keyboard reads says "tap"', async ({ page },
         ...[...document.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label'))].join('\n'));
     expect(words.match(/[^\n]*\btap(s|ped|ping)?\b[^\n]*/gi) ?? []).toEqual([]);
 });
+
+// ── EDITING THE SATURDAY HOURS (edit-sequence tests, 25 Nov 2026) ─────────────────────────────────
+// The box capped Saturday hours at the contracted maximum on EVERY keystroke, so an edit that passes through a
+// bigger number on its way to the one meant — "32" made "36" by typing the 6 before deleting the 2 reads 362 for
+// a moment — was rewritten to the cap, and the digits being edited were gone. It warns while typing and caps when
+// the box is left; the pay maths caps the hours itself meanwhile, so nothing is overpaid.
+test('paycalc: an edit passing through too many Saturday hours keeps the figure meant; the cap waits for the box to be left', async ({ page }) => {
+    await openReturning(page, { width: 390, height: 844 });
+    const hrs = page.locator('#satH');
+    const mins = page.locator('#satM');
+    const warn = page.locator('#satWarn');
+    await hrs.fill('');
+    await hrs.pressSequentially('32');
+    await hrs.press('Home');
+    await hrs.press('ArrowRight');
+    await hrs.press('6');
+    await expect(hrs, 'mid-edit, the digits stay as typed').toHaveValue('362');
+    await expect(warn).toHaveClass(/\bshow\b/);
+    await expect(warn).toContainText('capped there when you leave the box');
+    await hrs.press('Delete');
+    await mins.focus();
+    await expect(hrs, 'the figure meant').toHaveValue('36');
+    await expect(warn).not.toHaveClass(/\bshow\b/);
+
+    // Too many, and the box left: capped then, and said.
+    await hrs.fill('');
+    await hrs.pressSequentially('200');
+    await expect(hrs).toHaveValue('200');
+    await mins.focus();
+    await expect(warn).toContainText(/Capped at \d+ hrs/);
+    const cap = (/Capped at (\d+) hrs/.exec(await warn.innerText()) ?? [])[1];
+    await expect(hrs).toHaveValue(String(cap));
+
+    // The minutes box holds two digits: a key pressed in a full box changes nothing, and a digit typed over
+    // a selected one is the figure meant.
+    await hrs.fill('');
+    await hrs.pressSequentially('8');
+    await mins.fill('');
+    await mins.pressSequentially('30');
+    await mins.press('End');
+    await mins.press('5');
+    await expect(mins).toHaveValue('30');
+    await mins.press('Shift+ArrowLeft');
+    await mins.press('5');
+    await expect(mins).toHaveValue('35');
+});

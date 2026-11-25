@@ -118,6 +118,12 @@ describe('workEmailLocalPart / workEmailFrom', () => {
             assert.equal(workEmailLocalPart('x@evil-chilternrailways.co.uk'), 'x@evil-chilternrailways.co.uk');
             assert.equal(workEmailLocalPart('x@sub.chilternrailways.co.uk'),  'x@sub.chilternrailways.co.uk');
         });
+        test('an address whose @ was deleted is left as it is, for the validator to refuse', () => {
+            // edit-sequence tests, 25 Nov 2026: completing it gave a.haredchilternrailways.co.uk@chilternrailways.co.uk
+            assert.equal(workEmailFrom('a.haredchilternrailways.co.uk'), 'a.haredchilternrailways.co.uk');
+            assert.equal(workEmailFrom('A.Hared ChilternRailways.CO.UK'), 'A.Hared ChilternRailways.CO.UK');
+            assert.equal(workEmailFrom('a.hared'), 'a.hared@chilternrailways.co.uk', 'a local part is still completed');
+        });
         test('an empty field saves nothing rather than a bare domain', () => {
             assert.equal(workEmailFrom(''),     '');
             assert.equal(workEmailFrom('   '),  '');
