@@ -2648,6 +2648,30 @@ test('calendar: at 320px the leave panel\'s labels drop their tracking', async (
     expect(['normal', '0px'], 'no tracking at 320px').toContain(await tracking(320));
 });
 
+// THE LEAVE PANEL IS THE SOLID NAVY SHEET (owner, 25 Nov 2026), as the notices and About are: its four figures read
+// through the month's coloured cells while it was see-through. Read as COMPUTED style, because the change is one
+// selector in shared.css and index.css's own rule, later in the cascade, can quietly put the glass back.
+test('calendar: the leave panel is the opaque navy sheet, the day panel still glass', async ({ page }) => {
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const navy = await page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.backgroundColor = 'var(--primary-blue)';
+        document.body.append(probe);
+        const c = getComputedStyle(probe).backgroundColor; probe.remove(); return c;
+    });
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLightboxContent')).toBeVisible();
+    await expect(page.locator('#alLightboxContent')).toHaveCSS('background-color', navy);
+    await page.locator('#alLightboxClose').click();
+    await page.locator('.calendar-day:not(.other-month)').nth(10).click();
+    await expect(page.locator('#dayDetailContent')).toBeVisible();
+    expect(await page.locator('#dayDetailContent').evaluate(el => getComputedStyle(el).backgroundColor),
+        'the day panel looks at the day behind it, so it stays see-through').not.toBe(navy);
+});
+
 // ─── WHILE DECEMBER LOADS, THE 25TH SHIMMERS WHOLE (whole-app fix, 10 Nov 2026) ────────────────────
 // The loading shimmer and the Christmas tree are both a cell's ::after at equal specificity. The shimmer
 // won but kept the tree's translateX(-50%), so on the 25th it swept half the cell, shifted off its left
