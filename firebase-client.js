@@ -22,7 +22,8 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js';
-import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent, ownWritesSentFor } from './claim-retry.js';
+import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent, ownWritesSentFor, leftoverNote } from './claim-retry.js';
+import { lsGet, lsSet, lsDel } from './ls.js';
 import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
 
@@ -363,7 +364,11 @@ export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrite
  * @param {Iterable<any>} refs  every document the save writes or deletes
  * @param {number} [ms]
  */
-export const whenOwnWritesSentFor = (refs, ms) => ownWritesSentFor(() => waitForPendingWrites(db), getDocFromCache, refs, ms);
+export const whenOwnWritesSentFor = (refs, ms) => ownWritesSentFor(() => waitForPendingWrites(db), getDocFromCache, refs, ms,
+    { leftover: _leftover, online: () => globalThis.navigator?.onLine !== false });
+/** This phone's note that its queue holds a write it can never send — device state, one key whoever
+ *  is signed in; the rules are claim-retry.js → "A PHONE KNOWN TO HOLD A LEFTOVER" (25 Nov 2026). */
+const _leftover = leftoverNote({ get: lsGet, set: lsSet, del: lsDel }, 'myb_queue_leftover');
 
 /** How long the staff PIN's unsent writes get to leave before it is signed out (22 Nov 2026). */
 export const VIEWER_WRITES_GRACE_MS = 2000;

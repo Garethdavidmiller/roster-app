@@ -387,9 +387,17 @@ export const getDocsFromCache = () => {
 // it. A document not named was never held, and the read REJECTS, as the real one does; so nothing
 // seeded is the default, and every spec written before this existed still consults nothing.
 // (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+// Every id asked is RECORDED in window.__E2E.cacheAsked (25 Nov 2026), and window.__E2E.pendingIds names
+// documents this device holds with its own save still queued (metadata.hasPendingWrites): together they
+// let a spec see WHICH records a checked write asked about before it skipped the queue wait.
 export const getDocFromCache = (ref) => {
-  const held = (globalThis.__E2E || {}).docCache || {};
+  const e2e = globalThis.__E2E || {};
+  const held = e2e.docCache || {};
   const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
+  if (id) (e2e.cacheAsked = e2e.cacheAsked || []).push(id);
+  if (id && (e2e.pendingIds || []).includes(id)) {
+    return Promise.resolve({ exists: () => true, data: () => held[id] || {}, metadata: { hasPendingWrites: true } });
+  }
   if (!id || !Object.prototype.hasOwnProperty.call(held, id)) {
     return Promise.reject(Object.assign(new Error('e2e: Failed to get document from cache'), { code: 'unavailable' }));
   }

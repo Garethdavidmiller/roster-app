@@ -14,7 +14,7 @@
 
 import { CONFIG, escapeHtml } from './roster-data.js';
 import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
-import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry, whenOwnWritesSent } from './firebase-client.js';
+import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry, whenOwnWritesSentFor } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { archiveNotice } from './notice-archive.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -1618,7 +1618,7 @@ export function init() {
         serverTimestamp, deleteField, designsCol: DESIGNS_COL,
         withClaimRetry: writeWithClaimRetry,
         getDocFromCache,   // offline, plain getDoc cannot tell "removed for good" from "never held" (links-design-12)
-        ownWritesSent: whenOwnWritesSent,   // its own queued saves before any transaction (store rule 5)
+        ownWritesSent: (refs) => whenOwnWritesSentFor(refs),   // its own queued saves to that design before any transaction (store rule 5)
     });
     library = createDesignLibrary({
         store, currentUser,
