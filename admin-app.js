@@ -1206,6 +1206,11 @@ export function init() {
         document.getElementById('adminRoleCard')?.classList.remove('hidden');
         wireNavPanel();
         markPageReady();
+        // The session is re-established HERE too (review of v26.72): `sessionReady` is fulfilled only by
+        // resolveSession, which this early return skipped, so the Error Log and the visit count never started
+        // and the drawer's documents waited out their timeout. And the page takes an update like any other.
+        resolveSession(ensureNamedSession(currentUser));
+        registerServiceWorker();
         sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); });
         return;
     }

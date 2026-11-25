@@ -1444,3 +1444,40 @@ describe('Q. leave over a worked Boxing Day: the receipt counts the day and says
         assert.ok(said.includes(`Recorded 1 day of Annual Leave for ${QB.name} — Boxing Day recorded as leave, so the day in lieu for working it goes`), said);
     });
 });
+
+// R. …AND COUNTED ONCE (review of v26.72). A Dispatcher's leave on a bank holiday they are rostered to work costs a day AND
+// takes back the day in lieu, so the day was in `charged` and in the lieu list both: the preview said "1 day" and the
+// receipt "Recorded 2 days". An INVENTED Dispatcher, due at work on a 2026 bank holiday, through the REAL AL card.
+describe("R. a Dispatcher’s worked bank holiday: the receipt counts the day once, as the preview does", () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    const BANK_HOLIDAYS = ['2026-05-04', '2026-05-25', '2026-08-31'];
+    /** @type {{ m: any, date: string }|null} */
+    let found = null;
+    for (let w = 1; w <= CONFIG.DISPATCHER_ROSTER_WEEKS && !found; w++) {
+        const m = { name: 'Q. Example', currentWeek: w, rosterType: 'dispatcher', role: 'Dispatcher' };
+        const date = BANK_HOLIDAYS.find(d => { const s = getPatternShift(m, parseISODate(d)); return !isRestShift(s) && s !== 'SPARE'; });
+        if (date) found = { m, date };
+    }
+    if (!found) throw new Error('no week of the Dispatcher line works a 2026 bank holiday');
+    const { m: QR, date: BH } = found;
+    onRosterForEachTest(QR);
+
+    test('the receipt is "Recorded 1 day" with the day in lieu named — never "Recorded 2 days"', async () => {
+        _allOv = []; _ovMap = new Map();
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ ({ alMember: memberSelect(QR.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
+        el('alFrom').value = BH; el('alTo').value = BH;
+        for (const fn of el('alTo')._on.change ?? []) fn();
+        const preview = el('alPreview').innerHTML;
+        assert.match(preview, /<strong>1 day<\/strong>/, `premise: the preview charges one day — ${preview}`);
+        assert.match(preview, /day in lieu for working it goes/, 'premise: and says the day in lieu goes');
+        _record = async () => ({ workingCount: 1, sundayCount: 0 });
+        await save();
+        assert.equal(_writes.length, 1, 'premise: the booking was saved');
+        const said = el('alFeedback').textContent;
+        assert.doesNotMatch(said, /Recorded 2 days/, said);
+        assert.match(said, new RegExp(`Recorded 1 day of Annual Leave for ${QR.name} — .*day in lieu for working it goes`), said);
+    });
+});

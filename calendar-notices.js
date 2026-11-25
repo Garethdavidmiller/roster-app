@@ -483,7 +483,10 @@ function _showInstallRoute({ how, mirror, pay = true }) {
         installNoticeSafari:  !mirror && how === 'ios',     // an email or chat app has no Add to Home Screen
         installNoticeMenu:    !mirror && how === 'menu',
         installNoticePay:     pay && mirror,
-        installNoticePayIos:  pay && !mirror && how === 'ios',   // the Home Screen app's storage is its own — Android's is not
+        // The Home Screen app's storage is its own — Android's is not. The sign-in half is everybody's; only the
+        // pay figures' half is gated (review of v26.67: gating the whole line took "you sign in there once" too).
+        installNoticeIosStore: !mirror && how === 'ios',
+        installNoticePayIos:  pay && !mirror && how === 'ios',
         installNoticeHave:    !mirror && how === 'menu',     // Chromium offers only where it is not installed; the iPhone's line says it itself
         installNoticeActions: mirror || how === 'prompt',
         installNoticeInstall: !mirror && how === 'prompt',   // never an Install button on the mirror, whatever `how` says (v24.96)

@@ -101,6 +101,14 @@ function endpointSentence(body) {
  * @returns {{ retry: boolean, note: ResetNote|null }}
  */
 export function resetFailure(name, err) {
+    // Nobody is signed in on this page any more (another tab signed out): no signal is not the cause, and Retry
+    // would fail the same way, so the admin is told to sign in again (review of v26.72).
+    if (err?.code === RESET_NOT_SENT && err?.signedOut) {
+        return { retry: false, note: {
+            title: 'The reset wasn’t sent',
+            message: `This page is no longer signed in as the admin, so nothing was sent and ${name}’s password has not changed.\n\nReload the page, sign in again, then reset ${name}’s password.`,
+        } };
+    }
     if (err?.code === RESET_NOT_SENT) {
         return { retry: true, note: {
             title: 'The reset wasn’t sent',

@@ -98,8 +98,12 @@ test('a reset with no admin signed in on this device was never sent either: the 
     const err = await resetMemberPassword(NAME).then(() => null, (/** @type {any} */ e) => e);
     assert.ok(err, 'premise: the call failed');
     const { retry, note } = resetFailure(NAME, err);
-    assert.equal(retry, true);
+    // …and it says the REAL cause (review of v26.72): it was told "no signal" and offered a Retry that cannot work.
+    assert.equal(retry, false, 'Retry fails the same way until somebody signs in');
     assert.equal(note?.title, 'The reset wasn’t sent', 'a bare Retry gave the admin no reason');
+    assert.match(note?.message ?? '', /no longer signed in as the admin/);
+    assert.match(note?.message ?? '', /sign in again/);
+    assert.doesNotMatch(note?.message ?? '', /signal|Retry/, 'not the renewal\'s cause or remedy');
 });
 
 test('a 5xx with no sentence, or a network failure, is a bare Retry with nothing to say', () => {

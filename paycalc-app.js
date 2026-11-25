@@ -359,9 +359,9 @@ export function init() {
         _hintEl.textContent = _settingsHintDefault;
         // What is TRUE (whole-app review, 24 Nov 2026): the tax code and student loan are single settings
         // used for every payslip; pension is kept per payslip (the hint beside it says so); the grade
-        // follows the roster by date. Only the "checked" mark is per tax year.
+        // follows the roster by date unless the member chose one (paycalc-grade-setting.js). Only the "checked" mark is per tax year.
         /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
-          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date — you'll be asked to check them again when a new tax year starts.`;
+          `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date unless you choose one — you'll be asked to check them again when a new tax year starts.`;
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
         // Auto-open settings once per session per TY — only for returning users (new users already
         // see the settings card open) — with the "New tax year" notice. Never for a year that is

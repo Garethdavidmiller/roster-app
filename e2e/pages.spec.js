@@ -1096,6 +1096,10 @@ test('App Notices: a long archive is reached and scrolled from the keyboard, wit
     const gold = await ringColourOf(page, '--focus-outline-gold');
     expect(await tabToRing(page, '#navNoticesList'), 'Tab reaches the list, ringed in the sheet\'s gold')
         .toEqual({ style: 'solid', width: '2px', colour: gold });
+    // …and PAINTED (review of v26.67): the scroll fade is a mask, which clips everything outside the border box — the
+    // whole ring. The computed outline above was right all along; the list wears no mask while it holds the ring.
+    expect(await list.evaluate(el => [el.classList.contains('has-more'), getComputedStyle(el).maskImage]),
+        'a long list keeps its fade off while it holds the focus ring').toEqual([true, 'none']);
     await page.keyboard.press('End');
     await expect.poll(() => list.evaluate(el => el.scrollTop), 'End scrolls the focused list to its last notice').toBeGreaterThan(0);
     await page.keyboard.press('Tab');

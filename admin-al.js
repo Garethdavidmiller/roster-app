@@ -29,7 +29,7 @@ const esc = escapeHtml;
  *        booked (`projectAlBooking`) — the reason a save that charged nothing still wrote a day
  * @param {string} [shift] what the booking did to each year, when a Spare week over New Year moved a day
  *        between them (`yearShiftWords`) — said after the rest, as the preview says it
- * @param {string[]} [lieu] the days written that take a day in lieu back (`lieuLost`) — counted, and named
+ * @param {string[]} [lieu] the days written that take a day in lieu back (`lieuLost`) — named; the caller has counted them in `n`
  */
 function recordedWords(n, m, held, free = 0, capFreed = 0, shift = '', lieu = []) {
     const said = recordedCore(n, m, held, free, capFreed, lieu);
@@ -37,14 +37,15 @@ function recordedWords(n, m, held, free = 0, capFreed = 0, shift = '', lieu = []
 }
 
 /** `recordedWords` without the years. @param {number} n @param {string} m @param {number} held @param {number} free
- *  @param {number} capFreed @param {string[]} [lieu] the days written that take a day in lieu back (`lieuLost`) */
+ *  @param {number} capFreed @param {string[]} [lieu] the days written that take a day in lieu back (`lieuLost`), already counted in `n` */
 function recordedCore(n, m, held, free, capFreed, lieu = []) {
     // A DAY IN LIEU TAKEN BACK IS A DAY RECORDED (whole-app review, 24 Nov 2026). Leave over a worked Boxing Day
     // costs this year nothing and next year its day in lieu, and "Recorded 0 days of Annual Leave" said no day was
-    // written. Those days are counted, and the receipt says what they cost, in the preview's own words.
+    // written. Those days are counted — by the caller, in `n`, once (admin-range-booking.js) — and the receipt
+    // says what they cost, in the preview's own words.
     const goes = lieu.length ? ` — ${lieuGoesWords(lieu)}` : '';
     if (lieu.length) {
-        const fresh = n - held + lieu.length;
+        const fresh = n - held;
         return `Recorded ${fresh} ${held ? 'new ' : ''}day${fresh !== 1 ? 's' : ''} of Annual Leave for ${m}`
             + (held || free ? ` (${[held ? `${held} already booked` : '', free ? `${free} day${free > 1 ? 's' : ''} at no cost` : ''].filter(Boolean).join(', ')})` : '')
             + goes;

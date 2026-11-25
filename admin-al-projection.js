@@ -54,25 +54,6 @@ import { isChristmasClosureDate, allowanceYearsOf } from './christmas-leave.js';
 import { carriedFrom, leaveYearOf } from './leave-year.js';
 
 /**
- * Will this one date cost a day of entitlement?
- *
- * The single rule, exported so a caller holding one date (the week grid, row by row) asks exactly
- * what a caller holding a range asks.
- *
- * @param {object} args
- * @param {any} args.member the team-member object
- * @param {string} args.date ISO `YYYY-MM-DD`
- * @param {Map<string, any>|null} [args.ovByDate] the overrides in play. **Pass it** — without it a
- *        swapped-in day already on record reads as a rest day (`consumesEntitlement` says so on its
- *        own signature).
- * @param {boolean} [args.swapped] the admin has DECLARED this a swapped-in working day
- * @returns {boolean}
- */
-export function willConsume({ member, date, ovByDate = null, swapped = false }) {
-    return swapped === true || consumesEntitlement(member, date, ovByDate);
-}
-
-/**
  * What a booking of `dates` for `member` will actually do.
  *
  * Four sets, because four things can be true of a date and the preview has been wrong precisely

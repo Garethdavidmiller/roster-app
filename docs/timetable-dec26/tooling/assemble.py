@@ -31,6 +31,10 @@ def build(cols, src):
             j = cands[0]
             if j in used: stop(f"its continuation (page/column {cols[j]['page']}/{cols[j]['col']}) is already joined to another train", src, c)
             d = cols[j]
+            # A CONTINUATION THAT IS CONTINUED AGAIN is a train over three pages, which this joins only one break of
+            # (review of v26.69): its third column was then reported as reached by nothing, naming the wrong column.
+            if any(x['text'] == 'e' for x in d['cells']):
+                stop(f"its continuation (page/column {d['page']}/{d['col']}) is continued again — a train over three pages, which assemble.py does not join", src, c)
             k = next(n for n, x in enumerate(d['cells']) if x['crs'] == last['crs'] and x['text'] == last['t'])
             onward = [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in d['cells'][k + 1:] if timed(x)]
             # …AND IT MUST TAKE THE TRAIN SOMEWHERE (external review of v26.69): a continuation printing only the
