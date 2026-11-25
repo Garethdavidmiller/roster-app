@@ -237,6 +237,7 @@ export function init() {
      * @param {string} mId
      * @param {string | null} warnId
      * @param {{ cap?: boolean }} [opts]  `cap: false` while the member is still typing in the pair
+     * @returns {boolean} whether it REWROTE the boxes (capped them) — the one case leaving the box must save
      */
     function onHhMm(hId, mId, warnId, { cap = true } = {}) {
       // Validate Saturday hours don't exceed contracted hours (pro-rated for joining periods)
@@ -251,10 +252,12 @@ export function init() {
           /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(contr);
           /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = minutesFieldText(0);
           if (warn) { setStatus(warn, `⚠ Capped at ${contr} hrs — your contracted maximum for this period`); warn.classList.add('show'); }
+          return true;
         } else {
           if (warn) warn.classList.remove('show');
         }
       }
+      return false;
     }
 
     function onPeriodChange() {
@@ -920,7 +923,11 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('satH')).addEventListener('input', () => { onHhMm('satH','satM','satWarn', { cap: false }); autosave(); });
     /** @type {HTMLElement} */ (document.getElementById('satM')).addEventListener('input', () => { clampMins('satM'); onHhMm('satH','satM','satWarn', { cap: false }); autosave(); });
     for (const id of ['satH', 'satM']) {
-      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('blur', () => { onHhMm('satH','satM','satWarn'); autosave(); });
+      // SAVED ON LEAVING ONLY WHEN THE CAP REWROTE THE BOXES (24-hour review, 25 Nov 2026). Everything typed is
+      // saved as it is typed (above); a save on every blur also saved the calendar's display-only gold figures
+      // when the box was merely tapped into and left — Next, a tab, the page hidden — so a payslip only LOOKED
+      // at read as entered (invariant 11: viewing never persists).
+      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('blur', () => { if (onHhMm('satH','satM','satWarn')) autosave(); });
     }
 
     // Every other hours pair — minutes clamp + autosave; Saturday's, above, carries the cap as well.
