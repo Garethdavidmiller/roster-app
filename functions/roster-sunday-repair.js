@@ -69,8 +69,9 @@ const scanSawRestCode = (/** @type {any} */ raw) => {
  *     be cleanly reversed, and the Sunday claim is left for the witness (see the header).
  *   Case B — worked Sunday with RDW stripped — sundayScan="RDW HH:MM" but parsed has plain time.
  *
- * @param {object[]} safeEntries    - modified in place
- * @param {object}   sundayScan     - { memberName: scanValue } from AI output
+ * @param {import('./roster-parse-helpers').SafeEntry[]} safeEntries - modified in place
+ * @param {Record<string, any>|null|undefined} sundayScan - { memberName: scanValue } from AI output,
+ *                                   UNVALIDATED: each value is checked as it is read
  * @param {boolean}  hasSundayColumn
  * @param {string[]} dates          - 7 ISO dates; dates[0] is Sunday, dates[6] Saturday
  * @param {Record<string, any>} [choices] - the column cross-check's two-way picks, keyed
@@ -88,7 +89,7 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
 
     const sunDate     = dates[0];
     const satDate     = dates[6];
-    const isPlainTime = v => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v);
+    const isPlainTime = (/** @type {string} */ v) => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v);
 
     for (const entry of safeEntries) {
         const scanRaw = sundayScan[entry.memberName];
@@ -183,7 +184,7 @@ function shiftChoices(choices, memberName, dates) {
  * grid reads as empty (`printsNothing`, cell-day-rules.js), so a claim on a dash-printed Sunday was
  * refused above; a scan that wrote a dash beside an occupied cell is still a question.
  *
- * @param {object[]} safeEntries
+ * @param {import('./roster-parse-helpers').SafeEntry[]} safeEntries
  * @param {string[]} disputed   from applySundayScanCorrections
  * @param {{ ran?: boolean, unmatched?: string[] }|null|undefined} geoStats  from applyGeometryWitness
  * @param {string[]} dates

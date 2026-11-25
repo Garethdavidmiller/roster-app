@@ -42,6 +42,7 @@ const { setupWebPush, fanOutPush } = require('./push');
 const { bearerToken, requireAdmin, readJsonBody } = require('./request-helpers');
 const { sendPayReminder } = require('./pay-reminder');
 const { notifyAdminOfErrorLog } = require('./error-log-notify');
+const { fieldsOf } = require('./caught');
 const { rotateDocumentLinks: rotateLinks } = require('./doc-link-rotation');
 const { buildIngestHuddle } = require('./huddle-ingest');
 
@@ -52,9 +53,10 @@ const { buildIngestHuddle } = require('./huddle-ingest');
  * @param {import('firebase-functions/params').SecretParam} deps.VAPID_PRIVATE_KEY
  * @param {string}   deps.VAPID_PUBLIC_KEY
  * @param {string}   deps.STAFF_SITE_URL
- * @param {Function} deps.readRawBody           shared streaming body reader (also used by parseRosterPDF)
- * @param {Function} deps.nowInLondon           TZ-independent London calendar date
- * @param {Function} deps.isRetriableFirestoreError  commit-ambiguous classifier
+ * @param {(req: any, res: any, logTag: string) => Promise<string|null>} deps.readRawBody
+ *        shared streaming body reader (also used by parseRosterPDF)
+ * @param {() => { year: number, month: number, day: number }} deps.nowInLondon  TZ-independent London calendar date
+ * @param {(err: unknown) => boolean} deps.isRetriableFirestoreError  commit-ambiguous classifier
  * @param {number}   deps.MAX_FILE_BYTES
  * @param {number}   deps.MAX_HUDDLE_HTML_CHARS
  * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS  the CORS allowlist for the endpoints the browser calls here
@@ -89,7 +91,7 @@ function buildDocumentEndpoints({
             const newest = (snap.docs[0].data() || {}).date;
             return !(typeof newest === 'string' && newest > date);
         } catch (err) {
-            console.warn(`[${collectionName}] could not read the latest document — announcing ${date} anyway:`, err && err.message);
+            console.warn(`[${collectionName}] could not read the latest document — announcing ${date} anyway:`, fieldsOf(err).message);
             return true;
         }
     }
@@ -150,7 +152,7 @@ const onHuddleCreated = onDocumentCreated(
         try {
             await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
         } catch (err) {
-            console.warn('[onHuddleCreated] Push fan-out error:', err.message);
+            console.warn('[onHuddleCreated] Push fan-out error:', fieldsOf(err).message);
         }
     }
 );
@@ -172,7 +174,12 @@ const onHuddleCreated = onDocumentCreated(
 // would double-notify and force the same `uploadedBy === 'power-automate'` guard the
 // Huddle needs. Keep the trigger as the single source. See .claude/rules/notifications.md.
 
-/** Fan out a document-arrival push for a circular/newsletter, to the design language. */
+/**
+ * Fan out a document-arrival push for a circular/newsletter, to the design language.
+ * @param {'circular'|'newsletter'} feature
+ * @param {string} body
+ * @param {import('firebase-functions/params').SecretParam} vapidPrivate
+ */
 async function sendDocPushNotifications(feature, body, vapidPrivate) {
     setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
     await fanOutPush(buildPushPayload({ feature, body, baseUrl: STAFF_SITE_URL }), `[${feature}]`);
@@ -191,7 +198,7 @@ const onCircularCreated = onDocumentCreated(
         try {
             await sendDocPushNotifications('circular', "Tap to read this week's retail update.", VAPID_PRIVATE_KEY);
         } catch (err) {
-            console.warn('[onCircularCreated] Push fan-out error:', err.message);
+            console.warn('[onCircularCreated] Push fan-out error:', fieldsOf(err).message);
         }
     }
 );
@@ -208,7 +215,7 @@ const onNewsletterCreated = onDocumentCreated(
         try {
             await sendDocPushNotifications('newsletter', 'Tap to read the latest newsletter.', VAPID_PRIVATE_KEY);
         } catch (err) {
-            console.warn('[onNewsletterCreated] Push fan-out error:', err.message);
+            console.warn('[onNewsletterCreated] Push fan-out error:', fieldsOf(err).message);
         }
     }
 );
@@ -223,7 +230,7 @@ const onNewsletterCreated = onDocumentCreated(
  * logging context only. Shared by ingestHuddle and onHuddleCreated, so the pause above stops both.
  *
  * @param {string}       huddleDate    YYYY-MM-DD — the date the huddle is FOR
- * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
+ * @param {import('firebase-functions/params').SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
  */
 async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     if (HUDDLE_PUSH_PAUSED) {
@@ -419,7 +426,7 @@ const sendErrorLogNotification = onSchedule(
             cors:           ADMIN_FUNCTION_ORIGINS,
         },
         async (req, res) => {
-            if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+            if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
             const bearer = bearerToken(req);
             let claims;
@@ -427,16 +434,18 @@ const sendErrorLogNotification = onSchedule(
                 // checkRevoked — property 3 above.
                 claims = await getAuth().verifyIdToken(bearer, true);
             } catch (_) {
-                return res.status(401).json({ error: 'Unauthorised' });
+                res.status(401).json({ error: 'Unauthorised' });
+                return;
             }
             if (!mayReceiveDocumentUrl(claims)) {
-                return res.status(403).json({ error: 'Forbidden' });
+                res.status(403).json({ error: 'Forbidden' });
+                return;
             }
 
             // kindFromBody, not `req.body.kind` — an unparsed body (no JSON Content-Type) would
             // otherwise be refused as an unknown kind, which is the one thing it is not.
             const kind = resolveKind(kindFromBody(req.body, req.rawBody));
-            if (!kind.ok) return res.status(400).json({ error: 'Unknown document kind' });
+            if (!kind.ok) { res.status(400).json({ error: 'Unknown document kind' }); return; }
 
             // The LATEST of that kind — the same query, on the `date` field, the viewer opens with.
             let snap;
@@ -445,9 +454,10 @@ const sendErrorLogNotification = onSchedule(
                     .orderBy('date', 'desc').limit(1).get();
             } catch (err) {
                 console.error(`[getDocumentUrl] ${kind.kind} lookup failed:`, err);
-                return res.status(503).json({ error: 'Could not look up the document' });
+                res.status(503).json({ error: 'Could not look up the document' });
+                return;
             }
-            if (snap.empty) return res.status(404).json({ error: `No ${kind.label} has been published yet` });
+            if (snap.empty) { res.status(404).json({ error: `No ${kind.label} has been published yet` }); return; }
 
             const data = snap.docs[0].data() || {};
             // FOR THIS KIND — not merely well-formed. The signer bypasses storage.rules, so a
@@ -457,7 +467,8 @@ const sendErrorLogNotification = onSchedule(
                 // The server wrote this path; a bad one is our defect, not the caller's. Say so in
                 // the log and refuse — never hand an unchecked path to the signer.
                 console.error(`[getDocumentUrl] ${kind.kind} ${snap.docs[0].id} storagePath is missing or not a ${kind.collection}/ path`);
-                return res.status(503).json({ error: 'That document cannot be opened right now' });
+                res.status(503).json({ error: 'That document cannot be opened right now' });
+                return;
             }
 
             const expiresAt = signedUrlExpiry(Date.now());
@@ -469,7 +480,8 @@ const sendErrorLogNotification = onSchedule(
                 // Overwhelmingly the IAM grant in the prerequisite above. 503 (not 500) so the
                 // client reads it as "try the old way", which is what its fallback is for.
                 console.error('[getDocumentUrl] signing failed — is serviceAccountTokenCreator granted?', err);
-                return res.status(503).json({ error: 'Document signing unavailable' });
+                res.status(503).json({ error: 'Document signing unavailable' });
+                return;
             }
 
             // ── THE DOOR, NEVER THE PERSON (v24.18, external review of v24.17) ────────────────
@@ -492,7 +504,8 @@ const sendErrorLogNotification = onSchedule(
             // re-upload keeps the id and replaces the file. The client uses the url only when this
             // matches the document it is holding. It is not new information: the client already
             // reads the same field from the document it holds.
-            return res.status(200).json({ url, expiresAt, fileType: data.fileType || null, storagePath: data.storagePath });
+            res.status(200).json({ url, expiresAt, fileType: data.fileType || null, storagePath: data.storagePath });
+            return;
         },
     );
 
@@ -521,7 +534,7 @@ const sendErrorLogNotification = onSchedule(
             cors:           ADMIN_FUNCTION_ORIGINS,
         },
         async (req, res) => {
-            if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+            if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
             if (!(await requireAdmin(req, res, 'rotateDocumentLinks'))) return;
             const rotate = readJsonBody(req).rotate === true;
             let report;
@@ -534,7 +547,8 @@ const sendErrorLogNotification = onSchedule(
                 console.error('[rotateDocumentLinks] could not read the documents — nothing was changed:', err);
                 // `changed: false` is the card's to read. The platform answers a 503 of its own when an
                 // instance dies, which may be halfway through the writes, so only this body may say so.
-                return res.status(503).json({ error: 'Couldn’t read the documents, so nothing was changed', changed: false });
+                res.status(503).json({ error: 'Couldn’t read the documents, so nothing was changed', changed: false });
+                return;
             }
             // Counts only: the admin who pressed it is the only possible caller, and the paths of any
             // failures travel back in the answer, where the admin can act on them.
@@ -543,7 +557,8 @@ const sendErrorLogNotification = onSchedule(
                 + `${report.unlinkedTooNew} too new to clear, ${report.held} held; `
                 + `rotated ${report.rotated} (${report.recordsMended} dead stored links mended), cleared ${report.cleared}, changed ${report.changedDuringRun}, `
                 + `failed ${report.failed.length}`);
-            return res.status(200).json(report);
+            res.status(200).json(report);
+            return;
         },
     );
 

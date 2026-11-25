@@ -235,8 +235,12 @@ Which member a verified ID token speaks for, or none — the server copy of `isM
 - **Exports:** `memberNameFromClaims` · `mustReclaim` · `claimedByAnotherMember` · `unlinkOtherProviders`
 
 ### `functions/request-helpers.js`
-The request plumbing every endpoint shares, in one copy: the JSON body reader, the bearer token, the admin gate (`requireAdmin`) and the capped raw upload body. It requires nothing at load time, so the readers are tested in test:hygiene (`doc-url-core.test.mjs`).
-- **Exports:** `jsonBodyOf` · `readJsonBody` · `bearerToken` · `requireAdmin` · `readRawBody`
+The request plumbing every endpoint shares, in one copy: the JSON body reader, one header as text (`headerText`), the bearer token, the admin gate (`requireAdmin`) and the capped raw upload body. It requires nothing installed at load time, so the readers are tested in test:hygiene (`doc-url-core.test.mjs`).
+- **Exports:** `jsonBodyOf` · `readJsonBody` · `headerText` · `bearerToken` · `requireAdmin` · `readRawBody`
+
+### `functions/caught.js`
+The fields a `catch` reads off a thrown value (`code`, `message`, `status`, `statusCode`), typed as the `unknown` a strict checker says it is: `fieldsOf(err).code` reads what `err.code` read for every object, and `undefined` for anything else. One reading instead of a cast in every catch. Requires nothing.
+- **Exports:** `fieldsOf`
 
 ### `functions/london-clock.js`
 An ISO calendar date, and the instant it names in London — machinery, not Overtime policy; the hours the depot chose stay in `functions/overtime-core.js`, which re-exports these. It requires nothing, and `london-clock.test.mjs` asserts it, which keeps `overtime-core.test.mjs` in test:hygiene.

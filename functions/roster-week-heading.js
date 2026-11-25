@@ -86,7 +86,7 @@ function longDate(iso) {
  */
 function checkSheetWeek(geometry, weekEnding) {
     const headings = geometry && Array.isArray(geometry.weekEndings) ? geometry.weekEndings : [];
-    const weeks = [...new Set(headings.map(h => h.iso).filter(Boolean))];
+    const weeks = [...new Set(headings.map(h => h.iso).filter(/** @returns {iso is string} */ (iso) => Boolean(iso)))];
     if (!weeks.length) {
         const textRead = !!geometry && ((geometry.pagesRead || 0) + (geometry.pagesRejected || 0)) > 0;
         const why = headings.length ? `its heading's date (${headings.map(h => h.printed).join(', ')}) is not a Saturday`

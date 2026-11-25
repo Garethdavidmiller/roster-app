@@ -21,6 +21,7 @@
  */
 
 const { parseStrictIsoDate } = require('./roster-parse-helpers');
+const { fieldsOf } = require('./caught');
 
 // Number of months of Huddle history to retain. Huddles are daily and short-lived in
 // usefulness; older ones are pruned so the collection and Storage stay bounded. Circulars
@@ -73,7 +74,7 @@ async function pruneOldHuddles(excludeDate, { db, bucket, nowInLondon }) {
     const stale  = await db.collection('huddles').where('date', '<', cutoffISO).get();
     if (stale.empty) return;
 
-    await Promise.allSettled(stale.docs.map(async docSnap => {
+    await Promise.allSettled(stale.docs.map(async (/** @type {any} */ docSnap) => {
         if (docSnap.id === excludeDate) return;
         // Defensive re-validation before anything DESTRUCTIVE: every object path below is checked to sit
         // under `huddles/<id>`, so a malformed/truncated id (e.g. "2026-07") would widen that to a whole
@@ -99,7 +100,7 @@ async function pruneOldHuddles(excludeDate, { db, bucket, nowInLondon }) {
         // deleted file. If the doc delete fails or stands down, nothing in Storage is touched.
         let removed;
         try {
-            removed = await db.runTransaction(async tx => {
+            removed = await db.runTransaction(async (/** @type {any} */ tx) => {
                 const cur = await tx.get(docSnap.ref);
                 if (!cur.exists) return false;                                          // already gone
                 if (((cur.data() || {}).storagePath ?? null) !== selected) return false; // replaced under us
@@ -107,7 +108,7 @@ async function pruneOldHuddles(excludeDate, { db, bucket, nowInLondon }) {
                 return true;
             });
         } catch (e) {
-            console.error(`[pruneOldHuddles] Firestore delete ${docSnap.id} failed (Storage NOT swept):`, e.message);
+            console.error(`[pruneOldHuddles] Firestore delete ${docSnap.id} failed (Storage NOT swept):`, fieldsOf(e).message);
             return;
         }
         if (!removed) {
@@ -117,13 +118,13 @@ async function pruneOldHuddles(excludeDate, { db, bucket, nowInLondon }) {
         // THE VERSION SELECTED, BY NAME — and only one under this date's own prefix, so a corrupted
         // `storagePath` can never reach another date's file.
         if (typeof selected === 'string' && selected.startsWith(prefix)) {
-            await bucket.file(selected).delete().catch(e =>
-                console.warn(`[pruneOldHuddles] Storage delete ${selected} failed (orphaned):`, e.message));
+            await bucket.file(selected).delete().catch((/** @type {unknown} */ e) =>
+                console.warn(`[pruneOldHuddles] Storage delete ${selected} failed (orphaned):`, fieldsOf(e).message));
         }
         try {
             await sweepHuddleOrphans(bucket, db, docSnap.id, Date.now());
         } catch (e) {
-            console.warn(`[pruneOldHuddles] Orphan sweep for ${docSnap.id} failed (no later run returns to this date; Operations → Document links counts what it left):`, e.message);
+            console.warn(`[pruneOldHuddles] Orphan sweep for ${docSnap.id} failed (no later run returns to this date; Operations → Document links counts what it left):`, fieldsOf(e).message);
         }
     }));
     console.log(`[pruneOldHuddles] Pruned huddles older than ${cutoffISO}`);
@@ -145,11 +146,11 @@ async function sweepHuddleOrphans(bucket, db, date, nowMs) {
     if (!files.length) return;
     const live = await db.collection('huddles').doc(date).get();
     const livePath = live.exists ? (live.data() || {}).storagePath : null;
-    await Promise.all(files.map(async f => {
+    await Promise.all(files.map(async (/** @type {any} */ f) => {
         if (f.name === livePath) return;
         const created = Date.parse((f.metadata && f.metadata.timeCreated) || '');
         if (!Number.isFinite(created) || nowMs - created < HUDDLE_ORPHAN_MIN_AGE_MS) return;
-        await f.delete().catch(e => console.warn(`[pruneOldHuddles] Storage delete ${f.name} failed (orphaned):`, e.message));
+        await f.delete().catch((/** @type {unknown} */ e) => console.warn(`[pruneOldHuddles] Storage delete ${f.name} failed (orphaned):`, fieldsOf(e).message));
     }));
 }
 

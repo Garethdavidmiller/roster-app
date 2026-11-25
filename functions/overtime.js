@@ -59,7 +59,10 @@ const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { memberNameFromClaims } = require('./member-identity');
 const { bearerToken, readJsonBody } = require('./request-helpers');
 const { isMembersOwnAccount } = require('./admin-recipients');
+const { fieldsOf } = require('./caught');
 
+/** A targeted send → how many accepted it. @typedef {(payload: object, uids: string[], tag: string) => Promise<number>} SendPush */ /** A member's own uid, or null. @typedef {(name: string) => Promise<string|null>} UidForName */
+/** The verified caller (`authenticate`). @typedef {{ name: string, uid: string, admin: boolean, manager: boolean }} Caller */
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
 const WINDOWS = 'overtimeWindows';
 
@@ -68,13 +71,14 @@ const WINDOWS = 'overtimeWindows';
  * @param {object} deps
  * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS  CORS allowlist (defence in depth; the real control
  *   is the ID token + claim check inside each handler)
- * @param {{ overtimeRoster: Array<object>, maxRosterYear: number, overtimeBeta?: string[], roles: { admin: string[], manager: string[] } }} deps.rosterMembers
+ * @param {{ overtimeRoster: import('./overtime-core').OvertimeRosterRow[], maxRosterYear: number, overtimeBeta?: string[], roles: { admin: string[], manager: string[] } }} deps.rosterMembers
  *   the GENERATED server roster — never a client payload
  * @param {any} [deps.VAPID_PRIVATE_KEY] Web Push secret — absent in tests, where `notify` is
  *   injected instead; absent AND uninjected, sends become logged no-ops (never a throw)
  * @param {string} [deps.VAPID_PUBLIC_KEY]
  * @param {string} [deps.STAFF_SITE_URL] origin for the notification deep link
- * @param {{ sendPush?: Function, uidForName?: Function }} [deps.notify] test seam — the two
+ * @param {boolean | (() => boolean)} [deps.purgeArmed]  does the retention purge delete (`purgeArmedAt`)
+ * @param {{ sendPush?: SendPush, uidForName?: UidForName }|null} [deps.notify] test seam — the two
  *   halves the fakes need to observe: what was sent, and to whom
  */
 function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeArmed = false,
@@ -94,6 +98,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
     // accounts with, so the two cannot disagree — and a member with no account, or no subscribed
     // device, is silently skipped: fail closed, per member. A push can never fail the write it
     // announces; every path here is wrapped so the worst outcome is a log line.
+    /** @type {SendPush} */
     const send = (notify && notify.sendPush) || (VAPID_PRIVATE_KEY
         ? (payload, uids, tag) => {
             setupWebPush(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY);
@@ -103,6 +108,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
     // Only the member's own enabled account, carrying their `member` claim (`isMembersOwnAccount`):
     // the shared Calendar PIN account is refused even when a roster email has been linked to it — its
     // devices are the station's shared PCs — as `uidForMember` (pay-reminder.js) refuses it for pay.
+    /** @type {UidForName} */
     const uidForName = (notify && notify.uidForName) || (async (name) => {
         try {
             const u = await getAuth().getUserByEmail(nameToEmail(name));
@@ -137,7 +143,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 groups.set(m.weekEnding, g);
             }
             for (const g of groups.values()) {
-                const uids = (await Promise.all(g.names.map(uidForName))).filter(Boolean);
+                const uids = (await Promise.all(g.names.map(uidForName))).filter(/** @returns {u is string} */ (u) => Boolean(u));
                 if (!uids.length) {
                     console.log(`[overtimeAsked] ${g.milestones.weekEnding} — no resolvable targets among ${g.names.length} member(s)`);
                     continue;
@@ -182,7 +188,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             try {
                 const claimed = await db().runTransaction(async (tx) => {
                     const fresh = await tx.get(d.ref);
-                    if (!OT.reminderDue(milestones, toMillis(fresh.data().reminderSentAt), nowMs)) return false;
+                    if (!OT.reminderDue(milestones, toMillis(fresh.data()?.reminderSentAt), nowMs)) return false;
                     tx.update(d.ref, { reminderSentAt: FieldValue.serverTimestamp() });
                     return true;
                 });
@@ -196,7 +202,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 const names = pSnap.docs
                     .filter(p => !OT.isWithdrawn(p.data()) && !submitted.has(p.id) && !asked.has(p.id))
                     .map(p => p.id);
-                const uids = (await Promise.all(names.map(uidForName))).filter(Boolean);
+                const uids = (await Promise.all(names.map(uidForName))).filter(/** @returns {u is string} */ (u) => Boolean(u));
                 // WHAT IT REACHED, beside the claim (overtime-core-4, Nov 2026). The claim is an ATTEMPT
                 // — it must precede the send, or two runs both send — and was read as "sent" on mornings
                 // that reached nobody. So after the send: who had said nothing, and how many devices took
@@ -258,7 +264,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * cached token stays cryptographically valid for up to an hour, and this endpoint set writes a
      * person's own availability record. Matches setupRosterAuth / resetMemberPassword.
      *
-     * @returns {Promise<{name:string, uid:string, admin:boolean, manager:boolean}|null>}
+     * @param {import('firebase-functions/v2/https').Request} req @param {import('express').Response} res
+     * @returns {Promise<Caller|null>}
      */
     async function authenticate(req, res) {
         if (req.method !== 'POST') {
@@ -290,25 +297,25 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         };
     }
 
-    /** Reviewer = manager or admin. The only privileged role this feature has. */
+    /** Reviewer = manager or admin. The only privileged role this feature has. @param {Caller|null} who @returns {boolean} */
     function isReviewer(who) {
         return !!who && (who.admin || who.manager);
     }
 
-    /** Reviewer-only guard, applied after `authenticate`. */
+    /** Reviewer-only guard, applied after `authenticate`. @param {Caller} who @param {import('express').Response} res @returns {boolean} */
     function requireReviewer(who, res) {
         if (isReviewer(who)) return true;
         res.status(403).json({ error: 'Forbidden — reviewer access required' });
         return false;
     }
 
-    /** Milliseconds → Firestore Timestamp, for anything stored as an instant. */
+    /** Milliseconds → Firestore Timestamp, for anything stored as an instant. @param {number} ms */
     function ts(ms) {
         return Timestamp.fromMillis(ms);
     }
 
     /** Firestore's ALREADY_EXISTS (gRPC code 6): a `create` found its document already there. */
-    const isAlreadyExists = (err) => !!err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message)));
+    const isAlreadyExists = (/** @type {unknown} */ err) => !!err && (fieldsOf(err).code === 6 || /ALREADY_EXISTS/.test(String(fieldsOf(err).message)));
 
     // ── createOvertimeWindow ────────────────────────────────────────────────────────────────────
 
@@ -351,13 +358,13 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             if (r.asked) await notifyAsked([r.asked]);
 
             switch (r.outcome) {
-                case 'invalid':         return res.status(400).json({ error: r.error });
-                case 'no-participants': return res.status(409).json({ error: 'no-participants' });
-                case 'too-many':        return res.status(507).json({ error: 'too-many-participants' });
-                case 'preview':         return res.json({ ok: true, dryRun: true, window: r.window });
-                case 'existed':         return res.json({ ok: true, existed: true, window: r.window,
-                    added: r.added || [] });
-                default:                return res.json({ ok: true, created: true, window: r.window });
+                case 'invalid':         res.status(400).json({ error: r.error }); return;
+                case 'no-participants': res.status(409).json({ error: 'no-participants' }); return;
+                case 'too-many':        res.status(507).json({ error: 'too-many-participants' }); return;
+                case 'preview':         res.json({ ok: true, dryRun: true, window: r.window }); return;
+                case 'existed':         res.json({ ok: true, existed: true, window: r.window,
+                    added: r.added || [] }); return;
+                default:                res.json({ ok: true, created: true, window: r.window }); return;
             }
         });
 
@@ -372,7 +379,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      *
      * @param {string} weekEnding
      * @param {{ nowMs:number, dryRun?:boolean, byName:string, byUid:string|null }} ctx
-     * @returns {Promise<{outcome:string, error?:string, window?:object, count?:number}>}
+     * @returns {Promise<{outcome:string, error?:string, window?:object, count?:number, added?:string[],
+     *                    asked?:{ milestones: any, names: string[] }|null}>}  `asked`: whom to notify
      */
     async function createWindow(weekEnding, { nowMs, dryRun = false, byName, byUid }) {
         const check = OT.validateWeekEnding(weekEnding, {
@@ -539,6 +547,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * A CLOSED window was already refused and still is. Nobody is ever REMOVED, at any phase: a
      * population only grows.
      *
+     * @param {import('firebase-admin/firestore').DocumentReference} ref  the window @param {number} nowMs
+     * @param {import('firebase-admin/firestore').DocumentData} data  the window as stored
      * @param {boolean} [retried] set on the one re-read after another writer got there first
      * @returns {Promise<string[]>} the names added, for the caller to report
      */
@@ -620,24 +630,24 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // and `memberName` are both document ids here, and an unvalidated one reaches Firestore
             // as a path rather than as data.
             if (!OT.isSaturday(weekEnding) || !memberName || !OT.isSafeDocId(memberName)) {
-                return res.status(400).json({ error: 'invalid-request' });
+                res.status(400).json({ error: 'invalid-request' }); return;
             }
 
             const ref = db().collection(WINDOWS).doc(weekEnding);
             const snap = await ref.get();
-            if (!snap.exists) return res.status(404).json({ error: 'no-window' });
+            if (!snap.exists) { res.status(404).json({ error: 'no-window' }); return; }
 
             const nowMs = Date.now();
             const allowed = OT.canChangeParticipation(storedMilestones(snap.data()), nowMs);
-            if (!allowed.ok) return res.status(409).json({ error: allowed.error });
+            if (!allowed.ok) { res.status(409).json({ error: allowed.error }); return; }
 
             const pRef = ref.collection('participants').doc(memberName);
             const pSnap = await pRef.get();
-            if (!pSnap.exists) return res.status(404).json({ error: 'not-a-participant' });
+            if (!pSnap.exists) { res.status(404).json({ error: 'not-a-participant' }); return; }
             // IDEMPOTENT both ways. A re-withdrawal re-stamped `withdrawnAt`, which the restore
             // rule below reads — so a second press could unlock a restore the first had forbidden.
             if (withdrawn === OT.isWithdrawn(pSnap.data())) {
-                return res.json({ ok: true, weekEnding, memberName, withdrawn, serverNow: nowMs });
+                res.json({ ok: true, weekEnding, memberName, withdrawn, serverNow: nowMs }); return;
             }
 
             // RESTORING is not the mirror of withdrawing (v21.26). Putting somebody back into a week
@@ -647,8 +657,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // only this endpoint has the stored stamp to test.
             if (!withdrawn) {
                 const restorable = OT.canRestoreParticipant(
-                    storedMilestones(snap.data()), toMillis(pSnap.data().withdrawnAt), nowMs);
-                if (!restorable.ok) return res.status(409).json({ error: restorable.error });
+                    storedMilestones(snap.data()), toMillis(pSnap.data()?.withdrawnAt), nowMs);
+                if (!restorable.ok) { res.status(409).json({ error: restorable.error }); return; }
             }
 
             const del = FieldValue.delete();
@@ -662,7 +672,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
 
             console.log(`[withdrawOvertimeParticipant] ${weekEnding} · ${memberName} · `
                 + `${withdrawn ? 'withdrawn' : 'restored'} by ${who.name}`);
-            return res.json({ ok: true, weekEnding, memberName, withdrawn, serverNow: nowMs });
+            res.json({ ok: true, weekEnding, memberName, withdrawn, serverNow: nowMs }); return;
         });
 
     // ── autoCreateOvertimeWindows (scheduled) ───────────────────────────────────────────────────
@@ -1077,10 +1087,10 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 .map(d => ({ ...storedMilestones(d.data()), audience: d.data().audience }))
                 .sort((a, b) => (a.weekEnding < b.weekEnding ? 1 : -1));
 
-            return res.json({ ok: true, serverNow: nowMs, planningWeeks, retained });
+            res.json({ ok: true, serverNow: nowMs, planningWeeks, retained }); return;
         });
 
-    /** Expected / received / no-response for a window, DERIVED from the two subcollections. */
+    /** Expected / received / no-response for a window, DERIVED from the two subcollections. @param {string} weekEnding */
     async function windowCounts(weekEnding) {
         const ref = db().collection(WINDOWS).doc(weekEnding);
         // COUNT aggregations, not document reads (v20.75). This function wants two integers and
@@ -1192,15 +1202,15 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     openedAt: toMillis(d.data().createdAt) || null,
                     phase: OT.phaseFor(milestones, nowMs),
                     participant: {
-                        grade:       participant.data().grade,
-                        rosterOrder: participant.data().rosterOrder,
+                        grade:       participant.data()?.grade,
+                        rosterOrder: participant.data()?.rosterOrder,
                     },
                     submission: head.exists ? publicHead(head.data()) : null,
                 };
             }));
-            const windows = probed.filter(Boolean);
+            const windows = probed.filter(/** @returns {w is NonNullable<typeof w>} */ (w) => Boolean(w));
             windows.sort((a, b) => (a.weekEnding < b.weekEnding ? -1 : 1));
-            return res.json({ ok: true, serverNow: nowMs, windows });
+            res.json({ ok: true, serverNow: nowMs, windows }); return;
         });
 
     // ── submitOvertimeAvailability ──────────────────────────────────────────────────────────────
@@ -1232,42 +1242,42 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             const ifRevision = Number.isInteger(body.ifRevision) ? body.ifRevision : -1;
             const mutationId = typeof body.clientMutationId === 'string' ? body.clientMutationId : '';
 
-            if (!OT.isValidIsoDate(weekEnding)) return res.status(400).json({ error: 'invalid-week' });
-            if (ifRevision < 0)                  return res.status(400).json({ error: 'missing-if-revision' });
-            if (!MUTATION_ID_RE.test(mutationId)) return res.status(400).json({ error: 'invalid-mutation-id' });
+            if (!OT.isValidIsoDate(weekEnding)) { res.status(400).json({ error: 'invalid-week' }); return; }
+            if (ifRevision < 0)                  { res.status(400).json({ error: 'missing-if-revision' }); return; }
+            if (!MUTATION_ID_RE.test(mutationId)) { res.status(400).json({ error: 'invalid-mutation-id' }); return; }
 
             const windowRef = db().collection(WINDOWS).doc(weekEnding);
             const windowSnap = await windowRef.get();
-            if (!windowSnap.exists) return res.status(404).json({ error: 'no-window' });
+            if (!windowSnap.exists) { res.status(404).json({ error: 'no-window' }); return; }
 
             const milestones = storedMilestones(windowSnap.data());
             const nowMs = Date.now();
 
             // Retention first: an expired window is gone as far as the application is concerned,
             // whether or not the purge has reached it.
-            if (milestones.retentionUntil <= nowMs) return res.status(404).json({ error: 'no-window' });
+            if (milestones.retentionUntil <= nowMs) { res.status(404).json({ error: 'no-window' }); return; }
 
             // SERVER time decides, and it decides here — not from anything the client sent, and not
             // from the phase the client believed it was in when it rendered the form.
             const phase = OT.phaseFor(milestones, nowMs);
             if (!OT.isOpenPhase(phase)) {
-                return res.status(409).json({ error: 'closed', phase, serverNow: nowMs });
+                res.status(409).json({ error: 'closed', phase, serverNow: nowMs }); return;
             }
 
             const participantRef = windowRef.collection('participants').doc(who.name);
             const participant = await participantRef.get();
             // Participation is the authorisation. A member who was not asked cannot submit, and
             // neither can an admin on somebody else's behalf: the only name in play is the token's.
-            if (!participant.exists) return res.status(403).json({ error: 'not-a-participant' });
+            if (!participant.exists) { res.status(403).json({ error: 'not-a-participant' }); return; }
             // A SEPARATE code from `not-a-participant`, because they are different situations and
             // the member's form says different things about them: one was never asked, the other
             // was and has been stood down. Refusing here is the half that matters — hiding the
             // window above is a courtesy, and a client that still holds the page (opened before the
             // withdrawal, or restored from the back/forward cache) must not be able to write.
-            if (OT.isWithdrawn(participant.data())) return res.status(403).json({ error: 'withdrawn' });
+            if (OT.isWithdrawn(participant.data())) { res.status(403).json({ error: 'withdrawn' }); return; }
 
             const normalised = OT.normaliseDays(body.days, OT.weekDates(milestones.weekStart));
-            if (!normalised.ok) return res.status(400).json({ error: normalised.error, date: normalised.date || null });
+            if (!normalised.ok) { res.status(400).json({ error: normalised.error, date: normalised.date || null }); return; }
 
             const headRef = windowRef.collection('submissions').doc(who.name);
             let outcome;
@@ -1279,7 +1289,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     if (!partNow.exists || OT.isWithdrawn(partNow.data())) return { refused: partNow.exists ? 'withdrawn' : 'not-a-participant' };
                     const headSnap = await tx.get(headRef);
                     const head = headSnap.exists
-                        ? { currentRevision: headSnap.data().currentRevision, days: headSnap.data().days }
+                        ? { currentRevision: headSnap.data()?.currentRevision, days: headSnap.data()?.days }
                         : null;
                     const decision = OT.decideSubmission(head, normalised.days, ifRevision);
 
@@ -1288,12 +1298,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                             conflict: true,
                             currentRevision: decision.expected,
                             days: head ? head.days : null,
-                            updatedAt: headSnap.exists ? toMillis(headSnap.data().updatedAt) : 0,
+                            updatedAt: headSnap.exists ? toMillis(headSnap.data()?.updatedAt) : 0,
                             // The client compares this against the mutation id of its own timed-out
                             // attempt. When they match, the "newer version" it is being warned about
                             // is its own earlier, successful submission — a completely different
                             // message from "somebody else changed this".
-                            lastMutationId: headSnap.exists ? (headSnap.data().lastMutationId || null) : null,
+                            lastMutationId: headSnap.exists ? (headSnap.data()?.lastMutationId || null) : null,
                         };
                     }
 
@@ -1348,25 +1358,25 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 });
             } catch (err) {
                 console.error(`[submitOvertimeAvailability] transaction failed for ${who.name} ${weekEnding}:`, err);
-                return res.status(500).json({ error: 'write-failed' });
+                res.status(500).json({ error: 'write-failed' }); return;
             }
 
-            if (outcome.refused) return res.status(403).json({ error: outcome.refused });   // see the transaction
+            if (outcome.refused) { res.status(403).json({ error: outcome.refused }); return; }   // see the transaction
             if (outcome.conflict) {
-                return res.status(409).json({
+                res.status(409).json({
                     error: 'revision-conflict',
                     currentRevision: outcome.currentRevision,
                     days:            outcome.days,
                     updatedAt:       outcome.updatedAt,
                     lastMutationId:  outcome.lastMutationId,
                     serverNow:       nowMs,
-                });
+                }); return;
             }
             // Stamp the uid on first contact: the recovery route if a member is renamed (OVERTIME_AVAILABILITY.md).
-            if (!participant.data().uid) {
+            if (!participant.data()?.uid) {
                 await participantRef.update({ uid: who.uid }).catch(() => { /* best effort */ });
             }
-            return res.json({
+            res.json({
                 ok: true,
                 revision:  outcome.revision,
                 noop:      !!outcome.noop,

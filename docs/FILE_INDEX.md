@@ -725,6 +725,9 @@ roster-app/
     ├── overtime.js                ← the OVERTIME domain's endpoints; retention is filtered here, not in the rules. Design: OVERTIME_AVAILABILITY.md
     ├── member-identity.js         ← which member a verified ID token speaks for, or none — the server twin of `isMember()`. Its header
     ├── request-helpers.js         ← the request plumbing every endpoint shares, in one copy
+    ├── caught.js                  ← the fields a `catch` reads off a thrown value, typed for the `unknown` it is (`fieldsOf`). Requires nothing
+    ├── web-push.d.ts              ← types for the part of `web-push` push.js calls (the package ships none); read only by the type-checker
+    ├── jsconfig.json              ← the Functions' own strict type-check (`npm run typecheck` runs it beside the root one)
     ├── doc-url-core.js            ← who may be handed a document URL, for which document and for how long — a door that MIRRORS firestore.rules, taking a KIND, never a path. Design: AUTH_PLAN.md §5
     ├── doc-link-rotation.js       ← a new key for the permanent link of every stored document file, so old copies stop opening it (ARCHITECTURE.md EXC-007). Its header
     ├── london-clock.js            ← an ISO date and the instant it names in London. **Requires nothing**, which keeps overtime-core.test.mjs in the every-branch lane

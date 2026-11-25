@@ -31,6 +31,7 @@
 
 const { getFirestore } = require('firebase-admin/firestore');
 const { shouldDeleteSubscription, isAllowedPushEndpoint } = require('./roster-parse-helpers');
+const { fieldsOf } = require('./caught');
 
 // Module-level flag so setVapidDetails() is only called once per warm instance.
 // Secrets are not available at module init, so we defer to first call.
@@ -75,8 +76,9 @@ function pushSendOptions(payload, timeoutMs) {
 }
 
 // M8: web-push loaded on first push only (see the require note at the top). Cached after first use.
+/** @type {typeof import('web-push')|null} */
 let _webpush = null;
-/** @returns {any} the web-push module, required lazily on first use. */
+/** @returns {typeof import('web-push')} the web-push module, required lazily on first use. */
 function getWebPush() {
     if (!_webpush) _webpush = require('web-push');
     return _webpush;
@@ -172,7 +174,7 @@ async function sendTargetedPush(payload, ownerUids, logTag, opts = {}) {
     // Timeout AND how long the push service may hold it (pushSendOptions — never the 4-week default).
     // A caller's own bound may only be SHORTER: anything else falls back to the transport's.
     const asked = opts && opts.timeoutMs;
-    const timeoutMs = Number.isFinite(asked) && asked > 0 && asked < SEND_TIMEOUT_MS ? asked : SEND_TIMEOUT_MS;
+    const timeoutMs = typeof asked === 'number' && Number.isFinite(asked) && asked > 0 && asked < SEND_TIMEOUT_MS ? asked : SEND_TIMEOUT_MS;
     const sendOptions = pushSendOptions(payload, timeoutMs);
     // ACCEPTED, not attempted (v21.85, external review). A caller that records "the admin has been
     // told" needs to know a push actually left, and `docs.length` says only that we tried: a
@@ -189,11 +191,11 @@ async function sendTargetedPush(payload, ownerUids, logTag, opts = {}) {
             await getWebPush().sendNotification({ endpoint, keys }, payloadStr, sendOptions);
             accepted += 1;
         } catch (err) {
-            if (shouldDeleteSubscription(err.statusCode)) {
+            if (shouldDeleteSubscription(fieldsOf(err).statusCode)) {
                 await docSnap.ref.delete();
                 console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
             } else {
-                console.warn(`${logTag} Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
+                console.warn(`${logTag} Failed for ${docSnap.id}: HTTP ${fieldsOf(err).statusCode} — ${fieldsOf(err).message}`);
             }
         }
     }));
@@ -251,11 +253,11 @@ async function fanOutPush(payload, logTag) {
             // Delete ONLY genuinely-dead subscriptions (410/404). A 401 is a VAPID-auth
             // misconfig, not a dead endpoint — deleting on it would wipe the whole collection.
             // Full rationale + tests: shouldDeleteSubscription in roster-parse-helpers.js (v16.15/v16.81).
-            if (shouldDeleteSubscription(err.statusCode)) {
+            if (shouldDeleteSubscription(fieldsOf(err).statusCode)) {
                 await docSnap.ref.delete();
                 console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
             } else {
-                console.warn(`${logTag} Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
+                console.warn(`${logTag} Failed for ${docSnap.id}: HTTP ${fieldsOf(err).statusCode} — ${fieldsOf(err).message}`);
             }
         }
     });

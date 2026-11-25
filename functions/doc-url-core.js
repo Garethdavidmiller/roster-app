@@ -98,6 +98,15 @@ function mayReceiveDocumentUrl(claims) {
 }
 
 /**
+ * A key of DOC_KINDS itself — an OWN property, so `constructor` or `__proto__` is never a kind.
+ * @param {string} kind
+ * @returns {kind is keyof typeof DOC_KINDS}
+ */
+function isDocKind(kind) {
+    return Object.prototype.hasOwnProperty.call(DOC_KINDS, kind);
+}
+
+/**
  * Resolve a caller-supplied kind to a server-owned collection, or refuse.
  *
  * Deliberately strict: an exact match against the allowlist, on a string, after trimming and
@@ -111,7 +120,7 @@ function mayReceiveDocumentUrl(claims) {
 function resolveKind(raw) {
     if (typeof raw !== 'string') return { ok: false };
     const kind = raw.trim().toLowerCase();
-    if (!Object.prototype.hasOwnProperty.call(DOC_KINDS, kind)) return { ok: false };
+    if (!isDocKind(kind)) return { ok: false };
     const entry = DOC_KINDS[kind];
     return { ok: true, kind, collection: entry.collection, label: entry.label };
 }
@@ -187,7 +196,7 @@ function signedUrlExpiry(nowMs) {
  * @returns {boolean}
  */
 function isSignablePathForKind(kind, path) {
-    if (typeof kind !== 'string' || !Object.prototype.hasOwnProperty.call(DOC_KINDS, kind)) return false;
+    if (typeof kind !== 'string' || !isDocKind(kind)) return false;
     if (typeof path !== 'string' || path.length === 0) return false;
     if (path.startsWith('/') || path.includes('..')) return false;
     const prefix = `${DOC_KINDS[kind].collection}/`;

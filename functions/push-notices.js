@@ -20,6 +20,14 @@
 // notification visibly belongs to its part of the app. Adding a notifying feature =
 // one entry here + build via buildPushPayload (never a hand-written literal).
 
+/**
+ * One notifying feature. A document arrival carries its own headline and deep link; an event's
+ * come from the caller.
+ * @typedef {{ emoji: string, tag: string, defaultHeadline?: string, hashPath?: string }} NotificationFeature
+ */
+
+/** The name of a notifying feature — a key of the table below. @typedef {keyof typeof NOTIFICATION_FEATURES} NotificationFeatureKey */
+
 const NOTIFICATION_FEATURES = {
     // Document arrivals — title "<emoji> Latest <Doc>". "Latest" (not "Today's") because
     // a document is republished regularly and the Huddle is the next-day plan sent the
@@ -73,7 +81,7 @@ const NOTIFICATION_FEATURES = {
  * Guarantees the leading feature emoji, the per-feature tag, and a deep-link URL.
  *
  * @param {object} opts
- * @param {keyof NOTIFICATION_FEATURES} opts.feature - notification feature key
+ * @param {NotificationFeatureKey} opts.feature      - notification feature key
  * @param {string} opts.body                         - the supporting line (no emoji)
  * @param {string} [opts.baseUrl]                    - origin for the default deep link (document features)
  * @param {string} [opts.headline]                   - override the default headline (required for event features)
@@ -81,6 +89,7 @@ const NOTIFICATION_FEATURES = {
  * @returns {{title: string, body: string, tag: string, url: string}}
  */
 function buildPushPayload({ feature, body, baseUrl, headline, url }) {
+    /** @type {NotificationFeature} */
     const f = NOTIFICATION_FEATURES[feature];
     if (!f) throw new Error(`Unknown notification feature: ${feature}`);
     const finalHeadline = headline || f.defaultHeadline;

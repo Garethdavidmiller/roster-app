@@ -104,6 +104,7 @@
 const { BLANK_CELL_TOKEN, reviewLabel, headerToDayIndex } = require('./roster-parse-helpers');
 const { weekEndingsOnPage } = require('./roster-week-heading');
 const { printsNothing } = require('./cell-day-rules');
+const { fieldsOf } = require('./caught');
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -125,6 +126,7 @@ const FOOTER_CELL = /\bPage\s+\d+\s+of\s+\d+\b/i;
  */
 const PATH_OP = Object.freeze({ moveTo: 0, lineTo: 1, curveTo: 2, quadraticCurveTo: 3, closePath: 4 });
 /** How many numbers follow each code. A code missing here cannot be stepped over safely. */
+/** @type {Readonly<Record<number, number>>} */
 const PATH_OPERANDS = Object.freeze({ 0: 2, 1: 2, 2: 6, 3: 4, 4: 0 });
 
 /**
@@ -137,6 +139,7 @@ const PATH_OPERANDS = Object.freeze({ 0: 2, 1: 2, 2: 6, 3: 4, 4: 0 });
 function subpathsOf(data) {
     /** @type {Array<{ ops: number[], points: number[][] }>} */
     const subpaths = [];
+    /** @type {{ ops: number[], points: number[][] }|null} */
     let current = null;
     for (let k = 0; k < data.length;) {
         const op = data[k];
@@ -422,11 +425,13 @@ function readGridPage({ items, vx, hy }) {
  * that prints no header of its own gives no rows either.
  *
  * @param {Buffer|Uint8Array} pdfBytes
- * @param {{ loadPdfjs?: () => Promise<any> }} [deps]   injectable for tests; default imports the pinned pdfjs-dist (6.5.438)
+ * @param {{ loadPdfjs?: () => Promise<any>, workBudgetMs?: number, now?: () => number }} [deps]
+ *   injectable for tests; default imports the pinned pdfjs-dist (6.5.438), and the budget and clock are
+ *   GEOMETRY_WORK_BUDGET_MS and `Date.now`
  * @returns {Promise<RosterGeometry>}
  */
 async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOMETRY_WORK_BUDGET_MS, now = Date.now } = {}) {
-    /** @type {RosterGeometry} */
+    /** @type {RosterGeometry & { weekEndings: NonNullable<RosterGeometry['weekEndings']> }} */
     const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0, weekEndings: [], dayHeaders: 0, pagesMisordered: 0 };
     /** Each page's rows, kept apart until every page is read: whether a page with no day header of its
      *  own can be believed depends on the OTHER pages (below the loop). */
@@ -438,7 +443,7 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
         pdfjs = await (loadPdfjs || (() => import('pdfjs-dist/legacy/build/pdf.mjs')))();
     } catch (err) {
         result.reason = 'pdfjs-unavailable';
-        console.warn(`[roster-geometry] pdfjs-dist could not be loaded — the geometry witness did not run: ${err && err.message}`);
+        console.warn(`[roster-geometry] pdfjs-dist could not be loaded — the geometry witness did not run: ${fieldsOf(err).message}`);
         return result;
     }
     let task = null;
@@ -464,7 +469,7 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
                 const page = await doc.getPage(p);
                 const tc = await page.getTextContent();
                 if (!tc.items.length) continue;                       // an empty page is not a rejection
-                const items = tc.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
+                const items = tc.items.map((/** @type {{ str: string, transform: number[] }} */ it) => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
                 result.weekEndings.push(...weekEndingsOnPage(items)); // before the grid: it may reject the page
                 const { vx, hy } = rulesFromOperatorList(await page.getOperatorList(), pdfjs.OPS);
                 const read = readGridPage({ items, vx, hy });
@@ -481,12 +486,12 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
                 pageRows.push({ page: p, rows: read.rows, headed: read.headers > 0 });
             } catch (err) {
                 result.pagesRejected++;
-                console.warn(`[roster-geometry] page ${p} could not be read: ${err && err.message}`);
+                console.warn(`[roster-geometry] page ${p} could not be read: ${fieldsOf(err).message}`);
             }
         }
     } catch (err) {
         result.reason = 'unreadable-pdf';
-        console.warn(`[roster-geometry] the PDF could not be opened — the geometry witness did not run: ${err && err.message}`);
+        console.warn(`[roster-geometry] the PDF could not be opened — the geometry witness did not run: ${fieldsOf(err).message}`);
         return result;
     } finally {
         try { if (task) await task.destroy(); } catch { /* nothing left to free */ }
@@ -517,7 +522,7 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
 
 // ── 4. The witness ──────────────────────────────────────────────────────────────────────────────
 
-/** Letters only, lower-cased, as a sorted token list — "G. Miller", "Miller G" and "Miller, G." agree. */
+/** Letters only, lower-cased, as a sorted token list — "G. Miller", "Miller G" and "Miller, G." agree. @param {unknown} name @returns {string[]} */
 function nameTokens(name) {
     return String(name || '').toLowerCase().split(/[^a-z]+/).filter(Boolean).sort();
 }
@@ -548,9 +553,10 @@ function nameTokens(name) {
  * rule between them unread) both match it. `buildCellTable` (roster-prompt.js) calls such a grid
  * unusable, and the witness below gives neither member a signal.
  *
+ * @template {{ name: string, occupancy: boolean[] }} Row
  * @param {string} memberName
- * @param {Array<{ name: string, occupancy: boolean[] }>} rows
- * @returns {{ name: string, occupancy: boolean[] }|null}
+ * @param {Row[]} rows
+ * @returns {Row|null}  one of `rows` itself, so it keeps whatever else a row carries (`cells`)
  */
 function matchGeometryRow(memberName, rows) {
     const want = nameTokens(memberName);
@@ -571,15 +577,16 @@ function matchGeometryRow(memberName, rows) {
 
 /**
  * The one tied row that says anything — or null when none does, or more than one does.
- * @param {Array<{ name: string, occupancy: boolean[] }>} tied
- * @returns {{ name: string, occupancy: boolean[] }|null}
+ * @template {{ name: string, occupancy: boolean[] }} Row
+ * @param {Row[]} tied
+ * @returns {Row|null}
  */
 function soleOccupied(tied) {
     const occupied = tied.filter(r => Array.isArray(r.occupancy) && r.occupancy.some(Boolean));
     return occupied.length === 1 ? occupied[0] : null;
 }
 
-/** A parsed value that asserts SOMETHING happened on the day — the only kind an empty cell can refute. */
+/** A parsed value that asserts SOMETHING happened on the day — the only kind an empty cell can refute. @param {unknown} v @returns {boolean} */
 function isClaim(v) {
     if (typeof v !== 'string') return false;
     const s = v.trim();
