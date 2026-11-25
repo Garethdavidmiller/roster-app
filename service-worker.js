@@ -79,9 +79,9 @@ async function matchNewestManagedCache(request, opts) {
 // Firebase SDK runtime cache (owner-approved): the gstatic modules are version-pinned (immutable),
 // and offline launch must not depend on the browser HTTP cache keeping ~400 KB of them (evictable
 // on budget Androids). Served cache-first from a dedicated SDK-versioned cache — NOT the app cache,
-// so an app bump never refetches the SDK — swept only when the SDK version changes. Bumping the SDK
-// in firebase-client.js requires bumping THIS constant too; sw-asset-check.test.mjs enforces it.
-const FIREBASE_SDK_VERSION = '13.2.0';
+// so an app bump never refetches the SDK — swept only when the SDK version changes. The constant is
+// WRITTEN from firebase-client.js's imports: move the SDK there, then run npm run generate:copies.
+const FIREBASE_SDK_VERSION = '13.2.0'; // GENERATED from firebase-client.js by npm run generate:copies
 const SDK_CACHE_NAME = `myb-roster-sdk-v${FIREBASE_SDK_VERSION}`;
 const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/`;
 const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js']

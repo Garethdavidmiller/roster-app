@@ -28,15 +28,12 @@ const read = (/** @type {string} */ f) => readFileSync(join(ROOT, f), 'utf8');
 
 const built = buildCopies(read);
 
-test('every generated fact owns at least one file, and no file is owned twice', () => {
+test('every generated fact owns at least one file, and each file is checked once', () => {
     // Guard the guard: a copy whose function returned nothing would make its checks below vacuous.
     for (const [copy] of COPIES)
-        assert.ok(built.some(b => b.copy === copy), `${copy} writes no file — generate-copies.mjs is checking nothing for it`);
-    // Two copies writing one file would each be built from the file as it is on disk, and the
-    // second would silently undo the first when the script runs.
+        assert.ok(built.some(b => b.copy.split(' + ').includes(copy)), `${copy} writes no file — generate-copies.mjs is checking nothing for it`);
     const files = built.map(b => b.file);
-    const twice = files.filter((f, i) => files.indexOf(f) !== i);
-    assert.deepEqual(twice, [], `owned by more than one generated copy: ${twice.join(', ')}`);
+    assert.equal(new Set(files).size, files.length, 'buildCopies returned a file twice — the second would undo the first');
 });
 
 for (const { copy, file, content } of built) {

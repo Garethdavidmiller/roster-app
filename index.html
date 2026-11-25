@@ -44,103 +44,105 @@
 
     <!--
       Module preload (v15.96 calendar load-speed pass — mirrors paycalc's v14.94 fix).
-      calendar-app.js pulls a large static graph — the list below, which sw-asset-check.test.mjs
-      holds to the real one, so no count is written here to go stale — several levels deep to
+      calendar-app.js pulls a large static graph — the list below, which npm run generate:copies
+      writes from the real one, so no count is written here to go stale — several levels deep to
       firebase-client → the gstatic Firebase SDK. Module scripts are deferred and block
       DOMContentLoaded ("ready"), and without these hints the browser discovers modules in
       a WATERFALL (parse a file, THEN fetch its imports) — so the heavy cross-origin SDK
       doesn't start downloading until the chain reaches firebase-client. Declaring the graph
       here lets every module (and the SDK) fetch in parallel from first HTML parse, collapsing
       the waterfall. modulepreload only fetches/compiles — execution order is unchanged, so
-      this is purely a speed-up with no behaviour change. Kept honest by sw-asset-check.test.mjs
-      (fails if it drifts from the real transitive graph or the pinned Firebase version).
+      this is purely a speed-up with no behaviour change. GENERATED from the real transitive graph
+      and the pinned Firebase version (scripts/generate-copies.mjs) — never edit it by hand.
     -->
+    <!-- GENERATED module preloads: npm run generate:copies writes every line down to the END marker, from firebase-client.js and this page's imports. Never edit them by hand. -->
     <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js" crossorigin>
     <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js" crossorigin>
     <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js" crossorigin>
     <link rel="modulepreload" href="./about-lightbox.js">
-    <link rel="modulepreload" href="./al-entitlement.js">
+    <link rel="modulepreload" href="./account-calls.js">
     <link rel="modulepreload" href="./al-contract.js">
-    <link rel="modulepreload" href="./christmas-leave.js">
+    <link rel="modulepreload" href="./al-entitlement.js">
+    <link rel="modulepreload" href="./analytics-client.js">
     <link rel="modulepreload" href="./auth-identity.js">
+    <link rel="modulepreload" href="./auth-policy.js">
     <link rel="modulepreload" href="./auth-state-core.js">
     <link rel="modulepreload" href="./auth-state.js">
-    <link rel="modulepreload" href="./auth-policy.js">
-    <link rel="modulepreload" href="./calendar-access.js">
     <link rel="modulepreload" href="./calendar-access-core.js">
+    <link rel="modulepreload" href="./calendar-access-state.js">
+    <link rel="modulepreload" href="./calendar-access.js">
     <link rel="modulepreload" href="./calendar-al-lightbox.js">
-    <link rel="modulepreload" href="./calendar-notices.js">
     <link rel="modulepreload" href="./calendar-app.js">
     <link rel="modulepreload" href="./calendar-data-state.js">
-    <link rel="modulepreload" href="./calendar-legend.js">
+    <link rel="modulepreload" href="./calendar-doc-access.js">
     <link rel="modulepreload" href="./calendar-doc-viewer.js">
+    <link rel="modulepreload" href="./calendar-drawer.js">
     <link rel="modulepreload" href="./calendar-huddle-viewer.js">
-    <link rel="modulepreload" href="./huddle-table-grid.js">
     <link rel="modulepreload" href="./calendar-initial-fetch.js">
     <link rel="modulepreload" href="./calendar-keyboard.js">
+    <link rel="modulepreload" href="./calendar-legend.js">
+    <link rel="modulepreload" href="./calendar-lock-cards.js">
+    <link rel="modulepreload" href="./calendar-lock-slot.js">
     <link rel="modulepreload" href="./calendar-member.js">
+    <link rel="modulepreload" href="./calendar-notices.js">
+    <link rel="modulepreload" href="./calendar-notif-prompt.js">
     <link rel="modulepreload" href="./calendar-overrides.js">
+    <link rel="modulepreload" href="./calendar-redraw.js">
     <link rel="modulepreload" href="./calendar-renderer.js">
+    <link rel="modulepreload" href="./calendar-snapshot.js">
     <link rel="modulepreload" href="./calendar-state.js">
     <link rel="modulepreload" href="./calendar-swipe.js">
     <link rel="modulepreload" href="./calendar-team-view.js">
-    <link rel="modulepreload" href="./overflow-hint.js">
-    <link rel="modulepreload" href="./client-errors.js">
+    <link rel="modulepreload" href="./card-collapse.js">
+    <link rel="modulepreload" href="./christmas-leave.js">
     <link rel="modulepreload" href="./claim-retry.js">
+    <link rel="modulepreload" href="./client-errors.js">
+    <link rel="modulepreload" href="./clock-input.js">
+    <link rel="modulepreload" href="./date-format.js">
+    <link rel="modulepreload" href="./doc-retention.js">
+    <link rel="modulepreload" href="./document-url.js">
+    <link rel="modulepreload" href="./documents-client.js">
     <link rel="modulepreload" href="./error-reporter.js">
-    <link rel="modulepreload" href="./slow-save.js">
     <link rel="modulepreload" href="./fetch-timeout.js">
     <link rel="modulepreload" href="./firebase-client.js">
-    <link rel="modulepreload" href="./own-password.js">
-    <link rel="modulepreload" href="./account-calls.js">
-    <link rel="modulepreload" href="./storage-utils.js">
-    <link rel="modulepreload" href="./document-url.js">
-    <link rel="modulepreload" href="./storage-keys.js">
-    <link rel="modulepreload" href="./status-text.js">
-    <link rel="modulepreload" href="./upload-commit.js">
-    <link rel="modulepreload" href="./doc-retention.js">
-    <link rel="modulepreload" href="./documents-client.js">
-    <link rel="modulepreload" href="./analytics-client.js">
+    <link rel="modulepreload" href="./huddle-table-grid.js">
+    <link rel="modulepreload" href="./install-prompt.js">
+    <link rel="modulepreload" href="./leave-year.js">
     <link rel="modulepreload" href="./ls.js">
+    <link rel="modulepreload" href="./nav-destinations.js">
     <link rel="modulepreload" href="./nav-panel.js">
     <link rel="modulepreload" href="./newsletter-recency.js">
     <link rel="modulepreload" href="./notice-archive.js">
-    <link rel="modulepreload" href="./nav-destinations.js">
-    <link rel="modulepreload" href="./page-session.js">
-    <link rel="modulepreload" href="./install-prompt.js">
-    <link rel="modulepreload" href="./calendar-notif-prompt.js">
-    <link rel="modulepreload" href="./calendar-doc-access.js">
-    <link rel="modulepreload" href="./calendar-access-state.js">
-    <link rel="modulepreload" href="./calendar-redraw.js">
-    <link rel="modulepreload" href="./calendar-drawer.js">
-    <link rel="modulepreload" href="./calendar-lock-slot.js">
-    <link rel="modulepreload" href="./calendar-snapshot.js">
-    <link rel="modulepreload" href="./calendar-lock-cards.js">
-    <link rel="modulepreload" href="./password-force.js">
-    <link rel="modulepreload" href="./text-scale.js">
     <link rel="modulepreload" href="./notif.js">
+    <link rel="modulepreload" href="./overflow-hint.js">
     <link rel="modulepreload" href="./overlay.js">
-    <link rel="modulepreload" href="./card-collapse.js">
     <link rel="modulepreload" href="./override-utils.js">
-    <link rel="modulepreload" href="./clock-input.js">
-    <link rel="modulepreload" href="./leave-year.js">
-    <link rel="modulepreload" href="./print-guard.js">
+    <link rel="modulepreload" href="./own-password.js">
+    <link rel="modulepreload" href="./page-session.js">
+    <link rel="modulepreload" href="./password-force.js">
+    <link rel="modulepreload" href="./pay-audience.js">
     <link rel="modulepreload" href="./perf-reporter.js">
     <link rel="modulepreload" href="./perf-stats.js">
+    <link rel="modulepreload" href="./print-guard.js">
     <link rel="modulepreload" href="./roster-cycle-data.js">
+    <link rel="modulepreload" href="./roster-data.js">
     <link rel="modulepreload" href="./roster-member-data.js">
     <link rel="modulepreload" href="./roster-roles.js">
-    <link rel="modulepreload" href="./roster-data.js">
-    <link rel="modulepreload" href="./pay-audience.js">
-    <link rel="modulepreload" href="./date-format.js">
+    <link rel="modulepreload" href="./select-sheet.js">
     <link rel="modulepreload" href="./session.js">
     <link rel="modulepreload" href="./silent-sign-in.js">
-    <link rel="modulepreload" href="./viewer-shed.js">
+    <link rel="modulepreload" href="./slow-save.js">
     <link rel="modulepreload" href="./staff-pin-ended.js">
-    <link rel="modulepreload" href="./select-sheet.js">
+    <link rel="modulepreload" href="./status-text.js">
+    <link rel="modulepreload" href="./storage-keys.js">
+    <link rel="modulepreload" href="./storage-utils.js">
     <link rel="modulepreload" href="./sw-register.js">
+    <link rel="modulepreload" href="./text-scale.js">
+    <link rel="modulepreload" href="./upload-commit.js">
     <link rel="modulepreload" href="./usage-reporter.js">
     <link rel="modulepreload" href="./usage-stats.js">
+    <link rel="modulepreload" href="./viewer-shed.js">
+    <!-- END GENERATED module preloads -->
 
     <!-- Splash watchdog: a CLASSIC (non-module) script, independent of the ES-module graph, so it
          still runs when that graph fails to load — the only case that leaves the launch splash up

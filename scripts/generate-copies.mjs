@@ -25,6 +25,19 @@
  *              cannot carry. The GitHub Pages mirror serves no headers, so the <meta> is the only
  *              policy it applies (csp-meta-parity.test.mjs said why; now this file does).
  *
+ *   module-preloads
+ *              every app page's <link rel="modulepreload"> tags, between its GENERATED markers: the
+ *              Firebase SDK modules firebase-client.js imports statically, at the version it pins
+ *              (every page), then — for a page whose scripts/app-pages.mjs entry says `preloads` —
+ *              its whole local static import graph. Without the hints the browser discovers modules
+ *              in a waterfall, one level at a time (each page's comment above its preloads). They
+ *              were hand-kept lists of up to ninety lines that sw-asset-check.test.mjs held to the graph.
+ *
+ *   sdk-version
+ *              `FIREBASE_SDK_VERSION` in service-worker.js — the name of the worker's SDK cache — from
+ *              the version firebase-client.js imports. A worker on the old name would warm the old
+ *              SDK's files while every page imports the new one's.
+ *
  * ── RUNNING IT ─────────────────────────────────────────────────────────────────────────────────
  *
  *   npm run generate:copies     writes whatever is out of date, and names each file it wrote
@@ -38,7 +51,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-import { servedFiles } from './app-pages.mjs';
+import { APP_PAGES, servedFiles } from './app-pages.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -104,20 +117,117 @@ function cspMeta(read) {
     });
 }
 
+// ── module-preloads and sdk-version ─────────────────────────────────────────────────────────────
+
+/**
+ * The ONE Firebase SDK version firebase-client.js imports, and the SDK modules it imports STATICALLY
+ * (`from '…'`). A dynamic `import('…')` — firebase-storage, lazy on purpose — has no `from`, so it is
+ * never preloaded. Sorted, so the tags do not move when an import line does.
+ * @param {Reader} read @returns {{ version: string, modules: string[] }}
+ */
+export function firebaseSdk(read) {
+    const client = read('firebase-client.js');
+    const versions = [...new Set([...client.matchAll(/gstatic\.com\/firebasejs\/([\d.]+)\//g)].map(m => m[1]))];
+    if (versions.length !== 1) throw new Error(`firebase-client.js imports ${versions.length} Firebase SDK versions (${versions.join(', ')}), not one`);
+    const modules = [...new Set([...client.matchAll(/\bfrom\s*['"]https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z]+)\.js['"]/g)].map(m => m[1]))].sort();
+    if (!modules.length) throw new Error('firebase-client.js imports no Firebase SDK module statically — the reading is wrong');
+    return { version: versions[0], modules };
+}
+
+/**
+ * The transitive set of LOCAL (`./`) static module deps reachable from `entry`, the entry included.
+ * Comments are stripped first: a path written in a JSDoc ("re-exported from './foo.js'") would
+ * otherwise add a phantom module. `://` is kept so a URL is not mangled. A file that cannot be read
+ * is a module that does not exist, and the page's own import of it fails louder than this would.
+ * @param {Reader} read @param {string} entry @returns {Set<string>}
+ */
+export function staticLocalGraph(read, entry) {
+    const seen = new Set();
+    /** @param {string} file */
+    const walk = (file) => {
+        if (seen.has(file)) return;
+        seen.add(file);
+        let src;
+        try { src = read(file); } catch { return; }
+        src = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+        const deps = [
+            ...[...src.matchAll(/\bfrom\s*["']([^"']+)["']/g)].map(m => m[1]),       // import … from / export … from, multi-line too
+            ...[...src.matchAll(/^\s*import\s*["']([^"']+)["']/gm)].map(m => m[1]),  // side-effect imports
+        ];
+        for (const p of deps) if (p.startsWith('./')) walk(p.slice(2));
+    };
+    walk(entry);
+    return seen;
+}
+
+/** The local modules a page preloads: its graph from the module the HTML loads, minus a boot shim
+ *  (the script tag itself, already being fetched), `.js` only. Sorted.
+ *  @param {Reader} read @param {import('./app-pages.mjs').AppPage} page */
+export function localPreloads(read, page) {
+    const graph = staticLocalGraph(read, page.boot ?? page.coordinator);
+    if (page.boot) graph.delete(page.boot);
+    return [...graph].filter(f => f.endsWith('.js')).sort();
+}
+
+const PRELOADS_BEGIN = '<!-- GENERATED module preloads: npm run generate:copies writes every line down to the END marker, '
+    + 'from firebase-client.js and this page\'s imports. Never edit them by hand. -->';
+const PRELOADS_END = '<!-- END GENERATED module preloads -->';
+
+/** @param {Reader} read @returns {Owned} */
+function modulePreloads(read) {
+    const { version, modules } = firebaseSdk(read);
+    const sdk = modules.map(m => `<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/${version}/${m}.js" crossorigin>`);
+    return APP_PAGES.map(page => {
+        const tags = [...sdk, ...(page.preloads ? localPreloads(read, page).map(f => `<link rel="modulepreload" href="./${f}">`) : [])];
+        const out = replaceOne(read(page.file),
+            /^([ \t]*)<!-- GENERATED module preloads[^\n]*-->\n[\s\S]*?^[ \t]*<!-- END GENERATED module preloads -->/m,
+            m => [PRELOADS_BEGIN, ...tags, PRELOADS_END].map(l => m[1] + l).join('\n'),
+            page.file, 'GENERATED module preloads region');
+        // A hint outside the markers is a hand-kept list again, checked by nothing.
+        const all = (out.match(/rel="modulepreload"/g) || []).length;
+        if (all !== tags.length) {
+            throw new Error(`${page.file}: ${all - tags.length} <link rel="modulepreload"> outside its GENERATED region — `
+                + 'delete it, or set `preloads` on the page in scripts/app-pages.mjs');
+        }
+        return /** @type {[string, string]} */ ([page.file, out]);
+    });
+}
+
+/** @param {Reader} read @returns {Owned} */
+function sdkVersion(read) {
+    const { version } = firebaseSdk(read);
+    const out = replaceOne(read('service-worker.js'), /^const FIREBASE_SDK_VERSION = '[^']*';[^\n]*$/m,
+        () => `const FIREBASE_SDK_VERSION = '${version}'; // GENERATED from firebase-client.js by npm run generate:copies`,
+        'service-worker.js', 'FIREBASE_SDK_VERSION declaration');
+    return [['service-worker.js', out]];
+}
+
 // ── the list ────────────────────────────────────────────────────────────────────────────────────
 
 /** Every generated fact: its name, and the function that writes it. */
 export const COPIES = Object.freeze(/** @type {Array<[string, (read: Reader) => Owned]>} */ ([
     ['csp-meta', cspMeta],
+    ['module-preloads', modulePreloads],
+    ['sdk-version', sdkVersion],
 ]));
 
 /**
- * Every file this script owns, with the content it would write now.
+ * Every file this script owns, ONCE, with the content it would write now. The copies run in order,
+ * and each reads the files as the ones before it left them: a page carries both its CSP <meta> and
+ * its preloads, and building each from the file on disk would let the second undo the first.
  * @param {Reader} read  the file at a repository-relative path, as it is now
- * @returns {Array<{ copy: string, file: string, content: string }>}
+ * @returns {Array<{ copy: string, file: string, content: string }>}  `copy` names every fact in the file
  */
 export function buildCopies(read) {
-    return COPIES.flatMap(([copy, fn]) => fn(read).map(([file, content]) => ({ copy, file, content })));
+    /** @type {Map<string, { copies: string[], content: string }>} */
+    const out = new Map();
+    const current = (/** @type {string} */ p) => out.get(p)?.content ?? read(p);
+    for (const [copy, fn] of COPIES) {
+        for (const [file, content] of fn(current)) {
+            out.set(file, { copies: [...(out.get(file)?.copies ?? []), copy], content });
+        }
+    }
+    return [...out].map(([file, { copies, content }]) => ({ copy: copies.join(' + '), file, content }));
 }
 
 /** The line where two texts first differ, for a failure message. @param {string} have @param {string} want */

@@ -47,6 +47,10 @@
  * @property {boolean} cards       built from `.card` blocks (the calendar is a grid, not cards)
  * @property {string} authBarrier  what its coordinator waits on before any write — see
  *                                 page-contract-parity's "each after-auth writer runs INSIDE its page's auth barrier"
+ * @property {boolean} preloads    the page preloads its WHOLE local module graph, not only the Firebase SDK.
+ *                                 `npm run generate:copies` writes the list (scripts/generate-copies.mjs →
+ *                                 modulePreloads). Only the deepest graphs carry one — a page-load decision,
+ *                                 measured; the reasoning is in each page's comment above its preloads
  */
 /**
  * @typedef {object} GuidePage
@@ -65,18 +69,18 @@
 /** @param {string} file @param {string} id @param {Partial<AppPage>} [more] @returns {AppPage} */
 const app = (file, id, more = {}) => ({
     file, kind: 'app', id, url: `/${file}`, css: file.replace(/\.html$/, '.css'),
-    coordinator: `${id}-app.js`, boot: `${id}-boot.js`, cards: true, authBarrier: 'sessionReady', ...more,
+    coordinator: `${id}-app.js`, boot: `${id}-boot.js`, cards: true, authBarrier: 'sessionReady', preloads: false, ...more,
 });
 
 /** The nine app pages. Order is the nav drawer's, for readability only. @type {ReadonlyArray<AppPage>} */
 export const APP_PAGES = Object.freeze([
-    app('index.html', 'calendar', { url: '/', css: 'index.css', boot: null, cards: false, authBarrier: 'calendarAuthReady' }),
+    app('index.html', 'calendar', { url: '/', css: 'index.css', boot: null, cards: false, authBarrier: 'calendarAuthReady', preloads: true }),
     app('admin.html', 'admin'),
     // paycalc names a LOCAL closure as its barrier, handed to ensureNamedSession — checked as such.
-    app('paycalc.html', 'paycalc', { authBarrier: 'afterAuth' }),
+    app('paycalc.html', 'paycalc', { authBarrier: 'afterAuth', preloads: true }),
     app('operations.html', 'operations'),
     app('settings.html', 'settings'),
-    app('links.html', 'links'),
+    app('links.html', 'links', { preloads: true }),
     app('overtime.html', 'overtime'),
     app('trains.html', 'trains'),
     // The new link (the December link until v25.10): the three shortlisted proposals, for the colleagues who will work the new link. An admin
