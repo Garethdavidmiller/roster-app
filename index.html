@@ -93,6 +93,7 @@
     <link rel="modulepreload" href="./calendar-state.js">
     <link rel="modulepreload" href="./calendar-swipe.js">
     <link rel="modulepreload" href="./calendar-team-view.js">
+    <link rel="modulepreload" href="./calendar-tips.js">
     <link rel="modulepreload" href="./card-collapse.js">
     <link rel="modulepreload" href="./christmas-leave.js">
     <link rel="modulepreload" href="./claim-retry.js">
@@ -138,6 +139,7 @@
     <link rel="modulepreload" href="./storage-utils.js">
     <link rel="modulepreload" href="./sw-register.js">
     <link rel="modulepreload" href="./text-scale.js">
+    <link rel="modulepreload" href="./tips-lightbox.js">
     <link rel="modulepreload" href="./upload-commit.js">
     <link rel="modulepreload" href="./usage-reporter.js">
     <link rel="modulepreload" href="./usage-stats.js">
@@ -197,7 +199,7 @@
             <div class="lightbox-tips" id="teamViewTips" hidden>
                 <div class="lightbox-tips-title">Tips</div>
                 <!-- ONE COPY OF THE TEAM VIEW TIPS (lightbox review, 22 Nov 2026): they are the ? panel's
-                     (#teamInfoLightbox, below). Kept here as well, the two copies drifted apart. -->
+                     (calendar-tips.js, in the shared Tips panel). Kept here as well, the two copies drifted apart. -->
                 <div class="lightbox-tip"><span>Select <strong>?</strong> beside the grade tabs for Team Week View’s tips and colour key</span></div>
             </div>
             <div class="lightbox-print-wrap">
@@ -484,30 +486,14 @@
         </div>
     </div>
 
-    <!-- Team view help lightbox — opened by the ? button -->
-    <div id="teamInfoLightbox" class="lb-overlay" role="dialog" aria-label="Team Week View — help" aria-modal="true">
-        <div id="teamInfoContent" class="lb-content">
-            <button id="teamInfoClose" class="lb-close" type="button" aria-label="Close">✕</button>
-            <div class="team-help-title"><span aria-hidden="true">👥</span> Team Week View</div>
-            <ul class="team-help-list">
-                <li class="touch-only">If the week is wider than your screen, swipe the table left and right to see all 7 days</li>
-                <li>Select <strong>← Prev</strong> or <strong>Next →</strong> to move between weeks</li>
-                <li>Select <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade</li>
-                <li>Select <strong>📍</strong>, or <strong>↩ Back to this week</strong> under the dates, to return to the current week</li>
-            </ul>
-            <div class="team-info-section">Colour key</div>
-            <div class="team-info-key">
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--early"></span><span aria-hidden="true">☀️</span> Early</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--late"></span><span aria-hidden="true">🌙</span> Late</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--night"></span><span aria-hidden="true">🦉</span> Night</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--al"></span><span aria-hidden="true">🏖️</span> Annual Leave</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rdw"></span><span aria-hidden="true">💼</span> Rest Day Working</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--spare"></span><span aria-hidden="true">📋</span> Spare</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--absent"></span><span aria-hidden="true">🪑</span> Absent</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--other"></span><span aria-hidden="true">🏷️</span> Other</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rest"></span><span aria-hidden="true">🏠</span> Rest</div>
+    <!-- The app's one Tips panel (tips-lightbox.js) — Team Week View's ?, content in calendar-tips.js -->
+    <div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+        <div id="tipsLightboxContent" class="lb-content">
+            <div class="tips-lb-top">
+                <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+                <div class="tips-lb-title" id="tipsLbTitle"></div>
             </div>
-            <p class="team-info-note">Shifts shown are each person’s base roster plus any recorded changes. A change saved on the Admin page shows here when the Calendar next opens, or within 20 minutes while it stays open.</p>
+            <div id="tipsLbBody"></div>
         </div>
     </div>
 

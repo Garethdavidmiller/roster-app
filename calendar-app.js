@@ -25,6 +25,8 @@ import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW, SELECTED_MEMBER } from './storage-k
 import { initTeamView } from './calendar-team-view.js';
 import { wireCalendarDrawer, rewireCalendarDrawer } from './calendar-drawer.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox, confirmDialog } from './overlay.js';
+import { initTipsLightbox } from './tips-lightbox.js';
+import { CARD_TIPS as CALENDAR_TIPS } from './calendar-tips.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initCalendarNotices } from './calendar-notices.js';
@@ -620,22 +622,13 @@ document.getElementById('adminBtn')?.addEventListener('click', () => {
 
 document.getElementById('teamViewBtn')?.addEventListener('click', teamView.toggleTeamView);
 
-(function initTeamLightboxes() {
-    const lb = document.getElementById('teamInfoLightbox');
-    if (!lb) return;
-
-    // Shared canonical lifecycle — replaces a permanent document keydown
-    // listener and a delayed (afterClose) focus restore that had drifted from
-    // the pattern every other lightbox follows.
-    const teamInfo = createLightbox({
-        overlay:  lb,
-        content:  /** @type {HTMLElement} */ (document.getElementById('teamInfoContent')),
-        closeBtn: /** @type {HTMLElement} */ (document.getElementById('teamInfoClose')),
-    });
-
-    // Event delegation — #teamHelpBtn is re-created on every renderTeamView() call.
+(function initTeamTips() {
+    // Team Week View's ? opens the app's ONE Tips panel (owner, 25 Nov 2026; calendar-tips.js says why). Its
+    // button is redrawn on every renderTeamView(), so the click is delegated here rather than wired once.
+    const tips = initTipsLightbox(CALENDAR_TIPS, { trigger: null });
     document.addEventListener('click', e => {
-        if (/** @type {Element} */ (e.target).closest('#teamHelpBtn')) teamInfo.open();
+        const btn = /** @type {Element} */ (e.target).closest('#teamHelpBtn');
+        if (btn && tips) tips.open(/** @type {HTMLElement} */ (btn).dataset.card ?? '');
     });
 })();
 

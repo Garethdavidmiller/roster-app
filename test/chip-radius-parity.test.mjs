@@ -77,7 +77,7 @@ test('the scan reads the chip rules, and sees a chip on the panel corner — gua
 const DIALOG_PANELS = new Set([
     '.dialog-lb-content', '.picker-sheet', '.dp-content',
     '#loginCard, #pwForceContent, .cal-lock-card, .role-card', '#tipsLightboxContent',
-    '#teamInfoContent', '#docViewerContent', '#monthJumpCard',
+    '#docViewerContent', '#monthJumpCard',
     '#designMoreContent, #designPickerContent', '#designBinContent',
 ]);
 

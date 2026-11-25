@@ -1287,43 +1287,6 @@
             justify-content: flex-end;
             align-items: center;
         }
-        .team-help-btn {
-            width: 20px;
-            height: 20px;
-            flex-shrink: 0;
-            background: none;
-            border: 1.5px solid var(--border-mid);
-            color: var(--text-light);
-            font-size: var(--type-badge);
-            font-weight: 700;
-            cursor: pointer;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            touch-action: manipulation;
-            line-height: 1;
-            font-family: inherit;
-            transition: color var(--dur-med), border-color var(--dur-med);
-            position: relative;             /* for the tap expander below */
-        }
-        /* THE DRAWN CIRCLE IS 20px; THE TARGET IS NOT: the 44px expander `.help-btn` (shared.css)
-           carries, over WCAG 2.2's 24px floor. Nothing else is within 12px of it. */
-        .team-help-btn::before {
-            content: '';
-            position: absolute;
-            inset: -12px;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .team-help-btn:hover { color: var(--primary-blue); border-color: var(--primary-blue); }
-        }
-        .team-help-btn:active { opacity: 0.75; transform: scale(var(--press-scale)); }
-        .team-help-btn:focus-visible {
-            outline: var(--focus-outline);
-            outline-offset: 2px;
-            box-shadow: var(--focus-ring);
-        }
         /* THE SECOND LINE OF THE WEEK ROW: "This week" as a state, or "↩ Back to this week" as an
            action — words, where a gold rule and a bare ↩ had to be decoded. Always present, so the
            centre is the same shape on every week and the arrows, aligned to the date line, never
@@ -1674,79 +1637,16 @@
             .tv-day-num { font-size: var(--type-body); }
             .team-table th.tv-name-col { max-width: none; }
         }
-        /* ---- Team info (?) lightbox — the Team Week help panel, on the glass of the Calendar's own overlays ---- */
-        /* #teamInfoLightbox uses .lb-overlay — no unique properties */
-        #teamInfoContent {
-            background: rgba(255, 255, 255, 0.09);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius-xl);
-            padding: 28px 24px 24px;
-            width: min(340px, 88vw);
-            max-height: 78vh;
-            max-height: 78dvh;
-        }
-        /* A short laptop window reads the help whole: 78% of 593px is under its ~500px. After the base rule. */
-        @media screen and (min-width: 1024px) and (max-height: 820px) {
-            #teamInfoContent { max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); }
-        }
-        /* The navy ✕ pair (shared.css, "The ✕ — ONE colour"). It was white at 45%, about 3.3:1 over Team View's white
-           cells through the glass — the one ✕ under the rest's 50% (lightbox review R1-3). */
-        #teamInfoClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }
-        .team-help-title {
-            font-size: var(--type-large);   /* unified overlay title (v18.29) */
-            font-weight: 700;
-            color: white;
-            margin-bottom: 14px;
-            padding-right: 22px;
-            line-height: 1.3;
-        }
-        .team-help-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .team-help-list li {
-            color: rgba(255, 255, 255, 0.72);
-            font-size: var(--type-label);
-            line-height: 1.6;
-            padding: 7px 0 7px 18px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-            position: relative;
-        }
-        .team-help-list li:last-child { border-bottom: none; padding-bottom: 0; }
-        .team-help-list li::before {
-            content: '·';
-            position: absolute;
-            left: 0;
-            top: 7px;
-            color: var(--accent-gold);
-            font-weight: 800;
-            font-size: var(--type-medium);
-            line-height: 1.3;
-        }
-        .team-help-list strong { color: rgba(255, 255, 255, 0.92); font-weight: 700; }
-        .team-info-section {
-            font-size: var(--type-badge);
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: rgba(255, 255, 255, 0.65); /* raised from 0.35 to clear WCAG AA */
-            padding-top: 12px;
-            margin-top: 14px;
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
-            margin-bottom: 7px;
-        }
         .team-info-key {
             display: flex;
             flex-wrap: wrap;
             gap: 5px 12px;
         }
+        /* The colour key, in the shared white Tips panel (calendar-tips.js, owner 25 Nov 2026). */
         .team-info-key-item {
             display: flex;
             align-items: center;
             gap: 5px;
-            font-size: var(--type-small);
-            color: rgba(255, 255, 255, 0.7);
             white-space: nowrap;
         }
         .tv-key-dot {
@@ -1754,14 +1654,12 @@
             height: 10px;
             border-radius: 3px;
             flex-shrink: 0;
-            border: 1px solid rgba(255,255,255,0.25);
+            border: 1px solid var(--border-mid);
         }
         .tv-key-dot--early  { background: var(--early-cell);  border-color: var(--early-cell-border); }
         .tv-key-dot--late   { background: var(--blue-light);    border-color: var(--blue-sky); }
-        /* The night tokens are TRANSLUCENT — a dark wash that reads as light grey on the white
-           cells it was made for. The key sits on the dark glass panel, where the same wash went
-           dark-on-dark and the swatch all but vanished (polish pass). Composite it onto white here,
-           so the key shows the colour the cell actually is. */
+        /* The night tokens are TRANSLUCENT — a dark wash that reads as light grey on the white cells it
+           was made for. Composited onto white here, so the key shows the colour the cell actually is. */
         .tv-key-dot--night  { background: linear-gradient(var(--night-cell-bg), var(--night-cell-bg)), white; border-color: var(--night-cell-border); }
         .tv-key-dot--al     { background: var(--al-light);      border-color: var(--al); }
         .tv-key-dot--rdw    { background: var(--rdw-light);     border-color: var(--rdw); }
@@ -1769,14 +1667,6 @@
         .tv-key-dot--absent { background: var(--absence-light); border-color: var(--absence); }
         .tv-key-dot--other    { background: var(--other-light); border-color: var(--other); }
         .tv-key-dot--rest   { background: var(--rest-day-bg);   border-color: var(--border-mid); }
-        .team-info-note {
-            font-size: var(--type-badge);
-            color: rgba(255, 255, 255, 0.65); /* raised from 0.35 to clear WCAG AA */
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
-            line-height: 1.5;
-        }
 
         /* Print styles
          * Checklist — update when adding new shift types, cell classes, or badges:
@@ -2116,7 +2006,7 @@
         @media print {
             /* The week row too: `.tv-print-header` states the grade and the week, so the label beneath
                it printed the same date twice. */
-            .grade-tabs-row, .team-week-row, .tv-week-nav, .tv-scroll-hint, #teamInfoLightbox { display: none; }
+            .grade-tabs-row, .team-week-row, .tv-week-nav, .tv-scroll-hint, #tipsLightbox { display: none; }
             .tv-print-header {
                 display: block;
                 font-size: var(--type-body);
@@ -2498,7 +2388,6 @@
            ring of every control inside a navy panel — the drawer, About, the day panel's own buttons;
            the header's light ring is for the header. The navy fallback was invisible. Inset, in 44px. */
         #dayDetailClose:focus-visible, #alLightboxClose:focus-visible,
-        #teamInfoClose:focus-visible,
         #huddleViewerClose:focus-visible {
             outline: var(--focus-outline-gold);
             outline-offset: -4px;

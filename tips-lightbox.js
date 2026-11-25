@@ -31,10 +31,12 @@ import { createLightbox } from './overlay.js';
  * @param {Function} [opts.getIsAdmin] - Returns whether the current user is an
  *   admin, read at open time (login may complete after init). When omitted,
  *   adminOnly items are hidden and staffOnly items shown.
- * @param {{ selector: string, key: string }} [opts.trigger] - Which buttons open the panel, and the
+ * @param {{ selector: string, key: string }|null} [opts.trigger] - Which buttons open the panel, and the
  *   `data-*` name holding each one's content key. Default `.btn-card-tips` / `data-card`. The Pay
  *   Calculator passes `{ selector: '.help-btn', key: 'help' }`: its `?` buttons predate this module and
  *   keep their own markup and look, so the PANEL is shared without restyling five buttons (Nov 2026).
+ *   `null` wires nothing: the Calendar's `?` is redrawn with Team View, so it calls `open` itself.
+ * @returns {{ open: (key: string) => void }|null} the panel's opener, or null with no #tipsLightbox
  */
 export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '.btn-card-tips', key: 'card' } } = {}) {
     const lb       = document.getElementById('tipsLightbox');
@@ -42,7 +44,7 @@ export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '
     const closeBtn = document.getElementById('tipsLightboxClose');
     const titleEl  = document.getElementById('tipsLbTitle');
     const bodyEl   = document.getElementById('tipsLbBody');
-    if (!lb || !titleEl || !bodyEl) return;
+    if (!lb || !titleEl || !bodyEl) return null;
 
     const lightbox = createLightbox({ overlay: lb, content: content ?? undefined, closeBtn: closeBtn ?? undefined });
 
@@ -81,10 +83,11 @@ export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '
     }
 
     // Wire every card's ? button — stopPropagation prevents collapsing the card
-    document.querySelectorAll(trigger.selector).forEach(btn => {
+    if (trigger) document.querySelectorAll(trigger.selector).forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
             openTips(/** @type {HTMLElement} */ (btn).dataset[trigger.key]);
         });
     });
+    return { open: openTips };
 }

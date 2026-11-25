@@ -404,7 +404,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                     <div></div>
                     <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>
                     <div class="grade-tabs-actions">
-                        <button class="team-help-btn" id="teamHelpBtn" aria-label="Team view tips and colour key">?</button>
+                        <button type="button" class="btn-card-tips" id="teamHelpBtn" data-card="team-week" aria-label="Tips for Team Week View, and its colour key">?</button>
                     </div>
                 </div>
                 <div class="team-week-row">

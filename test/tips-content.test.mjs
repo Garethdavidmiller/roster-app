@@ -52,6 +52,8 @@ const PAGES = [
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, DEFAULT_TABLE_FIGURES, WEEKENDS_OFF_AIM_PCT } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
+    // The Calendar's one ? is drawn by Team View (calendar-team-view.js), so that file is where its button is read.
+    { js: 'calendar-tips.js',  html: 'calendar-team-view.js', noCardHeading: true },
     { js: 'trains-tips.js',    html: 'trains.html', scope: { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, DAYTIME, JOURNEY_PLANNER_URL, renderFurtherChanges } },
 ];
 
@@ -552,7 +554,7 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
     });
 });
 
-for (const { js, html, scope } of PAGES) {
+for (const { js, html, scope, noCardHeading } of PAGES) {
     describe(`${js} — tips content`, () => {
         const tips = readCardTips(js, scope);
 
@@ -622,7 +624,8 @@ for (const { js, html, scope } of PAGES) {
         // A panel title is the dialog's aria-label (tips-lightbox.js), so an emoji there is read out before
         // the title; the card's header carries the emoji. And the title is the card's heading, so the
         // panel a reader opens is named as the card they opened it from ("Weekly Roster upload" was not).
-        if (js !== 'links-tips.js') test(`every panel title in ${js} is its card's heading, with no emoji`, () => {
+        // Team Week View has no card, so no h2 to match: its title is the view's own name, checked with no emoji below.
+        if (js !== 'links-tips.js' && !noCardHeading) test(`every panel title in ${js} is its card's heading, with no emoji`, () => {
             const page = readFileSync(html, 'utf8');
             const wrong = [];
             for (const m of page.matchAll(/class="[^"]*btn-card-tips[^"]*"[^>]*data-card="([^"]+)"/g)) {
