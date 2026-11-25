@@ -99,8 +99,7 @@ in `calendar-access.js`.
 ## Architecture — two pure layers over one thin shell
 
 *Moved here from `AUTH_ARCHITECTURE.md` (24 Nov 2026), which is now a pointer. Code comments still
-cite that file by Phase number; what each phase built is `ROADMAP_HISTORY.md` → "Track 1 — the auth
-consolidation phases".*
+cite that file by Phase number; what each phase built is in git (`AUTH_ARCHITECTURE.md` lists them).*
 
 **The client decides what to ATTEMPT and what to RENDER; the server decides what is ALLOWED**
 (invariant 6). Everything below — the state machine, the policy map, claim-aware retries, optimistic
@@ -212,5 +211,5 @@ Calendar — see CLAUDE.md → *Change impact*.
 
 ## Read this first
 
-`ROADMAP_HISTORY.md` → "The login freeze" — resolved, but it records the diagnosis, and invariant 1
-exists because of it.
+The login freeze (v14.72–v14.75) — resolved, and invariant 1 exists because of it: its lessons are
+`PASSWORD_DESIGN.md` §3.6 and `login-core.js`'s header.

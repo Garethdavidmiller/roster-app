@@ -739,7 +739,7 @@ itself. History was deliberately not rewritten — see KNOWN_LIMITATIONS.md.
   why its uprated literals are a change-detector, not a truth-oracle.
 - A **device-local** actuals overlay is developer-only: `paycalc-app.js` reads `readPayslipActuals()`
   from localStorage, gated by `isActualsDev` to the developer account, imported per device and never
-  served. Full reasoning: `ROADMAP_HISTORY.md` → "Track 1 — the auth consolidation phases" → PAYSLIP_ACTUALS.
+  served. Full reasoning: `KNOWN_LIMITATIONS.md` → "Real payslip figures stay in git HISTORY".
 
 ## Payslip line names — match these EXACTLY (source of truth)
 

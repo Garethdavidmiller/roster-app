@@ -2,8 +2,9 @@
 /**
  * ai-map-lib.mjs — the export lines in `docs/AI_MAP.md`, generated from the code.
  *
- * An AI_MAP entry is written by hand: what the module is for, and where its rules live. Its export
- * list is NOT: it is read from the module here, so it cannot drift from the code. That is the whole
+ * An AI_MAP entry is a module's `###` heading and its export list; what the module is for, and where its
+ * rules live, is its FILE_INDEX row (the hand-written cards went on 25 Nov 2026). The export list is
+ * read from the module here, so it cannot drift from the code. That is the whole
  * reason the map's export lists stopped being prose (17 Nov 2026) — the hand-kept lists had become a
  * second copy of every module's surface, kept current by a pre-commit nag.
  *

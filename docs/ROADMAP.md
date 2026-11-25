@@ -4,8 +4,8 @@
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
-audited and closed lives in **`ROADMAP_HISTORY.md`** — it is not gone, and several entries there are
-the only record of why something was removed, but it is not roadmap.
+audited and closed lives in git, and every decision from it that still binds is in **`DECISIONS.md`**
+(the retired archive's last text: `git show 28b217d0:docs/ROADMAP_HISTORY.md`). It is not roadmap.
 
 Decisions that are already CLOSED — features declined, and choices recorded so they are not
 re-argued — live in **`DECISIONS.md`**. Open decisions stay here, in `NOW`: "you need to decide X"
@@ -15,8 +15,7 @@ Dated obligations — the work that has a deadline whether or not anyone plans i
 **`MAINTENANCE_CALENDAR.md`**. Implementation specs live in CLAUDE.md and `.claude/rules/*`.
 
 If something below has become history, **move it — do not copy it**; two live copies of a plan is
-the drift that split this file twice. What moved is in `ROADMAP_HISTORY.md` (the past) and
-`DECISIONS.md` (what was decided).
+the drift that split this file twice. The past is in git, and what was decided is in `DECISIONS.md`.
 
 ---
 
@@ -146,7 +145,7 @@ Declining it costs one line: with the package absent the adapter returns `pdfjs-
 import behaves as it did before the witness. An archive from before a system change, or a scanned
 sheet with no text layer, reads as "no grid" and the witness stands aside, which is the right
 failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster data. How each phase
-shipped, including the wiring defects found on the way: `ROADMAP_HISTORY.md`.
+shipped, including the wiring defects found on the way: git.
 
 ### Track E — the authentication decision
 **Status:** Planned — the cleanup release of the staff PIN's retirement (owner, 23 Nov 2026; the client release shipped at v26.60, the server release at v26.65); E3 as designed is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
@@ -227,7 +226,7 @@ month ahead, because "must be done by March" reliably becomes "started in March"
 station-first, with ranked changes in a colleague's words, a card per station, the basic hour
 as a stopping-pattern grid, and both timetables from Chiltern's published books, every stop
 included. The ideas below were proposed with the preview (7 Oct 2026) and deliberately not built
-yet; those since built are in ROADMAP_HISTORY.md → "Trains page — preview items shipped". They are
+yet; those since built are in git. They are
 recorded so the page grows toward a plan rather than by accretion.
 
 **A. Before 13 December — teaching the change.** Ready to pick up, in whatever order the owner
@@ -442,7 +441,7 @@ asking two colleagues to do the task from the app alone, never by page height or
 decisions, not explanations.
 
 **Subject 1 — Sunday vs Rest Day Working — has shipped** (`paycalc-copy-parity.test.mjs` pins the
-distinction; the story is in `ROADMAP_HISTORY.md`), and it settled what the pass actually does:
+distinction; the story is in git), and it settled what the pass actually does:
 **carry the fact to the point of use; do not write it again somewhere new.** The Pay Calculator
 Guide already had the fact, stated perfectly, and it did not help, because a guide has to be OPENED
 and the member was reading the form. **Next subjects, in order of evidence: HPP and back pay** (both
@@ -654,8 +653,8 @@ deploy, pointing at `dist/`. Cloud Functions stay separate.
 **And the measurement that says "not yet":** the calendar is the slowest page, ~85% of loads
 sub-second. Under 6× CPU throttle FCP moved only 272 → 360ms — eager JS execution is ~18ms, so the
 cost is **fetching** the module graph, not parsing it. **Lazy-loading modules was measured and
-rejected** — it reduces execution cost, and execution is not the bottleneck. Full figures:
-`ROADMAP_HISTORY.md` → Performance. Do not re-propose without new evidence.
+rejected** — it reduces execution cost, and execution is not the bottleneck. The decision:
+`DECISIONS.md` → "What ROADMAP_HISTORY.md held that still binds" → Load speed. Do not re-propose without new evidence.
 
 ---
 
@@ -690,7 +689,7 @@ both would need the governance gate answered before that changed.
 | `npm audit --omit=dev` in `functions/` | The weekly `functions-audit.yml` fails only on a high or critical finding (`scripts/audit-functions-deps.sh`), and its root-tree job is report-only, so moderate drift does **not** fail CI — it is caught only by looking | `SECURITY_RELEASE_PLAN.md` → A1 |
 | App Speed card — the **Usable** milestone | The first figure that describes what a member actually waits for. The two older milestones cannot: "First appears" is the splash painting, and "Code loaded" fires while the Calendar can still be blank. Watch this one, not those | Operations → App Speed |
 | App Speed card, calendar tail | Load time on staff phones — an input to the build-step question, deliberately not a trigger (`DECISIONS.md` → "No build step"); `LATENCY.md` → Phase 3 holds the reading that would justify acting | This file → Build tooling |
-| App Speed card — **Own roster** (`rosterSnapshot`) | Whether a returning member's open now SHOWS a roster well inside a second. The own-roster copy (`CALENDAR_DATA.md` 17) is the identity round trip's answer, and this milestone measures it directly; the decision record is `ROADMAP_HISTORY.md` and `DECISIONS.md` → "The own-roster copy" | Operations → App Speed |
+| App Speed card — **Own roster** (`rosterSnapshot`) | Whether a returning member's open now SHOWS a roster well inside a second. The own-roster copy (`CALENDAR_DATA.md` 17) is the identity round trip's answer, and this milestone measures it directly; the decision record is `DECISIONS.md` → "The own-roster copy" | Operations → App Speed |
 | Per-address counters | The signal for the migration campaign — read the mirror going down | Operations → Usage |
 
 ---
@@ -699,8 +698,8 @@ both would need the governance gate answered before that changed.
 
 | Looking for | File |
 |---|---|
-| What shipped, what was removed, what was tried and reverted | `ROADMAP_HISTORY.md` |
-| The v23.01 external review's index, and the print review (Sep 2026) — both closed | `ROADMAP_HISTORY.md` |
+| What shipped, what was removed, what was tried and reverted | git; the decisions that still bind are `DECISIONS.md` |
+| The v23.01 external review's index, and the print review (Sep 2026) — both closed | their owner decisions: `DECISIONS.md`; the rest: `git show 28b217d0:docs/ROADMAP_HISTORY.md` |
 | Decisions already taken, and features declined | `DECISIONS.md` — **do not re-argue one without reading it** |
 | Dated obligations and their warning points | `MAINTENANCE_CALENDAR.md` |
 | Current status of every security/auth track | `SECURITY_RELEASE_PLAN.md` — **the single source** |

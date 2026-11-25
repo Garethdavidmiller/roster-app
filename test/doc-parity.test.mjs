@@ -118,7 +118,7 @@ const tests = readdirSync(new URL('./test/', REPO_ROOT_URL)).filter(f => f.endsW
 // a decision somebody makes, and an exemption whose reason stops being true comes OUT: the
 // `apis.google.com` CSP section was exempted as a "standing constraint" and kept for a release after
 // the policy stopped allowing those hosts, stating the reverse of the live CSP (whole-app review,
-// I8). It is in ROADMAP_HISTORY.md now.
+// I8). It is in git history now.
 const CLOSED_WORDS = /\b(CLOSED|FIXED|SUPERSEDED|RESOLVED|no longer a limitation|RESTORED)\b/i;
 const CLOSED_HEADING_EXEMPT = [
     // "mitigated, not fully closed (accepted)" — the word is there to say it is NOT closed.
@@ -132,7 +132,7 @@ test('KNOWN_LIMITATIONS.md headings state what is still true', () => {
         .filter(l => !CLOSED_HEADING_EXEMPT.some(e => l.includes(e)));
     assert.deepEqual(offenders, [],
         'these headings read as closed, so a reader cannot take the file at its word. Move the\n' +
-        'section to ROADMAP_HISTORY.md (or let git hold it), keep any durable lesson in the contract\n' +
+        'section out (git holds it), keep any durable lesson in the contract\n' +
         'or module header that owns it, and add a NAMED exemption here only if the heading is\n' +
         'genuinely still live:\n  ' + offenders.join('\n  '));
 });
@@ -174,8 +174,14 @@ test('a doc that says "`symbol` in `file.js`" is right about the file', () => {
     // CONDITIONAL_ROWS and PILL_TYPES), and the first the guard was live for and missed. Allowing
     // up to three intervening words was measured over both docs before landing: it adds exactly one
     // new match — the defect itself — and no false positives.
+    // WIDENED to every routing doc and rule file (25 Nov 2026), when CLAUDE.md and AI_MAP.md shrank
+    // to routing and the two of them alone carried barely the floor below: the claims did not go away,
+    // they moved to the files that now hold the reasoning, and a guard that reads only the old homes
+    // stops guarding.
     const claims = [];
-    for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md']) {
+    for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/FILE_INDEX.md',
+        ...readdirSync(new URL('./.claude/rules/', REPO_ROOT_URL)).filter(f => f.endsWith('.md')).sort()
+            .map(f => `./.claude/rules/${f}`)]) {
         for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?(?:[a-z]+\s+){0,3}in\s+`([\w.-]+\.(?:js|mjs))`/g))
             claims.push({ doc, sym: m[1], file: m[2] });
     }
@@ -327,7 +333,10 @@ test('every module has its own AI_MAP entry, not just a mention', () => {
 // which is not prose and not this test's business. It is the largest card that survived the second
 // pass, rounded up, so it can only come DOWN. An entry that needs more room is a module whose header
 // should hold the rest.
-const AIMAP_ENTRY_CAP = 1_500;
+// RATCHETED 1,500 -> 750 (25 Nov 2026), when a module's card went: what a module is became its
+// FILE_INDEX row alone, so a module entry is its heading and its generated export line, and the
+// entries left with a note are the few that are not one module (the largest, 712).
+const AIMAP_ENTRY_CAP = 750;
 test('no AI_MAP entry outgrows a routing card', () => {
     const entries = [];
     let cur = null;
@@ -656,7 +665,7 @@ test('the symbol guard would catch the two defects that motivated it — guard t
  * history doc recording "`X` was in `functions/index.js` before the split" cannot be made to
  * fail by writing the truth. Do not read the passing mutation as a reason to delete it.
  */
-const PAST_DOCS = /ROADMAP_HISTORY|experiments\//;
+const PAST_DOCS = /experiments\//;
 
 /** leading-underscore · lowerCamel with an inner capital · UPPER_SNAKE. */
 const LOCATABLE = String.raw`_[A-Za-z][A-Za-z0-9_]{3,}|[a-z][a-z0-9]*[A-Z][A-Za-z0-9_]*|[A-Z][A-Z0-9]*_[A-Z0-9_]+`;
@@ -1109,7 +1118,9 @@ test('the CLAUDE.md file tree stays a routing table', () => {
 // A cap with slack is a cap nobody meets. The pass that moved those five out left the longest row at
 // 1,249, so this sits just above the survivor rather than at a round number, and the next pass should
 // bring it toward ~900 to match the tree.
-const ARCH_ROW_CAP = 1_300;
+// RATCHETED 1,300 -> 650 (25 Nov 2026): every row was cut to its rule and a pointer, the reasoning left
+// in the headers and rule files it pointed at, and the longest row is 631 characters.
+const ARCH_ROW_CAP = 650;
 test('the CLAUDE.md architecture table states decisions, not retrospectives', () => {
     const lines = CLAUDE.split('\n');
     const start = lines.findIndex(l => l.includes('Architecture decisions — never change'));
@@ -1183,10 +1194,14 @@ test('the CLAUDE.md architecture table states decisions, not retrospectives', ()
 // left the architecture table for path-scoped `.claude/rules/` files, the test lanes' history for
 // README.md and the version-bump incidents for DECISIONS.md — moved, never cut — taking the file from
 // 122,788 characters to ~70,500. The floor below came down with it: it proves the file was READ.
-const CLAUDE_MD_CAP = 72_000;
+// **RATCHETED DOWN 72,000 -> 43,000 on 25 Nov 2026**, the same move a fourth time: the Cloud Function
+// rows, the workflow detail, the test lanes and the wording conventions' reasons left for the headers,
+// README.md, OPERATIONS_REFERENCE.md, `roster-data.md` and `staff-copy.md` that already held or now
+// hold them, taking the file from 66,491 characters to ~42,400. The floor came down with it.
+const CLAUDE_MD_CAP = 43_000;
 test('CLAUDE.md stays affordable — it is loaded into every session', () => {
     const chars = CLAUDE.length;
-    assert.ok(chars > 50_000, 'CLAUDE.md was not read — this test is checking nothing');
+    assert.ok(chars > 30_000, 'CLAUDE.md was not read — this test is checking nothing');
     assert.ok(chars <= CLAUDE_MD_CAP,
         `CLAUDE.md is ${chars.toLocaleString()} characters, over the ${CLAUDE_MD_CAP.toLocaleString()} ratchet.\n` +
         'This file is loaded into EVERY session, so this is a cost paid on every task regardless of\n' +

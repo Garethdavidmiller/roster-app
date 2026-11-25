@@ -197,7 +197,7 @@ would have changed the Calendar, the admin grid, Overtime and the guides, and wo
 Measured on their own, all nine badges clear AA (Early is the floor at 4.65:1). Every failure came
 from an **ancestor `opacity`**, which axe composites, and which no colour choice can survive: a pair
 clearing by 0.15 cannot be multiplied by 0.5 and still clear. Four such dims were replaced with cues
-that cost no contrast. Full before/after table: `docs/ROADMAP_HISTORY.md` → "The roster review table was never
+that cost no contrast. Full before/after table: `git show 28b217d0:docs/ROADMAP_HISTORY.md` → "The roster review table was never
 accessibility-scanned"; the reasoning that an editor needs beside the code is `operations.css` → the
 dims note.
 

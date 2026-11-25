@@ -1,1022 +1,305 @@
 # LATENCY.md — sign-in and Calendar start
 
 *Not version-stamped; not a runtime asset. Renamed from `LATENCY_PLAN.md`. It holds the
-measurements and the decision rules, kept for whoever reopens the question.*
+measurements and the decision rules, kept for whoever reopens the question. Condensed on
+25 Nov 2026: each reading keeps its figures and its verdict; the narrative around them is in git
+(`git log -p -- docs/LATENCY.md`, full text at `28b217d0`). The headings are cited by name from code
+and other documents, so keep them.*
 
-**CLOSED 19 Sep 2026 — nothing open.** It began as four phases to do in measured order, and the
-measuring ended it: Phase 1 shipped; Phase 2 closed on its own decision rule; Phase 3 was priced at
-4.6–52 ms against a wall of over a second and **declined**; Phase 4's trigger never fired. The wall is
-the one `accounts:lookup` round trip every boot makes, and what is left to `Recognised` is recorded as
-the **price of the security model** — a cost that was chosen, not a problem nobody solved. **No
-engineering left in this file plausibly moves the number. Do not go looking for a Phase 5 to make the
-plan feel finished**: twice, measuring first stopped confident work worth five milliseconds. And **a
-shipped change is not a measured one** — this file's whole method has been to refuse that substitution.
+**CLOSED 19 Sep 2026 — nothing open but one reading.** It began as four phases to do in measured
+order, and the measuring ended it: Phase 1 shipped; Phase 2 closed on its own decision rule; Phase 3
+was priced at 4.6–52 ms against a wall of over a second and **declined**; Phase 4's trigger never
+fired. The wall is the one `accounts:lookup` round trip every boot makes, and what is left to
+`Recognised` is recorded as the **price of the security model** — a cost that was chosen, not a
+problem nobody solved. **Do not go looking for a Phase 5 to make the plan feel finished**: twice,
+measuring first stopped confident work worth five milliseconds. And **a shipped change is not a
+measured one**.
 
-| Open item | What it is | Who / when |
-|---|---|---|
-| ~~**The identity round trip**~~ | **ANSWERED 5 Sep 2026 and SHIPPED (v22.97)** — see "THE ANSWER" below | Gareth · done |
-| ~~**The Phase 2 reading**~~ | **CLOSED 5 Sep, reconfirmed 12 Sep on 2.8× the sample** — 98.4% of attributed starts are cache-served | done |
-| ~~**Did the fast path work?**~~ | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: 1 open of ~800 eligible. Row one of the pre-registered table, so the identity finding stands and `VAL-AUTH-006` is not reopened — see *THE CLOSING READ* | done |
+**The one reading left:** Signing in on the December card (THE NOVEMBER READ, last section).
 
-**Four things happened after the close, and none reopens it:**
+**After the close, and none of it reopens the file:** the fast path was RETIRED (owner, 26 Sep —
+THE CLOSING READ; `DECISIONS.md` → "The provisional paint"); the member's own stored roster, painted
+before the grant, shipped on 5 Oct (`CALENDAR_DATA.md` 17); the App Speed card was trimmed and its
+timings changed on 25 Oct (THE CARD WAS TRIMMED), so every reading here before November was taken
+on an instrument that no longer exists; and the 14 Nov read closed the October check (THE NOVEMBER
+READ).
 
-- **26 Sep 2026** — the fast path was shown unable to beat Auth start-up as well as rare, and the owner
-  RETIRED it (THE CLOSING READ → the correction; `DECISIONS.md` → "The provisional paint").
-- **5 Oct 2026** — the option that could beat it, the member's own stored roster painted before the
-  grant, shipped (`CALENDAR_DATA.md` 17).
-- **25 Oct 2026** — the App Speed card was trimmed and its timings changed (v24.98). The start ladder,
-  the boot stages, the saved-copy/server split, the fast-path row and the connection comparisons left
-  the card, so every App Speed reading in this file before November was taken on an instrument that no longer
-  exists — see *THE CARD WAS TRIMMED*.
-- **14 Nov 2026** — the first read on the trimmed card closed the check it left for 1 November: it
-  was the release pace. It also found two waits in a sign-in that the app added itself; v26.12 fixed
-  one, and the other is on the roadmap with a trigger (*THE NOVEMBER READ*).
+Design detail lives beside the code — `perf-reporter.js` and `perf-stats.js` for what is measured,
+`CALENDAR_DATA.md` for the invariants any change here must not break. This file holds the readings
+and the decision rules.
 
 ## A SECOND cost, and this plan was structurally blind to it (v22.90)
 
-**Everything above measures ONE page load. Nothing above counts how many page loads a member is made
-to do.** That gap is where a real contributor was hiding, and it is not a wall this document could
-have found by reading its own card: a reload is recorded as one more ordinary sample, so a member
-interrupted and rebooted appears in the data as two unremarkable loads.
-
-**The mechanism.** A version bump renames the SW cache, the new worker `skipWaiting`s on install and
-claims immediately, and `controllerchange` reloaded the page — on the Calendar, 500 ms later and with
-no prompt. A member reading their roster watched it vanish and rebuild, paying a **second full boot,
-including the `accounts:lookup` round trip this document spends its length on.**
-
-**The frequency is the finding.** Measured on `origin/main` for the fourteen days to 5 Sep 2026:
-
-| | |
-|---|---|
-| releases | **62 in 14 days** |
-| busiest day | **17** |
-| 4 of the last 5 days | 9 · 17 · 11 · 11 |
-
-`registration.update()` runs hourly *and on every `visibilitychange` back to visible*, so bringing
-the app to the foreground is itself an update check. At this cadence a member who opens the Calendar
-several times a day will meet a reload regularly, and each one costs the full start over again.
-
-**Fixed at v22.90, narrowly.** `deferWhileVisible` holds the reload until the page is hidden —
-seconds away on a phone, and invisible when it happens. The update still lands, so the mixed-version
-hazard the reload exists to close is not reopened; only its TIMING moved. Opt-in, and the Calendar is
-the only caller: the pages that ask before reloading do so because a member may have unsaved work, and
-deferring that question would greet them with a confirm on return.
-
-**What is claimed, and what is not.** The mechanism and the cadence are measured — the reload is
-asserted by `sw-register.test.mjs`, and the release counts come from the commit log. The FIELD
-contribution was not, when this was written; the instrument below was built to count it, and the
-readings put it at about one open in seven (THE FULL-MONTH READ, item 5 — an undercount, per THE
-CARD WAS TRIMMED).
-
-**It does not touch the identity decision.** The round trip is still the wall on a single load, and
-`ROADMAP.md` still owns that call. What changed is that some members were paying it twice.
-
-### The reading it named is now being taken (v22.92)
-
-The paragraph above says the field contribution is unmeasured and names counting it as the next
-reading. This is that instrument, and it is deliberately not the shape the paragraph guessed at.
-
-**Not "two `ready` samples from one device inside a few seconds".** The analytics are counters, not
-events — `perf_<YYYY-MM>` holds `version|page|metric|bucket|mode|conn → count` and no device
-identity, deliberately, so there is nothing to correlate a pair against and adding one would trade
-the privacy property for a statistic. The device that knows is the device it happened to, at the
-moment it happened, so it says so: `sw-register.js` stamps a sessionStorage timestamp when it
-commits a reload, and `perf-reporter.js` reads it back on the load that follows and records
-`readyUpdate` beside the ordinary `ready`.
-
-**What it can answer, once staff devices report.** `readyUpdate` is a strict SUBSET of `ready`,
-written from the same bucket on the same code path, so the counts divide: the share of Calendar opens
-that followed a release, and what those opens cost against every other open. Rendered on the App
-Speed card as "Opens that followed a release".
-
-**And the caveat that has to travel with it, because it inverts the obvious reading** (true until
-v24.98, which re-timed `readyUpdate` as the wait from the member coming back — THE CARD WAS TRIMMED).
-Since v22.90 the Calendar's update reload runs while the page is HIDDEN. So on the Calendar this measures a
-BACKGROUNDED load — which is the right question now (did the deferred reload finish before the
-member came back?) and is emphatically *not* the cost of the behaviour v22.90 removed. That cost is
-now unmeasurable in the field, and honestly so: the only way to measure it would be to reinstate it.
-What survives is the FREQUENCY, which is the half that sizes the complaint, and on the pages that
-still reload in the foreground the duration means what it looks like.
-
----
-
-Design detail lives beside the code, as ever — `perf-reporter.js` and `perf-stats.js` for what is
-measured, `AI_MAP.md` for the ladder's exports, `CALENDAR_DATA.md` for the invariants any change
-here must not break. This file holds the sequence, the readings and the decision rules.
-
----
+Everything else here measures ONE page load; nothing counted how many loads a member is made to do.
+A version bump renamed the SW cache and `controllerchange` reloaded the Calendar 500 ms later, with
+no prompt — a second full boot, `accounts:lookup` included. At 62 releases in the 14 days to 5 Sep
+2026 (17 on the busiest day), with `registration.update()` running hourly and on every return to
+visible, a member met it regularly. **v22.90 holds the reload until the page is hidden**
+(`deferWhileVisible`, Calendar only — the pages that ask first do so because of unsaved work). The
+update still lands, so only its timing moved. `readyUpdate` (v22.92) counts the opens that followed
+a release, stamped by the device it happened to, because the analytics hold counters and no device
+identity. It measured about one open in seven (THE FULL-MONTH READ, item 5 — an undercount, per THE
+CARD WAS TRIMMED). It does not touch the identity decision.
 
 ## What was already good, and why the obvious answers were refused
 
-The review's own framing, kept because it stops the next reader re-proposing them: service-worker
-SWR caching, the SDK cache, `modulepreload` on the two heaviest pages, 60-day sessions, in-place
-sign-in, `primeAuth`, the Firestore local cache and the cache-before-server Calendar read were all
-already in place. The remaining gains need the critical path to CHANGE, not to be tuned.
-
-Two things were considered and refused outright:
+Already in place: SW caching, the SDK cache, `modulepreload` on the heaviest pages, 60-day sessions,
+in-place sign-in, `primeAuth`, the Firestore local cache and the cache-before-server Calendar read.
+The remaining gains need the critical path to CHANGE, not to be tuned. Refused outright:
 
 | Refused | Why |
 |---|---|
-| **Render the base roster instantly, correct it when Firestore answers** | Override-unknown is not override-absent. It would look fast and reintroduce the exact defect `calendar-data-state.js` exists to prevent. **Latency must not buy a false roster.** — And this refusal is NOT the open `ROADMAP.md` identity question, though they rhyme: that one paints CACHED overrides (real data, correctly labelled) before the server confirms the *account*; this one would paint the base roster while overrides are *unknown*. Refusing the second says nothing about the first, and neither may be cited to settle the other. |
-| **Extend the session past 60 days** | It reduces how OFTEN latency is felt without improving it, and lengthens the life of a stale local session. Optimise the real path instead. |
-
----
+| **Render the base roster instantly, correct it when Firestore answers** | Override-unknown is not override-absent. It would look fast and reintroduce the exact defect `calendar-data-state.js` exists to prevent. **Latency must not buy a false roster.** Not the same question as painting CACHED overrides before the account is confirmed; neither may be cited to settle the other |
+| **Extend the session past 60 days** | It reduces how OFTEN latency is felt without improving it, and lengthens the life of a stale local session |
 
 ## Phase 1 — SHIPPED (v21.29–v21.30)
 
-| Change | Outcome |
-|---|---|
-| One shared Firebase auth bootstrap | Three `onAuthStateChanged` subscriptions with three bounds became one. The Calendar's worst-case access decision went from **two stacked ceilings (6.5s + 6s) to a single 6.5s budget** |
-| `markPageReady` means a real roster grid | It was timing the withheld "Checking this month…" state — and doing so most often on the SLOWEST loads, so the figure was biased in the flattering direction and unreadable in either |
-| The local cache wins the first paint | A bounded 90ms for phase 1's IndexedDB read, so a returning device stops painting a spinner over data milliseconds away |
-| The start ladder | Four cumulative milestones — Recognised · Unlocked · Shifts shown · Confirmed — rendered as "How far the start gets" (removed from the card 25 Oct 2026) |
-
-**The ladder is the deliverable that matters here**, because it is what makes the rest of this plan
-decidable rather than arguable.
-
----
+One shared Firebase auth bootstrap (the Calendar's worst-case access decision went from two stacked
+ceilings, 6.5 s + 6 s, to one 6.5 s budget); `markPageReady` means a real roster grid, not the
+"Checking this month…" state; the local cache wins the first paint (a bounded 90 ms IndexedDB read);
+and the start ladder — Recognised · Unlocked · Shifts shown · Confirmed (off the card since 25 Oct
+2026). **The ladder is what made the rest decidable rather than arguable.**
 
 ## The decision rule — read this before starting phase 2 or 3
 
-*The ladder this rule reads left the card on 25 Oct 2026; a reopened question would rebuild it first
-(THE CARD WAS TRIMMED).*
-
-The four milestones nest, so the biggest gap between adjacent rows names the phase to do next.
-Compare rows; do not do arithmetic.
+*The ladder this rule reads left the card on 25 Oct 2026; a reopened question rebuilds it first.*
+The milestones nest, so the biggest gap between adjacent rows names the phase. Compare rows; do not
+do arithmetic. **Wait for a full month** (`THIN_SAMPLE` governs every row), and remember a member
+who never passes the gate contributes no `Confirmed`.
 
 | The gap is between | What is slow | Do |
 |---|---|---|
-| page start → **Recognised** | restoring the saved sign-in | ~~Phase 3~~ — **measured and declined**; the gap is one auth round trip, and skipping it is the `ROADMAP.md` identity decision, not a build |
+| page start → **Recognised** | restoring the saved sign-in | ~~Phase 3~~ — **measured and declined**; the gap is one auth round trip (left struck through because the rule was FOLLOWED) |
 | Recognised → **Unlocked** | the access decision itself | re-read `calendar-access.js` |
-| Unlocked → **Shifts shown** | reaching a roster at all | **Phase 2** (fetch less, sooner) — read "What put the shifts on screen" first |
-| Shifts shown → **Confirmed** | the authoritative Firestore read | **Phase 2**, and its member/month narrowing especially |
-
-The first row is struck through rather than deleted because the rule was FOLLOWED: the ladder named
-Phase 3, the proof priced it, and the answer redirected the question. A table quietly rewritten to
-the outcome would hide that the method worked.
-
-**Wait for a full month before reading it.** The card's own `THIN_SAMPLE` rule governs these rows;
-a week of data on a 50-person app can read 100% and mean nothing.
-
-**One honest caveat:** the ladder measures the Calendar only, and only loads that reach each rung. A
-member who never gets past the gate contributes no `Confirmed`, so that row's population is smaller
-than the ones above it by construction — the same property the card already states about `ready`.
-
----
+| Unlocked → **Shifts shown** | reaching a roster at all | **Phase 2** |
+| Shifts shown → **Confirmed** | the authoritative Firestore read | **Phase 2**, its member/month narrowing especially |
 
 ## First reading — 22 Aug 2026 (owner screenshots of the live card; PROVISIONAL, month incomplete)
 
-Recorded against the decision rule above so the numbers and the verdict sit next to the rule that
-produced them. **Read from the deployed Operations card, not from this repo** — the analytics are
-admin-only, so screenshots are the record. **Superseded by the confirmation read below; kept because
-the two together are the evidence that the verdict is stable rather than a single month's shape.**
-
-**The boot stages exonerate the code.** Waking up 9% over ½s (989 opens) · Loading code 11%
-(1,052) · Getting ready 0% (1,114). The SW, the module graph and the no-bundler trade are all fast
-in the field — Phase 4's trigger did not fire.
-
-**The ladder, cumulative (Calendar, 1,619 opens this month):**
-
-| Rung | over 1s | jump | opens |
-|---|---|---|---|
-| page start → **Recognised** | 56% | **+56 ← the wall** | 494 |
-| → Unlocked | 62% | +6 | 497 |
-| → Shifts shown | 71% | +9 | 863 |
-| → **Confirmed** | 100% | **+29** | 458 |
-
-**Verdict per the rule: Phase 3 first** — the dominant gap is `page start → Recognised`, i.e.
-restoring the saved sign-in, and everything downstream inherits it (the access decision and the
-cache paint are cheap once identity exists). **Phase 2 second**, against the Confirmed row: the
-authoritative three-months × all-members read finished inside a second on **zero** loads, which is
-the plan's own prediction confirmed rather than news — it shapes the sync chip's lifetime, not what
-the member feels.
-
-Three cautions attached to the verdict:
-
-- **Loading code is fast, so the Recognised delay is not parsing.** Some of it is Firebase's own
-  restore work — IndexedDB read, token refresh over the network (4G-like loads run 18% over 1s vs
-  11% not-reported, which smells of network). Phase 3 removes Firestore from auth's path but may
-  not buy the whole 56 points; the prove-it-on-one-page step exists precisely to find out.
-- **Row populations differ by construction** (the caveat above): viewer/PIN loads never reach
-  Recognised, and Confirmed only counts loads that stayed open for it.
-- **This ladder and the "asked for my password every time" complaints (Aug 2026) are very likely
-  one phenomenon.** A restore tail slow enough to blow the 6.5s access budget puts the sign-in card
-  up until `watchForLateNamedIdentity` withdraws it. Phase 3 is therefore also the treatment for
-  the complaint's transient-flash arm.
-
----
+Boot stages exonerate the code: Waking up 9% over ½ s · Loading code 11% · Getting ready 0%. The
+ladder (Calendar, 1,619 opens, % over 1 s): Recognised **56%** (the wall) · Unlocked 62% · Shifts
+shown 71% · Confirmed 100%. Verdict: Phase 3 first, Phase 2 second. **The restore tail and the
+"asked for my password every time" complaints (Aug 2026) are very likely one phenomenon**: a restore
+slow enough to blow the 6.5 s access budget put the sign-in card up until
+`watchForLateNamedIdentity` withdrew it — routine, not an edge case.
 
 ## Confirmation read — 30 Aug 2026 (owner screenshot; the month effectively complete)
 
-The read the section above deferred. August is 1½ days from ending and the Calendar sample has gone
-from 1,619 opens to **2,226**; no row here can move materially in what is left, so this is recorded
-as the confirmation rather than a second provisional. **The verdict is unchanged on 2× the sample,
-which is the useful part** — a decision this size should not rest on one partial month.
-
-**The boot stages exonerate the code — CONFIRMED.** Waking up 10% over ½s (1,513 opens) · Loading
-code 12% (1,623) · Getting ready **0%** (1,738). Every figure is within a point of the provisional
-on ~50% more data. **Phase 4's trigger did not fire, and the no-bundler trade is measured, not
-argued.**
-
-**The ladder, cumulative (Calendar, 2,226 opens):**
-
-| Rung | over 1s | jump | opens | (22 Aug) |
-|---|---|---|---|---|
-| page start → **Recognised** | 52% | **+52 ← the wall** | 1,072 | 56% |
-| → Unlocked | 58% | +6 | 1,086 | 62% |
-| → Shifts shown | 75% | +17 | 1,493 | 71% |
-| → **Confirmed** | 100% | +25 | 1,045 | 100% |
-
-**Verdict per the rule: Phase 3 first, confirmed.** The dominant gap is still `page start →
-Recognised` by a factor of three over its nearest rival, and the two rungs that moved (Shifts shown
-+9→+17, Confirmed +29→+25) traded with each other without touching the wall.
-
-**The sharpest single fact in this read is not in the ladder at all.** All three boot stages finish
-inside ½s on ~90% of opens — *Getting ready* is 0% over ½s across 1,738 of them — and yet **21% of
-page opens take over three seconds to become USABLE** (32% under 1s · 46% 1–3s, 1,695 opens). The
-code is ready and the page is not. Everything a member waits for is therefore downstream of DCL, in
-the identity restore and the access decision, which is precisely what Phase 3 addresses and is a
-stronger statement of it than the ladder alone makes.
-
-**Three things worth knowing before reading any dimension on this card:**
-
-- **The connection split is probably reading the PLATFORM, not the network.** Not-reported runs
-  **10%** over 1s (1,163 opens) against 4G-like's **20%** (1,041) — i.e. the devices that report no
-  connection class are the FASTER half. `NetworkInformation` is unimplemented in Safari, so
-  "not reported" is largely iOS and "4G-like" largely Android. Treat the row as a device split
-  until something distinguishes them. The provisional read drew the opposite inference from the
-  same two rows ("smells of network"); on the fuller sample the gap widened rather than closed,
-  which fits a platform explanation better than a signal one.
-- **The installed app is SLOWER than a browser tab** — 16% over 1s (1,736 opens) against 11% (490).
-  Counter-intuitive, and not yet explained. The likeliest reading is population rather than
-  performance: an installed app belongs to somebody with a saved session to restore, while a
-  browser tab is disproportionately a PIN unlock or a first visit, and neither of those runs the
-  member chain that the wall lives in. **Do not act on this row** — it is a hypothesis with an
-  obvious confound, and it would be settled by splitting `Recognised` by install mode rather than
-  by changing anything.
-- **Every by-version row is at or near the thin bar.** `THIN_SAMPLE` is 20; these rows carry 24–46
-  opens each (two exceptions at 152 and 214). v21.91 reading 23% against v21.78's 4% is noise on
-  ~30 samples, not a regression to hunt. The card withholds a verdict below 20 and does not shade
-  it above; that is the reader's job here.
-
----
+2,226 opens; the verdict unchanged on twice the sample: Recognised **52%** · Unlocked 58% · Shifts
+shown 75% · Confirmed 100%, and all three boot stages inside ½ s on ~90% of opens — yet **21% of
+opens took over three seconds to become usable**. The code is ready and the page is not. Two cautions
+that still apply to any dimension: the connection split reads the PLATFORM as much as the network
+(Safari reports no connection class, so "not reported" is largely iOS); and the installed app read
+slower than a tab, most likely a population effect (an installed app restores a session; a tab was
+disproportionately a PIN unlock) — **do not act on that row**.
 
 ## THE FIELD READ — 5 September 2026
 
-**The outstanding validation is closed: the identity round trip is confirmed on live staff devices.**
-Until now this rested on a controlled experiment (+300 ms injected into `accounts:lookup` moved the
-milestone +335.7 ms) and an August field localisation. The September App Speed card supplies the
-signature the plan said to look for.
-
-| Calendar milestone | over 1s | opens |
-|---|---|---|
-| Recognised | 60% | ~476 |
-| Unlocked | 58% | ~477 |
-| Shifts shown | 78% | ~472 |
-| Confirmed | 98% | ~423 |
-
-**The comparison that settles it** is `Recognised` against `Getting ready`, split by connection:
-Recognised moves with the connection grouping (~60% on the 4G-like group, ~43% on "not reported")
-while **Getting ready is 0% over half a second in every group**. Same populations, large difference
-at the network-dependent rung, none at all at the code-loading one. That is exactly the pattern this
-plan nominated as the test.
-
-**One confound, stated rather than smoothed over:** "not reported" is disproportionately Safari/iOS,
-because Safari does not expose `navigator.connection`. So 60% against 43% is not "Android's
-connection is 17 points worse" — the browser mix differs too. It does not undo the comparison,
-because the Getting-ready row is flat across the same split.
-
-**What the ladder does NOT say.** Recognised is 60% and Shifts shown is 78%, so roughly eighteen
-points appear after the member is identified. The milestones are cumulative over populations that
-are not perfectly identical, so that is not "18% are delayed by X" — but it does mean identity is
-not the whole of it. **`rosterCached` was added at v22.95 for exactly that gap**, and it is the next
-reading.
-
-**And a correction worth keeping: the app has not recently got slower.** Usable-within-a-second went
-32% (end August) → 35% (September). Recognised went 52% → 60% while the code-loading figures stayed
-flat. The complaint is real and the telemetry agrees with it, but nothing here supports reverting
-recent Calendar work — which was the fear this whole investigation started from.
+The identity round trip is confirmed on live staff devices (~476 opens): `Recognised` moves with the
+connection group (~60% on 4G-like, ~43% not reported) while **Getting ready is 0% over ½ s in every
+group** — the signature this plan nominated. About eighteen points appear after the member is
+identified (Recognised 60% → Shifts shown 78%), which is why `rosterCached` was added (v22.95). And
+the app had not recently got slower: Usable within a second went 32% → 35%.
 
 ## THE FULL-MONTH READ — 12 September 2026
 
-The 5 Sep read above was taken on ~476 Calendar opens. This is the same card at **1,285**, and it
-settles three of the four readings `MAINTENANCE_CALENDAR.md` lists. The fourth — did the fast path
-work — is the one it cannot settle, and saying so is most of this entry.
+1,285 opens; boot stages still exonerating (Getting ready 0%).
 
-**The ladder (Calendar, cumulative, % over 1s):**
-
-| Rung | over 1s | opens | (5 Sep) |
-|---|---|---|---|
-| Recognised | 59% | 1,250 | 60% |
-| Unlocked | 62% | 1,265 | 58% |
-| **Roster found** | **77%** | 786 | — (rung added v22.95) |
-| Shifts shown | 78% | 1,302 | 78% |
-| Confirmed | 97% | 1,213 | 98% |
-
-Boot stages unchanged and still exonerating: Waking up 15% over ½s (1,162) · Loading code 20%
-(1,222) · **Getting ready 0%** (1,316).
-
-### 1. VAL-AUTH-006 is CLOSED — the signature is unmistakable on 2.6× the sample
-
-The check this plan nominated, split by connection class:
-
-| | 3G-like | 4G-like | Not reported |
-|---|---|---|---|
-| **Recognised**, over 1s | **91%** (22) | **68%** (644) | **48%** (584) |
-| **Getting ready**, over ½s | **0%** (21) | **0%** (681) | **0%** (614) |
-
-The network-dependent rung spreads across three connection groups; the code-loading stage is flat
-zero in every one of them. That is the predicted pattern, and it is now observed on live staff
-devices rather than inferred from an emulator. The 3G arm is thin (22 opens) and the finding does
-not rest on it: 68% against 48% on 644 and 584 opens is the spread, and the Getting-ready row is
-flat across the same split, which is what disposes of the "this is really a platform split"
-confound the 30 Aug read raised.
-
-### 2. `rosterCached` answers the eighteen-point question — it is STORAGE, not the gate
-
-The 5 Sep read could not say where the gap between Unlocked (58%) and Shifts shown (78%) went. The
-new rung does: **Unlocked 62% → Roster found 77% → Shifts shown 78%.** Almost all of it is the
-device's own saved copy coming back, and painting it afterwards is nearly free.
-
-Read with care in one respect — `Roster found` reports only on a real cache hit (786 opens against
-`ready`'s 1,302), so these are not the same population and the points do not subtract. The SHAPE is
-the finding, not an arithmetic split.
-
-### 3. Phase 2 stays closed, on 2.8× the sample
-
-**Saved copy 1,270 opens · The server 21** — 98.4% cached, against 98.3% on 462 when the phase was
-closed. Nothing has moved; the rule fires the same way and for the same reason.
-
-### 4. The service worker is NOT what staff are waiting for
-
-**Since the Oct 2026 production review the worker no longer re-fetches a file it already holds** (that background rewrite could store the wrong release — see service-worker.js), so the figures below describe the behaviour before it; `swrCount` itself left with the card trim of 25 Oct 2026.
-
-New this month, and a clean negative. A full sweep (31+ files) was running on **78% of opens (604)**,
-and the card's own rule is that this only matters if those boots are slower: **Worker busy 78% over
-1s (595) against Shifts shown 78%.** Identical. The revalidation storm is real and costs the member
-nothing measurable.
-
-### 5. Releases interrupt 14% of opens — the number v22.90 shipped without
-
-**176 of 1,285**, roughly one open in seven. That sizes the complaint v22.90 was fixing. It is
-76% over a second, and per the caveat that has to travel with it, on the Calendar that is a load
-running while the page is HIDDEN — the right question there is whether the deferred reload finished
-before the member came back, not what somebody waited for.
-
-### 6. The fast path — THE VERDICT IS WITHHELD, and the instrument is now on the card
-
-`Saved copy` went **78% over a second (Aug/early Sep) → 77% (this month)**, while `Getting ready`
-stayed at 0%. The prediction in "THE ANSWER" above was that the first figure should FALL, and its
-falsification clause says plainly: *"If it does not move, the diagnosis was wrong and this is the
-evidence."*
-
-**That clause is not being invoked, and the reason is not reluctance — it is that this reading
-cannot tell two opposite worlds apart.**
-
-- **The path rarely fires.** ~59% of September's Calendar opens ran a version at or past v22.97
-  (counted from the by-version rows), and of those, the fast path is refused for Team View, for a
-  stored selection naming a colleague, and for every PIN unlock — which is most Calendar reading on
-  the shared station PC. On that reading the aggregate is diluted to invisibility and the identity
-  finding is untouched.
-- **The path fires constantly and buys nothing.** On that reading, `LATENCY.md`'s central claim is
-  wrong, and a month of work rests on it.
-
-**Same number, opposite conclusions, and a further month of the same aggregate cannot separate
-them** — which is the one thing the 28 Sep deadline was written assuming it could. The separating
-quantity is how often the path actually TAKES, and nothing recorded it.
-
-`readyProvisional` now does (v23.70): written beside `ready`, from the same bucket on the same path,
-whenever the grid that fired `markPageReady` went up under a provisional grant. Rendered as **"Opens
-that did not wait for the sign-in check"**. Its TOTAL over `ready`'s answers how often; its
-DISTRIBUTION against `ready`'s answers whether those opens were any faster.
-
-**The rule for the next read, so it is fixed before the number arrives:**
-
-| The fast path fires on | and those opens are | Then |
-|---|---|---|
-| a small share of opens | — | **the September reading was diluted and says nothing about the diagnosis.** The identity finding stands. The open question becomes whether the path's eligibility is worth widening, which is an ACCESS decision (`CALENDAR_DATA.md` 13), not a latency one |
-| a substantial share | **faster** than `ready` overall | **the fix works and the diagnosis is confirmed.** Close this file |
-| a substantial share | **no faster** | **the diagnosis was wrong.** The wall is not the identity round trip, `VAL-AUTH-006` is reopened despite its field signature, and the September ladder's own shape — Roster found at 77% — is where to look next |
-
-**Read it no earlier than a full month after v23.70 ships**, for the reason the by-version tail
-above demonstrates rather than argues: this estate's devices run a long spread of versions, and a
-new metric reports only from the ones that have updated.
+1. **VAL-AUTH-006 is CLOSED.** Recognised over 1 s: 91% 3G-like (22) · 68% 4G-like (644) · 48% not
+   reported (584), with Getting ready 0% in all three. The flat row disposes of the platform confound.
+2. **`rosterCached` answers the eighteen points: it is STORAGE, not the gate** — Unlocked 62% → Roster
+   found 77% → Shifts shown 78%. (Different populations; read the shape, not a subtraction.)
+3. **Phase 2 stays closed** — 1,270 opens from the saved copy against 21 from the server (98.4%).
+4. **The service worker is NOT what staff are waiting for** — a full sweep ran on 78% of opens, and
+   Worker busy read 78% over 1 s against Shifts shown's 78%. (The worker no longer re-fetches a file
+   it holds since the Oct 2026 production review.)
+5. **Releases interrupt 14% of opens** (176 of 1,285) — on the Calendar a load running while HIDDEN.
+6. **The fast path's verdict was withheld**: the aggregate could not tell "rarely fires" from "fires
+   and buys nothing", so `readyProvisional` (v23.70) was built to count how often it took, with the
+   reading rule fixed before the number arrived.
 
 ## THE CLOSING READ — 19 September 2026. The fast path RARELY FIRES, and this file is DONE
 
-The card at **2,161 Calendar opens** (1,285 on 12 Sep). It answers the one question the September
-aggregate could not, and it answers it in the row that was built for it:
+2,161 opens: **"Opens that did not wait for the sign-in check — 1"**, of roughly 800 eligible (only
+devices at v23.70 or later could report it; 1-in-2,161 would claim a precision the instrument lacks).
+Row one of the pre-registered table: the September reading was diluted, **the identity finding
+stands**, and `VAL-AUTH-006` is not reopened. Every other row re-confirmed: Getting ready 0% (2,213);
+Worker busy 76% against Shifts shown 77%; Recognised 73% 4G · 88% 3G · 47% not reported; 98.7% of
+grids from the cache; 14% of opens after a release. The red headline (Usable 34% under a second, 22%
+over three) is the ladder's last rung, not the app being slow.
 
-> **Opens that did not wait for the sign-in check — 1 open.**
+**CORRECTION, 26 Sep 2026 (external review) — a MECHANICAL reason, measured.** The Firestore SDK holds
+every operation, cache reads included, until Firebase Auth has initialised, and for a stored user
+initialisation IS the `accounts:lookup` round trip (real SDK, lookup delayed 2 s: the cache read
+settled at ~2,011 ms; at ~7 ms with Auth absent). So the provisional paint could only rarely beat the
+confirmation, whatever its eligibility, and no reordering of the Calendar's own reads can step round
+the lookup. The diagnosis is unchanged.
 
-Against the table above, that is row one: **a small share**. So the September reading was diluted,
-**the identity finding stands untouched**, and `VAL-AUTH-006` is not reopened.
-
-**The denominator is NOT 2,161, and the smaller figure is the honest one.** `readyProvisional` only
-exists from v23.70, so it can report only from devices that have updated — which is the caveat the
-previous entry ended on. Counting the by-version rows at or past v23.70 gives roughly **800 eligible
-opens**, and exactly one of them took the path. Either way the answer is the same; stating 1-in-2,161
-would be claiming a precision the instrument does not have, in the flattering direction.
-
-**Why it fires so rarely is not measured, and the hypothesis is the one this file already wrote
-down**: the path is refused for Team View, for a stored selection naming a colleague, and for every
-PIN unlock — which is most Calendar reading on the shared station PC. That remains plausible and
-unobserved. Recording the refusal REASON would settle it, and it is deliberately not being built:
-see the closing rule below.
-
-> **CORRECTION, 26 Sep 2026 (external review) — there is a MECHANICAL reason, and it was measured.**
-> The provisional paint reads the local cache with `getDocsFromCache`, and this file (with
-> `CALENDAR_DATA.md` 10) assumed that read needs no auth. It needs no SESSION, but the Firestore SDK
-> holds every operation — cache reads included — until Firebase Auth has initialised, and for a
-> stored user initialisation IS the `accounts:lookup` round trip. Real SDK, lookup delayed 2 s: the
-> cache read settled at ~2,011 ms, and at ~7 ms with Auth absent. So the provisional paint and the
-> identity confirmation land milliseconds apart, and a grid can only rarely go up in between —
-> whatever the eligibility. The refusals above may also be real; they are no longer needed to
-> explain one open in eight hundred. The same fact explains Phase 1's "local cache wins the first
-> paint" (it wins only against a render, never against the lookup) and why `Shifts shown` tracks
-> `Recognised` even for cache-served starts. **Nothing here changes the diagnosis** — the wall is
-> still the lookup; what it changes is that no reordering of the Calendar's own reads can step round
-> it. What to do about that is the owner's, below.
-
-### Everything else on the card is a clean negative, and three of them are re-confirmations
-
-| Question | This month | 12 Sep | Verdict |
-|---|---|---|---|
-| Is the app's own code slow? | Getting ready **0% over ½s** (2,213) · Loading code 19% (2,026) | 0% · 20% | **No**, for the third month |
-| Is the service worker the cost? | Worker busy **76%** (1,294) vs Shifts shown **77%** (2,192) | 78% vs 78% | **No.** A full sweep ran on 78% of opens and cost nothing measurable |
-| Is it the network? | Recognised **73%** 4G (983) · **88%** 3G (34) · **47%** not-reported (1,080), while Getting ready is **0% in every one** of those groups | 68 / 91 / 48, same flat row | **Yes** — the `VAL-AUTH-006` signature, on 2,099 opens |
-| Is the cache serving the grid? | Saved copy **2,178** · the server **28** — 98.7% | 98.4% | Phase 2 stays closed |
-| How often does a release interrupt? | **316 of 2,161 — 14%** | 14% | Unchanged; and on the Calendar that load runs while the page is HIDDEN |
-
-The ladder, for the record: Recognised 60% (2,099) · Unlocked 64% (2,118) · Roster found 75% (1,706)
-· Shifts shown 77% (2,192) · Confirmed 96% (2,102). The card's red headline — **Usable 34% under a
-second, 22% over three** — is this ladder's last rung, not the app being slow: `Recognised` is the
-`accounts:lookup` round trip, `Confirmed` is the server's re-check of the shifts, and `Getting ready`
-is zero.
-
-### THIS FILE IS NOW CLOSED
-
-The ending was written in advance, at the top of this document, and it is the one that arrived:
-
-> *record what is left to `Recognised` as the PRICE OF THE SECURITY MODEL — a cost that was chosen,
-> not a problem nobody solved. That is a success ending, not a failure … **Do not go looking for a
-> Phase 5 to make the plan feel finished.***
-
-So: no further Calendar startup change. Not the refusal-reason counter, which is exactly the Phase 5
-that sentence forbids — it would answer a question whose answer changes nothing, because widening the
-path's eligibility is an ACCESS decision (`CALENDAR_DATA.md` 13) and not a latency one. Not a
-preload, not a split, not a retune. **The measuring is what ends this, and it has.**
-
-**One question this reading OPENS, and it is the owner's, not this file's.** The fast path is now
-known to serve about one open in eight hundred while carrying a provisional grant, a revoke path,
-cross-member control locking and scope plumbing through `setOverrideAccess` — security-adjacent
-machinery whose cost is real and whose benefit is now measured at nearly nothing. Whether to keep it
-is a judgement about access and risk appetite, on one month of data, and deleting a security path on
-that basis would be the same hurry this file spent two months refusing. It was put to the owner
-rather than acted on here; the answer is below, and in `DECISIONS.md`.
-
-**The correction above sharpens that question into two options (26 Sep 2026). DECIDED the same day:
-the owner took the second — RETIRE.** Why, in one line: the paint's cache read queues behind the very
-lookup it was meant to overtake, so it could not win, and it had just shipped two defects. What went,
-and what would reopen it (the first option, with its shared-device privacy cost weighed first):
-`DECISIONS.md` → "The provisional paint". A named boot now waits for the lookup, as before v22.97.
-
-| Option | What it is | For | Against |
-|---|---|---|---|
-| **An app-owned snapshot** | Paint a returning member's own roster from a copy the app writes itself (e.g. localStorage or its own IndexedDB store), which does not queue behind Firebase Auth | the only way the 5 Sep ruling can actually reach the screen before the lookup | a SECOND copy of override data outside Firestore's cache: on a shared device it must be keyed to one member, cleared on sign-out/leaver/PIN, and never read under a viewer — every property `setOverrideAccess` enforces today at one door would need a second door. Also a second staleness model beside the four knowledge states |
-| **Retire the provisional machinery** | Delete `decideProvisionalAccess`, the scope plumbing and the cross-member locking; boot waits for the lookup as it did before v22.97 | removes a security-adjacent path that measurably buys ~nothing, and the bugs it has produced (the per-month knowledge leak fixed in the same review) | gives up the ruling's intent for good unless the first option is later built; a member with a disabled account stops seeing their cached roster for the validation window (a small privacy gain, not a cost) |
-
-Recommendation from the review: **retire it** unless the owner wants the first option built — the
-current machinery carries the risk of both and the benefit of neither. **Taken, 26 Sep 2026** — and
-the first option was then built as well, on 5 Oct 2026 (`CALENDAR_DATA.md` 17, `calendar-snapshot.js`).
+**The close.** No further Calendar start-up change — not a refusal-reason counter (the forbidden
+Phase 5: widening eligibility is an ACCESS decision, `CALENDAR_DATA.md` 13), not a preload, split or
+retune. **The owner decided on 26 Sep 2026 to RETIRE the fast path**: it buys ~nothing and had just
+shipped two defects. A named boot waits for the lookup again, as before v22.97. The other option, an
+app-owned snapshot of the member's own roster that does not queue behind Auth (with a second door to
+keep per member, cleared on sign-out and never read under a viewer), was then built as well on
+5 Oct 2026 (`CALENDAR_DATA.md` 17, `calendar-snapshot.js`). Record: `DECISIONS.md` → "The provisional
+paint".
 
 ## THE SEPTEMBER MONTH-END READ — 3 October 2026. Nothing reopens; one thing to watch
 
-The card's "Last month" view for the whole of September (owner screenshots), at **3,448 Calendar
-opens**, against the closing read above (2,161 on 19 Sep). **It re-confirms every verdict, so this
-file stays closed.**
-
-| Reading | 19 Sep | Sep month-end | Verdict |
-|---|---|---|---|
-| Usable within 1s · over 3s (all pages) | 34% · 22% | **32% · 23%** (4,130) | unchanged |
-| Getting ready, over ½s | 0% | **1%** (3,520) | the app's own work is still not the cost |
-| Recognised, over 1s | 60% | **63%** (3,369) | the wall is still the `accounts:lookup` round trip |
-| Recognised by connection, over 1s: 4G · 3G · not reported | 73% · 88% · 47% | **78% · 90% · 51%**, while Getting ready is **0%** in every group | still the network signature |
-| Ladder, over 1s: Unlocked · Roster found · Shifts shown · Confirmed | 64 · 75 · 77 · 96 | **66 · 78 · 78 · 97** | `Shifts shown` still tracks `Recognised` |
-| Saved copy vs the server | 2,178 · 28 | **3,515 · 35** (99.0%) | Phase 2 stays closed |
-| Worker busy vs Shifts shown, over 1s | 76% vs 77% | **78% vs 78%** | the service worker is not the cost |
-| Opens after a release | 14% | **14%** (498), 67% over 1s | unchanged |
-| Opens that did not wait for the sign-in check | 1 | **1** | the fast path, retired 26 Sep; the row now counts only devices on older versions |
-
-**The card was describing the retired fast path as live, and was corrected (3 Oct 2026).** The ladder's
-note said a returning member "is now shown their saved roster before the Calendar finishes checking who
-they are", and the fast-path block explained how to judge a feature that no longer existed. Both now say
-what is true since v24.29: shifts wait for the sign-in check, and the fast-path row is historic and will
-empty out. The block and its summary function went with the card trim of 25 Oct 2026.
-
-### One thing to watch: the newest versions read slower — probably the release pace, not a regression
-
-**By app version** (whole load, over 1s), weighting each row by its opens:
-
-- **v24.29 to v24.40** (after the fast path was retired): about **31%**, on roughly 294 opens.
-- **v24.17 to v24.28**: about **19%**, on roughly 780 opens.
-
-**This is not treated as a regression**, for two reasons, and the second is the stronger:
-
-- **The samples are small.** 26 to 116 opens per row, and the series has jumped this far before
-  (v23.74–v23.77 read 44%, v23.12 read 43%).
-- **The release pace confounds it.** About fifteen versions shipped in the last week of September,
-  each live for a day or two. The first open after an update is a reload, and those run at **67%**
-  over 1s. A version that is live for one day has far more than the 14% average of reload opens, so a
-  fast release pace inflates every short-lived version's figure.
-
-The retirement itself cannot explain it either way: the path served one open in eight hundred.
-
-**The check, and what it would mean.** In the October read, compare versions that stayed live for a
-week or more against the ~19% band:
-- **Back near 20%:** it was the release pace. Record that here and close the item.
-- **Still about 30% on a long-lived version:** something in v24.29+ costs time before `Usable`.
-  Look first at the sign-in path changes of that window: the anonymous fallback's removal (v24.34)
-  and the identity-loss watcher (v24.37–v24.38). That would be a NEW question with its own file, not
-  a reopening of this one.
+3,448 Calendar opens re-confirm every verdict: Usable 32% within 1 s, 23% over 3 s; Getting ready 1%;
+Recognised 63% (78% 4G · 90% 3G · 51% not reported, Getting ready 0% in each); 99.0% of grids from
+the cache; Worker busy 78% against Shifts shown 78%; 14% of opens after a release. The one thing to
+watch — versions v24.29–v24.40 reading ~31% over 1 s against ~19% for v24.17–v24.28 — was suspected
+to be the release pace, not a regression (small rows; a version live for a day carries far more
+reload opens), and was closed as exactly that in THE NOVEMBER READ.
 
 ## THE CARD WAS TRIMMED, AND THE TIMINGS CHANGED — 25 October 2026 (v24.98)
 
-A full review of the App Speed card (owner request) found two kinds of time in its figures that were
-nobody waiting for the app, and a section two thirds of the card long answering a question this file
-closed on 19 September. **Nothing here reopens the file**; what changed is the instrument, so every
-reading above has to be compared with what follows knowing that.
+A review of the App Speed card (owner request) found time in its figures that was nobody waiting.
+**From v24.98 a sample is time somebody spent waiting** (`perf-reporter.js`): a load nobody watched
+records nothing (the hidden release reload was about one Calendar open in seven); typing is not load
+time (a sign-in has its own figure); the wait after a release is timed from the member coming back;
+and `Usable` is stamped after the frame that shows the page. **So figures from v24.98 read faster for
+reasons that are measurement, not the app**, and **the "14% of opens follow a release" readings above
+were an undercount**. The "By app version" rows those reads called "whole load" were code loading
+(`domReady`); the card's version split now runs on Usable.
 
-**From v24.98 a sample is time somebody spent waiting** (`perf-reporter.js`):
-
-- **A load nobody watched records nothing.** The Calendar's release reload runs while the page is
-  hidden — that is its design (v22.90) — and it was about one Calendar open in seven in September,
-  timed as if a member had opened the page, with the phone slowing or freezing it meanwhile.
-- **Typing is not load time.** The staff PIN (retired 23 Nov 2026) unlocked the Calendar without a
-  reload, and every page signs in on the page itself, so `Usable` included reading the card and typing. It is now dropped once the
-  page asked somebody to type; a sign-in has its own figure.
-- **The wait after a release is timed as a wait** — from the member coming back to the page until it
-  was usable — and **sign-in time ends at Usable**, where it ended whenever the reading ran (on the
-  Calendar, before the grid). The `Usable` mark itself is stamped after the frame that shows the page.
-
-**So figures from v24.98 read faster for reasons that are measurement, not the app.** October mixes
-the two ways of timing; the card says so on any month with 5% or more of its opens from older
-versions, and no version row mixes them. **The "14% of opens follow a release" readings above were an
-undercount** for two reasons the review found: the label was checked against the moment the reading
-ran, so a hidden reload frozen for over a minute lost it, and the share divided by every version's
-opens.
-
-**What the card no longer shows, writes and all:** the boot stages, the start ladder (Recognised,
-Unlocked, Roster found, Shifts shown, Confirmed), the saved-copy/server split, the fast path and the
-worker's file count. The connection comparisons went from the card only: the connection class is part
-of every sample's key, so it is still recorded. Their last readings are the September month-end
-table above. Months up to October 2026 still hold their samples in Firestore; nothing reads them, and
-a reopened question would need its instrument rebuilt, writes and card block in one release (the
-decision, with its trigger, is in DECISIONS.md).
-
-### The October check now reads on Usable
-
-The section above asked the October read to compare long-lived versions against the ~19% band on the
-**By app version** rows, calling them "whole load". **They were code loading** (`domReady`), not the
-whole load — the card's label said so for the connection split only — and the fresh download after
-every update slows code loading directly, which is the release-pace explanation in its plainest form.
-
-The card's version split now runs on **Usable**, so the check changes shape. It was due at the
-1 November read ("Last month" = October), on **A closer look → By app version — Usable**. **It was
-taken on 14 November instead, and closed: THE NOVEMBER READ, below.** The method it set out:
-
-- Versions before v24.98 were timed the older way, which counted the hidden release reload (67% over
-  1s in September). A short-lived version carries more of those, so it reads slower for that reason
-  alone. **Compare a version that stayed live a week or more with its short-lived neighbours:** if it
-  reads clearly better, it was the release pace — record that here and close the item. If it reads
-  the same, something in v24.29+ costs time before `Usable`; the pointers above still apply, and it is
-  a new question with its own file.
-- **From v24.98 the release pace cannot inflate a row at all**: the hidden reload is not an open
-  anybody watched. November's rows are the clean comparison.
+The boot stages, the start ladder, the saved-copy/server split, the fast-path row and the worker's
+file count left the card, writes and all; the connection class is still on every sample's key.
+Months up to October 2026 still hold their samples, unread. **A reopened question rebuilds its
+instrument, writes and card block in one release** — the decision and its trigger are in
+`DECISIONS.md`.
 
 ## THE NOVEMBER READ — 14 November 2026 (half a month). The October check closes; nothing reopens
 
-The card's "This month" view on 14 Nov (owner screenshots; the card said the month's record was 12%
-full). It is the first read taken wholly on the trimmed card: every version row but one, of four
-opens, is v24.98 or later. **This table cannot be set beside the September one above**, because the
-timing changed in between (THE CARD WAS TRIMMED); its Usable figures are better than September's
-partly for that reason. The one comparison across the change is the one the October check asked
-for, below.
-
-| Reading | November to the 14th | Verdict |
-|---|---|---|
-| First appears · Code loaded, under 1s | **80% · 79%** (1,561 · 1,567 opens), 2% over 3s each | the app's own work is still not the cost |
-| Usable, under 1s · over 3s, all pages | **41% · 12%** (1,429) | the Calendar is 1,233 of the 1,567 opens; the wall is still `accounts:lookup` |
-| Own roster, over 1s | **22%** (929) | the member's own stored roster, shown before the check answers (`CALENDAR_DATA.md` 17), is on screen within a second for nearly four opens in five |
-| After a release, until usable, over 1s | **10%** (163) | a release now costs the member who meets one very little |
-| Installed app · browser tab, over 1s | **69% · 89%** (895 · 202) | installed opens are quicker; the cause is not measured, and the existing install prompts are the lever |
-| Signing in: under 1s · 1–3s · over 3s | **8% · 64% · 28%** (25 sign-ins) | red at a fifth over 3s; see below |
+The first read wholly on the trimmed card; it cannot be set beside September's. First appears and
+Code loaded: 80% and 79% under 1 s. Usable, all pages: 41% under 1 s, 12% over 3 s (the Calendar is
+1,233 of 1,567 opens; the wall is still `accounts:lookup`). Own roster over 1 s: 22% (`CALENDAR_DATA.md`
+17). After a release, until usable, over 1 s: 10%. Installed app 69% against a tab's 89% over 1 s.
+Signing in: 8% under 1 s · 64% 1–3 s · 28% over 3 s, on 25 sign-ins.
 
 ### The October check, closed: it was the release pace
 
-The check could not be run as written. **No November version stayed live for a week**: 99 versions
-reached `main` from 1 to 14 November, about seven a day. And the versions it was about, v24.17 to
-v24.40, are not in November's data. Two readings answer what it was for:
-
-- **Code loaded, the measure that raised it** (the "whole load" rows were code loading; see above):
-  21% over 1s, all pages together. That is back near the ~19% band of v24.17–v24.28, not the ~31%
-  that raised the question, now that release reloads are not counted. The Calendar alone cannot be
-  read off the card, but it cannot be above about 27%: that is what it would read if every other
-  page had loaded inside a second. That is the October check's first outcome: **it was the release
-  pace.**
-- **Usable by app version, on the clean timing**: 33 rows from v25.00 to v26.08, 20 to 86 opens
-  each, 50% to 96% over 1s, about 73% weighted. A release that made the Calendar slower would show
-  as a step that stays, and there is none. Before v25.56 the rows read 70% (637 opens); v25.56 to
-  v25.66, live from the evening of 8 November to the evening of the 10th, read 88% (121); everything
-  since reads 72% (335), and the newest row (v26.07–v26.08, 55% on 29 opens) is the second fastest
-  of the 33. The rows scatter more than chance alone would on samples this size. That is expected
-  when a version is live for hours: its opens come from whoever opened the app that day, on that
-  day's networks, so a row describes a day as much as a version.
-
-What November cannot show is whether v24.29–v24.40 cost anything against v24.28 on the Usable
-timing, because nothing before v24.98 was timed that way. That limit is recorded rather than worked
-round: the check's own rule closes the item once code loading is back near 20%, and it is.
+No November version stayed live a week (99 versions in 14 days). Code loaded, the measure that raised
+it, read 21% over 1 s — back near the ~19% band now release reloads are not counted. Usable by version
+(33 rows, v25.00–v26.08) shows no step that stays. What cannot be shown — whether v24.29–v24.40 cost
+anything on the Usable timing — is recorded rather than worked round.
 
 ### Signing in: red, and two of its waits were the app's own
 
-A sign-in lasts 60 days, so few happen: 25 in half a month, each one four points of the figure, and
-three fewer slow ones would take the panel off red. The timer runs from pressing "Sign in" until the
-page is usable, across any reload (`perf-reporter.js`). Two waits inside it were the app's own doing:
-
-- **A first password attempt that could not succeed.** When the typed password spelt the surname
-  without being the stored default exactly (a capital letter, or a surname under six letters, whose
-  default is padded), the typed text was tried first and always failed, so the sign-in made an extra
-  round trip to Google's sign-in service before the one that worked. **v26.12 tries the default
-  first** (`PASSWORD_DESIGN.md` §3.2). It reaches only sign-ins on the surname default, so a small
-  move is the most to expect.
-- **The Calendar's reload after a sign-in**, which repeated the `accounts:lookup` round trip this file
-  is about. **Gone from v26.40** for a sign-in on a Calendar not yet granted (the front door, and a
-  member's own come-back card): the sign-in grants in place (`ROADMAP_HISTORY.md` → "Calendar sign-in without the reload").
-  The December card is the first to include it. **It counts fewer sign-ins than before, and not at
-  random**: a sample is kept only when the page stayed on screen from the moment it LOADED
-  (`_watched`, `perf-reporter.js`), and an in-place sign-in is the locked load's, so a member who
-  switched apps to find their password gives none; the reload used to start that clock afresh. Read
-  December's figure as the members who stayed in the app, and compare its count with November's
-  before its colour (review, 20 Nov 2026).
+Few sign-ins happen (60-day sessions), so each is four points of the figure. Two waits were the app's:
+a first password attempt that could not succeed when the typed surname differed from the stored
+default (**v26.12 tries the default first**, `PASSWORD_DESIGN.md` §3.2); and the Calendar's reload
+after a sign-in, which repeated the lookup (**gone from v26.40** for a sign-in on a Calendar not yet
+granted — the in-place grant in `calendar-access.js`). The December card is the first to include it,
+and **it counts fewer sign-ins, not at random**: a sample is kept only when the page stayed on screen
+from the moment it LOADED (`_watched`, `perf-reporter.js`), so a member who switched apps to find their
+password gives none. Compare December's count with November's before its colour (review, 20 Nov 2026).
 
 **Read Signing in again on the December card**, the first full month with v26.12.
 
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 
-**The rule below fires, and it fires clearly.** Of the starts that could be attributed, **454 came
-from the device's saved copy and 8 from the server** — 98.3% cached. Phase 2 narrows the
-authoritative read, which by this plan's own argument cannot move a cache-served first paint by a
-millisecond. It would be a rewrite of the read path, carrying the Team View eviction trap, for a
-population that is 1.7% of attributed opens.
+**Trigger:** the gap at Unlocked → Shifts shown, or Shifts shown → Confirmed. The first authoritative
+read asks for every member's overrides across three months; a member wants one person's month. The
+narrowing, in order: the displayed month first, adjacent months in the background, then selected
+member + displayed month on the existing `memberName` + `date` index, whole-team data only for Team
+View. **Constraints it must keep:** the first grid may not be presented as current until its own
+overrides are authoritative (`CALENDAR_DATA.md` 1, 2, 6) — narrowing what is FETCHED is legitimate,
+narrowing what is KNOWN is not; and **Team View is the trap**: its fetcher was unified at v18.76
+because a second authoritative reconciler evicted overrides the first had loaded.
 
-**Read EARLY, and here is why that is defensible.** The plan named "~end September, one full month
-after v21.99" and it is the 5th. The wait existed so nobody would read a confident PERCENTAGE off a
-thin server arm — and that is not what is being read. The server arm is thin *because almost nobody
-is in it*, and the quantity the rule keys on is its SHARE of the whole, over 462 attributed opens.
-A month more data would have to change that share by a factor of twenty to flip the decision.
-
-**It reopens if that share moves** — a storage-eviction change, a large intake of new devices. The
-reading is no longer on the card (it left on 25 Oct 2026), so reopening means rebuilding it first:
-THE CARD WAS TRIMMED, and DECISIONS.md for the trigger.
-
-**The other half of the same reading:** 78% of those cache-served starts still take over a second to
-put shifts on screen. The roster is already on the phone. It is waiting for permission to be shown,
-which is the identity decision in `ROADMAP.md`, not a data-path problem.
-
-## Phase 2 — the Calendar data path
-
-**Trigger:** the ladder shows the gap at Unlocked → Shifts shown, or Shifts shown → Confirmed.
-
-Today the first authoritative read asks Firestore for **every member's overrides across three
-months** before the displayed month can be called current. The ordinary member opening the Calendar
-wants **one person's current month**. Those are very different workloads, and the composite index
-`memberName` + `date` already exists.
-
-1. Fetch the **displayed month** first, rather than previous/current/next together.
-2. Background-prefetch the adjacent months once the first grid is up.
-3. Then the stronger form: **selected member + displayed month**, on the existing index.
-4. Load whole-team data only when Team View needs it.
-
-**The constraint this must not break:** the first grid still may not be presented as current until
-its own overrides are authoritative. Narrowing WHAT is fetched is legitimate; narrowing what is
-KNOWN before rendering is not. `CALENDAR_DATA.md` invariants 1, 2 and 6.
-
-**And Team View is the trap.** Its fetcher was unified into the shared month machinery at v18.76
-precisely because a second authoritative reconciler racing the first evicted overrides the initial
-fetch had just loaded. Any per-member narrowing has to keep that single-reconciler property.
-
-### Do not start it until the card answers ONE question (instrumented v21.99)
-
-Phase 3 was the nominated treatment until it was measured, and it was worth 4.6 ms. The same
-discipline applies here, and the question is narrower than it looks.
-
-**`Shifts shown` fires on whichever render first puts a real grid up**, and on a device with a warm
-cache that is PHASE ONE — no network at all. Narrowing the authoritative read cannot move that load
-by a millisecond. On a cache MISS it is phase two, the three-month whole-team query, which the card
-says has never once finished inside a second. So Phase 2's entire value is the size of the
-cache-miss population, and nothing measured it: the ladder carried connection, install mode and
-version, but not what served the grid.
-
-It did from v21.99 to v24.98. `markPageReady` took a source, derived from the display state the
-Calendar already computes (`render` means the read landed, `stale` means the cache did), and the App
-Speed card rendered **"What put the shifts on screen"** directly beneath the ladder rung it split.
-Both went with the card trim of 25 Oct 2026.
-
-**The reading rule:**
-
-| From the server | Do |
-|---|---|
-| a small share of opens | **close Phase 2.** It would be a rewrite of the read path, with the Team View eviction trap above, for a population that mostly does not exist |
-| a substantial share, and slow | **do Phase 2**, narrowest form first — displayed month before adjacent months, then selected member |
-
-**Wait a full month before reading it**, and mind two things. The two rows do NOT sum to `Shifts
-shown` — a page that cannot tell its source reports `ready` alone — so they are shares of the
-attributed population, not of the whole. And `THIN_SAMPLE` governs them like every other row on the
-card: the cache-miss arm is the smaller by construction, so it is the one that will read as thin
-first, and a confident percentage from thirty opens is what this card's own v21.16 pass existed to
-stop.
-
----
+**Closed** because the rule fired clearly: 454 attributed starts came from the saved copy and 8 from
+the server (98.3%; 98.4% on 2.8× the sample on 12 Sep). Narrowing the authoritative read cannot move
+a cache-served first paint, so it would be a rewrite carrying the Team View trap for 1.7% of opens.
+Read early, defensibly: the rule keys on the server arm's SHARE, which a month more would have to
+change twentyfold. **It reopens if that share moves** (a storage-eviction change, a large intake of new
+devices) — and the reading left the card on 25 Oct 2026, so it is rebuilt first. The other half of the
+reading: 78% of cache-served starts still took over a second, waiting for permission, not data.
 
 ## Phase 3 — split Firebase Auth from Firestore
 
-**Trigger:** the ladder shows the gap before Recognised, i.e. cold sign-in and cold Calendar start
-are dominated by getting an identity.
+**Trigger:** the gap before Recognised. It fired twice; **the proof was run and the answer is no — do
+not do this as a latency fix** (30 Aug 2026, `experiments/auth-firestore-split-proof/`):
 
-> **THE TRIGGER FIRED, THE PROOF WAS RUN, AND THE ANSWER IS NO — do not do this as a latency fix**
-> (30 Aug 2026, `experiments/auth-firestore-split-proof/`). The trigger had fired twice on
-> independent data, and the prove-it-on-ONE-page step was there because nothing had established how
-> much of the 52-point wall Firestore's presence in the auth graph actually owns. It owns almost
-> none of it.
->
-> | CPU throttle | today (app+firestore+auth) | split (app+auth) | saving |
-> |---|---|---|---|
-> | 1× | 38.3 ms | 33.7 ms | **4.6 ms** |
-> | 4× | 132.9 ms | 119.0 ms | **13.9 ms** |
-> | 6× | 229.0 ms | 176.8 ms | **52.2 ms** |
->
-> The saving is real, scales with a slower CPU as a parse cost should, and is the wrong order of
-> magnitude: **the entire auth boot is 229 ms on a 6×-throttled device**, against a wall of over a
-> second on 52% of loads. `initializeFirestore(persistentLocalCache)` costs **0.4 ms** synchronously
-> — the cache opens lazily, so the IndexedDB-contention half of the theory is not happening at all.
->
-> **The split may still be worth doing on architectural grounds. It may not be sold as the treatment
-> for this ladder.** That is the distinction the measurement bought, and it was bought before
-> refactoring the module every page in the app imports.
+| CPU throttle | today (app+firestore+auth) | split (app+auth) | saving |
+|---|---|---|---|
+| 1× | 38.3 ms | 33.7 ms | **4.6 ms** |
+| 4× | 132.9 ms | 119.0 ms | **13.9 ms** |
+| 6× | 229.0 ms | 176.8 ms | **52.2 ms** |
 
-`firebase-client.js` statically imports app, auth **and** Firestore, so somebody who only needs to
-sign in still pulls the database SDK into the module graph. Authentication does not require
-Firestore.
-
-- `firebase-app` (init) · `firebase-auth-client` (auth, persistence, `authBootstrap`) ·
-  `firebase-firestore-client` (db and query helpers).
-- `session.js` then depends on auth only.
-- Prove it on ONE protected page before rolling it out. Most staff authenticate every 60 days, so
-  the Calendar matters more than the login journey — sequence accordingly.
-
-**Cost side, measured and recorded so the next person is not guessing:** the Calendar's critical
+The whole auth boot is 229 ms at 6× against a wall of over a second, and
+`initializeFirestore(persistentLocalCache)` costs 0.4 ms (the cache opens lazily). **The split may
+still be worth doing on architectural grounds; it may not be sold as the treatment for this ladder.**
+The shape, if it is ever done: `firebase-app` · `firebase-auth-client` · `firebase-firestore-client`,
+`session.js` on auth only, proved on ONE page first. **Cost side, measured:** the Calendar's critical
 path is ~782 KB of unminified JS across 40 modules plus ~214 KB of render-blocking CSS, and under 6×
-CPU throttling reaching `myb-sdk-ready` takes 682 ms. See CLAUDE.md → *When a build step earns its
-keep*, which this phase does **not** by itself trigger.
-
----
+CPU throttling `myb-sdk-ready` takes 682 ms — an input to CLAUDE.md → *When a build step earns its
+keep*, not by itself a trigger.
 
 ## What the wall actually is — ONE auth round trip (measured 30 Aug 2026)
-
-The Phase 3 proof is a negative result with a positive half. Because the local cost turned out to be
-so small, the missing ~800 ms has to be network — and it is, and it is a single call:
 
 > **Every boot makes exactly one auth request — `POST /identitytoolkit.googleapis.com/v1/accounts:lookup`
 > — and `Recognised` waits for it.**
 
-Counted directly, one reload, one request. It is **not** conditional on the ID token having expired:
-the measured reloads were seconds apart with a fresh token and the call happened anyway. Firebase
-validates the stored user against the server before emitting it, which is a correctness feature —
-it is how a deleted or disabled account stops being restored on the next load.
-
-Injecting latency into that one call moves the milestone almost one-for-one — +335.7 ms of
-`authBootstrap` for +300 ms of latency. On a real mobile connection that round trip **is** the wall,
-and no arrangement of the module graph shortens it.
+It is not conditional on the ID token having expired: Firebase validates the stored user against the
+server before emitting it, which is how a deleted or disabled account stops being restored. +300 ms
+injected into that call moved `authBootstrap` +335.7 ms. On a real mobile connection that round trip
+**is** the wall, and no arrangement of the module graph shortens it. **When offline, Firebase emits the
+stored user anyway** (31 Aug 2026), so an offline device already trusts the stored identity.
 
 ### THE ANSWER — 5 September 2026, and what shipped (v22.97)
 
-**The owner's ruling: yes, a returning member may see their own already authorised cached roster**
-while the lookup completes. `ROADMAP.md`'s option 2 — a named member with a live local session, never
-the shared PIN viewer. The rule was `CALENDAR_DATA.md` invariant 13 (retired 26 Sep 2026 with the paint — see THE
-CLOSING READ above and `DECISIONS.md`); the argument and policy cost lived in
-`calendar-access-core.js` → `decideProvisionalAccess` until then, and the whole pre-decision
-entry is preserved verbatim in `ROADMAP_HISTORY.md`.
-
-**What shipped is narrower than the ruling, by two refusals discovered while building it.** The paint
-is scoped to ONE member, so a boot that was about to draw somebody else is refused rather than
-narrowed: Team View, and a stored selection naming a colleague. Both would have painted a colleague's
-base roster with their leave and absence silently missing — invariant 1's failure arriving from a
-direction the readiness model cannot see. Those members boot exactly as before.
-
-**What it was worth was measured on 19 Sep 2026: almost nothing, because it rarely fired** (THE
-CLOSING READ). The prediction, as registered before the reading, was specific and therefore
-falsifiable: `Recognised` should stop gating `Shifts shown` for cache-served starts, so the
-78%-over-a-second figure for those starts should fall while `Getting ready` is unchanged. Read it in
-Operations → App Speed at the end of the first full month. **If it does not move, the diagnosis was
-wrong and this is the evidence** — the fast path removes the wait from the critical path by
-construction, so no movement means the wall was somewhere else after all.
-
-### Why there is no Phase 5 written here yet
-
-The obvious treatment is to stop waiting: paint from the locally-stored identity and let the lookup
-confirm in the background. **That is a security trade, not a performance tweak**, and it is not this
-document's to make. `calendar-access.js` decides what a viewer may SEE from the restored identity,
-so an account disabled since the last load would be trusted for the length of one paint. The
-question belongs to `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`, and it should be answered before
-anything is built. **It WAS written up as a decision with the cost priced and three defensible
-answers, and it was answered on 5 Sep 2026** — option 2, shipped v22.97; see "THE ANSWER" above. The
-write-up is preserved in `ROADMAP_HISTORY.md`, and both contracts carry the outcome rather than the
-question: `CALENDAR_DATA.md` 13 (retired 26 Sep 2026) and 17 (its replacement), and
-`AUTH_AND_SESSIONS.md` 17.
-
-What can be said without that decision: the app already knows how to do this shape safely for DATA
-— the Calendar's two-phase load paints from the local cache and then reconciles authoritatively
-(E1, `calendar-initial-fetch.js`). Whether identity may take the same shape is exactly the harder
-question, because data can be wrong and re-render, and access cannot.
-
-**The measurement also retires a suspicion.** The 22 Aug reading guessed the delay "smells of
-network" from the 4G-versus-not-reported split, and the 30 Aug reading argued that split is probably
-reading the platform instead. Both were reasoning from a dimension that cannot separate them. This
-is the direct answer: it is network, it is one call, and it is on every load.
-
-**One honest caveat, and the check that closes it (deep review, 30 Aug; `VAL-AUTH-006`).** The
-round-trip finding rests on an emulator with injected latency — rigorous, and the FIELD contribution is inferred rather
-than observed. Before the identity decision is taken either way, confirm it on real devices with the
-signature it predicts: **if the wall is the lookup, `Recognised` should track connection quality far
-more strongly than `Getting ready` does** — a slow network moves a network wall and barely moves a
-parse one. The card already carries both rows and the connection split; the comparison is a reading,
-not a build. If the signature is absent, the finding is wrong and the decision should wait.
-
-**And one of the two pre-decision questions is already answered (31 Aug 2026): the check is only
-enforced when the network is up.** The offline arm of the same experiment shows Firebase emits the
-stored user anyway when the lookup cannot run — so an offline device already trusts the stored
-identity under shipped behaviour, and the "no — keep waiting" answer protects strictly less than it
-appears. The remaining open reading is the field signature above.
-
-### The field check was NOT readable, and now is (v22.28)
-
-The paragraph above said the comparison "is a reading, not a build". **That was wrong, and it was
-gating an owner decision with a mid-October deadline.** Every dimensional split on the App Speed card
-ran against a hardcoded `domReady`, so the only milestone anybody could split by connection was the
-one this document's own evidence exonerates — *Getting ready*, 0% over ½s across 1,738 opens. The
-rung the wall lives in could not be split at all.
-
-Nothing new is measured. `mode` and `conn` have been written onto every ladder sample since v21.30,
-so this is a **read of data already collected** — the check can be made against August and September
-rather than starting a fresh month's wait. The card carried **"Does the connection slow the
-start?"** (until 25 Oct 2026): *Recognised* by connection and *Getting ready* by connection, one under the other, on the
-same bands, with the reading rule stated between them. It renders both groups or neither — one alone
-is a column of percentages with nothing to read it against.
-
-**How to read it, and what each answer does:**
-
-| Reading | Means | Then |
-|---|---|---|
-| *Recognised* spreads across connection classes, *Getting ready* stays flat | the round-trip finding has its predicted field signature | the identity decision is ready to take on the evidence — `ROADMAP.md` |
-| both spread | something upstream of both is slow, and the round trip is not the whole story | do not take the decision on this evidence; find the common cause first |
-| neither spreads | the emulator finding does not reproduce in the field | **the finding is wrong.** Say so here and leave the gate alone |
-
-Note the second row honestly: `conn` is `navigator.connection.effectiveType`, which the 30 Aug read
-argues is probably splitting PLATFORM rather than network (Safari does not implement it). That
-confound weakens a positive reading and does not rescue a negative one — if *Recognised* and *Getting
-ready* differ across the same two groups, whatever the groups really are, the difference is between
-the two milestones and not between the populations.
-
----
+**The owner's ruling: a returning member may see their own already authorised cached roster while the
+lookup completes** — a named member with a live local session, never the shared PIN viewer. It shipped
+narrower than the ruling: Team View and a stored selection naming a colleague were refused, because
+both would have painted a colleague's base roster with their leave and absence silently missing. It was
+measured worth almost nothing (THE CLOSING READ) and retired on 26 Sep 2026. Stopping the wait
+altogether is a **security trade, not a performance tweak** — `calendar-access.js` decides what a viewer
+may SEE from the restored identity — so it belongs to `CALENDAR_DATA.md` (13, retired; 17, its
+replacement) and `AUTH_AND_SESSIONS.md` 17, not to this file.
 
 ## Two things this plan is NOT going to do, and why (v22.28)
 
-Recorded so the next reader — or the next review — finds the answer instead of re-deriving it. Both
-were proposed in good faith; both fail the plan's own test, which is *would the number change a
-decision that is currently open?*
+Both fail the plan's own test: *would the number change a decision that is open?*
 
-**Percentiles (median / P75 / P95) — NO, and they are not derivable from what is stored.** Samples
-are recorded as counts in five coarse bands (`PERF_BUCKETS`: under 500ms · to 1s · to 3s · to 8s ·
-over). The median of this app's Calendar start falls inside the **1–3s** band, which is two seconds
-wide; interpolating a point estimate inside it assumes a uniform distribution that load times
-certainly do not have, and would produce exactly the confident-but-unfounded figure the card's v21.16
-pass existed to remove. Finer bands would work and are a WRITE-side change — new key components, and
-a step in the series that makes either side incomparable, like the v19.95 usage change.
-
-But the deciding argument is not feasibility. **The bucket edges already answer the threshold
-questions exactly** — what share is worse than ½s, 1s, 3s, 8s, with no interpolation at all — and
-every open question here is threshold-shaped: the Phase 2 rule turns on a SHARE of cache-miss loads,
-and the identity decision is a security trade that a median does not move. A before/after on the
-identity change compares like with like on the same statistic. A percentile would be interesting and
-would change nothing.
-
-**Cold/warm start classification — NO, it was mostly present and it thins every row.** `swBoot`
-measured the service worker waking, `mode` splits installed from browser, and "What put the shifts on
-screen" was the cache/server split for the data (`swBoot` and that split were both retired on
-25 Oct 2026; `mode` is still on every sample). A further dimension multiplies the key space, and the
-by-version rows are already at 24–46 opens against a `THIN_SAMPLE` of 20.
-
----
+- **Percentiles (median / P75 / P95) — NO.** Samples are counts in five coarse bands (`PERF_BUCKETS`),
+  the median falls inside the two-second-wide 1–3 s band, and interpolating assumes a distribution
+  load times do not have. Finer bands are a write-side change that breaks the series. And the bucket
+  edges already answer every threshold-shaped question here exactly.
+- **Cold/warm start classification — NO.** It was mostly present already (`mode` is on every sample),
+  and a further dimension thins rows that already sit near `THIN_SAMPLE`.
 
 ## Phase 4 — only if the measurement still says so
 
-Reducing the Calendar's critical `modulepreload` graph, and the bundler question.
-
-**The bundler already has a home and a trigger — `ROADMAP.md` → Build tooling.** It is not restated
-here. The one thing to add: the app does not have a general too-much-JavaScript problem (execution
-measured at ~18ms), so the case only becomes compelling if the ladder shows the remaining tail in
-the fetch/parse phase after phases 2 and 3 have landed.
-
----
+Reducing the Calendar's `modulepreload` graph, and the bundler question, which has its home and
+trigger in `DECISIONS.md` → "No build step". Execution measured at ~18 ms: there is no general
+too-much-JavaScript problem. Its trigger never fired.
 
 ## How it closed
 
-The close-out rule, written before the readings: **the plan closes when the identity decision is
-taken AND the Phase 2 reading is acted on**, whichever way both go — and if both answers are "no
-build", it closes as a success, with the second to `Recognised` recorded as the price of the security
-model. Both happened by 19 Sep 2026, and that is how it closed. A plan that was measured and settled
-is more useful to the next reader than one that quietly stopped — and also more useful than one kept
-alive by inventing a Phase 5.
+The rule, written before the readings: the plan closes when the identity decision is taken AND the
+Phase 2 reading is acted on, either way — and if both are "no build", it closes as a success, with the
+second to `Recognised` recorded as the price of the security model. Both happened by 19 Sep 2026.
 
 ## Links workspace — measured 24 Aug 2026
 
-Asked whether the links designer could be made faster. Measured before changing anything, on a
-throttled phone (4× CPU, 40ms RTT, 4 Mbps):
-
-| | |
-|---|---|
-| Modules in the static graph | **46** (~1.1 MB) — the largest of the seven pages |
-| Grid visible | ~3.5 s |
-| Module discovery rounds | **8–9** — the graph is four levels deep, and each level costs a round trip |
-| Transfer share | ~1.1 MB at 4 Mbps ≈ **2.2 s**, the dominant cost |
-
-**Shipped (v21.75): `modulepreload`.** Collapses discovery to 1–2 rounds and saves ~100 ms of
-DOMContentLoaded, repeatable across three runs on the real page. Cheap, no behaviour change, and
-the list is CI-checked against the real graph rather than hand-maintained.
-
-**NOT shipped: lazy-loading the interaction-only modules.** The first estimate was 122 KB and it
-was wrong — checked against the code, most of that set is on the boot path: the generator
-populates its target table during `initGenerator()`, `loadTargetSets()` runs at init, compare
-wires its handlers in the init body, and `isDeleted` runs inside `loadDesigns()`. The genuinely
-deferrable remainder is **~53 KB** (`links-import.js`, `links-adjacency.js`) ≈ 100 ms on a cold
-load only, and it costs making two synchronous paths async — one of them `checkImport()`, which
-sits on a documented trust boundary whose whole design is "refuse rather than half-load". Adding
-a module-fetch failure mode there buys ~100 ms for three designers on first visit. Deferred as a
-poor trade, recorded here so it is not re-derived from scratch.
-
-**What was NOT measured:** the warm service-worker path. These figures come from Playwright, which
-blocks the SW, so they describe a first visit or the load after a version bump — the case that
-matters most given release frequency, but not the steady state. A returning designer with a warm
-cache is faster than 3.5 s by an amount nobody has measured.
+On a throttled phone (4× CPU, 40 ms RTT, 4 Mbps): 46 modules (~1.1 MB), grid visible ~3.5 s, 8–9
+discovery rounds, transfer ≈ 2.2 s. **Shipped (v21.75): `modulepreload`**, CI-checked against the real
+graph — discovery down to 1–2 rounds, ~100 ms off DOMContentLoaded. **Not shipped: lazy-loading the
+interaction-only modules** — most of the first 122 KB estimate is on the boot path, and the deferrable
+~53 KB (`links-import.js`, `links-adjacency.js`, ~100 ms cold only) would make `checkImport()` async on
+a trust boundary whose design is "refuse rather than half-load". A poor trade. Playwright blocks the
+service worker, so these are first-visit figures.
 
 ## The four pages without preload hints — measured 26 Aug 2026
 
-Asked for a latency review of the rest of the app. Measured every page's static graph, then the
-runtime under 4× CPU / 40 ms RTT / 4 Mbps, then a controlled three-arm A/B against generated copies.
-
-**The finding.** ES modules are discovered in a waterfall — parse a file, *then* fetch its imports —
-and the Firebase SDK sits five levels down (`page → *-boot.js → *-app.js → … → firebase-client.js →
-gstatic`). On the four pages that carried no `modulepreload` at all, the SDK did not start
-downloading until:
-
-| Page | SDK download begins |
-|---|---|
-| admin | 1 807 ms |
-| operations | 1 563 ms |
-| settings | 1 402 ms |
-| overtime | 2 363 ms |
-
-against **~85 ms** on index/paycalc/links. `preconnect` was already on all seven pages, so DNS and
-TLS were warm — the connection was sitting idle waiting to be told what to ask for.
-
-**The A/B (admin, three repeats each, ±20 ms reproducible):**
-
-| Arm | SDK starts | DOMContentLoaded | Discovery rounds |
-|---|---|---|---|
-| unchanged | 1 807 ms | 14 290 ms | 10–11 |
-| **3 gstatic tags only** | **86 ms** | **12 626 ms** | 10 |
-| full local graph (44 tags) | 84 ms | 12 567 ms | 1 |
-
-Two results, and the second is why v21.76 is three tags and not forty-four:
-
-1. **DOMContentLoaded tracks the SDK one-for-one.** In every arm DCL landed within milliseconds of
-   the SDK finishing, and the delta held identically at 1× and 4× CPU — so this is a discovery
-   problem, not a compute one. (The ~12.5 s floor is the harness's stubbed SDK; it cancels between
-   arms.)
-2. **Preloading the local graph adds ~60 ms on top.** It collapses 10 discovery rounds to 1, which
-   looks dramatic, but the last local module still landed at the same 2.6 s: the test server is
-   HTTP/1.1, so the requests queue instead of waterfalling. Real Hosting is HTTP/2 and would do
-   better than that by an amount **not measured here** — which is the point. Three fixed tags name
-   one immutable URL each and cannot fall behind a graph; a local list is the hand-maintained cost
-   the build-step threshold in CLAUDE.md is about. The measured evidence did not justify paying it.
-
-**Also checked and already right:** every page preloads `inter-latin.woff2` with `font-display:
-swap`, and every page preconnects to gstatic, Firestore, identitytoolkit and securetoken.
-
-**Noted, not acted on:** `firebase-client.js` pulls in `perf-stats.js` (through
-`analytics-client.js` since v24.64), so every page carries that module (~32 KB raw at the time) for
-read-side code only the Operations App Speed card runs. Splitting the write side out would save ~24 KB on six pages — real,
-but SW-cached after the first visit, and small beside the 1.7 s above.
-
-**Same caveat as the links section:** Playwright blocks the service worker, so these are first-visit
-or post-version-bump numbers, not the steady state.
+The Firebase SDK sits five module levels down, and on admin, operations, settings and overtime (no
+`modulepreload`) it did not start downloading until 1.4–2.4 s, against ~85 ms elsewhere. An A/B on
+admin: three gstatic preload tags brought the SDK start to 86 ms and DOMContentLoaded down by ~1.7 s;
+preloading the whole local graph (44 tags) added only ~60 ms more on the HTTP/1.1 test server.
+**So v21.76 is three fixed tags, not forty-four** — they name immutable URLs and cannot fall behind a
+graph, and the local list is exactly the hand-maintained cost the build-step threshold is about. Every
+page already preloads the font and preconnects to gstatic, Firestore, identitytoolkit and securetoken.
+Noted, not acted on: `perf-stats.js` reaches every page through `analytics-client.js` for read-side
+code only Operations runs (~24 KB on six pages, SW-cached after the first visit).

@@ -12,7 +12,7 @@
  * did not matter: a member who signed in on the Calendar reloaded it, and the reload built the drawer
  * again for them.
  *
- * Signing in WITHOUT the reload (v26.40, ROADMAP_HISTORY.md → "Calendar sign-in without the reload")
+ * Signing in WITHOUT the reload (v26.40, `finishSignIn` in calendar-access.js)
  * needs a way to rebuild it in place. The rest of the app already has one: `resetNavPanel()` then `initNavPanel()`
  * again, which the Overtime page uses after its own in-place sign-in and `page-session.js` uses when
  * a session is lost. This module gives the Calendar the same pair:

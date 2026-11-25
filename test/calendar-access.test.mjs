@@ -1219,7 +1219,7 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
 
 });
 
-// ── A SIGN-IN ON A CARD GRANTS IN PLACE (ROADMAP_HISTORY → "Calendar sign-in without the reload") ──
+// ── A SIGN-IN ON A CARD GRANTS IN PLACE (calendar.md → "grants IN PLACE") ──
 //
 // Until v26.40 both cards' sign-ins reloaded the page, and the reload did three jobs: it rebuilt what
 // the page had built at load for nobody, it ran the forced set-password step, and it carried a document

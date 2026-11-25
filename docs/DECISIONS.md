@@ -523,13 +523,18 @@ shown that yet.
   wrong with it, it has already had a tuning pass, and "denser" is not a defect. This is recorded
   rather than left on a list because it has now been deferred twice; a third deferral would be a
   decision nobody is making.
-- **Profile photo / avatar — removed** at v12.22; the nav footer shows initials on a stable per-name
-  colour. Full restoration spec: `ROADMAP_HISTORY.md`.
+- **Profile photo / avatar — removed** at v12.22: non-vital, and its canvas reposition editor was ~350
+  lines of the riskiest code in the app for a 26px badge. The nav footer shows initials on a stable
+  per-name colour (`avatarInitials`/`avatarHue`, which stay). Restoration spec and the removal
+  checklist to reverse: `git show 28b217d0:docs/ROADMAP_HISTORY.md` → "Removed features".
 - **Cultural calendar — removed** at v13.23 (annual maintenance burden + GDPR Article 9 exposure +
-  no observed usage). Full restoration spec and the erasure requirement: `ROADMAP_HISTORY.md`.
+  no observed usage). **A restoration must ship a right-to-erasure path for the stored preference
+  first** — it is special-category data. Full restoration spec: `git show
+  28b217d0:docs/ROADMAP_HISTORY.md` → "Removed features".
 - **Password security — the original five-stage plan is superseded** by the "C-lite" design in
-  `PASSWORD_DESIGN.md`, which did not wait on email verification. The original staged text is kept in
-  `ROADMAP_HISTORY.md` because its reasoning is still sound; do not plan from it.
+  `PASSWORD_DESIGN.md`, which did not wait on email verification. The original staged text is in git
+  (`git show 28b217d0:docs/ROADMAP_HISTORY.md` → "Password security — the original five-stage
+  design"); do not plan from it.
 - **GDPR:** staff shift data is personal data. If the governance gate is answered "official", data
   controller status and retention policies need documenting — see that gate.
 - ~~**The Calendar PROVISIONAL FAST PATH stays — KEEP, owner decision, 19 Sep 2026.**~~ **SUPERSEDED
@@ -1446,3 +1451,106 @@ not worth doing; shipping release 2 was.
 for one page is still a shared code to rotate. **Not chosen either:** removing everything in one
 release. A device holding a PIN session when the rules stopped accepting it would show a roster under
 a "Couldn't update" chip, and a cached app would keep offering a PIN box that could not work.
+
+## What ROADMAP_HISTORY.md held that still binds (25 Nov 2026)
+
+`ROADMAP_HISTORY.md` — the archive of shipped phases, closed limitations, reverted experiments and
+dated reviews — was deleted on 25 Nov 2026: git holds the past, and a 363 KB archive beside the live
+documents is a fact kept twice. **Its full last text is `git show 28b217d0:docs/ROADMAP_HISTORY.md`.**
+Every decision in it that still binds was checked against the live documents first; those already
+recorded elsewhere stay where they are (the avatar, cultural calendar and five-stage password lines
+above; the 60-day session, the leave figures in git history and the real-payslip fixture in
+KNOWN_LIMITATIONS.md; the Huddle not being printed in OPERATIONS_REFERENCE.md; the fast path in "The
+provisional paint"; the login freeze's lessons in PASSWORD_DESIGN.md §3.6). These had no other home:
+
+**Tried and held back — the UX experiments.** Each was prototyped, assessed or built, and reverted.
+
+- **FIP faceted filtering — WON'T DO** (Jul 2026, v19.10). The search half already shipped (v17.64: the
+  country finder matches operator and train names). Filtering by PROPERTY ("which countries need a
+  supplement?") cannot be done by free text — `supplement` matches Ireland's "**No** high-speed
+  supplements" — and done properly means tagging each card, and **every tag is a factual claim** that
+  needs a `GUIDE_SOURCES.md` row: ~50–75 claims to source and re-review annually on the page where a
+  wrong fact strands somebody abroad. **Reopen on evidence that staff ask property questions of the
+  page**, and then tag only a few decision-changing properties. Three other FIP v2 ideas were not
+  shipped for the same family of reasons: per-card reliability badges (a "Confirmed" tier over-promises
+  against the register's "sampled, not certified" posture), per-section review dates (already per row
+  in the register) and collapsible major sections (the finder and chip bar carry navigation).
+- **Bottom navigation bar — do not revisit.** Prototyped v7.66, reverted: the drawer covers cross-page
+  navigation, a fixed bar costs ~50px of the Calendar grid, and it would fight the Pay Calculator's
+  sticky take-home bar. Reconsider only if a page arrives that does not fit the drawer.
+- **Glanceable summary strip — held back.** Prototyped v7.66 (Today · Next RD · Leave left · Payday),
+  reverted: on a phone the grid is the information, and each chip is already reachable. **Revisit if**
+  staff want a "what am I doing today?" glance — and then inside the controls card, not between it and
+  the grid.
+- **Calendar cell type hierarchy — held back.** v11.57 made the shift badge primary and the date
+  quieter (14px/500); reverted, because the date is how a month is scanned for rest days and leave.
+  **The date number is decided** (`index.css` cites this). A revisit compares both sizes in real daily
+  use, and considers a middle step (16px/600) rather than the full one.
+
+**Considered and dropped.** A Daily Huddle history viewer — the Huddle's value is the day's duties, not
+browsing. A global `scroll-behavior: smooth` — it changes scroll feel app-wide for marginal benefit.
+The sub-44px ✎/✕ chip buttons (`links.css`) and `.roster-tick` (`operations.css`) stay as they are:
+mouse-driven admin and designer surfaces, where equal 44px hit areas on adjacent controls would overlap.
+
+**The service worker: ONE for all pages.** Two workers sharing one scope competed and wiped each
+other's caches (v6.50–v7.07). `.claude/rules/pwa.md` carries it.
+
+**The Links workspace's founding choices** (v12.06–v12.47), beside the patterns-only documents
+KNOWN_LIMITATIONS.md already records: a SLOT-based generator rather than an early/late binary, because
+the station is staffed in waves (28 distinct start times, distinct Saturday and Sunday); and an
+HOURLY heat map rather than a bar chart per shift type, because it shows the real on-duty shape and
+its gaps.
+
+**Load speed — measured, and deliberately not done** (June 2026; the later measurements are
+`LATENCY.md`). Measure a cold load in a private window (Lighthouse mobile, throttled): the installed
+app hides the cost.
+
+- **Lazy-loading the Firebase SDK off the Calendar's first paint — deferred.** It needs
+  `calendar-overrides.js` split, `nav-panel.js` lazy-importing Firebase and the Calendar's start
+  restructured; the SW cache already serves returning staff instantly; it is high-risk on the two most
+  used surfaces; and the e2e suite stubs Firebase, so no gate could validate it. **Only if a cold-load
+  profile shows the SDK dominating, on a dedicated branch with real-device checks.**
+- **Lazy-importing Firebase in `nav-panel.js` ON ITS OWN is worth zero** — every page reaches the SDK
+  through other static imports — so it is meaningful only bundled with the restructure above.
+  Reviewers keep suggesting it; it was declined again in the v15.69 review.
+- **Lazy-loading Operations' card imports — declined**: an admin-only page almost nobody opens. Reopen
+  only if Operations becomes staff-facing.
+
+**Usage analytics are first-party, in Firestore** (v14.14) — **never Google or Firebase Analytics**,
+which would breach `script-src 'self'` and send staff data to Google. Counts are per account-device, a
+trend and not a headcount; a device-independent unique count would need server-side identity and is
+deliberately not built.
+
+**Two refactors refused, one left half-done on purpose.**
+
+- **Splitting `roster-data.js` — REJECTED** (Jul 2026): the payoff is smaller files, the blast radius
+  is every importer, the SW precache, the preload graphs and `APP_VERSION`. Revisit only if it becomes a
+  real pain point (frequent conflicts, a section needing independent testing) or a build step is
+  adopted. Data tables may still move out on their own merits, re-exported, as `teamMembers` and the
+  cycle patterns did.
+- **The CommonJS/ES-module duplication** is left alone: parity tests cover it, and the surname
+  passwords it serves retire with security Track C.
+- **A "Phase 10" removing the duplicate post-login `ensureNamedSession` — not built**: the
+  `auth.currentUser` fast path makes the second call a near no-op. If ever built: Admin and Settings
+  only, the in-place path only, with tests that no write meets a stale `auth.currentUser`.
+- **The ~180 remaining `@type {any}` casts are deliberately kept** (v16.29): ~56 are genuinely dynamic
+  (Firestore data, caught errors); the rest want a shared `@typedef` such as a `Period` type, which is
+  a focused pass of its own if it is ever done.
+
+**From the v23.01 external review (6 Sep 2026).** **Freezing Calendar and Team View aesthetics —
+DECLINED (owner, 19 Sep 2026).** A freeze whose exceptions are "a reproduced defect or an
+accessibility finding" would have permitted every change in the sequence it was proposed against (the
+last week unreachable below ~825px, then two contrast failures the fix exposed), so it would buy
+nothing while discouraging the look that found them. **Revisit if a change lands there that is polish
+and nothing else.** **A Huddle's TEXT is confidential — DECIDED 7 Sep 2026**: the Huddle, the Circular
+and the Newsletter are not readable without a sign-in (the client first, v23.17,
+`calendar-doc-access.js`; the rules at v23.18). Links already in circulation are EXC-007.
+
+**From the print review (7 Sep 2026).** **A running footer on printed guides — WON'T DO, on evidence**
+(v24.06): Chromium implements no `@page` margin boxes, a `position: fixed` footer is clipped at the
+page area and cannot sit in the margin, and inside the page area it printed across a sentence. The
+shape that would work is an in-flow marker on each country card (23 of 25 FIP sheets), which changes
+every card on paper and so is an owner decision, not a follow-up. **Rendering is the check**: a
+positional test over the PDF's text boxes called the overlapping page "1.7pt clear". Also not done and
+not recommended: printing the whole Operations or Admin page, and a version stamp on the printed
+Calendar, whose header already names the app, the member and the date.
