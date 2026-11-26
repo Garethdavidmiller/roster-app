@@ -86,7 +86,7 @@ export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
     if (shift === 'SPARE') return 'Spare day';
     if (shift === 'AL')    return 'Annual leave';
     if (shift === 'SICK')  return 'Absent';
-    if (shift === 'RDW')   return 'Rest day working';
+    if (shift === 'RDW')   return 'Rest Day Working';
     const other = parseOtherValue(shift);
     if (other) {
         return OTHER_FLAVOURS[other.flavour].full
