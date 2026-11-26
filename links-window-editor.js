@@ -20,7 +20,11 @@
  *    change baseline (admin-week-editor.js), and `change` never fired on an iPhone. `commit` is
  *    idempotent, so both firing is harmless.
  * 4. **A phone's numeric keypad has no colon**, so a time is shaped as it is typed and settled when
- *    the box is left (clock-input.js) — "240" left as typed is 02:40.
+ *    the box is left (clock-input.js) — "240" left as typed is 02:40. **Only a whole time is taken**: what
+ *    clock-input.js leaves unfinished after an edit ("6:30" from Delete at the front of 16:30) is refused
+ *    by `windowEditRefusal`, never read as 06:30.
+ * 5. **The settled time is written back even when it matches the stored one**, without marking the design
+ *    dirty — "130" typed over a stored 01:30 still read 13:0 after the box was left.
  *
  * Tested through its listeners by links-window-editor.test.mjs, and end to end in e2e/links.spec.js.
  */
@@ -87,7 +91,13 @@ export function createWindowEditor({ getDesign, setWindow }) {
         }
         const start = canonicaliseWindowTime(typed[0]) || '', end = canonicaliseWindowTime(typed[1]) || '', candidate = { start, end };
         const next = normaliseWindow(design.window);
-        if (next[row].start === start && next[row].end === end) return;
+        if (next[row].start === start && next[row].end === end) {
+            // Unchanged, but the box may still show the shape it was typed in ("130" reads 13:0 until it is left):
+            // write the settled time back, and mark nothing dirty — rule 5 (external review of v26.87).
+            if (els[row].start) els[row].start.value = start;
+            if (els[row].end)   els[row].end.value   = end;
+            return;
+        }
         next[row] = candidate;
         setWindow(next);   // the working copy, `dirty`, and the Coverage card (which repaints this editor) and compare mode
     }

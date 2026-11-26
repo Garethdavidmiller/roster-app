@@ -149,6 +149,24 @@ def disagree(a, r):
     if a['src'] == r['src']: return a['stops'] != r['stops'] or a['calls'] != r['calls']
     at_a = dict((c, t) for c, t in a['stops'])
     return any(c in at_a and at_a[c] != t for c, t in r['stops'])
+# 1a. Across the books, the main-line copy alone could drop a call (external review of v26.87): each book prints
+#     only its own stations, so a station the Met book prints and the main-line book does not was lost, and the
+#     build ended cleanly. The two agree at every station both print (above), so the train calls at every station
+#     either prints: the row takes the UNION, in time order. A union whose order is not each copy's own printed
+#     order, or two stations at one minute (an order the times cannot settle), stops the build, naming both.
+def union_of(keep, other):
+    base = mins(keep['t'])
+    def rel(t): return (mins(t) - base) % 1440
+    times = dict(keep['stops'])
+    for c, t in other['stops']: times.setdefault(c, t)
+    order = sorted(times, key=lambda c: rel(times[c]))
+    def kept_order(copy): return [c for c in order if c in dict(copy['stops'])] == [c for c, _ in copy['stops']]
+    clash = len({rel(t) for t in times.values()}) < len(times)
+    if clash or not kept_order(keep) or not kept_order(other) or set(keep['calls']) != set(dict(keep['stops'])) \
+            or set(other['calls']) != set(dict(other['stops'])):
+        sys.exit(f"assemble.py: the two books' copies of the {keep['t']} {keep['kind']} {keep['day']} cannot be put in one order "
+                 f"of calls — {other['at']}, and {keep['at']}. Check the book, then teach assemble.py.")
+    return dict(stops=[[c, times[c]] for c in order], calls=order, names={**other['names'], **keep['names']})
 seen = {}
 for r in res:
     key = (r['kind'], r['day'], r['t'], r.get('dest') or r.get('org'), variant(r))
@@ -157,8 +175,9 @@ for r in res:
         if disagree(a, r):
             sys.exit(f"assemble.py: two trains at {r['t']} to the same end stop differently — {a['at']}, and {r['at']}, "
                      f"{r['kind']} {r['day']}. Check the book, then teach assemble.py.")
-        keep = r if r['src'] == 'main' else a
+        keep, other = (r, a) if r['src'] == 'main' else (a, r)
         seen[key] = dict(keep, notes=sorted(set(a['notes']) | set(r['notes'])), via_h=a.get('via_h') or r.get('via_h'))
+        if a['src'] != r['src']: seen[key].update(union_of(keep, other))
         continue
     seen[key] = r
 # 2. A Mondays-and-Fridays and a not-Mondays-and-Fridays copy at one time and end together run every

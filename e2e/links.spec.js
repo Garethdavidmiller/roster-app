@@ -4333,8 +4333,18 @@ test('links window: a digit deleted from a time and the box left is refused, nev
     await expect(end).toHaveValue('23:5');
     await page.locator('#winMonSatStart').focus();
     await expect(end, 'refused, and the window put back').toHaveValue('23:55');
-    // Refused as what it is — no time — not as a finish before the start, which is what 02:35 would have been.
-    await expect(page.locator('#winStatus')).toContainText('“23:5” is not a time of day');
+    // Refused as what it is — an unfinished time — not as a finish before the start, which is what 02:35 would have been.
+    await expect(page.locator('#winStatus')).toContainText('“23:5” is not a whole time');
+    // Delete at the FRONT leaves a time that reads as one (external review of v26.87): 06:20 left as "6:20" was taken as
+    // 06:20 here, and 16:30 left as "6:30" as a 06:30 start — ten hours more window, without a word.
+    const start = page.locator('#winMonSatStart');
+    await start.click();
+    await start.press('Home');
+    await start.press('Delete');
+    await expect(start).toHaveValue('6:20');
+    await end.focus();
+    await expect(start, 'refused, and the window put back').toHaveValue('06:20');
+    await expect(page.locator('#winStatus')).toContainText('“6:20” is not a whole time');
 });
 
 test('links window: a time typed without a colon is shaped into one, so a phone keypad can fill the box', async ({ page }) => {

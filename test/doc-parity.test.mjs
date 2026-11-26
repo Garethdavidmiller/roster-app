@@ -1506,7 +1506,16 @@ test('the roster-parse example obeys the week contract it illustrates', () => {
 // live in `functions/`. Every glob must match at least one tracked file.
 test('every .claude/rules file names a paths: list, and every glob in it matches a file in the tree', () => {
     const { execFileSync } = createRequire(REPO_ROOT_URL)('node:child_process');
-    const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean);
+    // The tracked files; in a copy with no git index (an unpacked ZIP of the repository — external review of
+    // v26.87), the files on disk outside what git never tracks. Laxer only there: a glob can then be matched by an
+    // untracked file. CI always has the index, so the strict reading still gates every change.
+    /** @type {string[]} */ let tracked;
+    try { tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); }
+    catch {
+        const never = /^(?:node_modules|\.git|\.claude\/worktrees|test-results|playwright-report|functions\/node_modules)(?:\/|$)/;
+        tracked = /** @type {string[]} */ (readdirSync('.', { recursive: true }))
+            .map(f => String(f).replaceAll('\\', '/')).filter(f => !never.test(f));
+    }
     const path = createRequire(REPO_ROOT_URL)('node:path');
     const dead = [];
     for (const f of readdirSync('./.claude/rules').filter(n => n.endsWith('.md'))) {
