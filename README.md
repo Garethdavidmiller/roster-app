@@ -221,6 +221,7 @@ found serves this checkout's files, and stops if not (`e2e/server-identity.mjs`)
 | `docs/AI_MAP.md` | every module and its exports |
 | `docs/OPERATIONS_REFERENCE.md` | how the app is run day to day |
 | `docs/KNOWN_LIMITATIONS.md` | what is wrong or deferred, and why |
+| `docs/OWNER_GUIDE.md` | **start here if you run the app** — the plain-English guide to the routine, the problems and the dates |
 | `docs/RECOVERY_RUNBOOK.md` | backup, rollback and incident playbooks |
 
 Feature behaviour is stated as numbered invariants in `docs/CALENDAR_DATA.md`, `docs/AUTH_AND_SESSIONS.md`,

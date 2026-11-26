@@ -46,6 +46,7 @@ changed once.
 | **Roster PDF import** | `.claude/rules/roster-import.md` | The parse, the review states, and every defence against a week written onto the wrong days — the day-drift layers and why they are not three witnesses, the geometry gate, what a blank cell means |
 | **Operations & ingest** | `OPERATIONS_REFERENCE.md` | Huddle ingest, roster upload, account conventions, the retired staff PIN's last steps |
 | **Disaster recovery** | `RECOVERY_RUNBOOK.md` | Backups, rollback, incident playbooks, standing GCP prerequisites |
+| **Running the app (the owner)** | `OWNER_GUIDE.md` | The plain-English routine: after a release, when a colleague reports a problem, the weekly, monthly and dated jobs, the owner-only tasks, and where each answer lives |
 | **The depot AL workbook** | `AL_WORKBOOK.md` | The roster clerks' annual-leave quota spreadsheet — what its sheets are, how a person's figure is built, and where it and the app legitimately disagree. Not an app subject: an EXTERNAL source the owner reconciles against |
 
 ### The registers — one question each

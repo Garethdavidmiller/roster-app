@@ -360,6 +360,7 @@ roster-app/
 │   ├── DECISIONS.md ← what has already been DECIDED, and why, so it is not re-argued. A closed decision whose trigger fires MOVES back to ROADMAP.md
 │   ├── ARCHITECTURE.md ← the INDEX: which document is authoritative for each subject, the `EXC-*` table of current production exceptions, and the four status words
 │   ├── MAINTENANCE_CALENDAR.md ← work with a DEADLINE whether or not anyone plans it, each with a warning point
+│   ├── OWNER_GUIDE.md          ← the owner's plain-English guide to running the app: after a release, when something is wrong, the weekly, monthly and dated jobs, and where each answer lives
 │   ├── LATENCY.md ← sign-in and Calendar START latency: what shipped, what was measured, and the decision rule — CLOSED
 │   ├── VALIDATION_REGISTER.md ← what the app ALREADY ASSERTS on evidence nobody has checked, each row with a stable `VAL-*` id
 │   ├── DATA_MODEL.md ← the FIRESTORE COLLECTIONS and what every field means; `firestore.rules` is the authority on access
