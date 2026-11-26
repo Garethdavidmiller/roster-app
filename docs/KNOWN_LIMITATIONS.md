@@ -282,7 +282,7 @@ of the dialog, the drawer and the guard on Safari's engine.
 
 ## Security
 
-> **Forward plan:** `SECURITY_RELEASE_PLAN.md` — the single source for what has shipped and the
+> **Forward plan:** `SECURITY_RELEASE_PLAN.md` — the work still open and the
 > ordering that keeps a fix from re-creating the v10.94 outage. **Still deferred:** App Check (Track D,
 > below) · password retirement (Track C5, gated on ≥90% migrated **and** Track E —
 > `MAINTENANCE_CALENDAR.md` → Trigger points).

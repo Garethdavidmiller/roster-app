@@ -78,7 +78,7 @@ export const CONFIG = {
     // It does NOT disable the endpoint (a functions deploy) or hide the Operations card, so requests
     // already filed remain actionable.
     PASSWORD_RESET_REQUESTS:          true,
-    // Claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every device to
+    // Claim-refresh sweep (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"). Bump this integer to force every device to
     // refresh its Firebase ID token ONCE on next app open, picking up newly-set custom claims at once
     // instead of the ~hourly auto-refresh. Gated per-device by localStorage `myb_claim_epoch`. Do NOT
     // bump it casually — only when a custom-claim change must reach every active session before a rule

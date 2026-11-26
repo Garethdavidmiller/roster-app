@@ -30,7 +30,7 @@ Actions — not at the merge.
 
 | They say | Look first at | Then |
 |---|---|---|
-| "I can't sign in" | Operations → **Reset requests** and **Account status** | Reset their password there. A lost or stolen phone: tick the lost-device box. `OPERATIONS_REFERENCE.md` → "Locked-out member → reset request queue" |
+| "I can't sign in" | Operations → **Password Reset Requests** and **Account status** | Reset their password there. A lost or stolen phone: tick the lost-device box. `OPERATIONS_REFERENCE.md` → "Locked-out member → reset request queue" |
 | "My shift / leave is wrong" | Their Calendar, then Admin → **Change a Shift** for that week | If a roster upload put it wrong: `RECOVERY_RUNBOOK.md` → playbook B. If a record was deleted: playbook A |
 | "The Huddle isn't there" | Operations → the Daily Huddle card | The Power Automate flow: `OPERATIONS_REFERENCE.md` → "Huddle ingest — full detail", and its "Critical Power Automate gotchas" |
 | "I get no notifications" | Their **Settings → Notifications** card | On an iPhone the app must be installed on the Home Screen. On the old GitHub Pages address they are not offered — send them to myb-roster.web.app |
@@ -44,7 +44,7 @@ Actions — not at the merge.
 
 ## Every week
 
-- **Upload the roster PDF** — Operations → Roster upload. Read the review before saving: rows that start
+- **Upload the roster PDF** — Operations → Weekly Roster. Read the review before saving: rows that start
   unticked are the app asking you to look. `OPERATIONS_REFERENCE.md` → "Weekly Roster Upload — full detail".
 - **The Daily Huddle arrives by itself** through Power Automate. Nothing to do unless it stops.
 - **The Weekly Retail Circular and Marylebone Newsletter** are uploaded on Operations when they come out.

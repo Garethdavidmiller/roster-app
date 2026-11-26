@@ -109,7 +109,8 @@ function shouldNotifyAdmin(otherNotifiedAtMs, nowMs, windowMs) {
  * Operations card's count chip — so the notification and the card can never disagree.
  *
  * Tone follows .claude/rules/notifications.md: calm, factual, no exclamation. Deliberately NOT
- * "urgent"/"locked out" — the admin decides urgency, and a request is not proof of one (§13).
+ * "urgent"/"locked out" — the admin decides urgency, and a request is not proof of one
+ * (AUTH_AND_SESSIONS.md → "The reset-request queue").
  *
  * @param {string} member    display name, from the server-owned roster
  * @param {number} pending   uncleared rows in resetRequests (>= 1 — this request is one of them)

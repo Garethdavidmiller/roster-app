@@ -499,10 +499,11 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 
 ## The deploy identity (Workload Identity Federation)
 
-**Deploys hold no standing key.** All three deploy workflows (and the Pages mirror's) authenticate
+**Deploys hold no standing key.** The three deploy workflows and the weekly backup check (`backup-check.yml`) authenticate
 with short-lived GitHub OIDC tokens through Workload Identity Federation (`google-github-actions/auth`,
-pinned; the provider and service account are written in each YAML — they are not secrets; only the
-`deploy` job holds `id-token: write`). The old `FIREBASE_SERVICE_ACCOUNT` JSON key and its GitHub
+pinned; the provider and service account are written in each YAML — they are not secrets — except
+that the backup check may take its account from the `BACKUP_CHECK_SERVICE_ACCOUNT` repository variable;
+in a deploy workflow only the `deploy` job holds `id-token: write`). The old `FIREBASE_SERVICE_ACCOUNT` JSON key and its GitHub
 secret are both deleted (v14.93), so no GCP credential exists outside GitHub Actions — which is why an
 agent session cannot run the restore drill for you.
 
