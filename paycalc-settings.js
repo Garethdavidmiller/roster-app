@@ -23,7 +23,7 @@ import {
   getGradeSetting, gradeDaysFor, getContr, getLoggedMember, gradeToOffer, renderGradePrompt,
   saveGradeSetting, loadGradeSetting, isPeriodPriced, unpricedLineFor,
 } from './paycalc-grade-setting.js';
-import { lsGet, lsSet } from './ls.js';
+import { lsGet, lsSet, lsSetVerified } from './ls.js';
 import { fdShort } from './paycalc-format.js';
 import { setStatus } from './status-text.js';
 import { pensionToStore } from './paycalc-form-data.js';
@@ -70,9 +70,9 @@ function getPensionTimeline() {
   return parsePensionTimeline(lsGet(SK.pensionTimeline));
 }
 
-/** @param {import('./paycalc-pension.js').PensionChange[]} timeline */
+/** @param {import('./paycalc-pension.js').PensionChange[]} timeline @returns {boolean} whether it read back */
 function savePensionTimeline(timeline) {
-  lsSet(SK.pensionTimeline, serialisePensionTimeline(timeline));
+  return lsSetVerified(SK.pensionTimeline, serialisePensionTimeline(timeline));
 }
 
 /**
@@ -222,7 +222,7 @@ export function wirePensionControls({ autosave }) {
 function keepSavedPension(pNum, pension) {
   const { data } = readSavedPeriod(pNum);
   if (!data || typeof data !== 'object' || data.pension === pension) return;
-  lsSet(periodKey(pNum), JSON.stringify({ ...data, pension }));
+  if (!lsSetVerified(periodKey(pNum), JSON.stringify({ ...data, pension }))) console.warn('[paycalc] a payslip\'s own pension could not be put back — period ' + pNum);
 }
 
 /** Full-period pension default for the current grade, period-aware.
@@ -398,24 +398,44 @@ export function updateYtdForTaxYear(ty) {
 /** @param {any} ty */
 export function settingsKey(ty) { return `${pcPrefix()}setup_${ty.label.replace('/', '_')}`; }
 
+/** The card's line while a settings write has not read back. One sentence, shared by the autosave and Save. */
+export const SETTINGS_NOT_SAVED = '⚠ Not saved — this device didn\u2019t keep your settings. Try again.';
+
+/**
+ * Show or withdraw the not-saved line. Withdraws only its OWN line, never Save's confirmation.
+ * @param {boolean} ok
+ */
+function reportSettingsWrite(ok) {
+  const fb = document.getElementById('settingsSaveFeedback');
+  if (!fb) return;
+  if (!ok) setStatus(fb, SETTINGS_NOT_SAVED);
+  else if (fb.textContent === SETTINGS_NOT_SAVED) fb.textContent = '';
+}
+
 /** Persist all field values. Called on every input change (auto-save).
- *  Does NOT set the confirmed flag or collapse the card — that's confirmSettings(). */
+ *  Does NOT set the confirmed flag or collapse the card — that's confirmSettings().
+ *  Every write is read back (`lsSetVerified`): a setting the device did not keep says so on the card,
+ *  never silently, and Save does not report "saved" over it.
+ *  @returns {boolean} true only when every write read back */
 export function saveSettings() {
+  let ok = true;
+  /** @param {string} k @param {string} v */
+  const put = (k, v) => { ok = lsSetVerified(k, v) && ok; };
   const pNum    = currentPeriodNum();
   const curP    = periodByNum(pNum);
   const curTy   = taxYearForPeriod(curP);
   // Save the grade setting FIRST — every helper below that prices a payslip (periodRate,
   // getPensionDefault) must read the NEW setting. paycalc-grade-setting.js.
-  saveGradeSetting(pNum);
+  ok = saveGradeSetting(pNum) && ok;
   // The hourly rate is never persisted: it is derived by grade (invariant 8).
-  lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
-  lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
-  lsSet(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');
+  put(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
+  put(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
+  put(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');
   // Loan-repaid cutover: the p.num of the first payslip with no deduction, '' = still repaying. The
   // select may not exist in old cached HTML. A select with NOTHING chosen never overwrites the
   // record ('' is "No — still deducted" only when that option is chosen) — paycalc-3-8.
   const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
-  if (_slPaidOffEl && _slPaidOffEl.selectedIndex !== -1) lsSet(SK.slPaidOff, _slPaidOffEl.value);
+  if (_slPaidOffEl && _slPaidOffEl.selectedIndex !== -1) put(SK.slPaidOff, _slPaidOffEl.value);
   // Out of the scheme. getPensionDefault() reads this timeline, so every repaint after this save —
   // the lock, the field's default, the estimate — sees the state the member just chose.
   //
@@ -434,12 +454,14 @@ export function saveSettings() {
     // the payslip on screen would MOVE it (paycalc-3-8). A first tick or a rejoin uses the payslip on screen.
     const _recorded = _optOut.checked ? optOutStartsAt(_tl) : null;
     const _from = Number.isFinite(_fromNum) ? _fromNum : (_recorded ?? currentPeriodNum());
-    savePensionTimeline(_optOut.checked ? withOptOutStartAt(_tl, _from) : withRejoinAt(_tl, _from));
+    ok = savePensionTimeline(_optOut.checked ? withOptOutStartAt(_tl, _from) : withRejoinAt(_tl, _from)) && ok;
   }
   // No member-level pension is stored (paycalc-3-15): each payslip keeps its own figure through the
   // form round trip, and a payslip with none takes its period default.
-  lsSet(ytdPayKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdPay')).value);
-  lsSet(ytdTaxKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdTax')).value);
+  put(ytdPayKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdPay')).value);
+  put(ytdTaxKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdTax')).value);
+  reportSettingsWrite(ok);
+  return ok;
 }
 
 /**
@@ -448,7 +470,9 @@ export function saveSettings() {
  * @param {Function} calculate - Coordinator's calculate() callback.
  */
 export function confirmSettings(calculate) {
-  saveSettings();
+  const fb = document.getElementById('settingsSaveFeedback');
+  // Nothing is marked confirmed, and the card stays open, over settings the device did not keep.
+  if (!saveSettings()) { if (fb) setStatus(fb, SETTINGS_NOT_SAVED); calculate(); return; }
   const pNum  = currentPeriodNum();
   const curP  = periodByNum(pNum);
   const curTy = taxYearForPeriod(curP);
@@ -457,6 +481,8 @@ export function confirmSettings(calculate) {
   /** Did the in-place pension patch below fail on damaged storage? Drives the partial-success
    *  message at the end — see the catch for why a bare console.warn was not enough. */
   let _pensionPatchFailed = false;
+  /** Did the patch's write itself not read back (storage refused it — the payslip is not damaged)? */
+  let _pensionPatchNotKept = false;
   if (existingRaw) {
     try {
       // `parseSavedPeriod`, the Pay screen's own reader — never a bare JSON.parse. A list is valid JSON:
@@ -473,7 +499,7 @@ export function confirmSettings(calculate) {
       // froze the payslip onto the default and read a pasted "£151.86" as £0).
       const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value;
       if (!isPensionOptedOut(curP)) d.pension = pensionToStore(_pRaw, curP ? periodDefaultPension(curP) : null);
-      lsSet(periodKey(pNum), JSON.stringify(d));
+      if (!lsSetVerified(periodKey(pNum), JSON.stringify(d))) _pensionPatchNotKept = true;
     } catch (err) {
       // A corrupt saved period must not break Save — nor be reported as a success. The warning below
       // does NOT reach the Operations Error Log (`error-reporter.js` hooks `error` and
@@ -483,8 +509,13 @@ export function confirmSettings(calculate) {
       console.warn('[paycalc] pension patch skipped — period ' + pNum + ' is unreadable:', /** @type {any} */ (err)?.message);
     }
   }
-  lsSet(settingsKey(curTy), '1');
-  lsSet(SK.setup, '1');
+  // The marks that say this year is confirmed: if they did not keep, the card asks again next time —
+  // so say so now rather than "saved".
+  if (!(lsSetVerified(settingsKey(curTy), '1') && lsSetVerified(SK.setup, '1'))) {
+    if (fb) setStatus(fb, SETTINGS_NOT_SAVED);
+    calculate();
+    return;
+  }
   document.getElementById('setupBanner')?.classList.add('hidden');
   document.getElementById('settingsNewYearNotice')?.classList.add('hidden');
   // Header hint: periodRate's answer, period-aware, as the rate field and calculate() read it.
@@ -493,7 +524,11 @@ export function confirmSettings(calculate) {
   if (hintEl) setStatus(hintEl, settingsSummary(curTy, curP));
   // Brief "saved" confirmation then collapse — UNLESS the pension patch failed: that line asks the
   // member to act, so it STAYS and the card stays open.
-  const fb = document.getElementById('settingsSaveFeedback');
+  if (_pensionPatchNotKept) {
+    if (fb) setStatus(fb, '⚠ Settings saved, but this payslip\u2019s pension figure couldn\u2019t be updated on this device. Try Save again.');
+    calculate();
+    return;
+  }
   if (_pensionPatchFailed) {
     if (fb) setStatus(fb, '⚠ Settings saved, but this payslip\u2019s saved data is damaged and kept its old pension figure — clear and re-enter this period\u2019s hours.');
     calculate();
