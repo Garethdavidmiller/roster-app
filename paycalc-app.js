@@ -132,9 +132,9 @@ export function init() {
     // ── THE START-UP (page-start.js): the Back guard BEFORE any decision, so no early return can skip it
     // (a bfcache restore does not re-run init(), so Back after a sign-out could show the previous member's
     // figures) — then the decision, the in-place sign-in (init() runs again, once, and runMigrations()
-    // selects the right namespace — AUTH_ARCHITECTURE.md Phase 9) and the refusal.
+    // selects the right namespace — AUTH_AND_SESSIONS.md → "In-place sign-in") and the refusal.
     //
-    // The decision is the page's OWN, not requirePage('paycalc') (AUTH_ARCHITECTURE.md Phase 7): the policy is
+    // The decision is the page's OWN, not requirePage('paycalc') (AUTH_AND_SESSIONS.md → Architecture, Layer 2): the policy is
     // `soft`, which NEVER returns 'login', but the calculator namespaces its per-member storage (pcPrefix/SK)
     // by name, so a *local name* is a hard precondition. `soft` governs only the Firebase confirmation
     // (_initErrorReporting below), hence `establish: false`: this page owns its auth chain. "Simplifying" this
@@ -1058,14 +1058,14 @@ export function init() {
     // Establish the Firebase Auth session BEFORE starting error reporting: a valid 60-day local
     // session can outlive the Firebase one, and clientErrors writes are then rejected and silently
     // dropped. The reporter starts whatever the outcome.
-    // The settle promise is kept for the drawer's Circular/Newsletter read (AUTH_PLAN.md → E1): this
+    // The settle promise is kept for the drawer's Circular/Newsletter read (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"): this
     // `soft` page has no `sessionReady`. It always RESOLVES, so the drawer read never hangs.
     let _paycalcAuthSettled = Promise.resolve();
     (function _initErrorReporting() {
       const name = getSession()?.name;
       const afterAuth = () => {
         initErrorReporter(); recordUsage('paycalc', name ?? null); recordPageLatency('paycalc', name ?? null);
-        // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2). No `ready` barrier: this runs after
+        // Forced set-password overlay (AUTH_AND_SESSIONS.md → "The forced password overlay"). No `ready` barrier: this runs after
         // ensureNamedSession has settled, and on this `soft` page a member may arrive with a FAILED
         // Firebase session, where the overlay's `named`-only gate stops a block they could never satisfy.
         // The page's notices queue BEHIND it on the promise it returns, or one opens in front of a block
@@ -1073,7 +1073,7 @@ export function init() {
         // a failed overlay must never cost the member their notice — it fails open by design.
         initPasswordForce(name, {}).catch(() => {}).finally(() => showPayNotice());
       };
-      // SOFT enforcement (AUTH_ARCHITECTURE.md Phase 7): the data is on the device and nothing isolated is
+      // SOFT enforcement (AUTH_AND_SESSIONS.md → Architecture, Layer 2): the data is on the device and nothing isolated is
       // written, so a degraded session must NEVER block it — 'soft-allow' is only logged. Its one
       // 'forbidden', an Other Staff login, never reaches here (payCalculatorPrices asks the same policy).
       if (name) _paycalcAuthSettled = ensureNamedSession(name)

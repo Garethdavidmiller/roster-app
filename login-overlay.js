@@ -679,7 +679,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         // is removed (`dismissLoginOverlay`), and a re-show builds a new one.
         resetResetRequest();
         // One-shot "a real sign-in just happened" marker for the forced set-password overlay
-        // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written in this card — the one place every
+        // (password-force.js, AUTH_AND_SESSIONS.md → "The forced password overlay"). Written in this card — the one place every
         // protected page's sign-in passes through — so the pages can't drift on it. Deliberately set
         // BEFORE onSuccess, which on the reload path never returns — and held since the attempt began
         // (`holdPasswordMarker`).
@@ -753,7 +753,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             usernameInput.value = name;   // a preset name is set in code and raises no change event
             // The RAW typed password — NOT normalised. A chosen password keeps its case/digits/symbols;
             // the surname fallback is applied (gated) inside ensureFirebaseSession via
-            // credentialCandidatesFor. Firebase is the authority (PASSWORD_DESIGN.md §3.2).
+            // credentialCandidatesFor. Firebase is the authority (AUTH_AND_SESSIONS.md → "The gated dual-attempt").
             // Whitespace-trim only for the empty-field guard.
             const typedPw = passwordInput.value;
             errorEl.classList.remove('visible');
@@ -780,7 +780,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
             // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
             // slow/hung Firebase Auth can never leave a "half signed-in" state (runNamedSignIn /
-            // PASSWORD_DESIGN.md §3.6). On failure we restore the button and show the message it
+            // AUTH_AND_SESSIONS.md → "The login freeze"). On failure we restore the button and show the message it
             // returns; on success we hand off to onSuccess.
             holdPasswordMarker(name);   // before Firebase can announce anybody (login-core.js says why)
             const _result = await runNamedSignIn(signInDeps(name, typedPw)).catch((e) => { releasePasswordMarker(name, false); throw e; });

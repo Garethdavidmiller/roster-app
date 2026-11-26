@@ -1171,7 +1171,7 @@ export function init() {
     // applyPermissions, not the page), decided at load from the LOCAL session and again for whoever signs
     // in on this page's own card. 'login' iff no local session: the shared card with Admin's explanation,
     // and nothing loaded from Firestore until a confirmed sign-in runs initAuthorised() in place. NOTHING
-    // may be awaited on that path (the login freeze, PASSWORD_DESIGN.md §3.6). 'forbidden' only for an
+    // may be awaited on that path (the login freeze, AUTH_AND_SESSIONS.md → "The login freeze"). 'forbidden' only for an
     // "Other Staff" login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague
     // to record it for — on both routes, a login made on THIS card included. The drawer is wired by
     // initAuthorised() and by the refusal, so it renders once, with the signed-in identity.

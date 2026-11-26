@@ -661,7 +661,7 @@ try {
             renderTeamView: _repaintAfterFirstLoad,
             refetchTeamView: () => teamView.refetchShownWeek(),   // stale months released: re-READ, not repaint
             // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
-            // paint) deliberately does not — see AUTH_PLAN.md → E1. The promise is ALREADY RESOLVED
+            // paint) deliberately does not — see AUTH_AND_SESSIONS.md → "The two-phase load (E1)". The promise is ALREADY RESOLVED
             // whenever this runs (the whole workspace is deferred behind it); it is still passed,
             // because the retry path re-reads it and the two-phase structure keeps the gate legible.
             authReady: calendarAccessReady,

@@ -14,7 +14,7 @@
  *
  * ── THE RULES THAT MUST SURVIVE AN EDIT ────────────────────────────────────────────────────────
  *
- * The things a future edit can silently break (the release history is git and LINKS_DEC2026_PLAN.md):
+ * The things a future edit can silently break (the release history is git):
  *
  * `ROTATING_LINES` is the ONE declaration of the rotation length. **Never write the number down** —
  * not in a module, not in prose, not in a `max` attribute: when the length moved twice the sweep found

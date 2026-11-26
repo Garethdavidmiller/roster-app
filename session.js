@@ -33,11 +33,11 @@ import { dispatchAuth } from './auth-state.js';
 // A DEFINITIVE credential rejection — a wrong password, or no such account — as opposed to a
 // transient/config failure (network, provider-disabled), is `isCredentialRejection` (auth-identity.js),
 // the SAME predicate the Settings reauth uses, so the two candidate ladders can't drift. On one the
-// sign-in resolves to 'none' + a re-sign-in prompt, NEVER an anonymous fallback (PASSWORD_DESIGN.md
-// §3.3): the strict B3 rules would silently deny every write an anonymous session made.
+// sign-in resolves to 'none' + a re-sign-in prompt, NEVER an anonymous fallback (AUTH_AND_SESSIONS.md
+// → "A credential rejection never falls back"): the strict B3 rules would silently deny every write an anonymous session made.
 
 /**
- * Feed the auth STORE (AUTH_ARCHITECTURE.md Phase 2). A pure side-effect, wrapped so a store error
+ * Feed the auth STORE (AUTH_AND_SESSIONS.md → Architecture, the store). A pure side-effect, wrapped so a store error
  * can NEVER break the auth path; session.js still owns the Firebase lifecycle. The store is read once
  * per page: every named page's `guardNamedSession` (page-session.js) and the Pay Calculator, through
  * `getAuthSnapshot()` + `requirePage()` (auth-policy.js), and the forced password overlay.
@@ -476,7 +476,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     recordError(lastError);   // diagnostics (current attempt only)
 
     // No named session. Resolve to 'none' + a re-sign-in prompt — NEVER anonymous, whichever way it
-    // failed (PASSWORD_DESIGN.md §3.3): a nameless session would satisfy `request.auth != null` and
+    // failed (AUTH_AND_SESSIONS.md → "A credential rejection never falls back"): a nameless session would satisfy `request.auth != null` and
     // nothing else, so the strict rules would silently deny every write it made. Definitive rejections
     // and NON-credential failures differ only in what the caller does next — `ensureNamedSession`
     // retries a transient code and nothing else.

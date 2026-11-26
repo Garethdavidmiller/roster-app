@@ -476,7 +476,7 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
     //
     // 40 is kept on that trade — a longest run of 8 sits well inside the 13-day company limit, and
     // three or four more full weekends is a thing staff actually feel. An OWNER decision, not a tuning
-    // exercise (LINKS_DEC2026_PLAN.md → the run cap). So it is a firm PREFERENCE: alone it reaches the 6
+    // exercise (KNOWN_LIMITATIONS.md → "The run cap cannot always reach its target"). So it is a firm PREFERENCE: alone it reaches the 6
     // target, with the full set 8, and the status line says so rather than implying a guarantee.
     if (on.maxRun)       c += (s.runExcess ?? 0) * 40;
     if (on.gentle)       c += s.gentleMean + s.gentleOver * 60;
