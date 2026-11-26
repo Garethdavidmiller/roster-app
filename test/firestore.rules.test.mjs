@@ -1614,6 +1614,15 @@ describe('errorLogNotice (the Error Log notification record)', () => {
         }
     });
 
+    test('oneOffPushes, the one-off notification send record, is closed the same way (v26.94)', async () => {
+        // A client that could write it could block the send, or delete the claim and let a second run send again.
+        for (const db of [adminDb(), memberDb(), managerDb('D. Watts'), viewerDb(), anonDb()]) {
+            await assertFails(getDoc(doc(db, 'oneOffPushes', 'newlink-vote-2026')));
+            await assertFails(setDoc(doc(db, 'oneOffPushes', 'newlink-vote-2026'), { outcome: 'sent' }));
+            await assertFails(deleteDoc(doc(db, 'oneOffPushes', 'newlink-vote-2026')));
+        }
+    });
+
     test('the closed record closes nothing else: the admin still reads the Error Log itself', async () => {
         // Guard the guard — every assertion above is an assertFails, which a rules file denying
         // everything would also pass.

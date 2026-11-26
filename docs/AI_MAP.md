@@ -1007,7 +1007,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `buildIngestHuddle`
 
 ### `functions/newlink-reminder.js`
-- **Exports:** `NEWLINK_VOTE_REMINDER_DAY` · `NEWLINK_VOTE_REMINDER_BODY` · `newlinkReminderMembers` · `sendNewlinkVoteReminder` · `buildNewlinkVoteReminderNotification`
+- **Exports:** `NEWLINK_VOTE_REMINDER_DAY` · `NEWLINK_VOTE_REMINDER_BODY` · `NEWLINK_VOTE_SEND_RECORD` · `newlinkReminderMembers` · `sendNewlinkVoteReminder` · `buildNewlinkVoteReminderNotification`
 
 ### `functions/pay-reminder.js`
 - **Exports:** `PAY_REMINDER_GRADES` · `payReminderMembers` · `sendPayReminder` · `uidForMember`

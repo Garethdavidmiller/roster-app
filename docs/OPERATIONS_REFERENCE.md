@@ -1538,8 +1538,12 @@ Every signed-in member can open it, an Other Staff login included.
   in (`newlinkAudience` in roster-members.json, generated from `canOpenNewlink`), landing on the New link page (owner,
   26 Nov 2026). A daily 18:00 schedule with a one-date guard, as the timetable push has. To confirm it went: its log
   says "New link reminder — N of M member(s) resolved, N subscription(s) accepted", and it reached somebody only
-  when that last N is above 0. Afterwards it is harmless; remove the function, its line in
-  index.js and in `functions-surface.test.mjs`, and `newlinkAudience` if nothing else reads it, in a later release.
+  when that last N is above 0. **It sends once even if the schedule runs twice** (v26.94): the run claims
+  `oneOffPushes/newlink-vote-2026` before sending and writes the outcome there after (`sent`, `reached no device`,
+  `failed`; `claimed` alone means the run died mid-send). A second run logs "Already claimed". To send again on
+  purpose, delete that document and fire the function by hand. Afterwards it is harmless; remove the function, its
+  line in index.js and in `functions-surface.test.mjs`, `newlinkAudience` if nothing else reads it, and the
+  `oneOffPushes` document, in a later release.
 
 ### The one-off timetable push, and the Calendar's timetable notice
 

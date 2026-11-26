@@ -267,6 +267,19 @@ write it could move the line past entries nobody has been told about, or hold th
 Holds no entry, name or message — two timestamps. The first check after a deploy creates it with the
 line at that moment, so the existing backlog is never announced. The rules: `functions/error-log-notice.js`.
 
+**oneOffPushes** (a dated one-off notification's send record, v26.94) — one document per one-off push; the first is
+`newlink-vote-2026`
+```
+claimedAt   when a run claimed the send — created in a transaction that refuses when the document exists,
+            BEFORE the send, so a schedule delivered twice sends once
+outcome     'claimed' (the send has not finished, or its run died) · 'sent' · 'reached no device' · 'failed'
+addressed   names on the audience list; resolved — accounts found for them; accepted — devices that took it
+finishedAt  when the send finished, beside the counts
+```
+**Server-only: `allow read, write: if false`**, the admin included. The only writer is the scheduled function
+(`functions/newlink-reminder.js`) via the Admin SDK. Holds no name — counts and two timestamps. To send again on
+purpose, delete the document and fire the function by hand. It can be deleted once its function is retired.
+
 **alUploads** (the annual leave uploader's log, v26.11) — one document per Save on Operations → Annual leave sheet
 ```
 year              int — the leave file's year (2020–2100, the bounds its format holds)
