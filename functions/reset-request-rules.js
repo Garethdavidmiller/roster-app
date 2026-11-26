@@ -124,9 +124,11 @@ function buildResetRequestNotice(member, pending) {
         // password. This also matches the card the notification opens ("Password Reset Requests"), and
         // the body supplies the word "password" for anyone reading the expanded form.
         headline: `Reset requests — ${n} waiting`,
-        body: others > 0
-            ? `${member} asked for a reset. ${others} other${others === 1 ? '' : 's'} waiting.`
-            : `${member} asked for a password reset.`,
+        // ONE wording for any queue (owner, 26 Nov 2026): the same sentence, with the others added
+        // when there are any. The longest roster name with 98 others still fits the 80-character body
+        // (the push-copy table, documents-endpoints.test.mjs).
+        body: `${member} asked for a password reset.`
+            + (others > 0 ? ` ${others} other${others === 1 ? '' : 's'} waiting.` : ''),
     };
 }
 

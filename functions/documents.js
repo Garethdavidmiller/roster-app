@@ -144,7 +144,7 @@ const onHuddleCreated = onDocumentCreated(
         }
 
         // Manual admin upload — fire push from here (ingestHuddle is not involved), unless it is a
-        // back-fill: an older date announced as "Latest Huddle" would open the newer one.
+        // back-fill: an older date announced as "Latest Daily Huddle" would open the newer one.
         if (!(await isLatestOfKind('huddles', date))) {
             console.log(`[onHuddleCreated] ${date} is older than the latest Huddle — not announced as "Latest"`);
             return;
@@ -183,8 +183,19 @@ const onHuddleCreated = onDocumentCreated(
  */
 async function sendDocPushNotifications(feature, body, vapidPrivate) {
     setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
-    await fanOutPush(buildPushPayload({ feature, body, baseUrl: STAFF_SITE_URL }), `[${feature}]`);
-    console.log(`[${feature}] notification sent`);
+    const accepted = await fanOutPush(buildPushPayload({ feature, body, baseUrl: STAFF_SITE_URL }), `[${feature}]`);
+    logAccepted(`[${feature}] Notification`, accepted);
+}
+
+/**
+ * The sender's line after a broadcast: how many subscriptions TOOK it, never an unconditional "sent"
+ * (which a send that reached nobody also printed). The "N of M" beside it is fanOutPush's own line.
+ * @param {string} what  e.g. "[push] Huddle notification for 2026-08-30"
+ * @param {number} accepted
+ */
+function logAccepted(what, accepted) {
+    if (accepted > 0) console.log(`${what} — ${accepted} subscription(s) accepted`);
+    else console.warn(`${what} — no subscription accepted it`);
 }
 
 const onCircularCreated = onDocumentCreated(
@@ -197,7 +208,8 @@ const onCircularCreated = onDocumentCreated(
         }
         console.log(`[onCircularCreated] ${date} — fanning out push`);
         try {
-            await sendDocPushNotifications('circular', "Tap to read this week's retail update.", VAPID_PRIVATE_KEY);
+            // No "this week's": a document's words never say WHEN (the Huddle's comment below says why).
+            await sendDocPushNotifications('circular', 'The latest retail update. Tap to read it.', VAPID_PRIVATE_KEY);
         } catch (err) {
             console.warn('[onCircularCreated] Push fan-out error:', fieldsOf(err).message);
         }
@@ -214,7 +226,7 @@ const onNewsletterCreated = onDocumentCreated(
         }
         console.log(`[onNewsletterCreated] ${date} — fanning out push`);
         try {
-            await sendDocPushNotifications('newsletter', 'Tap to read the latest newsletter.', VAPID_PRIVATE_KEY);
+            await sendDocPushNotifications('newsletter', 'News from around Marylebone. Tap to read it.', VAPID_PRIVATE_KEY);
         } catch (err) {
             console.warn('[onNewsletterCreated] Push fan-out error:', fieldsOf(err).message);
         }
@@ -225,7 +237,7 @@ const onNewsletterCreated = onDocumentCreated(
 // which is domain knowledge; how a payload reaches a phone is not.
 
 /**
- * Fan out Huddle push notifications: "📋 Latest Huddle", via buildPushPayload
+ * Fan out Huddle push notifications: "📋 Latest Daily Huddle", via buildPushPayload
  * (.claude/rules/notifications.md). Never "Today's"/"Tomorrow's": a Huddle is the next day's plan,
  * sent the evening before, so a day-relative label is wrong by the time it is read. `huddleDate` is
  * logging context only. Shared by ingestHuddle and onHuddleCreated, so the pause above stops both.
@@ -239,12 +251,13 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
         return;
     }
     setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
-    await fanOutPush(buildPushPayload({
+    // Every body is ONE pattern (owner, 26 Nov 2026): a plain sentence of fact, then a "Tap to …" action.
+    const accepted = await fanOutPush(buildPushPayload({
         feature: 'huddle',
-        body:    'Tap to read the latest day plan.',
+        body:    'The plan for the day ahead. Tap to read it.',
         baseUrl: STAFF_SITE_URL,
     }), '[push]');
-    console.log(`[push] Huddle notification sent for ${huddleDate}`);
+    logAccepted(`[push] Huddle notification for ${huddleDate}`, accepted);
 }
 
 // ============================================================================
@@ -330,13 +343,13 @@ const sendTimetableReminder = onSchedule(
                 return;
             }
             setupWebPush(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY);
-            await fanOutPush(buildPushPayload({
+            const accepted = await fanOutPush(buildPushPayload({
                 feature: 'timetable',
                 body:    `Chiltern’s times change on ${TIMETABLE_CHANGE_WORDS}. Tap to see what changes at Marylebone.`,
                 baseUrl: STAFF_SITE_URL,
                 url:     `${STAFF_SITE_URL}/trains.html`,
             }), '[timetable]');
-            console.log('[timetable] Timetable reminder sent');
+            logAccepted('[timetable] Timetable reminder', accepted);
         } catch (err) {
             console.error('[timetable] Unhandled error:', err);
             throw err;

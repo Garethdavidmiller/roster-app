@@ -479,7 +479,7 @@ rules (client v23.17, rules v23.18: a tightening ships client-first, the reverse
 **The notification itself cannot break.** `fanOutPush` builds the payload server-side with the Admin
 SDK, which bypasses rules entirely; the push service delivers it; the service worker renders title and
 body straight from the payload. There is no Firestore read and no auth anywhere in that path, and no
-document content in the message — only "📋 Latest Huddle" and a tap target. **No rule change can stop
+document content in the message — only "📋 Latest Daily Huddle" and a tap target. **No rule change can stop
 a notification arriving.**
 
 **What this does NOT do is the rest of E6** — bearer URLs already in circulation stay live until the

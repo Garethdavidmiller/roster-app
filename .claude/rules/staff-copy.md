@@ -8,6 +8,13 @@ paths:
   - "paycalc-lightboxes.js"
   - "test/paycalc-copy-parity.test.mjs"
   - "functions/push-notices.js"
+  - "functions/documents.js"
+  - "functions/pay-reminder.js"
+  - "functions/newlink-reminder.js"
+  - "functions/overtime-core.js"
+  - "functions/reset-request-rules.js"
+  - "functions/error-log-notice.js"
+  - "functions/auth-endpoints.js"
 ---
 # Staff-facing words that teach — the owner's standard
 

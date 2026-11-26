@@ -52,10 +52,10 @@ const SEND_TIMEOUT_MS = 10000;
  * @type {Readonly<Record<string, number>>} seconds
  */
 const PUSH_TTL_BY_TAG = Object.freeze({
-    'huddle':         36 * 3600,   // "Latest Huddle": the next day's plan, sent the evening before
+    'huddle':         36 * 3600,   // "Latest Daily Huddle": the next day's plan, sent the evening before
     'circular':       72 * 3600,   // weekly documents: still the latest for days
     'newsletter':     72 * 3600,
-    'pay-reminder':   12 * 3600,   // "hours cut-off today"
+    'pay-reminder':   12 * 3600,   // "Pay cut-off today"
     'overtime':       12 * 3600,   // "answers due today" / "form open — answer by …"
     'reset-request':   6 * 3600,   // "N waiting" — a queue depth that is stale within hours
     'password-reset':  7 * 24 * 3600,   // tells the member something lasting about their account
@@ -147,8 +147,8 @@ async function sendTargetedPush(payload, ownerUids, logTag, opts = {}) {
     }
 
     // One equality query per uid rather than a single `in` query: `in` caps at 30 values, and the
-    // targets run from one member (a password reset) to every CEA and CES member (the pay reminder,
-    // ~34). Settled one by one, so a lookup that fails costs THAT owner their notice and nobody else's
+    // targets run from one member (a password reset) to the CEA and CES members (the pay reminder).
+    // Settled one by one, so a lookup that fails costs THAT owner their notice and nobody else's
     // — with `Promise.all`, one transient error lost every target. Never widened: a failed lookup
     // contributes no devices, it does not become "everyone".
     const lookups = await Promise.allSettled(uids.map(uid =>
@@ -209,8 +209,10 @@ async function sendTargetedPush(payload, ownerUids, logTag, opts = {}) {
  *
  * A member who simply stopped opening the app never ran Sign out, so their record kept its owner,
  * and `fanOutPush` (which reads every record and consults no owner) went on sending the daily
- * Huddle, the documents and the pay reminders to an ex-colleague's phone indefinitely. Disabling
- * the account stops a sign-in; only this stops the broadcasts. A record with no owner (written
+ * Huddle, the other documents and the timetable reminder to an ex-colleague's phone indefinitely.
+ * (The pay reminder was a broadcast too when this was written; it has been targeted since 10 Nov
+ * 2026, and a disabled account is not a target.) Disabling the account stops a sign-in; only this
+ * stops the broadcasts. A record with no owner (written
  * before v17.76) cannot be attributed and is left to the push service's eventual 410.
  *
  * Also called when Set up accounts re-enables a disabled account, and by a lost-phone reset
@@ -234,22 +236,30 @@ async function releasePushForOwner(uid) {
  *
  * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
  * @param {string} logTag    Short string for console log lines, e.g. '[push]'
+ * @returns {Promise<number>} How many subscriptions ACCEPTED the push — the same count, with the same
+ *                            meaning, as sendTargetedPush returns: 0 means nobody was reached; more
+ *                            means the push service took it, not that a phone showed it. The senders
+ *                            log it, so "sent" is never printed for a broadcast that reached nobody.
  */
 async function fanOutPush(payload, logTag) {
     const snapshot = await getFirestore().collection('pushSubscriptions').get();
     if (snapshot.empty) {
         console.log(`${logTag} No subscriptions — skipping`);
-        return;
+        return 0;
     }
 
     const payloadStr = JSON.stringify(payload);
     // Timeout AND how long the push service may hold it (pushSendOptions — never the 4-week default).
     const sendOptions = pushSendOptions(payload, SEND_TIMEOUT_MS);
+    // ACCEPTED, not attempted — sendTargetedPush's count (v21.85), for the same reason: a 500, a
+    // timeout or a dead endpoint counted exactly the same as a delivered notice in "attempted N".
+    let accepted = 0;
     const sends = snapshot.docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
         if (!isAllowedPushEndpoint(endpoint)) { console.warn(`${logTag} Skipped ${docSnap.id}: not a push-service endpoint`); return; }
         try {
             await getWebPush().sendNotification({ endpoint, keys }, payloadStr, sendOptions);
+            accepted += 1;
         } catch (err) {
             // Delete ONLY genuinely-dead subscriptions (410/404). A 401 is a VAPID-auth
             // misconfig, not a dead endpoint — deleting on it would wipe the whole collection.
@@ -264,7 +274,8 @@ async function fanOutPush(payload, logTag) {
     });
 
     await Promise.allSettled(sends);
-    console.log(`${logTag} Fan-out complete — attempted ${snapshot.size} subscription(s)`);
+    console.log(`${logTag} Fan-out complete — ${accepted} of ${snapshot.size} subscription(s) accepted`);
+    return accepted;
 }
 
 

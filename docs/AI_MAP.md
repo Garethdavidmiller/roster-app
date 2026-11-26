@@ -1052,7 +1052,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `shouldDeleteSubscription` · `isAllowedPushEndpoint` · `PUSH_SERVICE_HOSTS`
 
 ### `functions/push-notices.js`
-- **Exports:** `NOTIFICATION_FEATURES` · `buildPushPayload`
+- **Exports:** `NOTIFICATION_FEATURES` · `PASSWORD_RESET_BODY` · `buildPushPayload`
 
 ### `functions/roster-geometry.js`
 - **Exports:** `settledGeometry` · `GEOMETRY_WAIT_BUDGET_MS` · `GEOMETRY_WORK_BUDGET_MS` · `awaitGeometryWithin` · `GRID_COLUMNS` · `rulesFromOperatorList` · `assignRunsToGrid` · `readGridPage` · `extractRosterGeometry` · `matchGeometryRow` · `geometryCoverage` · `applyGeometryWitness` · `_isClaim` · `_nameTokens` · `_PATH_OP`

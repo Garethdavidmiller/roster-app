@@ -29,12 +29,13 @@
 /** The name of a notifying feature — a key of the table below. @typedef {keyof typeof NOTIFICATION_FEATURES} NotificationFeatureKey */
 
 const NOTIFICATION_FEATURES = {
-    // Document arrivals — title "<emoji> Latest <Doc>". "Latest" (not "Today's") because
-    // a document is republished regularly and the Huddle is the next-day plan sent the
-    // evening before, so day-relative words are inaccurate by the time it is read.
-    huddle:     { emoji: '📋',  tag: 'huddle',       defaultHeadline: 'Latest Huddle',                 hashPath: '/#huddle' },
-    circular:   { emoji: '📰',  tag: 'circular',     defaultHeadline: 'Latest Retail Circular',        hashPath: '/#circular' },
-    newsletter: { emoji: '🗞️', tag: 'newsletter',   defaultHeadline: 'Latest Marylebone Newsletter',  hashPath: '/#newsletter' },
+    // Document arrivals — title "<emoji> Latest <Doc>", in the document's FULL name, as the Operations
+    // card and the nav drawer spell it (owner, 26 Nov 2026). "Latest" (not "Today's") because a document
+    // is republished regularly and the Huddle is the next-day plan sent the evening before, so
+    // day-relative words are inaccurate by the time it is read.
+    huddle:     { emoji: '📋',  tag: 'huddle',       defaultHeadline: 'Latest Daily Huddle',            hashPath: '/#huddle' },
+    circular:   { emoji: '📰',  tag: 'circular',     defaultHeadline: 'Latest Weekly Retail Circular',  hashPath: '/#circular' },
+    newsletter: { emoji: '🗞️', tag: 'newsletter',   defaultHeadline: 'Latest Marylebone Newsletter',   hashPath: '/#newsletter' },
     // Event reminder — title "<emoji> <Event> — <urgency>"; caller passes headline + url.
     pay:        { emoji: '💷',  tag: 'pay-reminder' },
     // Targeted-only (v21.47) — every send goes through sendTargetedPush to the members a window
@@ -65,7 +66,7 @@ const NOTIFICATION_FEATURES = {
     // device is told and the tap lands on the Trains page. 🚆 is the Trains nav pill. Event grammar
     // with a fixed headline, like passwordReset above: it only ever says one thing. Sent by
     // sendTimetableReminder (documents.js), which is guarded to the one date.
-    timetable:  { emoji: '🚆', tag: 'timetable', defaultHeadline: 'New timetable from Sunday', hashPath: '/trains.html' },
+    timetable:  { emoji: '🚆', tag: 'timetable', defaultHeadline: 'Timetable — new times from Sunday', hashPath: '/trains.html' },
     // Admin-only (v26.04) — to the admin's devices, as resetRequest above is, because the Error Log is
     // the admin's to read. 🐛 is the Error Log's own emoji, on the Operations "Needs attention" strip.
     // One stable tag, so the newest notice REPLACES the last: its headline counts what has reached the
@@ -79,6 +80,20 @@ const NOTIFICATION_FEATURES = {
     // (`pinLockout`, 🔢 'pin-lockout' — the retired staff PIN's station-wide block, told to the admin —
     // went with the PIN's endpoint in its server release, Nov 2026.)
 };
+
+/**
+ * The `passwordReset` notice's body — kept here beside its fixed headline, for the reason that
+ * headline is (it only ever says one thing), so push-copy's table can hold it to the budgets without
+ * running the reset endpoint. Sent by resetMemberPassword (auth-endpoints.js).
+ *
+ * THE CREDENTIAL IS NEVER IN IT. A push renders on a LOCK SCREEN, so naming the new password would
+ * show it to whoever picks the phone up — and this app's default is derived from a surname that is on
+ * the roster. What the member needs is that it changed and where to fix it — and, since a reset signs
+ * every device out (AUTH_AND_SESSIONS 23), that they must sign in again first (22 Nov 2026). It does
+ * not say WHAT with: "your surname" is the rule for deriving the credential, which is as much a leak
+ * on a lock screen as the credential itself (auth-endpoints.test.mjs refuses it).
+ */
+const PASSWORD_RESET_BODY = 'The admin reset your password. Sign in again, then choose your own.';
 
 /**
  * Build a Web Push payload to the notification design language.
@@ -128,4 +143,4 @@ function _clipNotifText(s, max) {
     return (sp >= max - 12 ? hard.slice(0, sp) : hard).trimEnd() + '…';
 }
 
-module.exports = { NOTIFICATION_FEATURES, buildPushPayload };
+module.exports = { NOTIFICATION_FEATURES, PASSWORD_RESET_BODY, buildPushPayload };

@@ -1520,17 +1520,17 @@ describe('isPayCutoffDay agrees with isCutoffDate over full 2026 calendar year',
 describe('buildPushPayload', () => {
     const BASE = 'https://myb-roster.web.app';
 
-    test('huddle: "📋 Latest Huddle", huddle tag, scope-relative #huddle deep link', () => {
-        const p = buildPushPayload({ feature: 'huddle', body: 'Tap to read the latest day plan.', baseUrl: BASE });
-        assert.equal(p.title, '📋 Latest Huddle');
+    test('huddle: "📋 Latest Daily Huddle", huddle tag, scope-relative #huddle deep link', () => {
+        const p = buildPushPayload({ feature: 'huddle', body: 'The plan for the day ahead. Tap to read it.', baseUrl: BASE });
+        assert.equal(p.title, '📋 Latest Daily Huddle');
         assert.equal(p.tag, 'huddle');
         assert.equal(p.url, `${BASE}/#huddle`);
-        assert.equal(p.body, 'Tap to read the latest day plan.');
+        assert.equal(p.body, 'The plan for the day ahead. Tap to read it.');
     });
 
-    test('circular and newsletter use their feature emoji + "Latest" headline', () => {
+    test('circular and newsletter use their feature emoji + "Latest" headline, in the full document name', () => {
         const c = buildPushPayload({ feature: 'circular', body: 'x', baseUrl: BASE });
-        assert.equal(c.title, '📰 Latest Retail Circular');
+        assert.equal(c.title, '📰 Latest Weekly Retail Circular');
         assert.equal(c.url, `${BASE}/#circular`);
         const n = buildPushPayload({ feature: 'newsletter', body: 'x', baseUrl: BASE });
         assert.equal(n.title, '🗞️ Latest Marylebone Newsletter');
@@ -1540,11 +1540,11 @@ describe('buildPushPayload', () => {
     test('pay (event): caller-supplied headline + url, pay-reminder tag', () => {
         const p = buildPushPayload({
             feature: 'pay',
-            headline: 'Payday Friday — hours cut-off today',
-            body: 'Open the Pay Calculator to estimate your 28 March pay.',
+            headline: 'Pay cut-off today — payday Friday',
+            body: 'Shifts up to today are paid on 28 March. Tap to open the Pay Calculator.',
             url: `${BASE}/paycalc.html?payday=2026-03-28`,
         });
-        assert.equal(p.title, '💷 Payday Friday — hours cut-off today');
+        assert.equal(p.title, '💷 Pay cut-off today — payday Friday');
         assert.equal(p.tag, 'pay-reminder');
         assert.equal(p.url, `${BASE}/paycalc.html?payday=2026-03-28`);
     });
@@ -1581,14 +1581,14 @@ describe('buildPushPayload', () => {
     });
 
     test('within-budget headline/body are returned unchanged (no spurious ellipsis)', () => {
-        const p = buildPushPayload({ feature: 'huddle', body: 'Tap to read the latest day plan.', baseUrl: BASE });
-        assert.equal(p.title, '📋 Latest Huddle');
-        assert.equal(p.body, 'Tap to read the latest day plan.');
+        const p = buildPushPayload({ feature: 'huddle', body: 'The plan for the day ahead. Tap to read it.', baseUrl: BASE });
+        assert.equal(p.title, '📋 Latest Daily Huddle');
+        assert.equal(p.body, 'The plan for the day ahead. Tap to read it.');
     });
 
     test('design-language invariants hold for every feature: one leading emoji, no exclamation, title within budget', () => {
         for (const [key, f] of Object.entries(NOTIFICATION_FEATURES)) {
-            const title = f.defaultHeadline ? `${f.emoji} ${f.defaultHeadline}` : `${f.emoji} Payday Friday — hours cut-off today`;
+            const title = f.defaultHeadline ? `${f.emoji} ${f.defaultHeadline}` : `${f.emoji} Pay cut-off today — payday Friday`;
             assert.ok(title.startsWith(f.emoji), `${key} title must lead with its feature emoji`);
             assert.ok(!title.includes('!'), `${key} title must not use an exclamation mark`);
             assert.ok(title.length <= 40, `${key} title "${title}" exceeds the 40-char budget (${title.length})`);
@@ -2338,10 +2338,11 @@ describe('buildResetRequestNotice', () => {
     });
 
     test('names the member who just asked, and counts the OTHERS (not the total) in the body', () => {
+        // ONE wording for any count (owner, 26 Nov 2026): the single request's sentence, then the others.
         assert.equal(buildResetRequestNotice('S. Silva', 2).body,
-                     'S. Silva asked for a reset. 1 other waiting.');
+                     'S. Silva asked for a password reset. 1 other waiting.');
         assert.equal(buildResetRequestNotice('S. Silva', 4).body,
-                     'S. Silva asked for a reset. 3 others waiting.');
+                     'S. Silva asked for a password reset. 3 others waiting.');
     });
 
     // Fail SAFE, never throw: this runs inside the public endpoint's success path, and the caller

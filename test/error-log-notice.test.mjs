@@ -112,7 +112,26 @@ describe('rules 4–5 — the words: counts, and nothing a lock screen should no
 
     test('a flood says so, without a split of part of it', () => {
         assert.deepEqual(noticeWords({ errors: 60, slowSaves: 40, more: true }),
-            { headline: `Error Log — ${NOTICE_SCAN_LIMIT}+ new`, body: `More than ${NOTICE_SCAN_LIMIT} new entries. Tap to open the Error Log.` });
+            { headline: `Error Log — ${NOTICE_SCAN_LIMIT}+ new`, body: `At least ${NOTICE_SCAN_LIMIT} new entries. Tap to open the Error Log.` });
+    });
+
+    // THE FLOOD COUNTED RESOLVED ENTRIES (26 Nov 2026): `more` was answered before rule 3, so a flood the
+    // admin had already read rang the phone with "100+ new". Both ways round, from the entries.
+    test('a flood of 101 entries, every one already RESOLVED, says nothing — no flood wording', () => {
+        const flood = Array.from({ length: NOTICE_SCAN_LIMIT + 1 }, (_, i) =>
+            entry(i % 2 ? SLOW : 'boom', { resolved: true }));
+        const s = summariseNewEntries(flood);
+        assert.equal(s.more, true, 'the case is a real flood');
+        assert.equal(noticeWords(s), null);
+    });
+
+    test('a flood of 101 UNRESOLVED entries is "100+ new", and part-resolved counts only what is not', () => {
+        const flood = Array.from({ length: NOTICE_SCAN_LIMIT + 1 }, () => entry('boom'));
+        assert.deepEqual(noticeWords(summariseNewEntries(flood)),
+            { headline: `Error Log — ${NOTICE_SCAN_LIMIT}+ new`, body: `At least ${NOTICE_SCAN_LIMIT} new entries. Tap to open the Error Log.` });
+        const partly = flood.map((e, i) => (i < 40 ? { ...e, resolved: true } : e));
+        assert.deepEqual(noticeWords(summariseNewEntries(partly)),
+            { headline: 'Error Log — 60+ new', body: 'At least 60 new entries. Tap to open the Error Log.' });
     });
 
     test('from the entries to the payload, no name, page or message reaches the notice (rule 5)', () => {
@@ -137,7 +156,9 @@ describe('rules 4–5 — the words: counts, and nothing a lock screen should no
         assert.equal(p.body, '50 errors and 49 slow saves. Tap to open the Error Log.');
         assert.equal(p.tag, 'error-log');
         assert.ok(!p.title.endsWith('…') && !p.body.endsWith('…'), 'clipped: the words outgrew the budgets');
-        const flood = noticeWords({ errors: 0, slowSaves: 0, more: true });
+        // The largest flood the words can carry: every covered entry unresolved. (This asked for a flood of
+        // NOTHING until 26 Nov 2026 — the resolved-flood bug, written into its own test.)
+        const flood = noticeWords({ errors: 60, slowSaves: NOTICE_SCAN_LIMIT - 60, more: true });
         assert.ok(flood);
         const f = buildPushPayload({ feature: 'errorLog', ...flood, url: 'https://myb-roster.web.app/operations.html#error-log' });
         assert.ok(!f.title.endsWith('…') && !f.body.endsWith('…'), 'the flood notice was clipped');

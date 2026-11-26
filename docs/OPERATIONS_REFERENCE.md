@@ -239,6 +239,13 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 
 **Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/documents.js`, Huddle ingestion succeeds but no push is sent. To re-enable: set it back to `false`, redeploy Functions, and verify `STAFF_SITE_URL` (`functions/index.js`) is the bare `https://myb-roster.web.app` origin — the service worker discards the payload origin/path and re-bases only the trailing page/hash onto its own `registration.scope`, so no `/roster-app` sub-path is needed.
 
+**Did a broadcast reach anyone?** Cloud Logging, for the function that sent it (`ingestHuddle` or
+`onHuddleCreated`, `onCircularCreated`, `onNewsletterCreated`, `sendTimetableReminder`): the transport
+logs `Fan-out complete — N of M subscription(s) accepted`, and the sender `… — N subscription(s)
+accepted`, or a warning `… — no subscription accepted it` when N is 0. Accepted means the push service
+took it, not that a phone showed it; there is no "sent" line any more, because it was printed for a
+send that reached nobody too.
+
 ---
 
 ## Weekly Roster Upload — full detail
@@ -632,7 +639,9 @@ lock screen; the Error Log is where the detail is read.
 **When.** A check runs every 15 minutes (`sendErrorLogNotification`, a Cloud Scheduler job in
 europe-west2). It sends **at most one notice an hour**, so a burst rings once, and each notice counts
 everything since the last one a device took. An entry already resolved by the time of the check is
-not counted. "100+ new" means more than a hundred.
+not counted. A notice covers the first hundred new entries; when more are waiting it says "N+ new"
+("At least N new entries"), N being the unresolved ones among that hundred — so a flood the admin has
+already resolved sends nothing.
 
 **The first check after it is deployed sends nothing.** It records that moment as the starting line,
 so the entries already in the log are never announced. The first notice comes with the first new
@@ -1528,7 +1537,8 @@ Every signed-in member can open it, an Other Staff login included.
   wired in index.js) sends ONE targeted push, "🔁 New link — vote coming soon", to the people the New link page lets
   in (`newlinkAudience` in roster-members.json, generated from `canOpenNewlink`), landing on the New link page (owner,
   26 Nov 2026). A daily 18:00 schedule with a one-date guard, as the timetable push has. To confirm it went: its log
-  says "New link reminder — N of M member(s) resolved". Afterwards it is harmless; remove the function, its line in
+  says "New link reminder — N of M member(s) resolved, N subscription(s) accepted", and it reached somebody only
+  when that last N is above 0. Afterwards it is harmless; remove the function, its line in
   index.js and in `functions-surface.test.mjs`, and `newlinkAudience` if nothing else reads it, in a later release.
 
 ### The one-off timetable push, and the Calendar's timetable notice
@@ -1536,10 +1546,11 @@ Every signed-in member can open it, an Other Staff login included.
 Two reminders run themselves before the change, and nobody presses anything:
 
 - **Saturday 12 December 2026, 18:00 London** — `sendTimetableReminder` (functions/documents.js) sends
-  ONE broadcast push to every subscribed device: "🚆 New timetable from Sunday", landing on the Trains
+  ONE broadcast push to every subscribed device: "🚆 Timetable — new times from Sunday", landing on the Trains
   page. It is a DAILY schedule with a one-date guard, so on every other evening it logs "Not the
   evening before the change — skipping" and does nothing. To confirm it went: the function's log says
-  "Timetable reminder sent". To stop it beforehand, the reversible way: in the GCP console, Cloud
+  "Timetable reminder — N subscription(s) accepted" (a warning, "no subscription accepted it", means
+  it reached nobody). To stop it beforehand, the reversible way: in the GCP console, Cloud
   Scheduler → the job Firebase created for it (named after the function) → Pause; the next Functions
   deploy re-creates the schedule enabled, so pause it again after any deploy before the 12th. The
   permanent way: delete `sendTimetableReminder` from the builder's return in documents.js and from

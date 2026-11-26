@@ -107,8 +107,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
         }
         : async (_payload, _uids, tag) => { console.warn(`${tag} push not configured — nothing sent`); return 0; });
     // Only the member's own enabled account, carrying their `member` claim (`isMembersOwnAccount`):
-    // the shared Calendar PIN account is refused even when a roster email has been linked to it — its
-    // devices are the station's shared PCs — as `uidForMember` (pay-reminder.js) refuses it for pay.
+    // the shared account the retired staff PIN used is still refused, as `uidForMember` (pay-reminder.js)
+    // refuses it — its devices were the station's PCs. The check stays while that account can exist.
     /** @type {UidForName} */
     const uidForName = (notify && notify.uidForName) || (async (name) => {
         try {
