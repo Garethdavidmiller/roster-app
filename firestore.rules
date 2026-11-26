@@ -25,7 +25,10 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept 24 Nov 2026 (on v26.65, for the staff PIN's server release): reads of overrides, huddles, circulars and
+// Last swept 26 Nov 2026 (on v26.94, the one-off notification's send record): one block added —
+// `oneOffPushes`, closed to every client both ways, as `errorLogNotice` is; its only writer is a
+// scheduled function through the Admin SDK. The re-read found no other rule changed since v26.65.
+// Prior sweep 24 Nov 2026 (on v26.65, for the staff PIN's server release): reads of overrides, huddles, circulars and
 // newsletters, and writes of clientErrors, analytics and pushSubscriptions, lost the viewer; the
 // pushSubscriptions blocks lost the bare-claim denial with it (the viewer is no longer a known
 // identity, so nothing it carries can reach that clause); `viewerAttempts` lost its block. Nothing
@@ -1069,6 +1072,15 @@ service cloud.firestore {
     // through the Admin SDK. Closed to every client, the admin included: a client that could WRITE
     // it could move the line past entries nobody has been told about, or hold the hourly gap shut.
     match /errorLogNotice/{docId} {
+      allow read, write: if false;
+    }
+
+    // ── oneOffPushes — a dated one-off notification's send record (v26.94) ───────────────────────
+    // Claimed BEFORE the send so a schedule delivered twice sends once (functions/newlink-reminder.js),
+    // with what the send reached written beside it. Written ONLY by that function through the Admin
+    // SDK. Closed to every client, the admin included: a client that could write it could block the
+    // send, or delete the claim and let a second run ring every phone again.
+    match /oneOffPushes/{docId} {
       allow read, write: if false;
     }
 

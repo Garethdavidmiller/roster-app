@@ -112,8 +112,20 @@ function makeDb(seed = {}) {
         path,
         get: async () => { if (docReadError) throw docReadError; return snapFor(path); },
         set: async (/** @type {any} */ data) => { store.set(path, data); },
+        // A partial write, merged — and refused on a missing document, as the SDK's `update` is.
+        update: async (/** @type {any} */ data) => {
+            if (!store.has(path)) throw Object.assign(new Error('no document to update'), { code: 5 });
+            store.set(path, { ...store.get(path), ...data });
+        },
         delete: async () => { store.delete(path); deletes.push(path); },
     });
+    /** Transactions run ONE AT A TIME, as two that touch the same document end up doing: Firestore
+     *  retries the loser, which then reads what the winner wrote. Without this, two overlapping runs
+     *  would both read "absent" here and both claim, which the real database never lets happen. */
+    let txQueue = Promise.resolve();
+    /** True while a lost-commit hook runs: what it does lands BETWEEN a commit and its re-run, so it
+     *  must not wait for the transaction it interrupts. */
+    let inLostHook = false;
     const db = {
         collection: (/** @type {string} */ name) => ({
             doc: (/** @type {string} */ id) => refFor(`${name}/${id}`),
@@ -150,32 +162,40 @@ function makeDb(seed = {}) {
                 },
             }),
         }),
-        runTransaction: async (/** @type {(tx: any) => any} */ fn) => {
-            if (txError) throw txError;
-            const tx = {
-                get: async (/** @type {any} */ ref) => snapFor(ref.path),
-                set: (/** @type {any} */ ref, /** @type {any} */ data) => { store.set(ref.path, data); },
-                delete: (/** @type {any} */ ref) => { store.delete(ref.path); deletes.push(ref.path); },
-                // A partial write, merged — the link rotation changes `storageUrl` and nothing else.
-                update: (/** @type {any} */ ref, /** @type {any} */ data) => {
-                    store.set(ref.path, { ...(store.get(ref.path) || {}), ...data });
-                },
-            };
-            const cut = unreachable; unreachable = null;
-            // What the store held before the attempt: a commit that never landed leaves it so.
-            const before = cut && !cut.landed ? new Map(store) : null;
-            const first = await fn(tx);
-            if (cut) {
-                if (before) { store.clear(); for (const [p, d] of before) store.set(p, d); }
-                if (cut.readsFail) docReadError = cut.err;
-                throw cut.err;
-            }
-            const lost = lostCommitAnswer; lostCommitAnswer = null;
-            if (!lost) return first;
-            await lost();
-            return fn(tx);
+        runTransaction: (/** @type {(tx: any) => any} */ fn) => {
+            if (inLostHook) return runOne(fn);
+            const turn = txQueue.then(() => runOne(fn));
+            txQueue = turn.then(() => {}, () => {});
+            return turn;
         },
     };
+    /** One transaction, run alone. @param {(tx: any) => any} fn */
+    async function runOne(fn) {
+        if (txError) throw txError;
+        const tx = {
+            get: async (/** @type {any} */ ref) => snapFor(ref.path),
+            set: (/** @type {any} */ ref, /** @type {any} */ data) => { store.set(ref.path, data); },
+            delete: (/** @type {any} */ ref) => { store.delete(ref.path); deletes.push(ref.path); },
+            // A partial write, merged — the link rotation changes `storageUrl` and nothing else.
+            update: (/** @type {any} */ ref, /** @type {any} */ data) => {
+                store.set(ref.path, { ...(store.get(ref.path) || {}), ...data });
+            },
+        };
+        const cut = unreachable; unreachable = null;
+        // What the store held before the attempt: a commit that never landed leaves it so.
+        const before = cut && !cut.landed ? new Map(store) : null;
+        const first = await fn(tx);
+        if (cut) {
+            if (before) { store.clear(); for (const [p, d] of before) store.set(p, d); }
+            if (cut.readsFail) docReadError = cut.err;
+            throw cut.err;
+        }
+        const lost = lostCommitAnswer; lostCommitAnswer = null;
+        if (!lost) return first;
+        inLostHook = true;
+        try { await lost(); } finally { inLostHook = false; }
+        return fn(tx);
+    }
     return { db, store, deletes, failTransaction: (/** @type {Error} */ e) => { txError = e; },
         failLatestRead: (/** @type {Error} */ e) => { latestReadError = e; },
         afterStaleQuery: (/** @type {() => void} */ fn) => { afterStaleQuery = fn; },
@@ -1189,14 +1209,14 @@ describe('sendNewlinkVoteReminderNotification — the New link page\'s own audie
     // Staff login), it invites them to a door that is shut; sent as a broadcast, it reaches all of them; sent on another
     // evening, it is a stale nudge from a function nobody remembered to delete.
     const newlinkPath = require.resolve('./functions/newlink-reminder.js');
-    function buildNewlink() {
+    function buildNewlink(/** @type {Record<string, any>} */ rosterMembers = ROSTER) {
         const b = build();                       // the push and account fakes, and a fresh pay-reminder.js
         delete require.cache[newlinkPath];       // …which this module takes its account lookup from
         const mod = require('./functions/newlink-reminder.js');
         /** @type {{year: number, month: number, day: number}} */
         let now = { year: 2026, month: 10, day: 26 };
         const fn = mod.buildNewlinkVoteReminderNotification({ REGION: 'europe-west2', VAPID_PRIVATE_KEY: { value: () => 'vapid-private' },
-            VAPID_PUBLIC_KEY: 'vapid-public', STAFF_SITE_URL: 'https://myb-roster.web.app', rosterMembers: ROSTER, nowInLondon: () => now });
+            VAPID_PUBLIC_KEY: 'vapid-public', STAFF_SITE_URL: 'https://myb-roster.web.app', rosterMembers, nowInLondon: () => now });
         return { ...b, mod, fn, setNow: (/** @type {any} */ n) => { now = n; } };
     }
 
@@ -1226,6 +1246,49 @@ describe('sendNewlinkVoteReminderNotification — the New link page\'s own audie
             await b.fn.run({});
         }
         assert.equal(b.targeted.length + b.sends.length, 0);
+    });
+
+    // ── ONCE (external review of v26.92) ──────────────────────────────────────────────────────────
+    // A scheduled run can arrive twice, and the service worker's `renotify` makes a second notice with
+    // the same tag ring again. The date guard cannot tell; the claim can.
+    const RECORD = 'oneOffPushes/newlink-vote-2026';
+
+    test('a second run on the evening sends NOTHING — the first claimed it', async () => {
+        const b = buildNewlink();
+        await b.fn.run({});
+        await b.fn.run({});
+        assert.equal(b.targeted.length, 1, 'one send, whatever the schedule does');
+        const rec = b.store.get(RECORD);
+        assert.equal(rec.outcome, 'sent');
+        assert.ok(rec.accepted > 0 && rec.resolved === rec.accepted && rec.addressed >= rec.resolved, JSON.stringify(rec));
+        assert.ok(rec.claimedAt && rec.finishedAt, 'when it was claimed, and when the send finished, both kept');
+    });
+
+    test('two OVERLAPPING runs send once', async () => {
+        const b = buildNewlink();
+        await Promise.all([b.fn.run({}), b.fn.run({})]);
+        assert.equal(b.targeted.length, 1);
+    });
+
+    test('a run that cannot claim sends nothing, and says so by failing', async () => {
+        const b = buildNewlink();
+        b.failTransaction(new Error('unavailable'));
+        await assert.rejects(b.fn.run({}), /unavailable/);
+        assert.equal(b.targeted.length + b.sends.length, 0, 'a missed nudge, never a doubled one');
+    });
+
+    test('a send that reached no device is recorded as that — never as "sent"', async () => {
+        const b = buildNewlink({ activeMembers: ROSTER.activeMembers });   // no audience list: nobody addressed
+        await b.fn.run({});
+        assert.equal(b.store.get(RECORD).outcome, 'reached no device');
+        assert.equal(b.store.get(RECORD).accepted, 0);
+    });
+
+    test('another evening claims nothing', async () => {
+        const b = buildNewlink();
+        b.setNow({ year: 2026, month: 10, day: 25 });
+        await b.fn.run({});
+        assert.equal(b.store.has(RECORD), false, 'a claim on the wrong evening would block the right one');
     });
 
     test('a roster with no list sends to nobody — never "everyone"', async () => {

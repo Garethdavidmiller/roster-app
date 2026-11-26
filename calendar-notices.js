@@ -145,14 +145,17 @@ const NEWLINK_VOTE_RECORD = {
 
 /**
  * What App Notices keeps of the "move to the main address" notice (26 Nov 2026). It stays true for the 180 days the
- * record is kept: the main address, and that Pay figures are moved by hand.
+ * record is kept: the main address, and — for a member the Pay page prices, and nobody else (external review of
+ * v26.92) — that Pay figures are moved by hand. Built as it opens, as the install notice's record is.
+ * @param {boolean} pay  does the Pay Calculator price this member (`payCalcIsTheirs`)
  */
-const MOVE_RECORD = {
+const moveRecord = (pay) => ({
     id: 'move-to-main-2026', section: 'General', date: '26 Nov 2026',
     title: 'Move to the app’s main address',
-    body: 'Marylebone Roster’s main address is myb-roster.web.app. Pay Calculator figures move with 💾\u00a0Move Your '
-        + 'Pay\u00a0Data on the Pay page: save a copy on the old address, then restore it there.',
-};
+    body: 'Marylebone Roster’s main address is myb-roster.web.app.'
+        + (pay ? ' Pay Calculator figures move with 💾\u00a0Move Your Pay\u00a0Data on the Pay page: save a copy on the '
+            + 'old address, then restore it at myb-roster.web.app.' : ''),
+});
 
 /** What every notice waits for after access — set once by `initCalendarNotices`. @type {Promise<any>} */
 let _after = Promise.resolve();
@@ -451,7 +454,15 @@ export function initCalendarNotices({ after } = {}) {
             overlay,
             content:  /** @type {HTMLElement} */ (document.getElementById('moveNoticeContent')),
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('moveNoticeClose')),
-            onOpen() { archiveNotice(MOVE_RECORD); },
+            onOpen() {
+                // PAY WORDS ONLY FOR A MEMBER THE PAY PAGE PRICES, as the install notice does (external review of
+                // v26.92): a Dispatcher or an Other Staff login has no figures to move. Asked as it opens, because a
+                // front-door sign-in has no session at wiring time.
+                const pay = payCalcIsTheirs();
+                const line = document.getElementById('moveNoticePay');
+                if (line) line.hidden = !pay;
+                archiveNotice(moveRecord(pay));
+            },
             onClose() { markDone(); },
         });
 

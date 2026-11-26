@@ -1569,7 +1569,7 @@ describe('15 · move to the main address: only on the GitHub Pages copy, after t
     /** The timetable notice answered on an earlier load, and the October notices ended: the move notice's turn. */
     const AFTER_TIMETABLE = { [DONE_KEY_OF(SOON)]: '1', [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' };
     const ON_MIRROR = { accessType: /** @type {const} */ ('named'), mirror: true, route: null, store: AFTER_TIMETABLE,
-                        present: [MV.overlay, 'moveNoticeGo', 'moveNoticeLater'] };
+                        present: [MV.overlay, 'moveNoticeGo', 'moveNoticeLater', 'moveNoticePay'] };
 
     test('in the matrix, members only, its own key, no snooze, 26 November to the end of 31 December, after the REAL timetable and install keys', () => {
         assert.ok(MV, 'found by the same pattern as every other notice');
@@ -1650,6 +1650,35 @@ describe('15 · move to the main address: only on the GitHub Pages copy, after t
         assert.ok(filed, 'archived on OPEN, before the link takes the member to the other address');
         assert.equal(filed.section, 'General');
         assert.doesNotMatch(filed.title + filed.body, /\bsoon\b|will close|github\.io/i, 'the record says what stays true after the move');
+    });
+
+    // PAY WORDS ONLY WHERE THE PAY PAGE PRICES THE MEMBER (external review of v26.92), as the install notice does: a
+    // Dispatcher or an Other Staff login has no Pay Calculator figures to move. On screen and in App Notices alike.
+    test('a member the Pay page does not price is told nothing about moving pay figures — on screen or in App Notices', async () => {
+        const notPriced = teamMembers.find(m => !m.hidden && !payCalcFor({ name: m.name }))?.name;
+        assert.ok(notPriced, 'precondition: the roster has somebody the Pay page does not price');
+        mock.timers.setTime(NOV_27);
+        await wire({ ...ON_MIRROR, session: { name: notPriced } });
+        await settleAccess();
+        opened()._cfg.onOpen();
+        assert.equal(_els.get('moveNoticePay')?.hidden, true, 'the pay paragraph is hidden');
+        const filed = _archived.find(n => n.id === 'move-to-main-2026');
+        assert.doesNotMatch(filed.body, /pay/i, `App Notices keeps no pay words either: "${filed.body}"`);
+        assert.match(filed.body, /myb-roster\.web\.app/);
+    });
+
+    test('a member the Pay page prices is told, and told WHERE to restore — never "there"', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire(ON_MIRROR);
+        await settleAccess();
+        opened()._cfg.onOpen();
+        assert.equal(_els.get('moveNoticePay')?.hidden, false, 'the pay paragraph shows');
+        const filed = _archived.find(n => n.id === 'move-to-main-2026');
+        assert.match(filed.body, /Move Your Pay\u00a0Data/);
+        assert.match(filed.body, /restore it at myb-roster\.web\.app/);
+        const html = readFileSync(new URL('./index.html', REPO_ROOT_URL), 'utf8');
+        assert.match(html, /<p id="moveNoticePay" class="notice-body" hidden>/, 'hidden in the markup until a member is known');
+        assert.match(html, /then restore it at <strong class="notice-address">myb-roster\.web\.app<\/strong>\./);
     });
 
     test('its words name both addresses and the Pay page\'s own card, and its link is the install notice\'s', () => {
