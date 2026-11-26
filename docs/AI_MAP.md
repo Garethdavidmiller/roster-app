@@ -13,11 +13,9 @@ that binds it, and the tests that guard it. This map holds the two things FILE_I
 heading, **generated** by `npm run generate:ai-map` from the code (`scripts/ai-map-lib.mjs`).
 Never edit an export line by hand; `doc-parity.test.mjs` fails a stale one.
 
-Until 25 Nov 2026 every entry also carried a hand-written card restating its FILE_INDEX row; the cards
-went (git holds them), and every reference a card held that the row and the module's header lacked moved
-into the row. **The reasoning is the module's own header and JSDoc**; release history is git log
-(CLAUDE.md → "Current file structure", the three homes). The few entries that are not one module (the
-reset-request queue, the rules files, the stylesheets) keep a short note, capped by `doc-parity.test.mjs`.
+**The reasoning is the module's own header and JSDoc**; release history is git log (CLAUDE.md →
+"Current file structure", the three homes). The few entries that are not one module (the reset-request
+queue, the rules files, the stylesheets) keep a short note, capped by `doc-parity.test.mjs`.
 
 **Adding a module:** give it a FILE_INDEX row, add its `### \`name.js\`` heading under the section
 below, and run `npm run generate:ai-map`.

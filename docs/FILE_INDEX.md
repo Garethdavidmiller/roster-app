@@ -1,29 +1,22 @@
 # File index — what every file in the repo IS
 
-*Split out of `CLAUDE.md` on 11 Sep 2026. Not version-stamped; not a runtime asset.*
+*Not version-stamped; not a runtime asset.*
 
-**This is a LOOKUP TABLE, and that is why it is no longer in `CLAUDE.md`.** It answers one question —
-*what is this file, and where does its reasoning live* — for every file in the repo. A session changing Pay
-Calculator CSS does not need the roster parser, the Overtime endpoints and the FIP guide tests
-described to it, and until this split every session paid for all of them on every task: the catalogue
-was ~200,000 characters, 64% of a document loaded into every single session regardless of relevance.
-
-**The discipline that governs it has not changed** — it is still a routing table, entries are still
-capped, and it still may not accumulate release history. `doc-parity.test.mjs` enforces all of that
-here exactly as it did in `CLAUDE.md`, and the rules themselves stay in `CLAUDE.md` → "Current file
-structure", beside the three-homes table that explains them. Read that before adding an entry.
-A row says what the file IS, what it owns and where its reasoning lives — nearly always the file's
-own header — so an argument a row starts to need goes into that header first, and the row keeps the
-pointer.
-An export list is not a row's business either: `AI_MAP.md`'s generated export line is the record. Only
-the five documents on the `CLAUDE.md · docs/AI_MAP.md · …` row are version-stamped, and no `.md` is a
-runtime asset, so the document rows do not say so one by one.
+**This is a LOOKUP TABLE**, kept out of `CLAUDE.md` so a session pays only for the rows it needs. It
+answers one question — *what is this file, and where does its reasoning live* — for every file in the
+repo. It is a routing table: entries are capped and may not accumulate release history
+(`doc-parity.test.mjs`), and the rules behind that are `CLAUDE.md` → "Current file structure", beside
+the three-homes table. A row says what the file IS, what it owns and where its reasoning lives —
+nearly always the file's own header — so an argument a row starts to need goes into that header first,
+and the row keeps the pointer. An export list is not a row's business: `AI_MAP.md`'s generated export
+line is the record. Only the five documents on the `CLAUDE.md · docs/AI_MAP.md · …` row are
+version-stamped, and no `.md` is a runtime asset, so the document rows do not say so one by one.
 
 **When you add, remove or rename a module you must update this file AND `docs/AI_MAP.md`, in the same
-commit.** `npm run generate:file-index` does this file's half: it writes the new module's row from the opening
-line of its header, among the rows it shares a name with, and takes out the row of a module that has gone. Improve
-a written row's words by hand like any other; it is never rewritten. `githooks/pre-commit` checks both, and it now looks for a module here rather than in
-`CLAUDE.md`. `AI_MAP.md` holds each module's purpose and pointers, and a generated export line (`npm run generate:ai-map`); this says only what a file is.
+commit.** `npm run generate:file-index` does this file's half: it writes the new module's row from the
+opening line of its header, among the rows it shares a name with, and takes out the row of a module
+that has gone. Improve a written row's words by hand like any other; it is never rewritten.
+`githooks/pre-commit` checks both. `npm run generate:ai-map` writes AI_MAP's export lines.
 
 ```
 roster-app/
