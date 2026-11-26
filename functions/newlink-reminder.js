@@ -3,7 +3,8 @@
 /**
  * functions/newlink-reminder.js — the ONE push telling the New link page's audience to look at the three proposals
  * before the vote (owner, 26 Nov 2026: "a notification letting people know to check out new links before voting
- * starts"). WHO it reaches, and the targeted send; WHEN is documents.js (`sendNewlinkVoteReminder`), date-guarded.
+ * starts"). WHO it reaches, the targeted send, and WHEN — its own date-guarded schedule
+ * (`buildNewlinkVoteReminderNotification`), wired in index.js because documents.js is held to its size.
  *
  * ── THE NEW LINK PAGE'S OWN AUDIENCE, NOBODY ELSE ────────────────────────────────────────────────────────────────
  *
@@ -17,7 +18,7 @@
  */
 
 const { onSchedule }       = require('firebase-functions/v2/scheduler');
-const { buildPushPayload } = require('./roster-parse-helpers');
+const { buildPushPayload } = require('./push-notices');   // the builder's own module, as a new sender should import it
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { uidForMember } = require('./pay-reminder');
 

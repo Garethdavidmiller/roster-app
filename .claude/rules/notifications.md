@@ -8,6 +8,7 @@ paths:
   - "functions/error-log-*.js"
   - "functions/documents.js"
   - "functions/pay-reminder.js"
+  - "functions/newlink-reminder.js"
   - "functions/overtime*.js"
   - "functions/auth-endpoints.js"
   - "functions/reset-request.js"
@@ -34,7 +35,7 @@ The one app surface rendered by the **OS**, not by our CSS — so it cannot inhe
 and needs its own explicit rules, which every Web Push notification staff receive must follow. They
 are enforced by a single builder, `buildPushPayload` in `functions/push-notices.js` (re-exported by
 `functions/roster-parse-helpers.js`), which the senders import (`functions/documents.js`,
-`functions/pay-reminder.js`, `functions/overtime.js`, `functions/auth-endpoints.js`,
+`functions/pay-reminder.js`, `functions/newlink-reminder.js`, `functions/overtime.js`, `functions/auth-endpoints.js`,
 `functions/reset-request.js`, `functions/error-log-notify.js`); the
 service worker renders the result.
 
