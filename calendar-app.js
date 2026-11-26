@@ -44,7 +44,7 @@ import { createLegend } from './calendar-legend.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, handleAccessLost } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
-import { buildCalendarContainer, setSnapshotSource, monthOnScreen } from './calendar-renderer.js';
+import { buildCalendarContainer, setSnapshotSource, monthOnScreen, rovingCellFor } from './calendar-renderer.js';
 import { clearSnapshot } from './calendar-snapshot.js';
 import { createOwnCopy } from './calendar-own-copy.js';
 import { initMonthJump } from './calendar-month-jump.js';
@@ -420,14 +420,18 @@ function renderCalendar() {
         // preventScroll so a background re-render can't yank the viewport. A render with no day cells
         // ("Checking this month", the failure panel) leaves the focus OWED, so the grid that follows
         // restores it. The debt is kept by calendar-redraw.js (`focusWanted` / `focusSettled`).
+        // A BACKGROUND repaint of the same month gives focus back to the same DAY, by its
+        // `data-detail-day` (`focusDay`, `rovingCellFor`); a press takes the new grid's anchor.
         const _active = document.activeElement;
+        const _onCell = _active instanceof HTMLElement && _active.classList.contains('calendar-day');
         const _wantsFocus = redraw.focusWanted({
-            onCell: _active instanceof HTMLElement && _active.classList.contains('calendar-day'),
+            onCell: _onCell,
             nowhere: !_active || _active === document.body,
+            day: _onCell ? (/** @type {HTMLElement} */ (_active).dataset.detailDay ?? null) : null,
         });
         calendarDisplay.innerHTML = '';
         calendarDisplay.appendChild(calendarContainer);
-        const _anchor = _wantsFocus ? /** @type {HTMLElement|null} */ (calendarContainer.querySelector('.calendar-day:not(.other-month)[tabindex="0"]')) : null;
+        const _anchor = _wantsFocus ? rovingCellFor(calendarContainer, redraw.focusDay()) : null;
         _anchor?.focus({ preventScroll: true });
         redraw.focusSettled(_wantsFocus, !!_anchor);
 

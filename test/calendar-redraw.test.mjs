@@ -528,6 +528,160 @@ describe('keyboard focus across a draw', () => {
     });
 });
 
+// ── WHICH DAY A REDRAW GIVES FOCUS BACK TO (26 Nov 2026) ────────────────────────────────────────
+// The reported order: a keyboard reader on the cached September grid arrowed from Wednesday 16th to
+// Friday 18th; the background read for the month then landed, the grid was redrawn, and focus jumped
+// back to the 16th — the grid's anchor (today) — in the same month. The page's draw is walked here
+// step for step as `renderCalendar` takes it (focusWanted → replace the grid → focusDay → the cell →
+// focusSettled; the order is pinned from the source below), over a grid of day names: the cell
+// lookup itself is calendar-renderer.js → `rovingCellFor`, tested in its own file.
+describe('which day a redraw gives focus back to', () => {
+    /** Days in the months these tests visit. */
+    const LENGTH = { 'September 2026': 30, 'October 2026': 31, 'November 2026': 30 };
+    /**
+     * A Calendar page reduced to what focus needs: the month shown, today, whether the next draw is a
+     * panel with no day cells, and where focus is — `{ day }` on a cell, 'control' on anything else,
+     * null on <body>.
+     */
+    function keyboardPage() {
+        const w = {
+            gesture: false, month: 'September 2026', today: '16 September 2026', panel: false,
+            /** @type {{ day: string }|'control'|null} */ focus: null,
+        };
+        /** @type {string[]} */ const drawn = [];
+        /** @type {(() => void)[]} */ let timers = [];
+        const draw = () => {
+            const f = w.focus;
+            const onCell = typeof f === 'object' && f !== null;
+            const wanted = redraw.focusWanted({ onCell, nowhere: f === null, day: onCell ? f.day : null });
+            if (onCell) w.focus = null;                                    // the cell is wiped: focus falls to <body>
+            const days = w.panel ? [] : Array.from({ length: LENGTH[w.month] }, (_, i) => `${i + 1} ${w.month}`);
+            const anchor = days.includes(w.today) ? w.today : (days[0] ?? null);
+            const kept = redraw.focusDay();
+            const cell = !wanted ? null : (kept && days.includes(kept) ? kept : anchor);
+            if (cell) w.focus = { day: cell };
+            redraw.focusSettled(wanted, !!cell);
+            drawn.push(w.panel ? `panel:${w.month}` : `grid:${w.month}`);
+        };
+        const redraw = createRedrawScheduler({
+            gestureLive: () => w.gesture, teamViewOn: () => false,
+            drawCalendar: draw, drawTeam: () => {}, saveName: () => {}, nameApplied: () => {},
+            setTimer: (fn) => { timers.push(fn); },
+        });
+        redraw.reach('surface');
+        return {
+            w, redraw, drawn,
+            /** The wait's poll falls due. */
+            tick() { const due = timers; timers = []; due.forEach(fn => fn()); },
+            /** A press the reader made: the page calls `renderCalendar` itself, past the scheduler. */
+            press: draw,
+            /** An arrow key between cells — calendar-keyboard.js moves focus; nothing is drawn. */
+            arrow(/** @type {number} */ by) {
+                const f = /** @type {{ day: string }} */ (w.focus);
+                const n = Number(f.day.split(' ')[0]) + by;
+                w.focus = { day: `${n} ${w.month}` };
+            },
+            focusedDay: () => (typeof w.focus === 'object' && w.focus ? w.focus.day : w.focus),
+        };
+    }
+
+    test('the reported order: 16th → arrow → 18th → the month\'s read lands → focus is on the 18th', () => {
+        const p = keyboardPage();
+        p.w.focus = { day: '16 September 2026' };      // today, the grid's anchor
+        p.arrow(1); p.arrow(1);
+        assert.equal(p.focusedDay(), '18 September 2026', 'premise');
+        assert.equal(p.redraw.repaint('month-read'), 'drawn');
+        assert.equal(p.focusedDay(), '18 September 2026', 'a background read threw the reader back to the anchor');
+        assert.deepEqual(p.redraw.owed(), { name: false, repaint: [], focus: false, focusDay: null, stage: 'surface' });
+    });
+
+    test('every background reason keeps the day, and a repaint held by a gesture keeps it when it lands', () => {
+        for (const why of /** @type {const} */ (['first-load', 'month-read', 'date-turned', 'access-returned'])) {
+            const p = keyboardPage();
+            p.w.focus = { day: '18 September 2026' };
+            p.redraw.repaint(why);
+            assert.equal(p.focusedDay(), '18 September 2026', why);
+        }
+        const p = keyboardPage();
+        p.w.focus = { day: '16 September 2026' };
+        p.arrow(2);
+        p.w.gesture = true;
+        assert.equal(p.redraw.repaint('month-read'), 'held');
+        assert.equal(p.focusedDay(), '18 September 2026', 'premise: nothing drawn under the finger');
+        p.w.gesture = false;
+        p.tick();
+        assert.deepEqual(p.drawn, ['grid:September 2026'], 'premise: the held repaint drew when the gesture ended');
+        assert.equal(p.focusedDay(), '18 September 2026');
+    });
+
+    test('a month change the reader pressed still takes the new grid\'s anchor', () => {
+        const p = keyboardPage();
+        p.w.focus = { day: '18 September 2026' };
+        p.w.month = 'October 2026';                    // PageDown: changeMonth, then renderCalendar
+        p.press();
+        assert.equal(p.focusedDay(), '1 October 2026');
+    });
+
+    test('a press in the SAME month takes the anchor too: T means today, not the day the reader was on', () => {
+        const p = keyboardPage();
+        p.w.focus = { day: '18 September 2026' };
+        p.press();                                     // goToToday on a September already shown
+        assert.equal(p.focusedDay(), '16 September 2026');
+    });
+
+    test('focus elsewhere is never taken — not by the repaint, and not by the one after it', () => {
+        const p = keyboardPage();
+        p.w.focus = { day: '18 September 2026' };
+        p.w.focus = 'control';                         // the reader tabbed to the name picker
+        p.redraw.repaint('month-read');
+        assert.equal(p.focusedDay(), 'control');
+        p.w.focus = null;                              // and later focus is nowhere
+        p.redraw.repaint('month-read');
+        assert.equal(p.focusedDay(), null, 'a draw pulled focus into the grid from nowhere it was owed');
+    });
+
+    test('a kept day the new grid does not have falls back to its anchor — the date turned onto a new month', () => {
+        const p = keyboardPage();
+        p.w.today = '31 October 2026';
+        p.w.month = 'October 2026';
+        p.w.focus = { day: '31 October 2026' };
+        p.w.today = '1 November 2026';                 // midnight: watchLocalDate moves the month on
+        p.w.month = 'November 2026';
+        p.redraw.repaint('date-turned');
+        assert.equal(p.focusedDay(), '1 November 2026');
+    });
+
+    test('a background panel with no cells keeps the day for the grid that follows it', () => {
+        const p = keyboardPage();
+        p.w.focus = { day: '18 September 2026' };
+        p.w.panel = true;                              // the read failed: "Saved copy — couldn't check"
+        p.redraw.repaint('month-read');
+        assert.equal(p.focusedDay(), null, 'premise: the panel has no cell to take it');
+        assert.deepEqual(p.redraw.owed().focusDay, '18 September 2026');
+        p.w.panel = false;
+        p.redraw.repaint('month-read');
+        assert.equal(p.focusedDay(), '18 September 2026');
+    });
+
+    test('…but a PRESS that follows such a panel takes the anchor, and drops the kept day', () => {
+        const p = keyboardPage();
+        p.w.focus = { day: '18 September 2026' };
+        p.w.panel = true;
+        p.redraw.repaint('month-read');
+        p.w.panel = false;
+        p.press();
+        assert.equal(p.focusedDay(), '16 September 2026');
+        assert.equal(p.redraw.owed().focusDay, null);
+    });
+
+    test('a change of name is the picker\'s draw, not a background one: no kept day', () => {
+        const p = keyboardPage();
+        p.w.focus = { day: '18 September 2026' };      // (in the page focus is on the picker; pinned here regardless)
+        p.redraw.nameChanged();
+        assert.equal(p.focusedDay(), '16 September 2026');
+    });
+});
+
 describe('what is owed can be read, and is a copy', () => {
     test('a snapshot, not a handle on the state', () => {
         const p = page();
@@ -536,7 +690,7 @@ describe('what is owed can be read, and is a copy', () => {
         const owed = p.redraw.owed();
         owed.repaint.push('date-turned');
         owed.name = true;
-        assert.deepEqual(p.redraw.owed(), { name: false, repaint: ['month-read'], focus: false, stage: 'workspace' });
+        assert.deepEqual(p.redraw.owed(), { name: false, repaint: ['month-read'], focus: false, focusDay: null, stage: 'workspace' });
     });
 });
 
@@ -597,5 +751,14 @@ describe('calendar-app.js hands the decisions over, and keeps none', () => {
         const wipe = code.indexOf("calendarDisplay.innerHTML = ''", ask);
         const settle = code.indexOf('redraw.focusSettled(_wantsFocus, !!_anchor)', wipe);
         assert.ok(ask > 0 && wipe > ask && settle > wipe, 'focusWanted → replace the grid → focusSettled');
+    });
+
+    test('the draw tells the scheduler WHICH day had focus, and asks it which day to give it to', () => {
+        const ask = code.indexOf('redraw.focusWanted(');
+        const wipe = code.indexOf("calendarDisplay.innerHTML = ''", ask);
+        const give = code.indexOf('rovingCellFor(calendarContainer, redraw.focusDay())', wipe);
+        const settle = code.indexOf('redraw.focusSettled(_wantsFocus, !!_anchor)', wipe);
+        assert.match(code.slice(ask, wipe), /day: _onCell \? \(.*\.dataset\.detailDay \?\? null\) : null/);
+        assert.ok(give > wipe && settle > give, 'replace the grid → rovingCellFor(…, focusDay()) → focusSettled');
     });
 });
