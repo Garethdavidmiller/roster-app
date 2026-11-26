@@ -54,6 +54,7 @@ mock.module('../notif.js', {
         enableNotifications: () => enableNotif(),
         disableNotifications: async () => 'off-default',
         releaseDevicePush:    async () => { signOutLog.push('release'); },
+        onPagesMirror:        () => false,
     },
 });
 /** Body-scroll unlocks the drawer asked for — a close it should not have made shows up here. */

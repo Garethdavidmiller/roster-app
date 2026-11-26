@@ -7,11 +7,12 @@
  * where `notifSupported()`); nav-panel.js calls `wireNavBell` once per `initNavPanel` and the refresh it
  * returns on every open. The decisions — a COMPACT icon beside Sign out, never a labelled row (owner,
  * reverted twice); `aria-pressed` the only state; a blocked bell's tap explaining itself in the drawer's
- * info panel — are .claude/rules/nav-drawer.md's. Why a refresh never paints over a tap (`_bellGen`,
- * `_bellBusy`) is argued beside the two counters below.
+ * info panel, as an OFF bell's does on the GitHub Pages mirror (`MIRROR_OFF_PANEL`) — are
+ * .claude/rules/nav-drawer.md's. Why a refresh never paints over a tap (`_bellGen`, `_bellBusy`) is argued
+ * beside the two counters below.
  */
 
-import { peekNotifState, enableNotifications, disableNotifications } from './notif.js';
+import { peekNotifState, enableNotifications, disableNotifications, onPagesMirror } from './notif.js';
 import { currentUserAfterBoot } from './firebase-client.js';
 
 /**
@@ -34,6 +35,21 @@ const blockedBellText = (currentPage) => 'Notifications are blocked for this app
  * module (it brings settings-status.js with it), and every page draws the bell.
  */
 const ENABLE_FAILED_PANEL = Object.freeze({ dataset: Object.freeze({ csTitle: 'Couldn’t turn notifications on', csIcon: '🔕' }) });
+
+/**
+ * What the info panel is headed when an OFF bell is tapped on the GitHub Pages mirror (owner, 26 Nov 2026). Notifications
+ * are never turned on there (`enableNotifications` refuses, notif.js says why), so the tap does not toggle: it says where
+ * they ARE turned on, in the Settings card's own mirror line (`MIRROR_OFF_LINE`), imported when needed as
+ * `ENABLE_FAILED_LINE` is. An ON bell there still toggles: a device subscribed there before v26.92 must be able to stop.
+ */
+const MIRROR_OFF_PANEL = Object.freeze({ dataset: Object.freeze({ csTitle: 'Turn on at the app’s main address', csIcon: '🔕' }) });
+
+/**
+ * Whether this state, here, is an OFF bell on the Pages mirror — one whose tap explains rather than toggles.
+ * @param {string|undefined} state
+ * @returns {boolean}
+ */
+const mirrorOff = (state) => state !== 'on' && state !== 'loading' && state !== 'denied' && onPagesMirror();
 
 
 /**
@@ -76,12 +92,15 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
         // stays "Notifications" — the name used to say it too ("on — tap to turn off, toggle button,
         // pressed"). Checking and blocked are not on/off, so they drop `aria-pressed` and say what
         // they are; a blocked bell's tap explains how to allow them, and its name says so.
-        const toggle = state !== 'loading' && state !== 'denied';
+        // An OFF bell on the Pages mirror is not a toggle either: its tap says where to turn them on.
+        const offHere = mirrorOff(state);
+        const toggle = state !== 'loading' && state !== 'denied' && !offHere;
         if (toggle) bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         else bell.removeAttribute('aria-pressed');
         bell.setAttribute('aria-label',
             state === 'loading' ? (turning ? `Notifications — turning ${turning}…` : 'Notifications — checking…')
           : state === 'denied' ? 'Notifications blocked — how to allow them'
+          : offHere ? 'Notifications off — where to turn them on'
           : 'Notifications');
     }
 
@@ -115,6 +134,21 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
         // toggling then would re-subscribe a device that may already be subscribed.
         if (state === 'denied') { _closePanelVisualOnly(); _openComingSoon(bell, blockedBellText(currentPage)); return; }
         if (state === 'loading') return;
+        // OFF on the Pages mirror: say where they are turned on, as the Settings card does, rather than ask the
+        // browser for a subscription notif.js would refuse anyway. Busy across the import, so a second tap waits.
+        if (mirrorOff(state)) {
+            _bellBusy = true;
+            try {
+                const { MIRROR_OFF_LINE } = await import('./notif-card-core.js');
+                _closePanelVisualOnly();
+                _openComingSoon(/** @type {HTMLElement} */ (/** @type {unknown} */ (MIRROR_OFF_PANEL)), MIRROR_OFF_LINE);
+            } catch (err) {
+                console.warn('[Nav] Bell mirror panel failed:', err);
+            } finally {
+                _bellBusy = false;
+            }
+            return;
+        }
         _bellBusy = true;
         _bellGen++;   // a refresh still reading from before this tap must not paint over it
         bell.dataset.notifState = 'loading';

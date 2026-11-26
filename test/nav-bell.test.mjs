@@ -16,12 +16,12 @@ import assert from 'node:assert/strict';
 const REPO_ROOT_URL = new URL('../', import.meta.url);
 const R = new URL('./', REPO_ROOT_URL).href;
 const defer = () => { let res; const p = new Promise(r => { res = r; }); return { p, res }; };
-let peek = async () => 'off-default'; let enable = async () => 'on';
+let peek = async () => 'off-default'; let enable = async () => 'on'; let disable = async () => 'off-default'; let mirror = false;
 mock.module(R + 'firebase-client.js', { namedExports: {
     getLatestCircular: async () => null, getLatestNewsletter: async () => null, isSafeStorageUrl: () => true,
     resolveDocumentOpenUrl: () => null, fetchSignedDocumentUrl: async () => null, currentUserAfterBoot: async () => ({ uid: 'u' }) } });
 mock.module(R + 'notif.js', { namedExports: { notifSupported: () => true, peekNotifState: () => peek(),
-    enableNotifications: () => enable(), disableNotifications: async () => 'off-default', releaseDevicePush: async () => {} } });
+    enableNotifications: () => enable(), disableNotifications: () => disable(), releaseDevicePush: async () => {}, onPagesMirror: () => mirror } });
 mock.module(R + 'overlay.js', { namedExports: { lockBodyScroll() {}, unlockBodyScroll() {}, suppressNextPop() {}, pinCloseButton() {},
     registerPopInterceptor() {}, whenHistorySettled: (fn) => fn(), watchScrollFade: () => () => {}, closeOnBackdropTap() {} } });
 mock.module(R + 'ls.js', { namedExports: { lsGet: () => null, lsSet() {}, lsDel() {} } });
@@ -135,4 +135,59 @@ test('a turn-on that ends "off-lapsed" opens the info panel with the card\'s fai
     await bell.on.click();
     assert.deepEqual(calls, [], 'no panel over a drawer that has closed');
     enable = async () => 'on';
+});
+
+// ── AN OFF BELL ON THE PAGES MIRROR EXPLAINS; AN ON ONE STILL TURNS OFF (owner, 26 Nov 2026) ──────────────────
+// A subscription made at the GitHub Pages mirror belongs to an address that will close, and a member who also turns
+// them on at the main address gets every broadcast twice. The Settings card and the Calendar strip offered no Turn on
+// there; the bell did. Its OFF tap now opens the drawer's info panel with the card's own mirror line, and never asks
+// notif.js to subscribe — while an ON bell (a device subscribed there before v26.92) still turns them off.
+test('on the Pages mirror an OFF bell opens the info panel with the card\'s mirror line and never calls enable', async () => {
+    const { wireNavBell } = await import(R + 'nav-bell.js');
+    const { MIRROR_OFF_LINE, notifCardWords } = await import(R + 'notif-card-core.js');
+    // The bell's words ARE the card's: the card's lead, its link's text and its tail, read through the card's own function.
+    const card = notifCardWords({ supported: true, state: 'off-default', offByChoice: false, ios: false, android: true,
+        installed: false, onMirror: true, appLabel: null });
+    assert.equal(MIRROR_OFF_LINE, card.status + card.link?.text + card.link?.tail, 'one sentence, two surfaces');
+    mirror = true;
+    try {
+        for (const before of ['off-default', 'off-lapsed']) {
+            const bell = el(); els.set('navNotifBell', bell); els.set('navNotifIcon', el());
+            /** @type {any[]} */ const calls = [];
+            const refresh = wireNavBell({ currentPage: 'admin', _closePanelVisualOnly: () => calls.push('visual close'),
+                _openComingSoon: (/** @type {any} */ t, /** @type {any} */ body) => calls.push([t, body]) });
+            peek = async () => before;
+            await refresh();
+            assert.equal(bell.hasAttribute('aria-pressed'), false, `${before}: an off bell here is not a toggle`);
+            assert.equal(bell.getAttribute('aria-label'), 'Notifications off — where to turn them on', before);
+            let enables = 0; enable = async () => { enables++; return 'on'; };
+            await bell.on.click();
+            assert.equal(enables, 0, `${before}: the mirror tap never asks to subscribe`);
+            assert.equal(calls[0], 'visual close', before);
+            assert.equal(calls[1]?.[1], MIRROR_OFF_LINE, `${before}: the Settings card's mirror line`);
+            assert.equal(calls[1]?.[0]?.dataset?.csTitle, 'Turn on at the app’s main address', `${before}: its own heading`);
+            assert.equal(calls.length, 2, `${before}: one tap, one hand-over`);
+            assert.equal(bell.dataset.notifState, before, `${before}: the bell is left as it was`);
+        }
+    } finally { mirror = false; enable = async () => 'on'; }
+});
+
+test('on the Pages mirror an ON bell still turns notifications off', async () => {
+    const { wireNavBell } = await import(R + 'nav-bell.js');
+    mirror = true;
+    try {
+        const bell = el(); els.set('navNotifBell', bell); els.set('navNotifIcon', el());
+        /** @type {any[]} */ const calls = [];
+        const refresh = wireNavBell({ currentPage: 'admin', _closePanelVisualOnly: () => calls.push('visual close'),
+            _openComingSoon: () => calls.push('panel') });
+        peek = async () => 'on';
+        await refresh();
+        assert.equal(bell.getAttribute('aria-pressed'), 'true', 'an on bell is a toggle here as anywhere');
+        let disables = 0; disable = async () => { disables++; return 'off-default'; };
+        await bell.on.click();
+        assert.equal(disables, 1, 'the tap turned them off');
+        assert.deepEqual(calls, [], 'no panel: turning off needs no explaining');
+        assert.equal(bell.dataset.notifState, 'off-default');
+        assert.equal(bell.getAttribute('aria-label'), 'Notifications off — where to turn them on', 'and now off, it says where they are turned on');
+    } finally { mirror = false; disable = async () => 'off-default'; }
 });
