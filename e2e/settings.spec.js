@@ -1521,6 +1521,23 @@ test('settings: the drawer\'s bell, blocked, says where notifications are allowe
     await expect(page.locator('#navComingSoonBody')).toContainText('the bell can’t switch them on. ☰ → Settings → Notifications says how to allow them.');
 });
 
+// A BELL WHOSE TURN-ON FAILS SAYS SO (owner, 26 Nov 2026). Permission granted, and the subscription still not made —
+// here because the test browser runs no service worker, so notif.js gives up on it at its limit. The bell said nothing
+// and fell back to 🔕; it now names the direction while it works and then opens the drawer's info panel with the
+// Settings card's own failure line.
+test('settings: the drawer\'s bell says "turning on…" while it works, and why when the turn-on fails', async ({ page }) => {
+    test.setTimeout(60_000);
+    await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'granted' });
+    await page.locator('#navMenuBtn').click();
+    const bell = page.locator('#navNotifBell');
+    await expect(bell).not.toHaveAttribute('data-notif-state', 'loading', { timeout: 15_000 });   // the first read gives up on the worker too
+    await bell.click();
+    await expect(bell).toHaveAttribute('aria-label', 'Notifications — turning on…');
+    await expect(page.locator('#navComingSoonLightbox')).toHaveClass(/\bopen\b/, { timeout: 20_000 });
+    await expect(page.locator('#navComingSoonTitle')).toHaveText('Couldn’t turn notifications on');
+    await expect(page.locator('#navComingSoonBody')).toHaveText('Couldn’t turn notifications on. Check your connection and try again — if it keeps failing, contact the admin.');
+});
+
 // The blocked-notification route on a laptop (laptop polish, 13 Nov 2026): "Site settings → Notifications
 // → Allow" broke after "Site settings", so the next line began "→ Notifications", which reads as a stray
 // arrow. The route is one unit now (`.nav-path`, notif-card.js), so no line of the message starts with one.

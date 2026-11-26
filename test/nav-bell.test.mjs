@@ -123,5 +123,16 @@ test('a turn-on that ends "off-lapsed" opens the info panel with the card\'s fai
         assert.equal(calls[1]?.[0]?.dataset?.csTitle, 'Couldn’t turn notifications on', 'its own heading, not the blocked one');
         assert.equal(bell.dataset.notifState, 'off-lapsed', 'and the bell shows what is true');
     }
+    // The drawer closed during a slow toggle: the panel would reuse a history entry the drawer has given up.
+    const bell = el(); els.set('navNotifBell', bell); els.set('navNotifIcon', el());
+    /** @type {any} */ (bell).closest = (/** @type {string} */ sel) => (sel === '[aria-hidden="true"]' ? {} : null);
+    /** @type {any[]} */ const calls = [];
+    const refresh = wireNavBell({ currentPage: 'admin', _closePanelVisualOnly: () => calls.push('visual close'),
+        _openComingSoon: () => calls.push('panel') });
+    peek = async () => 'off-default';
+    await refresh();
+    enable = async () => 'off-lapsed';
+    await bell.on.click();
+    assert.deepEqual(calls, [], 'no panel over a drawer that has closed');
     enable = async () => 'on';
 });

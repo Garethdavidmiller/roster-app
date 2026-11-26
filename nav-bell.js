@@ -137,7 +137,9 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
         if (failed) await _refreshBell();
         // Permission given, subscription not made: say so, as the blocked tap does (ENABLE_FAILED_PANEL, above).
         // A dismissed prompt ('off-default') and a refusal ('denied') are the member's own answers and need no telling.
-        else if (turning === 'on' && answer === 'off-lapsed') {
+        // Only while the drawer is still open: the panel reuses the drawer's history entry, which a drawer closed
+        // during a slow toggle has given up — the bell's 🔕 says the rest when it is next opened.
+        else if (turning === 'on' && answer === 'off-lapsed' && !bell.closest?.('[aria-hidden="true"]')) {
             const { ENABLE_FAILED_LINE } = await import('./notif-card-core.js');
             _closePanelVisualOnly();
             _openComingSoon(/** @type {HTMLElement} */ (/** @type {unknown} */ (ENABLE_FAILED_PANEL)), ENABLE_FAILED_LINE);

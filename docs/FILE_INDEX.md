@@ -227,7 +227,7 @@ roster-app/
 ├── roster-data.js          ← shared: `APP_VERSION`, `CONFIG`, the roster data and its utilities; `signInMembers()` is the one list of who can sign in. See also CALENDAR_DATA.md.
 ├── roster-cycle-data.js    ← raw roster cycle arrays, imported by roster-data.js only
 ├── roster-member-data.js ← the roster's PEOPLE (`teamMembers`), no logic; re-exported by roster-data.js. **World-readable** — the field-by-field argument is on `teamMembers`
-├── pay-audience.js        ← WHO the Pay Calculator is for, by the role at the time. Pure. Tested by pay-audience.test.mjs
+├── pay-audience.js        ← WHO the Pay Calculator is for, by the role at the time; and who is SENT the pay reminder (`sentPayReminder`, the server's rule). Pure. Tested by pay-audience.test.mjs
 ├── roster-roles.js        ← a member's GRADE ON A DAY, from `role` and `roleHistory`. Pure, no imports. See also roster-data.test.mjs.
 ├── firebase-client.js      ← shared: Firebase init, `db` and the Firestore helpers. See also AUTH_AND_SESSIONS.md, firebase-client.test.mjs, calendar-viewer-parity.test.mjs.
 ├── auth-identity.js        ← pure account-identity helpers (`normaliseSurname`, the account email, password validation); surname-parity.test.mjs holds the functions copy to this file. See also auth-identity.test.mjs.
@@ -523,7 +523,7 @@ roster-app/
 │   ├── paycalc-result-headline.test.mjs ← never calling an estimate an actual. Part of test:hygiene
 │   ├── paycalc-ytd-card.test.mjs ← the Year to Date card's note, chip and source anchor (--experimental-test-module-mocks)
 │   ├── paycalc-disclosures.test.mjs ← every disclosure's `aria-expanded` and arrow in step with its panel. Part of test:hygiene
-│   ├── pay-audience.test.mjs ← who the Pay Calculator admits, by the role at the time. Part of test:hygiene
+│   ├── pay-audience.test.mjs ← who the Pay Calculator admits, by the role at the time, and who is sent the pay reminder. Part of test:hygiene
 │   ├── paycalc-money-banner.test.mjs ← the two money banners never overstating, and the take-home's lump rules behind them. Part of test:hygiene
 │   ├── paycalc-clear-confirm.test.mjs ← the two-tap Clear: no delete nobody confirmed. Part of test:hygiene
 │   ├── paycalc-breakdown.test.mjs ← the pay-result card builders. Part of test:hygiene
