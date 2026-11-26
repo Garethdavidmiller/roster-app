@@ -163,7 +163,7 @@ export function updateWeekNavLabel(dateStr) {
         label.textContent = shortWeekLabel(sunday, saturday);
         // The NAME leads with the week it shows (WCAG 2.5.3 Label in Name), written beside the text so
         // the two cannot describe different weeks.
-        label.setAttribute('aria-label', `${label.textContent} — jump to week containing date`);
+        label.setAttribute('aria-label', `${label.textContent} — pick a date to jump to the week it falls in`);
         const todaySun = new Date();
         todaySun.setDate(todaySun.getDate() - todaySun.getDay());
         label.classList.toggle('is-current-week', sunday.toDateString() === todaySun.toDateString());
@@ -279,7 +279,7 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
             </div>
             <div class="col-rd-hint" hidden>${xmasDue ? `The station is closed on ${xmasDay} — use <strong>RDW</strong> if this day was worked`
-                : 'Base roster: Rest Day — use <strong>RDW</strong> if this was overtime'}</div>
+                : 'Base roster: rest day — use <strong>RDW</strong> if this was worked as overtime'}</div>
             <!-- Swapped-day question: no pre-pressed state, save refuses until answered (al-swapped-days.js). -->
             <div class="col-al-swap" role="group" aria-label="Is this a swapped working day?" hidden>
                 <span class="al-swap-q">Rest day on the roster — was this a <strong>swapped</strong> working day?</span>
@@ -294,7 +294,7 @@ export function buildWeekGridInto(container, dateStr) {
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled' : ''}> Rest day (RDW)</label>
                 ${!isRestShift(baseShift) ? '' : `<span class="other-rdw-auto">Ticked and locked because ${xmasDue ? `the station is closed on ${xmasDay}` : 'the base roster has this as a rest day'} — RDW is automatic</span>`}
-                <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(rosteredWords(baseShift))} this day — RDW pays it as rest-day working instead</span>
+                <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(rosteredWords(baseShift))} this day — RDW pays it as Rest Day Working instead</span>
                 <span class="other-opts-hint">Pick a type above, then times (optional — leave blank to pay the rostered shift, or eight hours on a rest day).</span>
             </div>`;
 

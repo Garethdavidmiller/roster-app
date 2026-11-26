@@ -61,7 +61,7 @@ export function sheetWords(foundIn, kind) {
  */
 export function patternWords(shift) {
     if (shift === 'RD' || shift === 'OFF') return 'a rest day';
-    if (shift === 'SPARE') return 'a spare day';
+    if (shift === 'SPARE') return 'a Spare day';
     const m = /^(\d\d:\d\d)-(\d\d:\d\d)$/.exec(shift ?? '');
     if (m) return `${m[1]}–${m[2]}`;
     // An Other day is the word the Calendar and Admin show, never its code: "TRG" read as a code to
@@ -93,7 +93,7 @@ export function drawnWords(day) {
     if (d.shift === 'SICK') return 'an absence';
     if (d.shift === 'RDW') {
         const t = RANGE.exec(d.rdwTime ?? '');
-        return `rest day working (RDW)${t ? `, ${t[1]}–${t[2]}` : ''}`;
+        return `Rest Day Working (RDW)${t ? `, ${t[1]}–${t[2]}` : ''}`;
     }
     const m = RANGE.exec(d.shift ?? '');
     return m ? `a shift, ${m[1]}–${m[2]}` : 'a change of shift';
