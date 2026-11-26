@@ -701,7 +701,8 @@ const CAPS = {
     'functions/roster-parse-helpers.js':  990,   // ← 1,351 when capped (1,312 in Nov 2026), named "helpers", and the
                                                  //   day-drift defence is among them. The clearest
                                                  //   candidate in this block for a rule to leave.
-    'functions/overtime.js':             1400,   // the Overtime endpoints + Firestore orchestration
+    // 1400 → 1200 (26 Nov 2026): comments trimmed, the cap follows the file down.
+    'functions/overtime.js':             1200,   // the Overtime endpoints + Firestore orchestration
     // SPLIT at v24.14, at 1,150 of 1,150 — the ZERO-HEADROOM state this file's own header names as
     // the point where a guard stops being read and starts being raised. The London clock and the
     // ISO-date algebra left for functions/london-clock.js: 1,150 measured lines down to 1,076.
