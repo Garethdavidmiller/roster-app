@@ -74,7 +74,7 @@ export function unsupportedRoleCopy(role) {
         return {
             title: 'The Pay Calculator is for CEAs and CESs',
             what: WHAT_IT_DOES,
-            why: 'It works out pay from a roster line and a grade’s rates, so it has nothing to work from for your login.',
+            why: 'It works out pay from a roster line and a grade’s rates, so it has nothing to work from for your sign-in.',
         };
     }
     return {

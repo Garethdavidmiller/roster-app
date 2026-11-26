@@ -417,9 +417,9 @@ export function updateRateForPeriod(ty, p) {
   const note = document.getElementById('rateStepNote');
   if (note) {
     const step = preAward && from
-      ? `This payslip predates the ${fdShort(from)} pay rise — later payslips switch to the new rate automatically.`
+      ? `This payslip was paid before the ${fdShort(from)} pay rise — later payslips switch to the new rate automatically.`
       : preUnknown && from
-        ? `This payslip predates the ${fdShort(from)} pay rise, and the rate before it isn't on record for your grade — so this estimate uses the later rate, and your payslip will show less basic pay.`
+        ? `This payslip was paid before the ${fdShort(from)} pay rise, and the rate before it isn't on record for your grade — so this estimate uses the later rate, and your payslip will show less basic pay.`
         : '';
     const split = p
       ? gradeSplitLine({ parts, rateOf: g => getRateForPeriod(p, g, ty.label, settledRate(g, ty)), start: p.start, today: new Date() })

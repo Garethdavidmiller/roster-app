@@ -65,7 +65,7 @@
  */
 export const KEY_KINDS = [
     { id: 'payslip',  label: 'payslip figures',          structured: true, test: t => /^p\d+$/.test(t) },
-    { id: 'snapshot', label: 'roster-suggested figures', structured: true, test: t => /^snap_\d+$/.test(t) },
+    { id: 'snapshot', label: 'figures filled from your calendar', structured: true, test: t => /^snap_\d+$/.test(t) },
     { id: 'hpp',      label: 'Holiday Pay Premium', structured: t => t.startsWith('hpp_mode_'),
                                                                            test: t => /^hpp_(est|actual|inc|mode)_\d{4}_\d{2}$/.test(t) },
     { id: 'backpay',  label: 'back pay',                 structured: true, test: t => /^bp_state(_\d{4}_\d{2})?$/.test(t) },
@@ -124,7 +124,7 @@ export function classifyPayKey(tail) {
 export function describePayKey(tail) {
     const c = classifyPayKey(tail);
     if (c.kind === 'payslip')  return `payslip ${c.period}`;
-    if (c.kind === 'snapshot') return `roster-suggested figures for payslip ${c.period}`;
+    if (c.kind === 'snapshot') return `figures filled from your calendar for payslip ${c.period}`;
     if (tail === 'pension_timeline') return 'your pension history';
     return c.taxYear ? `${c.label} ${c.taxYear}` : c.label;
 }
