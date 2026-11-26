@@ -162,6 +162,7 @@ done < <(git ls-files -z -- '*.js' '*.mjs')
 if [ "$ERRORS" -gt 0 ]; then
   echo ""
   echo "  Add the missing module(s) to $DOC_AI_MAP and $DOC_FILE_INDEX, stage both, then re-commit."
+  echo "  npm run generate:file-index writes the $DOC_FILE_INDEX rows from each module's header."
   exit 1
 fi
 
@@ -218,7 +219,7 @@ fi
 if [[ -n "$HAVE_NODE" ]]; then
   export COPIES_TMP="$HOOK_TMP/copies"
   mkdir -p "$COPIES_TMP"
-  git ls-files -z -- ':(glob)*.js' ':(glob)*.mjs' ':(glob)*.html' firebase.json package.json 'scripts/*.mjs' \
+  git ls-files -z -- ':(glob)*.js' ':(glob)*.mjs' ':(glob)*.html' firebase.json firestore.rules package.json 'scripts/*.mjs' \
       '.claude/skills/new-starter/*.html' \
     | xargs -0 git checkout-index --prefix="$COPIES_TMP/" --
   node --input-type=module - << 'NODEEOF'

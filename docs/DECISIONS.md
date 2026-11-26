@@ -613,7 +613,8 @@ build-supply-chain — and pays for them in hand-maintained work a bundler would
 - the `modulepreload` lists — no longer hand-kept: since 25 Nov 2026 `npm run generate:copies`
   writes them from the import graph (index, paycalc and links preload theirs whole; every page
   carries the SDK tags), so they now count under the codegen below.
-- the service worker's precache list,
+- the service worker's precache list — its app pages, their stylesheets and modules written by
+  `npm run generate:copies` since 25–26 Nov 2026; the guides and assets beside them still by hand,
 - the two-location version bump,
 - the `generate-*` codegen,
 - the CSP `*-boot.js` shims,

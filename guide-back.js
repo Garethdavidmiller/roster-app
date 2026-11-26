@@ -34,15 +34,13 @@
  * country links push a `#fragment` entry each, and `history.back()` from one of them would only go
  * back a country). The entry the guide LOADED on is marked in `history.state`, so the links know.
  *
- * ⚠ THE ALLOWLIST IS A HAND-KEPT LIST OF PAGES, AND IT FELL BEHIND ONE (v22.48, external review).
- * `overtime.html` arrived with the drawer like every other page, so it sent `?from=overtime.html`
- * from the day it shipped — and this file did not know the value, so the arrow silently kept its
- * authored default and dropped a reviewer on the calendar. Nothing errors on an unrecognised
- * `from`, which is right for a hostile value and is exactly what hid a legitimate one. There is no
- * general fix available here: the allowlist is what stops `?from=https://elsewhere` becoming the
- * back arrow, so it cannot be derived from the query. It is instead pinned from OUTSIDE, by
- * `page-contract-parity.test.mjs`, which enumerates the app pages from the filesystem — so the next
- * page to arrive fails there rather than losing its readers their way back.
+ * ⚠ THE ALLOWLIST IS WRITTEN BY `npm run generate:copies` (26 Nov 2026), from scripts/app-pages.mjs
+ * and the drawer's page names. It was hand-kept, and it fell a page behind (v22.48, external review):
+ * `overtime.html` sent `?from=overtime.html` from the day it shipped, this file did not know the value,
+ * and the arrow silently dropped a reviewer on the calendar. Nothing errors on an unrecognised `from`,
+ * which is right for a hostile value and is exactly what hid a legitimate one. It stays a FIXED list in
+ * this file, because the allowlist is what stops `?from=https://elsewhere` becoming the back arrow;
+ * generated, it simply cannot miss a page. Never edit its rows by hand.
  */
 (function () {
     'use strict';

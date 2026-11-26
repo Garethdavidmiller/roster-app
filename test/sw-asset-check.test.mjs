@@ -39,18 +39,18 @@ function stripComments(/** @type {string} */ src) {
 }
 
 /** The LIVE body of `const <name> = [ … ];` in the worker's source — its comments removed, and the generated
- *  `APP_MODULES` (npm run generate:copies) written out where a list spreads it, in the form that list holds:
- *  `...APP_MODULES` as bare names, `...APP_MODULES.map(…)` as `./` paths. Read as text alone, a spread would
+ *  `APP_FILES` (npm run generate:copies) written out where a list spreads it, in the form that list holds:
+ *  `...APP_FILES` as bare names, `...APP_FILES.map(…)` as `./` paths. Read as text alone, a spread would
  *  hide every module from every check here. */
 function swArray(/** @type {string} */ sw, /** @type {string} */ name) {
     const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`));
     if (!m) return '';
     const body = stripComments(m[1]);
-    if (name === 'APP_MODULES' || !body.includes('...APP_MODULES')) return body;
-    const modules = [...swArray(sw, 'APP_MODULES').matchAll(/'([^']+)'/g)].map(x => x[1]);
+    if (name === 'APP_FILES' || !body.includes('...APP_FILES')) return body;
+    const modules = [...swArray(sw, 'APP_FILES').matchAll(/'([^']+)'/g)].map(x => x[1]);
     return body
-        .replace(/\.\.\.APP_MODULES\.map\([^\n]*\),/, modules.map(f => `"./${f}",`).join('\n'))
-        .replace(/\.\.\.APP_MODULES,/, modules.map(f => `'${f}',`).join('\n'));
+        .replace(/\.\.\.APP_FILES\.map\([^\n]*\),/, modules.map(f => `"./${f}",`).join('\n'))
+        .replace(/\.\.\.APP_FILES,/, modules.map(f => `'${f}',`).join('\n'));
 }
 
 test('every root JS module is in BOTH the SW network-first list and a precache list', () => {

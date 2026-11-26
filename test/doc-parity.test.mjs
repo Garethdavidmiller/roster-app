@@ -1242,9 +1242,9 @@ test('no doc writes down a repo-derived count that grows with the repo', () => {
     const sw = read('./service-worker.js');
     const listLen = (name) => {
         const block = (sw.match(new RegExp(`${name} = \\[([\\s\\S]*?)\\];`)) || ['', ''])[1];
-        // A list that spreads the generated APP_MODULES as paths counts each of them too.
-        const spread = /\.\.\.APP_MODULES\.map\(/.test(block)
-            ? ((sw.match(/APP_MODULES = \[([\s\S]*?)\];/) || ['', ''])[1].match(/'[^']+'/g) || []).length : 0;
+        // A list that spreads the generated APP_FILES as paths counts each of them too.
+        const spread = /\.\.\.APP_FILES\.map\(/.test(block)
+            ? ((sw.match(/APP_FILES = \[([\s\S]*?)\];/) || ['', ''])[1].match(/'[^']+'/g) || []).length : 0;
         return (block.match(/"\.\//g) || []).length + spread;
     };
     const actual = {

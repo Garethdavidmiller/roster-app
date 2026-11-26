@@ -853,7 +853,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `initDocumentUploadCards`
 
 ### `nav-destinations.js`
-- **Exports:** `NAV_PAGES` · `NAV_INFORMATION` · `NAV_GUIDES` · `SECTION_MODS` · `PILL_GATES` · `visiblePills`
+- **Exports:** `NAV_PAGES` · `pageName` · `NAV_INFORMATION` · `NAV_GUIDES` · `SECTION_MODS` · `PILL_GATES` · `visiblePills`
 
 ### `nav-panel.js`
 - **Exports:** `resetNavPanel` · `initNavPanel`

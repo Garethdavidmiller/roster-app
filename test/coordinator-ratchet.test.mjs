@@ -631,8 +631,11 @@ const CAPS = {
     // rule and its reason, every do-not-revert warning kept, no code and no precache line touched —
     // 1,095 lines down to 973.
     // 1050 → 1052 (26 Nov 2026), a RAISE of exactly two lines: the generated precache entries for `glossary.js` and
-    // `newlink-tips.js` (APP_MODULES, written by generate:copies). Every module the app serves is one line there.
-    'service-worker.js':       1052,
+    // `newlink-tips.js` (APP_FILES, written by generate:copies). Every module the app serves is one line there.
+    // 1052 → 1065 (26 Nov 2026), a RAISE of thirteen lines, all generated: the nine app pages and their
+    // stylesheets joined APP_FILES, one per line like every module, and the three hand-written lines that
+    // listed them in each of NETWORK_FIRST_FILES and CORE_ASSETS went. No logic moved and none was added.
+    'service-worker.js':       1065,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The
