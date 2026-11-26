@@ -48,7 +48,7 @@ redraws the review rather than closing it, and **every row the re-read leaves un
 admin's answers, Skip all included** (`carryReviewAnswers`): reset to their defaults, a second Save
 wrote rows the admin had unticked. **Do not mint the new records' ids inside the transaction** — a
 re-run would write a second copy of every row — and do not turn a deleting part back into a batch. A
-deleting part waits for this device's own unsent saves before its transaction (`whenOwnWritesSentFor` — and when that wait runs out, asks every record the part deletes or writes, v26.63),
+deleting part waits for this device's own unsent saves before its transaction (`whenOwnWritesSentFor` — and when that wait runs out, asks every record the part deletes or writes),
 and one that gives up has sent nothing, so it is not `partialCommit`. The review's week read holds a
 record this device saved but has not yet sent as its own copy (`overrideFromSnapshot`), or the check
 would refuse it once it landed.
@@ -72,9 +72,9 @@ and `buildSafeEntries` skips the rest. `parseRosterPDF` sends each such member a
 and the review gives each one a line asking the admin to check them against the PDF.
 
 **The row that removes an earlier import (`REMOVE_IMPORT`) says what it does, not what it deletes**:
-"Earlier upload’s hours — this roster shows the normal shift", tagged **Back to normal**. It read "no
-longer on the roster" / "Clear old" until 26 Nov 2026, and under a member's name that read as the
-person having left (owner: "makes no sense"). A note on this row names the HOURS, never the member.
+"Earlier upload’s hours — this roster shows the normal shift", tagged **Back to normal** (owner, 26 Nov
+2026: "no longer on the roster" under a member's name read as the person having left). A note on this
+row names the HOURS, never the member.
 
 ### A day the guards REFUSE to record is SHOWN — the `GUARDED` row
 
@@ -107,7 +107,7 @@ everywhere else (`AL on a rest day is ASKED about, never defaulted`) just becaus
   under `christmas-other` (owner, 21 Nov 2026: "There cannot be training or meeting on December 25th or 26th"), times or not,
   and the entry control does not offer the Other pill on them. **On a Sunday 25 or 26 December too** (Boxing Day 2027):
   the guard reads the PRINTED value, because the Sunday guard has already turned a timed Other day into worked hours by
-  the time it runs, and the Christmas reason wins over the Sunday one (review, 22 Nov 2026).
+  the time it runs, and the Christmas reason wins over the Sunday one.
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
 - **A day before the member's `startDate` writes nothing** (`isBeforeMemberStart`): anything but a
@@ -136,7 +136,7 @@ maps it to an **UNREADABLE** review row.
   one list every read shares) — is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an
   UNREADABLE review row Monday to Saturday (below). The PDF grid asks the same of what is PRINTED: a
   cell printing only a dash is empty to it (`printsNothing`), so a shift read onto a dash-printed
-  Sunday is refused, never written as a worked Sunday (review, Nov 2026).
+  Sunday is refused, never written as a worked Sunday.
 
 ## Day drift — a week written onto the wrong days
 
@@ -216,13 +216,13 @@ only genuinely independent evidence, so it must never be warn-only above a fully
   their primary roster's import had just written. The rule is applied at BOTH sites in
   `buildSafeEntries` (a day whose header the model never listed, and a header listed with nothing in
   it); fixing one alone fixes nothing. **On a row whose Monday to Saturday were ALL unread, the review
-  treats the Sunday as a question too** (decided default, Nov 2026 — `computeCellStates`), so that
+  treats the Sunday as a question too** (a decided default — `computeCellStates`), so that
   member's blank Sunday is never pre-ticked as a rest day.
 - **`NA` and `NS` are REST DAYS, on every day** (owner, 6 Nov 2026: "NA and NS should be treated as
   rest days on the roster uploader", Sundays included). `normaliseShift` records both as `RD` beside
   `SN`, so `buildSafeEntries`, the column cross-check and the grid read's rest test all get the same
-  answer; the tests pin all seven days, because earlier answers differed by day (history in
-  `functions/cell-day-rules.js`, whose recognisers — `N/A`, `N.A.` — the Sunday scan repair also asks).
+  answer; the tests pin all seven days (`functions/cell-day-rules.js`, whose recognisers — `N/A`,
+  `N.A.` — the Sunday scan repair also asks).
   **Weeks imported between 24 Sep and 6 Nov 2026 hold their NA days as Absent**, and nothing stored
   says which absences those were (the reason is never stored), so they change only when that week's
   roster is uploaded again.
@@ -238,7 +238,7 @@ only genuinely independent evidence, so it must never be warn-only above a fully
   import says, and the day stays as it is — never a ticked DIFF or a CONFLICT whose "use new roster"
   turns a worked day into rest. **One printed WITH TIMES is somebody working those hours on a Sunday**
   and is recorded as rest-day working at its times (`sundaySafeValue`); never turn it into `RD`, which
-  dropped it on a rest Sunday, deleted it on a re-upload, and pre-ticked a correction that turned a
+  drops it on a rest Sunday, deletes it on a re-upload, and pre-ticks a correction that turns a
   worked rostered Sunday into rest. The other Other flavours keep the no-times rule; written
   time-first they still import as a plain shift — a known gap nobody has asked to close.
 - **The review offers the original PDF**, because every message above ends in "check it against the
@@ -255,16 +255,14 @@ nobody is making. **The witness alone is not enough**: on a row worked all seven
 never lands in an empty cell, so most simulated one-day misreads pass it, and no tuning changes that
 (measured: `functions/roster-prompt.js` header).
 
-**The day is the column's POSITION, so the column order is read, never assumed** (review, Nov 2026).
-Every roster measured prints Sunday first, and the header row used to be dropped unread as furniture —
-so a template printed Monday first would have handed every row over a day early, every check agreeing.
-`readGridPage` now reads the header (six of its seven day cells must name a day, through
+**The day is the column's POSITION, so the column order is read, never assumed.** Every roster
+measured prints Sunday first, but a template printed Monday first would hand every row over a day
+early, every check agreeing. `readGridPage` reads the header (six of its seven day cells must name a day, through
 `headerToDayIndex`): a page whose header runs in any other order gives no rows — and once one does, nor
 does any page of that file printing no header of its own, to the witness as much as to the cell path
 (`extractRosterGeometry`) — and the cell path runs only once a header has been read Sunday to Saturday
-(`no-day-header` otherwise). No real roster was to
-hand, so the first import after it shipped is the check: its path line must not say `no-day-header` —
-if it does, the sheet's header names no day the reader knows, and the cell path is off until it does. **And one row is one
+(`no-day-header` otherwise). An import whose path line says `no-day-header` has a sheet whose header
+names no day the reader knows, and the cell path is off until it does. **And one row is one
 member's**: a row two names match — a member absent from the sheet whose name is part of a
 colleague's, or two people in one band — is `shared-row`, and the witness gives neither a signal.
 
@@ -342,8 +340,7 @@ those are phases 2 and 3, and KNOWN_LIMITATIONS says so.
 
 `pdfjs-dist@6.5.438` is a dependency of `functions/` (server-side; the fourth vetted library — the
 owner's call to keep, and one line to remove). Never pin it below 6.5.438, and run the real-pdfjs
-tests before moving it: the module header of `functions/roster-geometry.js` says why for both. **The
-move to 6.x was proven on synthetic pages only** — no real roster was to hand — and on the three
-drawings it cannot tell from a `re` (named in `isRectangleOp`) it reads no grid rather than a
+tests before moving it: the module header of `functions/roster-geometry.js` says why for both. **6.x
+was proven on synthetic pages only**, and on the three drawings it cannot tell from a `re` (named in `isRectangleOp`) it reads no grid rather than a
 different one. So if an import's review says "The extra PDF layout check couldn't run for this file",
 read that roster's operator list before assuming the file is at fault.
