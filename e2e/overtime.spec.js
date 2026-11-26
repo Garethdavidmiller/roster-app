@@ -964,7 +964,7 @@ test.describe('access and chrome', () => {
         await seedSession(page, 'S. Silva');
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('#otMineContent')).toContainText("isn’t open to everyone yet");
         await expect(page.locator('.ot-day')).toHaveCount(0);
         await page.locator('#navMenuBtn').click();
         await expect(page.locator('.nav-panel-pill--overtime')).toHaveCount(0);
@@ -976,7 +976,7 @@ test.describe('access and chrome', () => {
         await seedSession(page, 'S. Silva');
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('#otMineContent')).toContainText("isn’t open to everyone yet");
         await page.locator('#navMenuBtn').click();
         await page.locator('#navPanelBrand').click();
         await expect(page.locator('#iconLightbox')).toBeVisible();
@@ -990,7 +990,7 @@ test.describe('access and chrome', () => {
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
         await signInThroughOverlay(page, 'S. Silva');
-        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('#otMineContent')).toContainText("isn’t open to everyone yet");
         await page.locator('#appIcon').click();
         await expect(page).not.toHaveURL(/overtime\.html/);
     });
@@ -1002,11 +1002,11 @@ test.describe('access and chrome', () => {
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
         await signInThroughOverlay(page, 'S. Silva');
-        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('#otMineContent')).toContainText("isn’t open to everyone yet");
         for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
         await seedSession(page, 'S. Silva');
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('#otMineContent')).toContainText("isn’t open to everyone yet");
         for (const sel of dead) await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
     });
 
@@ -1015,7 +1015,7 @@ test.describe('access and chrome', () => {
     // card that is not open to this member kept both.
     for (const [state, enabled, words] of /** @type {Array<[string, boolean, string]>} */ ([
         ['paused', false, 'Overtime availability is paused'],
-        ['not open to this member', true, "isn't open to everyone yet"],
+        ['not open to this member', true, "isn’t open to everyone yet"],
     ])) {
         test(`a card with no form, ${state}: its header offers a mouse no hand and no hover fill (overtime-ui-14)`, async ({ page }, info) => {
             test.skip(isTouchProject(info), 'a cursor and a hover are a fine pointer\'s');
@@ -2461,6 +2461,17 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await end.blur();
         await expect(end, 'what is left of 10:00 stays as it is').toHaveValue('10:0');
         await expect(row).not.toHaveClass(/ot-day--saved/);
+        // Delete at the FRONT leaves what LOOKS like a whole time (external review of v26.87): "0:00" is not 00:00, a
+        // midnight finish nobody chose. Read as every time box reads one that is left (`readClockBox`).
+        await end.fill('10:00');
+        await end.blur();
+        await expect(row).toHaveClass(/ot-day--saved/);
+        await end.click();
+        await end.press('Home');
+        await end.press('Delete');
+        await end.blur();
+        await expect(end, 'what is left of 10:00 is not midnight').toHaveValue('0:00');
+        await expect(row).not.toHaveClass(/ot-day--saved/);
     });
 
     // THE SAME MEANING READS THE SAME ON BOTH PAGES (owner, Nov 2026). Admin's week grid has two gold
@@ -3311,7 +3322,7 @@ test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybod
         await expect(page.locator('.nav-panel-pill--overtime')).toHaveCount(0);
 
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('#otMineContent')).toContainText("isn’t open to everyone yet");
         await expect(page.locator('.ot-day')).toHaveCount(0);
     });
 
@@ -3323,7 +3334,7 @@ test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybod
         await page.route('**/getMyOvertimeState', r => { reads += 1; r.abort(); });
         await page.goto('/overtime.html');
         await signInThroughOverlay(page, 'S. Silva');
-        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('#otMineContent')).toContainText("isn’t open to everyone yet");
         await expect(page.locator('.ot-day')).toHaveCount(0);
         expect(reads, 'nothing was read on their behalf').toBe(0);
     });
@@ -3944,6 +3955,8 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await off(page);
         await page.goto('/overtime.html');
         await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        // A way back, as every refusal card has (polish review, 26 Nov 2026).
+        await expect(page.locator('#otMineContent .role-card-back')).toHaveAttribute('href', './');
         for (const sel of ['#otMineCard .hint', '#otMineCard .btn-card-tips', '#otMineChevron', '.ot-explainer', '.ot-privacy']) {
             await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
         }

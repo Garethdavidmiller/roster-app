@@ -185,7 +185,7 @@
                     <div class="week-nav">
                         <button type="button" class="week-nav-btn" id="prevWeekBtn" aria-label="Previous week">‹</button>
                         <div class="week-date-wrap">
-                            <button type="button" id="weekNavLabel" class="week-nav-label" aria-label="Pick a date — jump to week containing date">Pick a date</button>
+                            <button type="button" id="weekNavLabel" class="week-nav-label" aria-label="Pick a date — jump to the week it falls in">Pick a date</button>
                             <!-- The VALUE HOLDER, hidden. It was a full-size invisible overlay over the
                                  label until v23.38, which is what opened the OS date picker; the label
                                  is now the trigger and opens the app's own calendar (date-picker.js). -->
@@ -198,7 +198,7 @@
             </div>
 
             <!-- Bulk bar — shown once member+date are chosen -->
-            <div class="bulk-bar" id="bulkBar" role="group" aria-label="Bulk apply shift type">
+            <div class="bulk-bar" id="bulkBar" role="group" aria-label="Apply one type to several days">
                 <div class="bulk-bar-label">Apply to multiple days at once</div>
                 <!-- Step 1: select days -->
                 <div class="bulk-step">
@@ -218,9 +218,9 @@
                     </div>
                     <!-- Time inputs shown for time-based types -->
                     <div class="bulk-time-group" id="bulkTimeGroup" style="display:none">
-                        <input type="text" class="time-input" id="bulkStart" inputmode="numeric" placeholder="HH:MM" maxlength="5" aria-label="Bulk start time (HH:MM)">
+                        <input type="text" class="time-input" id="bulkStart" inputmode="numeric" placeholder="HH:MM" maxlength="5" aria-label="Start time for the ticked days (HH:MM)">
                         <span class="bulk-time-sep" aria-hidden="true">–</span>
-                        <input type="text" class="time-input" id="bulkEnd" inputmode="numeric" placeholder="HH:MM" maxlength="5" aria-label="Bulk end time (HH:MM)">
+                        <input type="text" class="time-input" id="bulkEnd" inputmode="numeric" placeholder="HH:MM" maxlength="5" aria-label="End time for the ticked days (HH:MM)">
                     </div>
                 </div>
                 <!-- Step 3: apply. Greyed out until it can act, with the reason in the line under it,
@@ -347,7 +347,7 @@
         <div class="card-header card-header-toggle" id="sickToggleHeader">
             <div>
                 <h2><span aria-hidden="true">🪑</span> Record Absence</h2>
-                <span class="hint">Mark days when a staff member isn't in — visible to all staff in the calendar</span>
+                <span class="hint">Mark the days someone isn't at work — every colleague can see them on the calendar</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence">?</button>

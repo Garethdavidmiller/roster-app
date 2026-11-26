@@ -53,6 +53,8 @@ export function injectNavPanel(currentPage, memberName, onSignOut, gates) {
         // App Notices joins the guides, not the Workplace documents: it is a changelog for the app, and
         // both are "look something up", never a document you open on a shift. It goes LAST — it is the
         // rarest thing in the drawer.
+        // The glossary (glossary.js): the roster's words, one line each, shown in the page's own ? panel.
+        + `<li><button type="button" class="nav-panel-link nav-panel-link--glossary nav-panel-link--stacked"><span aria-hidden="true">📖</span><span class="nav-link-text"><span class="nav-link-title">Words used in the app</span><span class="nav-link-sub">What RDW, AL, Spare and the rest mean</span></span></button></li>`
         + `<li><button type="button" class="nav-panel-link nav-panel-link--notices"><span aria-hidden="true">📣</span> App Notices</button></li>`;
 
     // Member name is set via textContent (not innerHTML) after injection to avoid XSS.
@@ -120,8 +122,9 @@ export function injectNavPanel(currentPage, memberName, onSignOut, gates) {
                              often collapsed): closed, "Reference ▾" alone reads as a section that
                              failed to render. Open, the rows are the count, so the CSS hides it there
                              (shared.css has why it is not branched here). Derived, never typed: a
-                             guide added to NAV_GUIDES must not leave a stale number behind it. -->
-                        <span class="nav-panel-guides-count" aria-hidden="true">${NAV_GUIDES.length + 1}</span>
+                             guide added to NAV_GUIDES must not leave a stale number behind it. The two
+                             are the glossary and App Notices, which join the guides below. -->
+                        <span class="nav-panel-guides-count" aria-hidden="true">${NAV_GUIDES.length + 2}</span>
                         <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
                     </button>
                     <div id="navGuideSearchZone">

@@ -57,6 +57,7 @@ const PAGES = [
     // The Calendar's one ? is drawn by Team View (calendar-team-view.js), so that file is where its button is read.
     { js: 'calendar-tips.js',  html: 'calendar-team-view.js', noCardHeading: true },
     { js: 'trains-tips.js',    html: 'trains.html' },
+    { js: 'newlink-tips.js',   html: 'newlink.html' },
 ];
 
 // settings-tips.js lists Timetable changes only while one is due (`timetableListed`, notif-card-core.js),
@@ -348,7 +349,7 @@ describe('the pay reminder is promised only to the grades it is sent to, everywh
     test('Settings: the status lines promise nothing the member\'s own list does not', () => {
         assert.doesNotMatch(card, /pay cut-off|pay reminder/i, 'a status line names the pay reminder, which only some members are sent');
         assert.match(card, /'Notifications are on for this device — you’ll get each alert listed above\.'/);
-        assert.match(card, /'Select “Enable notifications” to get the alerts listed above\.'/);
+        assert.match(card, /'Select “Turn on notifications” to get the alerts listed above\.'/);
     });
     test('the Staff Guide, which cannot know who reads it, says whom the reminder is for', () => {
         const line = /<strong>Notifications<\/strong>[^<]*(?:<[^>]+>[^<]*)*?Settings/.exec(guide)?.[0] ?? '';
@@ -393,7 +394,7 @@ describe('the work email and password lines state today, and promise nothing', (
 
     test('the card and the guide both give today\'s route', () => {
         assert.match(settings, /Self-service recovery isn’t available yet\. For now, ask the admin if you forget your password\./);
-        assert.match(guide, /Self-service recovery isn't available yet: for now, ask the admin if you forget your password\./);
+        assert.match(guide, /Self-service recovery isn't available yet\. For now, ask the admin if you forget your password\./);
     });
     test('neither makes an undated promise', () => {
         for (const [where, text] of [['settings.html', settings], ['staff-guide.html', guide]]) {

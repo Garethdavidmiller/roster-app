@@ -134,8 +134,8 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
         const words = notifCardWords({ ...device(), state });
         _enableBtn.disabled  = false;
         _disableBtn.disabled = false;
-        _enableBtn.textContent  = 'Enable notifications';
-        _disableBtn.textContent = 'Disable notifications';
+        _enableBtn.textContent  = 'Turn on notifications';
+        _disableBtn.textContent = 'Turn off notifications';
         _enableBtn.style.display  = words.button === 'enable'  ? 'block' : 'none';
         _disableBtn.style.display = words.button === 'disable' ? 'block' : 'none';
         _statusMsg.textContent = words.status;
@@ -180,7 +180,7 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
     _enableBtn.addEventListener('click', async () => {
         _busy = true;
         _enableBtn.disabled = true;
-        _enableBtn.textContent = 'Enabling…';
+        _enableBtn.textContent = 'Turning on…';
         // NOTHING IS AWAITED BEFORE THIS CALL: it asks for permission at once, inside the tap, which
         // iPhone Safari requires. The record's owner is the account signed in when it is SAVED, so the
         // session is awaited after the answer, before the subscribe — see the header.
@@ -216,7 +216,7 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
     _disableBtn.addEventListener('click', async () => {
         _busy = true;
         _disableBtn.disabled = true;
-        _disableBtn.textContent = 'Disabling…';
+        _disableBtn.textContent = 'Turning off…';
         await disableNotifications().catch(err => console.warn('[Notifications] Disable failed:', err));
         _busy = false;
         await safeRefresh();

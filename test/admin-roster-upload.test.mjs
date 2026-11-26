@@ -601,7 +601,7 @@ describe('fetchOverridesForWeek — fail-closed conflict read (v16.25 regression
             () => fetchOverridesForWeek(['2026-06-15', '2026-06-16']),
             (/** @type {any} */ err) => {
                 // The tag is what routes the parse handler to fail-closed (hide review, clear
-                // _cellStates, show "Couldn't check your existing saved changes"). Without it the
+                // _cellStates, show "Couldn't check the changes already saved"). Without it the
                 // handler would treat the failure as a generic error, and a [] return would have
                 // let the review apply blind — the exact Tier-1 bug.
                 assert.equal(err.conflictReadFailed, true);
@@ -2784,7 +2784,7 @@ describe('a roster read that fails in transit says what happened', () => {
     const line = parseFailureLine, expectedMs = PARSE_EXPECTED_MS;
 
     const DROPPED = /^The connection dropped before it finished\. .*keep this screen open/;
-    const SLOW = /^Parsing took longer than expected/;
+    const SLOW = /^Reading the PDF took longer than expected/;
     const UNREACHABLE = /^Couldn't reach the server/;
     const seen = (/** @type {Partial<{ online: boolean, elapsedMs: number, wasHidden: boolean }>} */ o = {}) =>
         ({ online: true, elapsedMs: 60_000, wasHidden: false, ...o });

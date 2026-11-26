@@ -488,7 +488,7 @@ describe('the "Base roster" column says what the day WAS', () => {
             /<div class="col-rd-hint" hidden>The station is closed on Christmas Day — use <strong>RDW<\/strong> if this day was worked<\/div>/);
         assert.match(row('2026-12-26').innerHTML, /The station is closed on Boxing Day — use <strong>RDW<\/strong>/);
         assert.match(row('2026-12-25').innerHTML, /Ticked and locked because the station is closed on Christmas Day — RDW is automatic/);
-        assert.doesNotMatch(row('2026-12-25').innerHTML, /Base roster: Rest Day|the base roster has this as a rest day/,
+        assert.doesNotMatch(row('2026-12-25').innerHTML, /Base roster: rest day|the base roster has this as a rest day/,
             'no hint calls the day a rest day beside an AL badge');
         // An ordinary day keeps its own base shift, and the rest-day words where it has them.
         assert.equal(col(row('2026-12-24')), shows(getBaseShift(member, new Date(2026, 11, 24))));
@@ -497,7 +497,7 @@ describe('the "Base roster" column says what the day WAS', () => {
         for (const d of ['2025-12-25', '2025-12-26']) {
             const r = old.find(x => x.dataset.date === d);
             assert.equal(col(r), shows('RD'), `${d}: before Christmas leave, the closure's rest day`);
-            assert.match(r.innerHTML, /Base roster: Rest Day — use <strong>RDW<\/strong> if this was overtime/);
+            assert.match(r.innerHTML, /Base roster: rest day — use <strong>RDW<\/strong> if this was worked as overtime/);
         }
     });
 
@@ -508,7 +508,7 @@ describe('the "Base roster" column says what the day WAS', () => {
         assert.ok(resting, 'premise: somebody on the roster rests on Christmas Day 2026 by pattern');
         const xmas = buildWeek(resting.name, '2026-12-25').slice(1).find(r => r.dataset.date === '2026-12-25');
         assert.ok(xmas.innerHTML.includes(`<div class="col-base">${getShiftBadge('RD', { showTime: true })}</div>`));
-        assert.match(xmas.innerHTML, /Base roster: Rest Day — use <strong>RDW<\/strong> if this was overtime/);
+        assert.match(xmas.innerHTML, /Base roster: rest day — use <strong>RDW<\/strong> if this was worked as overtime/);
     });
 
     test('a worked Boxing Day names the NEXT year as the allowance its day in lieu goes into (15 Nov 2026)', () => {

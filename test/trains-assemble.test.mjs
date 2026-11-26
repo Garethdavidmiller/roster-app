@@ -148,6 +148,35 @@ describe('assemble.py keeps one copy of a train only when the copies agree', { s
         assert.match(r.stderr, /cannot be put in one order of calls — met book, page 1, column 1, and main book, page 1, column 1/);
     });
 
+    test('a call one book bars a passenger from, and the other prints plain, stops the build — only the book can say', () => {
+        // The Met book prints High Wycombe as pick-up only ('u'): nobody from London may get off there. The union must
+        // not add it back from the main-line book's plain time.
+        const met = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830u'), cell('AYS', '0900')]);
+        const main = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830'), cell('AYS', '0900')]);
+        const r = assemble([met], [main]);
+        assert.notEqual(r.status, 0, 'a barred call came back as one a passenger can use');
+        assert.match(r.stderr, /cannot be put in one order of calls — met book, page 1, column 1, and main book, page 1, column 1/);
+    });
+
+    test('a barred call both books agree on stays out, and the build goes on', () => {
+        const met = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830u'), cell('AYS', '0900')]);
+        const main = column(1, 1, [cell('MYB', '0800'), cell('AYS', '0900')]);
+        const r = assemble([met], [main]);
+        assert.equal(r.status, 0, r.stderr);
+        assert.deepEqual(r.out.trains[0].calls, ['AYS']);
+        assert.equal(r.out.trains[0].barred, undefined, 'the build\'s own bookkeeping stays out of the page\'s data');
+    });
+
+    test('a train printed twice in the main-line book, after its union with the Met copy, is still one train', () => {
+        // The second printing is judged against the first as printed, not against the union, which holds a Met call.
+        const met = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830'), cell('AYS', '0900')]);
+        const main = (/** @type {number} */ col) => column(1, col, [cell('MYB', '0800'), cell('AYS', '0900')]);
+        const r = assemble([met], [main(1), main(2)]);
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(r.out.trains.length, 1);
+        assert.deepEqual(r.out.trains[0].calls, ['HWY', 'AYS']);
+    });
+
     test('across the books, copies whose times disagree stop the build', () => {
         const main = column(1, 1, [cell('MYB', '0800'), cell('HDM', '0845'), cell('AYS', '0910')]);
         const r = assemble([viaHdm(1)], [main]);

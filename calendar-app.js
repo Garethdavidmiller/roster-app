@@ -356,7 +356,7 @@ function _showStaleMemberBanner(staleName, fallbackName) {
     const line = document.createElement('div');
     // The signed-in member's OWN name (a row hidden after a move into management, say) is said to them,
     // not about them in quotes (18 Nov 2026).
-    line.textContent = `${staleName === getSession()?.name ? 'Your name' : `"${staleName}"`} is no longer in the roster — showing ${fallbackName}'s calendar. Choose a name from the list above.`;
+    line.textContent = `${staleName === getSession()?.name ? 'Your name' : `"${staleName}"`} is no longer in the roster — showing ${fallbackName}'s calendar. Choose a name from the list below.`;
     banner.appendChild(line);
     banner.classList.add('visible');
     setTimeout(() => {

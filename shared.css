@@ -2684,11 +2684,12 @@ button.lightbox-bug-link {
     .nav-panel-link:hover { background: var(--nav-raised); }
 }
 
-/* The circular, newsletter and App Notices entries are <button>s, not <a>s —
+/* The circular, newsletter, glossary and App Notices entries are <button>s, not <a>s —
    reset native button chrome so they sit identically alongside the anchor
    links. */
 button.nav-panel-link--circular,
 button.nav-panel-link--newsletter,
+button.nav-panel-link--glossary,
 button.nav-panel-link--notices {
     width: 100%;
     background: none;
@@ -3046,7 +3047,7 @@ button.nav-panel-link--notices {
     margin-bottom: 12px;
 }
 .role-card-why {
-    font-size: var(--type-body); line-height: 1.5; color: var(--text-mid);
+    font-size: var(--type-body); line-height: 1.5; color: var(--text-dark);   /* the message written for this reader (owner, 26 Nov 2026) */
     text-align: left; margin-bottom: 18px;
 }
 .role-card .field-eyebrow { margin-bottom: 6px; }
@@ -3166,6 +3167,7 @@ button.nav-panel-link--notices {
     /* Restore the dropdown arrow that appearance:none removes. */
     background-image: var(--caret-chevron-small);
     background-repeat: no-repeat;
+    background-size: 0.75em auto;   /* its own 12px on a 16px field, in em so it grows with the phone's text (polish review, 26 Nov 2026) */
     background-position: right 10px center;
     padding-right: 30px;
     text-align: center;
@@ -3228,8 +3230,7 @@ button.nav-panel-link--notices {
     cursor: default;
     opacity: 1;
 }
-/* The refusal card's way out (`.role-card-back`) wears the same look under a class of its own: sharing the CLASS put
-   two `.login-back` links on Admin, the card's and the sign-in card's (whole-app review, 24 Nov 2026). */
+/* The refusal card's way out has a class of its own: sharing `.login-back` put two on Admin (whole-app review, 24 Nov 2026). */
 .login-back, .role-card-back {
     font-size: var(--type-label);
     color: var(--text-light);
@@ -3237,7 +3238,8 @@ button.nav-panel-link--notices {
     display: inline-block;
     transition: color var(--dur-fast) var(--ease-standard);
 }
-@media (hover: hover) and (pointer: fine) { .login-back:hover, .role-card-back:hover { color: var(--text-dark); } }
+@media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } .role-card-back:hover { text-decoration-thickness: 2px; } }
+.role-card-back { color: var(--primary-blue); font-weight: 600; font-size: var(--type-body); text-decoration: underline; text-underline-offset: 2px; }   /* the card's ONLY way out: its strongest link (owner, 26 Nov 2026) */
 /* [hidden] must beat the inline-block above: the Calendar's own front door hides its link (login-overlay.js). */
 .login-back[hidden] { display: none; }
 /* While a sign-in is genuinely in flight the Back link is inert — leaving mid-submit is the
@@ -3309,6 +3311,7 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
 /* Persistent "can't get in?" signpost so a forgotten-surname / not-in-list / rate-limited user
    is never a dead-end — account matters route to "the admin" per the wording conventions. */
 .login-help {
+    text-wrap: balance;   /* two even lines, not one word alone on the second (polish review, 26 Nov 2026) */
     font-size: var(--type-small);
     color: var(--text-light);
     margin-top: 16px;
@@ -3498,7 +3501,7 @@ body.auth-ready .boot-placeholder { display: none; }
 .card-toggle-arrow {
     font-size: var(--type-micro); color: var(--text-light);
     transition: transform var(--dur-slow) var(--ease-standard); flex-shrink: 0;
-    padding: 3px 0 0 12px; line-height: 1.5;
+    margin: 3px 0 0 12px; line-height: 1.5;   /* MARGIN, not padding: a turn pivots on the padded box, and the glyph jumped 12px onto the ? (26 Nov 2026) */
 }
 .card-header-toggle.open .card-toggle-arrow { transform: rotate(180deg); }
 /* Reduced motion: the arrows still turn over to say open or shut — they do not swing there. */
@@ -3718,6 +3721,7 @@ body.auth-ready .boot-placeholder { display: none; }
     /* Per-row hairline dividers dropped (v18.69 light-polish): a divider under every row read as a
        dense ledger. The icon tint-chip column + row spacing separate the rows more calmly now. */
 }
+.tips-lb-item > span:last-child { text-wrap: pretty; }   /* out of the global p rule's reach: lines ended on one word (26 Nov 2026) */
 /* Each emoji sits in a soft rounded tint chip — anchors the icon column and gives the panel
    structure, matching the Account-status pills. Neutral container; the emoji carries its own colour. */
 .tips-lb-icon {
@@ -3734,6 +3738,14 @@ body.auth-ready .boot-placeholder { display: none; }
     border-radius: var(--radius-sm);
     margin-top: 1px;
 }
+
+/* "What these words mean" (glossary.js, 26 Nov 2026): the foot of a ? panel that uses a roster word; it redraws the panel as
+   the glossary. The panel's link look (blue, 600, underlined), on a 44px row a thumb finds, set off by a hairline. */
+.tips-lb-glossary { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 12px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--border-light); background: none; font: inherit; font-size: var(--type-label); font-weight: 600; text-align: left; color: var(--primary-blue); cursor: pointer; touch-action: manipulation; }
+.tips-lb-glossary-words { text-decoration: underline; text-underline-offset: 2px; }   /* on the WORDS: a flex button hands its underline to the 📖 too */
+@media (hover: hover) and (pointer: fine) { .tips-lb-glossary:hover .tips-lb-glossary-words { text-decoration-thickness: 2px; } }
+.tips-lb-glossary:active { opacity: 0.6; }
+.tips-lb-glossary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
 
 /* ---- Waiting for signal (v24.21, slow-save.js; moved here from admin.css at v24.23) ----
    In shared.css because the roster upload that wraps its writes runs on OPERATIONS, which does not

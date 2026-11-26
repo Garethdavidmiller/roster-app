@@ -110,7 +110,10 @@ body {
 /* One day's figure never breaks inside itself ("Sundays 91 → / 94" did at 375px). */
 .tr-total-n { color: var(--text-mid); font-size: var(--type-body); white-space: nowrap; }
 .tr-total-n strong { color: var(--text-dark); font-weight: 800; }
-.tr-total .tr-delta { justify-self: end; margin-left: 0; }
+/* One width for every change chip, centred in it, and the figure before the arrow right-aligned in three digits, so a
+   column of them lines up on both edges (polish review, 26 Nov 2026: "91 → 94" sat 11px left of "144 → 158"). */
+.tr-total .tr-delta { justify-self: end; margin-left: 0; min-width: 3.2em; text-align: center; }
+.tr-total-was { display: inline-block; min-width: 3ch; text-align: end; }
 /* On a desktop the box takes its column's width (desktop audit, Nov 2026): held to a phone's 340px it
    stopped 64px short of the right-hand edge every block beneath it shares. Its change chips then sat at the far
    edge, about 200px from the figures they belong to (Trains review, 22 Nov 2026), so there the rows share one
@@ -292,8 +295,8 @@ white, a third recipe for one job. */
     margin-left: 4px;
     padding: 0 6px;
     border-radius: var(--radius-pill);
-    font-size: var(--type-micro);
-    font-weight: 700;
+    font-size: var(--type-badge);   /* the change list's chip at a smaller step, not a heavier one (polish review, 26 Nov 2026) */
+    font-weight: 600;
 }
 .tr-delta--up   { background: var(--success-green-bg); color: var(--success-text); }
 .tr-delta--down { background: var(--error-bg); color: var(--error-text); }

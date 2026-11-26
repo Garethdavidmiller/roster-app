@@ -1170,6 +1170,13 @@
             .day-number {
                 font-size: var(--type-small);
             }
+            /* A corner marker and the date share the top row of a cell about 50px wide, and "25" reached the ✂️
+               (polish review, 26 Nov 2026). The date moves off the marker's side by the marker's width; a cell
+               holds one corner each side at most (the marker rules above say which never meet). */
+            /* The pad gives way before the date does: on a 320px phone with larger text the cell is narrower than date
+               and pad together, and the cell clips — so it is never more than leaves the date (about 1.4em) room. */
+            .calendar-day.payday .day-number, .calendar-day.cutoff .day-number { box-sizing: border-box; padding-left: min(12px, max(0px, 100% - 1.4em)); }
+            .calendar-day.bank-holiday .day-number, .calendar-day.easter-day .day-number { box-sizing: border-box; padding-right: min(12px, max(0px, 100% - 1.4em)); }
 
             .shift-badge {
                 font-size: 7px;

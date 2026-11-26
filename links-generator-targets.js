@@ -67,7 +67,7 @@ import { isOfflineFailure } from './links-design-store.js';
 import { checkName } from './links-design-naming.js';
 
 /** What a Custom… prompt ASKS — one sentence for both prompts, the grid's (links-app.js) and this table's. */
-export const CUSTOM_SHIFT_PROMPT = 'Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.';
+export const CUSTOM_SHIFT_PROMPT = 'Type the shift as start–finish in 24-hour time, for example 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.';
 
 /**
  * What a Custom… prompt says when `normaliseCustomShift` refuses what was typed. Two prompts ask for a shift time —
@@ -777,7 +777,7 @@ export function createTargetPanel(deps) {
             }
             const name = await promptDialog({
                 title: 'Save as a new staffing setup',
-                message: 'Name these staffing numbers — e.g. Winter cover. Every designer can see it; only you or the admin can change or delete it.',
+                message: 'Name these staffing numbers — for example, Winter cover. Every designer can see it; only you or the admin can change or delete it.',
                 placeholder: 'Setup name',
                 maxLength: MAX_SET_NAME,
             });

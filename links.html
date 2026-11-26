@@ -68,6 +68,7 @@
     <link rel="modulepreload" href="./fetch-timeout.js">
     <link rel="modulepreload" href="./firebase-client.js">
     <link rel="modulepreload" href="./function-url.js">
+    <link rel="modulepreload" href="./glossary.js">
     <link rel="modulepreload" href="./leave-year.js">
     <link rel="modulepreload" href="./links-adjacency.js">
     <link rel="modulepreload" href="./links-analyse.js">
@@ -592,7 +593,7 @@
                                      per-day headcount. The real roster is built this way: main lines
                                      1, 7, 12 and 17 are SPARE on all seven days. -->
                                 <tr class="gen-spare-row">
-                                    <td class="gen-td-label">Cover weeks<span class="gen-td-note">whole lines marked SP; <span class="js-spare-worked-days">4</span> days worked Mon–Sat</span></td>
+                                    <td class="gen-td-label">Cover weeks<span class="gen-td-note">whole lines marked SP; <span class="js-spare-worked-days">4</span> days worked Mon–&#8288;Sat</span></td>
                                     <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="25" value="0" aria-label="How many whole lines are cover weeks"><span class="gen-td-note">of <span class="js-rotating-lines">26</span> lines</span></td>
                                     <td></td>
                                 </tr>
@@ -642,7 +643,7 @@
                              without saying to WHAT: with two of them, that word alone is the one
                              thing a designer cannot act on. -->
                         <button class="btn-text-link" id="genDefaultBtn" type="button">↺ Use the starting table (Short Run’s duties)</button>
-                        <button class="btn-text-link" id="genSeedBtn" type="button">↺ Copy staffing from today's roster</button>
+                        <button class="btn-text-link" id="genSeedBtn" type="button">↺ Copy staffing from today’s roster</button>
                     </div>
                     <!-- SAVED SETS (v21.04). Named snapshots of the target table, shared between the
                          designers, so a colleague can load somebody's set, change anything, and keep
@@ -737,7 +738,7 @@
                          by the same handler; aria-hidden because the save-row copy carries the
                          aria-live and one announcement is enough. -->
                     <p id="genStatus" class="gen-status" aria-hidden="true" hidden></p>
-                    <p class="gen-note">Each day's total can't exceed <span class="js-rotating-lines">26</span> — the remaining lines become rest days.</p>
+                    <p class="gen-note">Each day’s total can’t exceed <span class="js-rotating-lines">26</span> — the remaining lines become rest days.</p>
                 </div>
             </div>
         </div>

@@ -291,7 +291,7 @@ describe('guardNamedSession', () => {
         // handed it), so the call site has one thing to pass.
         const { readFileSync } = await import('node:fs');
         const src = readFileSync(new URL('./trains-app.js', REPO_ROOT_URL), 'utf8');
-        assert.match(src, /startPage\(\{[^}]*about: SIGN_IN_ABOUT/, 'the cards Trains opens do not say what the page is');
+        assert.match(src, /startPage\(\{[^}]*about: \{ \.\.\.SIGN_IN_ABOUT, footnote: SHARED_SCREEN \}/, 'the cards Trains opens do not say what the page is, or end on the shared-screen line');
         const start = readFileSync(new URL('./page-start.js', REPO_ROOT_URL), 'utf8');
         assert.match(start, /initLoginOverlay\(\{[^}]*about: spec\.about/, 'premise: the start-up\'s card at load carries the page\'s explanation');
         assert.match(start, /guardNamedSession\(\{[^}]*about: spec\.about/, 'the card a lost session gets does not say what the page is');

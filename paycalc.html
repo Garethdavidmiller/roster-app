@@ -68,6 +68,7 @@
   <link rel="modulepreload" href="./fetch-timeout.js">
   <link rel="modulepreload" href="./firebase-client.js">
   <link rel="modulepreload" href="./function-url.js">
+  <link rel="modulepreload" href="./glossary.js">
   <link rel="modulepreload" href="./leave-year.js">
   <link rel="modulepreload" href="./login-core.js">
   <link rel="modulepreload" href="./login-overlay.js">
@@ -192,7 +193,7 @@
       <p class="login-about-line" id="unsupportedGradeWhat"></p>
       <a class="login-about-link" href="./paycalc-guide.html">Read the Pay Calculator Guide →</a>
     </div>
-    <p class="login-help">Everything else in the app works as normal.</p>
+    <p class="login-help" id="unsupportedGradeHelp">Everything else in the app works as normal.</p>
     <a href="./" class="role-card-back">← Back to roster</a>
   </div>
 
@@ -331,7 +332,7 @@
         <!-- What it is and where it is on the payslip — nothing more (review, 15 Nov 2026). That it is
              saved per payslip is in the card's header hint and the ? panel, and the label says which
              payslip is being edited. -->
-        <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — the <strong>Railways Pension Scheme</strong>.</div>
+        <div class="field-hint">Your payslip calls this &ldquo;Smart RPS CR Scheme&rdquo; — the <strong>Railways Pension Scheme</strong>.</div>
         <!-- On a payslip worked as a CES only (applyPensionOptOutUI, paycalc-settings.js): the figure is
              the CEA one, because no CES payslip's pension line is on record (VAL-PAY-007). -->
         <div class="field-hint" id="pensionCesNote" hidden>The app hasn&rsquo;t seen a CES payslip&rsquo;s pension yet, so this starts at the CEA figure. If the &ldquo;Smart RPS CR Scheme&rdquo; line on your payslip is different, type that here &mdash; it&rsquo;s kept for this payslip.</div>
@@ -356,7 +357,7 @@
       </div>
 
       <div class="field">
-        <label for="studentLoan">Student Loan <span class="note">only if deducted via payroll</span></label>
+        <label for="studentLoan">Student Loan <span class="note">only if deducted through payroll</span></label>
         <select id="studentLoan">
           <option value="none">None (or paid by direct debit)</option>
           <option value="plan1">Plan 1</option>
@@ -618,12 +619,12 @@
         <div>
           <div class="hhmm-wrap">
             <div class="hhmm-field">
-              <input type="text" id="rdwH" aria-label="Rest day working hours" placeholder="0" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+              <input type="text" id="rdwH" aria-label="Rest Day Working hours" placeholder="0" inputmode="decimal" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">hrs</span>
             </div>
             <span class="hhmm-sep">:</span>
             <div class="hhmm-field">
-              <input type="text" id="rdwM" aria-label="Rest day working minutes" maxlength="2" placeholder="00" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done">
+              <input type="text" id="rdwM" aria-label="Rest Day Working minutes" maxlength="2" placeholder="00" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">mins</span>
             </div>
           </div>
@@ -824,7 +825,7 @@
         ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so the <strong>Taxable Pay</strong> on your payslip (your pay before tax) will be lower than the total above. This is normal.
       </div>
       <div id="absenceCaveat" class="payslip-note">
-        ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not reconcile line-for-line with your payslip.
+        ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not match your payslip line for line.
       </div>
     </div>
   </div>
@@ -911,7 +912,7 @@
     <div class="card-body collapsible-body" id="hppCardBody">
 
       <!-- Explainer leads the card so a member reads WHAT HPP is before meeting last year's figure. -->
-      <p class="card-explainer">When you take annual leave, Chiltern only pays your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered on each payslip above. <button type="button" class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
+      <p class="card-explainer">When you take annual leave, Chiltern only pays your basic rate — you miss out on overtime and Rest Day Working pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered on each payslip above. <button type="button" class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
 
       <!-- Prior year HPP — hidden when viewing the first tax year (no prior year exists) -->
       <div id="priorHppSection" class="hidden">

@@ -1,7 +1,7 @@
 // @lane hygiene
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isClockTime, formatClockInput, finaliseClockInput, shapeClockBox, settleClockBox, shapeClockBoxInPlace, noteClockBoxBefore } from '../clock-input.js';
+import { isClockTime, formatClockInput, finaliseClockInput, shapeClockBox, settleClockBox, shapeClockBoxInPlace, noteClockBoxBefore, clockTextStatus, readClockBox } from '../clock-input.js';
 
 // clock-input.test.mjs — the two rules of a TEXT clock box, moved here with the module at v24.61.
 // Organised by cost: accepting nonsense is the expensive direction for `isClockTime` (a `29:00`
@@ -332,5 +332,50 @@ describe('every caller reports what the box held', () => {
             const src = readFileSync(new URL(f, root), 'utf8');
             assert.match(src, /addEventListener\('beforeinput'[\s\S]{0,200}noteClockBoxBefore\(/, `${f} shapes a clock box but never reports beforeinput`);
         }
+    });
+});
+
+// ── ONE ANSWER WHEN A BOX IS LEFT (external review of v26.87) ────────────────────────────────────
+// Each screen judged the settled text its own way, and the Links window took an unfinished "6:30" as 06:30.
+describe('readClockBox — a time to take, an empty box, or a refusal with its reason', () => {
+    it('clockTextStatus reads each kind of settled text', () => {
+        for (const [text, status] of /** @type {[string, string][]} */ ([
+            ['06:30', 'time'], ['23:59', 'time'], ['', 'empty'], ['  ', 'empty'],
+            ['6:30', 'unfinished'], ['22:3', 'unfinished'], [':30', 'unfinished'], ['223', 'unfinished'],
+            ['25:00', 'not-a-time'], ['06:60', 'not-a-time'], ['9am', 'not-a-time'], ['06:300', 'not-a-time'],
+            // Four digits are a whole time's worth: never an edit still in progress, colon or none.
+            ['0630', 'not-a-time'], ['9999', 'not-a-time'],
+        ])) assert.equal(clockTextStatus(text), status, JSON.stringify(text));
+    });
+
+    it('Delete at the front of a held 16:30 is unfinished — shown as left, nothing to take', () => {
+        const box = { value: '16:30', selectionStart: 0, selectionEnd: 1, setSelectionRange() {} };
+        noteClockBoxBefore(box);
+        box.value = '6:30';
+        shapeClockBoxInPlace(box, { inputType: 'deleteContentForward', data: null });
+        assert.deepEqual(readClockBox(box), { status: 'unfinished', value: '', shown: '6:30' });
+    });
+
+    it('a new short time typed afresh is settled whole and taken', () => {
+        const box = { value: '630' };
+        assert.deepEqual(readClockBox(box), { status: 'time', value: '06:30', shown: '06:30' });
+    });
+
+    it('an emptied box is empty, and a time that is no time is refused as one', () => {
+        assert.deepEqual(readClockBox({ value: '' }), { status: 'empty', value: '', shown: '' });
+        assert.equal(readClockBox({ value: '2500' }).status, 'not-a-time');
+    });
+});
+
+describe('every screen asks readClockBox, and none judges a settled box for itself', () => {
+    it('no module but clock-input.js calls settleClockBox, and every one that shapes a box reads it with readClockBox', async () => {
+        const { readFileSync, readdirSync } = await import('node:fs');
+        const root = new URL('../', import.meta.url);
+        const files = readdirSync(root).filter(f => f.endsWith('.js') && f !== 'clock-input.js');
+        const settles = files.filter(f => /\bsettleClockBox\(/.test(readFileSync(new URL(f, root), 'utf8')));
+        assert.deepEqual(settles, [], 'these read a settled box their own way — ask readClockBox instead');
+        const shapers = files.filter(f => /\bshapeClockBoxInPlace\(/.test(readFileSync(new URL(f, root), 'utf8')));
+        assert.ok(shapers.length >= 4, `only ${shapers.length} screens found — this test is reading nothing`);
+        for (const f of shapers) assert.match(readFileSync(new URL(f, root), 'utf8'), /\breadClockBox\(/, `${f} shapes a clock box but never reads it with readClockBox`);
     });
 });

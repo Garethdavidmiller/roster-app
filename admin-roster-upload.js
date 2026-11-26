@@ -13,7 +13,7 @@ import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday,
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { parseOtherValue } from './override-utils.js';
 import { overrideFromSnapshot } from './override-compare.js';
-import { shapeClockBoxInPlace, settleClockBox, noteClockBoxBefore } from './clock-input.js';
+import { shapeClockBoxInPlace, readClockBox, noteClockBoxBefore } from './clock-input.js';
 import { paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 import { computeCellStates, guardedRowHtml, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, collectRosterWrites, reviewOutcome, outcomeHtml, carryReviewAnswers, personSummary } from './roster-review-states.js';
@@ -64,7 +64,7 @@ export function parseFailureLine(err, { online, elapsedMs, wasHidden }) {
         return 'The connection dropped before it finished. Check your connection, keep this screen open, and try again.';
     }
     if (unreachable) return "Couldn't reach the server — check your internet connection or try again later.";
-    return 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
+    return 'Reading the PDF took longer than expected. The PDF may be large — try again, or check your connection.';
 }
 
 /**
@@ -370,7 +370,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             parseFeedback.textContent = '';
 
             // Fetch existing overrides for this week from Firestore so we can detect conflicts
-            parseFeedback.textContent = 'Checking for existing schedule changes…';
+            parseFeedback.textContent = 'Checking the changes already saved…';
             const existingOverrides = await fetchOverridesForWeek(_parsedResult.dates);
             _shown = new Map(existingOverrides.map((/** @type {any} */ o) => [o.id, o]));
             parseFeedback.textContent = '';
@@ -388,7 +388,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // this now-unverified upload, and keep the review hidden (v16.25).
                 _cellStates = null;
                 reviewSection.classList.remove('visible');
-                parseFeedback.textContent = "Couldn't check your existing saved changes, so the roster was not applied. Check your connection and try again.";
+                parseFeedback.textContent = "Couldn't check the changes already saved, so the roster was not applied. Check your connection and try again.";
                 parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             } else {
                 const inTransit = parseFailureLine(_err, {
@@ -980,7 +980,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (e.target?.classList?.contains('roster-entry-time')) noteClockBoxBefore(e.target);
         });
         changeList.addEventListener('input', /** @param {any} e */ e => entryTime(e, /** @param {HTMLInputElement} el */ el => shapeClockBoxInPlace(el, e)));
-        changeList.addEventListener('focusout', /** @param {any} e */ e => entryTime(e, settleClockBox));
+        changeList.addEventListener('focusout', /** @param {any} e */ e => entryTime(e, /** @param {HTMLInputElement} el */ el => readClockBox(el).shown));
 
         // ---- Empty state ----
         if (sectionsShown === 0) {

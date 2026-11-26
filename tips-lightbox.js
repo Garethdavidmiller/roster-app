@@ -16,11 +16,47 @@
  * adminOnly/staffOnly filtering only applies when getIsAdmin is supplied
  * (admin.html shows different tips to admins and staff).
  *
+ * THE GLOSSARY OPENS IN THE SAME PANEL (26 Nov 2026). "Words used in the app" (glossary.js) is one more set of
+ * tips, keyed `GLOSSARY_KEY`, so it needs no overlay of its own: a panel whose text uses one of its words ends
+ * with a "What these words mean" button that redraws THIS panel as the glossary — no second overlay, so no
+ * shared Escape and no second history entry — and the drawer's Reference row opens it through `openGlossary`,
+ * which reaches the page's panel. Focus goes to the ✕, because the button that had it is redrawn away.
+ *
  * @module tips-lightbox
  */
 
 import { escapeHtml } from './roster-data.js';
 import { createLightbox } from './overlay.js';
+import { GLOSSARY, GLOSSARY_TITLE, mentionsGlossaryTerm } from './glossary.js';
+
+/** The glossary's key among a page's tips. Not a `data-card` value any page uses. */
+export const GLOSSARY_KEY = 'glossary';
+
+/** The glossary in the tips shape. */
+const GLOSSARY_TIPS = Object.freeze({
+    title: GLOSSARY_TITLE,
+    sections: [{ items: GLOSSARY.map(g => ({ icon: g.icon, html: `<strong>${escapeHtml(g.term)}</strong>: ${escapeHtml(g.line)}` })) }],
+});
+
+/**
+ * The ONE panel built on this page's `#tipsLightbox`, once built: a second `createLightbox` on the same overlay would
+ * close twice on one ✕, unlocking the scroll twice and taking a second history entry off. A later `initTipsLightbox`
+ * hands its content to this one instead (regression review, 26 Nov 2026).
+ * @type {{ lb: HTMLElement, set: (tips: object, getIsAdmin: Function|undefined) => void, open: (key: string) => void }|null}
+ */
+let built = null;
+
+/**
+ * Open the page's `?` panel as the glossary — the drawer's "Words used in the app". A page that has not built its panel
+ * yet (Overtime while paused, Pay's refusal card: no card is drawn, so nothing asked) has it built here, with no cards;
+ * the page's own later call fills them in. False only on a page with no `#tipsLightbox` at all.
+ * @returns {boolean}
+ */
+export function openGlossary() {
+    if (!built && !initTipsLightbox({}, { trigger: null })) return false;
+    built?.open(GLOSSARY_KEY);
+    return true;
+}
 
 /**
  * Wire up the page's #tipsLightbox and every `?` button that opens it (`.btn-card-tips` by default).
@@ -40,6 +76,11 @@ import { createLightbox } from './overlay.js';
  */
 export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '.btn-card-tips', key: 'card' } } = {}) {
     const lb       = document.getElementById('tipsLightbox');
+    if (lb && built?.lb === lb) {
+        built.set(cardTips, getIsAdmin);
+        wireTriggers(trigger, built.open);
+        return { open: built.open };
+    }
     const content  = document.getElementById('tipsLightboxContent');
     const closeBtn = document.getElementById('tipsLightboxClose');
     const titleEl  = document.getElementById('tipsLbTitle');
@@ -64,12 +105,16 @@ export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '
                 html += `<div class="tips-lb-item"><span class="tips-lb-icon" aria-hidden="true">${item.icon}</span><span>${item.html}</span></div>`;
             }
         }
+        // A panel that uses one of the glossary's words says where they are explained.
+        if (tips !== GLOSSARY_TIPS && mentionsGlossaryTerm(html)) {
+            html += '<button type="button" class="tips-lb-glossary" data-glossary><span aria-hidden="true">📖</span><span class="tips-lb-glossary-words">What these words mean</span></button>';
+        }
         return html;
     }
 
     /** @param {any} key */
     function openTips(key) {
-        const tips = /** @type {Record<string, any>} */ (cardTips)[key];
+        const tips = key === GLOSSARY_KEY ? GLOSSARY_TIPS : /** @type {Record<string, any>} */ (cardTips)[key];
         if (!tips) return;
         /** @type {HTMLElement} */ (lb).setAttribute('aria-label', tips.title);
         /** @type {HTMLElement} */ (titleEl).textContent = tips.title;
@@ -82,12 +127,30 @@ export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '
         if (content) content.scrollTop = 0;
     }
 
-    // Wire every card's ? button — stopPropagation prevents collapsing the card
-    if (trigger) document.querySelectorAll(trigger.selector).forEach(btn => {
-        btn.addEventListener('click', e => {
+    bodyEl.addEventListener('click', e => {
+        if (!/** @type {Element} */ (e.target).closest?.('[data-glossary]')) return;
+        openTips(GLOSSARY_KEY);
+        /** @type {HTMLElement|null} */ (closeBtn)?.focus();
+    });
+    built = { lb, open: openTips, set: (tips, isAdmin) => { cardTips = tips; getIsAdmin = isAdmin; } };
+
+    wireTriggers(trigger, openTips);
+    return { open: openTips };
+}
+
+/**
+ * Wire every card's ? button to the panel, once each — stopPropagation keeps the press from collapsing the card.
+ * @param {{ selector: string, key: string }|null} trigger @param {(key: string) => void} open
+ */
+function wireTriggers(trigger, open) {
+    if (!trigger) return;
+    document.querySelectorAll(trigger.selector).forEach(btn => {
+        const b = /** @type {HTMLElement} */ (btn);
+        if (b.dataset.tipsWired) return;
+        b.dataset.tipsWired = '1';
+        b.addEventListener('click', e => {
             e.stopPropagation();
-            openTips(/** @type {HTMLElement} */ (btn).dataset[trigger.key]);
+            open(/** @type {string} */ (b.dataset[trigger.key]));
         });
     });
-    return { open: openTips };
 }

@@ -449,7 +449,7 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
 export function renderTotals(timetables) {
     const total = (/** @type {string} */ label, /** @type {number} */ now, /** @type {number} */ dec) => {
         const delta = dec === now ? '' : ` <span class="tr-delta tr-delta--${dec > now ? 'up' : 'down'}">${dec > now ? '+' : '−'}${Math.abs(dec - now)}</span>`;
-        return `<li class="tr-total"><span class="tr-total-day">${esc(label)}</span> <span class="tr-total-n">${now} → <strong>${dec}</strong></span>${delta}</li>`;
+        return `<li class="tr-total"><span class="tr-total-day">${esc(label)}</span> <span class="tr-total-n"><span class="tr-total-was">${now}</span> → <strong>${dec}</strong></span>${delta}</li>`;
     };
     // A ROW FOR EACH KIND OF WEEKDAY, WHEN THEY DIFFER (external review, 18 Nov 2026): "Weekdays 145 → 158
     // +13" was a Tuesday to Thursday's, and a Monday or Friday has 144 and gains 14. One row when every

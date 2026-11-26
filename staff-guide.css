@@ -230,5 +230,5 @@
     .install-os { font-size: var(--type-small); }
     /* The tips' grid ran straight into the paragraph under it, the one grid here with no gap below it
        (Nov 2026). Screen only: the printed sheets have ~7px to spare. */
-    .nav-grid + p { margin-top: 8px; }
+    .nav-grid + p, .markers + p { margin-top: 8px; }   /* the markers' chips sat flush on the paragraph too (26 Nov 2026) */
 }

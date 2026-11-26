@@ -171,7 +171,7 @@ describe('over-reporting', () => {
         const entries = { [k('hpp_mode_2026_27')]: 'null', [k('p16')]: '5', [k('snap_16')]: '"x"',
                           [k('hpp_mode_2025_26')]: '{"mode":"exact","exact":"320.00"}', [k('pension_timeline')]: '[]' };
         assert.deepEqual(damagedEntries(entries, P).map(d => d.label).sort(),
-            ['Holiday Pay Premium 2026/27', 'payslip 16', 'roster-suggested figures for payslip 16']);
+            ['Holiday Pay Premium 2026/27', 'figures filled from your calendar for payslip 16', 'payslip 16']);
     });
 
     test('setup_years_migrated is not a tax year, and ytd_pay is not ytd_pay_2026_27', () => {
@@ -211,7 +211,7 @@ describe('over-reporting', () => {
 describe('naming an entry', () => {
     test('each kind describes itself the way a message about it should read', () => {
         assert.equal(describePayKey('p16'), 'payslip 16');
-        assert.equal(describePayKey('snap_16'), 'roster-suggested figures for payslip 16');
+        assert.equal(describePayKey('snap_16'), 'figures filled from your calendar for payslip 16');
         assert.equal(describePayKey('bp_state_2026_27'), 'back pay 2026/27');
         assert.equal(describePayKey('bp_state'), 'back pay');
         assert.equal(describePayKey('actuals'), 'payslip comparison');

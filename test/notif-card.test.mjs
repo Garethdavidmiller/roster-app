@@ -11,7 +11,7 @@
  *   · Enable did not wait for the session, so the record was saved with no owner — or not at all;
  *     and then it waited BEFORE asking, outside the tap that iPhone Safari needs the ask inside;
  *   · Chrome's quiet prompt can leave `requestPermission()` unsettled for ever, and the button sat on
- *     "Enabling…" with it;
+ *     "Turning on…" with it;
  *   · Settings never re-registered the device, so "✓ On" could have no record behind it;
  *   · and it must still hear `myb:notif-changed`, which is how the drawer's bell tells it.
  *
@@ -141,7 +141,7 @@ describe('Enable and Disable, through the real card — and it hears myb:notif-c
         await settle();
         assert.equal(env.disables, 1);
         assert.deepEqual(lastReport(), ['ok', 'Off', 'plain']);
-        assert.equal(els.notifDisableBtn.textContent, 'Disable notifications', 'the button is not left on "Disabling…"');
+        assert.equal(els.notifDisableBtn.textContent, 'Turn off notifications', 'the button is not left on "Turning off…"');
     });
     test('another control\'s change — the drawer\'s bell — repaints the card', async () => {
         await openCard();
@@ -219,7 +219,7 @@ describe('the session', () => {
         assert.equal(env.enables, 1, 'the permission request waited for something — it must run in the tap itself');
         await settle();
         assert.equal(env.subscribes, 0, 'subscribed before the session was ready');
-        assert.equal(els.notifEnableBtn.textContent, 'Enabling…');
+        assert.equal(els.notifEnableBtn.textContent, 'Turning on…');
         ready(true);
         await click;
         await settle();
@@ -235,10 +235,10 @@ describe('a permission question that never settles does not hold the button', ()
         await openCard({ askLimitMs: 20 });
         els.notifEnableBtn.click();
         await settle();
-        assert.equal(els.notifEnableBtn.textContent, 'Enabling…', 'premise: waiting on the browser');
+        assert.equal(els.notifEnableBtn.textContent, 'Turning on…', 'premise: waiting on the browser');
         await new Promise(r => setTimeout(r, 40));
         await settle();
-        assert.equal(els.notifEnableBtn.textContent, 'Enable notifications');
+        assert.equal(els.notifEnableBtn.textContent, 'Turn on notifications');
         assert.equal(els.notifEnableBtn.disabled, false);
         assert.equal(els.notifStatusMsg.textContent, STILL_ASKING_LINE);
     });
@@ -252,7 +252,7 @@ describe('a permission question that never settles does not hold the button', ()
         assert.equal(els.notifEnableBtn.disabled, false, 'premise: the button is back past the ask limit');
         const second = els.notifEnableBtn.click();
         assert.equal(env.enables, 1, 'a second tap asked for permission again, alongside the first');
-        assert.equal(els.notifEnableBtn.textContent, 'Enabling…');
+        assert.equal(els.notifEnableBtn.textContent, 'Turning on…');
         release();
         await Promise.all([first, second]);
         await settle();
@@ -273,7 +273,7 @@ describe('a permission question that never settles does not hold the button', ()
         globalThis.Notification.permission = 'granted';
         await new Promise(r => setTimeout(r, 40));
         await settle();
-        assert.equal(els.notifEnableBtn.textContent, 'Enabling…', 'a slow subscribe is not "still asking"');
+        assert.equal(els.notifEnableBtn.textContent, 'Turning on…', 'a slow subscribe is not "still asking"');
         release();
         await click;
         await settle();

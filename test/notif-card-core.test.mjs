@@ -74,7 +74,7 @@ describe('each state says what it is, and the status lines point at the member\'
         assert.equal(on.status, 'Notifications are on for this device — you’ll get each alert listed above.');
         const off = notifCardWords(device());
         assert.deepEqual([off.report, off.chip, off.button], ['action', 'Off', 'enable']);
-        assert.equal(off.status, 'Select “Enable notifications” to get the alerts listed above.');
+        assert.equal(off.status, 'Select “Turn on notifications” to get the alerts listed above.');
         const chosen = notifCardWords(device({ offByChoice: true }));
         assert.deepEqual([chosen.report, chosen.chip, chosen.tone, chosen.button], ['ok', 'Off', 'plain', 'enable'],
             'switched off here is nothing to do, and not coloured as good news');

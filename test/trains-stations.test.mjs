@@ -805,15 +805,15 @@ describe('the station card, the lookup and the totals as a member reads them (v2
     test('the totals count one real day of each kind, a cell each under one label — a kind of weekday each, where they differ', () => {
         const html = renderTotals(TIMETABLES);
         assert.match(html, /<p class="field-eyebrow tr-totals-h">Trains a day leaving Marylebone<\/p>/);
-        assert.match(html, /<ul class="tr-totals-days"><li class="tr-total"><span class="tr-total-day">Mon and Fri<\/span> <span class="tr-total-n">144 → <strong>158<\/strong><\/span> <span class="tr-delta tr-delta--up">\+14<\/span><\/li>/,
+        assert.match(html, /<ul class="tr-totals-days"><li class="tr-total"><span class="tr-total-day">Mon and Fri<\/span> <span class="tr-total-n"><span class="tr-total-was">144<\/span> → <strong>158<\/strong><\/span> <span class="tr-delta tr-delta--up">\+14<\/span><\/li>/,
             'Mondays and Fridays first, as the week runs');
-        assert.match(html, /<\/li><li class="tr-total"><span class="tr-total-day">Tue to Thu<\/span> <span class="tr-total-n">145 → <strong>158<\/strong><\/span> <span class="tr-delta tr-delta--up">\+13<\/span><\/li><li class="tr-total"><span class="tr-total-day">Saturdays/);
-        assert.match(html, /<span class="tr-total-day">Sundays<\/span> <span class="tr-total-n">91 → <strong>94<\/strong>/);
+        assert.match(html, /<\/li><li class="tr-total"><span class="tr-total-day">Tue to Thu<\/span> <span class="tr-total-n"><span class="tr-total-was">145<\/span> → <strong>158<\/strong><\/span> <span class="tr-delta tr-delta--up">\+13<\/span><\/li><li class="tr-total"><span class="tr-total-day">Saturdays/);
+        assert.match(html, /<span class="tr-total-day">Sundays<\/span> <span class="tr-total-n"><span class="tr-total-was">91<\/span> → <strong>94<\/strong>/);
         assert.equal((html.match(/<li class="tr-total">/g) ?? []).length, 4, 'two kinds of weekday, Saturdays and Sundays');
         assert.doesNotMatch(html, /Weekdays/, 'no row says a figure is every weekday\'s that is not');
         // Where every weekday has the same count — December's books run every weekday train every weekday — one row.
         const same = renderTotals({ now: TIMETABLES.dec, dec: TIMETABLES.dec });
-        assert.match(same, /<li class="tr-total"><span class="tr-total-day">Weekdays<\/span> <span class="tr-total-n">158 → <strong>158<\/strong><\/span><\/li>/);
+        assert.match(same, /<li class="tr-total"><span class="tr-total-day">Weekdays<\/span> <span class="tr-total-n"><span class="tr-total-was">158<\/span> → <strong>158<\/strong><\/span><\/li>/);
         assert.equal((same.match(/<li class="tr-total">/g) ?? []).length, 3);
     });
 });

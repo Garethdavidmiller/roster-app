@@ -701,11 +701,12 @@ test.describe('new link', () => {
     async function expectNotForYou(page) {
         await expect(page).toHaveURL(/newlink\.html$/);
         const card = page.locator('#nlNotForYou');
-        await expect(card.locator('h2')).toHaveText('🔁 The new link doesn’t apply to your contract');
+        await expect(card.locator('h2')).toHaveText('The new link doesn’t apply to your contract');
+        await expect(card, 'the app\'s one refusal card, as Admin\'s and Pay\'s').toHaveClass(/\brole-card\b/);
         await expect(card).toContainText('The three shortlisted proposals for the new CEA link');
         await expect(card).toContainText('They are for colleagues on a normal CEA contract, and the managers.');
         await expect(card).toContainText('Colleagues on a bilingual contract, CESs and Dispatchers keep their own links.');
-        await expect(card.getByRole('link', { name: 'Back to your roster' })).toHaveAttribute('href', './');
+        await expect(card.getByRole('link', { name: '← Back to roster' })).toHaveAttribute('href', './');
         await expect(page.locator('.nl-name-title, #nlStatusCard, #nlWeeksCard'), 'no proposal is drawn for them').toHaveCount(0);
         await expect(page.locator('#newlinkMain'), 'nothing names the admin, or managers, as deciding').not.toContainText(/admin|managers decide/i);
         await expect(page.locator('#newlinkBadge')).toBeVisible();

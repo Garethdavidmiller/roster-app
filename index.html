@@ -109,6 +109,7 @@
     <link rel="modulepreload" href="./fetch-timeout.js">
     <link rel="modulepreload" href="./firebase-client.js">
     <link rel="modulepreload" href="./function-url.js">
+    <link rel="modulepreload" href="./glossary.js">
     <link rel="modulepreload" href="./huddle-table-grid.js">
     <link rel="modulepreload" href="./install-prompt.js">
     <link rel="modulepreload" href="./leave-year.js">
@@ -571,7 +572,7 @@
                          for it, and a desktop's was the one control without one. The name already
                          contains it ("Go to today"), so what a voice user says still matches. -->
                     <button type="button" id="todayBtn"   class="today-btn"  aria-label="Go to today"><span aria-hidden="true">📍</span><span class="today-word">Today</span></button>
-                    <button type="button" id="teamViewBtn" class="team-btn"  aria-label="Switch to team week view"><span class="btn-ico" aria-hidden="true">👥</span> Team</button>
+                    <button type="button" id="teamViewBtn" class="team-btn"  aria-label="Switch to Team Week View"><span class="btn-ico" aria-hidden="true">👥</span> Team</button>
                     <button type="button" id="alBtn"       class="al-btn"    aria-label="AL — view annual leave balance"><span class="btn-ico" aria-hidden="true">🏖️</span> AL</button>
                     <!-- THE ICON IS A SPAN (v22.87) so the compact form can drop it: under large text the
                          word is the content and the emoji is 20–25px of decoration per button, which is the
@@ -611,8 +612,8 @@
              offered the documents (17 Nov 2026) — the module shows one ending as it shows the strip. -->
         <div id="notifPrompt" class="top-prompt" role="region" aria-label="Notifications" style="display:none">
             <span class="top-prompt-text" id="notifPromptOffer"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle<span id="notifPromptOfferDocs"> and other documents</span><span id="notifPromptOfferPay" hidden>, documents and pay reminders</span></span>
-            <span class="top-prompt-text" id="notifPromptFailed" hidden><span aria-hidden="true">🔔</span> <span id="notifPromptFailedLine">Couldn’t turn notifications on. Check your connection and tap Enable to try again, or later in <span class="nav-path">☰ → Settings</span>.</span></span>
-            <button type="button" class="top-prompt-action" id="notifPromptEnable">Enable</button>
+            <span class="top-prompt-text" id="notifPromptFailed" hidden><span aria-hidden="true">🔔</span> <span id="notifPromptFailedLine">Couldn’t turn notifications on. Check your connection and tap Turn on to try again, or later in <span class="nav-path">☰ → Settings</span>.</span></span>
+            <button type="button" class="top-prompt-action" id="notifPromptEnable">Turn on</button>
             <button type="button" class="top-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
         </div>
 

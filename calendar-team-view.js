@@ -222,7 +222,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             // rdw override → shift 'RDW' + its time in rdwTime (a base 'RDW' never exists, so this
             // one path covers every RDW cell — it absorbs the old separate 'RDW|time' branch).
             const t = rdwTime || '';
-            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest day working${t ? ' ' + t : ''}` };
+            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest Day Working${t ? ' ' + t : ''}` };
         }
         const _trg = parseOtherValue(shift);
         if (_trg) {
@@ -399,7 +399,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
 
         calendarDisplay.innerHTML = `
             <div class="team-view-container">
-                <div class="tv-print-header">Team View · ${grade} · ${weekLabel}</div>
+                <div class="tv-print-header">Team Week View · ${grade} · ${weekLabel}</div>
                 <div class="grade-tabs-row">
                     <div></div>
                     <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>
@@ -740,7 +740,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             // says "Month"), as #prevMonth's "Prev month" does; "monthly" is not the word "Month".
             teamBtn.setAttribute('aria-label', teamViewMode
                 ? 'Switch back to the month view'
-                : 'Switch to team week view');
+                : 'Switch to Team Week View');
         }
         // The month's Prev · name · Next row is hidden by `body.team-view-active` in index.css, and
         // only there: below 1024px it goes, on a desktop its slot is kept so the toggle does not move

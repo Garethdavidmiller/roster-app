@@ -45,7 +45,7 @@ export const HELP_CONTENT = {
     // calendar's help. The calendar tip was one 170-word block doing six jobs, ahead of the rule itself.
     sections: [
       { heading: 'What to enter', items: [
-        { icon: '📖', html: '<strong>Glossary:</strong> AL = Annual Leave · RDW = Rest Day Working (you worked on your scheduled day off) · BH = Bank Holiday · CEA / CES = your pay grade · HPP = Holiday Pay Premium (annual lump sum in January).' },
+        { icon: '📖', html: '<strong>Glossary:</strong> AL = annual leave · RDW = Rest Day Working (coming in on a rest day as extra work) · BH = bank holiday · CEA / CES = your pay grade · HPP = Holiday Pay Premium (annual lump sum in January).' },
         { icon: '📄', html: CONTRACT_TIP },
         { icon: '💷', html: 'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), bank holidays (1.25×), overtime (time-and-a-quarter, 1.25×), rest days worked as extra, a Saturday off included (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).' },
         { icon: '☑️', html: '<strong>None of those on a payslip?</strong> A week of ordinary weekday shifts has nothing to type, because your basic pay is worked out already. Tick <strong>No special-rate hours on this payslip</strong> under the rows, so the payslip counts as entered in <strong>This tax year so far</strong> and your Holiday Pay Premium. <strong>Fill these from your calendar</strong> ticks it for you on any payslip whose calendar has none. Type hours in later and the tick goes.' },
@@ -56,11 +56,11 @@ export const HELP_CONTENT = {
         { icon: '🎁', html: 'Boxing Day rows only appear on the January payslip — they’re hidden the rest of the time. Boxing Day 3× is for shifts worked on 26 December itself, whatever day of the week it falls on. A substitute bank holiday — the weekday given in place of a Christmas Day or Boxing Day that falls at a weekend — goes in Bank Holiday Rostered, not Boxing Day.' },
       ]},
       { heading: 'Filling from your calendar', items: [
-        { icon: '🗓️', html: 'If your name is in the roster, a gold hint card at the top of this section shows your special shifts for the payslip — Saturday, Sunday, bank holiday, bank holiday overtime, overtime, rest day working (RDW) and Boxing Day. Select a category row to fill just that one from your calendar, or <strong>Fill from calendar</strong> to fill every category in one go. Once you’ve typed values, the same button reads <strong>Replace with calendar values</strong> as a reminder it will overwrite them, which can’t be undone. Filled fields turn gold; the highlight clears as soon as you edit them.' },
+        { icon: '🗓️', html: 'If your name is in the roster, a gold hint card at the top of this section shows your special shifts for the payslip — Saturday, Sunday, bank holiday, Bank Holiday Overtime, overtime, Rest Day Working (RDW) and Boxing Day. Select a category row to fill just that one from your calendar, or <strong>Fill from calendar</strong> to fill every category in one go. Once you’ve typed values, the same button reads <strong>Replace with calendar values</strong> as a reminder it will overwrite them, which can’t be undone. Filled fields turn gold; the highlight clears as soon as you edit them.' },
         // R3-7: the old "won't guess" line called an ordinary weekday on a rest day a swap that "pays in
         // ways the app cannot predict", right before saying a Saturday swap IS predicted — and blurred
         // weekday RDW records, which are counted (invariant 11).
-        { icon: '🔍', html: 'When you’re online, the counts include the shift changes on your calendar — from the weekly roster, or recorded on the Admin page — not just the base roster. A Saturday or bank holiday recorded as an ordinary shift on a day off — a weekday swapped for it — counts as rostered (Rostered Saturday, Bank Holiday Rostered); one recorded as rest day working counts as RDW or Bank Holiday Overtime. One thing it will not guess: a weekday rest day recorded as an ordinary shift. That is usually a swap, which needs nothing here — but if you came in as extra work, enter the hours in Rest Day Working yourself. It is deliberately cautious, and never invents a figure.' },
+        { icon: '🔍', html: 'When you’re online, the counts include the shift changes on your calendar — from the weekly roster, or recorded on the Admin page — not just the base roster. A Saturday or bank holiday recorded as an ordinary shift on a rest day — a weekday swapped for it — counts as rostered (Rostered Saturday, Bank Holiday Rostered); one recorded as Rest Day Working counts as RDW or Bank Holiday Overtime. One thing it will not guess: a weekday rest day recorded as an ordinary shift. That is usually a swap, which needs nothing here — but if you came in as extra work, enter the hours in Rest Day Working yourself. It is deliberately cautious, and never invents a figure.' },
       ]},
       { heading: 'Training and other days', items: [
         // R3-9: Christmas Day and Boxing Day can never be Training or Other days (owner, Jul and 21 Nov
@@ -86,7 +86,7 @@ export const HELP_CONTENT = {
       ]},
       { heading: 'Deductions', items: [
         // R3-13: the field's own hint explains W1, M1 and X; the panel did not.
-        { icon: '🧾', html: '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). HMRC sets it, and it tells payroll how much of your pay is tax-free. Most Marylebone staff are on 1257L. If you’re unsure, check your payslip or contact payroll. If W1, M1 or X comes after the code, type that too — it means each payslip is taxed on its own, and Year to Date figures are then not used.' },
+        { icon: '🧾', html: '<strong>Tax code:</strong> shown at the top of your payslip (for example, 1257L). HMRC sets it, and it tells payroll how much of your pay is tax-free. Most Marylebone staff are on 1257L. If you’re unsure, check your payslip or contact payroll. If W1, M1 or X comes after the code, type that too — it means each payslip is taxed on its own, and Year to Date figures are then not used.' },
         // R3-4: "update it here and past periods will keep their own" suggested a typed figure carries
         // forward. It changes the payslip on screen only; every other payslip takes its own default from
         // PENSION_STEPS, which moves at each award by itself.
@@ -118,10 +118,10 @@ export const HELP_CONTENT = {
     title: 'Holiday Pay Premium (HPP) — what it is',
     sections: [
       { heading: 'What it is', items: [
-        { icon: '🏖️', html: 'When you take annual leave, Chiltern only pays your <strong>basic contracted rate</strong> — you miss out on overtime, rest day pay and Sunday pay for those days.' },
+        { icon: '🏖️', html: 'When you take annual leave, Chiltern only pays your <strong>basic contracted rate</strong> — you miss out on overtime, Rest Day Working and Sunday pay for those days.' },
         // R3-11: ALL overtime, RDW, Sunday, Bank Holiday Overtime and Boxing Day pay counts; only the
         // extra quarter on rostered Saturdays and bank holidays (`_varPayForPeriod`, paycalc-hpp.js).
-        { icon: '➗', html: 'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> (4 weeks’ leave out of 52) of your pay above basic across the whole tax year: all of your overtime, rest day working, Sunday, Bank Holiday Overtime and Boxing Day pay, and the extra quarter on rostered Saturdays and bank holidays. London Allowance is not included — it’s paid every payslip anyway, including while you’re on leave, so it needs no premium.' },
+        { icon: '➗', html: 'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> (4 weeks’ leave out of 52) of your pay above basic across the whole tax year: all of your overtime, Rest Day Working, Sunday, Bank Holiday Overtime and Boxing Day pay, and the extra quarter on rostered Saturdays and bank holidays. London Allowance is not included — it’s paid every payslip anyway, including while you’re on leave, so it needs no premium.' },
         { icon: '📅', html: HPP_WHEN_TIP },
       ]},
       { heading: 'Using the card', items: [
@@ -129,7 +129,7 @@ export const HELP_CONTENT = {
         // panel never explained it. The three labels are the card's own (paycalc.html, #hppModeRow).
         { icon: '🧮', html: '<strong>Where should this year’s estimate come from?</strong> <strong>From your payslips in the calculator</strong> is the most accurate — it adds up the hours you’ve entered. <strong>Rough estimate from your Year to Date pay</strong> takes the Taxable Pay on your Year to Date Figures card, removes the basic pay and London Allowance the app expects, and takes 7.69% of the rest — useful for a year with no hours entered here. <strong>Enter the figure yourself</strong> if you already know it.' },
         { icon: '🟢', html: 'On the January payslip that carries it, a <strong>green note</strong> shows the estimated premium. It isn’t added to your take-home until you tick <strong>“Add this to this payslip’s take-home estimate”</strong> on the note — so it never changes your figure uninvited.' },
-        { icon: '✅', html: 'When you move into the next tax year, the prior year’s estimate carries forward into this card. Once your real January figure lands, enter the confirmed <strong>Holiday Pay Premium</strong> amount here to replace the estimate.' },
+        { icon: '✅', html: 'When you move into the next tax year, last year’s estimate carries forward into this card. Once your real January figure lands, enter the confirmed <strong>Holiday Pay Premium</strong> amount here to replace the estimate.' },
       ]},
     ],
   },

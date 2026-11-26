@@ -142,7 +142,7 @@ body {
     margin-top: 8px;
     line-height: 1.45;
 }
-.rc-chiltern .ct-label { color: var(--amber); font-weight: 700; margin-right: 4px; }
+.rc-chiltern .ct-label { color: var(--amber); font-weight: 700; margin-right: 0; }   /* the typed space is the gap: with a margin too it read as two (26 Nov 2026) */
 /* A link in the note is the shell's one link, navy: amber on this page means a morning rule (Nov 2026). */
 
 /* ── Three-layer time-rule breakdown (high-risk cards only) ── */
@@ -235,7 +235,7 @@ body {
     flex-shrink: 0;
     height: fit-content;
     margin-top: 1px;
-    min-width: 90px;
+    min-width: 100px;   /* the longest tag's width (was 90px, which two tags exceeded, so their text started further right — 26 Nov 2026) */
     text-align: center;
 }
 .gotcha-text strong { color: var(--navy); }
@@ -532,7 +532,8 @@ div.check {
 .split-half p { font-size: 12.5px; color: var(--mid); line-height: 1.45; margin: 0; }
 @media (min-width: 640px) { .split { grid-template-columns: 1fr 1fr; } }
 
-.gotcha--wide { display: block; }
+/* On the page, not in a card, it needs a card of its own, as every other gotcha sits in one (26 Nov 2026). */
+.gotcha--wide { display: block; margin-top: 8px; background: var(--white); border-radius: 12px; box-shadow: var(--shadow-card); border-bottom: none; }
 
 /* ── Print: the operational layer must survive monochrome ────────────────────────────────────
    A printed copy is the one most likely to be read at a barrier, and every status on this page is
@@ -545,6 +546,7 @@ div.check {
     .myb-row { background: transparent; border-bottom: 0.25pt solid #ccc; }
     .split-half, .photo-note { border: 0.5pt solid #999; break-inside: avoid; }
     .rc-correction, .rc-transition, .rc-unsourced { background: transparent; border-left: 2pt solid #333; }
+    .gotcha--wide { box-shadow: none; }   /* after its screen rule, or that wins: a shadow is a screen's edge */
 }
 
 /* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────

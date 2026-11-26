@@ -36,16 +36,16 @@ export const CARD_TIPS = {
                 // It names the type's full LABEL (admin-week-editor.js) — this said “AL”, which the button never reads.
                 { icon: '3️⃣', html: 'Select the <strong>Apply</strong> button under the pills — once you have picked a type it names it, so it reads <em>Apply “Annual Leave” to ticked days</em> — then <strong>Save changes</strong>.' },
                 { icon: 'ℹ️', html: 'Until a day is ticked and a type is chosen, <strong>Apply</strong> is greyed out, and the line under it says which is still missing.' },
-                { icon: '🏖️', html: 'For a run of annual leave or absence, the two cards beside this one — below it on a phone — do a whole date range in one go — you do not have to tick days here.' },
+                { icon: '🏖️', html: 'For a run of annual leave or absence, use the two cards beside this one (below it on a phone). They record a whole date range in one go, so you do not have to tick days here.' },
             ]},
             { heading: 'What each type means', items: [
                 { icon: '🏖️', html: '<strong>AL</strong> — annual leave. <strong>Absent</strong> — away for any reason; only the dates are saved, never the reason.' },
-                { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift. Use it to confirm a spare week, change shift times, or record a swap with a colleague.' },
+                { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift. Use it to confirm a Spare week, change shift times, or record a swap with a colleague.' },
                 { icon: '💼', html: '<strong>RDW</strong> — Rest Day Working. Use it when somebody works a full shift on their rest day.' },
                 { icon: '✏️', html: '<strong>Rest Day</strong> — puts a working day back to a rest day.' },
                 // All six flavours and Spare: a flavour left out of this list is one nobody knows exists.
                 { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union, meeting, or <strong>Spare</strong> (a Spare day: on standby, shift not yet assigned).' },
-                { icon: '⏱️', html: 'On an <strong>Other</strong> day that falls on a rest day, <strong>Rest day (RDW)</strong> is already ticked and cannot be unticked — it is automatic. On a day they were rostered to work, tick it yourself to pay the day as rest-day working. Add times if you know them; leave them blank and it pays as the day underneath, or eight hours on a rest day.' },
+                { icon: '⏱️', html: 'On an <strong>Other</strong> day that falls on a rest day, <strong>Rest day (RDW)</strong> is already ticked and cannot be unticked — it is automatic. On a day they were rostered to work, tick it yourself to pay the day as Rest Day Working. Add times if you know them; leave them blank and it pays as the day underneath, or eight hours on a rest day.' },
             ]},
         ],
     },
@@ -86,7 +86,7 @@ export const CARD_TIPS = {
                 // are skipped too; a rest day holding RDW or leave is left as it is (`absenceHiddenDates`). The preview names each.
                 { icon: '📅', html: 'Pick a start and end date. Rest days, <strong>Christmas Day</strong> and <strong>Boxing Day</strong>, and any day before the member’s start date are skipped automatically. A Sunday is never recorded as absence: where the roster has a shift on a Sunday in the range, that Sunday is set as a rest day instead. A rest day already holding Rest Day Working or leave is left as it is. The preview names each of these days before you save.' },
                 // The Calendar needs a sign-in, so "everybody" overstated who can see it.
-                { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and every member of staff can see it, the same as annual leave. What they cannot see is why.' },
+                { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and every colleague can see it, the same as annual leave. What they cannot see is why.' },
             ]},
         ],
     },

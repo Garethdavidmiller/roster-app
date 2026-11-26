@@ -715,8 +715,9 @@ export function init() {
             mine.innerHTML = `
                 <div class="ot-state">
                     <span class="ot-state-icon" aria-hidden="true">${paused ? '⏸️' : '🔒'}</span>
-                    ${paused ? "Overtime availability is paused and isn't in use at the moment. If it comes back, your manager will let you know."
-                        : "Overtime availability isn't open to everyone yet. Your manager will let you know when it is."}
+                    ${paused ? "Overtime availability is paused and isn’t in use at the moment. If it comes back, your manager will let you know."
+                        : "Overtime availability isn’t open to everyone yet. Your manager will let you know when it is."}
+                    <a href="./" class="role-card-back">← Back to roster</a>
                 </div>`;
             if (paused) sayStaffPinEndedIn(mine.querySelector('.ot-state'));   // no card here, so it says the PIN ended itself (AUTH_AND_SESSIONS 24)
         }

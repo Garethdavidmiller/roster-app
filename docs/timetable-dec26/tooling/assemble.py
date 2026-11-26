@@ -79,8 +79,12 @@ def letter(x):
 def usable(stops, kind):
     """The stops a passenger on this journey can use: leaving London, not a pick-up-only stop;
     coming in, not a set-down-only one."""
-    barred = 'u' if kind == 'dep' else 's'
-    return [x for x in stops if letter(x) != barred]
+    return [x for x in stops if letter(x) != BARRED[kind]]
+BARRED = {'dep': 'u', 'arr': 's'}
+def barred_at(stops, kind):
+    """The stations this copy prints with the letter that bars a passenger this way — kept, so a union with the
+    other book's copy can see that one book says a passenger cannot use a call the other prints plain."""
+    return sorted({x['crs'] for x in stops if letter(x) == BARRED[kind]})
 def hhmm(t, less=0):
     m = (int(t[:2]) * 60 + int(t[2:4]) - less) % 1440
     return f'{m // 60:02d}{m % 60:02d}'
@@ -120,13 +124,13 @@ for t in T:
     if t['dir'] == 'out':
         if s[0]['crs'] != 'MYB': continue
         on = usable(s[1:], 'dep')
-        res.append(dict(kind='dep', day=t['day'], t=s[0]['t'][:4], dest=s[-1]['crs'], destName=s[-1]['name'], via_h=('H' in t['notes']) or t['src']=='main',
+        res.append(dict(kind='dep', barred=barred_at(s[1:], 'dep'), day=t['day'], t=s[0]['t'][:4], dest=s[-1]['crs'], destName=s[-1]['name'], via_h=('H' in t['notes']) or t['src']=='main',
                         calls=[x['crs'] for x in on], stops=timed_stops(on, 'first'), names=names, notes=t['notes'], src=t['src'],
                         at=f"{t['src']} book, page {t['page']}, column {t['col']}"))
     else:
         if s[-1]['crs'] != 'MYB': continue
         on = usable(s[:-1], 'arr')
-        res.append(dict(kind='arr', day=t['day'], t=s[-1]['t'][:4], org=s[0]['crs'], orgName=s[0]['name'],
+        res.append(dict(kind='arr', barred=barred_at(s[:-1], 'arr'), day=t['day'], t=s[-1]['t'][:4], org=s[0]['crs'], orgName=s[0]['name'],
                         calls=[x['crs'] for x in on], stops=timed_stops(on, 'last'), names=names, notes=t['notes'], src=t['src'],
                         at=f"{t['src']} book, page {t['page']}, column {t['col']}"))
 # the same train can appear in both PDFs (Aylesbury via High Wycombe): keep one, prefer the main-line copy
@@ -162,23 +166,36 @@ def union_of(keep, other):
     order = sorted(times, key=lambda c: rel(times[c]))
     def kept_order(copy): return [c for c in order if c in dict(copy['stops'])] == [c for c, _ in copy['stops']]
     clash = len({rel(t) for t in times.values()}) < len(times)
-    if clash or not kept_order(keep) or not kept_order(other) or set(keep['calls']) != set(dict(keep['stops'])) \
+    # A station one book bars a passenger from (pick-up or set-down only) is not a call the other book's plain
+    # time can add: the two copies disagree about whether a passenger may use it, and only the book can say.
+    barred = set(dict(other['stops'])) & set(keep['barred']) or set(dict(keep['stops'])) & set(other['barred'])
+    if clash or barred or not kept_order(keep) or not kept_order(other) or set(keep['calls']) != set(dict(keep['stops'])) \
             or set(other['calls']) != set(dict(other['stops'])):
         sys.exit(f"assemble.py: the two books' copies of the {keep['t']} {keep['kind']} {keep['day']} cannot be put in one order "
                  f"of calls — {other['at']}, and {keep['at']}. Check the book, then teach assemble.py.")
-    return dict(stops=[[c, times[c]] for c in order], calls=order, names={**other['names'], **keep['names']})
+    return dict(stops=[[c, times[c]] for c in order], calls=order, names={**other['names'], **keep['names']},
+                barred=sorted(set(keep['barred']) | set(other['barred'])))
 seen = {}
 for r in res:
     key = (r['kind'], r['day'], r['t'], r.get('dest') or r.get('org'), variant(r))
     if key in seen:
         a = seen[key]
-        if disagree(a, r):
-            sys.exit(f"assemble.py: two trains at {r['t']} to the same end stop differently — {a['at']}, and {r['at']}, "
+        # A copy is judged against its OWN book's copy as printed, never against a union already made: after a
+        # union the row holds the other book's calls too, so an identical second printing would read as different.
+        raw = a['raw']
+        same = raw.get(r['src'])
+        if disagree(same or a, r):
+            sys.exit(f"assemble.py: two trains at {r['t']} to the same end stop differently — {(same or a)['at']}, and {r['at']}, "
                      f"{r['kind']} {r['day']}. Check the book, then teach assemble.py.")
+        notes, via_h = sorted(set(a['notes']) | set(r['notes'])), a.get('via_h') or r.get('via_h')
+        if same:
+            seen[key] = dict(a, notes=notes, via_h=via_h)
+            continue
         keep, other = (r, a) if r['src'] == 'main' else (a, r)
-        seen[key] = dict(keep, notes=sorted(set(a['notes']) | set(r['notes'])), via_h=a.get('via_h') or r.get('via_h'))
-        if a['src'] != r['src']: seen[key].update(union_of(keep, other))
+        seen[key] = dict(keep, notes=notes, via_h=via_h, raw={**raw, r['src']: r})
+        seen[key].update(union_of(keep, other))
         continue
+    r['raw'] = {r['src']: r}
     seen[key] = r
 # 2. A Mondays-and-Fridays and a not-Mondays-and-Fridays copy at one time and end together run every
 #    weekday — ONE train, but only when they stop alike. Until v24.83 they were merged whatever their
@@ -199,7 +216,7 @@ for k, r in merged.items():
 for (kind, day, t, end, v) in seen:
     if v and (kind, day, t, end, '') in seen:
         print('WARN a day-variant and an every-day train at one time and end:', kind, day, t, end, v)
-R = [{k: v for k, v in r.items() if k != 'at'} for r in sorted(seen.values(), key=lambda r: (r['kind'], r['day'], (mins(r['t']) - 180) % 1440))]
+R = [{k: v for k, v in r.items() if k not in ('at', 'raw', 'barred')} for r in sorted(seen.values(), key=lambda r: (r['kind'], r['day'], (mins(r['t']) - 180) % 1440))]
 json.dump({'trains': R, 'order': {'met': row_order(MET), 'main': row_order(MAIN)}}, open(sys.argv[3], 'w'), indent=1)
 print('dupes removed:', len(res) - len(R))
 print(collections.Counter((r['kind'], r['day']) for r in R))

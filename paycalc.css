@@ -152,7 +152,7 @@
       .nav-pill-today:hover { background: var(--accent-gold-dark); }
     }
     /* Left-aligned, like every line in the stack around it: a centred one read as an accident. */
-    .period-hint   { margin: 4px 0 0; font-size: var(--type-small); color: var(--text-faint); }
+    .period-hint   { margin: 4px 0 0; font-size: var(--type-small); color: var(--text-faint); align-self: stretch; }   /* the column centres its children: stretch, or a phone centred it (polish review, 26 Nov 2026) */
     /* A deep link to a payslip the calculator does not carry — a STATUS line in the navy info voice
        of .rate-step-note, never an error colour: nothing is wrong. */
     .period-link-note {
@@ -1377,7 +1377,9 @@
 
   /* ── TAX YEAR QUICK-JUMP TABS ── */
   .ty-tabs {
-    display: flex; gap: 6px; margin-bottom: 8px;
+    /* Stretched across the card as on a laptop: the centring column shrank the two tabs to their words on a
+       phone, where `.ty-tab { flex: 1 }` had nothing to fill (polish review, 26 Nov 2026). */
+    display: flex; gap: 6px; margin-bottom: 8px; align-self: stretch;
   }
   .ty-tab {
     flex: 1; padding: 7px 8px;
@@ -1637,7 +1639,7 @@
   .roster-day-chip--bhOt  { background: var(--chip-bhot-bg);    color: white; }
   .roster-day-chip--ot    { background: var(--chip-ot-bg);      color: white; }
   .roster-view-link {
-    display: block; margin-top: 8px;
+    display: block; margin-top: 8px; align-self: stretch;   /* left-aligned like the lines round it, not centred on a phone */
     font-size: var(--type-small); color: var(--primary-blue); text-decoration: none;
   }
   @media (hover: hover) and (pointer: fine) { .roster-view-link:hover { text-decoration: underline; } }

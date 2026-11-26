@@ -79,7 +79,7 @@ describe('RDW is "Rest Day Working" everywhere a colleague reads it', () => {
             'the Calendar legend');
         assert.match(read('./admin-shift-types.js'), /rdw:\s*\{\s*label:\s*'Rest Day Working'/,
             'Admin\'s name for the type (Saved Changes, receipts)');
-        assert.match(read('./calendar-renderer.js'), /if \(shift === 'RDW'\)\s+return 'Rest day working';/,
+        assert.match(read('./calendar-renderer.js'), /if \(shift === 'RDW'\)\s+return 'Rest Day Working';/,
             'the Calendar day panel');
         assert.match(read('./paycalc.html'), /<div class="h-title"><span aria-hidden="true">💼<\/span> Rest Day Working<\/div>/,
             'the Pay Calculator row where the hours are typed');

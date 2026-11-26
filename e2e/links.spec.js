@@ -849,7 +849,7 @@ test('links: the duties a cover week works are stated from SPARE_WORKED_DAYS, no
     }, PROPOSALS[0].patterns);
     await page.goto('/links.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
-    await expect(page.locator('.gen-spare-row .gen-td-note').first()).toHaveText('whole lines marked SP; 3 days worked Mon–Sat');
+    await expect(page.locator('.gen-spare-row .gen-td-note').first()).toHaveText('whole lines marked SP; 3 days worked Mon–\u2060Sat');   // a word joiner keeps Mon–Sat on one line
     await expect(page.locator('#objMaxRun + .gen-obj-text .gen-obj-hint')).toHaveText(
         'Consecutive working days, counted across the line boundary. A cover week counts as up to 4 — 3 duties and its Sunday');
     const checks = page.locator('#checksContent');

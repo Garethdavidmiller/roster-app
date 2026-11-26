@@ -2723,6 +2723,16 @@ test('operations: an entered finish typed as 2400 is refused, and 240 settles as
     await from.focus();
     await expect(to, 'what is left of 22:30 stays as it is').toHaveValue('22:3');
     await expect(saveBtn, 'and is no time, so nothing is entered').toHaveText(/Save 3 changes/);
+    // Delete at the FRONT leaves what LOOKS like a whole time (external review of v26.87): "2:30" is not 02:30. Every time
+    // box reads one that is left the same way (`readClockBox`, clock-input.js).
+    await to.fill('');
+    await to.pressSequentially('2230');
+    await expect(saveBtn).toHaveText(/Save 4 changes/);
+    await to.press('Home');
+    await to.press('Delete');
+    await from.focus();
+    await expect(to, 'what is left of 22:30 is not 02:30').toHaveValue('2:30');
+    await expect(saveBtn, 'and is no time, so nothing is entered').toHaveText(/Save 3 changes/);
 });
 
 // The same hole on the OTHER unreadable row shape (v24.28 review): a row with no readings can hold
@@ -4430,7 +4440,7 @@ test.describe('operations: the roster read, cut off', () => {
         await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__parseSent === true),
             { message: 'the read was never sent' }).toBe(true);
         await page.clock.runFor(131_000);
-        await expect(page.locator('#rosterParseFeedback')).toContainText("Couldn't read the roster: Parsing took longer than expected.");
+        await expect(page.locator('#rosterParseFeedback')).toContainText("Couldn't read the roster: Reading the PDF took longer than expected.");
         await expect(page.locator('#rosterParseBtn')).toHaveText('Read roster');
     });
 });

@@ -12,7 +12,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { unsupportedRoleCopy, paintRoleCard, PAYCALC_SIGN_IN_ABOUT, PAYCALC_GUIDE_URL } from '../paycalc-role-card.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
@@ -124,4 +124,20 @@ test('paintRoleCard writes the three slots, and hides the whole "What it does" b
 
     paintRoleCard(null, doc);   // no member at all — the coordinator passes one built from the session name
     assert.match(els.unsupportedGradeTitle.textContent, /isn’t on the current roster/);
+});
+
+// The footer line under the card (polish review, 26 Nov 2026): "Everything else in the app works as normal" was untrue for an
+// Other Staff login, which Admin refuses too. It says what Admin's card says for that login, and the general line otherwise.
+test('the footer says what still works: for an Other Staff login, the pages it can open; for everyone else, everything', () => {
+    /** @type {Record<string, { textContent: string, hidden: boolean }>} */
+    const els = { unsupportedGradeHelp: { textContent: 'stale', hidden: false } };
+    const doc = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => els[id] ?? null });
+    paintRoleCard({ role: 'Other Staff' }, doc);
+    assert.equal(els.unsupportedGradeHelp.textContent, 'The Calendar, Trains and Settings work as normal.');
+    assert.match(readFileSync(new URL('admin.html', REPO_ROOT_URL), 'utf8'), /The Calendar, Trains and Settings work as normal\./,
+        'the same line as Admin\'s own card for this login');
+    for (const role of ['Dispatcher', 'Management', 'Something new']) {
+        paintRoleCard({ role }, doc);
+        assert.equal(els.unsupportedGradeHelp.textContent, 'Everything else in the app works as normal.', role);
+    }
 });

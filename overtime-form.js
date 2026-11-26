@@ -37,7 +37,7 @@
 import * as OTD from './overtime-data.js';
 import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
-import { isClockTime, shapeClockBoxInPlace, settleClockBox, noteClockBoxBefore } from './clock-input.js';
+import { shapeClockBoxInPlace, readClockBox, noteClockBoxBefore } from './clock-input.js';
 import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
@@ -402,14 +402,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // TEXT boxes, so the browser no longer guarantees `HH:MM` (customRow says why the
         // control changed). `dayUnfinished` asks only whether the two times are present and
         // differ — it cannot tell `9am` from a time — so anything that is not a REAL clock
-        // time is stored as empty and the day stays unfinished. `isClockTime` is the app's one
-        // definition of that, shared with the roster review's entry control. Leaving the box is
+        // time is stored as empty and the day stays unfinished. `readClockBox` is the app's one
+        // reading of a box that is left, shared with every time box (clock-input.js); leaving it is
         // what settles a three-digit "630" or "240" (`finaliseClockInput`).
-        const raw = settleClockBox(inp);
-        cur[which] = isClockTime(raw) ? raw : '';
+        const read = readClockBox(inp);
+        cur[which] = read.value;
         // Write the settled form back so `0600` and `6:00` become `06:00` in the box the
         // member is looking at, rather than being silently discarded.
-        if (cur[which]) inp.value = raw;
+        if (cur[which]) inp.value = read.value;
         // `nextDay` is DERIVED from the two times, never asked. The server refuses a mismatch,
         // so computing it here is not belt-and-braces — it is the only way a member can enter
         // an overnight period at all.
@@ -659,7 +659,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * @param {any} a
      */
     function customHint(a) {
-        if (!a.start || !a.end) return 'Enter both times as HH:MM, e.g. 06:00';
+        if (!a.start || !a.end) return 'Enter both times as HH:MM, for example 06:00';
         if (a.start === a.end)  return 'Start and end cannot match';
         return a.nextDay ? 'Runs into the next day — still this day\'s answer' : '';
     }
