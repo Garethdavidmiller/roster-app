@@ -27,7 +27,7 @@ import {
   FROM_ROSTER, gradeDays, byDays, settingFromLegacy, rosterStretches, rosterGradeLine, gradeChangeNote,
   payslipPriced, unpricedPayslipLine,
 } from './paycalc-grade.js';
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsSet, lsDel, lsSetVerified, lsDelVerified } from './ls.js';
 import { setStatus } from './status-text.js';
 
 // ── THE GRADE SETTING, AND A PAYSLIP'S GRADE DAYS ─────────────────────────────
@@ -349,20 +349,23 @@ function gradeFromShown() {
  * an older payslip who chose CES saw that payslip stay at CEA rates, under a date naming another.
  * So the move from the roster to a grade rebuilds it from the payslip on screen first.
  * @param {number} pNum  the payslip on screen (0 before the selector exists)
+ * @returns {boolean} false when a write did not read back — the Settings card says it was not saved
  */
 export function saveGradeSetting(pNum) {
   const saved = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
+  let ok = true;
   if (saved === FROM_ROSTER || GRADES[saved]) {
     if (GRADES[saved] && getGradeSetting().grade === FROM_ROSTER) buildGradeFromSelect(getGradeSetting());
-    lsSet(SK.grade, saved);
+    ok = lsSetVerified(SK.grade, saved) && ok;
     const fromEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('gradeFrom'));
-    if (saved === FROM_ROSTER) lsDel(SK.gradeFrom);
-    else if (fromEl && fromEl.selectedIndex !== -1 && fromEl.value) lsSet(SK.gradeFrom, fromEl.value);
-    else if (lsGet(SK.gradeFrom) == null) lsSet(SK.gradeFrom, String(pNum || todaysPeriodNum()));
+    if (saved === FROM_ROSTER) ok = lsDelVerified(SK.gradeFrom) && ok;
+    else if (fromEl && fromEl.selectedIndex !== -1 && fromEl.value) ok = lsSetVerified(SK.gradeFrom, fromEl.value) && ok;
+    else if (lsGet(SK.gradeFrom) == null) ok = lsSetVerified(SK.gradeFrom, String(pNum || todaysPeriodNum())) && ok;
   }
   invalidateGrade();
   gradeFromShown();
   renderGradePrompt();
+  return ok;
 }
 
 /**

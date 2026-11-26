@@ -19,6 +19,8 @@ import { test, describe, before, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 const _ls = new Map();
+/** Keys whose write the fake storage REFUSES (the write throws or is dropped): `lsSetVerified` answers false. */
+const _refuse = new Set();
 let _session = null;
 /** The roster the module under test reads. Mutable so a case can BE a joiner: `getLoggedMember`
  *  finds the session name in here, and everything pro-rate hangs off what it finds. */
@@ -50,7 +52,7 @@ mock.module('../ls.js', {
         lsDel: k => { _ls.delete(k); }, lsDelVerified: (/** @type {string} */ k) => { _ls.delete(k); return true; }, lsKeys: () => [..._ls.keys()], lsGetChecked: (/** @type {string} */ k) => ({ ok: true, value: _ls.has(k) ? _ls.get(k) : null }), lsKeysChecked: () => ({ ok: true, keys: [..._ls.keys()] }),
         // Real semantics, not an always-succeeds stub: the Map cannot fail, so these mirror
         // what ls.js does when storage works.
-        lsSetVerified: (k, v) => { _ls.set(k, String(v)); return true; },
+        lsSetVerified: (k, v) => { if (_refuse.has(k)) return false; _ls.set(k, String(v)); return true; },
         lsMove: (a, b, v) => {
             const val = v === undefined ? (_ls.has(a) ? _ls.get(a) : null) : v;
             if (val === null) return false;
@@ -650,6 +652,80 @@ describe('confirmSettings — the pension it writes into the viewed payslip obey
             assert.equal(calculated, 1);
         });
     }
+
+    // A WRITE THE DEVICE DID NOT KEEP IS NEVER "SAVED" (Nov 2026). Every settings write reads back; a
+    // refused one keeps the card open with the not-saved line, and the year is not marked confirmed.
+    /** Save on payslip `p` with `refused` keys refused; return what the card said and what was stored. */
+    async function saveRefusing(/** @type {any} */ p, /** @type {string[]} */ refused) {
+        const { confirmSettings } = await import('../paycalc-settings.js');
+        els = {};
+        global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => (els[id] ??= makeEl()) });
+        els.periodSelect = makeEl(); els.periodSelect.value = String(p.num);
+        els.gradeSelect  = makeEl(); els.gradeSelect.value = 'cea';
+        els.taxCode      = makeEl(); els.taxCode.value = '1257L';
+        els.studentLoan  = makeEl(); els.studentLoan.value = 'none';
+        els.pensionAmt   = makeEl(); els.pensionAmt.value = '£200.00';
+        /** @type {string[]} */ const said = [];
+        els.settingsSaveFeedback = { ...makeEl(), set textContent(/** @type {string} */ t) { said.length = 0; if (t) said.push(t); },
+            get textContent() { return said.join(''); },
+            appendChild(/** @type {any} */ n) { said.push(n.textContent); return n; },
+            ownerDocument: { createElement: () => ({ setAttribute() {}, textContent: '' }),
+                createTextNode: (/** @type {string} */ t) => ({ textContent: t }) } };
+        _ls.set(periodKey(p.num), JSON.stringify({ otH: 4, otM: 0 }));
+        _refuse.clear(); refused.forEach(k => _refuse.add(k));
+        let calculated = 0;
+        try { confirmSettings(() => { calculated++; }); } finally { _refuse.clear(); }
+        return { said: els.settingsSaveFeedback.textContent, calculated };
+    }
+
+    test('a tax code the device did not keep is "Not saved", and the year is not marked confirmed', async () => {
+        fresh();
+        const p = postAward();
+        const { said, calculated } = await saveRefusing(p, [SK.code]);
+        assert.match(said, /Not saved/);
+        assert.doesNotMatch(said, /✓/);
+        assert.equal(_ls.has(SK.setup), false, 'a refused save marked the settings as set up');
+        assert.deepEqual([..._ls.keys()].filter(k => /setup_\d{4}_\d{2}$/.test(k)), [], 'and this year as confirmed');
+        assert.equal(calculated, 1);
+    });
+
+    test('a refused grade write is "Not saved" too', async () => {
+        fresh();
+        const { said } = await saveRefusing(postAward(), [SK.grade]);
+        assert.match(said, /Not saved/);
+    });
+
+    test('a payslip whose pension patch did not keep says so — not "Settings saved"', async () => {
+        fresh();
+        const p = postAward();
+        const { said } = await saveRefusing(p, [periodKey(p.num)]);
+        assert.match(said, /pension figure couldn\u2019t be updated on this device/);
+        assert.doesNotMatch(said, /✓/);
+    });
+
+    test('a confirmed mark the device did not keep is "Not saved"', async () => {
+        fresh();
+        const { said } = await saveRefusing(postAward(), [SK.setup]);
+        assert.match(said, /Not saved/);
+    });
+
+    test('the autosave while typing says "Not saved" over a refused write, and takes it down once a write keeps', async () => {
+        fresh();
+        const p = postAward();
+        const { saveSettings } = await import('../paycalc-settings.js');
+        await saveRefusing(p, []);                       // builds the fake card
+        _refuse.add(SK.code);
+        try { assert.equal(saveSettings(), false); } finally { _refuse.clear(); }
+        assert.match(els.settingsSaveFeedback.textContent, /Not saved/);
+        assert.equal(saveSettings(), true);
+        assert.equal(els.settingsSaveFeedback.textContent, '', 'the warning stayed after the setting was kept');
+    });
+
+    test('control: nothing refused → "Settings saved"', async () => {
+        fresh();
+        const { said } = await saveRefusing(postAward(), []);
+        assert.match(said, /Settings saved/);
+    });
 });
 
 // ── A FAKE SETTINGS CARD, FOR THE BLOCKS BELOW THAT DRIVE loadSettings / saveSettings ─────────────
