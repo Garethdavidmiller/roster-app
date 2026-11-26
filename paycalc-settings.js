@@ -15,7 +15,7 @@
 
 import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, periodByNum, viewedPeriod, todaysPeriodNum, visiblePeriods, appendPayslipOptions, offerRecordedPayslip } from './paycalc-periods.js';
-import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
+import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix, readSavedPeriod, parseSavedPeriod } from './paycalc-migrations.js';
 import { gradeForRole } from './roster-data.js';
 import { byDays, gradeSplitLine, windowGrade } from './paycalc-grade.js';
 import { awardWindow } from './paycalc-backpay-accrual.js';
@@ -459,7 +459,11 @@ export function confirmSettings(calculate) {
   let _pensionPatchFailed = false;
   if (existingRaw) {
     try {
-      const d = JSON.parse(existingRaw);
+      // `parseSavedPeriod`, the Pay screen's own reader — never a bare JSON.parse. A list is valid JSON:
+      // `.pension` set on it vanished in JSON.stringify, the same bytes went back, and Save said
+      // "Settings saved" over a payslip it had not touched. A wrong shape is DAMAGED, and handled below.
+      const { data: d, error } = parseSavedPeriod(existingRaw);
+      if (error) throw new Error('not a saved period');
       // Blank field → null (loadPeriodData re-applies the period default), NOT 0, which would persist
       // a permanent £0 pension. A typed "0" is a genuine opt-out and is kept.
       // Out of the scheme → the payslip's pension is LEFT AS IT IS, never an explicit 0: nothing saved
