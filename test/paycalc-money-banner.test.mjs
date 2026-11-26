@@ -139,7 +139,7 @@ describe('the notes, which differ on purpose', () => {
     test('HPP prompts only where there is something to do', () => {
         // Opted in AND still an estimate is the one state with a next action — replace it when the
         // payslip arrives. Every other state would be a sentence with no instruction in it.
-        assert.match(HPP({ forPeriod: 480, isEstimate: true }).note, /enter the confirmed Holiday Pay Premium/);
+        assert.match(HPP({ forPeriod: 480, isEstimate: true }).note, /enter the confirmed figure in the Holiday Pay Premium card/);
         assert.equal(HPP({ forPeriod: 480, isEstimate: false }).note, '');
         assert.equal(HPP({ isEstimate: true }).note, '');
         assert.equal(HPP().note, '');

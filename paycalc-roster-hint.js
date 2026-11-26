@@ -75,7 +75,7 @@ export function _confBadge(cat, fromOv, estimateHours = 0) {
 
 const _DAY_CHIP_LABELS = {
   sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday',
-  bhOt: 'Bank holiday overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW',
+  bhOt: 'Bank Holiday Overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW',
 };
 
 /**

@@ -95,7 +95,7 @@ export function hppBannerCopy({ forPeriod, amount, isEstimate }) {
                 ? `ℹ️ Estimated Holiday Pay Premium of ${fmt(amount)} could land on this payslip — not added to this estimate`
                 : `ℹ️ Your Holiday Pay Premium of ${fmt(amount)} is on this payslip — not added to this estimate`,
         note: (forPeriod > 0 && isEstimate)
-            ? 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.'
+            ? 'When your payslip arrives, enter the confirmed figure in the Holiday Pay Premium card to replace this estimate.'
             : '',
     };
 }
