@@ -656,7 +656,7 @@ jobs:
       # GitHub's per-run OIDC token is exchanged for short-lived credentials for the
       # github-deploy service account; the action exports GOOGLE_APPLICATION_CREDENTIALS,
       # which the Firebase CLI picks up automatically. Migrated after deploy-rules.yml
-      # proved WIF in production. See SECURITY_RELEASE_PLAN.md → Appendix A2.
+      # proved WIF in production. See RECOVERY_RUNBOOK.md → "The deploy identity".
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:

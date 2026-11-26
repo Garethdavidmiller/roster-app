@@ -67,7 +67,7 @@ export {
     // reads
     // getDocsFromCache reads ONLY the persistent local cache: no network, and — because
     // Firestore rules are evaluated server-side — no rule evaluation either. That is what lets the
-    // calendar paint before an auth SESSION exists (AUTH_PLAN.md → E1) — but not before Auth has
+    // calendar paint before an auth SESSION exists (AUTH_AND_SESSIONS.md → "The two-phase load (E1)") — but not before Auth has
     // initialised, which for a stored user is after `accounts:lookup` (CALENDAR_DATA.md 10). REJECTS on a miss.
     // getDocFromCache is its single-document form, for the Links store's offline consult: offline,
     // plain getDoc rejects for a document the cache KNOWS was deleted exactly as for one it never
@@ -310,7 +310,7 @@ export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
- * (SECURITY_RELEASE_PLAN.md → B3 "Live invariant — writeWithClaimRetry"; v15.07 review H3). The operation is
+ * (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"; v15.07 review H3). The operation is
  * read/write-agnostic: writes go through `writeWithClaimRetry` below (this, behind the write gate),
  * and reads — the Operations cards among them — call `withClaimRetry` directly (it previously
  * duplicated this as the byte-identical `adminReadWithRetry`, v17.08).
@@ -615,7 +615,7 @@ export async function getAllStaffContacts() {
     return snap.docs.map(/** @param {any} d */ d => d.data());
 }
 
-// ---- Password migration status (PASSWORD_DESIGN.md §6) ----
+// ---- Password migration status (AUTH_AND_SESSIONS.md → "Password migration status") ----
 // `passwordStatus/{memberName}` (doc id = display name). `resetAt` is written ONLY by Cloud Functions
 // (Admin SDK, bypasses rules) — resetMemberPassword, and setupRosterAuth wherever it puts an account on
 // the surname default (a new account, a take-back, a re-enable); `passwordSetAt` is written by the

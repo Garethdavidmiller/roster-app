@@ -31,7 +31,7 @@
 // paying each day at its own grade gives (35h + 105h of the 140); for premium hours it is an
 // estimate, because hours are stored per PAYSLIP and nothing finer says which side of the change a
 // Saturday fell on — the back-pay card's first-period fraction makes the same choice for the same
-// reason (paycalc.md → "THE FIRST PERIOD IS A FRACTION"). Inventing a split would look more precise
+// reason (PAYCALC_REFERENCE.md → "THE FIRST PERIOD IS A FRACTION"). Inventing a split would look more precise
 // and be less true. VALIDATION_REGISTER.md holds the row to confirm against the real payslip.
 //
 // ONE FIGURE, EXACTLY, WHEN THE GRADES AGREE. `byDays` returns the shared value itself whenever every

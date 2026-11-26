@@ -12,7 +12,7 @@
  * It injects its own markup (like nav-panel.js), so a consuming page needs NO login HTML.
  *
  * Owns: the overlay UI, grade/name dropdowns, passing the TYPED password to Firebase (the authority
- *   — no local surname pre-check since PASSWORD_DESIGN.md §3.2), the client-side wrong-password
+ *   — no local surname pre-check since AUTH_AND_SESSIONS.md → "The gated dual-attempt"), the client-side wrong-password
  *   lockout, and the Firebase named-session establishment (B1: ensureNamedSession + the
  *   failure messaging).
  * Does NOT own: what happens AFTER a confirmed sign-in — the caller passes onSuccess (typically a
@@ -76,7 +76,7 @@ const RESET_BTN_LABEL = '<span class="login-reset-clause">Can’t get in?</span>
  * what the card's submit passes to `runNamedSignIn`. Exported so the unit suite drives this exact
  * wiring through the real session.js (login-overlay.test.mjs), rather than a copy of it.
  * @param {string} name     the member picked in the card
- * @param {string} typedPw  the password as typed — never normalised (PASSWORD_DESIGN.md §3.2)
+ * @param {string} typedPw  the password as typed — never normalised (AUTH_AND_SESSIONS.md → "The gated dual-attempt")
  */
 export function signInDeps(name, typedPw) {
     return {
@@ -94,8 +94,8 @@ export function signInDeps(name, typedPw) {
 }
 
 /**
- * Tear down the in-place login overlay (in-place sign-in — AUTH_ARCHITECTURE.md
- * Phase 9). A coordinator whose `onSuccess` initialises the page in place (rather than reloading) calls
+ * Tear down the in-place login overlay (in-place sign-in — AUTH_AND_SESSIONS.md →
+ * "In-place sign-in"). A coordinator whose `onSuccess` initialises the page in place (rather than reloading) calls
  * this to remove the overlay and reveal the now-rendered page. Safe to call when no overlay is present
  * (a normal already-signed-in load) — it then does nothing, so coordinators can call it unconditionally
  * on their authorised path. Only unlocks body scroll when an overlay actually existed, so it never
@@ -184,7 +184,7 @@ function overlayHtml(pageLabel, alternative, about, showBackLink = true) {
         <button type="submit" id="loginSubmit">Sign in →</button>
         </form>
         <div aria-live="polite"><div id="loginStatus" class="login-status"></div></div>
-        <!-- Reset request (PASSWORD_DESIGN.md — the request queue). ALWAYS VISIBLE since v20.48, and
+        <!-- Reset request (AUTH_AND_SESSIONS.md → "The reset-request queue"). ALWAYS VISIBLE since v20.48, and
              BELOW the primary action where a "forgot password" is looked for. It was revealed only
              after two credential failures (v18.93–94), which had the shape of a good idea — don't
              offer a reset to someone who merely mistyped — but got the user wrong: the member who
@@ -716,7 +716,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         // is removed (`dismissLoginOverlay`), and a re-show builds a new one.
         resetResetRequest();
         // One-shot "a real sign-in just happened" marker for the forced set-password overlay
-        // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written in this card — the one place every
+        // (password-force.js, AUTH_AND_SESSIONS.md → "The forced password overlay"). Written in this card — the one place every
         // protected page's sign-in passes through — rather than in each coordinator's onSuccess,
         // so the five pages can't drift on it. Consumed by initPasswordForce on the authorised
         // path (both the reload and the in-place branch run it). Deliberately set BEFORE
@@ -793,7 +793,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // The RAW typed password — NOT normalised. A chosen password keeps its case/digits/
             // symbols; the surname fallback is applied (gated) inside ensureFirebaseSession via
             // credentialCandidatesFor. Firebase is now the authority — there is no local surname
-            // pre-check (PASSWORD_DESIGN.md §3.2). Whitespace-trim only for the empty-field guard.
+            // pre-check (AUTH_AND_SESSIONS.md → "The gated dual-attempt"). Whitespace-trim only for the empty-field guard.
             const typedPw = passwordInput.value;
             errorEl.classList.remove('visible');
 
@@ -820,7 +820,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
             // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
-            // class; see runNamedSignIn / PASSWORD_DESIGN.md §3.6). On failure we restore the button and
+            // class; see runNamedSignIn / AUTH_AND_SESSIONS.md → "The login freeze"). On failure we restore the button and
             // show the message it returns; on success we hand off to onSuccess (reload/navigate).
             holdPasswordMarker(name);   // before Firebase can announce anybody (login-core.js says why)
             const _result = await runNamedSignIn(signInDeps(name, typedPw)).catch((e) => { releasePasswordMarker(name, false); throw e; });

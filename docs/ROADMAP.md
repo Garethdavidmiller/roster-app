@@ -84,7 +84,7 @@ authentication end-state is **Microsoft / Entra ID work-account SSO** — the co
 joiners, leavers, password and MFA policy, account disablement and identity verification, and the
 app consumes an identity and maps it to its own roles, which it already does cleanly via claims.
 That is a better end-state than maintaining a staff authentication system indefinitely, and it
-would supersede most of `PASSWORD_DESIGN.md`'s credential lifecycle section. It is not a plan and needs no work: it depends
+would supersede most of the Track C work left in `SECURITY_RELEASE_PLAN.md`. It is not a plan and needs no work: it depends
 entirely on Chiltern IT registering the application, which is this gate. Recorded so that nobody
 builds toward it, and so that nobody is surprised later that the custom work was the right call
 *until* the gate moved.
@@ -94,7 +94,7 @@ builds toward it, and so that nobody is surprised later that the custom work was
 ## NOW — committed, or actively being decided
 
 ### The new CEA link — from January 2027
-**Status:** Committed · **Owner:** S. Silva, the RMT rep, who leads the change (owner, 4 Nov 2026) · **Plan:** `LINKS_DEC2026_PLAN.md`
+**Status:** Committed · **Owner:** S. Silva, the RMT rep, who leads the change (owner, 4 Nov 2026) · **Settled so far:** `DECISIONS.md` → The new CEA link
 
 **The link starts in January 2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes on 13 December,
 the link follows, and today's link carries on until then; 8 Nov 2026: the day is not yet known). It is for everyone on the
@@ -104,8 +104,22 @@ Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks sid
 in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to everyone on the normal CEA
 contract and the managers — **open since v25.60** (owner, 9 Nov 2026).
 
-What remains is a decision, not code — S. Silva's, as the one leading the change, and then the area manager's review (the plan's dashboard) — and a controlled source for the company hard
-limits. The readiness dashboard at the top of the plan is authoritative.
+**What remains is decisions, not code:**
+
+- **The choice.** None is chosen (`CHOSEN` is null in `newlink-config.js`): S. Silva's decision, as the
+  one leading the change, then the area manager's review.
+- **The management review meeting** is not scheduled. The plan's backwards dates, counted from the
+  timetable change (the review at T−6 weeks), have passed; the link's start day in January 2027 is not set.
+- **A controlled source for the company hard limits** — Gareth: the policy's title, clause, staff group
+  and effective date (`KNOWN_LIMITATIONS.md` → Links design workspace; `POLICY_SOURCE_CONFIRMED`).
+  Then, whether the other limits in that family (turn length, rest between turns, weekly hours) become
+  hard limits rather than advisory rows.
+- **The run cap's weight** — a shorter longest run against fewer full weekends off, a question for the
+  room (`KNOWN_LIMITATIONS.md` → Links design workspace).
+- Smaller, with no trigger yet: Saturday's window could split from Mon–Fri's (the setting allows it);
+  the generator's table of near-identical rows could be redesigned (its reason for waiting, the uplift
+  control, lapsed when that was declined); and nobody has said whether other grades cover the 05:55
+  first departure and the post-midnight last trains, which would settle whether those ends are gaps.
 
 ### Roster import — let the PDF's own grid decide the day
 **Status:** Committed — phases 1 and 2 shipped, phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js` · **Contract:** `.claude/rules/roster-import.md`
@@ -148,22 +162,22 @@ failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster d
 shipped, including the wiring defects found on the way: git.
 
 ### Track E — the authentication decision
-**Status:** Planned — the cleanup release of the staff PIN's retirement (owner, 23 Nov 2026; the client release shipped at v26.60, the server release at v26.65); E3 as designed is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
+**Status:** Planned — the cleanup release of the staff PIN's retirement (owner, 23 Nov 2026; the client release shipped at v26.60, the server release at v26.65); E3 as designed is still an owner decision · **Owner:** Gareth · **Design and status of record:** `SECURITY_RELEASE_PLAN.md` → Track E and its row
 
 **The staff PIN is retired** (owner, 23 Nov 2026): everyone signs in under their own name, and
 somebody with no roster of their own gets an Other Staff login. It comes out in three releases —
 client, server, cleanup (DECISIONS.md → "The staff PIN retired"). Where that stands, and which phases
 have shipped, is the Track E row of `SECURITY_RELEASE_PLAN.md`'s canonical table — not restated here.
 
-What is still open is E3 as designed — its soft posture and the rules beyond it (`AUTH_PLAN.md` → E3),
+What is still open is E3 as designed — its soft posture and the rules beyond it (`SECURITY_RELEASE_PLAN.md` → E3),
 since the retirement reached E3's front door without them. Take it with the E3 measurement
-criteria **pre-registered** — AUTH_PLAN §6 requires the thresholds to be written down before telemetry
+criteria **pre-registered** — `SECURITY_RELEASE_PLAN.md` → "What to measure — and pre-register" requires the thresholds to be written down before telemetry
 starts, precisely so they cannot be chosen after seeing the numbers.
 
 This gated more than itself: **C5 could not complete without it**, because a member who only ever
 opened the roster with the staff PIN never signed in and was never compelled to set a password. The
 PIN was retired on 23 Nov 2026, so every reader now signs in; what that does to C5's gate is part of
-the open decision in `PASSWORD_DESIGN.md` → credential lifecycle L7.
+the open decision in `SECURITY_RELEASE_PLAN.md` → "C5 — the open decision".
 
 ### Calendar start — how often we deploy (OWNER DECISION, not a code change)
 **Status:** Blocked on an owner decision — an external review's recommendation, not yet adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree
@@ -203,10 +217,10 @@ page after a release took over a second to be usable (`LATENCY.md` → THE NOVEM
   first-visit Settings, and the Railcard's corrections".
 
 ### Track C5 — retire the surname default
-**Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track C row
+**Status:** Blocked · **Owner:** Gareth · **Plan and status of record:** `SECURITY_RELEASE_PLAN.md` → Track C and its row
 
 Irreversible. Its gate, why that gate depends on Track E (above), and the second route that is on the
-table and not adopted (C6, `PASSWORD_DESIGN.md` → credential lifecycle L7) are all in that row. Read it before assuming
+table and not adopted (C6, `SECURITY_RELEASE_PLAN.md` → "C5 — the open decision") are all in that row. Read it before assuming
 C5 is close.
 
 ### 2027/28 Pay Calculator rollover
@@ -469,14 +483,29 @@ where it works and where it does not — the guide has the depth; the missing th
 premium is built from them); back pay (what "backdated to 1 April" means on the payslip it lands on).
 
 ### Annual leave uploader — Phase 3, corrections
-**Status:** Conditional — Phases 0–2 built (v26.11 and v26.13): the card checks, and adds the leave the app is missing for each person the admin confirms, with undo, a receipt and a log · **Owner:** Gareth · **Trigger:** the owner has used the Save and decides (`AL_UPLOADER_PLAN.md` §10) · **Plan:** `docs/AL_UPLOADER_PLAN.md`
+**Status:** Conditional — Phases 0–2 built (v26.11 and v26.13): the card checks, and adds the leave the app is missing for each person the admin confirms, with undo, a receipt and a log · **Owner:** Gareth · **Trigger:** the owner has used the Save and decides · **Decisions:** `DECISIONS.md` → The annual leave uploader
 
 Operations → Annual leave sheet adds what the sheet has and the app lacks, and counts leave already
 booked on a rest day the admin answers "swapped"; nothing else. Every other difference is put right
 by hand in Admin (OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet against the app"). It
-never removes leave (plan §10, decision 3). Phase 3 — ticked conflicts, Sunday corrections, and the
-roster review naming workbook leave (plan §4.11) — would follow it. Stopping after Phase 2 is a real
-option: after the first catch-up most copies change a handful of days (plan §8).
+never removes leave (decision 3). Stopping after Phase 2 is a real option: after the first catch-up
+most copies change a handful of days, which Admin's leave card handles well by hand. **Phase 3, if it
+comes**, has three parts, each bound by a rule found while planning it:
+
+- **Ticked conflicts** — a shift, an Absent day or a correction replaced with leave, keeping
+  `replacedType` so a swapped-in day still costs a day.
+- **Sunday corrections follow the range card's rule, never the clerks' tags.** Group the days a Save
+  writes into blocks (`mergeBookedPeriods`), correct only the worked Sundays inside them, and keep each
+  correction in its leave's batch (`chunkByWrites`'s `keepWithPrevious`): a standalone correction would
+  silently erase a worked Sunday (`admin-overrides.js`), and the shared server timestamp is how a later
+  period delete finds the booking's edge Sunday (`computePeriodDeleteIds`). Tags are evidence beside a
+  Sunday, never acted on alone; a past correction also takes that Sunday out of the Pay Calculator's
+  "Fill from calendar".
+- **The roster review afterwards.** Uploaded leave is a manual record, so a later roster PDF that
+  disagrees is a CONFLICT that defaults to keeping the leave — stale workbook leave would beat a newer
+  published roster. Defaulting to the roster for workbook days, named from the upload log, changes the
+  roster import's contract (`.claude/rules/roster-import.md`): owner decision 8, taken when Phase 3
+  comes. A `source` value of its own for uploaded leave can be revisited then too.
 
 ---
 
@@ -704,11 +733,10 @@ both would need the governance gate answered before that changed.
 | The v23.01 external review's index, and the print review (Sep 2026) — both closed | their owner decisions: `DECISIONS.md`; the rest: `git show 28b217d0:docs/ROADMAP_HISTORY.md` |
 | Decisions already taken, and features declined | `DECISIONS.md` — **do not re-argue one without reading it** |
 | Dated obligations and their warning points | `MAINTENANCE_CALENDAR.md` |
-| Current status of every security/auth track | `SECURITY_RELEASE_PLAN.md` — **the single source** |
-| Password design and its implementation record | `PASSWORD_DESIGN.md` |
-| Full-app authentication design | `AUTH_PLAN.md` |
-| The new CEA link, from January 2027 | `LINKS_DEC2026_PLAN.md` |
-| The annual leave uploader, phase by phase | `AL_UPLOADER_PLAN.md` |
+| Current status of every security/auth track, and the design of the work not yet built | `SECURITY_RELEASE_PLAN.md` — **the single source** |
+| The sign-in, password and read-closure design as built | `AUTH_AND_SESSIONS.md` → "Why it is this way" |
+| The new CEA link, from January 2027 | this file → NOW; what is settled: `DECISIONS.md` → The new CEA link; the pack: `docs/links-26/` |
+| The annual leave uploader, phase by phase | this file → NOW (Phase 3); what is settled: `DECISIONS.md` → The annual leave uploader |
 | Active constraints and accepted limitations | `KNOWN_LIMITATIONS.md` |
 | Backup, rollback and disaster recovery | `RECOVERY_RUNBOOK.md` |
 | Implementation specs (schema, functions, auth) | `docs/DATA_MODEL.md` (schema), `CLAUDE.md`, `.claude/rules/*`, and each module's header (`AI_MAP.md` routes to it) |

@@ -17,13 +17,13 @@
 | Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name. Each endpoint's header holds its rules; the two that are easy to get wrong are marked: |
 | | `ingestHuddle` (Power Automate, server to server, bearer `HUDDLE_SECRET`) · `parseRosterPDF` (`.claude/rules/roster-import.md`) · `setupRosterAuth` (accounts and claim tiers from `functions/roster-members.json`) · `rotateDocumentLinks` (admin, EXC-007) · `getSignInStats` (admin READ, four integers, no identity) · `getAccountSetupGaps` (admin READ; it returns NAMES, so it stays apart from `getSignInStats`) |
 | | `resetMemberPassword` — admin break-glass to the surname default, and `requestPasswordReset` — the only public unauthenticated endpoint, which records a request and resets nothing. **Both push through `sendTargetedPush`, never `fanOutPush`, and never carry a password** (a push renders on a lock screen); a reset for a lost or stolen phone sends no notice and deletes its push records. `.claude/rules/notifications.md` |
-| | `getDocumentUrl` — a SHORT-LIVED URL for the latest Huddle / Circular / Newsletter; the caller names a KIND, never a path. **It needs `roles/iam.serviceAccountTokenCreator` on the runtime service account, granted to ITSELF**, or every call 503s (RECOVERY_RUNBOOK.md). AUTH_PLAN.md §5 |
+| | `getDocumentUrl` — a SHORT-LIVED URL for the latest Huddle / Circular / Newsletter; the caller names a KIND, never a path. **It needs `roles/iam.serviceAccountTokenCreator` on the runtime service account, granted to ITSELF**, or every call 503s (RECOVERY_RUNBOOK.md). AUTH_AND_SESSIONS.md → E6 |
 | | The five Overtime endpoints — not deployed while Overtime is paused (OVERTIME_AVAILABILITY.md) |
 | Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
 
 **Secrets** (Firebase Secret Manager; no workflow reads any of them — deploys authenticate by Workload
-Identity Federation, and the old `FIREBASE_SERVICE_ACCOUNT` key is retired: SECURITY_RELEASE_PLAN.md →
-Appendix A2): `HUDDLE_SECRET` (bearer for `ingestHuddle`) · `ANTHROPIC_API_KEY` (`parseRosterPDF`) ·
+Identity Federation, and the old `FIREBASE_SERVICE_ACCOUNT` key is retired: RECOVERY_RUNBOOK.md →
+"The deploy identity"): `HUDDLE_SECRET` (bearer for `ingestHuddle`) · `ANTHROPIC_API_KEY` (`parseRosterPDF`) ·
 `VAPID_PRIVATE_KEY` (Web Push; the PUBLIC key is a literal in `functions/index.js` **and** `notif.js`,
 and the two must match) · `CALENDAR_VIEWER_PIN` (the RETIRED staff PIN, bound by nothing — the owner
 destroys it, then this entry goes: OPERATIONS_REFERENCE.md → "The staff PIN (retired)").
@@ -314,7 +314,7 @@ and bump the version.
 ## Payday calculator — integrated
 
 Paydays and cut-offs come from `getPaydaysAndCutoffs` / `isPayday` / `isCutoffDate` (`roster-data.js`)
-and draw as 💷 / ✂️ on the Calendar; the rest is `.claude/rules/paycalc.md` → "Paydays, cut-offs and
+and draw as 💷 / ✂️ on the Calendar; the rest is `docs/PAYCALC_REFERENCE.md` → "Paydays, cut-offs and
 the roster-assist".
 
 ---
@@ -475,9 +475,9 @@ Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 ## Pay calculator
 
 Manual-entry: staff enter hours, and the calculator computes tax, NI, pension and take-home. **The
-rates, allowances and pension defaults live in `.claude/rules/paycalc.md` alone** (code:
+rates, allowances and pension defaults live in `docs/PAYCALC_REFERENCE.md` alone** (code:
 `paycalc-calc.js`) — never restate them. The pay-maths regression net is real payslips kept OUT of the
-repository: paycalc.md → Example payslips.
+repo: paycalc.md → Example payslips.
 
 ---
 

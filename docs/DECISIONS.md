@@ -534,7 +534,7 @@ shown that yet.
   first** — it is special-category data. Full restoration spec: `git show
   28b217d0:docs/ROADMAP_HISTORY.md` → "Removed features".
 - **Password security — the original five-stage plan is superseded** by the "C-lite" design in
-  `PASSWORD_DESIGN.md`, which did not wait on email verification. The original staged text is in git
+  `AUTH_AND_SESSIONS.md` → "Chosen passwords", which did not wait on email verification. The original staged text is in git
   (`git show 28b217d0:docs/ROADMAP_HISTORY.md` → "Password security — the original five-stage
   design"); do not plan from it.
 - **GDPR:** staff shift data is personal data. If the governance gate is answered "official", data
@@ -963,7 +963,7 @@ deploys keep their own suites (`test:rules`, `test:functions`) and do not run it
   with any raise argued beside its cap, and the Calendar's four steps above are what gradual looks
   like here.
 - **The three compromises stand as already recorded**: the surname default password and its forced
-  change (PASSWORD_DESIGN.md), the document files behind a bearer address with the stored one as the
+  change (AUTH_AND_SESSIONS.md → "The forced password overlay"), the document files behind a bearer address with the stored one as the
   fallback (KNOWN_LIMITATIONS.md → "The document FILES are protected by a bearer URL, not by auth"),
   and the second of two editors on one day not being warned (KNOWN_LIMITATIONS.md → "Two editors on
   one day"). The review listed them as still standing, not as new regressions. The third was closed
@@ -1012,7 +1012,7 @@ later than the log — and the log is written after the leave and a read of it. 
 in another tab during that time passed the test and was undone (external review, 15 Nov 2026). Now the
 Save mints the log's id first and writes it onto every record (`uploadId`); every other writer builds
 its record without it, so any rewrite drops it, and the Undo takes back only what still carries it
-(AL_UPLOADER_PLAN.md §4.10). Rules first, the Save a release later (backend-first).
+(`al-leave-plan.js` header). Rules first, the Save a release later (backend-first).
 
 **Considered and not done.** Keeping each added day's revision in the log, as the review put it, and
 undoing only records whose stamp still matches: the log is built from a read made AFTER the Save, so a
@@ -1476,7 +1476,7 @@ Every decision in it that still binds was checked against the live documents fir
 recorded elsewhere stay where they are (the avatar, cultural calendar and five-stage password lines
 above; the 60-day session, the leave figures in git history and the real-payslip fixture in
 KNOWN_LIMITATIONS.md; the Huddle not being printed in OPERATIONS_REFERENCE.md; the fast path in "The
-provisional paint"; the login freeze's lessons in PASSWORD_DESIGN.md §3.6). These had no other home:
+provisional paint"; the login freeze's lessons in AUTH_AND_SESSIONS.md → "The login freeze"). These had no other home:
 
 **Tried and held back — the UX experiments.** Each was prototyped, assessed or built, and reverted.
 
@@ -1569,3 +1569,124 @@ every card on paper and so is an owner decision, not a follow-up. **Rendering is
 positional test over the PDF's text boxes called the overlapping page "1.7pt clear". Also not done and
 not recommended: printing the whole Operations or Admin page, and a version stamp on the printed
 Calendar, whose header already names the app, the member and the date.
+
+## The new CEA link: what the December 2026 plan settled (owner, Aug–Nov 2026)
+
+`LINKS_DEC2026_PLAN.md` — the research, readiness dashboard and build record for the new CEA link —
+was deleted on 26 Nov 2026, its work shipped. **Its full last text is `git show
+16386f9b:docs/LINKS_DEC2026_PLAN.md`.** What is still open is `ROADMAP.md` → The new CEA link. The
+rules every design is judged against are `docs/links-26/RULES.md`; how the workspace is built is
+`.claude/rules/links-design.md`. Decisions already argued in a module header or that rule file stay
+there (the FF18 cadence reading, a spare week as four duties of seven, the 13-day limit and its
+withdrawn Hidden origin, the uplift control, demand weighted by cars, the run cap's trade). These had
+no other home:
+
+**"Dec 26" means the December 2026 TIMETABLE CHANGE**, the industry's shorthand, not 26 December.
+Boxing Day rules in `roster-data.js`, `christmas-leave.js` and `OTHER_DAYS.md` are unrelated.
+
+**Who leads (owner, 4 Nov 2026).** S. Silva, as the RMT rep, leads the roster change. The shortlist
+was settled by her and the developer together from colleagues' feedback; she holds a vote on it and
+makes the final call on which proposal goes to the Marylebone area manager for review. The developer
+built the tool and the pack and is in charge of neither the change nor the choice. **What colleagues
+read is deliberately vague about this process** (owner: "It is deliberately vague"): the New link page
+says who leads the change and no more, and the pack need not say even that. **This paragraph is the
+record of the process: do not carry it into the page or the pack** (`newlink-config.js` header;
+`newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the wording).
+
+**What drives CEA headcount (owner, Aug 2026): posts, not trains.** The station rosters posts —
+ticket office, gateline, passenger assist, lost property (daytime Mon–Fri) — plus extras to cover
+breaks, and a post is staffed whether its hour carries 23 movements or 5. So the existing link,
+which already covers the posts, is the baseline, and **the measured service is EVIDENCE shown beside
+the cover, never a target**: no CEA-per-train ratio exists, and the tool must not invent one.
+
+**The staffed window (owner, Aug 2026)** is Mon–Sat 06:20–23:55 and Sunday 07:15–23:25
+(`DEFAULT_WINDOW`, `links-window.js`); post-midnight trains are outside the link by design.
+**No duty runs past 23:25 on a Sunday** (owner, 28 Sep 2026: agreed practice, and it will remain so),
+so the five later Sunday movements (23:27 dep, 23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr) are stated
+on every design as a neutral fact, never a finding. Saturday shares Mon–Fri's window; the setting can
+split them if that ever changes.
+
+**The staffing requirement was confirmed verbally (owner, 29 Sep 2026)**, and the contracted-week
+question with it: the work that fills a widened link comes from the December 2026 staffing, not from
+making today's lines denser. Every extra duty comes out of a rest day, so a service increase cannot be
+absorbed by the existing lines — the link has to get bigger, which means more staff. That is why the
+generator refuses a table that misses the contract in either direction, and why the uplift control was
+declined (owner, Aug 2026: "over complicates it"; `.claude/rules/links-design.md` → No uplift control).
+
+**Re-measuring from a new timetable file** meets two traps that each failed silently once: a `+` in a
+time (`05+46`) marks an empty-stock move (all 53 such movements carried a `5x` headcode), and five
+weekday times were stored as Excel serial fractions, which the first parse dropped (311 movements, not
+306). Platform occupancy is not computed — a known limit of the demand curve, not a blocker.
+
+**Not built: an automatic optimiser.** The generator produces a compliant skeleton; which duties fit
+the service is the designers' judgement. The tool checks and shows; it does not decide.
+
+## The annual leave uploader: a session makes the file, the app checks and adds, nothing removes (owner, 14 Nov 2026)
+
+`AL_UPLOADER_PLAN.md` — the plan of record for Operations → Annual leave sheet — was deleted on
+26 Nov 2026, Phases 0–2 built (v26.11, v26.13). **Its full last text is `git show
+16386f9b:docs/AL_UPLOADER_PLAN.md`.** What is open — Phase 3 — is `ROADMAP.md` → Annual leave
+uploader. What was built, and why each rule holds, is in the modules' headers: the file and its seal
+`al-leave-file.js`; the session's method `scripts/make-leave-file.mjs`; the day states
+`al-leave-compare.js`; what a Save writes, the log's meaning and the Undo's mark `al-leave-plan.js`;
+the checked writes `al-leave-save.js`; the card `operations-al-sheet.js` and `operations-al-save.js`;
+the log's fields `DATA_MODEL.md` → `alUploads`; the procedure `OPERATIONS_REFERENCE.md` → "Checking
+the clerks' leave sheet against the app". These had no other home.
+
+**The phases**, as the code comments name them: **0** the format module, the session's script and the
+privacy guards; **1** the card's check, writing nothing; **2a** the upload log's rules, shipped
+backend-first with nothing writing to it; **2b** the Save, its receipt and its Undo; **3** (not built)
+ticked conflicts, Sunday corrections and the roster review naming workbook leave.
+
+**The shape: two stages and a strict file between them** — an *anti-corruption layer*, which stops a
+messy outside system's quirks leaking into the app. A session does all the judgement on the clerks'
+workbook; the app does all the writing, from a file so strict it can refuse anything that does not fit.
+Not chosen: **the app reading the `.xlsx`** (a browser spreadsheet library is a discuss-first decision
+under the no-build rule, and every quirk of the workbook would become app code that must be right with
+nobody watching); **a Cloud Function asking a model to read it**, as the roster PDF is read (the
+workbook's ambiguities need a person's answer, not a better prompt). The chosen shape also keeps the
+raw workbook, which covers every location and carries comments about named people, off the app's
+servers. **One format module serves both stages** — Node can import it, and no CI lane runs Python, so
+a second implementation would have been tested against nothing. Of `AL_WORKBOOK.md` §11's three
+conditions, the over-quota column readable without a human was **deliberately waived**: a person stays
+in the loop instead, and the session asks about anything it cannot place.
+
+**The owner's decisions** (14 Nov 2026, "do your suggestions"; code comments cite them by number):
+
+1. Build the check first, and decide on the Save after using it — approved the same day; built.
+2. **The name map is carried in the leave file** (`nameMap`), read back by the next session; it is
+   never committed, because its exceptions are personal facts.
+3. **The workbook is the authority for ADDING leave — never for removing it.**
+4. **The clerks' copy may be 14 days old** (`LEAVE_FILE_MAX_AGE_DAYS`): older, the check still shows,
+   because a check cannot do harm, and the Save refuses.
+5. Leavers' past leave is skipped: listed as not compared, never written.
+6. **A hand-edited file is refused** by its seal; a correction goes back through a session.
+7. Upload whenever a copy comes, with the age limit as the backstop.
+8. Whether the roster review should prefer the published roster over workbook leave — **decided when
+   Phase 3 comes** (`ROADMAP.md`).
+
+It has **its own card on Operations** (owner, 14 Nov 2026), separate from the weekly roster upload.
+
+**Removing leave the sheet lacks is not planned** (the owner confirmed it). Every way of deciding it
+is weak: `createdAt` is the last write, not when leave was booked; a person with undated over-quota or
+carried days cannot be judged from dates; removing leave stamped `replacedType: 'shift'` destroys the
+only record of a swap; and a removed day a roster import wrote comes back, ticked, on that week's next
+import. App-only leave is shown, and removed by hand in Admin if it should go.
+
+**RDW, an Other day or a Spare turn is never overwritten by an upload** — deliberately unlike the
+Admin range card, which writes free leave over them inside a range a person chose. In an upload nobody
+chose the day, and overwriting worked RDW removes evidence of pay.
+
+**What it deliberately does not do, and why:** change anyone's allowance (allowances are code,
+`proRatedAL`, transcribed in a session; a mismatch is reported); write the override's `note` field,
+even to record where a day came from (it stays empty by an earlier data-protection decision, and
+reusing it would block its planned removal — the upload log records provenance instead); give uploaded
+leave a new `source` value (a rules change, and every reader of `source` would have to learn it, for
+information the log already holds — it can be revisited in Phase 3); write for leavers, managers or
+anybody not in the app; or guess a name, a date or a year.
+
+**Three of `AL_WORKBOOK.md` §10's questions went ahead on defaults that only narrow what is written**:
+Q3 (duplicate rows — the script asks about differing duplicates, so the Save never meets one
+unanswered), Q7 (column E — only dated days are written, never an undated lump) and Q8 (who saves the
+file — the older-copy refusal trusts the clerks' save time, and "removed since" protects either way).
+An answer that differs changes the script, not the Save's guards.

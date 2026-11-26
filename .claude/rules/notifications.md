@@ -112,9 +112,7 @@ to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov
   an hour (`sendErrorLogNotification`, documents.js); the rules are `functions/error-log-notice.js`,
   the sender and its record `functions/error-log-notify.js`.
   Both admin-only notices — this one and the reset request — resolve the admin's accounts by one rule,
-  `enabledAdminUids` (`functions/admin-recipients.js`). (A third, the retired staff PIN's
-  station-wide lockout notice, 🔢 `pin-lockout`, went with the PIN's endpoint in its server
-  release, Nov 2026.)
+  `enabledAdminUids` (`functions/admin-recipients.js`).
 - **`password-reset` goes to the member whose password was reset, on their own devices** — otherwise
   the one person it concerns is the only one not told, and finds out by failing to sign in (their
   credential became the surname default and their other devices were signed out). **Except for a
@@ -127,36 +125,30 @@ to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov
   save theirs at their next sign-in.
 - **Both Overtime notices** go to member uids resolved from the account email — the asked notice to
   whoever a window newly asked (one per member per scheduler run, naming their soonest deadline), the
-  reminder only to participants who have submitted NOTHING on the deadline's morning. A broadcast
-  would ping every member about a restricted beta; targeted, the reach scales to full launch with no
-  code change. Deadlines are worded in LONDON time by the pure builders in `functions/overtime-core.js`
+  reminder only to participants who have submitted NOTHING on the deadline's morning. Deadlines are worded in LONDON time by the pure builders in `functions/overtime-core.js`
   (`askedNotice`/`reminderNotice`), never composed inline.
 
 **`sendTargetedPush` fails closed at every step**: no target uids → send nothing; a subscription
-doc with no `owner` (written before owners were stamped) → skipped, never assumed; no matches → log
+doc with no `owner` → skipped, never assumed; no matches → log
 and stop. There is deliberately **no "no targets → fall back to everyone" branch**. Any new
 addressed-to-one-person notification uses `sendTargetedPush` and keeps that shape.
 
 **The `owner` must never outlive the member's hold on the device:**
 
 - **Sign-out.** The drawer's Sign out — once the page has committed to it (a `beforeSignOut` cancel
-  keeps the record) — calls
-  `releaseDevicePush` (`notif.js`), which deletes this device's record, so a targeted notice never
-  follows a member onto a shared device they have left. `getNotifState` re-saves it, and runs on a
-  signed-in CALENDAR load and once each time SETTINGS opens signed in (`notif-card.js`, owner, 22 Nov
-  2026 — so the Notifications card's "✓ On" has a record behind it); until one of those, the drawer's
-  bell on another page shows notifications as on with no record behind it. **Where the delete cannot run as the owner**, the browser subscription is dropped
-  instead and the next send's 410 deletes the record. All three, and the time box's cost, are
-  `releaseDevicePush`'s JSDoc.
+  keeps the record) — calls `releaseDevicePush` (`notif.js`), which deletes this device's record, so a
+  targeted notice never follows a member onto a shared device they have left. `getNotifState`
+  re-saves it, on a signed-in CALENDAR load and once each time SETTINGS opens signed in
+  (`notif-card.js`, owner, 22 Nov 2026 — so the card's "✓ On" has a record behind it). **Where the
+  delete cannot run as the owner**, the browser subscription is dropped instead and the next send's
+  410 deletes the record. The cases, and the time box's cost, are `releaseDevicePush`'s JSDoc.
 - **A hold that ends without a sign-out** — an expired session's lingering identity
   (`reconcileExpiredIdentity`), a session the last password reset refuses, a write page whose identity
   is lost mid-visit (`relogin`, `page-session.js`), a failed typed sign-in that clears ANOTHER member's
   held session (`login-overlay.js`) — releases the record before the session is cleared, through
-  `releasePushForEndingHold` (`session.js`, which says why: on a station PC left on the staff PIN, no
-  next member ever comes to take it over). **Never for a staff-PIN session** (the PIN is retired; a leftover session is signed out until the
-  cleanup release): the viewer owns no record, and
-  releasing as it dropped the browser's own subscription, so a member who had used the PIN on their
-  own phone found notifications off.
+  `releasePushForEndingHold` (`session.js`, which says why). **Never for a leftover staff-PIN
+  session**: the viewer owns no record, and releasing as it dropped the browser's own subscription, so
+  a member who had used the PIN on their own phone found notifications off.
 - **A leaver.** `fanOutPush` consults no owner, so the confirmed leaver sweep in `setupRosterAuth`
   deletes the records the disabled account owns (`releasePushForOwner`, `functions/push.js`) — **and
   every confirmed sweep does it again for the leavers disabled on EARLIER runs** (`disabledLeaverUids`;
@@ -178,14 +170,13 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
   name→address→uid lookup (the reset-request notice needs one; this is addressed to the account the
   handler is already holding), so there is no resolution step to widen or miss.
 
-`resetMemberPassword` reports the send as `notified`, a third independently-reported stage beside
-`revoked` and `stamped`: the credential has already changed by then, so a push failure must never
-report the reset as failed. No subscription is a legitimate `false`, and Operations turns every reset
-nobody was told about into the admin's cue to tell them another way, whether or not the sign-out
-worked (`resetOutcome`, `operations-reset.js`). A lost-phone reset reports `lostDevice` and a fourth
-stage, `pushReleased` or `pushReleaseFailed`, and is never `notified`; an answer without `lostDevice`
-after the box was ticked came from a server that does not know the step yet, and Operations says to
-reset again with the box ticked.
+`resetMemberPassword` reports the send as `notified`, a stage reported independently of `revoked`
+and `stamped`: the credential has already changed by then, so a push failure must never report the
+reset as failed. No subscription is a legitimate `false`, and Operations turns every reset nobody was
+told about into the admin's cue to tell them another way (`resetOutcome`, `operations-reset.js`). A
+lost-phone reset reports `lostDevice` and `pushReleased` or `pushReleaseFailed`, never `notified`;
+an answer without `lostDevice` after the box was ticked came from an older server, and Operations
+says to reset again with the box ticked.
 
 **Why the queue depth is in the reset-request title.** One stable tag per feature means a second
 request *replaces* the first on the lock screen, so the headline states the current total
@@ -289,8 +280,7 @@ round.
   "all 50 staff" test); the next change moves the one constant, `TIMETABLE_CHANGE`.
 - Overtime → `overtime.html` (both the asked notice and the deadline reminder).
 - New link vote → `newlink.html`. TARGETED to that page's own audience (`newlinkAudience`, generated from
-  `canOpenNewlink`), sent ONCE by `sendNewlinkVoteReminderNotification` (`functions/newlink-reminder.js`) at
-  18:00 on 26 November 2026.
+  `canOpenNewlink`), sent ONCE by `sendNewlinkVoteReminderNotification` (`functions/newlink-reminder.js`).
 - Error Log → `operations.html#error-log` (opens and scrolls to the Error Log card, through the same
   `DEEP_LINK_CARDS`). A tap while Operations is ALREADY open re-reads the log — `operations-errors.js`,
   from the hash the event carried, because the page strips the hash in the same event.
@@ -300,8 +290,7 @@ round.
 All payloads go through `buildPushPayload({ feature, body, baseUrl, headline?, url? })` (top of this
 file), backed by the `NOTIFICATION_FEATURES` map (emoji + tag + default headline + default path).
 Hand-writing a `{ title, body, tag, url }` literal is **not allowed** — that is how the design
-drifted (one notification used the app name as its title, another a marketing headline). The builder
-guarantees the leading emoji, the tag, and the scope-relative URL.
+drifted. The builder guarantees the leading emoji, the tag, and the scope-relative URL.
 
 ## Adding a new notification type — checklist
 

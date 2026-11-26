@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * auth-state.js — the auth STORE (AUTH_ARCHITECTURE.md Track 1, Phase 2).
+ * auth-state.js — the auth STORE (AUTH_AND_SESSIONS.md → Architecture, the store).
  *
  * Holds the single identity state (reduced by auth-state-core.js) and lets the rest of the
  * app OBSERVE it (`subscribeAuth` / `getAuthSnapshot`). The "shell adapter" role — the actual
@@ -39,7 +39,7 @@ export function getAuthSnapshot() {
  * isolated (logged, never breaks dispatch or other listeners).
  *
  * NOTHING IN PRODUCTION SUBSCRIBES: every page decides once, from `getAuthSnapshot()`, and its
- * tests are the only callers. It is the store's documented API (AUTH_ARCHITECTURE.md), which no page
+ * tests are the only callers. It is the store's documented API (AUTH_AND_SESSIONS.md → Architecture), which no page
  * has needed — so do not read a page as reacting to a later change of state.
  * @param {(s: AuthState) => void} listener
  * @returns {() => void}

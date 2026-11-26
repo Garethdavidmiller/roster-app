@@ -14,7 +14,7 @@
  *
  * **That is a deliberate classification, not a leak** (owner, 4 Sep 2026): shift patterns are on the
  * station's own printed rosters and staff share them freely, so the base roster is not confidential.
- * The reasoning and the measurement live in `AUTH_PLAN.md` §2, which is the authority; this file is
+ * The reasoning and the measurement live in `AUTH_AND_SESSIONS.md` → "Public by decision", which is the authority; this file is
  * the part a document cannot do.
  *
  * ── WHAT IT ACTUALLY GUARDS ─────────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ describe('roster-data.js is world-readable, so what it carries is a decision', (
         for (const m of teamMembers) Object.keys(m).forEach(k => seen.add(k));
         const unclassified = [...seen].filter(k => !(k in PUBLIC_MEMBER_FIELDS)).sort();
         assert.deepEqual(unclassified, [],
-            `roster-data.js ships to anyone who asks — no session, no PIN (AUTH_PLAN.md §2). These `
+            `roster-data.js ships to anyone who asks — no session, no PIN (AUTH_AND_SESSIONS.md → "Public by decision"). These `
             + `fields are not in the public classification list:\n    ${unclassified.join(', ')}\n`
             + 'Decide whether a stranger may read them. If yes, add each to PUBLIC_MEMBER_FIELDS '
             + 'with a one-line reason. If no, it belongs in Firestore behind a claim, not in this file.');
@@ -237,11 +237,11 @@ const PUBLIC_DATA_EXPORTS = /** @type {const} */ ({
     APP_VERSION:      'The release number, shown in About.',
     CONFIG:           'Classified key by key in PUBLIC_CONFIG_KEYS.',
     teamMembers:      'Classified field by field in PUBLIC_MEMBER_FIELDS.',
-    weeklyRoster:     'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
-    bilingualRoster:  'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
-    cesRoster:        'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
-    dispatcherRoster: 'A shift pattern. Public by the owner’s decision (AUTH_PLAN.md §2).',
-    fixedRoster:      'The fixed patterns. Public by the owner’s decision (AUTH_PLAN.md §2).',
+    weeklyRoster:     'A shift pattern. Public by the owner’s decision (AUTH_AND_SESSIONS.md → "Public by decision").',
+    bilingualRoster:  'A shift pattern. Public by the owner’s decision (AUTH_AND_SESSIONS.md → "Public by decision").',
+    cesRoster:        'A shift pattern. Public by the owner’s decision (AUTH_AND_SESSIONS.md → "Public by decision").',
+    dispatcherRoster: 'A shift pattern. Public by the owner’s decision (AUTH_AND_SESSIONS.md → "Public by decision").',
+    fixedRoster:      'The fixed patterns. Public by the owner’s decision (AUTH_AND_SESSIONS.md → "Public by decision").',
     FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS: 'Which fixed patterns rest on bank holidays: part of those patterns, public as they are.',
     TEAM_GRADES:      'The grade groups Team Week offers.',
     DAY_NAMES:        'Calendar words.',

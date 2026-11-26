@@ -5,7 +5,7 @@
  *
  * WHY THIS EXISTS: the suite covered session helpers and overlay presence, but NOT the sign-in
  * click path — which is exactly where the v14.72–75 login-freeze regressions lived (local session
- * saved before auth completed; no timeout on the auth step). See PASSWORD_DESIGN.md §3.6 (the login freeze).
+ * saved before auth completed; no timeout on the auth step). See AUTH_AND_SESSIONS.md → "The login freeze".
  *
  * The logic under test (runNamedSignIn) is DOM-free and takes ALL its dependencies as arguments, so
  * most tests drive it directly with recording stubs — no fake DOM, no real Firebase. The block at

@@ -1,29 +1,22 @@
 # File index — what every file in the repo IS
 
-*Split out of `CLAUDE.md` on 11 Sep 2026. Not version-stamped; not a runtime asset.*
+*Not version-stamped; not a runtime asset.*
 
-**This is a LOOKUP TABLE, and that is why it is no longer in `CLAUDE.md`.** It answers one question —
-*what is this file, and where does its reasoning live* — for every file in the repo. A session changing Pay
-Calculator CSS does not need the roster parser, the Overtime endpoints and the FIP guide tests
-described to it, and until this split every session paid for all of them on every task: the catalogue
-was ~200,000 characters, 64% of a document loaded into every single session regardless of relevance.
-
-**The discipline that governs it has not changed** — it is still a routing table, entries are still
-capped, and it still may not accumulate release history. `doc-parity.test.mjs` enforces all of that
-here exactly as it did in `CLAUDE.md`, and the rules themselves stay in `CLAUDE.md` → "Current file
-structure", beside the three-homes table that explains them. Read that before adding an entry.
-A row says what the file IS, what it owns and where its reasoning lives — nearly always the file's
-own header — so an argument a row starts to need goes into that header first, and the row keeps the
-pointer.
-An export list is not a row's business either: `AI_MAP.md`'s generated export line is the record. Only
-the five documents on the `CLAUDE.md · docs/AI_MAP.md · …` row are version-stamped, and no `.md` is a
-runtime asset, so the document rows do not say so one by one.
+**This is a LOOKUP TABLE**, kept out of `CLAUDE.md` so a session pays only for the rows it needs. It
+answers one question — *what is this file, and where does its reasoning live* — for every file in the
+repo. It is a routing table: entries are capped and may not accumulate release history
+(`doc-parity.test.mjs`), and the rules behind that are `CLAUDE.md` → "Current file structure", beside
+the three-homes table. A row says what the file IS, what it owns and where its reasoning lives —
+nearly always the file's own header — so an argument a row starts to need goes into that header first,
+and the row keeps the pointer. An export list is not a row's business: `AI_MAP.md`'s generated export
+line is the record. Only the five documents on the `CLAUDE.md · docs/AI_MAP.md · …` row are
+version-stamped, and no `.md` is a runtime asset, so the document rows do not say so one by one.
 
 **When you add, remove or rename a module you must update this file AND `docs/AI_MAP.md`, in the same
-commit.** `npm run generate:file-index` does this file's half: it writes the new module's row from the opening
-line of its header, among the rows it shares a name with, and takes out the row of a module that has gone. Improve
-a written row's words by hand like any other; it is never rewritten. `githooks/pre-commit` checks both, and it now looks for a module here rather than in
-`CLAUDE.md`. `AI_MAP.md` holds each module's purpose and pointers, and a generated export line (`npm run generate:ai-map`); this says only what a file is.
+commit.** `npm run generate:file-index` does this file's half: it writes the new module's row from the
+opening line of its header, among the rows it shares a name with, and takes out the row of a module
+that has gone. Improve a written row's words by hand like any other; it is never rewritten.
+`githooks/pre-commit` checks both. `npm run generate:ai-map` writes AI_MAP's export lines.
 
 ```
 roster-app/
@@ -36,7 +29,7 @@ roster-app/
 ├── calendar-state.js       ← display month/year state for index.html (getters/setters + persistViewedMonth). See also calendar-state.test.mjs.
 ├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown. See also calendar-swipe-redraw.spec.js.
 ├── calendar-al-lightbox.js ← the Calendar's annual-leave panel and day-detail panel (`initCalendarLightboxes`); every badge on the day panel comes from the grid's own authorities. Reasoning: its header. Tested by calendar-al-lightbox.test.mjs. See also lightbox-transform-parity.test.mjs, day-detail-explains.test.mjs.
-├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_PLAN.md → E1). See also calendar-initial-fetch.test.mjs.
+├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). See also calendar-initial-fetch.test.mjs.
 ├── calendar-keyboard.js    ← keyboard navigation, the page shortcuts (`initCalendarShortcuts`: they press the page's own buttons) and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar-swipe-redraw.spec.js, calendar-day-detail.spec.js.
 ├── calendar-month-jump.js  ← the month/year jump picker opened from the month heading (`initMonthJump`). Tested by calendar-month-jump.test.mjs. See also calendar-access.spec.js.
 ├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs a leftover staff-PIN session out. **Read its header first.** Tested by calendar-access.test.mjs. See also AUTH_AND_SESSIONS.md, calendar-access.spec.js.
@@ -87,7 +80,7 @@ roster-app/
 ├── glossary.js            ← "Words used in the app": the roster words, one line each, and which `?` panels link to them; shown in the page's Tips panel. See also glossary.test.mjs, e2e/glossary.spec.js.
 ├── login-overlay.js        ← the shared in-place sign-in overlay for every page that signs in, as a modal or inline (the Calendar's front door). Its header. See also auth.spec.js, calendar-access.spec.js.
 ├── login-core.js           ← the sign-in card's DOM-free rules, including the 30-second typed sign-in deadline (`SIGN_IN_GIVE_UP_MS`) and the set-password marker's hold; login-overlay.js re-exports them. Tested by login-overlay.test.mjs
-├── password-force.js ← the MANDATORY "set your own password" overlay (PASSWORD_DESIGN.md Phase 2). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs. See also page-contract-parity.test.mjs.
+├── password-force.js ← the MANDATORY "set your own password" overlay (AUTH_AND_SESSIONS.md → "The forced password overlay"). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs. See also page-contract-parity.test.mjs.
 ├── session.js              ← shared auth/session: re-establishing the Firebase session, the pre-warm, the local session, and the named-vs-anonymous identity signals. See also coordinator-ratchet.test.mjs.
 ├── staff-pin-ended.js      ← whether arriving on this page signed out a leftover session of the retired staff PIN, and the one sentence that says so; transition plumbing. Its header. Tested by session.test.mjs and login-overlay.test.mjs. See also calendar-access.spec.js.
 ├── silent-sign-in.js      ← the RULES of the sign-in nobody typed (pure); session.js keeps the memory. Its header. Tested by session.test.mjs. See also AUTH_AND_SESSIONS.md.
@@ -360,20 +353,17 @@ roster-app/
 │   ├── DECISIONS.md ← what has already been DECIDED, and why, so it is not re-argued. A closed decision whose trigger fires MOVES back to ROADMAP.md
 │   ├── ARCHITECTURE.md ← the INDEX: which document is authoritative for each subject, the `EXC-*` table of current production exceptions, and the four status words
 │   ├── MAINTENANCE_CALENDAR.md ← work with a DEADLINE whether or not anyone plans it, each with a warning point
+│   ├── OWNER_GUIDE.md          ← the owner's plain-English guide to running the app: after a release, when something is wrong, the weekly, monthly and dated jobs, and where each answer lives
 │   ├── LATENCY.md ← sign-in and Calendar START latency: what shipped, what was measured, and the decision rule — CLOSED
 │   ├── VALIDATION_REGISTER.md ← what the app ALREADY ASSERTS on evidence nobody has checked, each row with a stable `VAL-*` id
 │   ├── DATA_MODEL.md ← the FIRESTORE COLLECTIONS and what every field means; `firestore.rules` is the authority on access
 │   ├── AL_WORKBOOK.md ← the roster clerks' annual-leave quota spreadsheet — a WORK IN PROGRESS. **Read §0 first**: `AL over depot quota` days are real leave, invisible in the calendar grid
-│   ├── AL_UPLOADER_PLAN.md ← the plan of record for the annual leave uploader (workbook → sealed leave file → Operations → Annual leave sheet)
 │   ├── CALENDAR_DATA.md ← the Calendar's feature CONTRACT: what may be shown and when, each invariant routed to its module header
-│   ├── AUTH_AND_SESSIONS.md ← the authentication feature CONTRACT: session, identity and claim, the invariants across them, and the architecture (two pure layers and a store); status lives in SECURITY_RELEASE_PLAN.md
-│   ├── SECURITY_RELEASE_PLAN.md ← the security tracks' status: **the CANONICAL TRACK STATUS table** (update a stage there and nowhere else; `auth-plan-parity.test.mjs`), plus each track's ordering, decisions and lessons
-│   ├── CREDENTIAL_LIFECYCLE.md ← POINTER: merged into PASSWORD_DESIGN.md (24 Nov 2026); maps its old §N to LN
-│   ├── PASSWORD_DESIGN.md ← the chosen-password design (Track C, email deferred), and the credential lifecycle: how a credential is issued, recovered and retired, in order (L1–L10; **L7 is an OPEN owner decision**). Status: SECURITY_RELEASE_PLAN.md
-│   ├── AUTH_PLAN.md ← Track E, full-app authentication, in its ONE home: what "behind authentication" can mean for static files on public hosting, and the E0–E6 phases, their order, risks and owner questions. Status: SECURITY_RELEASE_PLAN.md's table, whose Track E section points here
-│   ├── AUTH_ARCHITECTURE.md     ← POINTER: folded into AUTH_AND_SESSIONS.md → Architecture (24 Nov 2026); the Track 1 phases are in git
-│   ├── RECOVERY_RUNBOOK.md      ← the "break glass" backup, rollback and disaster-recovery runbook
-│   ├── LINKS_DEC2026_PLAN.md ← the Links workspace against the December 2026 timetable change ("Dec 26" is the timetable, NOT Boxing Day): the service, the window, the baseline and the current 26-line state
+│   ├── AUTH_AND_SESSIONS.md ← the authentication feature CONTRACT: session, identity and claim, the invariants across them, the architecture (two pure layers and a store), and the shipped design decisions ("Why it is this way"); what is still to do lives in SECURITY_RELEASE_PLAN.md
+│   ├── SECURITY_RELEASE_PLAN.md ← the security tracks' status: **the CANONICAL TRACK STATUS table** (update a stage there and nowhere else; `auth-plan-parity.test.mjs`), and the design and order of the security work NOT yet built (C6, F, C2, C5 and its **OPEN owner decision**, App Check, the rest of Track E)
+│   ├── RECOVERY_RUNBOOK.md      ← the "break glass" backup, rollback and disaster-recovery runbook, and the deploy identity (Workload Identity Federation)
+│   ├── LINKS_REFERENCE.md ← the Links workspace in full: how each part works and the measurements behind its rules. The invariants are `.claude/rules/links-design.md`
+│   ├── PAYCALC_REFERENCE.md ← the Pay Calculator in full: the pay FIGURES (their one home), the payroll mechanics, state and layout. The invariants are `.claude/rules/paycalc.md`
 │   ├── BRASS_PLAN.md ← modelling BRASS (the RPS pension top-up) in the pay calculator; nothing ships until its owner questions are answered
 │   ├── OVERTIME_AVAILABILITY.md ← the design record for Overtime Availability, holding only what no module header owns
 │   ├── OTHER_DAYS.md            ← the "Other" day family: the numbered design decisions cited from code, and the Phase B checklist
@@ -382,7 +372,7 @@ roster-app/
 │   ├── ANDROID_RELEASE_CHECKLIST.md ← the Android release pass no test here can run, on a real phone
 │   └── IPHONE_RELEASE_CHECKLIST.md ← the iPhone release pass no test here can run, on real devices
 ├── experiments/
-│   ├── firestore-offline-proof/ ← the proof AUTH_PLAN.md §4 asked for: the local Firestore cache serves reads the rules would deny. Not a CI gate
+│   ├── firestore-offline-proof/ ← the proof AUTH_AND_SESSIONS.md → "The local cache does not ask the rules" asked for: the local Firestore cache serves reads the rules would deny. Not a CI gate
 │   ├── auth-firestore-split-proof/ ← does taking Firestore off the auth path speed a saved sign-in? **No** — the wall is network. Not a CI gate
 │   ├── roster-pdf-geometry/ ← does the roster PDF already contain the grid the AI reconstructs? **Yes**. Not a CI gate; needs `pdfjs-dist` pinned to v4
 │   └── viewer-persistence-proof/ ← does the Calendar viewer die with the browser session? It did not; proven in real Chromium. Not a CI gate; pinned by calendar-viewer-parity Contract C
@@ -664,7 +654,7 @@ roster-app/
 │   ├── shadow-parity.test.mjs ← the box-shadow count may only come down. Part of test:hygiene
 │   ├── lightbox-transform-parity.test.mjs ← **the lightbox entry animation must not be frozen by SPECIFICITY**. Part of test:hygiene
 │   ├── chip-radius-parity.test.mjs ← a chip must not wear the lightbox/panel corner. Part of test:hygiene
-│   ├── auth-plan-parity.test.mjs ← Track E written once: AUTH_PLAN.md's phase list whole, SECURITY_RELEASE_PLAN.md's Track E section kept a pointer, shipped versions agreeing with the status table; and the credential lifecycle's unadopted C5 route. Part of test:hygiene
+│   ├── auth-plan-parity.test.mjs ← the security plan written once: SECURITY_RELEASE_PLAN.md's Track E phase list whole and agreeing with its status table, the canonical rollout line, C5's unadopted second route marked in both places, the invariants for unbuilt work routed to the plan, and the folded sign-in documents kept gone. Part of test:hygiene
 │   ├── tips-content.test.mjs ← every page's tips and HELP_CONTENT in the shape their renderers require. Part of test:hygiene
 │   ├── glossary.test.mjs ← the glossary's words, one line each, and the test that decides which panels link to it. Part of test:hygiene
 │   ├── workflow-hygiene.test.mjs ← the CI workflows: pins, timeouts, concurrency and the job list
@@ -768,7 +758,7 @@ roster-app/
 │   ├── test-lanes.mjs            ← which lane each Node suite runs in, read from its own `// @lane` line; `run-tests.mjs --lane` and `test-nodeps.mjs` ask it
 │   ├── test-nodeps.mjs           ← `npm run test:nodeps` — every suite that needs nothing installed; its exclusions are the `functions` and `rules` lanes
 │   ├── hosting-upload-check.mjs  ← refuses to publish anything to Hosting that git does not track (run by deploy-hosting.yml)
-│   ├── make-leave-file.mjs       ← STAGE 1 of the leave uploader, run in a session on the clerks' workbook (AL_UPLOADER_PLAN.md). Never run on a real workbook in CI
+│   ├── make-leave-file.mjs       ← STAGE 1 of the leave uploader, run in a session on the clerks' workbook (DECISIONS.md → The annual leave uploader). Never run on a real workbook in CI
 │   ├── xlsx-read.mjs             ← just enough .xlsx reading for that script; the workbook is untrusted
 │   ├── mutate.mjs                ← break ONE line on purpose, run a command, put the file back — the tool CLAUDE.md requires before claiming a guard. Its header
 │   ├── mutation-sweep.mjs        ← `npm run test:mutation`: every manifest entry through mutate.mjs, one table; fails on a survivor or a stale entry. Weekly in `mutation.yml`. Its header
@@ -813,7 +803,7 @@ roster-app/
     ├── region.js                  ← `REGION`, the one region every function deploys to; function-url.js is the browser's half. Requires nothing
     ├── web-push.d.ts              ← types for the part of `web-push` push.js calls (the package ships none); read only by the type-checker
     ├── jsconfig.json              ← the Functions' own strict type-check (`npm run typecheck` runs it beside the root one)
-    ├── doc-url-core.js            ← who may be handed a document URL, for which document and for how long — a door that MIRRORS firestore.rules, taking a KIND, never a path. Design: AUTH_PLAN.md §5
+    ├── doc-url-core.js            ← who may be handed a document URL, for which document and for how long — a door that MIRRORS firestore.rules, taking a KIND, never a path. Design: AUTH_AND_SESSIONS.md → "The document files (E6)"
     ├── doc-link-rotation.js       ← a new key for the permanent link of every stored document file, so old copies stop opening it (ARCHITECTURE.md EXC-007). Its header. See also doc-link-rotation.test.mjs.
     ├── london-clock.js            ← an ISO date and the instant it names in London. **Requires nothing**, which keeps overtime-core.test.mjs in the every-branch lane
     ├── overtime-core.js           ← every RULE Overtime Availability has, with no I/O. **The deadline hours are the highest-risk thing in the feature.** Design: OVERTIME_AVAILABILITY.md

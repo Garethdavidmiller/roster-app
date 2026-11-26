@@ -3,7 +3,7 @@ name: new-notice
 description: Full guide for adding a one-time notice lightbox to any app page. Invoke this skill when the user asks to add a notice, alert, or announcement lightbox.
 ---
 
-# One-time notice pattern (v13.36)
+# One-time notice pattern
 
 Notices are `.lb-overlay` lightboxes shown periodically or once to staff on a specific page. They are built with `createLightbox()` and call `archiveNotice()` so the notice appears in the nav panel "📣 App Notices" record. **Every notice must follow this pattern exactly** — do not invent new CSS classes or deviate from the element order.
 
@@ -32,11 +32,9 @@ Add the notice lightbox in the page's HTML, grouped with the other `.lb-overlay`
 </div>
 ```
 
-**THE THREE ZONES ARE THE STRUCTURE, and a flat card is the thing they replaced (v23.32).** The
-card carries no padding and no gap of its own; each zone owns its spacing, which is what makes the
-header separate from the prose and the prose from the buttons. Before this the six children sat as
-flat siblings at a uniform 6px gap, so nothing grouped and the card read as unstyled text on a
-dimmed page — reported by the owner from a phone. **Do not put a child directly in
+**THE THREE ZONES ARE THE STRUCTURE.** The card carries no padding and no gap of its own; each zone
+owns its spacing, which is what separates the header from the prose and the prose from the buttons (as
+flat siblings, the card read as unstyled text on a dimmed page). **Do not put a child directly in
 `.notice-lb-content`**: it will sit hard against the card's edge with no padding at all, because
 there is none to inherit. `.notice-actions` is omitted entirely on a notice with no buttons; so is
 `.notice-date` on one that is not dated.
@@ -46,8 +44,8 @@ there is none to inherit. `.notice-actions` is omitted entirely on a notice with
 2. `.notice-head` — the masthead block. Its 28px top padding clears the ✕'s 44px touch target; do not reduce it, or the title lands under the button.
    - `.notice-badge notice-badge--[page]` — section pill coloured to match the page's nav pill (see table below). Do not use `.lightbox-badge` on notices.
    - `.lightbox-app-name` — notice title (white, scoped smaller than the About lightbox title by `.notice-lb-content .lightbox-app-name` in `shared.css`; `text-wrap: balance` handles a wrap)
-   - `.notice-date` — `Posted D Month YYYY`, the month IN FULL (the house style since v26.53) — **hardcoded** to the date the notice was published. OPTIONAL. The JS `NOTICE_DATE` stays `D Mon YYYY` (below): it is the expiry key.
-3. `.notice-main` — one or more `.notice-body` paragraphs (soft white, left-aligned — v18.89: centred reads fine for a line or two and works against the reader over the 3–5 lines a notice body usually runs to). The whole card is left-aligned since v23.32; it used to centre the header over left-aligned prose, which changed alignment twice on the way down.
+   - `.notice-date` — `Posted D Month YYYY`, the month IN FULL — **hardcoded** to the date the notice was published. OPTIONAL. The JS `NOTICE_DATE` stays `D Mon YYYY` (below): it is the expiry key.
+3. `.notice-main` — one or more `.notice-body` paragraphs (soft white, left-aligned: centred text works against the reader over the 3–5 lines a notice body runs to). The whole card, header included, is left-aligned.
 4. `.notice-actions` — OPTIONAL, and only when there is something to press:
    - `.notice-cta` — gold action `<a>` — only if the notice links to another page
    - `.notice-later` — muted dismiss `<button>` — only when `.notice-cta` is present
@@ -64,8 +62,8 @@ there is none to inherit. `.notice-actions` is omitted entirely on a notice with
 | Settings page | `⚙️ Settings` | `notice-badge--settings` (indigo) |
 | Operations page | `🔧 Ops` | `notice-badge--ops` (orange) — short, like the page badge: a notice lightbox is a narrow box on a phone, so the section pill wants the abbreviation. The nav-drawer pill spells it in full, because a drawer row has the width. |
 | Calendar page | `📅 Calendar` | `notice-badge--calendar` (gold) |
-| Trains page | `🚆 Trains` | `notice-badge--trains` (raspberry, white type — the Trains pill's colour; first used by `timetable-2026`, v24.82) |
-| New link page | `🔁 New link` | `notice-badge--newlink` (teal `--al`, white type — the New link pill's colour; first used by `newlink-2026`, v25.61) |
+| Trains page | `🚆 Trains` | `notice-badge--trains` (raspberry, white type — the Trains pill's colour) |
+| New link page | `🔁 New link` | `notice-badge--newlink` (teal `--al`, white type — the New link pill's colour) |
 | General / no specific page | `📣 General` | (no modifier — neutral white tint) |
 
 ## JS pattern — close-only notice (no CTA)
@@ -98,10 +96,9 @@ The user reads the notice and closes it. `archiveNotice()` fires in `onClose` be
         },
     });
 
-    // openNoticeIfClear, NEVER lb.open() — a notice must not appear stacked with another overlay.
-    // Two open notices used to share one Escape: a single keypress ran BOTH onClose callbacks, so
-    // the one buried underneath was archived and flagged permanently seen by someone who never saw
-    // it. Deferring leaves it unopened AND unflagged, so it gets its turn on the next load.
+    // openNoticeIfClear, NEVER lb.open() — a notice must not appear stacked with another overlay:
+    // two open notices share one Escape, which would flag the buried one seen by someone who never
+    // saw it. Deferring leaves it unopened AND unflagged, so it gets its turn on the next load.
     // Import from './overlay.js'.
     openNoticeIfClear(lb);   // or conditionally, e.g.: if (lsGet(PREV_KEY) && !lsGet(NOTICE_KEY)) openNoticeIfClear(lb);
 }());
@@ -109,8 +106,8 @@ The user reads the notice and closes it. `archiveNotice()` fires in `onClose` be
 
 ## JS pattern — actionable notice (has CTA + "Not now")
 
-> **What the live notices actually do (Nov 2026): every `index.html` notice is a ONE-OFF.** On the rule
-> the owner set for the leave reminder (10 Sep 2026), every dismissal — the ×, the backdrop, Escape,
+> **What the live notices actually do: every `index.html` notice is a ONE-OFF** (owner, 10 Sep 2026):
+> every dismissal — the ×, the backdrop, Escape,
 > "Not now" and the link — sets the DONE key, and no notice declares a snooze key
 > (`calendar-notices.js`). Use the snooze below only for a notice the owner has asked to come back.
 > **And on `index.html`, drop the `getSession()` line:** a member who signs in at the Calendar's front
@@ -160,45 +157,44 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
     });
 
     // Acted — shorter snooze. The link REPLACES the notice's history entry with its page (`followLinkOutOf`,
-    // overlay.js — import it): left a plain link, the page stacked on top of the notice's entry, and one Back
-    // from it landed on a step nothing answered (18 Nov 2026). On index.html use calendar-notices.js's
+    // overlay.js — import it): a plain link stacks the page on the notice's entry, and one Back from it lands
+    // on a step nothing answers. On index.html use calendar-notices.js's
     // `_wireNoticeLink('[Name]NoticeGo', lb, markDone)` instead — calendar-notices.test.mjs block 13 requires it.
     goLink?.addEventListener('click', (e) => { _snooze(1); followLinkOutOf(lb, e); });
     laterBtn?.addEventListener('click', () => lb.close());
 
     // Guard: skip if another overlay (e.g. Huddle viewer) opened in the 1500ms window.
-    // openNoticeIfClear IS that guard, now shared with the close-only pattern above (v19.53).
+    // openNoticeIfClear IS that guard, shared with the close-only pattern above.
     setTimeout(() => openNoticeIfClear(lb), 1500);
 }());
 ```
 
 **Target-page permanent dismiss:** On the page the CTA links to, call `lsSet('myb_notice_[id]_done', '1')` when the user completes the action (e.g. after saving their email, after submitting the form). Without this, the notice re-shows after the 1-day snooze indefinitely — `DONE_KEY` is never set by the notice IIFE itself.
 
-## Audience — every notice is for members (23 Nov 2026)
+## Audience — every notice is for members
 
-Notices on **`index.html`** live in `calendar-notices.js` and open only for a **signed-in member**.
-The audience rule began at v21.81 because Calendar access being GRANTED said nothing about **whose**
-it was: before it, every Calendar notice also opened on the PIN-unlocked station PC, including one
-asking the reader to check their own payslips were entered correctly.
+Notices on **`index.html`** live in `calendar-notices.js` and open only for a **signed-in member**:
+Calendar access being granted says nothing about **whose** it is, and a notice may ask the reader
+about their own data.
 
-**The staff PIN was retired on 23 Nov 2026**, so nobody reads the Calendar signed out any more, and the
-two audiences that existed for that reader — `'signed-out'` and `'everyone'` — are retired with it.
-Every notice is `'members'`; do not try to bring the others back. A refused notice is left
+**The staff PIN is retired** (23 Nov 2026), so nobody reads the Calendar signed out, and the
+`'signed-out'` and `'everyone'` audiences went with it. Every notice is `'members'`; do not bring the
+others back. A refused notice is left
 **unflagged** — not marked seen — so it arrives when that device is next signed in (a leftover PIN
 session is signed out on its next load, so it never sees one).
 
 Notices on other pages need no audience either: those pages already require a session.
 
-## Waiting for another notice, or for a reader known only at open time (v24.86)
+## Waiting for another notice, or for a reader known only at open time
 
-`ytd-figures-2026` added both, and the next notice can reuse them as they are:
+Each of these exists in `calendar-notices.js`, and the next notice reuses it as it is:
 
 - **After another notice:** declare `const FOLLOWS = '<that notice's DONE_KEY>'` in the IIFE and
   `if (!followedDone(FOLLOWS)) return;` after the expiry check — never a bare `lsGet(FOLLOWS)`. It is
   read at WIRING time, so the notice never comes on the load where the other one is dismissed.
   `calendar-notices.test.mjs` pins `FOLLOWS` equal to the other IIFE's `DONE_KEY` and gives
   followers matrix rows of their own.
-- **And record the followed notice's END in `FOLLOWED_ENDS`** (16 Nov 2026): its done key → the
+- **And record the followed notice's END in `FOLLOWED_ENDS`**: its done key → the
   `[day, days]` its own `isNoticeExpired` call takes. `followedDone` passes once the flag is set OR
   that end has passed, because only the followed notice's own IIFE sets the flag, and the monthly
   cleanup deletes that IIFE: a bare flag check would leave every device that never answered it
@@ -213,8 +209,6 @@ Notices on other pages need no audience either: those pages already require a se
   of that day and stops at the next midnight. A count from posting drifts by an hour across a clock
   change.
 
-`install-app-2026` (v24.91) added three more:
-
 - **After a notice only some members get:** `const FOLLOWS_PAY = '<its DONE_KEY>'`, read at wiring
   time beside `FOLLOWS` (through `followedDone`, with its end in `FOLLOWED_ENDS`), and `alsoWhen` accepts it OR the member not being that notice's reader
   (`payCalcIsTheirs`, now module-level). Waiting on a flag a member can never set would hold the
@@ -225,8 +219,6 @@ Notices on other pages need no audience either: those pages already require a se
 - **When it makes the same ask as something already on the page:** a fourth argument,
   `whenDecided`, runs the moment the notice is decided — the install notice stands the install strip
   down then, rather than covering it 1500ms later.
-
-`newlink-2026` (v25.61) added three more:
 
 - **After the install notice, only where that one is this DEVICE's:** `const FOLLOWS_INSTALL =
   '<its DONE_KEY>'`, read at wiring time through `followedDone`, and `alsoWhen` accepts it OR `!installRoute()` — a desktop
@@ -258,7 +250,7 @@ Notices on other pages need no audience either: those pages already require a se
 | Storage that keeps nothing | No notice is wired where `lsAvailable()` (ls.js) is false: the flag would never stick, and a one-time notice would open on every load |
 | Expiry on new device — short (28 days) | Default. Use for time-bound prompts that lose urgency quickly: feature launches, one-off nudges (e.g. beta notice). `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` — placed after the done/snooze checks. Import `isNoticeExpired` (and `archiveNotice`) from `notice-archive.js`. |
 | Expiry on new device — long (90 days) | Use for tax-year or seasonal notices that stay relevant for months: YTD entry reminders, pay rate change notices. `if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }` — same placement as short. |
-| Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than **180 days** on every write — the archive stays fresh over time on each device without the user having to clear storage. (It lives in `localStorage`, so it is per-device and does **not** sync across devices; legacy pre-v13.41 entries without `archivedAt` are migrated — stamped with the current time — not dropped, on the first write.) |
+| Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than **180 days** on every write. It lives in `localStorage`, so it is per-device and does **not** sync; an entry without `archivedAt` is stamped with the current time, not dropped. |
 | Show delay | 1500ms when notice competes with page render; 0 when it is the first thing shown |
 | Opening it | **Always `openNoticeIfClear(lb)`, never `lb.open()`** — a notice must never open stacked with another overlay. Not opening leaves it unflagged, so it returns next load. |
 
@@ -274,12 +266,8 @@ For an `index.html` notice there is nothing to declare: every notice is for memb
 
 ## Current notices
 
-Keep this table current. It moved here from `CLAUDE.md` on 7 Nov 2026; `CLAUDE.md` keeps the rules
-that fire by date or apply to every notice (the audience, `openNoticeIfClear`, the monthly cleanup)
-and points here for the rest.
-
-> **Every notice is for members** (Audience, above): the `'signed-out'` and `'everyone'` audiences were
-> retired with the staff PIN on 23 Nov 2026.
+Keep this table current. `CLAUDE.md` keeps the rules that apply to every notice (the audience,
+`openNoticeIfClear`, the monthly cleanup) and points here for the rest.
 
 > **The Status column is load-bearing — keep it accurate.** A notice goes INERT the moment
 > `isNoticeExpired` fires: it is marked seen *without being shown*, while the removal rule only fires
@@ -288,109 +276,72 @@ and points here for the rest.
 | ID | Page | Title | Badge | Posted | Expiry | Status | Dismiss mechanism |
 |----|------|-------|-------|--------|--------|--------|-------------------|
 | `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | **RE-POSTED 28 Aug 2026** (first run 6 Apr) | 90 days | ✅ live until 23:00 on 25 Nov 2026 (90 days across the clock change) — run 2, on a NEW key (`myb_pc_ytd_notice_2_shown`); it opens LAST on the page. **Then it simply expires (owner, 13 Nov 2026)** — no re-post, no replacement (Lessons, below) | One-time; `NOTICE_YTD_KEY` set on close |
-| `hpp_2526` | `paycalc.html` | Estimate your January Holiday Pay Premium | 💷 Pay | 16 Nov 2026 | ends 8 Jan 2027 (`LAST_DAY` — the eve of the January payslip's cut-off) | ✅ live 16 Nov 2026 – 8 Jan 2027 — SECOND on the page: the load after `ytd_2627` (`NOTICE_YTD_KEY`, read as it is wired) — or that notice's END, so it never waits on code that has been deleted (24 Nov 2026) — through the one opener `showPayNotice`. Only for a member with a 2025/26 payslip and no figure of their own for that year's premium (`premiumStillToEstimate`, paycalc-hpp.js); a 'none' or 'done' keeps it shut UNFLAGGED — the flag is the device's, so the next member signed in on that phone still gets it. Never over a card a link opened (any `#…`). A START date (`STARTS`). Its link opens the 13 Mar 2026 payslip at `#payslipCard` | One-time; `NOTICE_HPP_KEY` (`myb_pc_hpp_notice_2526_shown`) set on any answer, its link included; archived as it opens |
-| `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **none — removed at v22.59** | ✅ permanent ORIENTATION, reopened from the About panel (`#linksHowBtn`). **Not a candidate for the 180-day removal** — it is no longer a notice (Lessons, below) | One-time on first visit; `myb_links_welcome_seen` set on close. The button ignores the flag |
+| `hpp_2526` | `paycalc.html` | Estimate your January Holiday Pay Premium | 💷 Pay | 16 Nov 2026 | ends 8 Jan 2027 (`LAST_DAY` — the eve of the January payslip's cut-off) | ✅ live 16 Nov 2026 – 8 Jan 2027 — SECOND on the page: the load after `ytd_2627` (`NOTICE_YTD_KEY`, read as it is wired) — or that notice's END, so it never waits on code that has been deleted — through the one opener `showPayNotice`. Only for a member with a 2025/26 payslip and no figure of their own for that year's premium (`premiumStillToEstimate`, paycalc-hpp.js); a 'none' or 'done' keeps it shut UNFLAGGED — the flag is the device's, so the next member signed in on that phone still gets it. Never over a card a link opened (any `#…`). A START date (`STARTS`). Its link opens the 13 Mar 2026 payslip at `#payslipCard` | One-time; `NOTICE_HPP_KEY` (`myb_pc_hpp_notice_2526_shown`) set on any answer, its link included; archived as it opens |
+| `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **none** | ✅ permanent ORIENTATION, reopened from the About panel (`#linksHowBtn`). **Not a candidate for the 180-day removal** — it is no longer a notice (Lessons, below) | One-time on first visit; `myb_links_welcome_seen` set on close. The button ignores the flag |
 | `install-app-2026` | `index.html` | Put the roster on your home screen | 📣 General | 22 Oct 2026 | 90 days (to 23:00 on 19 Jan 2027) | ✅ live — `'members'`, on a phone or tablet in a browser only (`installRoute`, install-prompt.js). It followed the two October notices (below), retired since; their ends stay in `FOLLOWED_ENDS`, so it waits for neither. On the Pages mirror it sends staff to myb-roster.web.app, never installing there. Answering it retires the install strip | One-time; `myb_notice_install_app_2026_done` set on any dismissal, its button and link included |
 | `timetable-soon-2026` | `index.html` | The new timetable starts on Sunday 13 December (App Notices keeps "The new timetable from Sunday 13 December") | 🚆 Trains | 16 Nov 2026 (brought forward from 6 Dec, owner, 16 Nov 2026) | ends 12 Dec 2026 | ✅ live 16 Nov – 12 Dec — `'members'`. Until 6 Dec it comes after the install notice where that one is the device's (`FOLLOWS_INSTALL`) and the New link notice where that one is the member's (`FOLLOWS_NEWLINK` — the vote notice's key since 26 Nov, `canOpenNewlink`); from Sunday 6 Dec (`FINAL_WEEK`) it waits for nobody and goes FIRST, wired before the install notice. A START date (`STARTS`): an early device is left unflagged. A push goes out on the Saturday evening too | One-time; `myb_notice_timetable_soon_2026_done` set on any dismissal, its link included |
 | `newlink-vote-2026` | `index.html` | Voting on the new link starts soon (App Notices keeps "Before the vote on the new link") | 🔁 New link | 26 Nov 2026 | ends 5 Dec 2026 (`LAST_DAY`) | ✅ live 26 Nov – 5 Dec — `'members'`, only where the New link page would let them in (`canOpenNewlink`, asked at open time); after the install notice where that one is the device's (`FOLLOWS_INSTALL`); wired LAST. It REPLACED `newlink-2026` (9 Nov) on the owner's word, on a NEW key, so a member who closed that one still gets this. Says a vote decides, and nothing about how it is run (not settled, owner 26 Nov 2026). The timetable notice waits for it until 6 Dec | One-time; `myb_notice_newlink_vote_2026_done` set on any dismissal, its link included |
 | `move-to-main-2026` | `index.html` | Move to the app’s main address | 📣 General | 26 Nov 2026 | ends 31 Dec 2026 (`LAST_DAY`) | ✅ live 26 Nov – 31 Dec — `'members'`, ONLY on the GitHub Pages mirror (`onPagesMirror`, re-exported by install-prompt.js), on every device there: desk, phone browser and installed app. After the timetable notice (`FOLLOWS`, its end in `FOLLOWED_ENDS`) and the install notice where that one is the device's (`FOLLOWS_INSTALL`). Says to reinstall from myb-roster.web.app, turn notifications on there and OFF on the mirror (or each one arrives twice — owner, 26 Nov 2026; re-measured: 507px at 360x740 and 375x667, Chromium), and move Pay figures with 💾 Move Your Pay Data. **The stragglers get a re-post on a NEW key** (owner, 26 Nov 2026: "encourage a few more, then mop up the stragglers so I can close the GitHub Pages version") | One-time; `myb_notice_move_to_main_2026_done` set on any dismissal, its link included |
 
-Retired early or replaced: `links-beta-2026` (replaced at v19.51 on a new key), `sign-in-2026`
-(retired at v23.23 for being WRONG rather than old) and `newlink-2026` (replaced at v26.90 by `newlink-vote-2026`, owner,
-26 Nov 2026; its archived record is still corrected on every load, and nothing follows its key any more). Both stories, and the rule each one left, are in
-the Lessons below.
-
-Removed once inert, before the 180 days (22 Nov 2026, lightbox review, as `backpay-2026` was at its
-hard cutoff): `timetable-2026` and `ytd-figures-2026`, the October pair on `index.html`, both ended on
-31 Oct 2026 (`OCTOBER_LAST_DAY`). Their markup and code are gone; both `FOLLOWED_ENDS` entries stay,
-because `install-app-2026` still follows them. Coverage that went with them: the axe scan of the
-green `notice-badge--pay` badge on the Calendar's glass (no live Calendar notice carries it; the Pay
-page's own notices are suppressed in that suite). The Trains badge's scan and the audience proof in
-the Calendar's access spec moved to `timetable-soon-2026`'s final week.
+Retired or replaced, and what still refers to them: `newlink-2026` (replaced by `newlink-vote-2026`,
+owner, 26 Nov 2026) — its archived record is still corrected on every load, and nothing follows its
+key. `timetable-2026` and `ytd-figures-2026` (the October pair, ended 31 Oct 2026, `OCTOBER_LAST_DAY`)
+— their code is gone, but both `FOLLOWED_ENDS` entries stay while `install-app-2026` follows them.
+With them went the axe scan of the green `notice-badge--pay` badge on the Calendar's glass (no live
+Calendar notice carries it); the Trains badge's scan and the audience proof in the Calendar's access
+spec run on `timetable-soon-2026`'s final week. The rest is git history.
 
 ## Lessons from past notices
 
-Moved here from `CLAUDE.md`'s notice table on 3 Nov 2026 (and the live table followed on 7 Nov), so
-that file carries only the rules, without paying in every session for the history of notices that
-have ended. Each lesson below cost something once.
+Each lesson cost something once; the stories are in git.
 
 ### A notice brought back needs a NEW storage key
 
-**`ytd_2627`, run 2 (re-posted 28 Aug 2026).** A ONE-OFF restart on a NEW key
-(`myb_pc_ytd_notice_2_shown`; run 1's key is retired, not deleted). Re-dating alone would have
-reached nobody: the expiry branch flags a device silently, so everyone who arrived after ~5 Jul was
-already marked "shown" for a notice they never saw. It also **opens LAST on the page** — behind the
-data-ownership prompt and the forced set-password overlay.
-
-**`links-beta-2026` (9 Jun 2026)** was replaced at v19.51 on a **new storage key**
-(`myb_links_welcome_seen`): reusing the old one would have hidden the replacement from every designer
-who had already closed the beta notice. The rest of that story is in git.
+Re-dating alone reaches nobody: the expiry branch flags a device silently, so everyone who arrived
+after the first run's window is already marked "shown" for a notice they never saw — and reusing a
+replaced notice's key hides the replacement from everyone who closed the original. Retire the old
+key; do not delete it. (`ytd_2627` run 2, `myb_pc_ytd_notice_2_shown`; `links-beta-2026` →
+`myb_links_welcome_seen`.) A notice brought back also decides where it opens in the page's queue —
+`ytd_2627` run 2 opens LAST, behind the data-ownership prompt and the forced set-password overlay.
 
 ### Expiring is right for an announcement, and may be wrong for a seasonal prompt
 
-The Status column exists because of `ytd_2627`'s first run. A notice goes INERT the moment
-`isNoticeExpired` fires, but the removal rule only fires at 180 days, so the table read as though
-two rows were live when **neither had shown to anyone for weeks**. That hid a real question:
-`ytd_2627` prompts a member to enter their Year to Date figures at the start of the tax year, and a
-**new starter or a new device from July onwards gets no prompt at all**, which is exactly when
-accurate tax estimates need those figures. Decide that rather than inherit it. **When run 2 lapses
-(~26 Nov 2026), decide rather than re-date**: a seasonal prompt wants to key off whether the member
-has entered Year to Date figures for the current tax year, which is not the one-time notice pattern.
-**Decided 13 Nov 2026 (owner): it expires.** That seasonal prompt now exists — the Year to Date line
-under the take-home figure (v25.47) comes back on each new payslip until that month's figures are
-entered — so the notice has no job left.
+A notice goes INERT the moment `isNoticeExpired` fires, while the removal rule waits 180 days — which
+is why the Status column must say so. An inert seasonal prompt means a **new starter or a new device
+later in the season gets no prompt at all**. Decide that rather than inherit it: a seasonal prompt
+wants to key off the member's own data, which is not the one-time notice pattern. (`ytd_2627`
+expires, owner, 13 Nov 2026: the Year to Date line under the take-home figure is that seasonal
+prompt now.)
 
 ### Orientation is not an announcement
 
-**`links-workspace-2026` (2 Aug 2026) became permanent ORIENTATION at v22.59** (external review). The
-v21.50 sweep called expiring "right for this one" on the reading that it welcomed a designer to a
-workspace they had been using for a fortnight — true of the welcome, and false of what the panel
-actually holds: nothing there touches the live roster, the fatigue checks report rather than approve,
-and designs are shared. Those are the facts a FIRST-TIME designer needs, and from 16 Aug a first-time
-designer was flagged seen and shown nothing. The announcement half stays archived exactly once; the
-orientation half never expires, and `#linksHowBtn` reopens it — a ROW IN THE ABOUT PANEL since v22.83,
-beside 🔧 Operations and 🐛 Report a bug, because that is where this app already keeps a page's own
-links. It was a control of its own on the page for three releases (`.header-end`, above the header,
-below the header) and read as foreign in all three; the lesson was that no other page has a
-standalone help control, not that this one was styled wrongly. It is not a candidate for the 180-day
-removal — it is no longer a notice.
+What a FIRST-TIME user needs must not expire, or from the expiry date every newcomer is flagged seen
+and shown nothing. `links-workspace-2026` is permanent orientation: its announcement half is archived
+once, and `#linksHowBtn` reopens the rest — a ROW IN THE ABOUT PANEL, beside 🔧 Operations and 🐛
+Report a bug, because that is where this app keeps a page's own links. A standalone help control on
+the page read as foreign wherever it was put. It is not a candidate for the 180-day removal.
 
 ### When a notice's ask becomes a control on the same screen, the notice is arguing with the app
 
-**`sign-in-2026`** (posted 27 Aug 2026, `'signed-out'`) was deleted at **v23.23 by owner decision,
-seven weeks before its 90-day expiry** — retired for being WRONG rather than old, a shape that
-recurs. v23.19 made the Calendar's front door a sign-in card; from that release its entire audience —
-somebody reading the roster on the staff PIN — had already been shown that card and had chosen the
-PIN, so the notice spent its life re-offering a choice the reader declined a moment earlier. Two of
-its three claims had also moved house: the PIN card itself states the code lasts only while the
-browser stays open, and its CTA pointed at Settings for a sign-in that is on the page underneath it.
-Its two guards did not survive it — no live notice declared `'signed-out'` again (the audience itself
-was retired with the PIN, 23 Nov 2026), and it was the only notice the accessibility suite scanned. That scan moved to
-`backpay-2026`, to `al-booking-2026` at v23.31, and to `install-app-2026` at v24.91, when the leave
-reminder was retired early by owner decision (22 Oct 2026).
+A notice that re-offers a choice the reader declined a moment earlier, or points elsewhere for
+something now on the page underneath it, is WRONG rather than old — retire it early, whatever its
+expiry (`sign-in-2026`, owner decision). Check what its tests carried first: it was the only notice
+the accessibility suite scanned, and that scan had to move.
 
 ### A queue of notices: one per load, each with a way back
 
-**The October 2026 trio on `index.html`** — `timetable-2026` (21 Oct), then `ytd-figures-2026`, then
-`install-app-2026` (both 22 Oct) — opened one per page load, never two at once: each later one waits
-for the one before it to be dismissed (`FOLLOWS`). The timetable notice ran to 13 Dec until v24.86 and
-was ended on 31 Oct by owner decision (22 Oct), taking `ytd-figures-2026` with it. Two habits from it
-are worth copying: a notice whose body names its menu route (☰ then 🚆 Trains) loses nothing when
-the reader taps "Not now"; and a notice whose link opens another notice's target (`ytd-figures-2026`
-→ `paycalc.html#payslipCard`) counts that other notice as seen, so the reader is not asked twice.
-`install-app-2026` chooses its "how" as it opens, and on the Pages mirror sends staff to
-myb-roster.web.app rather than installing there.
+Notices on one page open one per load, never two at once: each later one waits for the one before it
+(`FOLLOWS`). Two habits worth copying: a notice whose body names its menu route (☰ then 🚆 Trains)
+loses nothing when the reader taps "Not now"; and a notice whose link opens another notice's target
+counts that other notice as seen, so the reader is not asked twice.
 
 ### A notice must fit the smallest phone without scrolling — measure it before it ships
 
-**`hpp_2526` (16 Nov 2026), as first written,** had three paragraphs and a 31-character button. A
-notice card stops at 80% of the screen (`.notice-lb-content`, `max-height: 80dvh`) and scrolls inside
-itself past that, and this one did on a 360x740 Android phone and on an iPhone SE (375x667, a 533px
-cap): "Not now" sat under the card's fade, and at 360 the button broke onto two lines with its arrow
-alone on the second. Nothing failed — every test passed and the card looked fine at 390. It was found
-by measuring, and cut to **two paragraphs (the news, then the route) and a button of about 25
-characters**, which is the rhythm of the notices beside it: 503px on both engines, at every width.
-Three habits from it:
+A notice card stops at 80% of the screen (`.notice-lb-content`, `max-height: 80dvh`) and scrolls
+inside itself past that. A three-paragraph draft (`hpp_2526`) did so at 360x740 and 375x667 — "Not
+now" under the card's fade, the button broken onto two lines — with every test passing and the card
+fine at 390. **Two paragraphs (the news, then the route) and a button of about 25 characters** is the
+rhythm of the notices beside it. Three habits:
 - **Measure the card at 360x740 and 375x667, both engines, before shipping** — `scrollHeight` against
   `clientHeight`, never a screenshot alone: a card caught mid-animation is scaled, and a picture of it
   lies about the fit. `e2e/paycalc-notices.spec.js` → "fits a … phone without scrolling" is the pattern.
@@ -422,7 +373,5 @@ archived (Archive expiry, above), so removing the code takes nothing out of the 
 
 **Retiring one EARLY** (before 180 days, because it has stopped being true rather than stopped being
 new) is the same four steps, plus two: drop any `CONFIG.*_NOTICE_DAYS` constant it owned, and check
-what its tests carried. `sign-in-2026` went this way at v23.23 — the Calendar's front door became a
-sign-in at v23.19, so the notice re-offered a choice its reader had just declined — and it was the
-only `'signed-out'` notice and the only one the axe suite scanned. Say in the release what coverage
-moved or lapsed; a notice deleted quietly takes its guards with it.
+what its tests carried (Lessons, above). Say in the release what coverage moved or lapsed; a notice
+deleted quietly takes its guards with it.

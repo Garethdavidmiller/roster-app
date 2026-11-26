@@ -192,7 +192,7 @@ export function resetNavPanel() {
  *   their own; with none it is `!!memberName`, never "yes" (22 Nov 2026): offline the cache answers with no
  *   rule asked (calendar-doc-access.js), so a drawer wired for nobody opened an earlier visitor's document.
  *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
- *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the
+ *   read (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). Each page passes its own (calendar: `calendarAuthReady`; the
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
  *   onLogoClick — opens the page's About lightbox when the drawer logo is tapped (a sub-page's
  *   header logo goes back to the calendar, so About lives here).

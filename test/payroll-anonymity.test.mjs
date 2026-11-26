@@ -117,7 +117,7 @@ const NEARBY = 3;
 const SEEDED_OWNER = 'G. Miller';
 
 /**
- * The member table itself. It IS the public classification (AUTH_PLAN.md §2): a joining year's
+ * The member table itself. It IS the public classification (AUTH_AND_SESSIONS.md → "Public by decision"): a joining year's
  * `proRatedAL` sits on its member's row by design, and the header comment of a row explains that row.
  * Everything else that restates it is a copy, and a copy is what this rule is for.
  */

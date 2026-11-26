@@ -12,7 +12,7 @@
  * PERMANENT tokenised download URL saved in their Firestore document. That URL carries its own
  * access token and bypasses `storage.rules` entirely, so whoever has ever held one keeps the file
  * until retention deletes the object — 3 months for a Huddle, 6 for the other two — and a partial
- * prune failure orphans an object whose URL then lives for ever. `AUTH_PLAN.md` §5 (E6),
+ * prune failure orphans an object whose URL then lives for ever. `AUTH_AND_SESSIONS.md` → "The document files (E6)",
  * `ARCHITECTURE.md` EXC-007.
  *
  * Four routes were costed. Converting `.docx` to HTML was REFUSED by the owner: a Circular is a

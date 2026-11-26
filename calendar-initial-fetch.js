@@ -43,7 +43,7 @@ const RETRY_TIMEOUT_MS = SYNC_TIMEOUT_MS;
 /**
  * Kick off the initial 3-month Firestore fetch and wire the sync chip + visibility handler.
  *
- * TWO-PHASE since v19.01 (AUTH_PLAN.md → E1). Phase 1 paints from the local Firestore cache
+ * TWO-PHASE since v19.01 (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). Phase 1 paints from the local Firestore cache
  * without waiting for a session — no network read, no sign-in. It is NOT free of auth, though:
  * Firestore holds every operation, this cache read included, until Firebase Auth has initialised,
  * and for a returning device that means after the stored user's `accounts:lookup` round trip

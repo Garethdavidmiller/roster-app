@@ -136,9 +136,9 @@ export function init() {
     // restored from the bfcache does not re-run init(), so after a sign-out (or another member signing in on
     // another tab) Back could show the previous member's pay page, figures and all — then the decision, the
     // in-place sign-in (init() runs again, once, with the just-saved session, and runMigrations() selects the
-    // right namespace for free — AUTH_ARCHITECTURE.md Phase 9) and the refusal.
+    // right namespace for free — AUTH_AND_SESSIONS.md → "In-place sign-in") and the refusal.
     //
-    // The decision is the page's OWN, not requirePage('paycalc') (AUTH_ARCHITECTURE.md Phase 7): the policy is
+    // The decision is the page's OWN, not requirePage('paycalc') (AUTH_AND_SESSIONS.md → Architecture, Layer 2): the policy is
     // `soft`, which by its tested invariant NEVER returns 'login', but the calculator needs a member identity to
     // namespace its per-member storage (pcPrefix/SK), so a *local name* is a hard precondition, stricter than the
     // policy. `soft` governs only the Firebase confirmation (_initErrorReporting below), which is why the
@@ -1151,7 +1151,7 @@ export function init() {
     // session can outlive the Firebase one, and clientErrors writes are then rejected by the rules
     // and silently dropped — exactly when the report is wanted. The reporter starts whatever the
     // outcome, so synchronous init errors are still captured locally.
-    // The settle promise is kept for the nav drawer's Circular/Newsletter read (AUTH_PLAN.md → E1):
+    // The settle promise is kept for the nav drawer's Circular/Newsletter read (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"):
     // paycalc, the one `soft` page, owns its auth chain and has no `sessionReady`. It always RESOLVES
     // (the .catch below swallows a failed sign-in), so the drawer read never hangs on an identity
     // this page does not require.
@@ -1160,7 +1160,7 @@ export function init() {
       const name = getSession()?.name;
       const afterAuth = () => {
         initErrorReporter(); recordUsage('paycalc', name ?? null); recordPageLatency('paycalc', name ?? null);
-        // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2). No `ready` barrier is passed: this
+        // Forced set-password overlay (AUTH_AND_SESSIONS.md → "The forced password overlay"). No `ready` barrier is passed: this
         // callback ALREADY runs after ensureNamedSession has settled, so getAuthSnapshot() is the
         // terminal identity — and on this one `soft` page a member can arrive locally signed in with a
         // FAILED Firebase session, where the overlay's `named`-only gate stops a block they could
@@ -1173,7 +1173,7 @@ export function init() {
         // member their notice — it fails open by design.
         initPasswordForce(name, {}).catch(() => {}).finally(() => showPayNotice());
       };
-      // SOFT enforcement (AUTH_ARCHITECTURE.md Phase 7): the calculator keeps its data on the device
+      // SOFT enforcement (AUTH_AND_SESSIONS.md → Architecture, Layer 2): the calculator keeps its data on the device
       // and writes no isolated data, so a degraded or anonymous session must NEVER block it — being
       // `soft`, requirePage('paycalc') returns 'allow' or 'soft-allow', and 'soft-allow' (the
       // member's own session unconfirmed) is only logged. Its one 'forbidden', an Other Staff login,
@@ -1246,7 +1246,7 @@ export function init() {
     // each call; nav-gates.test.mjs checks the answer). `_showUnsupportedRole` draws the other drawer.
     const _paycalcMember = getLoggedMember();
     initNavPanel({
-        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
+        // Drawer Circular/Newsletter read waits for the session (AUTH_AND_SESSIONS.md → "The two-phase load (E1)").
         authReady: _paycalcAuthSettled,
         currentPage: 'paycalc',
         memberName:  _paycalcMember?.name || null,

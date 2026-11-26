@@ -1083,7 +1083,7 @@ body.auth-ready .container { display: grid; }
     min-height: 1em;
 }
 
-/* ---- Account status table (PASSWORD_DESIGN.md — one per-member block: work email + password) ---- */
+/* ---- Account status table (AUTH_AND_SESSIONS.md → "Password migration status" — one per-member block: work email + password) ---- */
 /* Two count chips above the list — a compact "dashboard" read of coverage. */
 .acct-summary {
     display: flex;

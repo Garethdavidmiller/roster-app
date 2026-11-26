@@ -14,7 +14,7 @@
  * 1. **One line each, in the app's own words.** Each line was taken from what the app already says where the
  *    word appears (the badge key, the day-detail panel, the Christmas rules, the Pay Calculator), so the glossary
  *    cannot teach a second meaning. Change a meaning there and here together.
- * 2. **No pay rate, no allowance figure.** Those live in `.claude/rules/paycalc.md` and `al-contract.js` alone; a
+ * 2. **No pay rate, no allowance figure.** Those live in `docs/PAYCALC_REFERENCE.md` and `al-contract.js` alone; a
  *    copy here would be the stale one. Say what a word MEANS, not what it is worth.
  * 3. **`mentionsGlossaryTerm` is what puts the link on a panel**, so a term added here is found in every panel
  *    without touching one. Its tests are glossary.test.mjs.

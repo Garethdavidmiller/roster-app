@@ -89,7 +89,7 @@ export function createLatestDocOpener({ panel, isPanelOpen, closePanel, _closePa
         // killing BOTH doc links and orphaning the blank tab. On timeout the .catch closes the tab.
         const timed = new Promise((_res, reject) =>
             setTimeout(() => reject(new Error('doc-fetch-timeout')), DOC_FETCH_BUDGET_MS));
-        // Wait for a Firebase session before reading (AUTH_PLAN.md → E1): the document collections
+        // Wait for a Firebase session before reading (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"): the document collections
         // require access, so a read fired before the session lands is refused. BOUNDED, not plain:
         // the in-place-login pages leave `sessionReady` UNRESOLVED until the user signs in, so a plain
         // await sat a signed-out tap through the whole 8s race. Waiting a moment then reading anyway

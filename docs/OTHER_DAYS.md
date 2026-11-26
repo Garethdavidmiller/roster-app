@@ -1,23 +1,21 @@
 # OTHER_DAYS.md — the "Other" day family (Training / Induction / Assessment / Team Day / Union / Meeting)
 
 *Not version-stamped; not a runtime asset. **BUILT + SHIPPED** — a record and a how-to, not a plan
-(renamed from `OTHER_PLAN.md`). The shipped behaviour is documented in CLAUDE.md, AI_MAP.md,
-OPERATIONS_REFERENCE.md and `.claude/rules/paycalc.md`; the pay and grammar single source is
-`other-day.js`, re-exported by `override-utils.js`. What remains here: the **design decisions** (cited from code as "OTHER_DAYS.md
-decision N"), the **Evolution** record of the rename to the Other family, and the **Phase B**
-checklist for adding a flavour. Every flavour planned so far has shipped.*
+(renamed from `OTHER_PLAN.md`). The pay and grammar single source is `other-day.js`, re-exported by
+`override-utils.js`. What remains here: the **design decisions** (cited from code as "OTHER_DAYS.md
+decision N"), the **Evolution** record of the Other family, and the **Phase B** checklist for adding
+a flavour.*
 
-## Evolution — decisions confirmed by Gareth, Jul 2026
+## Evolution — decisions confirmed by the owner, Jul 2026
 
-The training family became the **"Other" family**: a home for every non-standard day type.
-Training / Induction / Assessment were its first flavours; then **Team Day**; **Union course**
-(roster word "Union course"; badge + full word "Union"; pays as the day underneath; Sunday-blocked);
-and **Meeting** (roster code "MTG", also "MEETING"; badge "Meet" / full "Meeting"; pays as the day
-underneath; Sunday-blocked — confirmed by Gareth Jul 2026).
-**Both Meeting and Union also carry `hideBaseTime`:** their calendar hours slot shows the badge with
-NO time unless a time is actually entered (they are attend-an-event days). Training / Induction /
-Assessment / Team Day still show the base shift time — they run DURING your shift. (Gareth Jul 2026.)
-**No Other day on 25 or 26 December**, any flavour, times or not (Gareth: Boxing Day Jul 2026;
+The training family became the **"Other" family**: a home for every non-standard day type. Its
+flavours: Training / Induction / Assessment, **Team Day**, **Union course** (roster word "Union
+course"; badge + full word "Union") and **Meeting** (roster code "MTG", also "MEETING"; badge "Meet" /
+full "Meeting"). Every flavour pays as the day underneath and is Sunday-blocked.
+**Meeting and Union also carry `hideBaseTime`:** their calendar hours slot shows the badge with NO
+time unless a time is actually entered (they are attend-an-event days). Training / Induction /
+Assessment / Team Day still show the base shift time — they run DURING your shift (owner, Jul 2026).
+**No Other day on 25 or 26 December**, any flavour, times or not (owner: Boxing Day Jul 2026;
 "There cannot be training or meeting on December 25th or 26th", 21 Nov 2026). The week grid turns
 the Other pill off on both days, its Save refuses one (`checkDayRules`), and the roster import holds
 one for review without writing it (`christmas-other`). One saved there before is not drawn
@@ -30,7 +28,7 @@ one for review without writing it (`christmas-other`). One saved there before is
 | Stored type | **`type: 'other'`** (renamed from `training` pre-deploy — a MEET under type `training` would have been permanently wrong) |
 | Icon | **🏷️ label/tag** (replaces 🎓 — a tag says "day labelled as something else"; the badge word IS the label). Chosen over 📌 (weaker metaphor) |
 | Badge | 🏷️ + SHORT flavour word (Train / Ind / Assess / Team — later Meet / Union). Confirmed: badge never literally reads "Other" |
-| Colour | **Leaf green `oklch(46% 0.115 136°)`** (`--other`/`--other-light`, 18% tint). NOT the original bronze — bronze (65°) was hue-identical to Early's orange (64.1°): indistinguishable at tint level and literally the same colour under red-green colour-blindness. Green 136° is the only empty band (46° from AL teal 183°); under deutan vision it keeps a yellow-olive cast while teal stays blue-grey, so it separates BETTER for colour-blind staff. Swatch proof: the "green-vs-teal" artifact, Jul 2026. "Reassess down the line" per Gareth |
+| Colour | **Leaf green `oklch(46% 0.115 136°)`** (`--other`/`--other-light`, 18% tint). NOT the original bronze — bronze (65°) was hue-identical to Early's orange (64.1°): indistinguishable at tint level and literally the same colour under red-green colour-blindness. Green 136° is the only empty band (46° from AL teal 183°); under deutan vision it keeps a yellow-olive cast while teal stays blue-grey, so it separates BETTER for colour-blind staff. "Reassess down the line" (owner) |
 | Manual UX | One **"Other"** pill → previously-hidden submenu with **full-word** flavour chips (generated from `OTHER_FLAVOURS`), the pre-ticked-on-rest-day RDW tick, optional times. **A flavour must be chosen — no default:** a Training pre-select silently mis-categorised an unnoticed induction/assessment/team day, so the save errors until a flavour is tapped. New kinds become chips, never new pills. **Spare also lives here:** a 📋 purple chip demoted from a top pill — but it is NOT a training flavour; picking it writes a `spare_shift`/'SPARE' (not an 'other' day) and hides the RDW tick + times |
 | In a base pattern | A **bare** flavour, Monday to Saturday only. `fixedRoster[3]` is `TRG` Mon–Fri, a starter's training weeks shown as training with no times (owner, 6 Nov 2026). A pattern may not carry times (the hours slot is filled only by an override, so the cell would hide them while the day panel printed them), an `RDW` marker (shown, never paid — the pay engine reads Other days from overrides) or a Sunday; `validateRosterPatterns` refuses all three. Pay is unchanged: a weekday pays as contracted basic either way |
 | Namespace note | The legacy unknown-value fallback classes were renamed `other-day`→`unknown-day`, `badge-other`→`badge-unknown` so the Other family owns the `other-*`/`--other` names coherently with `type: 'other'` |
@@ -47,10 +45,9 @@ synced by `_syncOtherRdwWarn` on tick/activate/prefill). Rest-day rows never war
 
 ## Phase B — adding a new Other flavour (the precise checklist)
 
-Union course and Meeting were added this way (roster code "MTG" / "MEETING"; badge "Meet" / full
-"Meeting"). **Gareth's Phase B answers (Jul 2026):** pay the same way (as the day underneath, 8h RDW
-default on a rest day) = **yes**; Sunday block = **yes**; and both Meeting + Union show **no shift
-time** unless one is actually entered (the `hideBaseTime` flag — see Evolution).
+Union course and Meeting were added this way. **The owner's Phase B answers (Jul 2026):** pay the
+same way (as the day underneath, 8h RDW default on a rest day) = **yes**; Sunday block = **yes**; and
+both Meeting + Union show **no shift time** unless one is entered (`hideBaseTime` — see Evolution).
 
 Per new flavour, the touch-list (short because the submenu chips are GENERATED from `OTHER_FLAVOURS`
 and the server uses an explicit alias table, so neither needs hand-edited UI):

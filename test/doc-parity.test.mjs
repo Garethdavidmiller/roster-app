@@ -65,9 +65,9 @@ const listed = (text, name) =>
 test('a file counts as listed only by its WHOLE name — guard the guard', () => {
     assert.equal(listed('- `date-picker.js` — the date picker', 'picker.js'), false, 'a longer name satisfied a shorter one');
     assert.equal(listed('test:unit runs page-session.test.mjs', 'session.test.mjs'), false);
-    assert.equal(listed('docs/AUTH_PLAN.md', 'PLAN.md'), false);
+    assert.equal(listed('docs/SECURITY_RELEASE_PLAN.md', 'PLAN.md'), false);
     for (const [text, name] of [['### `ls.js`', 'ls.js'], ['├── ls.js ← wrappers', 'ls.js'], ["import from './ls.js'", 'ls.js'],
-        ['a.test.mjs session.test.mjs b.test.mjs', 'session.test.mjs'], ['[AUTH_PLAN.md](AUTH_PLAN.md)', 'AUTH_PLAN.md']]) {
+        ['a.test.mjs session.test.mjs b.test.mjs', 'session.test.mjs'], ['[DATA_MODEL.md](DATA_MODEL.md)', 'DATA_MODEL.md']]) {
         assert.equal(listed(text, name), true, `a genuine listing was missed: ${text}`);
     }
 });
@@ -180,7 +180,10 @@ test('a doc that says "`symbol` in `file.js`" is right about the file', () => {
     // they moved to the files that now hold the reasoning, and a guard that reads only the old homes
     // stops guarding.
     const claims = [];
+    // The two area REFERENCE docs joined 26 Nov 2026, the day they were split out of links-design.md and
+    // paycalc.md: the routing claims moved with the text, and this guard follows them, for the reason above.
     for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/FILE_INDEX.md',
+        './docs/LINKS_REFERENCE.md', './docs/PAYCALC_REFERENCE.md',
         ...readdirSync(new URL('./.claude/rules/', REPO_ROOT_URL)).filter(f => f.endsWith('.md')).sort()
             .map(f => `./.claude/rules/${f}`)]) {
         for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?(?:[a-z]+\s+){0,3}in\s+`([\w.-]+\.(?:js|mjs))`/g))
@@ -476,6 +479,9 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     // both exactly the shape CONTRACT 2b was written to forbid. Adding the files is the fix; the
     // figures were removed rather than corrected, which is that contract's own rule.
     './docs/FILE_INDEX.md',
+    // The REFERENCE halves of the two largest rule files joined 26 Nov 2026, on the day they were split
+    // out: every line in them was under this guard yesterday as part of links-design.md and paycalc.md.
+    './docs/LINKS_REFERENCE.md', './docs/PAYCALC_REFERENCE.md',
     // EVERY `.claude/rules/*.md`, READ FROM THE FOLDER (24 Nov 2026). The list was written out by hand, and
     // grew by whoever remembered — "a list that grew by whoever remembered" is the line above. Read from the
     // folder, a new rule file (operations.md, that day) is under this guard the moment it exists.
@@ -644,7 +650,8 @@ test('the symbol guard would catch the two defects that motivated it — guard t
 //                              split moved it to `functions/documents.js`. This is the one that
 //                              cost something: it is a BREAK-GLASS instruction for stopping Huddle
 //                              pushes, so being wrong costs most at exactly the moment it is read.
-//   `RESET_REQUESTS_ENABLED` — PASSWORD_DESIGN, same split, now `functions/auth-endpoints.js`.
+//   `RESET_REQUESTS_ENABLED` — the password design doc (folded into AUTH_AND_SESSIONS.md on
+//                              26 Nov 2026), same split, now `functions/auth-endpoints.js`.
 //                              Also an incident switch.
 //   `pruneOldHuddles`        — DATA_MODEL, same split, then `functions/documents.js` (and since
 //                              v25.89 `functions/huddle-retention.js`).
@@ -666,7 +673,8 @@ test('the symbol guard would catch the two defects that motivated it — guard t
 // statements). No exemption list, for the reason 1b gives.
 //
 // It runs over EVERY markdown file except the ones whose job is the past — wider than LIVE_DOCS,
-// which is the point: `RESET_REQUESTS_ENABLED` was in PASSWORD_DESIGN.md, and a plan document is
+// which is the point: `RESET_REQUESTS_ENABLED` was in a plan document (the password design, since
+// folded into AUTH_AND_SESSIONS.md), and a plan document is
 // where a location claim goes stale longest because nobody reads it end to end.
 
 /**
@@ -753,6 +761,8 @@ test('the location guard catches the domain-split defects that motivated it — 
     const shipped = [
         ['docs/OPERATIONS_REFERENCE.md', '**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent.'],
         ['docs/DATA_MODEL.md', 'Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/index.js`, awaited at the end of every `ingestHuddle` run.'],
+        // The first label names the document as it stood then; it was folded into AUTH_AND_SESSIONS.md
+        // on 26 Nov 2026. A label only — locationClaims never reads the file.
         ['docs/PASSWORD_DESIGN.md', 'the public function stayed callable. `RESET_REQUESTS_ENABLED` in `functions/index.js` now closes it with a 503.'],
     ];
     for (const [doc, line] of shipped) {
@@ -1335,8 +1345,8 @@ test('no doc writes down the size of a roster-owned list', () => {
     const WORD = { ten: 10, eleven: 11, twelve: 12 };
     const wrong = [];
     for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/KNOWN_LIMITATIONS.md', './docs/OPERATIONS_REFERENCE.md',
-                       './docs/SECURITY_RELEASE_PLAN.md', './docs/AUTH_PLAN.md', './docs/PASSWORD_DESIGN.md',
-                       './docs/ARCHITECTURE.md', './.claude/rules/paycalc.md']) {
+                       './docs/SECURITY_RELEASE_PLAN.md', './docs/AUTH_AND_SESSIONS.md', './docs/RECOVERY_RUNBOOK.md',
+                       './docs/ARCHITECTURE.md', './.claude/rules/paycalc.md', './docs/PAYCALC_REFERENCE.md']) {
         const lines = read(doc).split('\n');
         lines.forEach((line, i) => {
             for (const [re, key, what] of CLAIMS) {

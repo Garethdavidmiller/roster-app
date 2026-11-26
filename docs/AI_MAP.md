@@ -13,11 +13,9 @@ that binds it, and the tests that guard it. This map holds the two things FILE_I
 heading, **generated** by `npm run generate:ai-map` from the code (`scripts/ai-map-lib.mjs`).
 Never edit an export line by hand; `doc-parity.test.mjs` fails a stale one.
 
-Until 25 Nov 2026 every entry also carried a hand-written card restating its FILE_INDEX row; the cards
-went (git holds them), and every reference a card held that the row and the module's header lacked moved
-into the row. **The reasoning is the module's own header and JSDoc**; release history is git log
-(CLAUDE.md → "Current file structure", the three homes). The few entries that are not one module (the
-reset-request queue, the rules files, the stylesheets) keep a short note, capped by `doc-parity.test.mjs`.
+**The reasoning is the module's own header and JSDoc**; release history is git log (CLAUDE.md →
+"Current file structure", the three homes). The few entries that are not one module (the reset-request
+queue, the rules files, the stylesheets) keep a short note, capped by `doc-parity.test.mjs`.
 
 **Adding a module:** give it a FILE_INDEX row, add its `### \`name.js\`` heading under the section
 below, and run `npm run generate:ai-map`.
@@ -71,7 +69,7 @@ below, and run `npm run generate:ai-map`.
 | Error Log card (ops page) — uncaught error capture, the card, Copy for Claude | `error-reporter.js`, `firebase-client.js`, `client-errors.js` (ordering/retention policy), `operations-errors.js`, `operations.css` · the admin's phone told of new entries: `functions/error-log-notify.js` (the rules: `functions/error-log-notice.js`) |
 | Usage card (ops page) — anonymous page popularity + active-account counts | `usage-reporter.js`, `firebase-client.js`, `usage-stats.js` (date/aggregation maths), `operations-usage.js`, `operations.css`, `firestore.rules` (`analytics`) |
 | Document links card (ops page) — a new key for every stored Huddle, Circular and Newsletter file, so every old copy of a link stops working | `operations-doc-links.js` (the card) · `functions/documents.js` (`rotateDocumentLinks`, the endpoint) · `functions/doc-link-rotation.js` (the rules) |
-| Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · plan of record `docs/AL_UPLOADER_PLAN.md` |
+| Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · decisions `docs/DECISIONS.md` → The annual leave uploader |
 | Links design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `links-app.js` + `links.html` + `links.css`; the grid `links-grid.js`, the paint bar `links-brush-bar.js`, the window editor `links-window-editor.js`, the Build press `links-build-button.js` |
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), the rest between two duties, design quality checks | `links-design.js` (pure — no DOM/Firebase, imports nothing; tested by `links-design.test.mjs`) |
 | The link generator — the two constructions, the contract gate, the minimum-rest repair | `links-generate.js` (pure; imports its constants from `links-design.js`; tested by `links-design.test.mjs` and `links-contract.test.mjs`) |
@@ -303,7 +301,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** none
 
 ### The reset-request queue
-Not a module — the pieces a locked-out member's "ask the admin" request passes through, listed together because the design only makes sense whole: PASSWORD_DESIGN.md §12 (the queue) and §14 (the admin push).
+Not a module — the pieces a locked-out member's "ask the admin" request passes through, listed together because the design only makes sense whole: AUTH_AND_SESSIONS.md → "The reset-request queue".
 - `firebase-client.js` — `requestPasswordReset` (no auth token; its caller cannot sign in), `getResetRequests`, `clearResetRequest`.
 - `login-overlay.js` — the request button; `CONFIG.PASSWORD_RESET_REQUESTS` is its kill switch.
 - `operations-app.js` — the Password reset requests card and its `#reset-requests` deep link.

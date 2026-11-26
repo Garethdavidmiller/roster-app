@@ -567,7 +567,8 @@ test('links: the demand note names every movement past the staffed finish, to th
     await openLinksWithDesign(page);
     const note = await page.locator('.dem-note').textContent();
 
-    // The five Sunday movements after the 23:25 finish — the live question in LINKS_DEC2026_PLAN.md,
+    // The five Sunday movements after the 23:25 finish — settled as a neutral fact (owner, 28 Sep 2026;
+    // DECISIONS.md → The new CEA link),
     // and the exact thing an hour-resolution implementation reported as fully covered.
     for (const m of ['Sun 23:27 dep', 'Sun 23:35 arr', 'Sun 23:45 dep', 'Sun 23:51 arr', 'Sun 23:54 arr']) {
         expect(note, `the panel must name ${m}`).toContain(m);
@@ -4248,7 +4249,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
     expect(after.locked, 'scroll stays locked while the bin is still open').toBe(true);
 });
 
-// ── The staffed operating window (v19.54, LINKS_DEC2026_PLAN package 1) ───────────────────────
+// ── The staffed operating window (v19.54; links-window.js) ────────────────────────────────────────
 // The heat map used to derive its own span from the design — first worked hour to last — and
 // flagged a gap only strictly BETWEEN them. So missing cover at either END of the day was
 // invisible: the span shrank to fit and those hours left the table. These drive the real page

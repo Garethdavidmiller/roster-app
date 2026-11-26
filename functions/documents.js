@@ -393,7 +393,7 @@ const sendErrorLogNotification = onSchedule(
      *
      * The three documents have always been opened through the PERMANENT tokenised download URL in
      * their Firestore document, which bypasses `storage.rules` and outlives any access change.
-     * `AUTH_PLAN.md` §5 costs four ways out; the owner chose this one, on two facts only they had:
+     * `AUTH_AND_SESSIONS.md` → "The document files (E6)" costs four ways out; the owner chose this one, on two facts only they had:
      * the documents ARRIVE as `.docx`, and a Circular is a designed document that must not be
      * flattened into HTML. Both of the routes that would have removed Microsoft entirely therefore
      * cost either fidelity or a manual export on every weekly issue.

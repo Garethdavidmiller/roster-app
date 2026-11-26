@@ -1336,7 +1336,7 @@ describe('staffContact', () => {
     });
 });
 
-// ── resetRequests — the reset-request queue (PASSWORD_DESIGN.md, the request work) ─────────────────
+// ── resetRequests — the reset-request queue (AUTH_AND_SESSIONS.md → "The reset-request queue") ─────────────────
 // This collection is written ONLY by the requestPasswordReset Cloud Function via the Admin SDK, which
 // bypasses rules — so the interesting assertions are that EVERY client write fails, including the
 // admin's. The reason is worth restating here because it looks over-tight: the member who needs this
@@ -1395,7 +1395,7 @@ describe('resetRequests (the reset-request queue)', () => {
     });
 });
 
-describe('passwordStatus (PASSWORD_DESIGN §6)', () => {
+describe('passwordStatus (AUTH_AND_SESSIONS.md → "Password migration status")', () => {
     const NAME = 'G. Miller';
     test('anon cannot read', async () => {
         await assertFails(getDoc(doc(anonDb(), 'passwordStatus', NAME)));
@@ -1632,7 +1632,7 @@ describe('errorLogNotice (the Error Log notification record)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// alUploads — the annual leave uploader's log (v26.11, AL_UPLOADER_PLAN.md §4.6)
+// alUploads — the annual leave uploader's log (v26.11; DATA_MODEL.md → alUploads)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('alUploads (the annual leave uploader\'s log)', () => {

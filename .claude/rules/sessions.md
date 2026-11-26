@@ -27,10 +27,8 @@ paths:
 
 **The contract is `docs/AUTH_AND_SESSIONS.md`**: numbered invariants for session ↔ identity ↔ claim,
 the three ways they disagree, and a write whose account has gone. Link its numbers; never restate
-them. This file holds the area's working notes, moved here from `CLAUDE.md` → "Firebase Auth" and
-its architecture table. The rules every session needs stayed there: writes need a CLAIM, every write
-page re-establishes the Firebase session on load, the three claim tiers, and never granting a manager
-`admin: true`. The history of the strict cutover is `SECURITY_RELEASE_PLAN.md` → B2/B3 and git.
+them. This file holds the area's working notes; the rules every session needs are in `CLAUDE.md` →
+"Firebase Auth". The strict cutover's design is AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)".
 
 ## One local session, every page
 
@@ -40,10 +38,9 @@ on every other without seeing the login overlay. It lasts 60 days from sign-in (
 
 ## Session re-establishment on page load
 
-Every write page signs in to Firebase Auth both on fresh login AND on every page load when a
-localStorage session already exists. This is critical — a returning user with a valid 60-day
-localStorage session skips the login screen, so without the page-load sign-in, `auth.currentUser`
-stays null and all Firestore writes fail. `ensureNamedSession(name)` in `session.js` handles this (every
+Every write page signs in to Firebase Auth on fresh login AND on every page load with an existing
+local session — a returning member skips the login screen, so without it `auth.currentUser` stays null
+and every Firestore write fails. `ensureNamedSession(name)` in `session.js` handles this (every
 page calls it; the sign-in inside it is `ensureFirebaseSession`, which nothing calls directly): it
 waits for `onAuthStateChanged` (to detect any IndexedDB-persisted session; at most
 `AUTH_RESTORE_TIMEOUT_MS` — `AUTH_READY_TIMEOUT_MS` is the separate, longer bound on Firebase Auth
@@ -61,11 +58,9 @@ ahead cannot make a reset look older than the session it should end.
 
 `overrides` create/update/delete require the member's own bound name (`memberName()`,
 AUTH_AND_SESSIONS 19), OR an `admin`/`manager` claim (both write on behalf). The rule is **STRICT**:
-the old permissive `!('name' in token)` escape — which let a token with no `name` claim through so
-legacy and anonymous sessions could never be locked out — is gone and must not come back
-(AUTH_AND_SESSIONS 4). The strict rule was preceded by a token sweep that force-refreshed every
-active device onto its correct-tier claim, and a stale token now self-heals through
-`writeWithClaimRetry` (invariant 5), so no mass sign-out is needed.
+the old permissive `!('name' in token)` escape (a token with no `name` claim let through) is gone
+and must not come back (AUTH_AND_SESSIONS 4). A stale token self-heals through `writeWithClaimRetry`
+(invariant 5).
 
 **Three claim tiers**, all set by `setupRosterAuth` from the server-owned `roster-members.json`:
 `{ admin: true, name, member }` for `ADMIN_NAMES`, `{ manager: true, name, member }` for
@@ -84,8 +79,8 @@ the Firebase *password* is applied separately by the password builders, `surname
 **not** inside `normaliseSurname`). Lives in the pure `auth-identity.js` (so it's unit-testable) and is
 **re-exported by `firebase-client.js`**. The member's own password calls (`reauthenticateWithPassword`,
 `changeOwnPassword`) are built in `own-password.js` and refuse — before anything is sent — unless the
-signed-in account is the page member's own (`myb/account-mismatch`; another tab can change it). The letters-only rule is spelled ONCE on each side
-(sign-in audit, Nov 2026): `lettersOnly` in `auth-identity.js`, which `normaliseSurname`,
+signed-in account is the page member's own (`myb/account-mismatch`; another tab can change it). The letters-only rule is spelled ONCE on each side:
+`lettersOnly` in `auth-identity.js`, which `normaliseSurname`,
 `credentialCandidatesFor` and `validateNewPassword` all go through, and `surnameCore` in
 `functions/roster-parse-helpers.js`, which `nameToEmail` and `nameToPassword()` share — Cloud
 Functions are CommonJS and cannot import browser ES modules, so unification requires a build step.

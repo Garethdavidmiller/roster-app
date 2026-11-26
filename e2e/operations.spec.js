@@ -4716,7 +4716,7 @@ test('operations document links: a check or a run still waiting for its answer h
 });
 
 // ── ANNUAL LEAVE SHEET (14 Nov 2026) ────────────────────────────────────────────────────────────────
-// Phase 1 of the leave uploader (docs/AL_UPLOADER_PLAN.md): a sealed leave file in, each member's
+// Phase 1 of the leave uploader (docs/DECISIONS.md → The annual leave uploader): a sealed leave file in, each member's
 // records read whole, every difference on screen, and NOTHING written. The file and its two people
 // come from al-sheet-fixture.js — taken from the roster by rule, never typed here by name. The words
 // are al-leave-words.js's and are asserted from it; what only a browser shows is the WIRING: the right

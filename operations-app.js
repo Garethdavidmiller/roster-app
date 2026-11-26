@@ -102,7 +102,7 @@ export function init() {
     let openAboutLightbox = null;
 
     initNavPanel({
-        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
+        // Drawer Circular/Newsletter read waits for the session (AUTH_AND_SESSIONS.md → "The two-phase load (E1)").
         authReady: sessionReady,
         currentPage: 'operations',
         memberName:  currentUser,
@@ -247,7 +247,7 @@ export function init() {
     // ACCOUNT STATUS  (work email + password, per member)
     // ============================================
     // One per-member table joining getAllStaffContacts + getAllPasswordStatus (both admin-only): the work
-    // email (Set/Edit/Remove) and the password posture with a break-glass Reset. PASSWORD_DESIGN.md §6.
+    // email (Set/Edit/Remove) and the password posture with a break-glass Reset. AUTH_AND_SESSIONS.md → "Password migration status".
     async function initAccountStatus() {
         const contentEl = document.getElementById('accountStatusContent');
         if (!contentEl) return;

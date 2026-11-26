@@ -1291,7 +1291,7 @@ button.lightbox-bug-link {
     cursor: pointer;
 }
 
-/* Forced set-password overlay (password-force.js, PASSWORD_DESIGN.md Phase 2). It reuses the whole
+/* Forced set-password overlay (password-force.js, AUTH_AND_SESSIONS.md → "The forced password overlay"). It reuses the whole
    login-overlay visual family above — only two elements are its own. */
 /* This overlay's subtitle is four lines of PROSE, not the login overlay's one-line "Settings · Sign
    in" — so it follows the v18.89 rule and left-aligns. The title above it stays centred (masthead). */
@@ -1321,7 +1321,7 @@ button.lightbox-bug-link {
    i.e. the compel had no teeth at all. Caught by the e2e; it is invisible to code reading. */
 .pwf-escape[hidden] { display: none; }
 
-/* Login overlay's "ask the admin to reset your password" route (PASSWORD_DESIGN.md request queue).
+/* Login overlay's "ask the admin to reset your password" route (AUTH_AND_SESSIONS.md → "The reset-request queue").
    ALWAYS PRESENT since v20.48, sitting BELOW the Sign in button — the place a reader looks for a
    forgotten-password link, and the placement that lets it be permanent without competing with the
    primary action. Quiet by default (small, `--text-light`, underlined); `--prompted` raises it once

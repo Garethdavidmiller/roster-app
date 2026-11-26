@@ -419,7 +419,7 @@ describe('admin endpoints are called with a FORCE-REFRESHED token', () => {
 
     test('the reset carries exactly the member — a reset always signs them out, so there is no choice to send', async () => {
         // The `revoke` option and its body field went with the server's (functions-core, Nov 2026):
-        // the "Phase-2 migration nudge" they served never did anything (PASSWORD_DESIGN.md §7).
+        // the "Phase-2 migration nudge" they served never did anything (AUTH_AND_SESSIONS.md → "The forced password overlay": a reset does not compel).
         signIn();
         await fc.resetMemberPassword(MEMBER);
         assert.deepEqual(JSON.parse(fetches[0].init.body), { member: MEMBER });
