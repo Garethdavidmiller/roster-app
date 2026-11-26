@@ -25,6 +25,16 @@ const blockedBellText = (currentPage) => 'Notifications are blocked for this app
         ? 'The Notifications card on this page says how to allow them.'
         : '☰ → Settings → Notifications says how to allow them.');
 
+/**
+ * What the info panel is headed when a tap to turn notifications ON ends 'off-lapsed' (owner, 26 Nov 2026): the
+ * permission was given and the subscription still failed. The bell used to fall back to 🔕 with nothing said, as
+ * if the tap had not landed; the Settings card says `ENABLE_FAILED_LINE`, and the bell now says the same line, in
+ * the same panel its blocked tap uses. A stand-in trigger carries the heading, because the bell's own `data-cs-*`
+ * are the BLOCKED panel's. The line is imported only when it is needed: notif-card-core.js is the Settings card's
+ * module (it brings settings-status.js with it), and every page draws the bell.
+ */
+const ENABLE_FAILED_PANEL = Object.freeze({ dataset: Object.freeze({ csTitle: 'Couldn’t turn notifications on', csIcon: '🔕' }) });
+
 
 /**
  * Wire the bell, if the drawer drew one, and hand back its refresh. The drawer's two collaborators are passed
@@ -52,8 +62,10 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
     let _bellGen    = 0;
 
     /** Apply a state string to the toggle glyph and accessible name.
-     * @param {any} state */
-    function _paintBell(state) {
+     * @param {any} state
+     * @param {'on'|'off'|null} [turning] while a tap is in flight, which way it is going — from the state
+     *   BEFORE the tap. "Checking…" was the name for both a tap and a first read (owner, 26 Nov 2026). */
+    function _paintBell(state, turning = null) {
         if (!bell) return;
         const on = state === 'on';
         // While the real state is still resolving (up to ~8s for swReady), a neutral "working" glyph —
@@ -68,7 +80,7 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
         if (toggle) bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         else bell.removeAttribute('aria-pressed');
         bell.setAttribute('aria-label',
-            state === 'loading' ? 'Notifications — checking…'
+            state === 'loading' ? (turning ? `Notifications — turning ${turning}…` : 'Notifications — checking…')
           : state === 'denied' ? 'Notifications blocked — how to allow them'
           : 'Notifications');
     }
@@ -76,7 +88,8 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
     /**
      * Re-read and repaint the bell. No-op when the bell is not rendered.
      * Uses peekNotifState (no side effects) — repainting on every panel open
-     * must not write to Firestore. VAPID rotation runs from calendar-app.js on load.
+     * must not write to Firestore. VAPID rotation and the record's re-save run from getNotifState, which
+     * calendar-notif-prompt.js calls on a signed-in Calendar load and notif-card.js once as Settings opens.
      */
     async function _refreshBell() {
         if (!bell) return;
@@ -105,11 +118,14 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
         _bellBusy = true;
         _bellGen++;   // a refresh still reading from before this tap must not paint over it
         bell.dataset.notifState = 'loading';
-        _paintBell('loading');   // repaint NOW — otherwise the old 🔔/"On" glyph shows through a slow toggle (up to 8s)
+        const turning = state === 'on' ? 'off' : 'on';
+        _paintBell('loading', turning);   // repaint NOW — otherwise the old 🔔/"On" glyph shows through a slow toggle (up to 8s)
         bell.disabled = true;
         let failed = false;
+        /** @type {string|null} */ let answer = null;
         try {
-            _paintBell(state === 'on' ? await disableNotifications() : await enableNotifications());
+            answer = turning === 'off' ? await disableNotifications() : await enableNotifications();
+            _paintBell(answer);
         } catch (err) {
             console.warn('[Nav] Bell toggle failed:', err);
             failed = true;
@@ -119,6 +135,13 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
         }
         // Restore the real state if the toggle errored — once the tap has let go, or the refresh stands aside.
         if (failed) await _refreshBell();
+        // Permission given, subscription not made: say so, as the blocked tap does (ENABLE_FAILED_PANEL, above).
+        // A dismissed prompt ('off-default') and a refusal ('denied') are the member's own answers and need no telling.
+        else if (turning === 'on' && answer === 'off-lapsed') {
+            const { ENABLE_FAILED_LINE } = await import('./notif-card-core.js');
+            _closePanelVisualOnly();
+            _openComingSoon(/** @type {HTMLElement} */ (/** @type {unknown} */ (ENABLE_FAILED_PANEL)), ENABLE_FAILED_LINE);
+        }
     });
 
     return _refreshBell;

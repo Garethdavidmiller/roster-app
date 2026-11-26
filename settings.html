@@ -254,8 +254,10 @@
                 <!-- The old subtitle named two of the four things it sends. The `?` panel had the
                      full list, so the card under-described what the member was agreeing to receive
                      — and the fix is shorter as well as truer (v22.37, owner review). The pay reminder
-                     is named only to a member it is sent to, CEA and CES (notif-card.js shows it). -->
-                <span class="hint">Get alerts for staff updates<span id="notifHintPay" hidden> and pay reminders</span></span>
+                     is named only to a member it is sent to, CEA and CES (notif-card.js shows it). Since
+                     26 Nov 2026 every surface says what you get in ONE wording, which names the documents
+                     (owner): this card, the Calendar's strip and the Staff Guide. -->
+                <span class="hint">Get a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter<span id="notifHintPay" hidden>, and the pay reminder</span></span>
             </div>
             <div class="card-header-actions">
                 <span class="card-year-chip" id="notifStatusChip"></span>
@@ -271,12 +273,19 @@
                      sent to CEA and CES only, so notif-card.js shows its kind to them alone (17 Nov 2026), and
                      the timetable change only until its one reminder is sent; notif-card.js also moves the
                      separators so the last kind shown carries none, and hides the list on a device that
-                     cannot get notifications (22 Nov 2026). -->
-                <p class="card-explainer" id="notifKinds"><span id="notifKindsLead">You’ll get:</span> <span class="notif-kind">Daily Huddle ·</span> <span class="notif-kind">Weekly Retail Circular ·</span> <span class="notif-kind">Marylebone Newsletter ·</span> <span class="notif-kind" id="notifKindPay" hidden>Pay reminder ·</span> <span class="notif-kind" id="notifKindTimetable">Timetable changes</span></p>
-                <div id="notifStatusMsg" aria-live="polite"></div>
+                     cannot get notifications (22 Nov 2026). Password reset is everybody's (the admin resets
+                     a password and tells its owner); Reset requests and the Error Log are sent to the admin
+                     alone, so notif-card.js shows them to the admin alone (26 Nov 2026). The New link
+                     reminder is not listed: it is sent once, on the day it was added. -->
+                <p class="card-explainer" id="notifKinds"><span id="notifKindsLead">You’ll get:</span> <span class="notif-kind">Daily Huddle ·</span> <span class="notif-kind">Weekly Retail Circular ·</span> <span class="notif-kind">Marylebone Newsletter ·</span> <span class="notif-kind" id="notifKindPay" hidden>Pay reminder ·</span> <span class="notif-kind">Password reset ·</span> <span class="notif-kind" id="notifKindTimetable">Timetable changes ·</span> <span class="notif-kind" id="notifKindResetRequests" hidden>Reset requests ·</span> <span class="notif-kind" id="notifKindErrorLog" hidden>Error Log</span></p>
+                <!-- ONE live region holds the status AND the blocked steps (26 Nov 2026): the steps were a
+                     plain paragraph, so a screen reader heard "To allow them:" and then nothing. -->
+                <div id="notifLive" aria-live="polite">
+                    <div id="notifStatusMsg"></div>
+                    <p id="notifDeniedMsg"></p>
+                </div>
                 <button type="button" class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Turn on notifications</button>
                 <button type="button" class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Turn off notifications</button>
-                <p id="notifDeniedMsg"></p>
             </div>
         </div>
     </div>

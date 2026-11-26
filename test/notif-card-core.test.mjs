@@ -71,10 +71,10 @@ describe('each state says what it is, and the status lines point at the member\'
     test('on / off / chosen off / lapsed', () => {
         const on = notifCardWords(device({ state: 'on' }));
         assert.deepEqual([on.report, on.chip, on.button], ['ok', '✓ On', 'disable']);
-        assert.equal(on.status, 'Notifications are on for this device — you’ll get each alert listed above.');
+        assert.equal(on.status, 'Notifications are on for this device — you’ll get each one listed above.');
         const off = notifCardWords(device());
         assert.deepEqual([off.report, off.chip, off.button], ['action', 'Off', 'enable']);
-        assert.equal(off.status, 'Select “Turn on notifications” to get the alerts listed above.');
+        assert.equal(off.status, 'Select “Turn on notifications” to get the ones listed above.');
         const chosen = notifCardWords(device({ offByChoice: true }));
         assert.deepEqual([chosen.report, chosen.chip, chosen.tone, chosen.button], ['ok', 'Off', 'plain', 'enable'],
             'switched off here is nothing to do, and not coloured as good news');
@@ -85,8 +85,35 @@ describe('each state says what it is, and the status lines point at the member\'
     test('blocked: no button, the summary told it is blocked, and the line leads into the steps', () => {
         const w = notifCardWords(device({ state: 'denied' }));
         assert.deepEqual([w.report, w.chip, w.button], ['blocked', 'Blocked', null]);
-        assert.equal(w.status, 'Notifications are blocked on this device, so the button can’t turn them on. To allow them:');
+        assert.equal(w.status, 'Notifications are blocked on this device, so this page can’t turn them on. To allow them:');
         assert.ok(w.steps);
+    });
+});
+
+// ── THE PAGES MIRROR TURNS NOTHING ON (owner, 26 Nov 2026) ─────────────────────────────────────────
+// A subscription made there belongs to an address that will close, and once the member turns them on at
+// the main address as well they get each one twice. So off, the card sends them to the main address and
+// offers no button; on, it still lets them turn notifications OFF; blocked, it still says where.
+describe('on the Pages mirror, an off card sends the member to the main address', () => {
+    for (const [state, offByChoice] of /** @type {const} */ ([['off-default', false], ['off-default', true], ['off-lapsed', false]])) {
+        test(`${state}${offByChoice ? ', chosen' : ''}: no Turn on, and the main address as a link`, () => {
+            const w = notifCardWords(device({ state, offByChoice, onMirror: true }));
+            assert.equal(w.button, null, 'Turn on is offered at the address that is closing');
+            assert.equal(w.report, 'n/a', 'nothing for the summary to ask of the member here');
+            assert.equal(w.status + w.link?.text + w.link?.tail,
+                'This is the app’s older address, which will close. Turn notifications on at myb-roster.web.app instead.');
+            assert.equal(w.link?.href, 'https://myb-roster.web.app/');
+            assert.equal(w.kinds, 'shown');
+        });
+    }
+    test('on: unchanged — a member there can still turn them off', () => {
+        assert.deepEqual(notifCardWords(device({ state: 'on', onMirror: true })), notifCardWords(device({ state: 'on' })));
+    });
+    test('blocked: unchanged — where the permission lives is true on either address', () => {
+        assert.deepEqual(notifCardWords(device({ state: 'denied', onMirror: true })), notifCardWords(device({ state: 'denied' })));
+    });
+    test('off the mirror, no off state carries a link', () => {
+        for (const state of /** @type {const} */ (['off-default', 'off-lapsed'])) assert.equal(notifCardWords(device({ state })).link, undefined, state);
     });
 });
 

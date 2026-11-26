@@ -652,7 +652,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `initNotificationsCard`
 
 ### `notif-card-core.js`
-- **Exports:** `TIMETABLE_CHANGE` · `TIMETABLE_SEND_HOUR` · `timetableListed` · `homeScreenLabel` · `punctuateKinds` · `STILL_ASKING_LINE` · `ENABLE_FAILED_LINE` · `notifCardWords`
+- **Exports:** `TIMETABLE_CHANGE` · `TIMETABLE_SEND_HOUR` · `timetableListed` · `homeScreenLabel` · `punctuateKinds` · `STILL_ASKING_LINE` · `ENABLE_FAILED_LINE` · `MAIN_ADDRESS` · `notifCardWords`
 
 ### `doc-upload.js`
 - **Exports:** `hiddenByNewerLine` · `isPdfFile` · `isDocxFile` · `initDocUploadCard`
@@ -990,7 +990,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `teamMembers`
 
 ### `pay-audience.js`
-- **Exports:** `pricedGradeOn` · `heldPricedGrade` · `payCalculatorPrices`
+- **Exports:** `pricedGradeOn` · `heldPricedGrade` · `payCalculatorPrices` · `sentPayReminder`
 
 ### `roster-roles.js`
 - **Exports:** `roleOn` · `rolesInRange`

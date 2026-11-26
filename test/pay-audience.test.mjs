@@ -25,7 +25,8 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { payCalculatorPrices, heldPricedGrade, pricedGradeOn } from '../pay-audience.js';
+import { payCalculatorPrices, heldPricedGrade, pricedGradeOn, sentPayReminder } from '../pay-audience.js';
+import { buildRosterMembers } from '../scripts/generate-roster-members.mjs';
 import { teamMembers } from '../roster-data.js';
 import { PAGE_POLICIES, requirePageAuth } from '../auth-policy.js';
 
@@ -125,5 +126,31 @@ describe('sending a member to a page that refuses them', () => {
             }
         }
         assert.ok(invited > 1000, `premise: the sweep invited somebody (${invited})`);
+    });
+});
+
+// ── WHO IS SENT THE PAY REMINDER — ONE RULE, THE SERVER'S (owner, 26 Nov 2026) ─────────────────────────
+// The Calendar's strip and the Settings card both promise the reminder through `sentPayReminder`; the server
+// sends it to the names on its `cea` and `ces` lists, which scripts/generate-roster-members.mjs writes from
+// the same table. Held equal for every row on the roster, both ways, reported by row and shape — never by name.
+describe('sentPayReminder is the server\'s own list', () => {
+    const server = buildRosterMembers();
+    const sentTo = new Set([...server.cea, ...server.ces]);
+    test('premise: the server sends it to somebody, and not to everybody', () => {
+        assert.ok(sentTo.size > 0);
+        assert.ok(sentTo.size < teamMembers.length);
+    });
+    test('every row on the roster is promised it exactly where the generator\'s lists send it', () => {
+        const wrong = teamMembers.map((m, i) => [m, i]).filter(([m]) => sentPayReminder(m) !== sentTo.has(/** @type {any} */ (m).name))
+            .map(([m, i]) => `row ${i} (${/** @type {any} */ (m).role}${/** @type {any} */ (m).hidden ? ', hidden' : ''}${/** @type {any} */ (m).managerOnly ? ', login only' : ''})`);
+        assert.deepEqual(wrong, [], 'the app and the server disagree about who is sent the pay reminder');
+    });
+    test('nobody, a hidden leaver, a login-only row and a grade without rates are never promised it', () => {
+        assert.equal(sentPayReminder(null), false);
+        assert.equal(sentPayReminder({ name: 'Test Leaver', role: 'CEA', hidden: true }), false);
+        assert.equal(sentPayReminder({ name: 'Test Login', role: 'CES', managerOnly: true }), false);
+        assert.equal(sentPayReminder(DISPATCHER), false);
+        assert.equal(sentPayReminder(PROMOTED_MANAGER), false, 'the RECORDED role, as the server reads it — not the grade held today');
+        assert.equal(sentPayReminder({ name: 'Test CEA', role: 'CEA' }), true);
     });
 });

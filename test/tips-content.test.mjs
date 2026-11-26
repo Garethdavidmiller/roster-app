@@ -340,7 +340,7 @@ describe('the pay reminder is promised only to the grades it is sent to, everywh
         assert.deepEqual(grades, ['CEA', 'CES']);
     });
     test('Settings: the subtitle\'s and the list\'s pay pieces start hidden — the page shows them to those it is sent to', () => {
-        assert.match(settings, /<span class="hint">Get alerts for staff updates<span id="notifHintPay" hidden> and pay reminders<\/span><\/span>/);
+        assert.match(settings, /<span class="hint">Get a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter<span id="notifHintPay" hidden>, and the pay reminder<\/span><\/span>/);
         assert.match(settings, /<span class="notif-kind" id="notifKindPay" hidden>Pay reminder ·<\/span>/);
     });
     // Since 22 Nov 2026 the status lines name no kind at all: they point at the list above them, which is
@@ -348,8 +348,8 @@ describe('the pay reminder is promised only to the grades it is sent to, everywh
     // while one is due). A line that named the pay reminder would promise it to everybody again.
     test('Settings: the status lines promise nothing the member\'s own list does not', () => {
         assert.doesNotMatch(card, /pay cut-off|pay reminder/i, 'a status line names the pay reminder, which only some members are sent');
-        assert.match(card, /'Notifications are on for this device — you’ll get each alert listed above\.'/);
-        assert.match(card, /'Select “Turn on notifications” to get the alerts listed above\.'/);
+        assert.match(card, /'Notifications are on for this device — you’ll get each one listed above\.'/);
+        assert.match(card, /'Select “Turn on notifications” to get the ones listed above\.'/);
     });
     test('the Staff Guide, which cannot know who reads it, says whom the reminder is for', () => {
         const line = /<strong>Notifications<\/strong>[^<]*(?:<[^>]+>[^<]*)*?Settings/.exec(guide)?.[0] ?? '';

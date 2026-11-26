@@ -78,3 +78,23 @@ export function payCalculatorPrices(member, { periods = [], today = new Date() }
     if (!periods.length) return false;
     return heldPricedGrade(member, periods[0].start, periods[periods.length - 1].cutoff);
 }
+
+/**
+ * Is the four-weekly pay reminder SENT to this member? Asked AS THE SERVER ASKS IT (18 Nov 2026), which is
+ * not `payCalculatorPrices`' question: the reminder goes to the names on the server roster's `cea` and `ces`
+ * lists (functions/pay-reminder.js, written by scripts/generate-roster-members.mjs) — each visible row whose
+ * RECORDED `role` has a pay grade (`gradeForRole`, the answer the server's grade keys are spelt from), and
+ * never a login-only row (`managerOnly`). Not the grade held TODAY (`roleOn`, which the Pay Calculator rightly
+ * asks): a CES whose move into management is released was promised reminders until the move's first day, and
+ * a hidden leaver for good — neither is sent one.
+ *
+ * ONE RULE, EVERY SURFACE THAT PROMISES IT (owner, 26 Nov 2026): the Calendar's notification strip and the
+ * Settings Notifications card both ask this. Settings asked `payCalculatorPrices`, so a member the Pay page
+ * admits on an old payslip was promised a reminder the server never sends them. `pay-audience.test.mjs`
+ * holds it equal to the generator's lists for every row on the roster.
+ * @param {any} member  teamMembers entry, or null
+ * @returns {boolean}
+ */
+export function sentPayReminder(member) {
+    return !!member && !member.hidden && !member.managerOnly && !!gradeForRole(member.role);
+}

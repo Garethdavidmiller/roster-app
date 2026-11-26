@@ -65,7 +65,8 @@ function el(/** @type {string} */ id, /** @type {Partial<any>} */ props = {}) {
     const e = {
         id, hidden: false, disabled: false, textContent: '', style: { display: '' }, className: '',
         addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (on[t] ??= []).push(fn); },
-        replaceChildren: (/** @type {any[]} */ ...nodes) => { e.textContent = nodes.map(n => (typeof n === 'string' ? n : n.textContent)).join(''); },
+        replaceChildren: (/** @type {any[]} */ ...nodes) => { e.children = nodes; e.textContent = nodes.map(n => (typeof n === 'string' ? n : n.textContent)).join(''); },
+        focus: () => { globalThis.document.activeElement = e; },
         click: () => Promise.all((on.click ?? []).map(fn => fn())),
         ...props,
     };
@@ -79,12 +80,16 @@ function installDom() {
         notifDeniedMsg: el('notifDeniedMsg'), notifHintPay: el('notifHintPay', { hidden: true }),
         notifKinds: el('notifKinds'), notifKindsLead: el('notifKindsLead', { textContent: 'You’ll get:' }),
         notifKindPay: el('notifKindPay', { hidden: true, textContent: 'Pay reminder ·' }),
-        notifKindTimetable: el('notifKindTimetable', { textContent: 'Timetable changes' }),
+        notifKindTimetable: el('notifKindTimetable', { textContent: 'Timetable changes ·' }),
+        notifKindResetRequests: el('notifKindResetRequests', { hidden: true, textContent: 'Reset requests ·' }),
+        notifKindErrorLog: el('notifKindErrorLog', { hidden: true, textContent: 'Error Log' }),
     };
     const kinds = [el('k1', { textContent: 'Daily Huddle ·' }), el('k2', { textContent: 'Weekly Retail Circular ·' }),
-        el('k3', { textContent: 'Marylebone Newsletter ·' }), els.notifKindPay, els.notifKindTimetable];
+        el('k3', { textContent: 'Marylebone Newsletter ·' }), els.notifKindPay, el('k5', { textContent: 'Password reset ·' }),
+        els.notifKindTimetable, els.notifKindResetRequests, els.notifKindErrorLog];
+    const body = el('body');
     globalThis.document = /** @type {any} */ ({
-        visibilityState: 'visible',
+        visibilityState: 'visible', body, activeElement: body,
         getElementById: (/** @type {string} */ id) => els[id] ?? null,
         querySelectorAll: (/** @type {string} */ sel) => (sel === '#notifKinds .notif-kind' ? kinds : []),
         querySelector: (/** @type {string} */ sel) => (sel === 'meta[name="apple-mobile-web-app-title"]' ? { getAttribute: () => 'Home Label' } : null),
@@ -136,7 +141,7 @@ describe('Enable and Disable, through the real card — and it hears myb:notif-c
         assert.equal(env.enables, 1);
         assert.deepEqual(lastReport(), ['ok', '✓ On', undefined]);
         assert.ok(shown(els.notifDisableBtn) && !shown(els.notifEnableBtn));
-        assert.equal(els.notifStatusMsg.textContent, 'Notifications are on for this device — you’ll get each alert listed above.');
+        assert.equal(els.notifStatusMsg.textContent, 'Notifications are on for this device — you’ll get each one listed above.');
         await els.notifDisableBtn.click();
         await settle();
         assert.equal(env.disables, 1);
@@ -281,6 +286,46 @@ describe('a permission question that never settles does not hold the button', ()
     });
 });
 
+// ── FOCUS IS NOT DROPPED, AND THE MIRROR SENDS THE MEMBER ON (owner, 26 Nov 2026) ────────────────────
+describe('after Turn on or Turn off, focus goes to the button the card now shows', () => {
+    test('focus that fell to the page goes to Turn off, then back to Turn on', async () => {
+        await openCard();
+        await els.notifEnableBtn.click();
+        await settle();
+        assert.equal(document.activeElement, els.notifDisableBtn, 'focus left on <body> once Turn on was hidden');
+        document.activeElement = document.body;
+        await els.notifDisableBtn.click();
+        await settle();
+        assert.equal(document.activeElement, els.notifEnableBtn);
+    });
+    test('a member who has moved focus on keeps their place', async () => {
+        await openCard();
+        const elsewhere = el('elsewhere');
+        document.activeElement = elsewhere;
+        await els.notifEnableBtn.click();
+        await settle();
+        assert.equal(document.activeElement, elsewhere);
+    });
+});
+
+describe('on the Pages mirror', () => {
+    test('off: no button, and the main address is a link', async () => {
+        env.mirror = true;
+        await openCard();
+        assert.ok(!shown(els.notifEnableBtn) && !shown(els.notifDisableBtn), 'Turn on offered at the address that is closing');
+        assert.equal(els.notifStatusMsg.textContent, 'This is the app’s older address, which will close. Turn notifications on at myb-roster.web.app instead.');
+        const link = els.notifStatusMsg.children?.find((/** @type {any} */ n) => typeof n !== 'string');
+        assert.equal(link?.href, 'https://myb-roster.web.app/');
+        assert.deepEqual(lastReport(), ['n/a', 'Off', undefined]);
+    });
+    test('on: Turn off is still there', async () => {
+        Object.assign(env, { mirror: true, state: 'on' });
+        await openCard();
+        assert.ok(shown(els.notifDisableBtn));
+        assert.deepEqual(lastReport(), ['ok', '✓ On', undefined]);
+    });
+});
+
 describe('what the card lists', () => {
     test('the timetable change while it is due, and the list ends on a kind', async () => {
         await openCard({ now: () => new Date('2026-12-01T12:00:00Z') });
@@ -291,7 +336,15 @@ describe('what the card lists', () => {
     test('after its reminder is sent, no timetable item — and no stray separator', async () => {
         await openCard({ now: () => new Date('2026-12-13T08:00:00Z') });
         assert.equal(els.notifKindTimetable.hidden, true);
-        assert.equal(kinds[2].textContent, 'Marylebone Newsletter', 'the last kind shown carries no "·"');
+        assert.equal(kinds[4].textContent, 'Password reset', 'the last kind shown carries no "·"');
+    });
+    test('the admin-only kinds are listed to the admin alone, and the list still ends on a kind', async () => {
+        await openCard({ now: () => new Date('2026-12-13T08:00:00Z') });
+        assert.deepEqual([els.notifKindResetRequests.hidden, els.notifKindErrorLog.hidden], [true, true], 'listed to a member who is never sent them');
+        kinds = installDom();
+        await openCard({ adminNotices: true, now: () => new Date('2026-12-13T08:00:00Z') });
+        assert.deepEqual([els.notifKindResetRequests.hidden, els.notifKindErrorLog.hidden], [false, false]);
+        assert.deepEqual(kinds.filter(k => !k.hidden).map(k => k.textContent).slice(-3), ['Password reset ·', 'Reset requests ·', 'Error Log']);
     });
     test('an iPhone in a browser: "After install", and the list is the installed app\'s', async () => {
         Object.assign(env, { supported: false, ios: true, standalone: false });

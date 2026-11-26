@@ -11,7 +11,7 @@
  */
 
 import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom, teamMembers } from './roster-data.js';
-import { payCalculatorPrices } from './pay-audience.js';
+import { payCalculatorPrices, sentPayReminder } from './pay-audience.js';
 import { formatDayMonthYear } from './date-format.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, withClaimRetry } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
@@ -172,7 +172,9 @@ export function init() {
     // writes nothing, by `passwordSaving()` (settings-password-card.js). Behaviour-tested in e2e/settings.spec.js.
     const _busy = () => writesInFlight() > 0 || passwordSaving();
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
-    initTipsLightbox(CARD_TIPS);   // the ? buttons are static markup, signed in or not
+    // The ? buttons are static markup, signed in or not. The Notifications panel's admin-only kinds are asked
+    // at each open, by the same gate that lists them on the card (below).
+    initTipsLightbox(CARD_TIPS, { getIsAdmin: () => !!currentUser && navGatesFor(currentUser).isAdmin });
 
     // The start-up every card-opening page shares (page-start.js): the Back guard, the Phase-3 policy
     // (auth-policy.js → AUTH_ARCHITECTURE.md Phase 7) decided from the LOCAL session — "any named user"
@@ -225,12 +227,15 @@ export function init() {
         wireCard('password', () => initPasswordCard({ member: currentUser, reportSetting, cardHandles: _cardHandles }));
 
         // Notifications card. It reports its own state — notif-card-core.js's words are the authority, and a second
-        // `peekNotifState` read here could disagree with the screen. It names the pay reminder only to CEA and CES
-        // (functions/pay-reminder.js), and re-registers this device once `sessionReady` is true (notif-card.js).
+        // `peekNotifState` read here could disagree with the screen. It names the pay reminder only to those it is
+        // SENT to — the server's own rule, `sentPayReminder`, which the Calendar's strip asks too (26 Nov 2026; it
+        // asked `payCalculatorPrices`, the Pay page's wider question) — and the two admin-only kinds to the admin,
+        // and re-registers this device once `sessionReady` is true (notif-card.js).
         wireCard('notifications', () => {
         _cardHandles['notifications'] = initNotificationsCard({
             onState: (state, chip, tone) => reportSetting('notifications', state, chip, tone),
-            payReminders: payCalculatorPrices(teamMembers.find(m => m.name === currentUser) ?? null),
+            payReminders: sentPayReminder(teamMembers.find(m => m.name === currentUser) ?? null),
+            adminNotices: !!currentUser && navGatesFor(currentUser).isAdmin,
             sessionReady,
         });
         });
