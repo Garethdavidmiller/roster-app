@@ -75,7 +75,7 @@ describe('Contract A — one identity across the boundary, and the rules grant i
         // ── THE HOLD, CHECKED STATICALLY (v20.16) ────────────────────────────────────────────
         //
         // A bare `allow read;` above the tightened rule held the collection public during the
-        // deploy window (RECOVERY_RUNBOOK.md → "The Calendar PIN"). It is legitimate, and it is
+        // deploy window (RECOVERY_RUNBOOK.md → "The staff PIN (retired)"). It is legitimate, and it is
         // also the single most dangerous line in that file — it makes the read rule a door that is
         // open, and it looks like documentation of a rule rather than a rule.
         //

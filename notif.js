@@ -317,7 +317,8 @@ export async function peekNotifState() {
 
 /**
  * Turn notifications on. Requests browser permission when it has not been asked,
- * then subscribes. A no-op resulting in 'denied' if the user blocks the prompt.
+ * then subscribes. A no-op resulting in 'denied' if the user blocks the prompt, and a no-op answering
+ * 'off-default' on the GitHub Pages mirror (`onPagesMirror`), where nothing is asked or subscribed.
  *
  * THE PERMISSION REQUEST IS MADE BEFORE ANYTHING IS AWAITED. Call this straight from the tap's
  * handler, with no `await` before it: iPhone Safari (and Firefox) honour `requestPermission()` only
@@ -355,6 +356,16 @@ function _announce(state) {
  */
 async function _enableNotifications(beforeSubscribe) {
     if (!notifSupported()) return 'unsupported';
+    // NEVER TURNED ON AT THE PAGES MIRROR (owner, 26 Nov 2026). A subscription made there belongs to the
+    // mirror's origin, which will close, and a member who also turns them on at the main address gets
+    // every broadcast twice (`fanOutPush` sends to both records). The Settings card and the Calendar
+    // strip already offered no Turn on there, and the drawer's bell did; refused HERE, at the one
+    // function every turn-on goes through, so no caller can reopen it. Answered 'off-default' — off,
+    // nothing changed — which every caller already reads as an answer needing no failure message (the
+    // bell and the card say nothing, the strip shows nothing). Before the permission request, so the
+    // browser is never asked (nor PROMPT_DISMISSED set: nothing was asked). Turning OFF is untouched,
+    // so a device subscribed there before v26.92 can still switch them off.
+    if (onPagesMirror()) return 'off-default';
     try {
         // Synchronous up to here: the request below is still inside the caller's tap (see above).
         const perm = Notification.permission === 'granted'

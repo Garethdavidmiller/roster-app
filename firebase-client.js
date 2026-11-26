@@ -285,7 +285,7 @@ export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
- * (SECURITY_RELEASE_PLAN.md → B3 "Live invariant — writeWithClaimRetry"). The operation is
+ * (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"). The operation is
  * read/write-agnostic: writes go through `writeWithClaimRetry` below (this, behind the write gate),
  * and reads — the Operations cards among them — call `withClaimRetry` directly.
  *

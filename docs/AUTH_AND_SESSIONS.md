@@ -232,7 +232,7 @@ and for the Settings reauthentication alike:
 4. **Both fail → the wrong-password error**, never anything weaker.
 
 The second attempt fires only after a fast, definitive rejection of the first — never after a
-timeout — so the ladder stays inside `runNamedSignIn`'s eight-second budget. The App Speed card's
+timeout — so the ladder stays inside `runNamedSignIn`'s 30-second budget (`SIGN_IN_GIVE_UP_MS`, `login-core.js`). The App Speed card's
 **Signing in** figure (`loginTotal`) carried the doomed first attempt until v26.12; the reading
 before the change is `LATENCY.md` → THE NOVEMBER READ.
 
@@ -253,7 +253,7 @@ fallback has since gone altogether (v24.34, invariant 9); rollback is reverting 
   existing session, not somebody at a keyboard), except: REFUSED when this device's session began
   before the account's last `resetAt` (invariant 23), HELD when that time cannot be confirmed, and
   SKIPPED after a definitive rejection on this device. Skipped, not abandoned: a flagged device asks
-  again every six hours (`RESET_RECHECK_MS`, `session.js`) through the reset check (`probeResetAtMs`).
+  again every six hours (`RESET_RECHECK_MS`, `silent-sign-in.js`) through the reset check (`probeResetAtMs`).
 - **Evicted, migrated** — cannot be re-authenticated silently, ever, so the sign-in shows again. That
   is the honest cost of a real password, not a bug. On the Pay Calculator (soft) the roster pre-fill
   quietly does not load.
@@ -269,8 +269,8 @@ forbids.
 
 ### The login freeze
 
-The freeze of v14.72–v14.75 is why invariant 1 exists. The sign-in contract: an eight-second
-`withTimeout`; `saveSession` only after auth resolves; a visible, disabled "Signing in…" button; the
+The freeze of v14.72–v14.75 is why invariant 1 exists. The sign-in contract: a bounded
+`withTimeout` (`SIGN_IN_GIVE_UP_MS`, 30 seconds; at 8 the card only says the attempt is taking longer); `saveSession` only after auth resolves; a visible, disabled "Signing in…" button; the
 `_attempting` mutex, the `_signingIn` back-guard and the `_authGen` stale-attempt guard. **No
 Firestore read, and no slow await, on the critical path from sign-in to a usable page** — the
 must-set-password check runs fire-and-forget after sign-in with a short cap, the pattern

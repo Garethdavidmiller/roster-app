@@ -944,3 +944,88 @@ describe('a write no page started holds every update reload', () => {
         }
     });
 });
+
+// ── A notification tap is taking the page somewhere: no update reload may cancel the trip ─────────
+// Owner, 26 Nov 2026, Android: "it almost always takes me to the calendar". A reload started while the
+// tap's navigate() is loading cancels it, and the woken page's update reload was doing exactly that.
+describe('a notification tap taking the page away holds every update reload', () => {
+    /** The worker's "are you busy?", answered as the page answers it. @param {any} h */
+    const tapAsks = (h) => {
+        const replies = /** @type {any[]} */ ([]);
+        const port = { postMessage: (/** @type {any} */ m) => replies.push(m) };
+        (h.swListeners.message || []).forEach((/** @type {Function} */ fn) => fn({ data: { type: 'myb-busy?' }, ports: [port] }));
+        return replies;
+    };
+    const realNow = Date.now;
+
+    test('the reported sequence: woken by the tap with an update claimed while asleep — the Calendar does not reload', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        /** @type {Function[]} */ const timers = [];
+        try {
+            registerServiceWorker({ deferWhileVisible: true, beforeReload: () => { timers.push(() => reloadWhileHidden()); } });
+            await h.flush();
+            h.setVisibility('hidden');                 // backgrounded, then frozen
+            h.fireControllerChange();                  // the release claimed it while it slept
+            assert.deepEqual(tapAsks(h), [{ busy: false }], 'the tap is told the page is free to go');
+            timers.forEach(fn => fn());                // the 500ms timer fires, the page still hidden
+            assert.equal(h.state.reloads, 0, 'a reload now would cancel the tap\'s trip to its page');
+            h.setVisibility('visible'); h.setVisibility('hidden');   // the navigation unloads the page
+            assert.equal(h.state.reloads, 0, 'nor as the page unloads for the tap\'s destination');
+        } finally { h.restore(); }
+    });
+
+    test('the default path (Pay, Trains, New link): an update landing just after the tap waits too', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker();
+            await h.flush();
+            tapAsks(h);
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 0, 'the update reloaded the page out from under the tap');
+        } finally { h.restore(); }
+    });
+
+    test('a busy page is not leaving — its answer holds nothing', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ isBusy: () => true });
+            await h.flush();
+            assert.deepEqual(tapAsks(h), [{ busy: true }]);
+            h.setVisibility('hidden');
+            reloadWhileHidden();
+            assert.equal(h.state.reloads, 1, 'nothing is navigating this page, so the update reloads as before');
+        } finally { h.restore(); }
+    });
+
+    test('a tap that never took the page anywhere lets the held reload run at a later hide', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        let now = realNow();
+        Date.now = () => now;
+        try {
+            registerServiceWorker({ deferWhileVisible: true, beforeReload: () => reloadWhileHidden() });
+            await h.flush();
+            tapAsks(h);
+            h.setVisibility('hidden');
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 0, 'held while the tap may still be taking the page away');
+            now += 11_000;                             // the navigate() failed; a new window opened instead
+            h.setVisibility('visible'); h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'the update is held, never dropped');
+        } finally { Date.now = realNow; h.restore(); }
+    });
+
+    test('a page unloading for good never reloads; one going into the back-forward cache still can', async () => {
+        for (const persisted of [false, true]) {
+            const h = makeHarness({ hasRegistration: true, controlled: true });
+            try {
+                registerServiceWorker();
+                await h.flush();
+                (h.winListeners.pagehide || []).forEach((/** @type {Function} */ fn) => fn({ persisted }));
+                h.setVisibility('hidden');
+                reloadWhileHidden();
+                assert.equal(h.state.reloads, persisted ? 1 : 0,
+                    persisted ? 'a page kept for Back is not leaving' : 'a reload while unloading would replace where it is going');
+            } finally { h.restore(); }
+        }
+    });
+});

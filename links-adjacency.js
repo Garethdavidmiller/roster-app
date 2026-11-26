@@ -2,8 +2,8 @@
 /**
  * links-adjacency.js — what happens BETWEEN the lines: the order they sit in.
  *
- * Pure. No DOM, no Firebase. Built on the back of the FF18 discussion (.claude/rules/links-design.md →
- * Fatigue factors).
+ * Pure. No DOM, no Firebase. Built on the back of the FF18 discussion (docs/LINKS_REFERENCE.md →
+ * "Fatigue factors — ORR good practice").
  *
  * WHY THIS EXISTS. In a rotating link you work line w one week and line w+1 the next, so a whole
  * class of the design's quality lives in the ORDER of the lines rather than in any line itself:

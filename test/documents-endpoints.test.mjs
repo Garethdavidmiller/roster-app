@@ -1363,9 +1363,14 @@ describe('push-copy — every notification the app sends fits the design languag
             ['one error', [entry('boom')]],
             ['50 errors and 49 slow saves', [...Array(50).fill(entry('boom')), ...Array(49).fill(entry(slow))]],
             ['a flood', Array(NOTICE_SCAN_LIMIT + 1).fill(entry('boom'))],
+            // Since the flood counts only UNRESOLVED entries its count can be 1, and "1 new entries" was the words.
+            ['a flood, one unresolved', [entry('boom'), ...Array(NOTICE_SCAN_LIMIT).fill({ message: 'boom', resolved: true })]],
         ])) {
             const words = noticeWords(summariseNewEntries(entries));
             assert.ok(words, label);
+            if (label === 'a flood, one unresolved') {
+                assert.deepEqual(words, { headline: 'Error Log — 1+ new', body: 'At least 1 new entry. Tap to open the Error Log.' }, 'a count of one takes the singular');
+            }
             out.push({ kind: `error-log (${label})`, payload: buildPushPayload({ feature: 'errorLog', ...words, url: `${SITE}/operations.html#error-log` }) });
         }
         const initial = Date.UTC(2026, 8, 30, 11);   // Wed 30 Sep 2026, 12:00 London — the longest date a deadline label writes

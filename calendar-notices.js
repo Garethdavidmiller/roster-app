@@ -223,6 +223,26 @@ function payCalcIsTheirs() {
 }
 
 /**
+ * Put the move notice's App Notices record into the words for THIS reader (review of v26.94). Until v26.94 the
+ * record carried the pay paragraph for everyone, and `moveRecord(pay)` corrected only the copies filed after it, so
+ * a Dispatcher or an Other Staff login who archived it on 26 Nov went on reading about figures they have none of.
+ * Unlike the two records `initCalendarNotices` revises at wiring time, the right words depend on WHO is reading
+ * (`payCalcIsTheirs`), and a front-door sign-in has no session then — so it waits for the gate every notice waits
+ * for (access, then `_after`), and revises only for a member whose session names them: with nobody known it leaves
+ * the record alone rather than strip a priced member's pay words. The archive is the device's, not the member's, so
+ * on a shared device the record follows whoever signs in, as the notice's own `onOpen` filing does.
+ * @returns {void}
+ */
+function _reviseMoveRecordForReader() {
+    calendarAccessReady.then(() => _after).then(() => {
+        // `'named'` asked directly, not through `noticeAudienceAllows`: this opens nothing, so it is no audience
+        // policy (that rule has one call, the gate's) — only "is there a member whose words these are".
+        if (getAccessType() !== 'named' || !getSession()?.name) return;
+        reviseArchivedNotice(moveRecord(payCalcIsTheirs()));
+    }).catch(err => console.warn('[Notices] Move record revision failed:', err));
+}
+
+/**
  * Wire every one-time notice this page carries. Called once from calendar-app.js.
  * @param {{ after?: Promise<any> }} [opts]  `after` — settle before any notice opens. The coordinator
  *   passes the forced set-password step's promise, so a notice can never race a mandatory overlay
@@ -234,6 +254,7 @@ export function initCalendarNotices({ after } = {}) {
     for (const record of [TIMETABLE_SOON_RECORD, NEWLINK_RECORD]) reviseArchivedNotice(record);
     if (!lsAvailable()) return;
     if (after) _after = Promise.resolve(after).catch(() => {});
+    _reviseMoveRecordForReader();
     // Each notice keeps its own IIFE ON PURPOSE: their bodies bail with early `return`s (done,
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
     // notice already dismissed silenced every notice after it. Caught by a render check the same

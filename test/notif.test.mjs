@@ -331,6 +331,28 @@ describe('enableNotifications', () => {
         setupEnv({ apis: false });
         assert.equal(await enableNotifications(), 'unsupported');
     });
+    // ── NEVER TURNED ON AT THE PAGES MIRROR (owner, 26 Nov 2026) ─────────────────────────────────────────────
+    // A subscription made there belongs to an address that will close, and one also made at the main address
+    // doubles every broadcast. Refused at the source, so no caller (the drawer's bell was one) reopens it:
+    // nothing asked, nothing subscribed, nothing saved, nothing flagged — and 'off-default', off and unchanged.
+    test('on the Pages mirror: never asks, never subscribes, answers "off-default"', async () => {
+        for (const permission of /** @type {const} */ (['default', 'granted'])) {
+            setupEnv({ permission, hostname: 'garethdavidmiller.github.io' });
+            let asked = 0, subscribed = 0, waited = 0;
+            /** @type {any} */ (globalThis.Notification).requestPermission = async () => { asked++; return 'granted'; };
+            const reg = await /** @type {any} */ (navigator).serviceWorker.ready;
+            reg.pushManager.subscribe = async () => { subscribed++; return { endpoint: 'x', unsubscribe: async () => true }; };
+            assert.equal(await enableNotifications({ beforeSubscribe: async () => { waited++; } }), 'off-default', permission);
+            assert.deepEqual([asked, subscribed, waited, _saveCalls], [0, 0, 0, 0], `${permission}: nothing asked, subscribed or saved`);
+            assert.equal(_ls.has('myb_notif_prompt_done'), false, `${permission}: nothing was asked, so nothing is flagged`);
+        }
+    });
+    test('on the Pages mirror a device subscribed there can still turn them off', async () => {
+        const { sub } = setupEnv({ permission: 'granted', hasSub: true, hostname: 'garethdavidmiller.github.io' });
+        assert.equal(await disableNotifications(), 'off-default');
+        assert.equal(sub._unsubscribed, true);
+        assert.equal(_deleteCalls, 1, 'and its record is removed');
+    });
     // ── THE ASK IS INSIDE THE TAP, THE SAVE AFTER THE CALLER'S WAIT (v26.60 review, D-M1) ───────────
     // iPhone Safari honours requestPermission() only while the tap's activation lasts, so it must be
     // made before anything is awaited; Settings' wait for its session belongs before the SAVE alone.

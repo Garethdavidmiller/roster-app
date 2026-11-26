@@ -19,7 +19,7 @@
  *     gap — and to ask the admin. That case keeps the wording it had.
  *
  * Every version but the last says what the calculator DOES, in one sentence, and links the guide:
- * the app's own order for a surface (CLAUDE.md → "The four things a surface owes a member" —
+ * the app's own order for a surface (.claude/rules/staff-copy.md → "The four things a surface owes a member" —
  * discover, understand, act, deep dive). A refusal that names a page and not what it is for teaches
  * nothing, and the page's own guide link is hidden on the refusal (paycalc.css → role-unsupported).
  *

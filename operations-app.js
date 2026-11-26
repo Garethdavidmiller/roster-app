@@ -261,7 +261,8 @@ export function init() {
         /** @type {Map<string, any>} name → passwordStatus doc */
         let statusMap = new Map();
 
-        /** Migrated ⇔ passwordSetAt present AND at least as new as any admin resetAt (§6).
+        /** Migrated ⇔ passwordSetAt present AND at least as new as any admin resetAt (AUTH_AND_SESSIONS.md →
+         *  "Password migration status").
          *  isPasswordMigrated (auth-identity.js) is the single, unit-tested source. */
         const migrated = (/** @type {string} */ name) => isPasswordMigrated(statusMap.get(name));
 

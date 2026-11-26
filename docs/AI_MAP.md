@@ -650,7 +650,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `initNotificationsCard`
 
 ### `notif-card-core.js`
-- **Exports:** `TIMETABLE_CHANGE` · `TIMETABLE_SEND_HOUR` · `timetableListed` · `homeScreenLabel` · `punctuateKinds` · `STILL_ASKING_LINE` · `ENABLE_FAILED_LINE` · `MAIN_ADDRESS` · `notifCardWords`
+- **Exports:** `TIMETABLE_CHANGE` · `TIMETABLE_SEND_HOUR` · `timetableListed` · `homeScreenLabel` · `punctuateKinds` · `STILL_ASKING_LINE` · `ENABLE_FAILED_LINE` · `MAIN_ADDRESS` · `MIRROR_OFF_LINE` · `notifCardWords`
 
 ### `doc-upload.js`
 - **Exports:** `hiddenByNewerLine` · `isPdfFile` · `isDocxFile` · `initDocUploadCard`

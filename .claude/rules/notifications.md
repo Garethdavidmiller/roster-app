@@ -92,7 +92,7 @@ time-sensitive event. "Latest" does not apply; lead with the event and its urgen
 | Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Sign in again, then choose your own.` |
 | Timetable change | `🚆 Timetable — new times from Sunday` | `Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.` |
 | Error Log | `🐛 Error Log — 3 new` | `1 error and 2 slow saves. Tap to open the Error Log.` |
-| Error Log, a flood | `🐛 Error Log — 100+ new` | `At least 100 new entries. Tap to open the Error Log.` — the count is the UNRESOLVED entries among the first 100; all resolved sends nothing |
+| Error Log, a flood | `🐛 Error Log — 100+ new` | `At least 100 new entries. Tap to open the Error Log.` — the count is the UNRESOLVED entries among the first 100, so it can be 1 ("At least 1 new entry"); all resolved sends nothing |
 | New link vote | `🔁 New link — vote coming soon` | `Have a look at the three proposals before voting starts. Tap to open New link.` |
 
 ## Who receives it — broadcast or targeted

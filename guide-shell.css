@@ -396,7 +396,7 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
    browser's bars and the taskbar, or a page zoomed to 110%, is a window under 600px tall, and there a
    mouse could not reach the Staff Guide's last four chips. The widest phone held sideways is under
    960px, so 1024 keeps the phone's one row; width, not the pointer, because some Android phones report
-   a fine one (CLAUDE.md → "Do not gate layout on (hover: hover) and (pointer: fine) alone"). Rows sit 8px
+   a fine one (.claude/rules/css-tokens.md → "Do not gate layout on (hover: hover) and (pointer: fine) alone"). Rows sit 8px
    apart; with a touch pointer, 15px, so the taller hit areas below (7px up, 8px down) never overlap
    from one row to the next. The page scripts watch the bar's own size, so a row gained or lost moves
    the scroll margins with it. */

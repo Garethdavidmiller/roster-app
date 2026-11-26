@@ -26,8 +26,6 @@ module header.
 
 | # | Invariant | Where it lives |
 |---|---|---|
-| # | Invariant | Where it lives |
-|---|---|---|
 | 1 | **A figure not on record is never guessed.** A blank box the member can complete beats an inferred number that looks authoritative — the rate lock keys off the RECORD, never off box contents. | `paycalc-backpay-state.js` · `paycalc-calc.js` (`AWARD_RATES`) |
 | 2 | **The form ↔ saved-data round trip is symmetric.** Write → read → write must return the same thing. Four money-affecting defects in a row were all an asymmetry here. | `paycalc-form-data.js` |
 | 3 | **Every per-member key carries `pcPrefix()`; device flags never do.** And a retired device flag stays DECLARED — deleting one reclassifies it as member data and fires the ownership prompt at people who have none. | `paycalc-migrations.js` |

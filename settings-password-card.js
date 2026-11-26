@@ -121,7 +121,8 @@ export function initPasswordCard({ member, reportSetting, cardHandles }) {
     };
 
     // Reflect migration status (header chip + nudge banner). Best-effort — a failed read leaves
-    // both blank. Migrated ⇔ passwordSetAt exists AND is at least as new as any resetAt (§6).
+    // both blank. Migrated ⇔ passwordSetAt exists AND is at least as new as any resetAt
+    // (AUTH_AND_SESSIONS.md → "Password migration status").
     // `optimisticMigrated` lets the just-completed save flip the UI to migrated WITHOUT waiting on
     // the serverTimestamp() to resolve (an immediate local-cache read returns passwordSetAt:null
     // right after the write, which would briefly flash "using surname" under the ✓ message).
@@ -175,7 +176,8 @@ export function initPasswordCard({ member, reportSetting, cardHandles }) {
             await sessionReady;
             const st = await withClaimRetry(() => getPasswordStatus(member));   // a stale token, refreshed once (the work email's reason)
             if (mine !== _statusRead) return;   // a newer read was asked for: its answer is the one
-            // isPasswordMigrated (auth-identity.js) is the single, unit-tested source (§6).
+            // isPasswordMigrated (auth-identity.js) is the single, unit-tested source
+            // (AUTH_AND_SESSIONS.md → "Password migration status").
             paint(isPasswordMigrated(st) || _writeConfirmed);
         } catch {
             if (mine !== _statusRead) return;

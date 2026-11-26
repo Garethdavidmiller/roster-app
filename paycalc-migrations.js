@@ -304,28 +304,80 @@ export const DEVICE_KEYS = new Set([..._ACTIVE_DEVICE_KEYS, ..._RETIRED_DEVICE_K
 /** The retired subset, for the parity guard (which must not demand a writer for these). */
 export const RETIRED_DEVICE_KEYS = new Set(_RETIRED_DEVICE_KEYS);
 
+// ── LEFTOVER SOURCES — a copy that landed beside a source that would not go ─────────
+// A move has two halves, and they fail differently (external review of v26.95). A COPY that did not
+// land means the data is not yet where it belongs, so the one-shot flag waits and the migration runs
+// again. A copy that LANDED beside a source that would not go is different: the migration's work is
+// done, and only tidying is left. Withholding the flag for that second case re-ran the whole
+// migration — which re-asked the ownership question on a shared device (a second member was offered,
+// and could take, data the first had already claimed) and re-copied CEA data the member had since
+// said to delete.
+//
+// So a flag records the leftover SOURCES instead of waiting: '1' is done, a JSON list is "done, and
+// these keys are still to be removed". Every reader of a flag asks only whether it is SET, so either
+// value closes the question. A later load tries each listed key again and NEVER copies anything; a
+// key still refused stays on the list, a key gone comes off, and an empty list becomes '1'. The list
+// names the exact keys, so data that arrives under a legacy name later is never swept up with them.
+
+/** A one-shot migration flag's value once nothing is left to tidy. */
+const _FLAG_DONE = '1';
+
+/**
+ * Record a migration as finished: '1', or the list of source keys that would not be removed.
+ * @param {string} flagKey
+ * @param {string[]} leftovers source keys whose value is safely elsewhere but which are still present
+ */
+function _settleFlag(flagKey, leftovers) {
+    lsSet(flagKey, leftovers.length ? JSON.stringify(leftovers) : _FLAG_DONE);
+}
+
+/**
+ * Try again to remove the leftover sources a finished migration listed in its flag (see above).
+ * Removes only — never copies, never writes anywhere but the flag. A listed key `mayRemove` refuses
+ * is dropped from the list untouched: it is no longer a source, so it is not this function's to
+ * delete. A flag of '1', an absent flag or an unreadable value is left alone.
+ * @param {string} flagKey
+ * @param {(key: string) => boolean} mayRemove
+ */
+function _tidyLeftovers(flagKey, mayRemove) {
+    const raw = lsGet(flagKey);
+    if (!raw || raw === _FLAG_DONE) return;
+    /** @type {unknown} */
+    let listed;
+    try { listed = JSON.parse(raw); } catch { return; }
+    if (!Array.isArray(listed)) return;
+    const still = listed.filter(k => typeof k === 'string' && mayRemove(k) && !lsDelVerified(k));
+    if (still.length !== listed.length) _settleFlag(flagKey, still);   // unchanged → no write
+}
+
 // ── KEY MIGRATION ─────────────────────────────────────────────────────────────
 // Renames all cea_ prefixed localStorage keys to myb_pc_ in one pass.
-// Idempotent: guarded by myb_pc_cea_migrated flag so it runs once per device.
+// Guarded by the myb_pc_cea_migrated flag: it COPIES once per device, and a later load only tidies
+// a source that would not be removed (_tidyLeftovers). Nothing writes a cea_ key any more, so a
+// listed one is always safe to remove — its value reached myb_pc_ on the load that listed it.
 /** @param {{ getPeriods: Function }} deps */
 function _migrateCeaKeys({ getPeriods }) {
-    if (lsGet('myb_pc_cea_migrated')) return;
+    if (lsGet('myb_pc_cea_migrated')) { _tidyLeftovers('myb_pc_cea_migrated', k => k.startsWith('cea_')); return; }
 
-    // Every failed move is counted, and the completion flag is withheld if there were any (v21.86).
+    // Every failed copy is counted, and the completion flag is withheld if there were any (v21.86).
     // The old form was `lsSet(newKey, val); lsDel(oldKey);` — and `lsSet` swallows a storage error
     // by design, so a write that failed was indistinguishable from one that worked. The delete then
     // destroyed the only copy, and the flag below made sure it was never retried. An external audit
     // reproduced exactly that against `cea_code`: old key gone, new key absent, migration recorded
     // as complete. `lsMove` deletes only after reading the destination back.
     let _failed = 0;
+    /** @type {string[]} */
+    const _leftovers = [];
     const migrate = (/** @type {string} */ oldKey, /** @type {string} */ newKey) => {
         const val = lsGet(oldKey);
         if (val === null) return;                                  // nothing here to move
-        // Destination already holds a value: a retry of a move whose source would not go (lsMove). Only the
-        // source is removed — never written over the destination — and a source that still will not go is
-        // counted, so the completion flag waits for a load where it does.
-        if (lsGet(newKey) !== null) { if (!lsDelVerified(oldKey)) _failed++; return; }
-        if (!lsMove(oldKey, newKey, val)) _failed++;               // keeps BOTH sides on failure
+        // Destination already holds a value (an older copy): never written over. Only the source is
+        // removed, and one that will not go is a leftover, not a failure.
+        if (lsGet(newKey) !== null) { if (!lsDelVerified(oldKey)) _leftovers.push(oldKey); return; }
+        if (lsMove(oldKey, newKey, val)) return;
+        // lsMove keeps BOTH sides when it cannot finish; which half failed decides what happens next.
+        if (lsGet(newKey) === val) _leftovers.push(oldKey);       // copy landed; the source would not go
+        else _failed++;                                            // copy did not land: retry next load
     };
 
     // Fixed single keys
@@ -353,10 +405,12 @@ function _migrateCeaKeys({ getPeriods }) {
         migrate(`cea_ytd_tax_${slug}`,    `myb_pc_ytd_tax_${slug}`);
     });
 
-    // Only claim the migration is done if every key actually moved. A device that could not write
+    // Only claim the migration is done if every value actually arrived. A device that could not write
     // (private mode, a full quota) retries on the next load with its data still intact, which is
-    // the entire difference between a deferred migration and a lost tax code.
-    if (_failed === 0) lsSet('myb_pc_cea_migrated', '1');
+    // the entire difference between a deferred migration and a lost tax code. A source that would not
+    // go is NOT a reason to copy again: a re-run would put back a value the member has since deleted
+    // (the ownership prompt's "No — delete it" clears myb_pc_code), so it is listed instead.
+    if (_failed === 0) _settleFlag('myb_pc_cea_migrated', _leftovers);
     else console.warn(`[paycalc] CEA key migration deferred — ${_failed} value(s) could not be stored; nothing was deleted`);
 }
 
@@ -367,14 +421,23 @@ function _migrateCeaKeys({ getPeriods }) {
 // So runMigrations only ACTIVATES the member's namespace; the shared data is left in
 // place until the member explicitly resolves ownership via resolveLegacyMigration
 // ('mine' → move it into their namespace; 'fresh' → discard it). The device flag
-// myb_pc_ns_migrated is set on resolution, so the prompt appears at most once.
+// myb_pc_ns_migrated is set on resolution, so the prompt appears at most once — set once every value
+// has REACHED the namespace, whether or not each legacy source would go. A source that stayed is
+// listed in the flag and removed quietly on a later load (_tidyLeftovers); it is never offered to
+// anyone again, because on a shared device the next person asked would be offered the data the first
+// one had already claimed.
 
-/** True when the device holds genuinely-unnamespaced legacy paycalc data — a key with NO
- *  known-member slug segment (and not a device key). Another member's namespaced data
- *  (owner = their slug) is explicitly NOT legacy, so it never triggers the prompt. */
+/** True for a genuinely-unnamespaced legacy paycalc key — a `myb_pc_` key with NO member-slug
+ *  segment that is not a device key. Another member's namespaced data (owner = their slug) is
+ *  explicitly NOT legacy, so it is never offered, moved or cleared.
+ *  @param {string} k @returns {boolean} */
+function _isLegacyPayKey(k) {
+    return k.startsWith('myb_pc_') && !DEVICE_KEYS.has(k) && keyOwnerSlug(k) === null;
+}
+
+/** True when the device holds genuinely-unnamespaced legacy paycalc data (_isLegacyPayKey). */
 function _hasUnnamespacedPaycalcData() {
-    return lsKeys().some(k =>
-        k.startsWith('myb_pc_') && !DEVICE_KEYS.has(k) && keyOwnerSlug(k) === null);
+    return lsKeys().some(_isLegacyPayKey);
 }
 
 /** Move only genuinely-unnamespaced legacy keys into memberName's namespace. Keys owned by
@@ -385,35 +448,39 @@ function _hasUnnamespacedPaycalcData() {
  *  with a tax code: `myb_pc_code` gone, the member-namespaced replacement absent, the prompt
  *  suppressed for good. Now a key that cannot be moved is LEFT WHERE IT IS, and the caller is told,
  *  so the prompt returns next time rather than the data disappearing.
+ *
+ *  A COPY THAT LANDED is not a failure, even when its source would not go (review of v26.95): the
+ *  value is in this member's namespace, so `ok` stays true and the source is returned as a leftover
+ *  for the caller to list. Counting it as a failure withheld the flag, and the NEXT member to sign in
+ *  on the phone was asked about — and could copy into their own namespace — data already claimed.
  *  @param {string|undefined} memberName
- *  @returns {boolean} true only if every legacy key reached the namespace */
+ *  @returns {{ ok: boolean, leftovers: string[] }} `ok` true only if every legacy value reached the
+ *    namespace; `leftovers` the legacy sources still present beside a copy that did */
 function _moveLegacyToNamespace(memberName) {
     const seg = memberSlug(memberName);
-    if (!seg) return false;
+    /** @type {string[]} */
+    const leftovers = [];
+    if (!seg) return { ok: false, leftovers };
     const nsPrefix = `myb_pc_${seg}_`;
     let ok = true;
     lsKeys().forEach(k => {                       // lsKeys() is a copy — safe to mutate in loop
-        if (!k.startsWith('myb_pc_')) return;
-        if (DEVICE_KEYS.has(k)) return;
-        if (keyOwnerSlug(k) !== null) return;    // belongs to a member — never move it
+        if (!_isLegacyPayKey(k)) return;          // a device key, or a member's — never move it
         const newKey = nsPrefix + k.slice('myb_pc_'.length);
         const val = lsGet(k);
         if (val === null) { lsDel(k); return; }               // empty — nothing to lose
-        if (lsGet(newKey) !== null) { if (!lsDelVerified(k)) ok = false; return; }   // populated: only the source goes
-        if (!lsMove(k, newKey, val)) ok = false;              // keeps BOTH sides on failure
+        if (lsGet(newKey) !== null) { if (!lsDelVerified(k)) leftovers.push(k); return; }   // populated: only the source goes
+        if (lsMove(k, newKey, val)) return;
+        if (lsGet(newKey) === val) leftovers.push(k);         // copy landed; the source would not go
+        else ok = false;                                      // copy did not land — BOTH sides kept
     });
-    return ok;
+    return { ok, leftovers };
 }
 
 /** Delete only genuinely-unnamespaced legacy keys. Every member's namespaced data (the
- *  current member AND any other member on a shared device) is preserved. 'fresh' choice. */
+ *  current member AND any other member on a shared device) is preserved. 'fresh' choice.
+ *  @returns {string[]} the legacy keys that would not be removed, for the flag to list */
 function _clearLegacyData() {
-    lsKeys().forEach(k => {
-        if (!k.startsWith('myb_pc_')) return;
-        if (DEVICE_KEYS.has(k)) return;
-        if (keyOwnerSlug(k) !== null) return;    // belongs to a member — keep it
-        lsDel(k);
-    });
+    return lsKeys().filter(k => _isLegacyPayKey(k) && !lsDelVerified(k));
 }
 
 /** True when a logged-in member should be asked whether the device's shared paycalc
@@ -427,19 +494,26 @@ export function hasPendingLegacyMigration(memberName) {
 
 /** Resolve the shared-data ownership prompt. 'mine' moves the data into memberName's
  *  namespace; 'fresh' discards it. Either way the namespace is (re)activated and the
- *  one-shot guard is set so the prompt never reappears.
+ *  one-shot guard is set so the prompt never reappears. Once it is set, a further call only
+ *  activates the namespace — it moves and deletes nothing.
  *  @param {string|undefined} memberName @param {'mine'|'fresh'} choice */
 export function resolveLegacyMigration(memberName, choice) {
-    let moved = true;
-    if (choice === 'mine') moved = _moveLegacyToNamespace(memberName);
-    else if (choice === 'fresh') _clearLegacyData();
-    else return;                                  // unknown choice — leave undecided
+    if (choice !== 'mine' && choice !== 'fresh') return;   // unknown choice — leave undecided
+    // ANSWERED ONCE, FOR THE DEVICE. A prompt left open in a stale tab, or any caller that did not ask
+    // hasPendingLegacyMigration first, must not move legacy data a member has already claimed — the
+    // sources a landed copy left behind are still under their legacy names — into a second namespace.
+    if (lsGet('myb_pc_ns_migrated')) { setPaycalcNamespace(memberName); return; }
+    const { ok: moved, leftovers } = choice === 'mine'
+        ? _moveLegacyToNamespace(memberName)
+        : { ok: true, leftovers: _clearLegacyData() };   // 'fresh'
     setPaycalcNamespace(memberName);
-    // The one-shot guard is withheld when a move failed, so the member is asked again on a device
+    // The one-shot guard is withheld when a COPY failed, so the member is asked again on a device
     // where storage was momentarily unwritable — rather than the question being closed for ever
     // over data that never arrived. 'fresh' always sets it: a delete that fails leaves the data
     // there, which is the safe direction, and re-asking would be the annoyance without the risk.
-    if (moved) lsSet('myb_pc_ns_migrated', '1');
+    // A source that would not go never withholds it: the flag lists it, and runMigrations removes
+    // it on a later load without asking anybody (_tidyLeftovers).
+    if (moved) _settleFlag('myb_pc_ns_migrated', leftovers);
     else console.warn('[paycalc] namespace migration deferred — some values could not be stored; nothing was deleted');
 }
 
@@ -558,6 +632,9 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     // pre-existing shared data is NOT silently claimed (it might be another member's on a
     // shared device). paycalc-app.js calls hasPendingLegacyMigration() after load and, if
     // true, prompts the member to resolve ownership via resolveLegacyMigration().
+    // A question already answered may have left legacy sources that would not go: they are only
+    // removed here, never offered or copied again — whoever is signed in (_tidyLeftovers).
+    _tidyLeftovers('myb_pc_ns_migrated', _isLegacyPayKey);
     const _nsMember = getLoggedMember();
     setPaycalcNamespace(_nsMember?.name);
 

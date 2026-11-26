@@ -720,7 +720,8 @@ function isPayCutoffDay(date) {
     // Cutoff is 6 days before payday (Saturday before a Friday)
     const candidate = dayNoonUtc + 6 * MS_PER_DAY;
     const diff = candidate - FIRST_PAYDAY_MS;
-    // Use abs so the cycle is detected in both directions from the anchor (before it too).
+    // Use abs so the cycle is detected in both directions from the anchor (before it too): a
+    // `diff < 0` guard wrongly excluded the cut-off 6 days before a payday one cycle before the anchor.
     return Math.round(Math.abs(diff) / MS_PER_DAY) % INTERVAL_DAYS === 0;
 }
 

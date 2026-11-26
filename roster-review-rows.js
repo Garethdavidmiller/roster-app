@@ -76,7 +76,7 @@ export function reviewRow({ key, s, date, dayName, dateStr, shiftDisplay, manual
             <div class="roster-chg-vals">
                 <span class="roster-from-val">${manualShiftDisplay(s)}</span>
                 <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.baseShift, date)}</span>
-                <span class="roster-remove-note">${s.christmas ? CHRISTMAS_NOTE : 'Earlier upload’s hours — this roster shows the normal shift'}</span>
+                <span class="roster-remove-note">${s.christmas ? CHRISTMAS_NOTE : 'Earlier upload’s entry — this roster shows the normal day'}</span>
             </div>
             <span class="roster-act act-clear">Back to normal</span>`;
     } else if (s.state === 'GUARDED') {

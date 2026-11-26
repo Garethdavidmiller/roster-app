@@ -211,7 +211,7 @@ describe('overrides', () => {
     //
     // `firestore.rules` currently carries a `allow read;` line ABOVE the tightened rule, holding
     // this collection public until the client that can satisfy the tightened rule has soaked in
-    // production (RECOVERY_RUNBOOK.md → "The Calendar PIN"; the three deploy workflows fire in
+    // production (RECOVERY_RUNBOOK.md → "The staff PIN (retired)"; the three deploy workflows fire in
     // parallel, so the ordering has to be made by hand).
     //
     // This constant states which of the two is deployed, and the three tests below assert the

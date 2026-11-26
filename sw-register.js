@@ -37,6 +37,28 @@ import { backgroundWritesInFlight } from './claim-retry.js';
 // the write and has nothing to wait for — and with nothing on its way every path is what it was.
 const backgroundWriteOnItsWay = () => backgroundWritesInFlight() > 0;
 
+// ── A NOTIFICATION TAP IS TAKING THIS PAGE SOMEWHERE: NO UPDATE RELOAD UNTIL IT HAS GONE ─────────
+//
+// A reload started while a page load is on its way CANCELS that load, and the browser stays where it
+// was. On Android a tap usually wakes a backgrounded PWA that a release claimed while it slept, so the
+// woken page's update reload (the Calendar's 500ms timer, or a page's default reload) fired while the
+// tap's `navigate()` to Pay, Operations or Trains was still loading — and the member landed on the
+// Calendar instead (owner, 26 Nov 2026: "it almost always takes me to the calendar"). The page that
+// loads is served by the new worker anyway, so the update loses nothing by waiting.
+//
+// So once this page has told a tap it is free to go (answerNotificationTaps), or the member has said
+// "Open it", or the page is unloading (`pagehide`, not into the back-forward cache), every update
+// reload this file makes holds: for `LEAVE_HOLD_MS`, after which a tap that never arrived (a
+// navigate() that failed and opened a new window instead) leaves the held reload to the next hide.
+const LEAVE_HOLD_MS = 10_000;
+let _leavingUntil = 0;
+/** This page is on its way somewhere else. @param {number} [ms] */
+const markLeaving = (ms = LEAVE_HOLD_MS) => { _leavingUntil = Math.max(_leavingUntil, Date.now() + ms); };
+/** True while a reload would cancel the trip this page is taking. */
+const leaving = () => Date.now() < _leavingUntil;
+/** Every update reload asks this: a write no page started still on its way, or this page leaving. */
+const holdUpdateReload = () => backgroundWriteOnItsWay() || leaving();
+
 // Once-per-page-life guard (v16.23): coordinators whose init() can be RE-INVOKED (the in-place
 // sign-in re-entry on operations/links/paycalc) must not stack a second controllerchange handler
 // + a second hourly update interval — each registration call wired its own set.
@@ -54,7 +76,7 @@ let _controllerListenerAttached = false;
 let _tapListenerAttached = false;
 
 /** TEST-ONLY: reset the once-per-page-life guards between test cases. */
-export function _resetForTest() { _registered = false; _controllerListenerAttached = false; _tapListenerAttached = false; _hiddenReloadArmed = false; _busyReloadArmed = false; _updateClaimed = false; }
+export function _resetForTest() { _leavingUntil = 0; _registered = false; _controllerListenerAttached = false; _tapListenerAttached = false; _hiddenReloadArmed = false; _busyReloadArmed = false; _updateClaimed = false; }
 
 // A newer release has taken control of this page (a genuine update, not the first-install claim).
 // While its reload is held — `deferWhileVisible`, a declined confirm — the new worker serves the
@@ -89,7 +111,7 @@ export function hasPendingUpdate() { return _updateClaimed; }
 export async function lazyImport(load) {
     try { return await load(); }
     catch (err) {
-        if (_updateClaimed && !backgroundWriteOnItsWay()) { markUpdateReload(); try { window.location.reload(); } catch { /* nothing more to do */ } }
+        if (_updateClaimed && !holdUpdateReload()) { markUpdateReload(); try { window.location.reload(); } catch { /* nothing more to do */ } }
         throw err;
     }
 }
@@ -139,7 +161,7 @@ let _hiddenReloadArmed = false;
  */
 export function reloadWhileHidden(reload = () => window.location.reload()) {
     // Nobody looking, and nothing still on its way — asked now, and again at every hide.
-    const clear = () => document.visibilityState === 'hidden' && !backgroundWriteOnItsWay();
+    const clear = () => document.visibilityState === 'hidden' && !holdUpdateReload();
     // Stamped as the reload actually runs (the marker's note, above): on the re-armed path that can be
     // hours after the update arrived, and perf-reporter compares it with when the next load started.
     if (clear()) { markUpdateReload(); reload(); return; }
@@ -165,7 +187,7 @@ export function reloadWhileHidden(reload = () => window.location.reload()) {
  * @param {() => void} [reload]
  */
 export function reloadWhenNotBusy(isBusy, reload = () => window.location.reload()) {
-    const busy = () => backgroundWriteOnItsWay() || isBusy();
+    const busy = () => holdUpdateReload() || isBusy();
     if (!busy()) { markUpdateReload(); reload(); return; }
     if (_busyReloadArmed) return;   // one armed reload serves every update that arrives while busy
     _busyReloadArmed = true;
@@ -215,11 +237,14 @@ export function reloadForUpdate(reload = () => window.location.reload()) {
  * @param {(() => boolean)|undefined} isBusy  the same predicate the page's update reload waits on
  */
 function answerNotificationTaps(isBusy) {
+    // Unloading for good (not into the back-forward cache): a reload now would replace wherever it is going.
+    window.addEventListener('pagehide', (/** @type {any} */ e) => { if (!e?.persisted) markLeaving(); });
     navigator.serviceWorker.addEventListener('message', (e) => {
         const data = /** @type {any} */ (e.data) || {};
         if (data.type === 'myb-busy?' && e.ports && e.ports[0]) {
             let busy;
             try { busy = backgroundWriteOnItsWay() || !!isBusy?.(); } catch { busy = true; }   // a predicate that throws must not cost work
+            if (!busy) markLeaving();   // the worker navigates this page next: no update reload may cancel it
             e.ports[0].postMessage({ busy });
         } else if (data.type === 'myb-open-later' && typeof data.url === 'string') {
             const url = new URL(data.url, location.href);
@@ -228,7 +253,7 @@ function answerNotificationTaps(isBusy) {
             // nothing is lost — so it goes straight through. The 🙋 reset-request notice tapped while
             // Operations reviews an upload was being told it would "open another page".
             const samePage = url.pathname === location.pathname && url.search === location.search;
-            if (samePage && url.hash && url.hash !== location.hash) { location.href = url.href; return; }
+            if (samePage && url.hash && url.hash !== location.hash) { markLeaving(); location.href = url.href; return; }
             // THE ANSWER IS A LEAVE, AND IT DOES WHAT IT SAYS (confirm review, Nov 2026). Two things went wrong
             // after "Open it": page-session was never told the question had been answered, so the browser's own
             // "Leave site?" asked a second time on a desktop and a draft was kept of the work the member had just
@@ -241,7 +266,7 @@ function answerNotificationTaps(isBusy) {
                 title: 'Open the notification?',
                 message: 'This page has unsaved changes, or a change still on its way to the server. If you open the notification now, they may be lost.',
                 confirmLabel: samePage ? 'Reload' : 'Open it', cancelLabel: 'Stay here', danger: true,
-            })).then(ok => { if (!ok) return; window.dispatchEvent(new Event('myb-leave-answered')); go(); })
+            })).then(ok => { if (!ok) return; window.dispatchEvent(new Event('myb-leave-answered')); markLeaving(); go(); })
               .catch(err => console.warn('[sw-register] could not offer the notification\'s page:', err));
         }
     });

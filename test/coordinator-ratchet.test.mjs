@@ -575,8 +575,8 @@ const CAPS = {
     // is putting Overtime into words is where that belongs. Twelve lines of room, no bank.
     // 1030 → 950 at the v24.28 review: measured 888, so the old ceiling had banked 142 lines of
     // headroom the file never needed — the loosening the v21.87 note above refuses.
-    // 950 → 750 (26 Nov 2026): comments trimmed, the cap follows the file down.
-    'overtime-format.js':       750,   // ← 1070 until v23.69, when the CLOCK left for overtime-clock.js.
+    // 950 → 800 (26 Nov 2026): comments trimmed; measured 747, plus 50, rounded up to the next 50.
+    'overtime-format.js':       800,   // ← 1070 until v23.69, when the CLOCK left for overtime-clock.js.
                                        //   The words are the seam if this needs raising again
     // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
     // above says must be argued rather than assumed. The growth is the same-week read guard from
@@ -701,8 +701,8 @@ const CAPS = {
     'functions/roster-parse-helpers.js':  990,   // ← 1,351 when capped (1,312 in Nov 2026), named "helpers", and the
                                                  //   day-drift defence is among them. The clearest
                                                  //   candidate in this block for a rule to leave.
-    // 1400 → 1200 (26 Nov 2026): comments trimmed, the cap follows the file down.
-    'functions/overtime.js':             1200,   // the Overtime endpoints + Firestore orchestration
+    // 1400 → 1250 (26 Nov 2026): comments trimmed; measured 1,199, plus 50, rounded up to the next 50.
+    'functions/overtime.js':             1250,   // the Overtime endpoints + Firestore orchestration
     // SPLIT at v24.14, at 1,150 of 1,150 — the ZERO-HEADROOM state this file's own header names as
     // the point where a guard stops being read and starts being raised. The London clock and the
     // ISO-date algebra left for functions/london-clock.js: 1,150 measured lines down to 1,076.
@@ -717,7 +717,8 @@ const CAPS = {
     // up to the next 50 is 1,150 for a 1,076-line file. The point of the split was never the number.
     // It was the headroom, which goes from 0 to 74 — back inside the 50–99 band this file's header
     // says every capped module is owed, so the next one-line Overtime fix no longer fails here.
-    'functions/overtime-core.js':        1150,   // every Overtime RULE, already pure and tested
+    // 1150 → 1000 (26 Nov 2026): comments trimmed; measured 950, plus 50, rounded up to the next 50.
+    'functions/overtime-core.js':        1000,   // every Overtime RULE, already pure and tested
     // Stays at 1100 in Nov 2026 (review fixes), measured 1,048 from 1,097: the throttle sweep left for
     // functions/pin-lockout.js with the PIN lockout's alert, and the streamed body reader for
     // request-helpers.js, so the alert's hook landed with headroom to spare rather than a raise.

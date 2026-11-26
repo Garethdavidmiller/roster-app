@@ -964,7 +964,7 @@ describe('ensureFirebaseSession identity tracking', () => {
     });
 
     test('gated dual-attempt: a NETWORK failure on the default stops there — the typed value is not sent behind it', async () => {
-        // §3.2's other half: the second attempt follows only a definitive rejection.
+        // The other half of AUTH_AND_SESSIONS.md → "The gated dual-attempt": the second attempt follows only a definitive rejection.
         _signInCalls = 0; _signInPasswords = [];
         _signInBehavior = 'auth/network-request-failed';
         const ok = await ensureFirebaseSession('G. Miller', undefined, 'Miller');

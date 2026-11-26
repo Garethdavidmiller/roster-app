@@ -130,6 +130,16 @@ export const ENABLE_FAILED_LINE = 'Couldn’t turn notifications on. Check your 
 /** The main address, where the Pages mirror sends a member to turn notifications on (owner, 26 Nov 2026). */
 export const MAIN_ADDRESS = Object.freeze({ href: 'https://myb-roster.web.app/', text: 'myb-roster.web.app' });
 
+/** What an OFF card on the Pages mirror says, either side of its link to `MAIN_ADDRESS` (`notifCardWords`). */
+const MIRROR_OFF_LEAD = 'This is the app’s older address, which will close. Turn notifications on at ';
+const MIRROR_OFF_TAIL = ' instead.';
+/**
+ * The same sentence as plain text, the address written out where the card has its link: what the drawer's bell
+ * says in its info panel when it is tapped OFF on the mirror (nav-bell.js), which draws text, not links. One
+ * sentence, two surfaces — built from the card's own two halves, so the bell cannot drift from the card.
+ */
+export const MIRROR_OFF_LINE = MIRROR_OFF_LEAD + MAIN_ADDRESS.text + MIRROR_OFF_TAIL;
+
 /**
  * What the card says for this device in this state.
  *
@@ -177,8 +187,7 @@ export function notifCardWords(d) {
         // a to-do this page refuses. A BLOCKED card keeps its steps below: they say where the
         // permission lives, which is true on either address.
         return { report: 'n/a', chip: 'Off', button: null, steps: null, kinds: 'shown',
-            status: 'This is the app’s older address, which will close. Turn notifications on at ',
-            link: { ...MAIN_ADDRESS, tail: ' instead.' } };
+            status: MIRROR_OFF_LEAD, link: { ...MAIN_ADDRESS, tail: MIRROR_OFF_TAIL } };
     }
     if (d.state === 'off-lapsed') {
         return { report: 'action', chip: 'Off', button: 'enable', steps: null, kinds: 'shown',

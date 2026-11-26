@@ -22,7 +22,7 @@ import { MONTH_NAMES } from './date-format.js';
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
 // ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js.
-//     NOTHING here moves by hand (.claude/rules/paycalc.md → "The tax year rollover"):
+//     NOTHING here moves by hand (docs/PAYCALC_REFERENCE.md → "The tax year rollover"):
 //   · LAST_OFFSET is the last tax year's last payslip, READ from TAX_YEARS, so a new year is offered.
 //   · ANCHOR_DATE never moves. Every payslip a member saves is keyed by its number, `48 + offset`
 //     (getPeriods), so a new anchor would silently re-date every saved entry.

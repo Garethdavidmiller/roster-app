@@ -944,6 +944,7 @@ const _passwordForceSettled = new Promise(resolve => { _resolvePasswordForce = r
  *     identity WITHOUT feeding the auth store, so `authStatus` would read unresolved, the gate would
  *     refuse, and the marker — consumed before the gate on purpose — would be gone for good. For a
  *     member already current it is a local check, no network.
+ * Never rejects: the overlay fails open by design, and the notices queue behind this promise.
  * @returns {Promise<boolean>}
  */
 async function _runPasswordForce() {
