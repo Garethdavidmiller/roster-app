@@ -1667,6 +1667,36 @@ describe('15 · move to the main address: only on the GitHub Pages copy, after t
         assert.match(filed.body, /myb-roster\.web\.app/);
     });
 
+    // A COPY FILED UNDER THE OLD WORDS IS CORRECTED FOR ITS READER (review of v26.94). Before v26.94 every reader's
+    // record carried the pay paragraph, and `moveRecord(pay)` reached only copies filed after it. The words depend on
+    // who reads, and a front-door sign-in has no session at wiring time, so the correction waits for access — and for
+    // a member it can name. It runs whether or not the notice is still due (its done flag set here), as the record
+    // outlives the notice.
+    test('an archived copy is revised to this reader\'s words once access is decided — never before, never for nobody', async () => {
+        const notPriced = teamMembers.find(m => !m.hidden && !payCalcFor({ name: m.name }))?.name;
+        assert.ok(notPriced, 'precondition: the roster has somebody the Pay page does not price');
+        assert.ok(payCalcFor({ name: 'G. Miller' }), 'precondition: G. Miller is somebody the Pay page prices');
+        const moveRevisions = () => _revised.filter(r => r.id === 'move-to-main-2026');
+        for (const [name, pay] of /** @type {const} */ ([[notPriced, false], ['G. Miller', true]])) {
+            mock.timers.setTime(NOV_27);
+            await wire({ ...ON_MIRROR, session: { name }, store: { ...AFTER_TIMETABLE, [DONE]: '1' } });
+            assert.deepEqual(moveRevisions(), [], `${name}: not at wiring time, when a front-door sign-in has no session`);
+            await settleAccess();
+            const [r] = moveRevisions();
+            assert.equal(moveRevisions().length, 1, `${name}: revised once`);
+            assert.equal(opened(), undefined, 'premise: the notice itself is done and did not open');
+            assert.equal(r.date, '26 Nov 2026', 'the date the archived copy carries, which `reviseArchivedNotice` matches on');
+            assert.equal(/pay/i.test(r.body), pay, `${name}: "${r.body}"`);
+        }
+        // Nobody to name — a locked page, or a member grant whose session cannot be read: the record is left alone,
+        // rather than stripped of a priced member's pay words.
+        for (const [what, extra] of /** @type {const} */ ([['no access', { accessType: 'none' }], ['no session', { session: null }]])) {
+            await wire({ ...ON_MIRROR, ...extra, store: { ...AFTER_TIMETABLE, [DONE]: '1' } });
+            await settleAccess();
+            assert.deepEqual(moveRevisions(), [], `${what}: nothing revised`);
+        }
+    });
+
     test('a member the Pay page prices is told, and told WHERE to restore — never "there"', async () => {
         mock.timers.setTime(NOV_27);
         await wire(ON_MIRROR);
