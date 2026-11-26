@@ -172,8 +172,9 @@ describe('getNotifState', () => {
         setupEnv({ permission: 'default' });
         assert.equal(await getNotifState(), 'off-default');
     });
-    test('granted but no active subscription → "off-lapsed"', async () => {
+    test('granted but no active subscription, on a device that once subscribed → "off-lapsed"', async () => {
         setupEnv({ permission: 'granted', hasSub: false });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7');   // the fingerprint a subscribe leaves behind
         assert.equal(await getNotifState(), 'off-lapsed');
     });
     test('granted with a current-fingerprint subscription → "on", throttled re-save writes once', async () => {
@@ -281,8 +282,9 @@ describe('peekNotifState (no side effects)', () => {
         assert.equal(_saveCalls, 0, 'peek never writes');
         assert.equal(_ls.get('myb_vapid_ver'), 'STALE_FINGER', 'peek never runs the rotation migration');
     });
-    test('granted + no sub → "off-lapsed"; denied → "denied"; default → "off-default"', async () => {
+    test('granted + no sub on a device that once subscribed → "off-lapsed"; denied → "denied"; default → "off-default"', async () => {
         setupEnv({ permission: 'granted', hasSub: false });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7');
         assert.equal(await peekNotifState(), 'off-lapsed');
         setupEnv({ permission: 'denied' });
         assert.equal(await peekNotifState(), 'denied');
@@ -432,6 +434,58 @@ describe('a deliberate Disable is remembered as a choice', () => {
     });
     test('a device that never chose is not reported as having chosen', () => {
         assert.equal(notifOffByChoice(), false);
+    });
+});
+
+// ── A DEVICE THAT NEVER SUBSCRIBED HERE HAS LOST NOTHING (owner, 26 Nov 2026) ─────────────────────
+// Granted + no subscription is also what a device looks like that was granted permission and never
+// subscribed (a turn-on that failed before its first save), and the card told that member their
+// notifications "have stopped". The VAPID fingerprint, written only once a subscription exists, is
+// the device's memory of having had one: absent → plain off; present → a lapse.
+describe('a device that never subscribed reads as off, not lapsed', () => {
+    test('granted, no subscription, no fingerprint → "off-default" from both reads', async () => {
+        setupEnv({ permission: 'granted', hasSub: false });
+        assert.equal(_ls.has('myb_vapid_ver'), false, 'premise: nothing was ever subscribed here');
+        assert.equal(await peekNotifState(), 'off-default');
+        assert.equal(await getNotifState(), 'off-default');
+    });
+    test('granted, no subscription, a fingerprint left by an earlier subscribe → "off-lapsed" from both reads', async () => {
+        setupEnv({ permission: 'granted', hasSub: false });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7');
+        assert.equal(await peekNotifState(), 'off-lapsed');
+        assert.equal(await getNotifState(), 'off-lapsed');
+    });
+    test('any fingerprint counts, even an old key\'s — it still says a subscription existed', async () => {
+        setupEnv({ permission: 'granted', hasSub: false });
+        _ls.set('myb_vapid_ver', 'STALE_FINGER');
+        assert.equal(await peekNotifState(), 'off-lapsed');
+    });
+    test('a turn-on whose save fails leaves no fingerprint, so the device still reads as never subscribed', async () => {
+        setupEnv({ permission: 'granted', subscribeFails: true });
+        assert.equal(await enableNotifications(), 'off-lapsed', 'the attempt itself reports its failure');
+        setupEnv({ permission: 'granted', hasSub: false });
+        assert.equal(await peekNotifState(), 'off-default', 'but the device lost nothing it ever had');
+    });
+    test('a successful turn-on writes the fingerprint, and a later loss is a lapse', async () => {
+        setupEnv({ permission: 'granted', hasSub: false });
+        assert.equal(await enableNotifications(), 'on');
+        assert.equal(_ls.get('myb_vapid_ver'), 'BDycpNlvciF7');
+        setupEnv({ permission: 'granted', hasSub: false });
+        assert.equal(await getNotifState(), 'off-lapsed');
+    });
+    test('a choice still wins over the fingerprint: turned off on purpose is "off-default"', async () => {
+        setupEnv({ permission: 'granted', hasSub: true });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7');
+        await disableNotifications();
+        setupEnv({ permission: 'granted', hasSub: false });
+        assert.equal(await peekNotifState(), 'off-default');
+    });
+    test('nothing in notif.js clears the fingerprint — sign-out\'s release keeps it', async () => {
+        setupEnv({ permission: 'granted', hasSub: true });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7');
+        await releaseDevicePush();
+        await disableNotifications();
+        assert.equal(_ls.get('myb_vapid_ver'), 'BDycpNlvciF7');
     });
 });
 

@@ -123,7 +123,12 @@ export const ENABLE_FAILED_LINE = 'Couldn’t turn notifications on. Check your 
  *   (`.nav-path`) and a tail
  * @property {'shown'|'after-install'|'hidden'} kinds  whether the card lists what it sends — never on a
  *   device that cannot get them, and as the installed app's on an iPhone that must install first
+ * @property {{ href: string, text: string, tail: string }} [link]  set only with a status that ends in a link:
+ *   the status is the text before it, then the link, then `tail`
  */
+
+/** The main address, where the Pages mirror sends a member to turn notifications on (owner, 26 Nov 2026). */
+export const MAIN_ADDRESS = Object.freeze({ href: 'https://myb-roster.web.app/', text: 'myb-roster.web.app' });
 
 /**
  * What the card says for this device in this state.
@@ -158,8 +163,22 @@ export function notifCardWords(d) {
     }
 
     if (d.state === 'on') {
+        // On the Pages mirror too: a member there can still turn them OFF (owner, 26 Nov 2026).
         return { report: 'ok', chip: '✓ On', button: 'disable', steps: null, kinds: 'shown',
-            status: 'Notifications are on for this device — you’ll get each alert listed above.' };
+            status: 'Notifications are on for this device — you’ll get each one listed above.' };
+    }
+    if (d.onMirror && d.state !== 'denied') {
+        // ── NOT TURNED ON AT THE ADDRESS THAT IS CLOSING (owner, 26 Nov 2026) ─────────────────────
+        // A subscription made on the GitHub Pages mirror belongs to the mirror's origin, which will
+        // close, and the member would then have to turn them on again at the main address — and
+        // until they turned these off, get each one twice. So an OFF card there offers no button and
+        // sends them to the main address. `n/a` to the summary: nothing here is the member's to do
+        // (the move notice and the Install card make that ask), and "Turn on notifications" would be
+        // a to-do this page refuses. A BLOCKED card keeps its steps below: they say where the
+        // permission lives, which is true on either address.
+        return { report: 'n/a', chip: 'Off', button: null, steps: null, kinds: 'shown',
+            status: 'This is the app’s older address, which will close. Turn notifications on at ',
+            link: { ...MAIN_ADDRESS, tail: ' instead.' } };
     }
     if (d.state === 'off-lapsed') {
         return { report: 'action', chip: 'Off', button: 'enable', steps: null, kinds: 'shown',
@@ -169,7 +188,7 @@ export function notifCardWords(d) {
         // BLOCKED, not off. The browser will not ask again, so the summary names it rather than
         // telling the member to tap Enable — and the card says where it IS fixed.
         return { report: 'blocked', chip: 'Blocked', button: null, kinds: 'shown',
-            status: 'Notifications are blocked on this device, so the button can’t turn them on. To allow them:',
+            status: 'Notifications are blocked on this device, so this page can’t turn them on. To allow them:',
             steps: blockedSteps(d) };
     }
     if (d.offByChoice) {
@@ -179,7 +198,7 @@ export function notifCardWords(d) {
             status: 'Notifications are off on this device. Select “Turn on notifications” to start them again.' };
     }
     return { report: 'action', chip: 'Off', button: 'enable', steps: null, kinds: 'shown',
-        status: 'Select “Turn on notifications” to get the alerts listed above.' };
+        status: 'Select “Turn on notifications” to get the ones listed above.' };
 }
 
 /**

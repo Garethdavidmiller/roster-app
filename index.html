@@ -295,7 +295,7 @@
                 <div class="notice-date">Posted 26 November 2026</div>
             </div>
             <div class="notice-main">
-                <p class="notice-body">You are using an older copy of Marylebone Roster at <strong class="notice-address">garethdavidmiller.github.io</strong>, which will close. The same app is at <strong class="notice-address">myb-roster.web.app</strong>: sign in there, add it to your home screen, and turn notifications on again in ☰&nbsp;then ⚙️&nbsp;Settings.</p>
+                <p class="notice-body">You are using an older copy of Marylebone Roster at <strong class="notice-address">garethdavidmiller.github.io</strong>, which will close. The same app is at <strong class="notice-address">myb-roster.web.app</strong>: sign in there, add it to your home screen, and turn notifications on there in ☰&nbsp;then ⚙️&nbsp;Settings. Then turn them off here, or you will get each one twice.</p>
                 <p class="notice-body">Pay Calculator figures do not move by themselves. First save a copy here with 💾&nbsp;Move Your Pay&nbsp;Data on the Pay page, then restore it on the main address.</p>
             </div>
             <div class="notice-actions">
@@ -623,7 +623,7 @@
              a member reads should be reviewable in the markup beside every other line they read. -->
         <div id="installPrompt" class="top-prompt" role="region" aria-label="Add to home screen" style="display:none">
             <span class="top-prompt-text"><span aria-hidden="true">📲</span> Add the roster to your home screen<span
-                id="installPromptSteps" class="top-prompt-steps" hidden>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong> (iOS 26 or later: Share is under <strong>•••</strong>)</span></span>
+                id="installPromptSteps" class="top-prompt-steps" hidden>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong> (iOS 26 or later: Share is under <strong>•••</strong>) — on an iPhone it’s also what lets notifications work.</span></span>
             <button type="button" class="top-prompt-action" id="installPromptAction" hidden>Install</button>
             <button type="button" class="top-prompt-dismiss" id="installPromptDismiss" aria-label="Dismiss">×</button>
         </div>
@@ -631,13 +631,15 @@
         <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled. Both of its
              lines live here, as the install strip's do: the offer, and what it says when the system
              said yes but notifications still could not be switched on (calendar-notif-prompt.js). The
-             offer names the pay reminder only to a member it is sent to, CEA and CES; everyone else is
-             offered the documents (17 Nov 2026) — the module shows one ending as it shows the strip. -->
+             offer names the pay reminder only to a member it is sent to, CEA and CES (17 Nov 2026) — the
+             module shows its ending as it shows the strip. It names the documents in the one wording
+             every surface uses, and says where to find it later, because "Not now" retires it for good
+             (owner, 26 Nov 2026). -->
         <div id="notifPrompt" class="top-prompt" role="region" aria-label="Notifications" style="display:none">
-            <span class="top-prompt-text" id="notifPromptOffer"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle<span id="notifPromptOfferDocs"> and other documents</span><span id="notifPromptOfferPay" hidden>, documents and pay reminders</span></span>
-            <span class="top-prompt-text" id="notifPromptFailed" hidden><span aria-hidden="true">🔔</span> <span id="notifPromptFailedLine">Couldn’t turn notifications on. Check your connection and tap Turn on to try again, or later in <span class="nav-path">☰ → Settings</span>.</span></span>
+            <span class="top-prompt-text" id="notifPromptOffer"><span aria-hidden="true">🔔</span> Get a notification for each new Daily Huddle, Circular and Newsletter<span id="notifPromptOfferPay" hidden>, and the pay reminder</span><span class="top-prompt-steps">Or later in <span class="nav-path">☰ then ⚙️ Settings</span></span></span>
+            <span class="top-prompt-text" id="notifPromptFailed" hidden><span aria-hidden="true">🔔</span> <span id="notifPromptFailedLine">Couldn’t turn notifications on. Check your connection and tap Turn on to try again, or later in <span class="nav-path">☰ then ⚙️ Settings</span>.</span></span>
             <button type="button" class="top-prompt-action" id="notifPromptEnable">Turn on</button>
-            <button type="button" class="top-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
+            <button type="button" class="top-prompt-later" id="notifPromptDismiss">Not now</button>
         </div>
 
         <!-- First-visit swipe hint — dismissed after any month navigation -->

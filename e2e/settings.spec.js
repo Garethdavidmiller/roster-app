@@ -6,7 +6,7 @@
  */
 import { test, expect, forcePasswordSet, withOtherStaff } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay, isTouchProject } from './helpers.js';
-import { teamMembers } from '../roster-data.js';
+import { teamMembers, CONFIG } from '../roster-data.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -1431,12 +1431,41 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
         expect(name, `premise: the roster has a current ${grade} member`).toBeTruthy();
         await settingsWithPush(page, /** @type {string} */ (name));
         await expect(page.locator('#notifToggleHeader .hint')).toHaveText(
-            gets ? 'Get alerts for staff updates and pay reminders' : 'Get alerts for staff updates', { useInnerText: true });
+            gets ? 'Get a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter, and the pay reminder'
+                : 'Get a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter', { useInnerText: true });
         await expect(page.locator('#notifKindPay')).toBeVisible({ visible: gets });
         // The status line points at the list, which is the member's own — so it never names the pay reminder.
-        await expect(page.locator('#notifStatusMsg')).toHaveText('Select “Turn on notifications” to get the alerts listed above.');
+        await expect(page.locator('#notifStatusMsg')).toHaveText('Select “Turn on notifications” to get the ones listed above.');
     });
 }
+
+// ── THE ADMIN'S OWN NOTIFICATIONS ARE LISTED TO THE ADMIN ALONE (owner, 26 Nov 2026) ─────────────────
+// Password reset is everybody's; Reset requests and the Error Log go to the admin's devices only
+// (functions/admin-recipients.js), so the card and its ? panel name them to the admin and nobody else.
+for (const isAdmin of [false, true]) {
+    test(`settings: Password reset is listed to everybody; Reset requests and the Error Log ${isAdmin ? 'to the admin' : 'not to a member'}`, async ({ page }) => {
+        const name = isAdmin ? CONFIG.ADMIN_NAMES[0]
+            : /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
+        await settingsWithPush(page, name);
+        await expect(page.locator('#notifKinds')).toContainText('Password reset');
+        await expect(page.locator('#notifKindResetRequests')).toBeVisible({ visible: isAdmin });
+        await expect(page.locator('#notifKindErrorLog')).toBeVisible({ visible: isAdmin });
+        await page.locator('#notificationsCard .btn-card-tips').click();
+        const tips = page.locator('#tipsLbBody');
+        await expect(tips).toContainText('Password reset');
+        await expect(tips.getByText('Reset requests')).toHaveCount(isAdmin ? 1 : 0);
+        await expect(tips.getByText('Error Log')).toHaveCount(isAdmin ? 1 : 0);
+    });
+}
+
+// THE BLOCKED STEPS ARE READ OUT (owner, 26 Nov 2026): they sat outside the card's live region, so a screen reader
+// heard "To allow them:" and nothing after it.
+test('settings: the blocked steps are inside the same live region as the status line', async ({ page }) => {
+    await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied' });
+    for (const id of ['notifStatusMsg', 'notifDeniedMsg']) {
+        expect(await page.locator(`#${id}`).evaluate(el => el.closest('[aria-live]')?.id), id).toBe('notifLive');
+    }
+});
 
 // THE INSTALLED APP HAS NO ADDRESS BAR (whole-app check, 17 Nov 2026). On Android the blocked route said "tap the padlock
 // in Chrome" — and the home screen app has no address bar to tap. There the permission is the app's own, in the phone's
@@ -1449,7 +1478,7 @@ for (const [where, installed, says] of /** @type {const} */ ([
     test(`settings: blocked on Android, ${where} is told the route that exists there`, async ({ page }) => {
         await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied', installed });
         await expect(page.locator('#notifDeniedMsg')).toHaveText(says);
-        await expect(page.locator('#notifStatusMsg')).toHaveText('Notifications are blocked on this device, so the button can’t turn them on. To allow them:');
+        await expect(page.locator('#notifStatusMsg')).toHaveText('Notifications are blocked on this device, so this page can’t turn them on. To allow them:');
     });
 }
 
@@ -1490,6 +1519,23 @@ test('settings: the drawer\'s bell, blocked, says where notifications are allowe
     await expect(bell).toHaveAttribute('data-notif-state', 'denied');
     await bell.click();
     await expect(page.locator('#navComingSoonBody')).toContainText('the bell can’t switch them on. ☰ → Settings → Notifications says how to allow them.');
+});
+
+// A BELL WHOSE TURN-ON FAILS SAYS SO (owner, 26 Nov 2026). Permission granted, and the subscription still not made —
+// here because the test browser runs no service worker, so notif.js gives up on it at its limit. The bell said nothing
+// and fell back to 🔕; it now names the direction while it works and then opens the drawer's info panel with the
+// Settings card's own failure line.
+test('settings: the drawer\'s bell says "turning on…" while it works, and why when the turn-on fails', async ({ page }) => {
+    test.setTimeout(60_000);
+    await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'granted' });
+    await page.locator('#navMenuBtn').click();
+    const bell = page.locator('#navNotifBell');
+    await expect(bell).not.toHaveAttribute('data-notif-state', 'loading', { timeout: 15_000 });   // the first read gives up on the worker too
+    await bell.click();
+    await expect(bell).toHaveAttribute('aria-label', 'Notifications — turning on…');
+    await expect(page.locator('#navComingSoonLightbox')).toHaveClass(/\bopen\b/, { timeout: 20_000 });
+    await expect(page.locator('#navComingSoonTitle')).toHaveText('Couldn’t turn notifications on');
+    await expect(page.locator('#navComingSoonBody')).toHaveText('Couldn’t turn notifications on. Check your connection and try again — if it keeps failing, contact the admin.');
 });
 
 // The blocked-notification route on a laptop (laptop polish, 13 Nov 2026): "Site settings → Notifications

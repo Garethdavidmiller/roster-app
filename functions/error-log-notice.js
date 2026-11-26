@@ -90,11 +90,14 @@ function summariseNewEntries(entries) {
  */
 function noticeWords({ errors, slowSaves, more }) {
     const open = 'Tap to open the Error Log.';
-    // A flood says so, unsplit: the counts cover only the first NOTICE_SCAN_LIMIT, and a split of part
-    // of a flood would read as the whole of it.
-    if (more) return { headline: `Error Log — ${NOTICE_SCAN_LIMIT}+ new`, body: `More than ${NOTICE_SCAN_LIMIT} new entries. ${open}` };
+    // Rule 3 FIRST, flood or not. Until 26 Nov 2026 the flood was answered before this count, so 101
+    // entries the admin had already RESOLVED rang the phone with "100+ new" — every one of them read.
     const total = errors + slowSaves;
     if (!(total > 0)) return null;
+    // A flood says so, unsplit: the counts cover only the first NOTICE_SCAN_LIMIT, and a split of part
+    // of a flood would read as the whole of it. "N+" from the UNRESOLVED count among them — "at least",
+    // never "more than": the entries past the limit are unread here, and may all be resolved.
+    if (more) return { headline: `Error Log — ${total}+ new`, body: `At least ${total} new entries. ${open}` };
     const parts = [];
     if (errors > 0) parts.push(`${errors} ${errors === 1 ? 'error' : 'errors'}`);
     if (slowSaves > 0) parts.push(`${slowSaves} ${slowSaves === 1 ? 'slow save' : 'slow saves'}`);

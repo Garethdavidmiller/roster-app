@@ -67,30 +67,32 @@ A new notifying feature: the checklist at the end.
 the Huddle is sent the **evening before** for the next day's plan, so **never** use day-relative words
 ("Today's", "Tomorrow's") — they are wrong by the time it is read. Use **"Latest"**:
 
-- Title: **`<emoji> Latest <Document Name>`**
-- Body: a calm "tap to read" line.
+- Title: **`<emoji> Latest <Document Name>`** — the document's full name, as the Operations card spells it.
+- Body: one plain sentence of what the document is, then "Tap to read it." — never a day-relative word.
 
 | | Title | Body |
 |---|-------|------|
-| Huddle | `📋 Latest Huddle` | `Tap to read the latest day plan.` |
-| Circular | `📰 Latest Retail Circular` | `Tap to read this week's retail update.` |
-| Newsletter | `🗞️ Latest Marylebone Newsletter` | `Tap to read the latest newsletter.` |
+| Huddle | `📋 Latest Daily Huddle` | `The plan for the day ahead. Tap to read it.` |
+| Circular | `📰 Latest Weekly Retail Circular` | `The latest retail update. Tap to read it.` |
+| Newsletter | `🗞️ Latest Marylebone Newsletter` | `News from around Marylebone. Tap to read it.` |
 
 **2. Event reminder** (pay, overtime, the reset queue, a password reset, the timetable) — a
 time-sensitive event. "Latest" does not apply; lead with the event and its urgency:
 
 - Title: **`<emoji> <Event> — <urgency>`**
-- Body: the concrete action.
+- Body: one plain sentence of fact, then a "Tap to …" action (owner, 26 Nov 2026) — the reset queue,
+  the password reset and the paused Overtime notices keep their words, which carry no tap clause.
 
 | | Title | Body |
 |---|-------|------|
-| Pay | `💷 Payday Friday — hours cut-off today` | `Open the Pay Calculator to estimate your 28 March pay.` |
+| Pay | `💷 Pay cut-off today — payday Friday` | `Shifts up to today are paid on 11 December. Tap to open the Pay Calculator.` |
 | Overtime asked | `⏱️ Overtime — availability form open` | `Tell the roster team when you can work. Answer by Tue 18 Aug · 12:00.` |
 | Overtime reminder | `⏱️ Overtime — answers due today` | `Initial answers for week ending Sat 5 Sep are due by 12:00 today.` |
-| Reset request | `🙋 Reset requests — 2 waiting` | `N. Surname asked for a reset. 1 other waiting.` |
+| Reset request | `🙋 Reset requests — 2 waiting` | `N. Surname asked for a password reset. 1 other waiting.` |
 | Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Sign in again, then choose your own.` |
-| Timetable change | `🚆 New timetable from Sunday` | `Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.` |
+| Timetable change | `🚆 Timetable — new times from Sunday` | `Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.` |
 | Error Log | `🐛 Error Log — 3 new` | `1 error and 2 slow saves. Tap to open the Error Log.` |
+| Error Log, a flood | `🐛 Error Log — 100+ new` | `At least 100 new entries. Tap to open the Error Log.` — the count is the UNRESOLVED entries among the first 100; all resolved sends nothing |
 | New link vote | `🔁 New link — vote coming soon` | `Have a look at the three proposals before voting starts. Tap to open New link.` |
 
 ## Who receives it — broadcast or targeted
@@ -218,7 +220,14 @@ check reads the lapse.
   **No exclamation marks** by default; no ALL-CAPS; no marketing voice.
 - **Exactly one emoji**, leading the title (the feature signature). Never emoji in the body, never
   emoji mid-sentence.
-- **Title Case** for the headline; second person where natural ("your pay", "tap to read").
+- **Sentence case** for the headline, with the app's proper nouns capitalised ("Daily Huddle",
+  "Error Log", "New link", "Pay Calculator") — owner, 26 Nov 2026; second person where natural
+  ("your password", "tap to read").
+- **Curly apostrophes** (’), never a straight one, as in all staff copy.
+- **One table holds every kind to these rules** — the push-copy block in
+  `test/documents-endpoints.test.mjs` builds each notification from its real sender or builder, at
+  its worst case, and checks the budgets, no clipping, no "!", no body emoji, no straight apostrophe
+  and a TTL for its tag. A new notification joins that table.
 
 ## Length budgets (truncation-safe)
 
@@ -231,7 +240,7 @@ hope — but write to fit; a clipped deadline is worse than none.
 ## How long a notice may wait (TTL)
 
 A push service holds a notice for a phone that is off, and web-push's default is FOUR WEEKS — long
-enough for "hours cut-off today" to arrive days late. Every send passes a TTL from `PUSH_TTL_BY_TAG`
+enough for "Pay cut-off today" to arrive days late. Every send passes a TTL from `PUSH_TTL_BY_TAG`
 (`functions/push.js`, via `pushSendOptions`): documents 36–72 h, pay and overtime 12 h, the reset
 queue 6 h, password-reset 7 days, the timetable reminder 30 h (not 24 h), the Error Log notice 24 h,
 the New link push 72 h, anything unlisted one day — each value's reason is its comment there. **A new
@@ -308,13 +317,20 @@ guarantees the leading emoji, the tag, and the scope-relative URL.
 5. Add its tag to `PUSH_TTL_BY_TAG` (above).
 6. Confirm against the length budgets and the no-exclamation tone rule. `sw-asset-check.test.mjs`
    checks the deep link's page is allowlisted, for both `hashPath` features and `url:`-at-call-time
-   ones — but only when the url is written as a `${STAFF_SITE_URL}/…` template literal.
+   ones — but only when the url is written as a `${STAFF_SITE_URL}/…` template literal. Add it to the
+   push-copy table (Voice & tone, above).
+7. Add it to what the member is told they will get — the Settings card's list and its ? tips (held
+   together by tips-content.test.mjs), the Calendar strip and the Staff Guide line if it goes to
+   everyone; an admin-only kind is shown only to the admin.
 
 ## VAPID fingerprint migration
 
 `notif.js` stores the first 12 characters of the VAPID public key in `localStorage('myb_vapid_ver')`
 (`VAPID_VER_KEY`). On a genuine key change — a NON-NULL stored fingerprint that differs — it silently
-unsubscribes and re-subscribes; an absent or unreadable fingerprint is simply re-recorded.
+unsubscribes and re-subscribes; an absent or unreadable fingerprint is simply re-recorded. **It is
+also the device's memory of ever having subscribed** (owner, 26 Nov 2026): granted permission with no
+subscription reads as a LAPSE (`off-lapsed`, "have stopped") only when a fingerprint is stored, and as
+plain off (`off-default`) when none is — so nothing may clear the key (`noSubState`).
 `fanOutPush` deletes a subscription ONLY on 410/404 (genuinely dead); a 401 is a VAPID-auth failure
 (server misconfiguration) and is logged, NOT deleted — deleting on 401 would wipe the whole
 collection on any VAPID key error (`functions/push.js` header).

@@ -305,7 +305,8 @@ function build({ seed = {}, objects = [], keys = {}, maxFileBytes = 20 * 1024 * 
     stub(storagePath, { getStorage: () => ({ bucket: () => stFake.bucket }) });
     stub(pushPath, {
         setupWebPush: () => {},
-        fanOutPush: async (/** @type {any} */ payload, /** @type {string} */ tag) => { sends.push({ payload, tag }); },
+        // Answers as the real one does (26 Nov 2026): how many subscriptions accepted — one, here.
+        fanOutPush: async (/** @type {any} */ payload, /** @type {string} */ tag) => { sends.push({ payload, tag }); return 1; },
         // Recorded APART from the broadcasts. The documents are broadcasts and the pay reminder is
         // targeted (owner decision, 10 Nov 2026), so a handler on the wrong sender shows up as a
         // send in the wrong array — never as the right count in the right one.
@@ -477,7 +478,7 @@ describe('ingestHuddle — the happy path, executed to its side effects', () => 
         // ONE broadcast, in the design language — through the REAL buildPushPayload.
         assert.equal(b.targeted.length, 0, 'the Huddle is for everybody — never a targeted send');
         assert.equal(b.sends.length, 1);
-        assert.equal(b.sends[0].payload.title, '📋 Latest Huddle');
+        assert.equal(b.sends[0].payload.title, '📋 Latest Daily Huddle');
         assert.equal(b.sends[0].payload.tag, 'huddle');
     });
 
@@ -847,7 +848,7 @@ describe('the create triggers — who notifies, and the halves of the double-pus
         await b.eps.onNewsletterCreated.run(snapEvent('2026-08-30', {}));
         assert.equal(b.targeted.length, 0, 'a document arrival is for everybody — never a targeted send');
         assert.equal(b.sends.length, 2);
-        assert.equal(b.sends[0].payload.title, '📰 Latest Retail Circular');
+        assert.equal(b.sends[0].payload.title, '📰 Latest Weekly Retail Circular');
         assert.equal(b.sends[0].payload.tag, 'circular');
         assert.equal(b.sends[1].payload.title, '🗞️ Latest Marylebone Newsletter');
         assert.equal(b.sends[1].payload.tag, 'newsletter');
@@ -950,7 +951,7 @@ describe('sendPayReminderNotification — a daily schedule that must fire on exa
         const p = b.targeted[0].payload;
         assert.equal(p.tag, 'pay-reminder');
         // "Cut-off", as the Calendar and the Pay Calculator spell it — the one word staff see in both.
-        assert.equal(p.title, '💷 Payday Friday — hours cut-off today');
+        assert.equal(p.title, '💷 Pay cut-off today — payday Friday');
         assert.ok(p.url.includes('payday=2026-02-13'), `deep link carries the payday: ${p.url}`);
         assert.match(p.body, /13 February/);
     });
@@ -1152,7 +1153,7 @@ describe('sendTimetableReminder — one broadcast, on the evening before the tim
         const { payload, tag } = b.sends[0];
         assert.equal(tag, '[timetable]');
         assert.equal(payload.tag, 'timetable');
-        assert.equal(payload.title, '🚆 New timetable from Sunday');
+        assert.equal(payload.title, '🚆 Timetable — new times from Sunday');
         assert.match(payload.body, /13 December/);
         assert.doesNotMatch(payload.body, /!/, 'calm tone — no exclamation marks');
         assert.ok(payload.url.endsWith('/trains.html'), payload.url);
@@ -1232,6 +1233,107 @@ describe('sendNewlinkVoteReminderNotification — the New link page\'s own audie
         await b.mod.sendNewlinkVoteReminder({ roster: { activeMembers: ROSTER.activeMembers }, vapidPrivate: null, vapidPublic: '', STAFF_SITE_URL: 'https://myb-roster.web.app' });
         assert.equal(b.sends.length, 0);
         assert.deepEqual(b.targeted.map(t => t.uids), [[]], 'addressed to no uids, which sendTargetedPush sends to nobody');
+    });
+});
+
+// ── push-copy: EVERY notification's words, from its real sender or builder (26 Nov 2026) ───────
+//
+// The OS draws a notification, so a title clipped to "…", a body over two lines, a straight
+// apostrophe or an exclamation mark is visible nowhere but on a lock screen. One table holds every
+// kind the app sends to the rules in .claude/rules/notifications.md, each built the way it ships:
+// the document-domain senders RUN (ingestHuddle, the create triggers, the two schedules, the New link
+// schedule) against the recording transport above; the rest go through the pure builder their sender
+// calls (`buildResetRequestNotice`, `noticeWords`, `askedNotice`/`reminderNotice`) and
+// `PASSWORD_RESET_BODY`, then through `buildPushPayload` with the sender's own url — at the worst
+// case each can reach: the longest roster name with 98 others waiting, a September payday, a flood.
+describe('push-copy — every notification the app sends fits the design language', () => {
+    // The REAL transport's TTL table, loaded apart from the stub build() puts in its place.
+    delete require.cache[pushPath];
+    const { PUSH_TTL_BY_TAG } = require('./functions/push.js');
+    delete require.cache[pushPath];
+    const SITE = 'https://myb-roster.web.app';
+    const { PASSWORD_RESET_BODY, buildPushPayload } = require('./functions/push-notices.js');
+    const { buildResetRequestNotice } = require('./functions/reset-request-rules.js');
+    const { noticeWords, summariseNewEntries, NOTICE_SCAN_LIMIT } = require('./functions/error-log-notice.js');
+    const { askedNotice, reminderNotice } = require('./functions/overtime-core.js');
+    const snap = (/** @type {string} */ date) => ({ params: { date }, data: { data: () => ({ date }) } });
+    const LONGEST_NAME = [...ROSTER.activeMembers].sort((a, b) => b.length - a.length)[0];
+
+    /** @returns {Promise<Array<{ kind: string, payload: any }>>} every notification, as staff receive it */
+    async function everyNotification() {
+        /** @type {Array<{ kind: string, payload: any }>} */
+        const out = [];
+        const docs = build();
+        await ingest(docs.eps, {});
+        await docs.eps.onCircularCreated.run(snap('2026-08-30'));
+        await docs.eps.onNewsletterCreated.run(snap('2026-08-30'));
+        assert.deepEqual(docs.sends.map(s => s.payload.tag), ['huddle', 'circular', 'newsletter'], 'premise: each document sent once');
+        out.push(...docs.sends.map(s => ({ kind: s.payload.tag, payload: s.payload })));
+
+        const pay = build();
+        pay.setNow({ year: 2026, month: 8, day: 19 });   // Sat 19 Sep 2026 — the cutoff for Fri 25 SEPTEMBER, the longest month
+        await pay.eps.sendPayReminderNotification.run({});
+        assert.equal(pay.targeted.length, 1, 'premise: 19 September 2026 is a cutoff Saturday');
+        assert.match(pay.targeted[0].payload.body, /25 September/);
+        out.push({ kind: 'pay', payload: pay.targeted[0].payload });
+
+        const tt = build();
+        tt.setNow({ year: 2026, month: 11, day: 12 });
+        await tt.eps.sendTimetableReminder.run({});
+        out.push({ kind: 'timetable', payload: tt.sends[0].payload });
+
+        const nl = build();
+        delete require.cache[require.resolve('./functions/newlink-reminder.js')];
+        const { buildNewlinkVoteReminderNotification } = require('./functions/newlink-reminder.js');
+        await buildNewlinkVoteReminderNotification({ REGION: 'europe-west2', VAPID_PRIVATE_KEY: { value: () => 'v' },
+            VAPID_PUBLIC_KEY: 'v', STAFF_SITE_URL: SITE, rosterMembers: ROSTER, nowInLondon: () => ({ year: 2026, month: 10, day: 26 }) }).run({});
+        out.push({ kind: 'newlink', payload: nl.targeted[0].payload });
+
+        out.push({ kind: 'password-reset', payload: buildPushPayload({ feature: 'passwordReset', body: PASSWORD_RESET_BODY, baseUrl: SITE }) });
+        for (const pending of [1, 2, 99]) {
+            out.push({ kind: `reset-request (${pending} waiting)`, payload: buildPushPayload({ feature: 'resetRequest',
+                ...buildResetRequestNotice(LONGEST_NAME, pending), url: `${SITE}/operations.html#reset-requests` }) });
+        }
+        const entry = (/** @type {string} */ message) => ({ message, resolved: false });
+        const slow = 'Slow save (diagnostic): x';
+        for (const [label, entries] of /** @type {Array<[string, any[]]>} */ ([
+            ['one error', [entry('boom')]],
+            ['50 errors and 49 slow saves', [...Array(50).fill(entry('boom')), ...Array(49).fill(entry(slow))]],
+            ['a flood', Array(NOTICE_SCAN_LIMIT + 1).fill(entry('boom'))],
+        ])) {
+            const words = noticeWords(summariseNewEntries(entries));
+            assert.ok(words, label);
+            out.push({ kind: `error-log (${label})`, payload: buildPushPayload({ feature: 'errorLog', ...words, url: `${SITE}/operations.html#error-log` }) });
+        }
+        const initial = Date.UTC(2026, 8, 30, 11);   // Wed 30 Sep 2026, 12:00 London — the longest date a deadline label writes
+        for (const [label, words] of /** @type {Array<[string, any]>} */ ([
+            ['overtime asked', askedNotice({ initialDeadlineAt: initial, finalDeadlineAt: initial + 86_400_000 }, initial - 86_400_000)],
+            ['overtime reminder', reminderNotice({ weekEnding: '2026-09-26', initialDeadlineAt: initial })],
+        ])) {
+            out.push({ kind: label, payload: buildPushPayload({ feature: 'overtime', ...words, url: `${SITE}/overtime.html` }) });
+        }
+        return out;
+    }
+
+    test('title ≤ 40 and body ≤ 80, never clipped; no "!", no emoji in the body, no straight apostrophe; a tag with its own TTL', async () => {
+        const all = await everyNotification();
+        assert.equal(new Set(all.map(n => n.payload.tag)).size, 10, 'premise: every one of the ten notifying features is in the table');
+        for (const { kind, payload: { title, body, tag } } of all) {
+            assert.ok(title.length <= 40, `${kind}: title "${title}" is ${title.length} characters`);
+            assert.ok(body.length <= 80, `${kind}: body "${body}" is ${body.length} characters`);
+            assert.ok(!title.includes('…') && !body.includes('…'), `${kind}: the builder clipped "${title}" / "${body}"`);
+            assert.ok(!/!/.test(title + body), `${kind}: an exclamation mark`);
+            assert.ok(!/\p{Extended_Pictographic}/u.test(body), `${kind}: an emoji in the body "${body}"`);
+            assert.ok(!(title + body).includes("'"), `${kind}: a straight apostrophe in "${title}" / "${body}" — staff copy uses ’`);
+            assert.ok(Object.hasOwn(PUSH_TTL_BY_TAG, tag), `${kind}: tag "${tag}" has no TTL in PUSH_TTL_BY_TAG`);
+        }
+    });
+
+    test('every body is one sentence of fact, then a "Tap to …" action — except the password reset, the reset request and the paused Overtime notices, left as they were (owner, 26 Nov 2026)', async () => {
+        for (const { kind, payload: { body } } of await everyNotification()) {
+            if (/^(password-reset|reset-request|overtime)/.test(kind)) continue;
+            assert.match(body, /\. Tap to [^.]+\.$/, `${kind}: "${body}"`);
+        }
     });
 });
 

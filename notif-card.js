@@ -62,7 +62,9 @@ const ASK_LIMIT_MS = 15_000;
  *   header and count the card in its summary WITHOUT this module importing that page. `tone` is passed
  *   only to stop the chip being coloured by its state (v25.14): an `ok` "Off" the member chose.
  * @param {boolean} [opts.payReminders] whether THIS member is sent the pay reminder — only CEA and CES
- *   are (`PAY_REMINDER_GRADES`, functions/pay-reminder.js); without it the card names the rest alone.
+ *   are (`sentPayReminder`, pay-audience.js — the server's own rule); without it the card names the rest alone.
+ * @param {boolean} [opts.adminNotices] whether THIS member is the admin, sent the two admin-only kinds — Reset
+ *   requests and the Error Log (`enabledAdminUids`, functions/admin-recipients.js); listed to nobody else.
  * @param {Promise<boolean>} [opts.sessionReady] the page's `sessionReady` (session.js): Enable's subscribe
  *   waits for it (the permission request does not), and the once-per-open re-registration runs when it resolves true.
  * @param {number} [opts.askLimitMs] how long Enable waits on an unanswered permission question.
@@ -70,7 +72,7 @@ const ASK_LIMIT_MS = 15_000;
  * @returns {{ setOpen(open: boolean): void }} the card's collapse handle, so a caller can open it once
  *   it knows the state warrants it.
  */
-export function initNotificationsCard({ onState, payReminders = false, sessionReady = Promise.resolve(false),
+export function initNotificationsCard({ onState, payReminders = false, adminNotices = false, sessionReady = Promise.resolve(false),
     askLimitMs = ASK_LIMIT_MS, now = () => new Date() } = {}) {
     const statusMsg  = /** @type {HTMLElement|null} */ (document.getElementById('notifStatusMsg'));
     const enableBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifEnableBtn'));
@@ -82,6 +84,10 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
     for (const id of ['notifHintPay', 'notifKindPay']) {
         const el = document.getElementById(id);
         if (el) el.hidden = !payReminders;
+    }
+    for (const id of ['notifKindResetRequests', 'notifKindErrorLog']) {
+        const el = document.getElementById(id);
+        if (el) el.hidden = !adminNotices;
     }
     const timetable = document.getElementById('notifKindTimetable');
     if (timetable) timetable.hidden = !timetableListed(now());
@@ -138,7 +144,11 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
         _disableBtn.textContent = 'Turn off notifications';
         _enableBtn.style.display  = words.button === 'enable'  ? 'block' : 'none';
         _disableBtn.style.display = words.button === 'disable' ? 'block' : 'none';
-        _statusMsg.textContent = words.status;
+        if (words.link) {
+            // The Pages mirror's line ends in the main address, as a link (notif-card-core.js says why).
+            const a = Object.assign(document.createElement('a'), { href: words.link.href, textContent: words.link.text });
+            _statusMsg.replaceChildren(words.status, a, words.link.tail);
+        } else _statusMsg.textContent = words.status;
         const steps = words.steps;
         if (!steps) {
             _deniedMsg.replaceChildren();
@@ -151,6 +161,20 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
         }
         showKinds(words.kinds);
         onState?.(words.report, words.chip, words.tone);
+    }
+
+    /**
+     * FOCUS STAYS ON THE CARD (owner, 26 Nov 2026). The button pressed is disabled while it works and then
+     * hidden — Turn on gives way to Turn off — and a hidden or disabled button drops focus to `<body>`: a
+     * keyboard or screen-reader user was put back at the top of the page with nothing said. When focus has
+     * fallen there (and only then: a member who has moved on keeps their place), it goes to whichever button
+     * the card now shows. A card with neither (blocked; the Pages mirror) leaves it; the status line, a
+     * live region, says what happened.
+     */
+    function keepFocus() {
+        if (document.activeElement && document.activeElement !== document.body) return;
+        const next = [_disableBtn, _enableBtn].find(b => b.style.display === 'block' && !b.disabled);
+        next?.focus();
     }
 
     let _gen = 0;          // the newest read started; an older one that lands later is not painted
@@ -211,6 +235,7 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
         // A failed subscribe used to leave the card exactly as it was, as if the tap had not landed.
         // (A dismissed prompt is 'off-default' and a refusal 'denied' — both say so above.)
         if (result === 'off-lapsed') _statusMsg.textContent = ENABLE_FAILED_LINE;
+        keepFocus();
     });
 
     _disableBtn.addEventListener('click', async () => {
@@ -220,6 +245,7 @@ export function initNotificationsCard({ onState, payReminders = false, sessionRe
         await disableNotifications().catch(err => console.warn('[Notifications] Disable failed:', err));
         _busy = false;
         await safeRefresh();
+        keepFocus();
     });
 
     safeRefresh();

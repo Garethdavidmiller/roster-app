@@ -83,3 +83,56 @@ test('a BLOCKED bell\'s tap is handed to the drawer it sits in: the visual close
         assert.equal(calls.length, 2, `${page}: one tap, one hand-over`);
     }
 });
+
+// ── WHILE A TAP IS IN FLIGHT IT SAYS WHICH WAY, AND A TURN-ON THAT FAILS SAYS SO (owner, 26 Nov 2026) ──────
+// "Checking…" named both a first read and a tap, so a screen reader heard the bell "checking" for up to eight
+// seconds after the member asked it to turn on. And a permission given whose subscription still failed fell
+// back to 🔕 with nothing said; the Settings card says ENABLE_FAILED_LINE, and the bell now says it too, in
+// the panel its blocked tap uses, under a heading of its own.
+test('a tap names its direction while in flight, from the state before it', async () => {
+    const { wireNavBell } = await import(R + 'nav-bell.js');
+    for (const [before, label] of [['off-default', 'Notifications — turning on…'], ['off-lapsed', 'Notifications — turning on…'], ['on', 'Notifications — turning off…']]) {
+        const bell = el(); els.set('navNotifBell', bell); els.set('navNotifIcon', el());
+        const refresh = wireNavBell({ currentPage: 'admin', _closePanelVisualOnly() {}, _openComingSoon() {} });
+        peek = async () => before;
+        await refresh();
+        const E = defer(); enable = () => E.p;
+        const tap = bell.on.click();
+        assert.equal(bell.getAttribute('aria-label'), label, before);
+        assert.equal(bell.hasAttribute('aria-pressed'), false, `${before}: a tap in flight is not on or off`);
+        E.res('on'); await tap;
+    }
+    enable = async () => 'on';
+});
+
+test('a turn-on that ends "off-lapsed" opens the info panel with the card\'s failure line; other answers open nothing', async () => {
+    const { wireNavBell } = await import(R + 'nav-bell.js');
+    const { ENABLE_FAILED_LINE } = await import(R + 'notif-card-core.js');
+    for (const [answer, opens] of [['off-lapsed', true], ['on', false], ['off-default', false], ['denied', false]]) {
+        const bell = el(); els.set('navNotifBell', bell); els.set('navNotifIcon', el());
+        /** @type {any[]} */ const calls = [];
+        const refresh = wireNavBell({ currentPage: 'admin', _closePanelVisualOnly: () => calls.push('visual close'),
+            _openComingSoon: (/** @type {any} */ t, /** @type {any} */ body) => calls.push([t, body]) });
+        peek = async () => 'off-default';
+        await refresh();
+        enable = async () => answer;
+        await bell.on.click();
+        if (!opens) { assert.deepEqual(calls, [], `${answer}: nothing to explain`); continue; }
+        assert.equal(calls[0], 'visual close');
+        assert.equal(calls[1]?.[1], ENABLE_FAILED_LINE, 'the same words as the Settings card');
+        assert.equal(calls[1]?.[0]?.dataset?.csTitle, 'Couldn’t turn notifications on', 'its own heading, not the blocked one');
+        assert.equal(bell.dataset.notifState, 'off-lapsed', 'and the bell shows what is true');
+    }
+    // The drawer closed during a slow toggle: the panel would reuse a history entry the drawer has given up.
+    const bell = el(); els.set('navNotifBell', bell); els.set('navNotifIcon', el());
+    /** @type {any} */ (bell).closest = (/** @type {string} */ sel) => (sel === '[aria-hidden="true"]' ? {} : null);
+    /** @type {any[]} */ const calls = [];
+    const refresh = wireNavBell({ currentPage: 'admin', _closePanelVisualOnly: () => calls.push('visual close'),
+        _openComingSoon: () => calls.push('panel') });
+    peek = async () => 'off-default';
+    await refresh();
+    enable = async () => 'off-lapsed';
+    await bell.on.click();
+    assert.deepEqual(calls, [], 'no panel over a drawer that has closed');
+    enable = async () => 'on';
+});

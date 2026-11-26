@@ -49,8 +49,9 @@ function payReminderMembers(roster) {
  * A member's Auth uid, from the account their name derives to — the derivation setupRosterAuth
  * provisions with, and the one the Overtime notices resolve through. Any failure is `null`, and that
  * member is skipped. Only the member's own enabled account counts (`isMembersOwnAccount`): the shared
- * Calendar PIN account is refused even when a PIN holder has linked a roster email to it — its devices
- * are the station's shared PCs, not the member's phone.
+ * account the retired staff PIN signed in to is still refused, even if a roster email was once linked to
+ * it — its devices were the station's shared PCs, not the member's phone. The PIN is retired (owner,
+ * 23 Nov 2026), but the check stays while that account can still exist.
  * @param {string} name
  * @returns {Promise<string|null>}
  */
@@ -83,12 +84,13 @@ async function sendPayReminder({ payday, roster, vapidPrivate, vapidPublic, STAF
     const uids  = (await Promise.all(names.map(uidForMember))).filter(/** @returns {u is string} */ (u) => Boolean(u));
 
     setupWebPush(vapidPrivate, vapidPublic);
-    // Event-reminder grammar (.claude/rules/notifications.md): "💷 <Event> — <urgency>",
-    // calm/no-exclamation tone, action in the body.
+    // Event-reminder grammar (.claude/rules/notifications.md): "💷 <Event> — <urgency>", sentence
+    // case; the body one plain sentence of fact, then a "Tap to …" action (owner, 26 Nov 2026). The
+    // longest month, September, still fits the 80-character body (push-copy, documents-endpoints.test.mjs).
     const accepted = await sendTargetedPush(buildPushPayload({
         feature:  'pay',
-        headline: `Payday ${paydayDay} — hours cut-off today`,
-        body:     `Open the Pay Calculator to estimate your ${paydayFmt} pay.`,
+        headline: `Pay cut-off today — payday ${paydayDay}`,
+        body:     `Shifts up to today are paid on ${paydayFmt}. Tap to open the Pay Calculator.`,
         url:      `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
     }), uids, '[payReminder]');
     console.log(`[payReminder] Pay reminder for payday ${paydayISO} — ${uids.length} of ${names.length} CEA/CES member(s) resolved, ${accepted} subscription(s) accepted`);

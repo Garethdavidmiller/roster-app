@@ -1660,6 +1660,8 @@ describe('15 · move to the main address: only on the GitHub Pages copy, after t
         const text = block.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
         assert.match(text, /garethdavidmiller\.github\.io/);
         assert.match(text, /myb-roster\.web\.app/);
+        // Notifications on at the main address AND off here, or each one arrives twice (owner, 26 Nov 2026).
+        assert.match(text, /turn notifications on there in ☰ then ⚙️ Settings\. Then turn them off here, or you will get each one twice\./);
         // The card's name as the Pay page heads it, emoji and all: a renamed card would send people looking for nothing.
         const pay = readFileSync(new URL('./paycalc.html', here), 'utf8');
         const card = /<h2><span aria-hidden="true">([^<]+)<\/span> (Move Your Pay Data)<\/h2>/.exec(pay);

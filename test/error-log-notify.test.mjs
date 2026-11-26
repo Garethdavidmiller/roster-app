@@ -288,6 +288,15 @@ describe('the line: every entry announced once', () => {
         await w.check();
         assert.equal(w.sends[1].payload.title, '🐛 Error Log — 5 new');
     });
+
+    test('a flood of 101 entries the admin already RESOLVED rings nothing, and the line moves past what it read', async () => {
+        const flood = Array.from({ length: NOTICE_SCAN_LIMIT + 1 }, (_, i) => entry(T0 - 1_000_000 + i * 1_000, 'boom', { resolved: true }));
+        const w = seeded({ entries: flood });
+        assert.deepEqual(await w.check(), { outcome: 'all resolved' });
+        assert.equal(w.sends.length, 0, 'a read flood was announced as "100+ new" until 26 Nov 2026');
+        assert.equal(w.state.announcedThrough, flood[NOTICE_SCAN_LIMIT - 1].timestamp);
+        assert.equal(w.state.lastAttemptAt, null, 'no attempt, so no hour starts');
+    });
 });
 
 describe('the schedule in documents.js runs this check', () => {

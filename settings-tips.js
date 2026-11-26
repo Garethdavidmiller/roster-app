@@ -52,16 +52,24 @@ export const CARD_TIPS = {
                 { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
                 { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
                 { icon: '💷', html: '<strong>Pay reminder</strong> — for CEA and CES colleagues: on the cut-off Saturday, six days before payday, to enter your hours.' },
+                { icon: '🔑', html: '<strong>Password reset</strong> — only if the admin resets your password, so you know to sign in again.' },
                 { icon: '🚆', html: '<strong>Timetable changes</strong> — the evening before Chiltern’s timetable changes, with what changes at Marylebone.' },
+                // The admin's alone, as the card lists them (notif-card.js, `adminNotices`): tips-lightbox.js drops an
+                // `adminOnly` item for everyone else.
+                { icon: '🙋', adminOnly: true, html: '<strong>Reset requests</strong> — when a colleague asks for a password reset from the sign-in card.' },
+                { icon: '🐛', adminOnly: true, html: '<strong>Error Log</strong> — when new entries are recorded, at most once an hour.' },
             ]},
             { heading: 'How it works', items: [
+                { icon: '🔔', html: 'A notification is a short message on your phone’s lock screen, even when the roster is closed. Tap it to open the right page.' },
                 { icon: '📲', html: 'Select <strong>Turn on notifications</strong> and allow it when your phone asks. That is all.' },
                 { icon: '🔕', html: 'Select <strong>Turn off notifications</strong> to stop them at any time. You can turn them back on later.' },
                 { icon: '🚫', html: 'If you chose <strong>Don’t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn them back on in your phone’s or browser’s settings — the card shows you where.' },
             ]},
             { heading: 'iPhone users', items: [
                 // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).
-                { icon: '🍎', html: 'Notifications only work on iPhone if the roster has been <strong>added to your Home Screen</strong> — tap your browser’s Share button (under ••• on iOS 26 or later), then Add to Home Screen, then open the roster from your Home Screen and turn notifications on there.' },
+                // A POINTER, NOT A SECOND COPY of the install steps (26 Nov 2026): the Install card lists the taps,
+                // as the Notifications card's own iPhone line already points at it (notif-card-core.js).
+                { icon: '🍎', html: 'Notifications only work on iPhone if the roster has been <strong>added to your Home Screen</strong> first — the <strong>Install on this device</strong> card shows how — then open it from there and turn notifications on.' },
             ]},
         ],
     },
