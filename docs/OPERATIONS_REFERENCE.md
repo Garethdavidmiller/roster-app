@@ -1522,6 +1522,15 @@ Every signed-in member can open it, an Other Staff login included.
   pick-up-only and set-down-only stops, "arrives 8 minutes earlier", buses, weekday versions that
   stop differently: the tooling README → "What each step knows".
 
+### The one-off New link push, before the vote
+
+- **Thursday 26 November 2026, 18:00 London** — `sendNewlinkVoteReminderNotification` (functions/newlink-reminder.js,
+  wired in index.js) sends ONE targeted push, "🔁 New link — vote coming soon", to the people the New link page lets
+  in (`newlinkAudience` in roster-members.json, generated from `canOpenNewlink`), landing on the New link page (owner,
+  26 Nov 2026). A daily 18:00 schedule with a one-date guard, as the timetable push has. To confirm it went: its log
+  says "New link reminder — N of M member(s) resolved". Afterwards it is harmless; remove the function, its line in
+  index.js and in `functions-surface.test.mjs`, and `newlinkAudience` if nothing else reads it, in a later release.
+
 ### The one-off timetable push, and the Calendar's timetable notice
 
 Two reminders run themselves before the change, and nobody presses anything:

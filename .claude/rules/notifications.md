@@ -8,6 +8,7 @@ paths:
   - "functions/error-log-*.js"
   - "functions/documents.js"
   - "functions/pay-reminder.js"
+  - "functions/newlink-reminder.js"
   - "functions/overtime*.js"
   - "functions/auth-endpoints.js"
   - "functions/reset-request.js"
@@ -34,7 +35,7 @@ The one app surface rendered by the **OS**, not by our CSS — so it cannot inhe
 and needs its own explicit rules, which every Web Push notification staff receive must follow. They
 are enforced by a single builder, `buildPushPayload` in `functions/push-notices.js` (re-exported by
 `functions/roster-parse-helpers.js`), which the senders import (`functions/documents.js`,
-`functions/pay-reminder.js`, `functions/overtime.js`, `functions/auth-endpoints.js`,
+`functions/pay-reminder.js`, `functions/newlink-reminder.js`, `functions/overtime.js`, `functions/auth-endpoints.js`,
 `functions/reset-request.js`, `functions/error-log-notify.js`); the
 service worker renders the result.
 
@@ -56,6 +57,7 @@ change, and reliably on Android and iOS (emoji render inline). The icon is alway
 | Password was reset | 🔑 | Settings "Password" card | `password-reset` | event |
 | Timetable change (one-off) | 🚆 | Trains nav pill / page badge | `timetable` | event |
 | New Error Log entries (admin only) | 🐛 | Operations "Needs attention" strip → Error Log | `error-log` | event |
+| New link, before the vote (one-off, targeted) | 🔁 | New link nav pill / page badge | `newlink` | event |
 
 A new notifying feature: the checklist at the end.
 
@@ -89,13 +91,15 @@ time-sensitive event. "Latest" does not apply; lead with the event and its urgen
 | Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Sign in again, then choose your own.` |
 | Timetable change | `🚆 New timetable from Sunday` | `Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.` |
 | Error Log | `🐛 Error Log — 3 new` | `1 error and 2 slow saves. Tap to open the Error Log.` |
+| New link vote | `🔁 New link — vote coming soon` | `Have a look at the three proposals before voting starts. Tap to open New link.` |
 
 ## Who receives it — broadcast or targeted
 
 **Broadcasts** (`fanOutPush`, every subscribed device): the three documents and the one-off timetable
 reminder. **Everything else is targeted** (`sendTargetedPush`, to named uids only) — the pay reminder
 to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov 2026;
-`functions/pay-reminder.js`), and the rest because of what it SAYS:
+`functions/pay-reminder.js`), the one-off New link push to the people that page lets in (owner, 26 Nov 2026;
+`functions/newlink-reminder.js`), and the rest because of what it SAYS:
 
 - **The reset request goes to the admin's devices only** — "N. Surname is locked out" sent to 50
   people is a leak, not a notification.
@@ -230,7 +234,7 @@ A push service holds a notice for a phone that is off, and web-push's default is
 enough for "hours cut-off today" to arrive days late. Every send passes a TTL from `PUSH_TTL_BY_TAG`
 (`functions/push.js`, via `pushSendOptions`): documents 36–72 h, pay and overtime 12 h, the reset
 queue 6 h, password-reset 7 days, the timetable reminder 30 h (not 24 h), the Error Log notice 24 h,
-anything unlisted one day — each value's reason is its comment there. **A new
+the New link push 72 h, anything unlisted one day — each value's reason is its comment there. **A new
 notification feature adds its tag there**, or it gets a day; `push-transport.test.mjs` fails on a
 feature with no TTL.
 
@@ -275,6 +279,9 @@ round.
   (`functions/documents.js`, whose comment says why it is a date-guarded daily run and passes the
   "all 50 staff" test); the next change moves the one constant, `TIMETABLE_CHANGE`.
 - Overtime → `overtime.html` (both the asked notice and the deadline reminder).
+- New link vote → `newlink.html`. TARGETED to that page's own audience (`newlinkAudience`, generated from
+  `canOpenNewlink`), sent ONCE by `sendNewlinkVoteReminderNotification` (`functions/newlink-reminder.js`) at
+  18:00 on 26 November 2026.
 - Error Log → `operations.html#error-log` (opens and scrolls to the Error Log card, through the same
   `DEEP_LINK_CARDS`). A tap while Operations is ALREADY open re-reads the log — `operations-errors.js`,
   from the hash the event carried, because the page strips the hash in the same event.
