@@ -48,6 +48,12 @@ decisions and the reason each must not be undone.
   or the record after a password change, is on its way (`backgroundWritesInFlight`, `claim-retry.js`),
   every reload path in `sw-register.js` holds until the page is next hidden with nothing on its way.
   The reasoning is that module's header.
+- **No update reload while the page is leaving** (owner, 26 Nov 2026: on Android a notification tap
+  "almost always takes me to the calendar"): a reload started while a load is on its way CANCELS it, and
+  a tap usually wakes a page a release claimed while it slept. So once the page tells a tap it is free
+  to go, the member answers "Open it", or the page unloads (`pagehide`, not into the back-forward
+  cache), every update reload holds for `LEAVE_HOLD_MS` (`holdUpdateReload`, `sw-register.js`). Do not
+  take a reload path around it; `sw-register.test.mjs` drives the reported sequence.
 - **Warm-up resilience:** `__precache-complete` is written only when EVERY asset cached, and an
   incomplete warm-up re-runs on every wake, so coverage converges instead of staying partial. **OLDER
   app caches are deleted only once every app asset has cached** — they are the transition fallback —
