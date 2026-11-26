@@ -3047,7 +3047,7 @@ button.nav-panel-link--notices {
     margin-bottom: 12px;
 }
 .role-card-why {
-    font-size: var(--type-body); line-height: 1.5; color: var(--text-mid);
+    font-size: var(--type-body); line-height: 1.5; color: var(--text-dark);   /* the message written for this reader (owner, 26 Nov 2026) */
     text-align: left; margin-bottom: 18px;
 }
 .role-card .field-eyebrow { margin-bottom: 6px; }
@@ -3230,8 +3230,7 @@ button.nav-panel-link--notices {
     cursor: default;
     opacity: 1;
 }
-/* The refusal card's way out (`.role-card-back`) wears the same look under a class of its own: sharing the CLASS put
-   two `.login-back` links on Admin, the card's and the sign-in card's (whole-app review, 24 Nov 2026). */
+/* The refusal card's way out has a class of its own: sharing `.login-back` put two on Admin (whole-app review, 24 Nov 2026). */
 .login-back, .role-card-back {
     font-size: var(--type-label);
     color: var(--text-light);
@@ -3239,7 +3238,8 @@ button.nav-panel-link--notices {
     display: inline-block;
     transition: color var(--dur-fast) var(--ease-standard);
 }
-@media (hover: hover) and (pointer: fine) { .login-back:hover, .role-card-back:hover { color: var(--text-dark); } }
+@media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } .role-card-back:hover { text-decoration-thickness: 2px; } }
+.role-card-back { color: var(--primary-blue); font-weight: 600; font-size: var(--type-body); text-decoration: underline; text-underline-offset: 2px; }   /* the card's ONLY way out: its strongest link (owner, 26 Nov 2026) */
 /* [hidden] must beat the inline-block above: the Calendar's own front door hides its link (login-overlay.js). */
 .login-back[hidden] { display: none; }
 /* While a sign-in is genuinely in flight the Back link is inert — leaving mid-submit is the
