@@ -21,59 +21,51 @@ import { noteKnowledge, noteCheckFailed, knowledgeOf, forget as forgetKnowledge 
 import { hasCalendarAccess, grantNumber, setCalendarAccess, onCalendarAccess } from './calendar-access-state.js';
 import { lsGet, lsSet } from './ls.js';
 
-/** The error a month read answered by the OFFLINE CACHE is turned into (v24.48). */
+/** The error a month read answered by the OFFLINE CACHE is turned into. */
 export const SERVED_FROM_CACHE = 'served-from-cache';
 
 /** The error a read is turned into when its answer lands after the access it was issued under has
- *  gone or been replaced (10 Nov 2026) — see `fetchOverridesForRange`. A caller must STAND DOWN on
- *  it: it is neither a failure to report nor, above all, a success to record. */
+ *  gone or been replaced — see `fetchOverridesForRange`. A caller must STAND DOWN on it: it is
+ *  neither a failure to report nor, above all, a success to record. */
 export const READ_SUPERSEDED = 'read-superseded';
 
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
 
-// ── THE ACCESS GATE (v20.12) ────────────────────────────────────────────────────────────────────
+// ── THE ACCESS GATE (CALENDAR_DATA.md 3) ────────────────────────────────────────────────────────
 //
 // Every read in this module refuses to run until Calendar access has been established. That is a
-// SECOND gate — `calendar-app.js` does not even initialise the Calendar while locked, so in the
-// shipped call order nothing here is reachable — and the duplication is the point, because the two
-// gates fail in different ways. The coordinator's gate is a property of the call ORDER, which any
-// future edit can quietly break with no test failing. This one is a refusal at the source.
+// SECOND gate — `calendar-app.js` does not even initialise the Calendar while locked — and the
+// duplication is the point: the coordinator's gate is a property of the call ORDER, which any edit
+// can quietly break with no test failing. This one is a refusal at the source.
 //
 // The read it exists for is `getDocsFromCache`. Firestore security rules are evaluated on the
-// SERVER, so a local IndexedDB cache hit never consults them: a browser signed in yesterday
-// still holds every override it saw, and tightening the rule does nothing about that. Painting it
-// before a sign-in would hand the next person at a shared device exactly the data the sign-in
-// exists to gate — the annual leave and absence of fifty colleagues — with no network request to notice.
+// SERVER, so a local IndexedDB cache hit never consults them: a browser signed in yesterday still
+// holds every override it saw — the annual leave and absence of fifty colleagues — and would paint
+// it for the next person at a shared device with no network request to notice.
 //
-// Deliberately NOT wired to `calendarAccessReady`, and this is the important half: importing the
-// access module here would make the gate depend on the very promise a bypass would be trying to
-// avoid, and would add a Firebase-importing dependency to a module the tests load in Node.
+// Deliberately NOT wired to `calendarAccessReady`: importing the access module here would make the
+// gate depend on the very promise a bypass would be trying to avoid, and add a Firebase-importing
+// dependency to a module the tests load in Node.
 //
-// THE ANSWER IS NOT KEPT HERE. It is read, each time, from calendar-access-state.js: the ONE copy,
-// which imports nothing and loads shut, so a page that never grants reads nothing. That module's
-// header says why there is one copy and not a flag for each gate. The grant number a read's ticket
-// carries (v24.56 — a read refused under an EARLIER grant says nothing about the current one) lives
-// there too, beside the answer it qualifies.
+// THE ANSWER IS NOT KEPT HERE. It is read, each time, from calendar-access-state.js: the ONE copy
+// (CALENDAR_DATA.md 21), which imports nothing and loads shut. The grant number a read's ticket
+// carries (a read refused under an EARLIER grant says nothing about the current one) lives there too.
 
 // A GRANT IS A FRESH START, AND A SHUT FORGETS. Told by the state on every write, so both hold for
 // every route that grants or loses access, with nothing for a route to remember.
 onCalendarAccess(({ open }) => {
-    // A GRANT is a fresh start (v20.41), and it has to be, because a re-grant follows a re-lock.
-    // `fetchedMonths` is a "we already have this" claim: months claimed before access was lost are
-    // still claimed after it returns, so without this every `ensureOverridesCached` would no-op and
-    // the re-unlocked Calendar would never read anything again — its knowledge having been forgotten
-    // by the shut below, that is a permanent wait state. `_failureRepainted` goes with it for the
-    // same reason: a failure that happened under the old session is not news the new one has heard.
-    // Harmless at boot — the first grant runs before the initial fetch claims anything. EVERY grant,
-    // one over a Calendar already open included: the grant number has moved, so no read still out
-    // can settle the months it claimed.
+    // A GRANT is a fresh start (CALENDAR_DATA.md 4), because a re-grant follows a re-lock.
+    // `fetchedMonths` is a "we already have this" claim: months claimed before access was lost would
+    // still be claimed after it returns, every `ensureOverridesCached` would no-op, and — the shut below
+    // having forgotten their knowledge — the re-unlocked Calendar would wait for ever. `_failureRepainted`
+    // goes with it: a failure under the old session is not news the new one has heard. Harmless at
+    // boot. EVERY grant, one over a Calendar already open included: the grant number has moved, so no
+    // read still out can settle the months it claimed.
     if (open) { fetchedMonths.clear(); _settledAt.clear(); _failureRepainted.clear(); _monthOwner.clear(); _recheckOwed.clear(); }
     // A SHUT FORGETS WHAT EVERY MONTH WAS KNOWN TO BE, here, so every route that loses access forgets
-    // (cal-data-6, 10 Nov 2026). Only the month read's route used to: losing access through the first
-    // load's read or its chip's retry shut the gate and kept the knowledge, so after the next grant a
-    // month read under the old grant was drawn as current — and stayed current if the new grant's own
-    // read failed, "As rostered" included. Access loss is what `forget` is for.
+    // (cal-data-6). Otherwise a month read under the old grant could be drawn as current after the
+    // next grant — and stay current if the new grant's own read failed. Access loss is what `forget` is for.
     else forgetKnowledge();
 });
 
@@ -101,7 +93,7 @@ const fetchedMonths        = new Set();
 const _settledAt = new Map();
 // Months a failed check left drawn as a labelled saved copy — see `_oweIfSavedCopy`. `releaseStaleMonths`
 // hands them back however recent the failure, so the label clears itself the next time the page comes
-// into view with a connection (10 Nov 2026).
+// into view with a connection.
 /** @type {Set<string>} */
 const _recheckOwed = new Set();
 // Memoised getShiftTypesInMonth() results. Key: "memberName|year|month".
@@ -131,20 +123,19 @@ export function addFetchedMonths(keys) { const now = Date.now(); keys.forEach(k 
 export function clearFetchedMonth(key) { fetchedMonths.delete(key); _settledAt.delete(key); _failureRepainted.delete(key); }
 
 /**
- * Release every SETTLED month older than `maxAgeMs`, so the next render re-reads it (Oct 2026 review).
+ * Release every SETTLED month older than `maxAgeMs`, so the next render re-reads it
+ * (CALENDAR_DATA.md 18).
  *
- * A month marked fetched used to be fetched for the life of the page. On a shared office PC, or an
- * iPhone app resumed from the background, that showed the morning's roster as current in the
- * afternoon — "As rostered" included. The caller runs this when the page comes back into view, and
- * on a slow timer while it stays in view, and re-renders; the re-read runs behind the grid already on
- * screen, and a re-read that FAILS keeps that grid rather than withholding it — as the labelled saved
- * copy, no longer as current (see the catch in `ensureOverridesCached`). A month still IN FLIGHT is left alone, and nothing is released
- * while the initial fetch runs — it owns its months until it settles.
+ * Otherwise a shared office PC, or an iPhone resumed from the background, shows the morning's roster
+ * as current in the afternoon. The caller runs this when the page comes back into view, and on a slow
+ * timer while it stays in view, and re-renders; a re-read that FAILS keeps the grid on screen as the
+ * labelled saved copy, no longer as current (the catch in `ensureOverridesCached`). A month still IN
+ * FLIGHT is left alone, and nothing is released while the initial fetch runs — it owns its months
+ * until it settles.
  *
- * A month whose last check failed over a saved copy is handed back too, WHATEVER ITS AGE (10 Nov
- * 2026). It is already unclaimed, so any render would re-read it — but nothing renders when a phone
- * is simply picked up again, and without this the "couldn't check for changes" label stayed until
- * somebody pressed Try again, long after the signal had returned.
+ * A month whose last check failed over a saved copy is handed back too, WHATEVER ITS AGE: nothing
+ * renders when a phone is simply picked up again, and without this the "couldn't check for changes"
+ * label stayed until somebody pressed Try again, long after the signal had returned.
  * @param {number} maxAgeMs
  * @param {number} [now]
  * @returns {string[]} the month keys the next render should read again
@@ -175,28 +166,25 @@ export function releaseStaleMonths(maxAgeMs, now = Date.now()) {
 export function oweRecheck(keys) { keys.forEach(_oweIfSavedCopy); }
 
 /** A failed check owes a re-check where it left a saved copy on screen — the server's earlier answer,
- *  or this device's cache when the FIRST check failed (cal-data-4, 10 Nov 2026: a phone opened in a
- *  signal gap kept the copy and "Couldn't update" after the signal came back, because only a failed
- *  RE-check was owed). A month with no copy is not: its failure panel and Try again are the recovery.
+ *  or this device's cache when the FIRST check failed (cal-data-4: a phone opened in a signal gap kept
+ *  "Couldn't update" after the signal came back). A month with no copy is not: its failure panel and
+ *  Try again are the recovery.
  *  @param {string} key */
 function _oweIfSavedCopy(key) {
     if (_monthOwner.has(key) || knowledgeOf(key) === 'cached') _recheckOwed.add(key);
 }
 
-// ── The failed-month repaint, exactly once (v20.40) ────────────────────────────────────────────
+// ── The failed-month repaint, exactly once ─────────────────────────────────────────────────────
 //
-// A withheld grid has to move from "Checking this month" to the failure panel, which means the catch
-// below must repaint. That repaint is a LOOP if left unguarded, and the loop is not obvious from
-// either end: `renderCalendar` calls `ensureOverridesCached` on every render, the catch releases the
-// month so a later navigation can retry it, and the repaint IS a later render — fetch, fail, paint,
-// fetch, fail, paint, against a Firestore backend, for as long as the month is on screen.
+// A withheld grid has to move from "Checking this month" to the failure panel, so the catch below
+// must repaint. Unguarded, that is a LOOP: `renderCalendar` calls `ensureOverridesCached` on every
+// render, the catch releases the month for a retry, and the repaint IS a later render — fetch, fail,
+// paint, fetch, fail, paint, against Firestore, for as long as the month is on screen.
 //
-// So the repaint is one-shot per claim. The month still gets exactly one automatic second attempt
-// (the repaint's own render re-fetches the released month), and after that the recovery is the
-// panel's "Try again" button, which goes through `clearFetchedMonth` and re-arms this.
-//
-// Releasing the month and suppressing the repaint are deliberately NOT the same flag: the first is
-// about whether we may fetch again, the second about whether anyone still needs telling.
+// So the repaint is one-shot per claim. The month still gets exactly one automatic second attempt,
+// and after that the recovery is the panel's "Try again", which goes through `clearFetchedMonth` and
+// re-arms this. Releasing the month and suppressing the repaint are deliberately NOT the same flag:
+// the first is about whether we may fetch again, the second about whether anyone still needs telling.
 const _failureRepainted = new Set();
 
 // Month key → the repaint callbacks waiting on its IN-FLIGHT read. Present only while a read that
@@ -204,14 +192,11 @@ const _failureRepainted = new Set();
 /** @type {Map<string, Set<Function>>} */
 const _monthWaiters = new Map();
 
-// The month → shift-types memo used to have a public clearShiftTypesCache() for callers that wrote
-// straight into rosterOverridesCache. There are none left: Team Week View was the only one, and it
-// went through the shared month fetch at v18.76, so the only writers are this module's two reads,
-// fetchOverridesForRange and fetchOverridesForRangeFromCache, which both clear the memo (below).
-// The export was removed at v18.84 rather than left as an invitation to re-introduce a second cache
-// writer. If one is ever genuinely needed, clear shiftTypesMonthCache in the same place you write
-// the cache, or the month legend serves a stale type set (an AL cell shows on the grid while the
-// "Annual Leave" legend item stays hidden).
+// There is deliberately no public clearShiftTypesCache(): the only writers of rosterOverridesCache
+// are this module's two reads, which both clear the memo (below). Team View used to write the cache
+// itself; it goes through the shared month fetch so there is ONE authoritative reconciler per month
+// (CALENDAR_DATA.md 6). If another writer is ever genuinely needed, clear shiftTypesMonthCache where
+// you write the cache, or the month legend serves a stale type set (an AL cell with no AL legend item).
 
 /**
  * @param {number} year
@@ -222,7 +207,7 @@ export function monthKey(year, month) {
     return `${year}-${String(month + 1).padStart(2, '0')}`;
 }
 
-// ── WHO OWNS A MONTH'S CACHE ENTRY (v20.44) ────────────────────────────────────────────────────
+// ── WHO OWNS A MONTH'S CACHE ENTRY (CALENDAR_DATA.md 5) ───────────────────────────────────────
 //
 // `reconcileRangeIntoCache` is AUTHORITATIVE for its range: it rebuilds each date's winner from the
 // snapshot alone and EVICTS in-range keys the snapshot omits. That is exactly right for one read and
@@ -232,39 +217,31 @@ export function monthKey(year, month) {
 //         retry B issued ─────────────► lands (current)   cache correct
 //                                                                          A evicts what B loaded
 //
-// The first load's own ordering (calendar-initial-fetch.js → `standing`) already stops the LATE one
-// repainting, and that is where the protection stopped — the UI stayed correct at that instant while
-// the cache underneath it silently regressed, so the damage only surfaced on some later render.
-// Ordering the RENDER without ordering the WRITE is half a fix.
+// The first load's ordering (calendar-initial-fetch.js → `standing`) stops the LATE one repainting,
+// but the cache underneath would still silently regress. Ordering the RENDER without ordering the
+// WRITE is half a fix. So every authoritative read takes a sequence number when it is ISSUED and,
+// when it lands, may only reconcile the months no NEWER read has already written.
 //
-// So the ordering moves to the write. Every authoritative read takes a sequence number when it is
-// ISSUED and, when it lands, may only reconcile the months no NEWER read has already written.
-//
-// PER MONTH, not per read, and that is deliberate: a three-month boot fetch superseded for one month
-// by a per-month navigation read still holds the only data anybody has for the other two. All-or-
-// nothing would throw those away to protect one. Month granularity matches the query shapes exactly
-// — every caller reads either a whole month (`ensureOverridesCached`) or a run of whole months (the
-// boot window) — and the slices partition the range, so slicing changes no eviction semantics: the
-// union of the parts is the whole, and each part is authoritative over itself.
+// PER MONTH, not per read, deliberately: a three-month boot fetch superseded for one month by a
+// navigation read still holds the only data anybody has for the other two. Every caller reads a
+// whole month or a run of whole months, and the slices partition the range, so slicing changes no
+// eviction semantics: each part is authoritative over itself.
 let _readSeq = 0;
 /** monthKey → the sequence number of the authoritative read that last wrote it. */
 const _monthOwner = new Map();
 
-// ── THE READ TICKET: one rule for "is this answer still wanted?" (10 Nov 2026) ───────────────────
+// ── THE READ TICKET: one rule for "is this answer still wanted?" (CALENDAR_DATA.md 20) ───────────
 //
 // A read takes time, and the Calendar can change while it is out: access lost, or lost and given
-// back (a new grant), or a later read of the same month answered first. So every answer has to be
-// asked, when it LANDS, whether it is still wanted. Twelve places used to ask, each in its own words,
-// across three counters, an error code and a flag. The two bugs v25.63 fixed were both a place asking
-// half of it: a success that nothing checked against the grant, and a failure that could not
-// un-confirm a month.
+// back (a new grant), or a later read of the same month answered first. So every answer is asked,
+// when it LANDS, whether it is still wanted. Twelve hand-written checks used to ask it, and each bug
+// they produced was a check asking half the question.
 //
 // So every read takes a TICKET when it is ISSUED (`issueReadTicket`): the grant it was issued under,
 // and its place in the order reads were issued in. Whatever later handles the outcome (a success, a
-// failure, a time limit, a paint) asks `answerStillWanted` first. With ONE definition, no path can ask
-// half the question again. The ticket's place in the order serves the cache writes (WHO OWNS A MONTH'S
-// CACHE ENTRY, above). The first load's chip adds one question of its own: whether a newer attempt has
-// begun (calendar-initial-fetch.js → `standing`).
+// failure, a time limit, a paint) asks `answerStillWanted` first. The ticket's place in the order
+// serves the cache writes (WHO OWNS A MONTH'S CACHE ENTRY, above). The first load's chip adds one
+// question of its own: whether a newer attempt has begun (calendar-initial-fetch.js → `standing`).
 
 /** @typedef {{ grant: number, seq: number }} ReadTicket */
 
@@ -283,10 +260,9 @@ export function issueReadTicket() { return { grant: grantNumber(), seq: ++_readS
  * later moment can turn a no back into a yes. That is what lets a catch, a timer or a late paint ask
  * whenever it runs, and trust the answer.
  *
- * The "not shut since" half is what the failure paths were missing (10 Nov 2026). They compared the
- * grant number alone, so a read that FAILED after access was shut, before anybody signed in again,
- * was recorded against the locked Calendar: a failed month, or a "Couldn't update" chip, which the next
- * grant then drew first. A SUCCESS there was already refused (`fetchOverridesForRange`).
+ * The "not shut since" half matters for failures: comparing the grant number alone recorded a read
+ * that FAILED after access was shut, before anybody signed in again, against the locked Calendar —
+ * which the next grant then drew first. A SUCCESS there is refused too (`fetchOverridesForRange`).
  * @param {ReadTicket} ticket
  * @param {unknown} [err]  the read's failure, when it failed
  * @returns {boolean}
@@ -296,20 +272,18 @@ export function answerStillWanted(ticket, err) {
         && /** @type {any} */ (err)?.code !== READ_SUPERSEDED;
 }
 
-// ── THE MONTHS THIS DEVICE HAS READ WHOLE (cal-data-3, 10 Nov 2026) ──────────────────────────────
+// ── THE MONTHS THIS DEVICE HAS READ WHOLE (cal-data-3) ───────────────────────────────────────────
 //
-// An offline range read is answered from EVERY document the device's Firestore cache holds that
-// matches, whichever query fetched it — the SDK's query engine says the result set is the same as a
-// full collection scan. The leave panel, Admin and the Pay Calculator fill that cache one MEMBER at a
-// time, so a month the Calendar had never loaded could come back holding one member's rows, be
-// recorded `cached`, and be drawn for everybody as a saved copy: a colleague's leave and absences,
-// never on this device, missing under "Saved copy" (and under no label at all in Team View). So a
+// An offline range read is answered from EVERY matching document the device's Firestore cache holds,
+// whichever query fetched it. The leave panel, Admin and the Pay Calculator fill that cache one
+// MEMBER at a time, so a month the Calendar never loaded could come back holding one member's rows
+// and be drawn for everybody as a saved copy, a colleague's leave missing under "Saved copy". So a
 // month is a saved copy only where the Calendar's own every-member read of it once landed here.
 //
 // In localStorage, because the case is an OFFLINE OPEN — a new page load — and beside the cache it
-// describes (both are per origin, and are cleared together). A device with NO record predates it: its
-// cache was filled before anything was recorded, so the old rule (rows mean a copy) stands there
-// until its first whole read lands — no device loses its saved copy to the change itself.
+// describes (both per origin, cleared together). A device with NO record predates it, so the old rule
+// (rows mean a copy) stands there until its first whole read lands — no device loses its saved copy
+// to the change itself.
 const WHOLE_MONTHS = 'myb_cal_whole_months';
 /** How many months the record keeps, newest first — far beyond the few the Calendar reads at once. */
 const WHOLE_MONTHS_KEPT = 48;
@@ -383,11 +357,9 @@ export function _monthSlices(startStr, endStr) {
  */
 export async function fetchOverridesForRange(startStr, endStr, ticket = issueReadTicket()) {
     // (Throws `SERVED_FROM_CACHE` when the server did not answer — see the branch below.)
-    // THROWS, where the cache read below returns false. The difference is deliberate: this is the
-    // AUTHORITATIVE read, so a caller that reaches it without access has a real ordering bug, and
-    // the sync chip's error path is the visible, retryable place for that to surface. Silently
-    // resolving would leave the Calendar showing the base roster as though it were current — the one
-    // outcome this whole feature exists to prevent.
+    // THROWS, where the cache read below returns false, deliberately: this is the AUTHORITATIVE read,
+    // so a caller reaching it without access has a real ordering bug, and the sync chip's error path
+    // is the visible, retryable place for it. Silently resolving would show the base roster as current.
     if (!hasCalendarAccess()) throw new Error('calendar-access-required');
     const q = query(
         collection(db, COLLECTIONS.overrides),
@@ -395,45 +367,38 @@ export async function fetchOverridesForRange(startStr, endStr, ticket = issueRea
         where('date', '<=', endStr)
     );
     const snapshot = await getDocs(q);
-    // THE ANSWER BELONGS TO THE GRANT THAT ASKED FOR IT (10 Nov 2026, external review F2). The gate
-    // above is checked when a read is ISSUED, and a read takes time: access can be lost, or lost and
-    // granted again, before the answer lands. An answer from the earlier grant used to be committed
-    // all the same — written into the cache while the Calendar was locked, or over a month the new
-    // grant's own read had just FAILED for, which then drew as current on the strength of a check
-    // the new session never made. A refusal from an earlier grant was already ignored (v24.56); this
-    // is the same rule for a success. THROWN, not returned, and before either branch below — the
-    // cache-served one merges too — so no caller can go on to record a success: each stands down.
+    // THE ANSWER BELONGS TO THE GRANT THAT ASKED FOR IT (CALENDAR_DATA.md 20). The gate above is
+    // checked when a read is ISSUED; access can be lost, or lost and granted again, before the answer
+    // lands, and an earlier grant's answer must not be written into a locked Calendar or over a month
+    // the new grant's own read has just FAILED for. THROWN, not returned, and before either branch
+    // below — the cache-served one merges too — so no caller can go on to record a success.
     if (!answerStillWanted(ticket)) {
         throw Object.assign(new Error('Override read outlived the access it was issued under'), { code: READ_SUPERSEDED });
     }
-    // ANSWERED BY THE CACHE, NOT THE SERVER (v24.48, external audit F1). With `persistentLocalCache`,
+    // ANSWERED BY THE CACHE, NOT THE SERVER (CALENDAR_DATA.md 16). With `persistentLocalCache`,
     // `getDocs` on a dead signal resolves from this device's cache — a possibly-stale SUBSET, possibly
-    // empty — and reconciling that authoritatively EVICTED leave the device already held and marked the
-    // month current, so a base shift went up beneath no warning. It is merged the way phase 1 merges
-    // (additively, never claiming the month), and then THROWN, so the month is released for a retry
-    // and recorded as `cached` — the labelled last-known grid — or `error` if it held nothing.
+    // empty — which, reconciled authoritatively, would EVICT leave the device held and mark the month
+    // current. It is merged the way phase 1 merges (additively, never claiming the month), and then
+    // THROWN, so the month is released for a retry and recorded as `cached` — the labelled last-known
+    // grid — or `error` if it held nothing.
     if (snapshot.metadata?.fromCache) {
         const held = collectOverrideRecords(snapshot);
         let painted = false;
         for (const { key, from, to } of _monthSlices(startStr, endStr)) {
             if (_monthOwner.has(key)) continue;
             reconcileRangeIntoCache(rosterOverridesCache, held.filter(r => r.date >= from && r.date <= to), from, to, { authoritative: false });
-            // A copy only where this device once held the month whole — see `_heldWhole` (cal-data-3).
+            // A copy only where this device once held the month whole — see `_heldWhole`.
             painted = painted || (_heldWhole(key) && held.some(r => r.date >= from && r.date <= to));
         }
         if (painted) shiftTypesMonthCache.clear();
         throw Object.assign(new Error('Override read was served from the offline cache'), { code: SERVED_FROM_CACHE, painted });
     }
     if (snapshot.size >= 1900) console.warn('[Firestore] Override query returned', snapshot.size, 'docs — approaching practical limit. Consider archiving old overrides.');
-    // Collect the validated snapshot rows (shared collector — see override-utils.collectOverrideRecords),
-    // then RECONCILE authoritatively (v16.96): the range query is the single source of truth for
-    // [startStr, endStr], so the winner for each date is rebuilt from THIS snapshot alone
-    // (reconcileRangeIntoCache), never merged against the possibly-stale cache. The old per-doc merge
-    // kept a deleted higher-priority manual alive when only a lower-priority import remained (the import
-    // couldn't out-rank the cached manual, yet the key WAS seen so the deletion pass skipped it —
-    // Finding #1). Dates outside the queried range are untouched. (This used to add "the team-view
-    // week fetch reconciles independently" — it has not since v18.76, when Team View moved onto
-    // `ensureOverridesCached` precisely so there would be ONE authoritative reconciler per month.)
+    // Collect the validated snapshot rows (override-utils.collectOverrideRecords), then RECONCILE
+    // authoritatively: the range query is the single source of truth for [startStr, endStr], so each
+    // date's winner is rebuilt from THIS snapshot alone (reconcileRangeIntoCache), never merged against
+    // the possibly-stale cache — a merge kept a deleted higher-priority manual alive when only a
+    // lower-priority import remained. Dates outside the queried range are untouched.
     const records = collectOverrideRecords(snapshot);
     // Apply month by month, and only where this read is still the newest to have landed. Records are
     // sliced with the range because `reconcileRangeIntoCache` stores EVERY winner it is handed
@@ -459,13 +424,10 @@ export async function fetchOverridesForRange(startStr, endStr, ticket = issueRea
  * device already holds — though it cannot beat the stored user's `accounts:lookup`, behind which
  * Firestore holds every operation (CALENDAR_DATA.md 10).
  *
- * **It is no longer "no auth", and that changed at v20.12.** Firestore rules are evaluated on the
- * SERVER, so a cache hit genuinely never consults them — which used to be stated here as a harmless
- * property of an open collection and became the feature's single biggest hole the moment override
- * reads required access. The read is now gated on Calendar access (THE ACCESS GATE, above): the
- * rules stop the NETWORK read, and that check stops this one. Phase 1 still runs before any network
- * read of its own; it simply runs after the access DECISION, which waits for Firebase to confirm the
- * stored sign-in.
+ * **It is not "no auth".** Firestore rules are evaluated on the SERVER, so a cache hit never
+ * consults them. The read is gated on Calendar access (THE ACCESS GATE, above): the rules stop the
+ * NETWORK read, and that check stops this one. Phase 1 still runs before any network read of its
+ * own; it runs after the access DECISION, which waits for Firebase to confirm the stored sign-in.
  *
  * **Merged additively — never authoritative.** A cache snapshot is a possibly-stale SUBSET, so an
  * absent key is not a delete. Only the server read (`fetchOverridesForRange`) may evict. See the
@@ -474,12 +436,10 @@ export async function fetchOverridesForRange(startStr, endStr, ticket = issueRea
  * Never throws: a cache miss (first visit, evicted IndexedDB) is the normal empty state, not a
  * failure, and must never reach the sync chip's error path.
  *
- * **Which months it knows is reported PER MONTH** (whole-app review, Oct 2026). The boolean below
- * answers for the whole range, and the boot window is three months — so one month with cached rows
- * marked all three `cached`, and a month this device never loaded was drawn from the bare base
- * roster as though it were known. `monthsWithRows`, when passed, receives the key of each month
- * whose slice held at least one cached row AND that this device once held whole (`_heldWhole`), and
- * only those may be called known.
+ * **Which months it knows is reported PER MONTH.** The boolean answers for the whole range, and the
+ * boot window is three months, so one month with rows must not mark all three `cached`.
+ * `monthsWithRows`, when passed, receives the key of each month whose slice held at least one cached
+ * row AND that this device once held whole (`_heldWhole`), and only those may be called known.
  *
  * @param {string} startStr - 'YYYY-MM-DD' inclusive start
  * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
@@ -500,27 +460,23 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWi
             where('date', '<=', endStr)
         );
         const snapshot = await getDocsFromCache(q);
-        // …AND ASKED AGAIN WHEN THE ANSWER LANDS (10 Nov 2026). The line above guards the moment the
-        // read is issued; the cache answers a moment later, and a Calendar locked in between must not
-        // have yesterday's rows written into it behind the card. Same refusal, same reason.
+        // …AND ASKED AGAIN WHEN THE ANSWER LANDS. The line above guards the moment the read is issued;
+        // a Calendar locked before the cache answers must not have yesterday's rows written into it.
         if (!answerStillWanted(ticket)) return false;
         if (snapshot.empty) return false;
         const records = collectOverrideRecords(snapshot);
-        // Skip any month a SERVER read has already written (v20.44). Additive merging cannot evict,
-        // but `reconcileRangeIntoCache` stores every winner it is handed unconditionally — it only
-        // ranks records against each OTHER, never against what is already cached — so a local
-        // snapshot landing late could still overwrite a fresher server record with an older one.
-        // Once a month has an authoritative answer, a cache snapshot can only equal it or be worse.
+        // Skip any month a SERVER read has already written. `reconcileRangeIntoCache` ranks records
+        // only against each OTHER, never against what is cached, so a local snapshot landing late could
+        // overwrite a fresher server record with an older one.
         //
         // It checks ownership without CLAIMING it, and that asymmetry is the point: an authoritative
-        // read issued earlier but still in flight must not find its month taken by a non-
-        // authoritative one, or the eviction pass — the only thing that removes a deleted override —
-        // would be skipped entirely.
+        // read issued earlier but still in flight must not find its month taken by a non-authoritative
+        // one, or the eviction pass — the only thing that removes a deleted override — would be skipped.
         let changed = false;
         for (const { key, from, to } of _monthSlices(startStr, endStr)) {
             if (_monthOwner.has(key)) continue;
             const slice = records.filter(r => r.date >= from && r.date <= to);
-            if (slice.length && _heldWhole(key)) monthsWithRows?.push(key);   // see `_heldWhole` (cal-data-3)
+            if (slice.length && _heldWhole(key)) monthsWithRows?.push(key);   // see `_heldWhole`
             if (reconcileRangeIntoCache(rosterOverridesCache, slice, from, to,
                     { authoritative: false })) changed = true;
         }
@@ -534,14 +490,12 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWi
 /**
  * Ensure overrides for a given month are in the cache.
  * No-op if already fetched. Fires a background fetch and calls renderFn() when it SETTLES — on
- * success, and (once per claim) on failure too. Failure used to be render-silent, which was right
- * while a failed month simply kept showing the base roster; since v20.40 it withholds the grid
- * instead, so nothing repainting means the month sits on "Checking this month" for ever.
+ * success, and (once per claim) on failure too: a failed month withholds the grid, so nothing
+ * repainting would leave it on "Checking this month" for ever.
  * EVERY caller is called back, not only the one that started the read: a caller arriving while the
- * month is in flight joins it (`_monthWaiters`). The read is every member's overrides, so a member
- * switch or a Team View opened mid-flight is waiting on the same data — dropping it left that
- * surface on "Checking this month" for good. The renderFn decides what to repaint; it must not
- * assume the screen is still the one that asked.
+ * month is in flight joins it (`_monthWaiters`) — a member switch or a Team View opened mid-flight
+ * waits on the same every-member read. The renderFn decides what to repaint; it must not assume the
+ * screen is still the one that asked.
  * @param {number} year
  * @param {number} month - 0-indexed
  * @param {Function} [renderFn]
@@ -550,9 +504,9 @@ export async function ensureOverridesCached(year, month, renderFn) {
     // Month navigation and the Team Week View both arrive here, so the gate covers them too — and
     // it returns BEFORE claiming the month, or a navigation made while locked would mark the month
     // fetched and the real read after unlocking would be skipped for the rest of the session.
-    // INSURANCE since v25.72, and said so because no test fails without it (measured, 11 Nov 2026):
-    // the read below is refused as it is issued, its failure stands down in silence (THE READ
-    // TICKET), and a grant clears every claim. Kept as the one layer that depends on neither.
+    // INSURANCE, and said so because no test fails without it: the read below is refused as it is
+    // issued, its failure stands down (THE READ TICKET), and a grant clears every claim. Kept as the
+    // one layer that depends on neither.
     if (!hasCalendarAccess()) return;
     const key = monthKey(year, month);
     if (fetchedMonths.has(key)) {
@@ -578,49 +532,37 @@ export async function ensureOverridesCached(year, month, renderFn) {
         const startStr = formatISO(new Date(year, month, 1));
         const endStr   = formatISO(new Date(year, month + 1, 0));
         await fetchOverridesForRange(startStr, endStr, ticket);
-        // The month is now KNOWN (v20.40). Recorded here rather than at the call site because this
-        // is the one place that can tell a settled server read from a cache hit — and the whole
-        // point of the readiness model is that those two are not the same claim.
+        // The month is now KNOWN. Recorded here because this is the one place that can tell a settled
+        // server read from a cache hit — and those two are not the same claim.
         noteKnowledge(key, 'authoritative');
         _settledAt.set(key, Date.now());
     } catch (err) {
         settle();
-        // No longer wanted (THE READ TICKET): issued under an earlier grant, answered after access had
-        // gone, or failed after it had. It neither claims nor locks the current access, and it has
-        // nothing to report: nothing is recorded against a Calendar locked since. The grant that holds
-        // the Calendar now reads the month for itself.
+        // No longer wanted (THE READ TICKET): nothing is recorded against a Calendar locked since,
+        // and the grant that holds the Calendar now reads the month for itself.
         if (!answerStillWanted(ticket, err)) return;
         const knownBefore = knowledgeOf(key);   // whether this failure changes it decides the repaint, below
         fetchedMonths.delete(key);  // Allow retry on next navigation
         if (_monthOwner.has(key)) {
-            // THIS DEVICE HOLDS THE SERVER'S EARLIER ANSWER FOR THE MONTH, AND THE RE-CHECK FAILED
-            // (10 Nov 2026, external review F1). The grid stays — holding real data beats holding
-            // none — but as the labelled saved copy: a month read in the morning and re-checked in
-            // the afternoon with no signal went on being drawn as CURRENT, "As rostered" included,
-            // because a failure could not be recorded against `authoritative`.
+            // THIS DEVICE HOLDS THE SERVER'S EARLIER ANSWER, AND THE RE-CHECK FAILED (CALENDAR_DATA.md
+            // 18). The grid stays — real data beats none — but as the labelled saved copy, never current.
             //
-            // ONLY WHERE THIS FAILURE IS THE NEWEST NEWS. If another read's answer landed for the
-            // month while this one was out, the server has spoken since this one was asked, and a
-            // slow, superseded failure must not un-confirm it — the same ordering `_monthOwner`
-            // keeps for writes, applied to the claim.
+            // ONLY WHERE THIS FAILURE IS THE NEWEST NEWS. If another read's answer landed for the month
+            // while this one was out, a slow, superseded failure must not un-confirm it — the ordering
+            // `_monthOwner` keeps for writes, applied to the claim.
             if ((_monthOwner.get(key) || 0) === ownerAtIssue) noteCheckFailed(key);
             // A month forgotten for a retry ("Try again") comes back as the saved copy too, not as
             // the failure panel: pressing the button must not cost the member the grid they had.
             noteKnowledge(key, 'cached');
         } else {
             // A cache-served read that held this month's records is the labelled last-known grid, not a
-            // failure (v24.48); anything else is `error` — actionable, earning a Retry where `unknown` waits.
+            // failure; anything else is `error` — actionable, earning a Retry where `unknown` waits.
             noteKnowledge(key, /** @type {any} */ (err)?.code === SERVED_FROM_CACHE && /** @type {any} */ (err).painted ? 'cached' : 'error');
         }
-        // ACCESS GONE, not a network blip (v20.15). This path had no recovery at all: the month
-        // simply rendered from the base roster with a line in the console, which is the one outcome
-        // the whole feature exists to prevent — somebody shown a shift they are not working, with
-        // nothing on screen saying so. A revoked or disabled account lands exactly here (a password
-        // reset revokes every device's tokens), on its next month navigation.
-        //
-        // The initial fetch already had this recovery (calendar-initial-fetch.js). Month navigation
-        // and Team View come through HERE instead, and they are the likelier path, because by the
-        // time a session expires the initial fetch is long finished.
+        // ACCESS GONE, not a network blip. Without this a revoked or disabled account (a password
+        // reset revokes every device's tokens) would render the month from the base roster on its next
+        // navigation — a shift they are not working, with nothing saying so. The initial fetch has the
+        // same recovery (calendar-initial-fetch.js); month navigation and Team View come through HERE.
         if (_onAccessLost && _isAccessFailure(err)) {
             setCalendarAccess(false);   // shut before anything can repaint from the cache: the ONE write, so the documents shut with it, and what we knew is forgotten
             try { _onAccessLost(); } catch (e) { console.error('[Calendar] access-lost handler failed', e); }
@@ -628,27 +570,21 @@ export async function ensureOverridesCached(year, month, renderFn) {
         }
         _oweIfSavedCopy(key);   // a saved copy: ask again when the page comes back
         console.error('[Firestore] Failed to fetch overrides for', key, err);
-        // Tell the caller to repaint, so a withheld grid can show its failure panel instead of
-        // waiting forever on a fetch that has already lost (v20.40). Once per claim — see
-        // `_failureRepainted` above for the loop this guards — AND WHENEVER THIS FAILURE CHANGED WHAT
-        // THE MONTH IS KNOWN TO BE (11 Nov 2026, found by calendar-sequences.test.mjs). A slow read
-        // overtaken by a newer answer fails as old news and changes nothing, yet it spent the one
-        // repaint; the re-read that repaint started then failed for real, took "current" away
-        // (`noteCheckFailed`), and could not say so, so the month stayed drawn as current — the F1
-        // symptom by another road. A change always repaints. That cannot become the loop: between two
-        // successes a month's knowledge can change only a few times (unknown → error → cached, or
-        // authoritative → cached), so a run of failures that change nothing is still told once.
+        // Tell the caller to repaint, so a withheld grid can show its failure panel. Once per claim —
+        // see `_failureRepainted` for the loop this guards — AND WHENEVER THIS FAILURE CHANGED WHAT THE
+        // MONTH IS KNOWN TO BE (found by calendar-sequences.test.mjs): a slow superseded failure could
+        // spend the one repaint, so the real failure after it took "current" away and could not say so.
+        // That cannot become the loop: between two successes a month's knowledge can change only a few
+        // times (unknown → error → cached, or authoritative → cached).
         if (knowledgeOf(key) !== knownBefore || !_failureRepainted.has(key)) { _failureRepainted.add(key); _repaintWaiters(waiters); }
         return;
     }
     settle();
     _failureRepainted.delete(key);   // succeeded — a future failure of this month is news again
-    // The render is deliberately OUTSIDE the try (v18.91). The fetch succeeded by this point and the
-    // cache holds the new data; if the callback then throws mid-DOM-rebuild, treating that as a fetch
-    // failure would log the wrong cause AND un-mark the month, so the next navigation re-queries data
-    // that is already cached. v18.76 raised the stakes by making a full Team-View grid rebuild one of
-    // these callbacks. A render fault is the caller's to handle — it must not corrupt fetch state,
-    // and since several callers can wait on one read, it must not cost the others their repaint.
+    // The render is deliberately OUTSIDE the try. The fetch succeeded and the cache holds the data;
+    // a callback throwing mid-DOM-rebuild must not be logged as a fetch failure or un-mark the month.
+    // A render fault is the caller's to handle, and since several callers can wait on one read, it
+    // must not cost the others their repaint.
     _repaintWaiters(waiters);
 }
 
@@ -675,7 +611,7 @@ export function getShiftTypesInMonth(member, year, month, snapshot = null) {
     const cacheKey = `${member.name}|${year}|${month}`;
     // A month drawn from the member's STORED COPY (`snapshot`, day → record) is read from it, exactly
     // as the renderer reads it, and kept out of the cache: the copy is not what the server said, and
-    // the live answer must not inherit it (48-hour review — the legend hid a key the grid showed).
+    // the live answer must not inherit it.
     if (!snapshot && shiftTypesMonthCache.has(cacheKey)) return shiftTypesMonthCache.get(cacheKey);
 
     const types = new Set();
@@ -687,9 +623,9 @@ export function getShiftTypesInMonth(member, year, month, snapshot = null) {
         const dateStr   = formatISO(date);
         const ov = isBeforeMemberStart(member, date) ? null
             : snapshot ? snapshot.get(dateStr) ?? null : rosterOverridesCache.get(`${member.name}|${dateStr}`);
-        // Same shared override→effective-shift ladder as the calendar renderer + Team view (v16.48)
-        // so the month legend can never drift from them — e.g. it can't light 'AL' from a legacy
-        // Sunday AL override (suppressed), since Sundays are non-contracted (CLAUDE.md layer 5).
+        // Same shared override→effective-shift ladder as the calendar renderer + Team view, so the
+        // legend can never drift from them — e.g. it can't light 'AL' from a legacy Sunday AL override
+        // (Sundays are non-contracted, CLAUDE.md layer 5).
         const { shift } = resolveDayShift(ov, baseShift, isSunday(dateStr), isChristmasLeaveDay(member, date), isChristmasOrBoxingDay(dateStr));
         if (shift === 'SPARE') types.add('SPARE');
         else if (shift === 'RDW')  types.add('RDW');

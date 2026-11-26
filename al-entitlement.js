@@ -5,60 +5,40 @@
  *
  * ── WHY THIS IS A MODULE AND NOT FOUR FILTERS ───────────────────────────────────────────────────
  *
- * `projectAnnualLeaveOverage` (roster-data.js) has been shared since it was written. What was never
- * shared is the thing FEEDING it — the set of existing AL dates — and by v21.45 that set was being
- * built by hand in FOUR places, in three different ways:
- *
- *   · admin-app.js `updateALBanner`     — member + annual_leave + year + !isSunday
- *   · admin-app.js week-grid save       — the same, plus the dates this batch overwrites or deletes
- *   · admin-al.js  pre-save cap check   — the same, PLUS a rest-day test
- *   · calendar-al-lightbox.js (v21.46)  — the same, PLUS a start-date test, and no rest-day test
- *
- * So the app answered one question four times and could disagree with itself: the banner said a
- * member had fewer days left than the save path believed, and the manager reading "0 left" was told
- * something the app itself would not act on. That is the failure worth preventing — not the
- * duplication, which is merely how it happened. Note what the shape of it did: each site was fixed
- * where its own bug was REPORTED, so every one ended up holding a different subset of the rules and
- * none of them was wrong on purpose.
+ * `projectAnnualLeaveOverage` (roster-data.js) is shared; the set of existing AL dates FEEDING it
+ * was once built by hand in four places (the Admin banner, the week-grid save, admin-al.js's cap
+ * check, the Calendar's leave panel), each holding a different subset of the rules. So the banner
+ * could say "0 left" while the save path believed otherwise. One module answers the question once.
  *
  * ── THE TWO RULES, AND THE THIRD THAT IS ALREADY IMPLIED ────────────────────────────────────────
  *
- * **A Sunday never counts.** Sundays are uncontracted for every grade, so AL cannot be booked on
- * one and a legacy document that says otherwise must not consume entitlement. This is the read-side
- * face of the policy declared as `SUNDAY_FORBIDDEN_TYPES` in override-utils.js; the write paths
- * refuse, and this makes sure a document that got in before they did cannot spend a day.
+ * **A Sunday never counts.** Sundays are uncontracted for every grade. This is the read-side face of
+ * `SUNDAY_FORBIDDEN_TYPES` (override-utils.js): the write paths refuse, and this makes sure a document
+ * that got in before they did cannot spend a day.
  *
  * **A day whose BASE shift is a rest day never counts.** A member does not spend annual leave on a
- * day they were not working. The rule matters because the two halves of the question are resolved
- * differently: NEW dates are filtered through `isWorkingDate`, which already excludes rest days, so
- * an existing-AL set that keeps them is comparing unlike with unlike — the projected total comes out
- * high and a booking well inside the entitlement meets a spurious "over entitlement" confirm bar.
- * `admin-al.js` had this and carried the reasoning; the other three did not have it at all.
+ * day they were not working. NEW dates are filtered through `isWorkingDate`, which already excludes
+ * rest days, so an existing-AL set that kept them would compare unlike with unlike and meet a
+ * spurious "over entitlement" confirm bar.
  *
  * **A day before the member joined never counts — and it needs a rule of its own.** `getBaseShift`
- * returns `'RD'` for every date before `startDate`, so for a record with nothing to say about the day
- * the rest-day rule answers it. But a record that carries its OWN evidence — leave written over a
- * swapped working day, with `replacedType` — is answered from that evidence BEFORE the base is asked,
- * and was charged (review, 15 Nov 2026). This module once argued the start-date test was dead code
- * here; that held only for records with no evidence. So `isBeforeMemberStart` is asked first, as the
- * calendar has asked it since v17.41 and as the leave sheet's card does (al-leave-compare.js), and the
- * test pins both halves: the mechanism for a bare record, and the guard for one with evidence.
+ * returns `'RD'` before `startDate`, which answers a bare record. But a record carrying its OWN
+ * evidence (leave over a swapped working day, `replacedType`) is answered from that evidence BEFORE
+ * the base is asked. So `isBeforeMemberStart` is asked first, as the calendar and the leave sheet's
+ * card (al-leave-compare.js) do, and the test pins both halves.
  *
- * ── WHICH YEAR A DAY BELONGS TO IS ITS OWN — UNLESS IT IS A JANUARY DAY MOVED BACK (v25.18) ─────
+ * ── WHICH YEAR A DAY BELONGS TO IS ITS OWN — UNLESS IT IS A JANUARY DAY MOVED BACK ─────────────
  *
- * A day counts against the year of its date, except a January leave day carrying `leaveYear`: that
- * one counts against the year before (leave-year.js has the owner's decision and the reasoning). So
- * `countedAlDates` for a year reads the NEXT January too, and every day is counted towards
- * `leaveYearOf` its winning record — never towards the year its date merely starts with. One rule,
- * here, is what keeps the Admin banner, the booking cap and the Calendar's leave panel agreeing about
- * a moved day; a surface that still filtered by date prefix would count it twice, once in each year.
+ * A January leave day carrying `leaveYear` counts against the year before (leave-year.js has the
+ * owner's decision). So `countedAlDates` for a year reads the NEXT January too, and every day is
+ * counted towards `leaveYearOf` its winning record — never the year its date merely starts with. A
+ * surface that still filtered by date prefix would count a moved day twice, once in each year.
  *
  * ── THE TAKEN / BOOKED SPLIT IS TODAY, NOT THE DEADLINE ─────────────────────────────────────────
  *
  * `alPosition` splits the counted days at `todayStr` — on or before today is TAKEN, after is BOOKED.
- * Both consume entitlement and `remaining` subtracts both; the split exists only because a manager
- * reads the two differently. Passing the date in rather than reading a clock keeps the whole module
- * pure, which is what lets the boundary (a day that is today) be tested at all.
+ * Both consume entitlement. The date is passed in rather than read from a clock, which keeps the
+ * module pure and lets the boundary (a day that is today) be tested.
  */
 
 import { getBaseShift, isSunday, isChristmasRD, parseISODate, formatISO } from './roster-data.js';
@@ -69,17 +49,14 @@ import { isChristmasClosureDate, boxingDayLieuDays, boxingDayForAllowance, allow
 import { roleOn } from './roster-roles.js';
 
 /**
- * A member's WHOLE annual-leave allowance for a year — the one door every surface reads it through
- * (v25.37). The contract figure is `getALEntitlement` (al-contract.js); on top of it goes the day in
- * lieu earned by working a Boxing Day the member was due to work, in whichever year it is SPENT
- * (`boxingDayLieuYear`, below): the Boxing Day's own year when leave after it that December needs it,
- * otherwise the next. No entitlement on record stays `null` — a day is not added to nothing, which
- * would make it a number (v22.45).
+ * A member's WHOLE annual-leave allowance for a year — the one door every surface reads it through.
+ * The contract figure is `getALEntitlement` (al-contract.js); on top of it goes the day in lieu
+ * earned by working a Boxing Day the member was due to work, in whichever year it is SPENT
+ * (`boxingDayLieuYear`, below). No entitlement on record stays `null` — a day is not added to nothing.
  *
  * It is not inside `getALEntitlement` because christmas-leave.js imports al-contract.js, so
- * al-contract.js cannot import it back (christmas-leave.js's header). A second door would be a
- * surface that quietly leaves the earned day out, so christmas-leave.test.mjs fails if any module
- * but this one calls `getALEntitlement`.
+ * al-contract.js cannot import it back. christmas-leave.test.mjs fails if any module but this one
+ * calls `getALEntitlement`, since a second door would quietly leave the earned day out.
  * @param {any} member  teamMembers entry
  * @param {number|string} year
  * @param {Array<any>} [overrides] the member's overrides
@@ -97,26 +74,20 @@ export function entitlementFor(member, year, overrides = []) {
  * WHICH ALLOWANCE HOLDS THE DAY IN LIEU FOR WORKING BOXING DAY `boxingYear` — that year's, the next
  * year's, or `null` when none was earned (owner, 25 Nov 2026).
  *
- * The roster clerk says the day is valid for a year. It went into the NEXT year's allowance (owner,
- * 15 Nov 2026), so it could not be taken between Boxing Day and New Year: leave on 31 December came
- * off a year that might have none left, with the day in lieu sitting in January. So the day can be
- * taken from 27 December, and it is SPENT WHERE IT IS NEEDED: in its own year when that year has leave
- * counted from 27 December on (a January day charged back to it included, leave-year.js) and the year's
- * allowance without it cannot cover the year's leave; otherwise in the next year, to 31 December
- * (owner: "keep it to 31 December").
+ * The roster clerk says the day is valid for a year. It can be taken from 27 December, and it is
+ * SPENT WHERE IT IS NEEDED: in its own year when that year has leave counted from 27 December on (a
+ * January day charged back to it included, leave-year.js) and the year's allowance without it cannot
+ * cover the year's leave; otherwise in the next year, to 31 December (owner: "keep it to 31 December").
  *
- * The year's own leave goes FIRST, the day in lieu only on what is left over. Leave a year does not
- * use is lost at its end and the day in lieu keeps for another twelve months, so that order is the one
- * that keeps every day a member has. Nothing is asked and nothing is stored: like the Christmas leave
- * it derives from what is on record (christmas-leave.js, "derived, never stored"), so booking or
- * removing a day in late December moves the day in lieu between the two years by itself.
+ * The year's own leave goes FIRST, the day in lieu only on what is left over: unused leave is lost at
+ * the year's end and the day in lieu keeps, so that order keeps every day a member has. Nothing is
+ * asked or stored — it derives from what is on record (christmas-leave.js, "derived, never stored").
  *
  * THE COST IS A CHAIN, AND EVERY SURFACE MUST READ IT WHOLE. Whether one year's allowance "cannot cover"
- * its leave depends on the day in lieu carried into it from the Boxing Day before, which depends on the
- * year before that. It starts at the first Christmas these rules apply to, so a surface asking about a
- * year needs the member's records from that first year on — the Calendar's leave panel reads from it.
- * A Dispatcher's bank-holiday Boxing Day is not in it: their bank-holiday rule counts that day in its
- * own year (`boxingDayLieuDays` gives nothing for it).
+ * its leave depends on the day carried in from the Boxing Day before, and so on back to the first
+ * Christmas these rules apply to — a surface needs the member's records from that year on (the
+ * Calendar's leave panel reads from it). A Dispatcher's bank-holiday Boxing Day is not in it: their
+ * bank-holiday rule counts that day in its own year (`boxingDayLieuDays` gives nothing for it).
  * @param {any} member  teamMembers entry
  * @param {number|string} boxingYear  the Boxing Day's year
  * @param {Array<any>} [overrides] the member's overrides
@@ -155,15 +126,13 @@ export function boxingDayLieuSplit(member, year, overrides = []) {
  * in lieu (a worked Boxing Day, a Dispatcher's worked bank holiday) answers through the one that
  * grants it, rather than a second copy of either.
  *
- * Across EVERY year the day can reach (`allowanceYearsOf`, christmas-leave.js), not just its own, and
- * as a TOTAL: a worked Boxing Day's day in lieu sits in its own year or the next (`boxingDayLieuYear`),
- * so leave over that work takes it from whichever holds it; and leave late in December can move it from
- * one year to the other, which lowers neither the member's days nor this answer.
+ * Across EVERY year the day can reach (`allowanceYearsOf`, christmas-leave.js), as a TOTAL: a worked
+ * Boxing Day's day in lieu sits in its own year or the next, and late-December leave can move it
+ * between them, which lowers neither the member's days nor this answer.
  *
  * `written` is the record the save puts there — leave by default; an absence takes the day in lieu
- * back exactly as leave does, because it too replaces the work (`projectAbsenceRange`,
- * admin-al-projection.js). Here rather than there since Nov 2026, because the Absence range's writer
- * asks it too, and that module imports the writer's (`absenceHiddenDates`, al-swapped-days.js).
+ * back exactly as leave does (`projectAbsenceRange`, admin-al-projection.js). It lives here because
+ * the Absence range's writer asks it too, and that module imports the writer's (al-swapped-days.js).
  * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
  * @param {{type: string, value: string}} [written]
  * @returns {boolean}
@@ -184,12 +153,9 @@ export function lowersAllowance(member, date, ovByDate, written = { type: 'annua
 /**
  * Does a single date consume `member`'s entitlement if AL is recorded on it?
  *
- * Exported because BOTH halves of the overage projection have to ask it. `projectAnnualLeaveOverage`
- * adds existing days to new ones, so filtering only the existing set makes the two sides count
- * differently — a rest day already on record is free while the identical day being booked right now
- * is not, and the member meets a confirm bar for leave they are not spending. `admin-al.js` avoids
- * this by routing new dates through `isWorkingDate`; the week-grid save has no such filter, so it
- * calls this directly.
+ * Exported because BOTH halves of the overage projection have to ask it: filtering only the existing
+ * set makes a rest day on record free while the identical day being booked is not. `admin-al.js`
+ * routes new dates through `isWorkingDate`; the week-grid save has no such filter, so it calls this.
  *
  * @param {any} member the team-member object
  * @param {string} date ISO `YYYY-MM-DD`
@@ -206,13 +172,11 @@ export function consumesEntitlement(member, date, ovByDate = null) {
 
 /**
  * The most leave in one Spare week costs (owner, 21 Nov 2026). A Spare week is four days' work of
- * 35 hours, but the roster marks all of it Spare, so a whole week off was charged as six days, Monday
- * to Saturday. Each day still costs one day; the week stops costing at four.
+ * 35 hours, but the roster marks Monday to Saturday Spare, so a whole week off was charged six. Each
+ * day still costs one; the week stops costing at four.
  *
  * THE CAP FOLLOWS THE WEEK AS ROSTERED (owner, 22 Nov 2026): a week the BASE roster makes Spare costs
- * at most four however many of its days a roster upload has since given named shifts
- * (`rosteredSpareDay`). It used to count only the days still Spare, so the same week off cost four,
- * five with one day assigned, and six with two.
+ * at most four however many of its days a roster upload has since given named shifts (`rosteredSpareDay`).
  */
 export const SPARE_WEEK_MAX_DAYS = 4;
 
@@ -222,9 +186,8 @@ export const SPARE_WEEK_MAX_DAYS = 4;
  * absence carries what it replaced, `contractEvidence`), else the base roster. A Spare day a roster
  * upload has since given a named shift is not Spare any more.
  *
- * This is what the booking preview CALLS the day (admin-al-spare-note.js: "on standby, with the shift
- * not yet assigned" is untrue of an assigned day). It is NOT what the week's cap counts: that is the
- * week as rostered, assigned days included (`rosteredSpareDay`, owner 22 Nov 2026).
+ * This is what the booking preview CALLS the day (admin-al-spare-note.js). It is NOT what the week's
+ * cap counts: that is the week as rostered, assigned days included (`rosteredSpareDay`).
  * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
  * @returns {boolean}
  */
@@ -236,8 +199,7 @@ export function spareUnderneath(member, date, ovByDate) {
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
     const evidence = contractEvidence(ov);
     // Evidence that SAYS something about the contract answers; an absence or leave carried as what was
-    // replaced says nothing, so the base roster decides — as `costsWithoutSpareCap` reads the same day
-    // (review, 21 Nov 2026: leave over a recorded absence on a Spare day was never counted as Spare).
+    // replaced says nothing, so the base roster decides — as `costsWithoutSpareCap` reads the same day.
     if (evidence && evidence.type && isContractedWorkOverride({ type: evidence.type }) !== null) return evidence.type === 'spare_shift';
     return getBaseShift(member, parseISODate(date)) === 'SPARE';
 }
@@ -248,12 +210,11 @@ export function spareUnderneath(member, date, ovByDate) {
  *
  * WHY THE BASE ROSTER, NOT THE RECORD. A roster upload that assigns a Spare day writes a `shift`, and
  * leave over it keeps only `replacedType: 'shift'` — the same evidence a swapped-in working day leaves,
- * so the record cannot tell an assigned Spare day from any other shift. The base line can: a week is a
- * Spare week because the member's line for that week says Spare (`weeklyRoster` week 1, a CES week 4),
- * which stays true whatever was assigned. Read a DAY at a time, so a line Spare only Monday to Thursday
- * (a CES week 5) caps those days, a mid-week `rosterChanges` move is honoured (`getBaseShift`), and
- * 25 and 26 December, which the base makes rest days, are not in it. A Spare turn saved over a day the
- * base roster has at work is therefore NOT a Spare week, and costs a day as that work does.
+ * so the record cannot tell an assigned Spare day from any other shift. The base line can: the week is
+ * Spare because the member's line says so, whatever was assigned. Read a DAY at a time, so a line Spare
+ * only Monday to Thursday caps those days, a mid-week `rosterChanges` move is honoured (`getBaseShift`),
+ * and 25 and 26 December (base rest days) are not in it. A Spare turn saved over a day the base roster
+ * has at work is therefore NOT a Spare week, and costs a day as that work does.
  *
  * CEA AND CES ONLY, BY THE GRADE HELD ON THE DAY (owner, 21 Nov 2026). Their Spare week is four days'
  * work of 35 hours, which is what the cap is for; a Dispatcher's Spare days each cost one day.
@@ -282,10 +243,9 @@ export function spareWeekDays(date) {
 
 /**
  * Has this Spare week already spent its four days BEFORE `date`? The first four days with leave in a
- * week cost a day each, in date order, and any after them cost nothing — so a whole week costs four
- * and a part week costs a day a day (owner, 21 Nov 2026: "1 a day, at most 4"). Every day of the week
- * as rostered counts, a day since given a named shift included (`rosteredSpareDay`, owner 22 Nov 2026),
- * and only a day that would cost on its own.
+ * week cost a day each, in date order, and any after them cost nothing (owner, 21 Nov 2026: "1 a day,
+ * at most 4"). Every day of the week as rostered counts (`rosteredSpareDay`), and only a day that
+ * would cost on its own.
  * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
  * @returns {boolean}
  */
@@ -311,12 +271,10 @@ export function costsWithoutSpareCap(member, date, ovByDate) {
     if (isSunday(date)) return false;
     // Before the member joined, nothing costs a day — a record's own evidence included (header).
     if (isBeforeMemberStart(member, parseISODate(date))) return false;
-    // CHRISTMAS DAY AND BOXING DAY NEVER COST A DAY, FROM 2026 (v25.37, owner 5 Nov 2026). The
-    // station is closed, so leave on either day is free. The Christmas leave a member due at work is
-    // SHOWN (`isChristmasLeaveDay`, christmas-leave.js) writes nothing and so never reaches this function;
-    // this line is for a DOCUMENT somebody recorded there — including one booked as a swapped working
-    // day, which the `replacedType` test below would otherwise charge. The depot's spreadsheet marks
-    // both days Closed, so the two agree. Earlier years keep the counts they always had.
+    // CHRISTMAS DAY AND BOXING DAY NEVER COST A DAY, FROM 2026 (owner, 5 Nov 2026): the station is
+    // closed. The derived Christmas leave (`isChristmasLeaveDay`) writes nothing and never reaches this;
+    // this line is for a DOCUMENT recorded there — including one booked as a swapped working day, which
+    // the `replacedType` test below would otherwise charge. Earlier years keep the counts they had.
     if (isChristmasClosureDate(date)) return false;
 
     // The day is (or is about to be) AL-overridden, so the question is what is UNDERNEATH it.
@@ -324,19 +282,16 @@ export function costsWithoutSpareCap(member, date, ovByDate) {
     const base = getBaseShift(member, parseISODate(date));
     // An AL doc has already replaced whatever it covered, so `replacedType` is the only surviving
     // record of it — and so has an ABSENCE carrying a chain, whose `replacedType` the leave written
-    // over it will inherit (review A2); any other override IS the thing underneath and answers directly.
-    // Type alone classifies a reconstructed override: no write path preserves the replaced VALUE,
-    // and it is not needed — every type whose value could matter has that value pinned by the
-    // rules (`correction` is always 'RD'), which is why isContractedWorkOverride classifies
-    // `correction` by type (v21.56 — the first cut read a `replacedValue` nothing ever wrote).
+    // over it will inherit; any other override IS the thing underneath and answers directly.
+    // Type alone classifies a reconstructed override: no write path preserves the replaced VALUE, and
+    // every type whose value could matter has it pinned by the rules (`correction` is always 'RD').
     // The BASE goes in too: an Other day or a Spare turn on a base rest day is rest-day working, and
     // leave over it is free, like leave over RDW (owner, 10 Nov 2026 — isContractedWorkOverride).
     const contracted = isContractedWorkOverride(contractEvidence(ov), base);
     if (contracted !== null) return contracted;
 
-    // No override information — the base roster decides, which is what this function did for every
-    // date before v21.55 and still does for every AL written before it. (Leave dated before the
-    // member joined never gets this far: the start-date test above answers it, evidence or none.)
+    // No override information — the base roster decides. (Leave dated before the member joined
+    // never gets this far: the start-date test above answers it, evidence or none.)
     return !isRestShift(base);
 }
 
@@ -358,23 +313,20 @@ export function costsWithoutSpareCap(member, date, ovByDate) {
 export function countedAlDates({ overrides, member, year, exclude = null }) {
     const y = parseInt(String(year), 10);
     const yearStr = String(y);
-    // Next January is read because a day there may come out of THIS year's allowance (v25.18).
+    // Next January is read because a day there may come out of THIS year's allowance.
     const nextJanuary = `${y + 1}-01-`;
     const out = /** @type {Set<string>} */ (new Set());
     if (!member || !Array.isArray(overrides) || !Number.isFinite(y)) return out;
 
-    // ONE WINNER PER DATE, resolved across ALL of the member's overrides — not the AL docs alone
-    // (v21.56, external sweep). Duplicate docs for one date are a real population (two devices, an
-    // offline retry — the v16.23 lightbox fix names them), and the first cut last-write-wins'd over
-    // just the AL docs: an orphan AL beside a NEWER non-AL winner still counted, and which of two
-    // duplicate ALs answered depended on fetch iteration order. `shouldReplaceOverride` is the same
-    // resolution every other consumer applies, so this module can no longer disagree with them.
+    // ONE WINNER PER DATE, resolved across ALL of the member's overrides — not the AL docs alone.
+    // Duplicate docs for one date are real (two devices, an offline retry): an orphan AL beside a
+    // NEWER non-AL winner must not count. `shouldReplaceOverride` is the resolution every other
+    // consumer applies, so this module cannot disagree with them.
     const winnerByDate = /** @type {Map<string, any>} */ (new Map());
     for (const o of overrides) {
         if (!o || o.memberName !== member.name) continue;
-        // …and the last days of the December BEFORE, which are never counted here but may share a Spare
-        // week with this January's first days: the week's four is spent in date order, so a year read
-        // without them charged 1 and 2 January as if the week began on New Year's Day (review, 21 Nov 2026).
+        // …and the last days of the December BEFORE, never counted here but possibly sharing a Spare
+        // week with this January's first days: the week's four is spent in date order.
         if (!o.date) continue;
         const weekBefore = o.date >= `${y - 1}-12-26` && o.date.startsWith(`${y - 1}-12-`);
         if (!(o.date.startsWith(yearStr) || o.date.startsWith(nextJanuary) || weekBefore)) continue;
@@ -417,12 +369,9 @@ export function alPosition({ overrides, member, year, todayStr }) {
         if (d <= todayStr) taken++;
         else booked++;
     }
-    // NO ENTITLEMENT ON RECORD PROPAGATES AS null, IT DOES NOT BECOME A NUMBER (v22.45).
-    // `entitlement - taken - booked` on a null entitlement is a NUMBER — `0 - 1 - 0` — because
-    // null coerces to 0. So the one arithmetic that looks harmless is the one that would invent a
-    // remaining figure out of nothing and render it as confidently as a real one. Taken and booked
-    // are still counted: those are facts about days actually recorded, true whatever the
-    // entitlement is, and a caller may want them.
+    // NO ENTITLEMENT ON RECORD PROPAGATES AS null, IT DOES NOT BECOME A NUMBER. `entitlement - taken
+    // - booked` on null is `0 - 1 - 0`, an invented figure rendered as confidently as a real one.
+    // Taken and booked are still counted: they are facts about recorded days, whatever the entitlement.
     if (entitlement === null) return { entitlement: null, taken, booked, remaining: null };
     return { entitlement, taken, booked, remaining: entitlement - taken - booked };
 }
@@ -431,10 +380,9 @@ export function alPosition({ overrides, member, year, todayStr }) {
  * How a `remaining` figure is SHOWN — one rule for every surface that prints a balance: the
  * Calendar's leave panel, and Admin's AL banner and its collapsed card's chip.
  *
- * OVER, NOT MINUS (v24.46 on the Calendar; Admin since 25 Nov 2026, owner: Admin says "3 over" like
- * the Calendar). "-16 REMAINING" read as an error code, so past the allowance the figure is shown
- * WITHOUT its minus and the words say "over"; the tone is the same red. Admin printed "-3" in its
- * banner and "2026: -3 left" on the chip until the rule had one home.
+ * OVER, NOT MINUS (owner: Admin says "3 over" like the Calendar). "-16 REMAINING" read as an error
+ * code, so past the allowance the figure is shown WITHOUT its minus and the words say "over"; the
+ * tone is the same red.
  *
  * The tone thresholds are the ones every surface already used: nothing left (0 or over) is `none`,
  * one to five days is `low`, anything more is `ok`. Each surface maps the tone onto its own class.
@@ -459,7 +407,7 @@ export function balanceFace(remaining) {
 
 /**
  * The January leave days that may come out of the PREVIOUS year's allowance, grouped by January,
- * with where both years stand (v25.18 — the owner's decisions are in leave-year.js's header).
+ * with where both years stand (the owner's decisions are in leave-year.js's header).
  *
  * A day is listed when its WINNING record is annual leave on a January the choice covers
  * (`offeredJanuaries`) and the day actually spends leave (`consumesEntitlement`). A rest day, a
@@ -468,9 +416,9 @@ export function balanceFace(remaining) {
  *
  * `prevOpen` is the cap — "no more than the previous year has left". A day may move back only while
  * the previous year has at least one day left; a day already moved may always move forward again.
- * Both positions come from `alPosition`, the function the banner reads, so the panel and the banner
- * cannot disagree about whether a year has room. A January whose member has no entitlement on
- * record for either year is left out: there is no figure to judge the cap by (v22.45's rule).
+ * Both positions come from `alPosition`, the function the banner reads, so the two cannot disagree.
+ * A January whose member has no entitlement on record for either year is left out: there is no
+ * figure to judge the cap by.
  *
  * @param {{ overrides: any[], member: any, todayStr: string }} args
  * @returns {Array<{ january: number, prev: number,
@@ -486,12 +434,9 @@ export function leaveYearChoices({ overrides, member, todayStr }) {
     for (const january of offeredJanuaries(todayStr)) {
         const prefix = `${january}-01-`;
         const inJanuary = winners.filter(o => o.date.startsWith(prefix));
-        // The winners are all annual leave, so this map is exactly what `consumesEntitlement` reads
-        // for these dates: what the leave replaced, if anything (`replacedType`). It holds EVERY winning
-        // leave day, not January's alone (review, 22 Nov 2026): a Spare week running over New Year spends
-        // its four in date order from the December days, so a January-only map charged 1 and 2 January
-        // as if the week began on New Year's Day, and offered to move days that cost nothing — the
-        // mistake `countedAlDates` already corrects by reading the December before.
+        // The winners are all annual leave, so this map is exactly what `consumesEntitlement` reads.
+        // It holds EVERY winning leave day, not January's alone: a Spare week over New Year spends its
+        // four in date order from the December days (as `countedAlDates` reads the December before).
         const byDate = new Map(winners.map(o => [o.date, o]));
         const days = inJanuary
             .filter(o => consumesEntitlement(member, o.date, byDate))
@@ -513,20 +458,13 @@ export function leaveYearChoices({ overrides, member, todayStr }) {
  *
  * ── WHY THIS IS NOT `entitlement - 22` ──────────────────────────────────────────────────────────
  *
- * The Admin AL banner subtracted a literal 22 to recover the lieu count, which is right only while
- * the base IS 22. For a mid-year joiner it is their pro-rated figure, so the subtraction went
- * negative and the card rendered `22 base + -8 BH lieu` — a nonsense line about a real person, on
- * the surface a manager reads to decide whether somebody can take a day off. It had been wrong for a
- * Dispatcher who joined in June, from the day they joined, and nothing failed, because a caption is
- * not a calculation and nothing was checking it.
+ * The Admin AL banner once subtracted a literal 22 to recover the lieu count, which is right only
+ * while the base IS 22: a mid-year joiner's card read `22 base + -8 BH lieu`. The split is DERIVED
+ * from the figure `entitlementFor` returns: the base is what a pro-rated year replaces it with, and
+ * the lieu count is what the total exceeds it by. `al-entitlement.test.mjs` pins `base + lieu +
+ * boxingDay === entitlement` so the parts cannot drift apart in silence.
  *
- * The split is DERIVED from the same figure `entitlementFor` returns rather than recomputed: the
- * base is what a pro-rated year replaces it with, and the lieu count is whatever the total exceeds
- * it by. That keeps one formula, and `al-entitlement.test.mjs` pins `base + lieu + boxingDay ===
- * entitlement` so the parts cannot drift apart in silence — which is the failure this function
- * exists to end.
- *
- * `proRated` is reported because the caption needs to SAY so. "12 base" reads like a mistake beside
+ * `proRated` is reported because the caption needs to SAY so: "12 base" reads like a mistake beside
  * a colleague's 22 unless it explains itself.
  *
  * @param {{ member: any, year: number|string, overrides: any[] }} args
@@ -544,10 +482,9 @@ export function dispatcherBreakdown({ member, year, overrides }) {
 
     const proRated = member.proRatedAL?.[y] !== undefined;
     const base = dispatcherBaseAL(member, y);   // the figure getALEntitlement starts from — one formula
-    // A BOXING DAY IN LIEU IS NOT A BANK-HOLIDAY DAY (v25.37). It was earned on the year before's
-    // Boxing Day (christmas-leave.js), and in 2026 that is a Saturday and no bank holiday at all, so
-    // it is reported on its own and kept out of `lieu`, which the caption calls the days "for bank
-    // holidays worked".
+    // A BOXING DAY IN LIEU IS NOT A BANK-HOLIDAY DAY: it was earned on the year before's Boxing Day
+    // (christmas-leave.js), which need not be a bank holiday, so it is kept out of `lieu`, which the
+    // caption calls the days "for bank holidays worked".
     // `base + lieu + boxingDay === entitlement` is what the test pins.
     const split = boxingDayLieuSplit(member, y, overrides);
     const boxingDay = split.carried + split.late;
@@ -557,21 +494,18 @@ export function dispatcherBreakdown({ member, year, overrides }) {
 /**
  * The one line that explains what a member's entitlement is made of, or `null` when it is the plain
  * contract figure and there is nothing to explain. The Admin banner and the Calendar's leave panel
- * both print it, so the two cannot describe the same number differently — which is how the panel's
- * own `22 base + …` sum would have filed a Boxing Day in lieu under "BH lieu" (v25.37).
+ * both print it, so the two cannot describe the same number differently.
  *
  * A Dispatcher: `22 + 4 for bank holidays worked`, with `(pro-rated)` after the 22 for a joining year
- * and `+ 1 for working Boxing Day 2026` when earned — the words, not "base" and "BH lieu", because the
- * line is read by colleagues who have not met the abbreviations (17 Nov 2026). Anybody else: a line
- * only when the figure differs from every colleague's on their grade — a joining year's transcribed
- * `proRatedAL` ("Pro-rated for starting part way through 2026"), or a Boxing Day day earned
- * (christmas-leave.js → `boxingDayLieuDays`) — because a figure unlike everybody else's needs its
- * reason beside it. The joining year said nothing for a CEA or a CES until Nov 2026, while a
- * Dispatcher's said "(pro-rated)": a "20" beside a colleague's 32 read like a mistake.
+ * and `+ 1 for working Boxing Day 2026` when earned — words, not "base" and "BH lieu", because
+ * colleagues have not met the abbreviations. Anybody else: a line only when the figure differs from
+ * every colleague's on their grade — a joining year's `proRatedAL` ("Pro-rated for starting part way
+ * through 2026"), or a Boxing Day day earned — because a figure unlike everybody else's needs its
+ * reason beside it.
  *
- * THE LINE NAMES THE BOXING DAY'S YEAR (15 Nov 2026). The day is usually in the next year's allowance,
- * so the 2027 line is about December 2026. "For working Boxing Day" alone, under 2027, reads as a Boxing
- * Day that has not happened yet. One spent in its own year says so (25 Nov 2026, `lateWords`).
+ * THE LINE NAMES THE BOXING DAY'S YEAR. The day is usually in the next year's allowance, so "for
+ * working Boxing Day" alone, under 2027, reads as a Boxing Day yet to happen. One spent in its own
+ * year says so (`lateWords`).
  *
  * @param {{ member: any, year: number|string, overrides: any[] }} args
  * @returns {string|null}
@@ -610,14 +544,10 @@ function lateWords(boxingYear, year) {
  *
  * ── WHY A LIST CANNOT BE BUILT BY FILTERING ───────────────────────────────────────────────────
  *
- * Duplicate documents for one date are a real population here — two devices, an offline retry — and
- * `countedAlDates` above already resolves them, because getting the ENTITLEMENT wrong is obviously
- * serious. The Recorded-dates LIST filtered the raw collection instead, which produces a subtler
- * version of the same defect: an old orphan `annual_leave` doc sitting under a NEWER `shift` doc is
- * not the day's override at all, but a filter finds it, and the list then asks only "does this date
- * consume?" — which the winning shift answers YES to. So the date appeared in **Recorded Annual
- * Leave** for a day whose override is no longer annual leave, while the banner above it, working
- * from the winner map, correctly left it out. (External review of v23.78.)
+ * Duplicate documents for one date are real — two devices, an offline retry. A list that FILTERED
+ * the raw collection finds an old orphan `annual_leave` doc under a NEWER `shift` doc, asks only
+ * "does this date consume?" — which the winning shift answers yes to — and lists as leave a day whose
+ * override no longer is, while the banner beside it correctly leaves it out.
  *
  * The rule is order, not arithmetic: **resolve the winner FIRST, and only then ask what it is.**
  *
@@ -645,10 +575,8 @@ export function winningEntriesOfType(overrides, memberName, type) {
  * override decides the day (worked iff its value is not a rest shift, so a non-rest override like
  * RDW on a base-RD day IS worked); otherwise the base shift decides.
  *
- * Previously reimplemented four times: the AL/sick PREVIEWS used an older fall-through form that
- * counted a base-RD day with a non-rest (RDW) override as a REST day, while the save/entitlement
- * paths counted it as WORKED - so the preview under-reported vs what the booking actually wrote.
- * Consolidating onto this (the save/write rule) fixes that drift.
+ * Previously reimplemented four times, and the previews counted a base-RD day with an RDW override
+ * as REST while the save paths counted it as WORKED. This is the save/write rule, for both.
  * @param {any} memberObj  teamMembers entry
  * @param {string} dateStr  YYYY-MM-DD
  * @param {Map<string, any>|null} [ovByDate]  from buildMemberDateMap. Omit only where there are none to
@@ -658,8 +586,8 @@ export function winningEntriesOfType(overrides, memberName, type) {
 export function isWorkingDate(memberObj, dateStr, ovByDate = null) {
     if (isSunday(dateStr)) return false;
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(dateStr) : null;
-    // A Spare turn saved on 25 or 26 December before v26.38 is not work: the two days can never be
-    // spare days, in any year (owner, 19 Nov 2026), so it is the rest day underneath (review, 21 Nov 2026).
+    // A Spare turn saved on 25 or 26 December is not work: the two days can never be spare days, in
+    // any year (owner, 19 Nov 2026), so it is the rest day underneath.
     if (ov) return !isRestShift(ov.value) && !(ov.value === 'SPARE' && isChristmasRD(parseISODate(dateStr)));
     return !isRestShift(getBaseShift(memberObj, parseISODate(dateStr)));
 }
