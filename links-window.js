@@ -29,6 +29,8 @@
  * `windowsDiffer` exist for exactly that; do not render a comparison without them.
  */
 
+
+import { clockTextStatus } from './clock-input.js';
 /**
  * The CEA operating window today (owner, Aug 2026). Mon–Sat and Sunday are separate rows because
  * the operation genuinely differs; Saturday can split from Mon–Fri later if it ever diverges (the
@@ -105,7 +107,7 @@ export function isValidWindowRow(row) {
  * "630" and "6:30" typed afresh leave the box as 06:30 — so a box still reading "6:30" or "22:3" after it is left is
  * an EDIT of a time it held, which clock-input.js leaves as it is rather than guess (its rule 1). Read as a time,
  * Delete at the front of 16:30 became a 06:30 start, and the window grew by ten hours without a word. Such a box is
- * refused here, by name. `windowMinutes` stays lenient, because a stored "6:20" is the data's, not a guess: this is
+ * refused here, by name — `clockTextStatus` (clock-input.js), the reading every time box shares. `windowMinutes` stays lenient, because a stored "6:20" is the data's, not a guess: this is
  * the edit's boundary, not the data's.
  * @param {string} start @param {string} end
  * @returns {string|null}
@@ -113,11 +115,9 @@ export function isValidWindowRow(row) {
 export function windowEditRefusal(start, end) {
     const typed = [String(start ?? '').trim(), String(end ?? '').trim()];
     for (const t of typed) {
-        if (!t) continue;
-        const whole = /^\d{2}:\d{2}$/.test(t);
-        if (whole && canonicaliseWindowTime(t)) continue;
-        if (!whole && /^\d{0,2}:?\d{0,2}$/.test(t)) return `“${t}” is not a whole time — type all four digits, for example 06:20. That change wasn’t applied.`;
-        return `“${t}” is not a time of day — a time runs from 00:00 to 23:59. That change wasn’t applied.`;
+        const status = clockTextStatus(t);   // the app's one reading of a time box (clock-input.js)
+        if (status === 'unfinished') return `“${t}” is not a whole time — type all four digits, for example 06:20. That change wasn’t applied.`;
+        if (status === 'not-a-time') return `“${t}” is not a time of day — a time runs from 00:00 to 23:59. That change wasn’t applied.`;
     }
     if (!typed[0] || !typed[1]) return 'A start and a finish are both needed — that change wasn’t applied.';
     return isValidWindowRow({ start: canonicaliseWindowTime(typed[0]), end: canonicaliseWindowTime(typed[1]) }) ? null

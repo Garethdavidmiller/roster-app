@@ -30,7 +30,7 @@
  */
 
 import { normaliseWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
-import { shapeClockBoxInPlace, settleClockBox, noteClockBoxBefore } from './clock-input.js';
+import { shapeClockBoxInPlace, readClockBox, noteClockBoxBefore } from './clock-input.js';
 
 /**
  * Wire the staffed-window editor, once.
@@ -81,7 +81,7 @@ export function createWindowEditor({ getDesign, setWindow }) {
     function commit(row) {
         const design = getDesign();
         if (!design) return;
-        const typed = [els[row].start, els[row].end].map(el => (el ? settleClockBox(el) : ''));   // "240" left as typed is 02:40
+        const typed = [els[row].start, els[row].end].map(el => (el ? readClockBox(el).shown : ''));   // "240" left as typed is 02:40
         const refused = windowEditRefusal(typed[0], typed[1]);   // the reason that applies, or null
         if (refused) {
             // Put the stored value back and say why — AFTER paint(), which clears the status line.

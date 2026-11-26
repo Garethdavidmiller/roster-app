@@ -347,7 +347,9 @@ test('guide search: while searching, the results sit under the box — and the d
     const latest = page.locator('#navPanel .nav-panel-section').first();
     await expect(pills).toBeVisible();
     await expect(latest).toBeVisible();
-    const boxTopAtRest = await input.evaluate(el => el.getBoundingClientRect().top);
+    // Where the box sits in the drawer's CONTENT, not on the screen: focusing it scrolls the drawer by however much
+    // lies below it, so its screen position at rest moved whenever a Reference row was added (v26.89, the glossary).
+    const boxTopAtRest = await input.evaluate(el => el.getBoundingClientRect().top + (el.closest('.nav-panel-body')?.scrollTop ?? 0));
 
     await input.fill('gold card');
     const first = page.locator('#navGuideSearchResults a').first();

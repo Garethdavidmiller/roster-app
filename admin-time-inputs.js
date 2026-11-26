@@ -26,7 +26,7 @@
  */
 
 import { TIME_RE } from './roster-data.js';
-import { shapeClockBoxInPlace, settleClockBox, noteClockBoxBefore } from './clock-input.js';
+import { shapeClockBoxInPlace, readClockBox, noteClockBoxBefore } from './clock-input.js';
 
 let _formatting = false;
 let _wired = false;
@@ -66,10 +66,10 @@ export function initTimeInputs() {
         const timeInput = /** @type {HTMLInputElement} */ (e.target);
         // Leaving the box is what settles a three-digit "240" as 02:40 (clock-input.js); the save
         // reads `.value`, so the settled form is the one written.
-        const val = settleClockBox(timeInput).trim();
-        if (val !== timeInput.value) timeInput.value = val;
-        if (!val) { timeInput.classList.remove('input-error'); timeInput.removeAttribute('aria-invalid'); return; }
-        const invalid = !TIME_RE.test(val);
+        const read = readClockBox(timeInput);   // the one reading of a box that is left (clock-input.js)
+        if (read.shown !== timeInput.value) timeInput.value = read.shown;
+        if (read.status === 'empty') { timeInput.classList.remove('input-error'); timeInput.removeAttribute('aria-invalid'); return; }
+        const invalid = read.status !== 'time';
         timeInput.classList.toggle('input-error', invalid);
         // Expose the failure to assistive tech, not just via the CSS class. The input
         // already points at its error span through aria-describedby.

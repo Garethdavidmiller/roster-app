@@ -8,7 +8,7 @@
  * Four places in the app type a time into a text box rather than an `<input type="time">`: the
  * roster review's entry control (`manualCellValue`, override-utils.js), the Admin week grid
  * (admin-time-inputs.js), the Overtime custom-hours row (overtime-form.js) and the Links window
- * editor (links-app.js). Each refused the native control
+ * editor (links-window-editor.js). Each refused the native control
  * for the same measured reason — Chromium renders it from the OS format settings, not the page, so
  * it shows `06:00 AM` beside 24-hour shift badges — and each pays the same price: nothing in the
  * browser validates the value or helps type it any more. Both halves of that price are paid here,
@@ -21,6 +21,12 @@
  * `isClockTime` ACCEPTS; `formatClockInput` and `finaliseClockInput` SHAPE. A shaped value is still
  * judged — the shapers never widen what the guard admits, they only make the admitted form
  * reachable from a phone.
+ *
+ * **A screen asks a box ONE question when it is left: `readClockBox`** (external review of v26.87). The
+ * answer is a time to take, an empty box, or a refusal with its reason — never a string to judge for itself.
+ * Each of the four screens once judged the settled text its own way, and the Links window judged it by a
+ * laxer rule than the other three: an unfinished edit, "6:30" from Delete at the front of 16:30, was taken
+ * there as 06:30. `clockBoxCallers` in clock-input.test.mjs holds every caller to it.
  */
 
 /**
@@ -301,6 +307,33 @@ export function settleClockBox(box) {
     const edited = seen === undefined ? false : (seen.last === d ? seen.edited : d.length === 3);
     if (keepsAsLeft(box.value, d, edited)) return asLeft(box.value);
     return finaliseClockInput(box.value, { edited });
+}
+
+/**
+ * What a box's SETTLED text is: a time to take, nothing, an unfinished edit (`asLeft`'s "6:30", "22:3" — what is
+ * left of a time, never guessed at), or no time at all ("25:00", "9am"). Pure, for a caller that holds the text and
+ * not the box (`windowEditRefusal`, links-window.js). @param {string} text
+ * @returns {'time'|'empty'|'unfinished'|'not-a-time'}
+ */
+export function clockTextStatus(text) {
+    const t = String(text ?? '').trim();
+    if (!t) return 'empty';
+    if (isClockTime(t)) return 'time';
+    // The shape of a time with digits missing, and no more digits than one: an edit the member has not finished.
+    return /^\d{0,2}:?\d{0,2}$/.test(t) && !/^\d{2}:\d{2}$/.test(t) ? 'unfinished' : 'not-a-time';
+}
+
+/**
+ * THE question a screen asks a text clock box when it is left: settle it (`settleClockBox`), then say what it holds.
+ * `value` is the time to TAKE — `HH:MM`, or `''` for anything else; `shown` is what the box should now show (the
+ * settled text, an unfinished edit as the member left it); `status` says which, for the screen's own words.
+ * @param {{ value: string }} box
+ * @returns {{ status: 'time'|'empty'|'unfinished'|'not-a-time', value: string, shown: string }}
+ */
+export function readClockBox(box) {
+    const shown = settleClockBox(box).trim();
+    const status = clockTextStatus(shown);
+    return { status, value: status === 'time' ? shown : '', shown };
 }
 
 /** What is wrong with a FILLED-IN pair of clock times, or `''` — the ONE rule a Shift's times and an

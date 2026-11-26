@@ -13,7 +13,7 @@ import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday,
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { parseOtherValue } from './override-utils.js';
 import { overrideFromSnapshot } from './override-compare.js';
-import { shapeClockBoxInPlace, settleClockBox, noteClockBoxBefore } from './clock-input.js';
+import { shapeClockBoxInPlace, readClockBox, noteClockBoxBefore } from './clock-input.js';
 import { paintUnreadableRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 import { computeCellStates, guardedRowHtml, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, collectRosterWrites, reviewOutcome, outcomeHtml, carryReviewAnswers, personSummary } from './roster-review-states.js';
@@ -980,7 +980,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (e.target?.classList?.contains('roster-entry-time')) noteClockBoxBefore(e.target);
         });
         changeList.addEventListener('input', /** @param {any} e */ e => entryTime(e, /** @param {HTMLInputElement} el */ el => shapeClockBoxInPlace(el, e)));
-        changeList.addEventListener('focusout', /** @param {any} e */ e => entryTime(e, settleClockBox));
+        changeList.addEventListener('focusout', /** @param {any} e */ e => entryTime(e, /** @param {HTMLInputElement} el */ el => readClockBox(el).shown));
 
         // ---- Empty state ----
         if (sectionsShown === 0) {

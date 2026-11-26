@@ -2461,6 +2461,17 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await end.blur();
         await expect(end, 'what is left of 10:00 stays as it is').toHaveValue('10:0');
         await expect(row).not.toHaveClass(/ot-day--saved/);
+        // Delete at the FRONT leaves what LOOKS like a whole time (external review of v26.87): "0:00" is not 00:00, a
+        // midnight finish nobody chose. Read as every time box reads one that is left (`readClockBox`).
+        await end.fill('10:00');
+        await end.blur();
+        await expect(row).toHaveClass(/ot-day--saved/);
+        await end.click();
+        await end.press('Home');
+        await end.press('Delete');
+        await end.blur();
+        await expect(end, 'what is left of 10:00 is not midnight').toHaveValue('0:00');
+        await expect(row).not.toHaveClass(/ot-day--saved/);
     });
 
     // THE SAME MEANING READS THE SAME ON BOTH PAGES (owner, Nov 2026). Admin's week grid has two gold
