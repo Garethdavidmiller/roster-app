@@ -1,7 +1,7 @@
 # LINKS_DEC2026_PLAN.md — the Links workspace and the December 2026 timetable change
 
-*Not version-stamped; not a runtime asset. Companion to `.claude/rules/links-design.md`, which stays
-authoritative for how the workspace is built.*
+*Not version-stamped; not a runtime asset. Companion to `.claude/rules/links-design.md` and
+`docs/LINKS_REFERENCE.md`, which stay authoritative for how the workspace is built.*
 
 > **"Dec 26" means the DECEMBER 2026 TIMETABLE CHANGE.** It is industry shorthand for a timetable
 > change date, not for 26 December. This matters in this repo specifically: `roster-data.js` and
@@ -547,7 +547,7 @@ shrank to fit the design, so missing cover at either END of the day was invisibl
 
 `links-fatigue.js` + `links-fatigue.test.mjs`, in the Design checks card; the factor readings settled
 by the owner on 28 Sep 2026 (FF19 alone still "(definition to confirm)") are in
-`.claude/rules/links-design.md` → Fatigue factors. **These checks are an aid to two designers, not a
+`docs/LINKS_REFERENCE.md` → Fatigue factors. **These checks are an aid to two designers, not a
 fatigue risk assessment**, and the UI says so.
 
 ### 3. Demand overlay on the coverage heat map — ✅ **SHIPPED v19.56**

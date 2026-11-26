@@ -314,7 +314,7 @@ and bump the version.
 ## Payday calculator — integrated
 
 Paydays and cut-offs come from `getPaydaysAndCutoffs` / `isPayday` / `isCutoffDate` (`roster-data.js`)
-and draw as 💷 / ✂️ on the Calendar; the rest is `.claude/rules/paycalc.md` → "Paydays, cut-offs and
+and draw as 💷 / ✂️ on the Calendar; the rest is `docs/PAYCALC_REFERENCE.md` → "Paydays, cut-offs and
 the roster-assist".
 
 ---
@@ -475,9 +475,9 @@ Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 ## Pay calculator
 
 Manual-entry: staff enter hours, and the calculator computes tax, NI, pension and take-home. **The
-rates, allowances and pension defaults live in `.claude/rules/paycalc.md` alone** (code:
+rates, allowances and pension defaults live in `docs/PAYCALC_REFERENCE.md` alone** (code:
 `paycalc-calc.js`) — never restate them. The pay-maths regression net is real payslips kept OUT of the
-repository: paycalc.md → Example payslips.
+repo: paycalc.md → Example payslips.
 
 ---
 

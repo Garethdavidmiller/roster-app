@@ -175,7 +175,7 @@ April 2029 £2,000 NI cap will revisit it. Do not scatter the assumption.
 | `paycalc-year-summary.js` | accept `brass` in the per-payslip re-run |
 | `paycalc-help.js` | HELP_CONTENT entry |
 | Tests | `paycalc.test.mjs` (both wirings' arithmetic, the chosen one against the Q1 payslip's real figures); `paycalc-breakdown.test.mjs` (row present iff brass > 0); key-parity + help-shape guards pick the rest up |
-| Docs | `.claude/rules/paycalc.md` one row; a `VALIDATION_REGISTER.md` entry **only if** shipped before Q1 is fully settled (it should not be) |
+| Docs | `docs/PAYCALC_REFERENCE.md` one row; a `VALIDATION_REGISTER.md` entry **only if** shipped before Q1 is fully settled (it should not be) |
 
 No new modules, so no FILE_INDEX/AI_MAP module obligations; ~1 version bump; no Firestore, rules,
 SW or notification surface at all — this is the rare feature that is purely local maths.

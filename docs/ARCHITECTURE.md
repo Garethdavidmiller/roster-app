@@ -31,8 +31,8 @@ changed once.
 | **Credentials & their lifecycle** | `PASSWORD_DESIGN.md` | The passwords as built, and (its credential-lifecycle section, merged from `CREDENTIAL_LIFECYCLE.md`, now a pointer) how a credential is issued, recovered and retired — and the ORDER those changes go in. Holds the one open decision about what retiring the surname should MEAN |
 | **Calendar truth** | `CALENDAR_DATA.md` | What may be shown, and when — knowledge states, the access gate |
 | **Overtime availability** | `OVERTIME_AVAILABILITY.md` | Participants, deadlines, revisions, retention, audience |
-| **Pay calculator** | `.claude/rules/paycalc.md` | Rates, payroll rules, state, layout |
-| **Links designer** | `.claude/rules/links-design.md` | Grid, generator, coverage, fatigue, concurrency |
+| **Pay calculator** | `.claude/rules/paycalc.md` · `PAYCALC_REFERENCE.md` | The rules file: the invariants, the payroll and design decisions, the payslip line names. The reference: the pay figures (their one home), the payroll mechanics, state, layout |
+| **Links designer** | `.claude/rules/links-design.md` · `LINKS_REFERENCE.md` | The rules file: the invariants and the decisions. The reference: grid, generator, coverage, fatigue, concurrency in full |
 | **Guide pages** | `.claude/rules/guide-pages.md` | The guides' shell, design principles, factual standards |
 | **Firestore collections** | `docs/DATA_MODEL.md` | What every collection holds and what its fields mean. Access is summarised there and OWNED by `firestore.rules` |
 | **CSS tokens & surfaces** | `.claude/rules/css-tokens.md` | Colour, type, spacing, focus, overlays |

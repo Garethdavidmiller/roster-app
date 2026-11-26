@@ -885,7 +885,7 @@ at the last 2026/27 payday. Extending it needs the
 not published until early 2027 — adding a year now would mean guessing figures the calculator then
 presents as fact, which is the one thing `.claude/rules/paycalc.md` forbids. The next pay award is not
 needed: the year is added without it, and the award's figures follow once it is announced. It
-is the rollover in `.claude/rules/paycalc.md` → "The tax year rollover", due before the first 2027/28
+is the rollover in `docs/PAYCALC_REFERENCE.md` → "The tax year rollover", due before the first 2027/28
 payslip's shifts begin — Sunday 7 March 2027, for the payslip paid on 9 April — not at the tax year's
 start; `MAINTENANCE_CALENDAR.md` carries the date.
 
@@ -1428,7 +1428,7 @@ not do, or cannot know:
   **This is an owner decision, not a settled one:** a longer run well inside the company's
   consecutive-day limit against fewer full weekends, which staff feel, is a judgement about conditions,
   so it is recorded here rather than tuned in code. Raising the weight is a one-line change if the
-  answer is the other way (`.claude/rules/links-design.md` → the run-cap switch has the measurements).
+  answer is the other way (`docs/LINKS_REFERENCE.md` → Line order, the run-cap switch, has the measurements).
 
 - **Designs longer than the rotation are left exactly as they are** — kept whole and saved whole,
   never trimmed (`.claude/rules/links-design.md` → Line numbering says why). **Binning them is one
@@ -1466,7 +1466,7 @@ not do, or cannot know:
 
 - **The generator's objectives genuinely conflict, and no default is right for everyone.** Line ORDER
   is one scarce resource with several claims on it, and `gentle` and `variety` are direct opposites
-  (`.claude/rules/links-design.md` → Line ORDER has the dial and the owner's verdict on long blocks).
+  (`docs/LINKS_REFERENCE.md` → Line order has the dial and the owner's verdict on long blocks).
   The switches are the honest answer, not a better formula: the trade is real and the designer should
   be the one making it.
 - **Interleaving the waves inside the generator is a WON'T-DO, measured** (`.claude/rules/links-design.md`

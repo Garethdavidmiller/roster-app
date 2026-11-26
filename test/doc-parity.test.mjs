@@ -180,7 +180,10 @@ test('a doc that says "`symbol` in `file.js`" is right about the file', () => {
     // they moved to the files that now hold the reasoning, and a guard that reads only the old homes
     // stops guarding.
     const claims = [];
+    // The two area REFERENCE docs joined 26 Nov 2026, the day they were split out of links-design.md and
+    // paycalc.md: the routing claims moved with the text, and this guard follows them, for the reason above.
     for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/FILE_INDEX.md',
+        './docs/LINKS_REFERENCE.md', './docs/PAYCALC_REFERENCE.md',
         ...readdirSync(new URL('./.claude/rules/', REPO_ROOT_URL)).filter(f => f.endsWith('.md')).sort()
             .map(f => `./.claude/rules/${f}`)]) {
         for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?(?:[a-z]+\s+){0,3}in\s+`([\w.-]+\.(?:js|mjs))`/g))
@@ -476,6 +479,9 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     // both exactly the shape CONTRACT 2b was written to forbid. Adding the files is the fix; the
     // figures were removed rather than corrected, which is that contract's own rule.
     './docs/FILE_INDEX.md',
+    // The REFERENCE halves of the two largest rule files joined 26 Nov 2026, on the day they were split
+    // out: every line in them was under this guard yesterday as part of links-design.md and paycalc.md.
+    './docs/LINKS_REFERENCE.md', './docs/PAYCALC_REFERENCE.md',
     // EVERY `.claude/rules/*.md`, READ FROM THE FOLDER (24 Nov 2026). The list was written out by hand, and
     // grew by whoever remembered — "a list that grew by whoever remembered" is the line above. Read from the
     // folder, a new rule file (operations.md, that day) is under this guard the moment it exists.
@@ -1336,7 +1342,7 @@ test('no doc writes down the size of a roster-owned list', () => {
     const wrong = [];
     for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/KNOWN_LIMITATIONS.md', './docs/OPERATIONS_REFERENCE.md',
                        './docs/SECURITY_RELEASE_PLAN.md', './docs/AUTH_PLAN.md', './docs/PASSWORD_DESIGN.md',
-                       './docs/ARCHITECTURE.md', './.claude/rules/paycalc.md']) {
+                       './docs/ARCHITECTURE.md', './.claude/rules/paycalc.md', './docs/PAYCALC_REFERENCE.md']) {
         const lines = read(doc).split('\n');
         lines.forEach((line, i) => {
             for (const [re, key, what] of CLAIMS) {

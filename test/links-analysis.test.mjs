@@ -424,7 +424,7 @@ test('an unmeasurable working line downgrades the hours figure in BOTH places it
 // So the rule is applied to whatever the panel renders rather than to the one section that exists:
 // EVERY heading claiming a limit must be met has to sit above rows that name where the limit comes
 // from. A second compliance section added later (the candidates are in
-// .claude/rules/links-design.md) then cannot arrive as an unsourced assertion in red.
+// docs/LINKS_REFERENCE.md → Hard limits) then cannot arrive as an unsourced assertion in red.
 //
 // It is deliberately NOT keyed on the string "Company limits": a section that renamed itself would
 // slip a hardcoded-list check while making exactly the same claim. Since v20.08 the trigger is the

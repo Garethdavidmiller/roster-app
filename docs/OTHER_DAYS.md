@@ -2,7 +2,7 @@
 
 *Not version-stamped; not a runtime asset. **BUILT + SHIPPED** — a record and a how-to, not a plan
 (renamed from `OTHER_PLAN.md`). The shipped behaviour is documented in CLAUDE.md, AI_MAP.md,
-OPERATIONS_REFERENCE.md and `.claude/rules/paycalc.md`; the pay and grammar single source is
+OPERATIONS_REFERENCE.md and `docs/PAYCALC_REFERENCE.md`; the pay and grammar single source is
 `other-day.js`, re-exported by `override-utils.js`. What remains here: the **design decisions** (cited from code as "OTHER_DAYS.md
 decision N"), the **Evolution** record of the rename to the Other family, and the **Phase B**
 checklist for adding a flavour. Every flavour planned so far has shipped.*

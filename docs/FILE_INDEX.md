@@ -373,7 +373,9 @@ roster-app/
 │   ├── AUTH_PLAN.md ← Track E, full-app authentication, in its ONE home: what "behind authentication" can mean for static files on public hosting, and the E0–E6 phases, their order, risks and owner questions. Status: SECURITY_RELEASE_PLAN.md's table, whose Track E section points here
 │   ├── AUTH_ARCHITECTURE.md     ← POINTER: folded into AUTH_AND_SESSIONS.md → Architecture (24 Nov 2026); the Track 1 phases are in git
 │   ├── RECOVERY_RUNBOOK.md      ← the "break glass" backup, rollback and disaster-recovery runbook
+│   ├── LINKS_REFERENCE.md ← the Links workspace in full: how each part works and the measurements behind its rules. The invariants are `.claude/rules/links-design.md`
 │   ├── LINKS_DEC2026_PLAN.md ← the Links workspace against the December 2026 timetable change ("Dec 26" is the timetable, NOT Boxing Day): the service, the window, the baseline and the current 26-line state
+│   ├── PAYCALC_REFERENCE.md ← the Pay Calculator in full: the pay FIGURES (their one home), the payroll mechanics, state and layout. The invariants are `.claude/rules/paycalc.md`
 │   ├── BRASS_PLAN.md ← modelling BRASS (the RPS pension top-up) in the pay calculator; nothing ships until its owner questions are answered
 │   ├── OVERTIME_AVAILABILITY.md ← the design record for Overtime Availability, holding only what no module header owns
 │   ├── OTHER_DAYS.md            ← the "Other" day family: the numbered design decisions cited from code, and the Phase B checklist
