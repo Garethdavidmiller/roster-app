@@ -1,7 +1,7 @@
 # The real-iPhone release checklist
 
-*Not version-stamped; not a runtime asset. The decision behind it: the v23.01 external review (6 Sep 2026), its row "A real-iPhone release
-checklist" (`git show 28b217d0:docs/ROADMAP_HISTORY.md`). Its twin for the other platform is ANDROID_RELEASE_CHECKLIST.md.*
+*Not version-stamped; not a runtime asset. The decision behind it: `git show 28b217d0:docs/ROADMAP_HISTORY.md`
+→ "A real-iPhone release checklist". Its twin for the other platform is ANDROID_RELEASE_CHECKLIST.md.*
 
 **Every line here is something no test in this repo can run.** That is the entry condition: if
 Playwright, axe or a baseline could answer it, it belongs in CI and not on this page. `npm run
