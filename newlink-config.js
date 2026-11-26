@@ -13,7 +13,7 @@
  * the change nor the choice (owner, 4 Nov 2026). Nothing the page says may suggest otherwise: no line names the admin as
  * deciding, recommending or collecting views. "Have your say" says who leads the change AND NO MORE: how the choice is made
  * is left deliberately vague, on the page as in the pack (owner: "It is deliberately vague"). The process is recorded in
- * LINKS_DEC2026_PLAN.md's dashboard, not in anything colleagues read. newlink-config.test.mjs and e2e/newlink.spec.js hold
+ * DECISIONS.md → The new CEA link, not in anything colleagues read. newlink-config.test.mjs and e2e/newlink.spec.js hold
  * the wording to both.
  *
  * ── THE LIFECYCLE ──────────────────────────────────────────────────────────────────────────────

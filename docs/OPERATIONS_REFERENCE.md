@@ -1026,7 +1026,7 @@ Operations → **Annual leave sheet** (admin only) answers one question: where d
 annual-leave workbook and the app disagree, person by person, and why? Then, for the people you
 confirm, it **adds the leave the app is missing**, and counts leave the app already holds on a rest
 day you answer *Swapped — counts* (Step 3). **That is all it ever writes**: a day that differs any
-other way is changed in Admin, with Change a Shift. Plan of record: `docs/AL_UPLOADER_PLAN.md`.
+other way is changed in Admin, with Change a Shift. Its design decisions: `docs/DECISIONS.md` → The annual leave uploader.
 
 **Step 1, in a Claude session.** Upload the workbook and ask for a **leave file**. The session runs
 `scripts/make-leave-file.mjs`, which reads the workbook by the `AL_WORKBOOK.md` method:
@@ -1091,7 +1091,7 @@ Sunday it counts gives one back.
 
 **Age.** The card says when the clerks last saved the sheet. Past **14 days** the comparison is still
 shown, because a check cannot do harm, but the file **cannot be saved**: ask the clerks for a fresh copy
-(AL_UPLOADER_PLAN.md §10, decision 4). A file that does not say when it was saved cannot be saved either.
+(DECISIONS.md → The annual leave uploader, decision 4). A file that does not say when it was saved cannot be saved either.
 
 **Offline, it stops.** A read answered from this device's copy could call leave missing that is
 not, so the card refuses to check until it can reach the server.
@@ -1592,7 +1592,7 @@ names a design by itself. The page is open to the same people in every phase.
 4 Nov 2026); the admin built the page and the tooling and is in charge of neither the change nor the
 choice, so **no line may name the admin as deciding, recommending or collecting views**, and how the
 choice is made is left deliberately vague. `newlink-config.test.mjs` and `e2e/newlink.spec.js` hold the
-wording to both; the process is in LINKS_DEC2026_PLAN.md's dashboard, not in anything colleagues read.
+wording to both; the process is recorded in DECISIONS.md → The new CEA link, not in anything colleagues read.
 
 **Who it is for: everyone on the normal CEA contract, and the managers; a CEA bilingual contract keeps its
 own links** (owner, 8 and 9 Nov 2026). It goes by the contract, not the line: a normal contract on the bilingual

@@ -452,7 +452,7 @@ other.
 
 **Or let the script do the whole method** [14 Nov 2026]. `node scripts/make-leave-file.mjs` reads the
 workbook the way this section and §7 describe, and writes the **leave file** that Operations → Annual
-leave sheet checks against the app (`docs/AL_UPLOADER_PLAN.md`; the usage line is in the script's
+leave sheet checks against the app (`docs/DECISIONS.md` → The annual leave uploader; the usage line is in the script's
 header). Its rules, in short:
 
 - It **asks** about anything it cannot settle mechanically, such as a name, a duplicate row or a
@@ -979,7 +979,7 @@ reconciliation that does not expect it reports ten discrepancies that are this o
 
 ## 11 · If this ever becomes an uploader
 
-**It is now built** (owner, 14 Nov 2026): **`docs/AL_UPLOADER_PLAN.md`**. The Operations card
+**It is now built** (owner, 14 Nov 2026): **`docs/DECISIONS.md` → The annual leave uploader**. The Operations card
 **Annual leave sheet** checks a leave file made by `scripts/make-leave-file.mjs` against the app and
 shows each person's differences and why. From v26.13 it can also **Save**: for each person the admin
 confirms, one at a time, it adds the leave the app lacks and nothing else — it never deletes, never
@@ -990,8 +990,8 @@ recorded so it can be undone. The plan's answer to each condition below:
   is asked about, never guessed.
 - **Column E:** read by §5's method, and a row it cannot read is refused by name.
 - **What an import does:** adds missing leave, person by person, for the people the admin confirms;
-  a rest day on the sheet is asked about in Admin's own words, never assumed (AL_UPLOADER_PLAN.md
-  §4.5–4.10).
+  a rest day on the sheet is asked about in Admin's own words, never assumed (`al-leave-plan.js`'s
+  header).
 
 The conditions as first written, kept because the plan is measured against them:
 

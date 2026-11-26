@@ -2,7 +2,8 @@
 /**
  * links-adjacency.js — what happens BETWEEN the lines: the order they sit in.
  *
- * Pure. No DOM, no Firebase. `LINKS_DEC2026_PLAN.md`, on the back of the FF18 discussion.
+ * Pure. No DOM, no Firebase. Built on the back of the FF18 discussion (.claude/rules/links-design.md →
+ * Fatigue factors).
  *
  * WHY THIS EXISTS. In a rotating link you work line w one week and line w+1 the next, so a whole
  * class of the design's quality lives in the ORDER of the lines rather than in any line itself:
@@ -545,7 +546,7 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
     // 40 is kept on that trade — a longest run of 8 sits well inside the 13-day company limit, and
     // three or four more full weekends is a thing staff actually feel. It is an OWNER decision
     // rather than a tuning exercise, which is why the alternative is written down here instead of
-    // being quietly adopted. See LINKS_DEC2026_PLAN.md → the run cap.
+    // being quietly adopted. See KNOWN_LIMITATIONS.md → Links design workspace (the run cap).
     //
     // So this is deliberately a firm PREFERENCE rather than the near-absolute weight `variety`
     // carries. With the switch on alone it reaches the 6 target; with the full set on it reaches 8,

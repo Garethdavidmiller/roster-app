@@ -1632,7 +1632,7 @@ describe('errorLogNotice (the Error Log notification record)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// alUploads — the annual leave uploader's log (v26.11, AL_UPLOADER_PLAN.md §4.6)
+// alUploads — the annual leave uploader's log (v26.11; DATA_MODEL.md → alUploads)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('alUploads (the annual leave uploader\'s log)', () => {

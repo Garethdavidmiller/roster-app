@@ -17,7 +17,7 @@
  *
  * Moved here from CLAUDE.md's file tree at v20.11. It had accumulated twelve version stamps there
  * — a changelog living in a routing table, loaded into every session and read on almost none. The
- * release history stays in git and in LINKS_DEC2026_PLAN.md; what belongs beside the code is the
+ * release history stays in git; what belongs beside the code is the
  * set of things a future edit can silently break. Those are:
  *
  * `ROTATING_LINES` is the ONE declaration of the rotation length. **Never write the number down** —

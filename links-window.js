@@ -2,7 +2,7 @@
 /**
  * links-window.js — the OPERATING WINDOW of a link design: when the station is staffed.
  *
- * `LINKS_DEC2026_PLAN.md` package 1. Pure — no DOM, no Firebase.
+ * Package 1 of the December 2026 plan (DECISIONS.md → The new CEA link). Pure — no DOM, no Firebase.
  *
  * WHY THIS EXISTS, and it is a stronger reason than the plan recorded.
  *

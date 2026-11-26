@@ -94,7 +94,7 @@ builds toward it, and so that nobody is surprised later that the custom work was
 ## NOW — committed, or actively being decided
 
 ### The new CEA link — from January 2027
-**Status:** Committed · **Owner:** S. Silva, the RMT rep, who leads the change (owner, 4 Nov 2026) · **Plan:** `LINKS_DEC2026_PLAN.md`
+**Status:** Committed · **Owner:** S. Silva, the RMT rep, who leads the change (owner, 4 Nov 2026) · **Settled so far:** `DECISIONS.md` → The new CEA link
 
 **The link starts in January 2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes on 13 December,
 the link follows, and today's link carries on until then; 8 Nov 2026: the day is not yet known). It is for everyone on the
@@ -104,8 +104,22 @@ Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks sid
 in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to everyone on the normal CEA
 contract and the managers — **open since v25.60** (owner, 9 Nov 2026).
 
-What remains is a decision, not code — S. Silva's, as the one leading the change, and then the area manager's review (the plan's dashboard) — and a controlled source for the company hard
-limits. The readiness dashboard at the top of the plan is authoritative.
+**What remains is decisions, not code:**
+
+- **The choice.** None is chosen (`CHOSEN` is null in `newlink-config.js`): S. Silva's decision, as the
+  one leading the change, then the area manager's review.
+- **The management review meeting** is not scheduled. The plan's backwards dates, counted from the
+  timetable change (the review at T−6 weeks), have passed; the link's start day in January 2027 is not set.
+- **A controlled source for the company hard limits** — Gareth: the policy's title, clause, staff group
+  and effective date (`KNOWN_LIMITATIONS.md` → Links design workspace; `POLICY_SOURCE_CONFIRMED`).
+  Then, whether the other limits in that family (turn length, rest between turns, weekly hours) become
+  hard limits rather than advisory rows.
+- **The run cap's weight** — a shorter longest run against fewer full weekends off, a question for the
+  room (`KNOWN_LIMITATIONS.md` → Links design workspace).
+- Smaller, with no trigger yet: Saturday's window could split from Mon–Fri's (the setting allows it);
+  the generator's table of near-identical rows could be redesigned (its reason for waiting, the uplift
+  control, lapsed when that was declined); and nobody has said whether other grades cover the 05:55
+  first departure and the post-midnight last trains, which would settle whether those ends are gaps.
 
 ### Roster import — let the PDF's own grid decide the day
 **Status:** Committed — phases 1 and 2 shipped, phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js` · **Contract:** `.claude/rules/roster-import.md`
@@ -469,14 +483,29 @@ where it works and where it does not — the guide has the depth; the missing th
 premium is built from them); back pay (what "backdated to 1 April" means on the payslip it lands on).
 
 ### Annual leave uploader — Phase 3, corrections
-**Status:** Conditional — Phases 0–2 built (v26.11 and v26.13): the card checks, and adds the leave the app is missing for each person the admin confirms, with undo, a receipt and a log · **Owner:** Gareth · **Trigger:** the owner has used the Save and decides (`AL_UPLOADER_PLAN.md` §10) · **Plan:** `docs/AL_UPLOADER_PLAN.md`
+**Status:** Conditional — Phases 0–2 built (v26.11 and v26.13): the card checks, and adds the leave the app is missing for each person the admin confirms, with undo, a receipt and a log · **Owner:** Gareth · **Trigger:** the owner has used the Save and decides · **Decisions:** `DECISIONS.md` → The annual leave uploader
 
 Operations → Annual leave sheet adds what the sheet has and the app lacks, and counts leave already
 booked on a rest day the admin answers "swapped"; nothing else. Every other difference is put right
 by hand in Admin (OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet against the app"). It
-never removes leave (plan §10, decision 3). Phase 3 — ticked conflicts, Sunday corrections, and the
-roster review naming workbook leave (plan §4.11) — would follow it. Stopping after Phase 2 is a real
-option: after the first catch-up most copies change a handful of days (plan §8).
+never removes leave (decision 3). Stopping after Phase 2 is a real option: after the first catch-up
+most copies change a handful of days, which Admin's leave card handles well by hand. **Phase 3, if it
+comes**, has three parts, each bound by a rule found while planning it:
+
+- **Ticked conflicts** — a shift, an Absent day or a correction replaced with leave, keeping
+  `replacedType` so a swapped-in day still costs a day.
+- **Sunday corrections follow the range card's rule, never the clerks' tags.** Group the days a Save
+  writes into blocks (`mergeBookedPeriods`), correct only the worked Sundays inside them, and keep each
+  correction in its leave's batch (`chunkByWrites`'s `keepWithPrevious`): a standalone correction would
+  silently erase a worked Sunday (`admin-overrides.js`), and the shared server timestamp is how a later
+  period delete finds the booking's edge Sunday (`computePeriodDeleteIds`). Tags are evidence beside a
+  Sunday, never acted on alone; a past correction also takes that Sunday out of the Pay Calculator's
+  "Fill from calendar".
+- **The roster review afterwards.** Uploaded leave is a manual record, so a later roster PDF that
+  disagrees is a CONFLICT that defaults to keeping the leave — stale workbook leave would beat a newer
+  published roster. Defaulting to the roster for workbook days, named from the upload log, changes the
+  roster import's contract (`.claude/rules/roster-import.md`): owner decision 8, taken when Phase 3
+  comes. A `source` value of its own for uploaded leave can be revisited then too.
 
 ---
 
@@ -707,8 +736,8 @@ both would need the governance gate answered before that changed.
 | Current status of every security/auth track | `SECURITY_RELEASE_PLAN.md` — **the single source** |
 | Password design and its implementation record | `PASSWORD_DESIGN.md` |
 | Full-app authentication design | `AUTH_PLAN.md` |
-| The new CEA link, from January 2027 | `LINKS_DEC2026_PLAN.md` |
-| The annual leave uploader, phase by phase | `AL_UPLOADER_PLAN.md` |
+| The new CEA link, from January 2027 | this file → NOW; what is settled: `DECISIONS.md` → The new CEA link; the pack: `docs/links-26/` |
+| The annual leave uploader, phase by phase | this file → NOW (Phase 3); what is settled: `DECISIONS.md` → The annual leave uploader |
 | Active constraints and accepted limitations | `KNOWN_LIMITATIONS.md` |
 | Backup, rollback and disaster recovery | `RECOVERY_RUNBOOK.md` |
 | Implementation specs (schema, functions, auth) | `docs/DATA_MODEL.md` (schema), `CLAUDE.md`, `.claude/rules/*`, and each module's header (`AI_MAP.md` routes to it) |

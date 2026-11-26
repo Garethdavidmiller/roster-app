@@ -2,7 +2,7 @@
 // @lane hygiene
 /**
  * al-leave-compare.test.mjs — the clerks' leave sheet beside the app, person by person and day by day
- * (al-leave-compare.js, the annual leave uploader's Phase 1; docs/AL_UPLOADER_PLAN.md §4).
+ * (al-leave-compare.js, the annual leave uploader's Phase 1; docs/DECISIONS.md → The annual leave uploader).
  * Run: node scripts/run-tests.mjs test/al-leave-compare.test.mjs   (part of `npm run test:hygiene`)
  *
  * Every person here is INVENTED ("A. Example" and friends). They borrow the real roster PATTERNS —

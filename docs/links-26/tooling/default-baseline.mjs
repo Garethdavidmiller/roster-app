@@ -1,6 +1,7 @@
 // What the app's own shipped default produces at ROTATING_LINES (26 since v24.47) — the comparator for any proposal.
 // Moved from docs/links-24/tooling on 7 Nov 2026 (it was written at 24 lines, which this line used to say), unchanged
-// but for this note: .claude/rules/links-design.md and docs/LINKS_DEC2026_PLAN.md quote what it prints. From this
+// but for this note: .claude/rules/links-design.md sends a reader here to measure the default (the December 2026
+// plan, which quoted its 24-line output, is in git: git show 16386f9b:docs/LINKS_DEC2026_PLAN.md). From this
 // folder: node default-baseline.mjs — the `adj` line's gentleMean, gentleWorst and gentleOver are the quoted figures.
 import { runDesignChecks, weeklyHours, lineTotals, ROTATING_LINES } from '../../../links-design.js';
 import { generateLink } from '../../../links-generate.js';

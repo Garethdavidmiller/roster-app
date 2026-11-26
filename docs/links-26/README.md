@@ -10,7 +10,7 @@ target of no two closing weeks side by side, all three in `30-days-off/` (Balanc
 Short Run, on the shortlist until then, is off it and stays in `proposals/`. **Nothing is decided**: the pack and the app
 present the three evenly and recommend none, and the New link page says which was chosen only once a design is named in
 `CHOSEN` in `newlink-config.js` (`null` today). S. Silva, the RMT rep, leads the change, and the pack is deliberately vague
-about how the choice is made (owner, 4 Nov 2026): the process is in `../LINKS_DEC2026_PLAN.md`'s dashboard, and a rebuild
+about how the choice is made (owner, 4 Nov 2026): the process is recorded in `../DECISIONS.md` → The new CEA link, and a rebuild
 adds nothing about who decides, votes or recommends.
 
 The 24-line work is not wasted. The rules, the duty tables, the tooling and the designs all carry over. What has to
