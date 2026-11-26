@@ -606,3 +606,29 @@ for (const k of [1, 1.3, 1.6]) {
         expect(clipped, 'a date runs past its cell').toEqual([]);
     });
 }
+
+// THE WEEK NOTE'S LONGEST FORM SHARES THE MONTH'S LINE (owner, 26 Nov 2026). A month that crosses the end of the
+// cycle reads "CEA Weeks 19–20, 1–3", and on the owner's phone "November 2026" and that note missed one line by a
+// pixel, so the note dropped beneath the heading where December's sat beside it. A thin space after the comma and a
+// 4px gap gave it room. Measured with the widest month name and the longest note, at 375px, with room to spare —
+// "it fits" alone passed by 0.8px before the fix, so the test asks for a margin (calendar-renderer.js, index.css).
+test('calendar: the longest week note shares the widest month name\'s line at 375px, with room to spare', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/');
+    await expect(page.locator('.calendar-header .week-info-text').first()).toBeVisible();
+    const r = await page.evaluate(() => {
+        const h = /** @type {HTMLElement} */ (document.querySelector('.calendar-header'));
+        const m = /** @type {HTMLElement} */ (h.querySelector('.month-year'));
+        const n = /** @type {HTMLElement} */ (h.querySelector('.week-info-text'));
+        m.textContent = 'September 2026';
+        n.textContent = 'CEA Weeks 19–20,\u20091–3';
+        const cs = getComputedStyle(h);
+        const inner = h.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        const mb = m.getBoundingClientRect(), nb = /** @type {HTMLElement} */ (n.parentElement).getBoundingClientRect();
+        // One line: the note starts above the month's foot (the two sit on one baseline at different sizes, so their
+        // tops differ). The slack is the row's width less the line's span, from the month's left to the note's right.
+        return { slack: inner - (nb.right - mb.left), sameLine: nb.top < mb.bottom };
+    });
+    expect(r.sameLine, 'the note dropped beneath the month').toBe(true);
+    expect(r.slack, 'it fits by a hair: a phone a pixel narrower, or a little larger text, drops it').toBeGreaterThanOrEqual(3);
+});

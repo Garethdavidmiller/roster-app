@@ -260,10 +260,10 @@ describe('createCalendarHeader', () => {
     // over the winter. It is the end of one cycle and the start of the next, so it says both.
     test('a range that wraps the cycle says both ends of it — never a range run backwards', () => {
         for (const [first, last, cycle, want] of /** @type {const} */ ([
-            [19, 3, 20, 'CEA Weeks 19–20, 1–3'],
-            [20, 4, 20, 'CEA Weeks 20, 1–4'],
-            [17, 1, 20, 'CEA Weeks 17–20, 1'],
-            [8, 3, 8, 'CEA Weeks 8, 1–3'],
+            [19, 3, 20, 'CEA Weeks 19–20,\u20091–3'],
+            [20, 4, 20, 'CEA Weeks 20,\u20091–4'],
+            [17, 1, 20, 'CEA Weeks 17–20,\u20091'],
+            [8, 3, 8, 'CEA Weeks 8,\u20091–3'],
         ])) {
             const html = createCalendarHeader(first, last, 'CEA Week', 0, 2026, cycle);
             assert.ok(html.includes(want), `weeks ${first} to ${last} of ${cycle}: expected "${want}" in ${html}`);
@@ -556,7 +556,7 @@ describe('buildCalendarContainer — transition-month week label', () => {
         _mockRoster = () => ({ weekPrefix: 'CEA Week', cycleLength: 20 });
         _mockWeekNumber = (/** @type {Date} */ d) => (d.getDate() === 1 ? 19 : 3);
         const header = /** @type {any} */ (buildCalendarContainer(0, 2026)).querySelectorAll('.calendar-header')[0];
-        assert.ok(header.innerHTML.includes('CEA Weeks 19–20, 1–3'), `the header read: ${header.innerHTML}`);
+        assert.ok(header.innerHTML.includes('CEA Weeks 19–20,\u20091–3'), `the header read: ${header.innerHTML}`);
     });
 
     test('a normal (non-transition) member still shows the week label', () => {

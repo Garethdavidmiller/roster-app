@@ -501,9 +501,10 @@
             margin-bottom: 12px;
             padding-bottom: 10px;
             border-bottom: 1px solid var(--border-light);
-            gap: 0 6px;
+            gap: 0 4px;
             /* ONE LINE BY CONSTRUCTION, WRAP AS THE LAST RESORT (owner): the note is `--type-small` with
-               no separator dot, the gap 6px, and under text scaling (`html[data-text-scale]`) both scale
+               no separator dot, the gap 4px (6px until 26 Nov 2026: the heading's own 6px padding already
+               parts it from the note, and a month crossing the cycle missed the line by a pixel), and under text scaling (`html[data-text-scale]`) both scale
                from a smaller base so they still share the line. Beyond that the note drops beneath the
                heading, whole; the heading itself never splits. */
             flex-wrap: wrap;
