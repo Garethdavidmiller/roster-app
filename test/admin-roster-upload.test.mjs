@@ -3302,7 +3302,7 @@ describe('a person\'s section and its rows', () => {
         assert.match(c.html, /data-pick="manual" aria-pressed="true">Keep saved/);
         assert.match(c.html, /data-pick="pdf" aria-pressed="false">Use new roster/);
         const r = draw({ state: 'REMOVE_IMPORT', chosen: true, manualValue: '07:00-15:00', baseShift: 'RD' });
-        assert.match(r.html, /Earlier upload’s hours — this roster shows the normal shift/);
+        assert.match(r.html, /Earlier upload’s entry — this roster shows the normal day/);
         assert.doesNotMatch(r.html, /no longer on the roster/, 'under a name it read as the person having left (owner, 26 Nov 2026)');
         assert.match(r.html, /act-clear">Back to normal/);
     });

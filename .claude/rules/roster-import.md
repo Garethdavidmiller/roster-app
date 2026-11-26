@@ -72,9 +72,10 @@ and `buildSafeEntries` skips the rest. `parseRosterPDF` sends each such member a
 and the review gives each one a line asking the admin to check them against the PDF.
 
 **The row that removes an earlier import (`REMOVE_IMPORT`) says what it does, not what it deletes**:
-"Earlier upload’s hours — this roster shows the normal shift", tagged **Back to normal** (owner, 26 Nov
+"Earlier upload’s entry — this roster shows the normal day", tagged **Back to normal** (owner, 26 Nov
 2026: "no longer on the roster" under a member's name read as the person having left). A note on this
-row names the HOURS, never the member.
+row names the ENTRY, never the member — "entry" and "day", not "hours" and "shift", because the earlier
+upload may have been leave, an absence or Spare, and the normal day may be a rest day (owner, 26 Nov 2026).
 
 ### A day the guards REFUSE to record is SHOWN — the `GUARDED` row
 
