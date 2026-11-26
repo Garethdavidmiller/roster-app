@@ -97,7 +97,9 @@ function noticeWords({ errors, slowSaves, more }) {
     // A flood says so, unsplit: the counts cover only the first NOTICE_SCAN_LIMIT, and a split of part
     // of a flood would read as the whole of it. "N+" from the UNRESOLVED count among them — "at least",
     // never "more than": the entries past the limit are unread here, and may all be resolved.
-    if (more) return { headline: `Error Log — ${total}+ new`, body: `At least ${total} new entries. ${open}` };
+    // Since that fix the count can be 1 — a flood all but one of which is resolved — so the noun follows
+    // it: "At least 1 new entry". The headline's "1+ new" needs no noun, and reads as "one or more".
+    if (more) return { headline: `Error Log — ${total}+ new`, body: `At least ${total} new ${total === 1 ? 'entry' : 'entries'}. ${open}` };
     const parts = [];
     if (errors > 0) parts.push(`${errors} ${errors === 1 ? 'error' : 'errors'}`);
     if (slowSaves > 0) parts.push(`${slowSaves} ${slowSaves === 1 ? 'slow save' : 'slow saves'}`);

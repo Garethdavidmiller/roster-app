@@ -132,6 +132,10 @@ describe('rules 4–5 — the words: counts, and nothing a lock screen should no
         const partly = flood.map((e, i) => (i < 40 ? { ...e, resolved: true } : e));
         assert.deepEqual(noticeWords(summariseNewEntries(partly)),
             { headline: 'Error Log — 60+ new', body: 'At least 60 new entries. Tap to open the Error Log.' });
+        // The count can now be ONE — all but one of the flood already resolved — and the noun follows it.
+        const one = flood.map((e, i) => (i > 0 ? { ...e, resolved: true } : e));
+        assert.deepEqual(noticeWords(summariseNewEntries(one)),
+            { headline: 'Error Log — 1+ new', body: 'At least 1 new entry. Tap to open the Error Log.' });
     });
 
     test('from the entries to the payload, no name, page or message reaches the notice (rule 5)', () => {
