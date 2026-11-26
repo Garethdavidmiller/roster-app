@@ -179,7 +179,7 @@ creates a second live database**. Read the whole of this before starting, and do
   deploy service account `github-deploy@myb-roster.iam.gserviceaccount.com` is **not known to hold
   the restore permission** — it was scoped for deploys — so expect to run this as the owner, not
   through CI, and grant the role explicitly if you want it automated later.
-- There is no standing GCP credential outside GitHub Actions (`SECURITY_RELEASE_PLAN.md` → A2), so
+- There is no standing GCP credential outside GitHub Actions ("The deploy identity", below), so
   an agent session cannot do this for you. That is by design.
 
 **The drill.**
@@ -497,6 +497,74 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 
 ---
 
+## The deploy identity (Workload Identity Federation)
+
+**Deploys hold no standing key.** All three deploy workflows (and the Pages mirror's) authenticate
+with short-lived GitHub OIDC tokens through Workload Identity Federation (`google-github-actions/auth`,
+pinned; the provider and service account are written in each YAML — they are not secrets; only the
+`deploy` job holds `id-token: write`). The old `FIREBASE_SERVICE_ACCOUNT` JSON key and its GitHub
+secret are both deleted (v14.93), so no GCP credential exists outside GitHub Actions — which is why an
+agent session cannot run the restore drill for you.
+
+**As built:** pool `github-pool`, provider `github-provider`, project number `532910998075`, service
+account `github-deploy@myb-roster.iam.gserviceaccount.com`. WIF resource names use the project
+NUMBER, not the id. The Functions deploy also needs the gen-2 role set on that account (Cloud
+Functions, Run, Build, Artifact Registry, Eventarc, Scheduler, Secret Manager, Service Account User),
+which WIF did not change.
+
+**The one invariant any change must keep:** the provider carries the attribute condition
+`assertion.repository == 'Garethdavidmiller/roster-app'`, and the `roles/iam.workloadIdentityUser`
+binding is scoped to the same repository's `principalSet`. **Without the repository condition, ANY
+GitHub repository could impersonate the deploy account** — a whole-project compromise.
+
+### Tightening it — deploys from `main` only, and a read-only backup check (A7, owner step)
+
+**What is open** (`SECURITY_RELEASE_PLAN.md` → the A7 row). The condition names the REPOSITORY and
+nothing else, so a workflow on ANY branch can exchange its token for `github-deploy@`, which can
+replace the rules, the functions and the site: "deploy only from `main`" is an `if:` inside each
+workflow, and a pushed branch controls its own copy. Branch protection does not help — the token is
+minted on the branch. And the weekly backup check asks a read-only question as the deploy account.
+
+Nothing in the repository can close the first half; it is the provider's condition, in GCP. The code
+side is done: no workflow authenticates from anything but `main`, so the tightened condition refuses
+nothing that runs today (a `workflow_dispatch` of the backup check from another branch is refused
+afterwards — that is the point). Run in Cloud Shell, signed in as the project owner:
+
+```bash
+PROJECT=myb-roster
+NUMBER=532910998075
+
+# 1 · Deploys from main only. Keeps the repository condition (the invariant above) and adds the ref.
+gcloud iam workload-identity-pools providers update-oidc github-provider \
+  --project="$PROJECT" --location=global --workload-identity-pool=github-pool \
+  --attribute-condition="assertion.repository == 'Garethdavidmiller/roster-app' && assertion.ref == 'refs/heads/main'"
+
+# 2 · A read-only account for the backup check — two permissions, no document reads.
+#     (roles/datastore.viewer would also read every document; do not use it here.)
+gcloud iam roles create backupCheckReader --project="$PROJECT" \
+  --title="Backup check (read-only)" \
+  --permissions=datastore.backupSchedules.list,datastore.databases.getMetadata
+gcloud iam service-accounts create backup-check --project="$PROJECT" \
+  --display-name="Backup check (read-only)"
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:backup-check@$PROJECT.iam.gserviceaccount.com" \
+  --role="projects/$PROJECT/roles/backupCheckReader"
+gcloud iam service-accounts add-iam-policy-binding "backup-check@$PROJECT.iam.gserviceaccount.com" \
+  --project="$PROJECT" --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/Garethdavidmiller/roster-app"
+```
+
+Then, in GitHub: **Settings → Secrets and variables → Actions → Variables → New repository
+variable**, name `BACKUP_CHECK_SERVICE_ACCOUNT`, value `backup-check@myb-roster.iam.gserviceaccount.com`.
+The workflow falls back to the deploy account while the variable is unset, so the order above is safe.
+
+**Confirm both:** run *"Are Firestore backups actually being taken?"* from the Actions tab on `main`
+— its summary should name `backup-check@` and give a real answer rather than "could not check" — and
+let the next deploy from `main` go through. A deploy that fails at "Authenticate to Google Cloud"
+after step 1 means the condition was mistyped; re-run step 1 with the line exactly as above.
+
+---
+
 ## Quick reference
 
 | Symptom | First action | Where |
@@ -523,7 +591,8 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 - `DATA_MODEL.md` — every collection's fields, which is what a hand-restored record must match.
 - `OPERATIONS_REFERENCE.md` — Huddle/roster ingest flow, the retired staff PIN's last manual steps,
   and Security Rules detail.
-- `SECURITY_RELEASE_PLAN.md` — WIF deploy identity, claim model, the deferred security work.
+- `AUTH_AND_SESSIONS.md` — the claim model and the sign-in design; `SECURITY_RELEASE_PLAN.md` — the
+  security work still to do.
 - `KNOWN_LIMITATIONS.md` — "The installed PWA masks live-site breakage" (why you must verify
   in a fresh window).
 

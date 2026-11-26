@@ -36,7 +36,7 @@
  *
  * `actual` is non-null only for a device that has imported payslip figures into localStorage, for
  * the one member gated by `isActualsDev`. The data is never served and never leaves the device
- * (AUTH_ARCHITECTURE.md → PAYSLIP_ACTUALS). This module takes the resolved value as an argument and
+ * (.claude/rules/paycalc.md → Example payslips). This module takes the resolved value as an argument and
  * makes no decision about who may see it — the gate stays with the caller, where the identity is.
  */
 

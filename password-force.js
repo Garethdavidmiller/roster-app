@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * password-force.js — the MANDATORY "set your own password" overlay (PASSWORD_DESIGN.md Phase 2).
+ * password-force.js — the MANDATORY "set your own password" overlay (AUTH_AND_SESSIONS.md → "The forced password overlay").
  *
  * Owns: compelling an un-migrated member to replace their surname-derived password with one only they
  *   know, at the moment they next sign in. Injects its own overlay markup (the `login-overlay.js` /

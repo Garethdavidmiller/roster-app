@@ -39,7 +39,7 @@ import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { markPageReady } from './perf-reporter.js';
 
 /**
- * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init() invoked by
+ * AUTH_AND_SESSIONS.md → "The page shell": the coordinator body is an exported init() invoked by
  * settings-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks inline module scripts).
  * The seam (v17.09) would let a test `import { init }` without the coordinator auto-running, but no
  * test does: the page is driven in a browser (e2e/settings.spec.js), and its rules live in the
@@ -129,7 +129,7 @@ export function init() {
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
     // ── Check session ─────────────────────────────────────────────────────────────
-    // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these two are refreshed
+    // `let` (not const): after an in-place sign-in (AUTH_AND_SESSIONS.md → "In-place sign-in") these two are refreshed
     // inside initAuthorised() from the just-saved session — the module loaded while signed out, so the
     // load-time values are null.
     let currentSession   = getSession();
@@ -148,7 +148,7 @@ export function init() {
     // It is only ever wired for a signed-in member, so Sign out is always there.
     function wireNavPanel() {
         initNavPanel({
-        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
+        // Drawer Circular/Newsletter read waits for the session (AUTH_AND_SESSIONS.md → "The two-phase load (E1)").
         authReady: sessionReady,
             currentPage: 'settings',
             memberName:  currentUser,
@@ -177,12 +177,12 @@ export function init() {
     initTipsLightbox(CARD_TIPS, { getIsAdmin: () => !!currentUser && navGatesFor(currentUser).isAdmin });
 
     // The start-up every card-opening page shares (page-start.js): the Back guard, the Phase-3 policy
-    // (auth-policy.js → AUTH_ARCHITECTURE.md Phase 7) decided from the LOCAL session — "any named user"
+    // (auth-policy.js; AUTH_AND_SESSIONS.md → Architecture, Layer 2) decided from the LOCAL session — "any named user"
     // (role null, Other Staff admitted), so 'login' iff there is no local session — and the in-place
     // sign-in, which runs initAuthorised() in place and reloads if it throws mid-wiring. Before
     // initAuthorised runs, the start-up re-establishes the member's own Firebase session, fulfils
     // `sessionReady`, guards it (an own session that cannot be confirmed signs in again now; one revoked
-    // LATER does too), runs the forced set-password step (PASSWORD_DESIGN.md Phase 2) NOW with the session
+    // LATER does too), runs the forced set-password step (AUTH_AND_SESSIONS.md → "The forced password overlay") NOW with the session
     // as its barrier — before any card can throw, so the sign-in's one-shot marker is spent as the page
     // opens — and starts the error reporter and the usage and latency counts behind it.
     startPage({ page: 'settings', label: 'Settings', run: initAuthorised,
@@ -223,7 +223,7 @@ export function init() {
         // Work Email card
         wireCard('work-email', initContactCard);
 
-        // Password card (PASSWORD_DESIGN.md — chosen password + migration status; settings-password-card.js)
+        // Password card (AUTH_AND_SESSIONS.md → "Chosen passwords" — chosen password + migration status; settings-password-card.js)
         wireCard('password', () => initPasswordCard({ member: currentUser, reportSetting, cardHandles: _cardHandles }));
 
         // Notifications card. It reports its own state — notif-card-core.js's words are the authority, and a second

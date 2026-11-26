@@ -2,7 +2,7 @@
 
 /**
  * functions/reset-request-rules.js — the RULES of the password-reset request queue
- * (PASSWORD_DESIGN.md — the request queue): whether a request is recorded or absorbed as a repeat
+ * (AUTH_AND_SESSIONS.md → "The reset-request queue"): whether a request is recorded or absorbed as a repeat
  * (`shouldRecordResetRequest`), whether a recorded one pushes or the admin was told just now
  * (`shouldNotifyAdmin`), and the words of that push (`buildResetRequestNotice`).
  *
@@ -14,7 +14,7 @@
  */
 
 /**
- * Throttle decision for a password-reset REQUEST (PASSWORD_DESIGN.md — the request queue).
+ * Throttle decision for a password-reset REQUEST (AUTH_AND_SESSIONS.md → "The reset-request queue").
  *
  * PURE so the one piece of judgement in an otherwise mechanical public endpoint is unit-testable.
  * Returns true when the request should be RECORDED (write the doc + count it), false when it should be
@@ -93,7 +93,7 @@ function shouldNotifyAdmin(otherNotifiedAtMs, nowMs, windowMs) {
 
 /**
  * The headline + body for the admin's "someone asked for a password reset" push
- * (PASSWORD_DESIGN.md — the request queue, Phase 2).
+ * (AUTH_AND_SESSIONS.md → "The reset-request queue", the admin push).
  *
  * PURE so the wording — the whole user-visible product of this feature — is unit-testable without a
  * push service, and so the design language's truncation budgets are verifiable rather than assumed.

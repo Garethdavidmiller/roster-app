@@ -113,7 +113,7 @@ export function init() {
 
     function wireNavPanel() {
         initNavPanel({
-            // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1). This page
+            // Drawer Circular/Newsletter read waits for the session (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). This page
             // was the ONLY one of the seven that passed no `authReady`, so its drawer fired the read
             // with no session at all — harmless while those collections were open, and wrong from
             // v23.18, when reading one began to require a claim. It is also the page where it bites

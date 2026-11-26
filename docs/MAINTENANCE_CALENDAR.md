@@ -50,7 +50,7 @@ the *what*, and it is written down once.
 | Watch | Act at | Work |
 |---|---|---|
 | `overrides` document count | Design the archive at **~4,000**; it must land before **~5,000** | Query cost and client cache size both grow with it. A watch item today — no action needed yet, but the design should not start at 4,900 |
-| Migration percentage (`passwordStatus`) | **≥90%** | Track C5 — retire the surname default (closes `EXC-005`). Irreversible; also gated on Track E, unless the owner adopts the second route (`PASSWORD_DESIGN.md` → credential lifecycle L7, not adopted) |
+| Migration percentage (`passwordStatus`) | **≥90%** | Track C5 — retire the surname default (closes `EXC-005`). Irreversible; also gated on Track E, unless the owner adopts the second route (`SECURITY_RELEASE_PLAN.md` → "C5 — the open decision", not adopted) |
 | App Speed card, calendar tail | Material drift | A measured input, deliberately **not** a trigger for a build step — `DECISIONS.md` → "No build step" says what would reopen that, and `LATENCY.md` → Phase 3 holds the reading that would justify acting |
 
 ---

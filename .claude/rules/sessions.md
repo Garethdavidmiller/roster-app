@@ -30,7 +30,7 @@ the three ways they disagree, and a write whose account has gone. Link its numbe
 them. This file holds the area's working notes, moved here from `CLAUDE.md` → "Firebase Auth" and
 its architecture table. The rules every session needs stayed there: writes need a CLAIM, every write
 page re-establishes the Firebase session on load, the three claim tiers, and never granting a manager
-`admin: true`. The history of the strict cutover is `SECURITY_RELEASE_PLAN.md` → B2/B3 and git.
+`admin: true`. The history of the strict cutover is AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)" and git.
 
 ## One local session, every page
 

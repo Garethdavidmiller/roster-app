@@ -84,7 +84,7 @@ authentication end-state is **Microsoft / Entra ID work-account SSO** — the co
 joiners, leavers, password and MFA policy, account disablement and identity verification, and the
 app consumes an identity and maps it to its own roles, which it already does cleanly via claims.
 That is a better end-state than maintaining a staff authentication system indefinitely, and it
-would supersede most of `PASSWORD_DESIGN.md`'s credential lifecycle section. It is not a plan and needs no work: it depends
+would supersede most of the Track C work left in `SECURITY_RELEASE_PLAN.md`. It is not a plan and needs no work: it depends
 entirely on Chiltern IT registering the application, which is this gate. Recorded so that nobody
 builds toward it, and so that nobody is surprised later that the custom work was the right call
 *until* the gate moved.
@@ -148,22 +148,22 @@ failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster d
 shipped, including the wiring defects found on the way: git.
 
 ### Track E — the authentication decision
-**Status:** Planned — the cleanup release of the staff PIN's retirement (owner, 23 Nov 2026; the client release shipped at v26.60, the server release at v26.65); E3 as designed is still an owner decision · **Owner:** Gareth · **Design:** `AUTH_PLAN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track E row
+**Status:** Planned — the cleanup release of the staff PIN's retirement (owner, 23 Nov 2026; the client release shipped at v26.60, the server release at v26.65); E3 as designed is still an owner decision · **Owner:** Gareth · **Design and status of record:** `SECURITY_RELEASE_PLAN.md` → Track E and its row
 
 **The staff PIN is retired** (owner, 23 Nov 2026): everyone signs in under their own name, and
 somebody with no roster of their own gets an Other Staff login. It comes out in three releases —
 client, server, cleanup (DECISIONS.md → "The staff PIN retired"). Where that stands, and which phases
 have shipped, is the Track E row of `SECURITY_RELEASE_PLAN.md`'s canonical table — not restated here.
 
-What is still open is E3 as designed — its soft posture and the rules beyond it (`AUTH_PLAN.md` → E3),
+What is still open is E3 as designed — its soft posture and the rules beyond it (`SECURITY_RELEASE_PLAN.md` → E3),
 since the retirement reached E3's front door without them. Take it with the E3 measurement
-criteria **pre-registered** — AUTH_PLAN §6 requires the thresholds to be written down before telemetry
+criteria **pre-registered** — `SECURITY_RELEASE_PLAN.md` → "What to measure — and pre-register" requires the thresholds to be written down before telemetry
 starts, precisely so they cannot be chosen after seeing the numbers.
 
 This gated more than itself: **C5 could not complete without it**, because a member who only ever
 opened the roster with the staff PIN never signed in and was never compelled to set a password. The
 PIN was retired on 23 Nov 2026, so every reader now signs in; what that does to C5's gate is part of
-the open decision in `PASSWORD_DESIGN.md` → credential lifecycle L7.
+the open decision in `SECURITY_RELEASE_PLAN.md` → "C5 — the open decision".
 
 ### Calendar start — how often we deploy (OWNER DECISION, not a code change)
 **Status:** Blocked on an owner decision — an external review's recommendation, not yet adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree
@@ -203,10 +203,10 @@ page after a release took over a second to be usable (`LATENCY.md` → THE NOVEM
   first-visit Settings, and the Railcard's corrections".
 
 ### Track C5 — retire the surname default
-**Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Status of record:** `SECURITY_RELEASE_PLAN.md` → the Track C row
+**Status:** Blocked · **Owner:** Gareth · **Plan and status of record:** `SECURITY_RELEASE_PLAN.md` → Track C and its row
 
 Irreversible. Its gate, why that gate depends on Track E (above), and the second route that is on the
-table and not adopted (C6, `PASSWORD_DESIGN.md` → credential lifecycle L7) are all in that row. Read it before assuming
+table and not adopted (C6, `SECURITY_RELEASE_PLAN.md` → "C5 — the open decision") are all in that row. Read it before assuming
 C5 is close.
 
 ### 2027/28 Pay Calculator rollover
@@ -704,9 +704,8 @@ both would need the governance gate answered before that changed.
 | The v23.01 external review's index, and the print review (Sep 2026) — both closed | their owner decisions: `DECISIONS.md`; the rest: `git show 28b217d0:docs/ROADMAP_HISTORY.md` |
 | Decisions already taken, and features declined | `DECISIONS.md` — **do not re-argue one without reading it** |
 | Dated obligations and their warning points | `MAINTENANCE_CALENDAR.md` |
-| Current status of every security/auth track | `SECURITY_RELEASE_PLAN.md` — **the single source** |
-| Password design and its implementation record | `PASSWORD_DESIGN.md` |
-| Full-app authentication design | `AUTH_PLAN.md` |
+| Current status of every security/auth track, and the design of the work not yet built | `SECURITY_RELEASE_PLAN.md` — **the single source** |
+| The sign-in, password and read-closure design as built | `AUTH_AND_SESSIONS.md` → "Why it is this way" |
 | The new CEA link, from January 2027 | `LINKS_DEC2026_PLAN.md` |
 | The annual leave uploader, phase by phase | `AL_UPLOADER_PLAN.md` |
 | Active constraints and accepted limitations | `KNOWN_LIMITATIONS.md` |

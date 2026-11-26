@@ -9,7 +9,7 @@ not a runtime asset: it tests a PDF, not us, and it needs a dependency the app d
 > **A NAME IN HERE IS PUBLISHED.** This file is committed and the GitHub Pages mirror serves the
 > repository root, so it reaches the open web exactly as `roster-data.js` does. That is fine for a
 > name ALREADY on the published roster — the base roster being public is a deliberate
-> classification, `AUTH_PLAN.md` §2 — and it is not fine for anybody else. A **temporary** member
+> classification, `AUTH_AND_SESSIONS.md` → "Public by decision" — and it is not fine for anybody else. A **temporary** member
 > is the case that catches you out: they work the roster and appear on the sheet, and the app does
 > not publish them. Two measurements here named one, and the fix is the one to copy — the
 > observation is what matters, so keep the count and drop the attribution ("one CEA Wednesday", not

@@ -78,7 +78,7 @@ not exist here, or if an ID is declared twice.
 
 | ID | Claim | Settled by | Cost if wrong | Where it lives |
 |---|---|---|---|---|
-| **VAL-AUTH-001** | **Track E's decision gate.** The design is sound and the measurement that would decide it has never been taken — `AUTH_PLAN.md` says so in its own confidence table, which is the right thing for a plan to admit. | The **§6 measurement** described in that plan | The decision gets taken on intuition, and it is the one that determines whether the whole app moves behind authentication | `AUTH_PLAN.md` → E3 |
+| **VAL-AUTH-001** | **Track E's decision gate.** The design is sound and the measurement that would decide it has never been taken — `SECURITY_RELEASE_PLAN.md` says so in its Track E confidence note, which is the right thing for a plan to admit. | The measurement described in that plan (Track E → "What to measure — and pre-register") | The decision gets taken on intuition, and it is the one that determines whether the whole app moves behind authentication | `SECURITY_RELEASE_PLAN.md` → E3 |
 
 ---
 

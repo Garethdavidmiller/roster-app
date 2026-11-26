@@ -171,7 +171,7 @@ jobs:
       # This was the CANARY workflow that proved WIF first; deploy-hosting.yml and
       # deploy-functions.yml now authenticate the same way. The FIREBASE_SERVICE_ACCOUNT
       # secret is retired — no deploy workflow references a key file any more.
-      # Full plan + cutover sequence: SECURITY_RELEASE_PLAN.md → Appendix A2.
+      # Full plan + cutover sequence: RECOVERY_RUNBOOK.md → "The deploy identity".
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:

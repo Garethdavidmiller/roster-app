@@ -199,7 +199,7 @@ body {
     }
 }
 
-/* Password card (PASSWORD_DESIGN.md) */
+/* Password card (AUTH_AND_SESSIONS.md → "Chosen passwords") */
 .pw-nudge {
     text-wrap: pretty;   /* a div, out of reach of the global p rule: its last line was one word (polish review, 26 Nov 2026) */
     background: var(--gold-wash-bg);

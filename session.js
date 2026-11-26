@@ -33,12 +33,12 @@ import { dispatchAuth } from './auth-state.js';
 // A DEFINITIVE credential rejection — a wrong password, or no such account — as opposed to a
 // transient/config failure (network, provider-disabled), is `isCredentialRejection` (auth-identity.js),
 // the SAME predicate the Settings reauth uses, so the two candidate ladders can't drift. On one the
-// sign-in resolves to 'none' + a re-sign-in prompt, NEVER an anonymous fallback (PASSWORD_DESIGN.md
-// §3.3 — once anyone has a custom password, an anonymous fallback would be silently denied every write
+// sign-in resolves to 'none' + a re-sign-in prompt, NEVER an anonymous fallback (AUTH_AND_SESSIONS.md →
+// "A credential rejection never falls back" — once anyone has a custom password, an anonymous fallback would be silently denied every write
 // by the strict B3 rules, reproducing the v10.94 outage class).
 
 /**
- * Feed the auth STORE (AUTH_ARCHITECTURE.md Phase 2). This is a pure side-effect, wrapped so
+ * Feed the auth STORE (AUTH_AND_SESSIONS.md → Architecture, the store). This is a pure side-effect, wrapped so
  * a store error can NEVER break the auth path; `sessionReady` and every existing flow are
  * untouched (session.js still owns the Firebase lifecycle). The store IS consumed, once per page:
  * every named page's `guardNamedSession` (page-session.js) and the Pay Calculator read it through
@@ -137,7 +137,7 @@ export function resolveSession(result) { _sessionResolve(result); }
  *                 write it could make. The switch that used to fall back to one
  *                 (`ENFORCE_NAMED_SESSION`) was retired at v24.34; the store prompts a re-login.
  *
- * B0 (SECURITY_RELEASE_PLAN.md) made this distinction observable + tested; B1/B2/B3 then made it
+ * B0 (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)") made this distinction observable + tested; B1/B2/B3 then made it
  * load-bearing (strict isolation + no-anon-fallback on write pages).
  * @type {'named' | 'none'}
  */
@@ -148,7 +148,7 @@ let _fbAuthError;
 
 /** How long a page waits for Firebase Auth to start before treating it as a (transient) failure. */
 const AUTH_READY_TIMEOUT_MS = 20000;
-/** Monotonic auth-attempt generation (stale-completion guard, SECURITY_RELEASE_PLAN.md prep for B1/B3).
+/** Monotonic auth-attempt generation (stale-completion guard, AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)").
  *  `runNamedSignIn` time-boxes the auth promise but cannot CANCEL the underlying Firebase work, so a
  *  timed-out attempt can resolve LATE — after the user retried and a newer attempt already won. A
  *  superseded attempt (its captured gen ≠ this counter) must drop ALL its terminal writes so it can't
@@ -308,7 +308,7 @@ export function primeAuth() {
  *   typed value, or ONLY if it normalises to the surname, the surname first. When ABSENT (a page-load
  *   re-establishment with no typed value), only the derived surname is tried — auto-reauth of an
  *   un-migrated member; a MIGRATED member fails cleanly and the page re-shows the login overlay
- *   (PASSWORD_DESIGN.md §3.4).
+ *   (AUTH_AND_SESSIONS.md → "Re-establishing on page load").
  * @returns {Promise<boolean>} true if a Firebase Auth session is active afterwards
  */
 export async function ensureFirebaseSession(name, _gen, password) {
@@ -439,7 +439,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     }
 
     const email = nameToEmail(name);
-    // The ordered password candidates to try (PASSWORD_DESIGN.md §3.2–3.4). WITH a typed password
+    // The ordered password candidates to try (AUTH_AND_SESSIONS.md → "The gated dual-attempt" and "Re-establishing on page load"). WITH a typed password
     // (login overlay): raw typed → derived surname (gated on the typed value normalising to the
     // surname). WITHOUT one (page-load re-establishment): the derived surname only (auto-reauth of
     // an un-migrated member; a migrated member fails cleanly here → 'none' → overlay re-shown).
@@ -545,7 +545,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     recordError(lastError);   // diagnostics (current attempt only)
 
     // No named session. Resolve to 'none' + a re-sign-in prompt — NEVER anonymous, whichever way it
-    // failed (PASSWORD_DESIGN.md §3.3). Every candidate DEFINITIVELY rejected (a migrated member
+    // failed (AUTH_AND_SESSIONS.md → "A credential rejection never falls back"). Every candidate DEFINITIVELY rejected (a migrated member
     // whose surname no longer works, a mistyped password, no account) and a NON-credential failure
     // (network blip, auth/operation-not-allowed) end the same way: a nameless session would satisfy
     // `request.auth != null` and nothing else, so the strict rules would silently deny every write
@@ -643,7 +643,7 @@ export async function ensureNamedSession(name, { retries = 2, delayMs = 300, pas
 const CLAIM_EPOCH_KEY = 'myb_claim_epoch';
 
 /**
- * B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Force a one-time ID-token refresh per
+ * B3 claim-refresh sweep (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"). Force a one-time ID-token refresh per
  * device when `CONFIG.CLAIM_EPOCH` advances, so a session holding a token minted BEFORE a custom
  * claim existed (e.g. the B2 `manager` claim) picks it up immediately instead of waiting for the
  * ~hourly auto-refresh — the deterministic "every active token carries its correct-tier claim"

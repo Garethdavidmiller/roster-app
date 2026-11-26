@@ -8,7 +8,7 @@
 //
 // Either answer matters. "Emits anyway" means a device already trusts the stored identity whenever
 // it is offline, so refusing to trust it for one paint online buys less than it appears. "Emits
-// nothing" means E4's offline grace question is sharper than AUTH_PLAN states, because the member
+// nothing" means E4's offline grace question is sharper than SECURITY_RELEASE_PLAN.md → E4 states, because the member
 // never reaches Recognised at all.
 //
 // Three arms, same page (arm-today.html — the shipped graph):

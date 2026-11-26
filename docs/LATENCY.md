@@ -189,7 +189,7 @@ anything on the Usable timing — is recorded rather than worked round.
 
 Few sign-ins happen (60-day sessions), so each is four points of the figure. Two waits were the app's:
 a first password attempt that could not succeed when the typed surname differed from the stored
-default (**v26.12 tries the default first**, `PASSWORD_DESIGN.md` §3.2); and the Calendar's reload
+default (**v26.12 tries the default first**, `AUTH_AND_SESSIONS.md` → "The gated dual-attempt"); and the Calendar's reload
 after a sign-in, which repeated the lookup (**gone from v26.40** for a sign-in on a Calendar not yet
 granted — the in-place grant in `calendar-access.js`). The December card is the first to include it,
 and **it counts fewer sign-ins, not at random**: a sample is kept only when the page stayed on screen

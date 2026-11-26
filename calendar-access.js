@@ -297,7 +297,7 @@ function grantNamedOnceFree() {
 /**
  * Re-establish the member's own Firebase identity with nothing typed, if that is possible.
  *
- * `ensureNamedSession` with no password tries ONLY the derived surname (PASSWORD_DESIGN.md §3.4), which
+ * `ensureNamedSession` with no password tries ONLY the derived surname (AUTH_AND_SESSIONS.md → "Re-establishing on page load"), which
  * is what makes this safe to fire unprompted: for a member still on the default it restores the exact
  * identity they already had, and for a migrated member it fails cleanly against a password nobody
  * chose. It is the same page-load re-establishment every other coordinator already performs — the

@@ -139,7 +139,7 @@ The owner test is a bound member identity (`memberName()` — AUTH_AND_SESSIONS.
 Purpose: account recovery. Self-service recovery by email is not built — `SECURITY_RELEASE_PLAN.md` track C2.
 Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js` (own email) and from `operations-app.js`'s merged **Account status** card (`saveStaffContact`/`deleteStaffContact` for admin set/edit/remove on a member's behalf). `getAllStaffContacts` (reads all docs) is also called from `operations-app.js` (Account status card).
 
-**passwordStatus** (PASSWORD_DESIGN.md Track C)
+**passwordStatus** (`AUTH_AND_SESSIONS.md` → "Password migration status")
 ```
 memberName   Must match teamMembers[n].name exactly — used as the document ID
 passwordSetAt  Firestore server timestamp — the LAST time the member set their own password (Settings → Password). Written by the client (owner only).
@@ -149,7 +149,7 @@ resetAt        Firestore server timestamp — the last time this member's accoun
 Read: owner or admin. Create/update (client): only the owner, only the `passwordSetAt` key, and it must equal `request.time` (so a client can only stamp "I just set my password now" on its own doc). `resetAt` is un-writable by any client (only the Admin SDK sets it). Delete: denied for everyone.
 Written/read by: `savePasswordSetAt` / `getPasswordStatus` (owner) in `firebase-client.js` — the stamp is called by `changeOwnPassword` (`own-password.js`) once the password itself has changed, from Settings' card and the forced change (`password-force.js`) alike, and the status is read by both — `getAllPasswordStatus` (admin, reads all) called from `operations-app.js` (Account status card), and the `resetMemberPassword` and `setupRosterAuth` Cloud Functions (write `resetAt`).
 
-**resetRequests** (PASSWORD_DESIGN.md, the request queue)
+**resetRequests** (`AUTH_AND_SESSIONS.md` → "The reset-request queue")
 ```
 memberName   Must match teamMembers[n].name exactly — used as the document ID
 requestedAt  Firestore server timestamp — when they last asked
@@ -553,7 +553,7 @@ lives in its own home and is linked, not restated.
   `roster-data.js`, stamped by `setupRosterAuth` from the generated `functions/roster-members.json`.
 
 **Linked, not restated:** session lifetime, claim tiers and what a member may write — `AUTH_AND_SESSIONS.md` (invariants 2, 3, 18, 20); passwords, the surname
-default, the admin reset and the forced migration — `PASSWORD_DESIGN.md` and `ARCHITECTURE.md`
+default, the admin reset and the forced migration — `AUTH_AND_SESSIONS.md` → "Why it is this way" and `ARCHITECTURE.md`
 EXC-005; the retired staff PIN, what its server release removed and the owner's steps after it — OPERATIONS_REFERENCE.md → "The staff PIN (retired)"; the Firebase SDK version and
 its service-worker twin — `CLAUDE.md` → Change impact; the sign-in list's grade groups (`CONFIG.GRADE_ORDER`
 in `roster-data.js`) and the login-only `managerOnly` rows — `.claude/rules/roster-data.md`.

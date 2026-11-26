@@ -41,7 +41,7 @@ export const CALENDAR_SNAPSHOT = 'myb_cal_snapshot';
 export const NOTIF_PROMPT_DONE = 'myb_notif_prompt_done';
 
 /** Prefix (+ member name) of the one-shot "a real sign-in just happened" marker that triggers the
- *  forced set-password overlay — PASSWORD_DESIGN.md Phase 2. First WRITTEN by login-core.js
+ *  forced set-password overlay — AUTH_AND_SESSIONS.md → "The forced password overlay". First WRITTEN by login-core.js
  *  (`holdPasswordMarker`, as a typed attempt starts; login-overlay.js's `opened` writes it again) and
  *  CONSUMED by password-force.js, so it is
  *  genuinely cross-file and belongs here rather than in either module. The marker is what keeps the

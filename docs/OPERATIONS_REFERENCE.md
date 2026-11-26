@@ -22,7 +22,7 @@ reclaims those as orphans — see Auto-prune below.)
 download URL to `storageUrl`. It does NOT use a signed URL for the stored link — GCS caps v4
 signed-URL expiry at 7 days, far shorter than the 3-month Huddle retention window. Members open the
 file through a 15-minute signed link from `getDocumentUrl` when one can be minted, with the stored
-URL as the fallback (AUTH_PLAN.md §5).
+URL as the fallback (AUTH_AND_SESSIONS.md → "The document files (E6)").
 
 Download-token URL format (`ingestHuddle` always writes this — it never stores a signed URL):
 ```
@@ -483,7 +483,7 @@ for one run when it was built (12 Nov 2026, DECISIONS.md); ARCHITECTURE.md EXC-0
 has been made.
 
 **When:** a document link has been shared somewhere it should not be — or on a schedule, if one is
-ever wanted (AUTH_PLAN.md §5).
+ever wanted (AUTH_AND_SESSIONS.md → "The document files (E6)").
 
 **How:**
 1. Operations → **Document links** → **Check the links**. This only counts, and says what a run would
@@ -533,14 +533,14 @@ function log — counts only.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. The client never CREATES a missing account: one that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js`.
 
-**Chosen passwords (PASSWORD_DESIGN.md — Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value, and when it spells the member's surname it tries the surname default first, because nobody can choose a password that spells their own surname (v26.12); the default works only while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **A DISABLED account is refused** (v25.77): a reset would leave it unable to sign in, so Reset says so and changes nothing, and the reset-request card marks it "Account disabled — run Set up accounts", which re-enables it on the surname default. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's — unless you tick *Their phone is lost or stolen*, which sends nothing (below, step 5). It never names the new password (a push renders on a lock screen). If no reset notice reaches their devices — they have no notifications on this app, or the send failed — the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
+**Chosen passwords (`AUTH_AND_SESSIONS.md` → "Chosen passwords").** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value, and when it spells the member's surname it tries the surname default first, because nobody can choose a password that spells their own surname (v26.12); the default works only while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **A DISABLED account is refused** (v25.77): a reset would leave it unable to sign in, so Reset says so and changes nothing, and the reset-request card marks it "Account disabled — run Set up accounts", which re-enables it on the surname default. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's — unless you tick *Their phone is lost or stolen*, which sends nothing (below, step 5). It never names the new password (a push renders on a lock screen). If no reset notice reaches their devices — they have no notifications on this app, or the send failed — the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
 
 ### Locked-out member → reset request queue
 
 The one flow that starts with **no identity at all**: a member who has forgotten a self-set password
 has no Firebase session, so they cannot write anything — which is why this runs through a public
 unauthenticated endpoint (the only one, since the staff PIN's server release deleted `unlockCalendarViewer`) rather than a client write. The
-design and its accepted risks are `PASSWORD_DESIGN.md` §12–§14.
+design and its accepted risks are `AUTH_AND_SESSIONS.md` → "The reset-request queue".
 
 1. **Member** taps "Can't get in?" on the login overlay — **always available there**, under the Sign
    in button → `requestPasswordReset` (`account-calls.js`, re-exported by `firebase-client.js`; the one account call
@@ -558,7 +558,7 @@ design and its accepted risks are `PASSWORD_DESIGN.md` §12–§14.
 4. **Admin** actions it in Operations → Password Reset Requests (Reset, or Set up accounts where the
    row says *No account yet* or *Account disabled*), then clears the row (`clearResetRequest`). **A
    request proves nothing about who sent it** — confirm with the member before resetting
-   (PASSWORD_DESIGN.md §13). Create/update is denied to every client **including the admin**; only the
+   (AUTH_AND_SESSIONS.md → "The reset-request queue"). Create/update is denied to every client **including the admin**; only the
    function writes.
 5. **The member is told, on their own devices.** `resetMemberPassword` sends
    `🔑 Password reset — set a new one` via `sendTargetedPush` to the uid it has just written,

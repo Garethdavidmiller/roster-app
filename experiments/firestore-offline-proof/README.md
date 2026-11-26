@@ -1,6 +1,6 @@
 # Does the local Firestore cache serve reads that the rules would deny?
 
-A one-off experiment, kept rather than thrown away. AUTH_PLAN.md §4 asked for it by name and called
+A one-off experiment, kept rather than thrown away. AUTH_AND_SESSIONS.md → "The local cache does not ask the rules" asked for it by name and called
 it "an hour's work that decides whether E3 is shippable"; this is that hour, with its result.
 
 **It is not a CI gate and must never become one.** It tests *Firestore*, not this app — wiring it

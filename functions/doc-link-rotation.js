@@ -2,7 +2,7 @@
 /**
  * functions/doc-link-rotation.js — give every stored Huddle, Circular and Newsletter file a NEW
  * link key, so that every copy of an old link stops opening it (ARCHITECTURE.md EXC-007;
- * AUTH_PLAN.md §5). Run from Operations → Document links, through `rotateDocumentLinks` in
+ * AUTH_AND_SESSIONS.md → "The document files (E6)"). Run from Operations → Document links, through `rotateDocumentLinks` in
  * ./documents.js, which owns the admin check.
  *
  * ── WHAT IS BEING REPLACED ───────────────────────────────────────────────────
@@ -30,7 +30,7 @@
  * another key.
  *
  * ── A FILE NO RECORD POINTS AT ───────────────────────────────────────────────
- * An older version, or a file a half-failed prune left behind (AUTH_PLAN §5 names that case as the
+ * An older version, or a file a half-failed prune left behind (AUTH_AND_SESSIONS.md → "The document files (E6)" names that case as the
  * one retention can never reach). Nothing in the app opens it by link, so it LOSES its key and is
  * given none. It is not deleted: deleting is retention's decision, and a run that only ever takes
  * keys away cannot lose a document.

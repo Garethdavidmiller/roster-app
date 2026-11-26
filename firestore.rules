@@ -107,7 +107,7 @@ rules_version = '2';
 // firestore-contract-parity.test.mjs refuses a sweep line older than any version the file cites, so
 // label a change with its version and the check can see it.)
 //
-// Write policy: PER-MEMBER ISOLATION is now STRICT (B3, see SECURITY_RELEASE_PLAN.md).
+// Write policy: PER-MEMBER ISOLATION is now STRICT (B3, see AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)").
 // `overrides` create/update/delete require the member's own bound name (`memberName()`), OR an `admin`/`manager`
 // claim (both write on behalf). The B2 permissive `!('name' in token)` legacy/anonymous escape has
 // been REMOVED (B3 strict cutover) after the CLAIM_EPOCH=2 forced re-auth sweep + a re-provision.
@@ -244,7 +244,7 @@ service cloud.firestore {
     // ── WHO MAY WRITE THE LINKS WORKSPACE: the `linksDesigner` claim, or admin (who outranks) ──────
     // ONE definition for linkDesigns and linkTargetSets, which each carried an identical copy until
     // Nov 2026 — two copies of an access rule are two places for them to come apart. setupRosterAuth
-    // sets `linksDesigner: true` for CONFIG.LINKS_DESIGNERS (SECURITY_RELEASE_PLAN.md → H2).
+    // sets `linksDesigner: true` for CONFIG.LINKS_DESIGNERS (AUTH_AND_SESSIONS.md → "The claim tiers").
     function isLinksWriter() {
       return request.auth != null &&
         (request.auth.token.linksDesigner == true || request.auth.token.admin == true);
@@ -523,7 +523,7 @@ service cloud.firestore {
         // (B3 strict cutover) after the CLAIM_EPOCH=2 forced re-auth sweep. Managers must be
         // provisioned (Set up accounts) AND token-refreshed before this rule is relied upon —
         // a stale manager token has name but not manager, so it would be isolated to its own
-        // (non-existent) roster. See SECURITY_RELEASE_PLAN.md → B3.
+        // (non-existent) roster. See AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)".
         // TWO checks, because create AND update share this block. On UPDATE the EXISTING doc's
         // owner must also authorise (resource.data.memberName), not just the NEW value — otherwise a
         // member could OVERWRITE another member's override by writing their own name into it,
@@ -653,7 +653,7 @@ service cloud.firestore {
       // Writes require the linksDesigner claim (or admin, who outranks). setupRosterAuth
       // sets linksDesigner:true for CONFIG.LINKS_DESIGNERS. Closes H2 — before this, the
       // links-app.js client redirect was the ONLY control and the server accepted a write
-      // from any authenticated session. See SECURITY_RELEASE_PLAN.md → H2.
+      // from any authenticated session. See AUTH_AND_SESSIONS.md → "The claim tiers".
       // A designer on a pre-cutover token self-heals: links-app.js wraps every linkDesigns
       // write in writeWithClaimRetry (v16.29), so a permission-denied forces a token refresh
       // and one retry — no manual sign-out needed. The test is `isLinksWriter()`, defined once at
@@ -802,7 +802,7 @@ service cloud.firestore {
         (memberName() == memberName || request.auth.token.admin == true);
     }
 
-    // passwordStatus/{memberName} — the per-member password-migration record (PASSWORD_DESIGN.md §6).
+    // passwordStatus/{memberName} — the per-member password-migration record (AUTH_AND_SESSIONS.md → "Password migration status").
     //   resetAt       : written ONLY by the Cloud Functions (the Admin SDK bypasses these rules), on
     //                   every path that puts an account on its surname default — the admin reset
     //                   (resetMemberPassword), and Set up accounts (setupRosterAuth) on a new account,

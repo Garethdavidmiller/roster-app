@@ -432,7 +432,7 @@ What stays true while that row is open:
   only step that switches an orphan's link off.
 - **Microsoft reads the Word documents.** `officeViewerUrl` (`storage-utils.js`) hands the URL to
   Microsoft's Office Online viewer, which fetches it server-side, so these documents reach a third
-  party. It is handed the SIGNED URL and was kept by owner decision (AUTH_PLAN.md §5, 19 Sep 2026).
+  party. It is handed the SIGNED URL and was kept by owner decision (AUTH_AND_SESSIONS.md → "The document files (E6)", 19 Sep 2026).
 
 ### Real payslip figures stay in git HISTORY (owner decision, recorded not accepted)
 
@@ -449,7 +449,7 @@ Scrubbing was considered and declined in the same decision, on cost rather than 
 `filter-repo` rewrite changes every commit SHA on `main`, which breaks existing clones, stales every
 commit and PR-diff link in these documents, and cannot recall bytes already served or cached by
 third parties. The remaining exposure is a public repository the owner chose to have — the same
-reasoning already recorded for the base roster's public classification (AUTH_PLAN.md §2).
+reasoning already recorded for the base roster's public classification (AUTH_AND_SESSIONS.md → "Public by decision").
 
 **What would actually close it**, whenever the repository's visibility is revisited: making the
 repository private, which also retires the Pages mirror as a side effect and therefore cannot
@@ -486,7 +486,7 @@ is no longer served (the Pages mirror serves `docs/`; Firebase's ignore list cov
 committed `docs/AL_WORKBOOK.md` keeps the method, the four cell states, the workbook's own defects
 and the worked examples, each with its figures and reading *"a member"*; its remaining names are a
 workbook-spelling ↔ app-spelling map carrying no figure, and both spellings are public by the
-classification in `AUTH_PLAN.md` §2. What still holds:
+classification in `AUTH_AND_SESSIONS.md` → "Public by decision". What still holds:
 
 - **The log is still in git HISTORY**, exactly as the payslip fixture is (above), so this stops it
   being SERVED, not published. Rewriting history is the owner's call and has not been taken.
@@ -494,7 +494,7 @@ classification in `AUTH_PLAN.md` §2. What still holds:
   accumulated reconciliation history — a real cost to the `/al-workbook` workflow, accepted
   deliberately and reversible by un-ignoring the file.
 - **The public classification was reasoned about SHIFT PATTERNS** — *"shift patterns are on the
-  station's own printed rosters"* (`AUTH_PLAN.md` §2). A leave balance is not on a printed roster,
+  station's own printed rosters"* (`AUTH_AND_SESSIONS.md` → "Public by decision"). A leave balance is not on a printed roster,
   and it is a different class of personal data about a third party.
 - **No guard CLASSIFIES what `docs/` publishes.** `public-data-classification.test.mjs` covers the
   world-readable roster files and not `docs/`. `payroll-anonymity.test.mjs` scans the whole tracked
@@ -606,7 +606,7 @@ sign-in at the name's own email carrying the server-set `member` claim ("The mem
 **Never quote the raw `token.name ==` form:** copied into a new rule it reopens the self-set
 display-name hole. The named password is still surname-derived by default, so this remains
 hardening, not full remediation. Local UI checks remain non-security controls. Practical risk is low
-for a small known team. Status of record: `SECURITY_RELEASE_PLAN.md` → B2/B3.
+for a small known team. Status of record: AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)".
 
 ### A signed-in session lasts 60 days regardless of use (owner decisions — accepted trade)
 
@@ -621,7 +621,7 @@ exactly `name`/`ver`/`expiry`/`createdAt`. `createdAt` is no second clock: it is
 read only to compare with the member's last reset (`sessionPredatesReset`).
 
 **What reads FROM this number, and gets further away as it grows:**
-- **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_DESIGN Track C) is driven
+- **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, AUTH_AND_SESSIONS.md → "The forced password overlay") is driven
   by sign-ins, so it takes up to 60 days to reach everybody who signs in — the C5 exit metric moves
   at the session's pace. Since the staff PIN was retired (23 Nov 2026), everybody who reads the roster
   signs in, so nobody is out of its reach.

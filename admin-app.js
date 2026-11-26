@@ -1053,7 +1053,7 @@ export function init() {
     }
 
     /**
-     * Authorised (signed-in) init body — AUTH_ARCHITECTURE.md Phase 9. Runs exactly once per page life:
+     * Authorised (signed-in) init body — AUTH_AND_SESSIONS.md → "In-place sign-in". Runs exactly once per page life:
      * directly on a normal already-signed-in load, or from the start-up's continuation on the in-place path
      * (page-start.js), which has already re-established, fulfilled and guarded the member's own Firebase
      * session — without it every Firestore write fails — and run the forced set-password step.
@@ -1175,7 +1175,7 @@ export function init() {
     // ── Navigation panel ─────────────────────────────────────────────────────────
     function wireNavPanel() {
         initNavPanel({
-        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
+        // Drawer Circular/Newsletter read waits for the session (AUTH_AND_SESSIONS.md → "The two-phase load (E1)").
         authReady: sessionReady,
             currentPage: 'admin',
             memberName:  currentUser,
@@ -1203,7 +1203,7 @@ export function init() {
     // page), decided at load from the LOCAL session and again for whoever signs in on this page's own card. 'login'
     // iff no local session: the shared card with Admin's explanation, and nothing loaded from Firestore until a
     // confirmed sign-in runs initAuthorised() in place. NOTHING may be awaited on that path (the login freeze,
-    // PASSWORD_DESIGN.md §3.6). 'forbidden' only for an "Other Staff" login (owner, 23 Nov 2026), who has no roster
+    // AUTH_AND_SESSIONS.md → "The login freeze"). 'forbidden' only for an "Other Staff" login (owner, 23 Nov 2026), who has no roster
     // to record leave against and no colleague to record it for — on both routes (24-hour review, 25 Nov 2026: the
     // gate ran signed OUT, so that login made on THIS card got the whole page). The drawer is wired by
     // initAuthorised() and by the refusal, so it renders once, with the signed-in identity.
