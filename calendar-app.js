@@ -62,18 +62,15 @@ import { initCalendarTooltip, initCalendarKeyboard, initCalendarShortcuts } from
 
 import { setStatus } from './status-text.js';
 import { signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
-// ── THE CALENDAR ACCESS BOOTSTRAP (v20.12) ──────────────────────────────────────────────────────
+// ── THE CALENDAR ACCESS BOOTSTRAP ───────────────────────────────────────────────────────────────
 //
-// This replaced an unconditional `signInAnonymously` fallback. That existed because `overrides` was
-// world-readable (`allow read;`) and the Calendar's best-effort WRITES — the error reporter, the
-// usage counter, the push-subscription renewal — still needed `request.auth != null`. Override reads
-// now require a real member `name` claim (the shared staff PIN is retired, 23 Nov 2026), so an anonymous
-// identity would grant nothing at all: it would be a round trip that buys a token no rule accepts.
-// Do not re-add it "so telemetry keeps working" — a locked Calendar recording a page view it never
-// showed is not a measurement worth an authenticated session for.
+// There is NO anonymous sign-in here, and it must not come back "so telemetry keeps working".
+// Override reads require a real member `name` claim, so an anonymous identity would buy a token no
+// rule accepts (AUTH_AND_SESSIONS.md 9), and a locked Calendar recording a page view it never showed
+// is not a measurement worth an authenticated session for.
 //
-// `calendarAccessReady` (calendar-access.js) is the replacement, and it is a stronger promise than
-// the one it replaces: it resolves only when this browser may actually SEE the roster.
+// `calendarAccessReady` (calendar-access.js) resolves only when this browser may actually SEE the
+// roster.
 //
 // `_startCalendarWorkspace` is assigned inside the init try-block below and invoked once, from the
 // access callback at the module tail. It is a `let` rather than a hoisted function declaration
@@ -81,7 +78,7 @@ import { signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } f
 /** @type {(() => void)|null} */
 let _startCalendarWorkspace = null;
 
-/** How long the boot will wait for the local override cache before painting anything (v21.29).
+/** How long the boot will wait for the local override cache before painting anything.
  *  Short on purpose: it is a chance for the cache to win, not a loading state. Long enough for an
  *  IndexedDB read that has already started, far too short to be noticed if it misses. */
 const CACHE_FIRST_PAINT_MS = 90;
@@ -89,18 +86,13 @@ const CACHE_FIRST_PAINT_MS = 90;
 /**
  * Mark the page ready ONLY when a real roster grid is on screen.
  *
- * `markPageReady` used to be called unconditionally after the first render — and that render is
- * frequently "Checking this month…", because a withheld grid is exactly what the knowledge model
- * produces while the override state is unknown. So the App Speed card's "usable" figure was timing
- * the moment the Calendar finished deciding it had nothing to show yet, which is the opposite of
- * usable, and it did so most often on the SLOWEST loads — the ones where the data had not arrived.
- *
- * `render` and `stale` are both real grids: one is current, the other is labelled last-known. Both
- * are a roster the member can read, which is what the metric claims to measure. `loading` and
- * `unavailable` are not, and neither may be timed as though it were.
+ * The first render is frequently "Checking this month…", a withheld grid; timing that as "usable"
+ * would time the moment the Calendar decided it had nothing to show yet — most often on the SLOWEST
+ * loads. `render` and `stale` are both real grids (one current, one labelled last-known); `loading`
+ * and `unavailable` are not, and neither may be timed as though it were.
  *
  * Idempotent downstream (the first `markPageReady` wins), so this is safe to call after every
- * render — which is the point: whichever render first puts a grid up is the one that counts.
+ * render — whichever render first puts a grid up is the one that counts.
  */
 function _markReadyIfGridShown() {
     try {
@@ -118,9 +110,6 @@ function _markReadyIfGridShown() {
             if (teamView.isGridShown()) markPageReady();
             return;
         }
-        // Which read served the grid, and when the server confirmed it, were their own milestones
-        // until the App Speed review (Oct 2026) retired the card blocks that read them; LATENCY.md
-        // holds what they found.
         // ASKED WITHOUT THE STORED COPY, deliberately — not `monthOnScreen` (calendar-renderer.js),
         // which the grid and the legend ask. A loading month the member's own copy stands in for is
         // drawn `stale`, but it is not the live roster this figure times: the copy has a milestone of
@@ -131,45 +120,27 @@ function _markReadyIfGridShown() {
     } catch { /* the metric must never be able to break the boot */ }
 }
 
-// ============================================
-// CEA ROSTER CALENDAR
-// ============================================
-// Performance optimisations:
-// - Member fetched once per render (not 31+ times)
-// - Bank holidays computed on demand from roster-data.js
-// - Pure functions for predictable behaviour
-// - CSS variables for instant theme changes
-// ============================================
-
 // The version is APP_VERSION in roster-data.js (read by the About lightbox). No override here.
-
 
 // Assigned by the About-lightbox IIFE; lets the nav-panel drawer logo open the
 // same About panel that the header logo opens on the calendar page.
 /** @type {any} */
 let openAboutLightbox = null;
 
-// Returned by initCalendarLightboxes(); lets a day-cell click or tap (any pointer)
-// open the day panel — the fuller form of what the hover tooltip previews — and lets
-// the redraw scheduler's `nameApplied` (below) close the AL lightbox when the name
-// picker changes member (its figures would be the previous name's). Both handles are
-// ready before the swipe init.
-// NOT deferred behind Calendar access, and checked rather than assumed (v20.12). This attaches
-// handlers; it fetches nothing. The AL lightbox's own Firestore read happens in its `onOpen`, fired
-// by `#alBtn`, which lives inside `#calendarControls` — hidden while locked, so out of the
-// accessibility tree and out of tab order. And that read REFUSES an answer the offline cache gave —
-// `getDocs` falls back to the cache on a dead signal, where no rule is asked (CALENDAR_DATA.md 16) —
-// so nothing it shows comes from a read the server did not answer. Same reasoning for
-// `initCalendarTooltip`/`initCalendarKeyboard` further down — with
-// `#calendarDisplay` empty they have nothing to act on, and the keyboard ACTS only inside it, so the
-// stored copy painted in the lock slot before the grant (v24.59) is read, never used.
+// Returned by initCalendarLightboxes(); lets a day-cell click or tap (any pointer) open the day
+// panel, and lets the redraw scheduler's `nameApplied` (below) close the AL lightbox when the name
+// picker changes member (its figures would be the previous name's). Both are ready before the swipe init.
+// NOT deferred behind Calendar access, and checked rather than assumed. This attaches handlers; it
+// fetches nothing. The AL lightbox's own Firestore read happens in its `onOpen`, fired by `#alBtn`,
+// inside `#calendarControls` — hidden while locked, so out of the accessibility tree and tab order —
+// and that read REFUSES an answer the offline cache gave (CALENDAR_DATA.md 16). Same reasoning for
+// `initCalendarTooltip`/`initCalendarKeyboard` further down: with `#calendarDisplay` empty they have
+// nothing to act on, and the keyboard ACTS only inside it, so the stored copy painted in the lock
+// slot before the grant is read, never used.
 const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc, isTeamView: () => teamView.isTeamViewMode() });
 
-// (Calendar display state lives in calendar-state.js; swipe cooldown in calendar-swipe.js)
 
-// ============================================
-// TEAM VIEW
-// ============================================
+// ── TEAM VIEW ──
 const teamView = initTeamView({
     rosterOverridesCache,
     ensureOverridesCached,
@@ -203,9 +174,7 @@ const ownCopy = createOwnCopy({
 });
 setSnapshotSource(ownCopy.snapshotFor);
 
-// ============================================
-// WHEN THE PAGE MAY DRAW (calendar-redraw.js)
-// ============================================
+// ── WHEN THE PAGE MAY DRAW (calendar-redraw.js) ──
 // How far start-up has got, the ONE wait for a swipe to finish, and what the next draw owes: one
 // scheduler, and its header says why they are not a variable each in this file. Every BACKGROUND
 // repaint goes through `redraw.repaint`, and the name picker through `redraw.nameChanged`. A press
@@ -222,9 +191,7 @@ const redraw = createRedrawScheduler({
 });
 
 
-// ============================================
-// MONTH NAVIGATION
-// ============================================
+// ── MONTH NAVIGATION ──
 
 // Central month navigation — all buttons, keyboard and swipe go through here.
 // State change is pure (calendar-state.js); this wrapper adds the UI side-effect.
@@ -248,10 +215,9 @@ applyTextScale(document);
     if (!window.matchMedia('(pointer: coarse)').matches) return;
     const hint = document.getElementById('swipeHint');
     if (!hint) return;
-    // Not until the Calendar is OPEN (whole-app review, Oct 2026). Locked, the hint is hidden with the
-    // workspace — and its 6s timer still marked it seen, so a first visit that began at the sign-in
-    // card used up the one showing on nothing. Nor over the first-run prompt, which has no month to
-    // swipe: it waits for the name to be picked (10 Nov 2026).
+    // Not until the Calendar is OPEN: locked, the hint is hidden with the workspace, and its 6s timer
+    // would still mark it seen. Nor over the first-run prompt, which has no month to swipe: it waits
+    // for the name to be picked.
     const show = () => { hint.style.display = ''; setTimeout(dismissSwipeHint, 6000); };
     calendarAccessReady.then(() => {
         if (!isFirstRun()) show(); else document.getElementById('teamMemberSelect')?.addEventListener('change', show, { once: true });
@@ -271,16 +237,14 @@ function dismissSwipeHint() {
 
 
 // Navigate to the pay calculator for a given payday ISO date string.
-// Goes straight to ./paycalc.html — paycalc does its own in-place login when needed (it no longer
-// bounces through admin.html to authenticate). Always call this helper — never duplicate the nav logic.
+// Goes straight to ./paycalc.html — paycalc does its own in-place login when needed and keeps the
+// query. Always call this helper — never duplicate the nav logic.
 //
-// THE ONE GATE FOR EVERY ROUTE TO THE CALCULATOR (v23.07) — the calculator is somebody's OWN, so
-// `personalActionsAllowed` (calendar-access-core.js, which carries the whole argument) decides here
-// as well as on the day panel's buttons. Three routes reach it and the panel was only one: a
-// desktop click on a pay cell and keyboard Enter on one are the others. Gating HERE is the point —
-// one authority, and a fourth route added later inherits it rather than having to remember.
-// Returns whether it went, because a refused Enter must fall through to the day panel rather than
-// become a dead key; see calendar-keyboard.js.
+// THE ONE GATE FOR EVERY ROUTE TO THE CALCULATOR — the calculator is somebody's OWN, so
+// `personalActionsAllowed` (calendar-access-core.js, which carries the whole argument; CALENDAR_DATA.md
+// 14) decides here as well as on the day panel's buttons. Gating HERE means a route added later
+// inherits it rather than having to remember. Returns whether it went, because a refused Enter must
+// fall through to the day panel rather than become a dead key; see calendar-keyboard.js.
 /** @param {any} paydayStr @returns {boolean} */
 function navigateToPaycalc(paydayStr) {
     if (!personalActionsAllowed({
@@ -288,15 +252,10 @@ function navigateToPaycalc(paydayStr) {
         sessionName: getSession()?.name,
         shownMember: /** @type {any} */ (getCurrentMember())?.name,
     })) return false;
-    // paycalc handles its own in-place sign-in for unsigned users (Option B, v14.45+), so go
-    // there directly — the ?payday= param survives the post-login reload. (Previously this
-    // bounced unsigned users to admin?redirect=paycalc, which no longer returns here.)
     window.location.href = `./paycalc.html?payday=${paydayStr}`;
     return true;
 }
 
-
-// AL and day-detail lightboxes initialised above via initCalendarLightboxes().
 
 // Refresh the Prev/Next buttons' disabled state at the MIN_YEAR/MAX_YEAR boundaries.
 // aria-disabled signals the limit to screen readers; opacity gives visual feedback. Called from
@@ -319,20 +278,19 @@ function updateNavButtonState() {
 }
 
 // ── THE MONTH LEGEND ────────────────────────────────────────────────────────────────────────────
-// Left this coordinator at v23.69 for `calendar-legend.js`, which owns both of its decisions —
-// which keys apply, and whether the legend applies at all. The v20.41 rule that the shown/hidden
-// answer belongs to the legend UPDATE and not to a render moved with it, and is argued there.
+// `calendar-legend.js` owns both of its decisions — which keys apply, and whether the legend applies
+// at all — and argues why the shown/hidden answer belongs to the legend UPDATE, not to a render.
 const legend = createLegend({
     getCurrentMember,
     // The month's keys come from the same records the grid is drawn from — the stored copy while the
-    // month loads, as the renderer reads it (48-hour review: an 🏖️ day showed with no AL key).
+    // month loads, as the renderer reads it (an 🏖️ day must not show with no AL key).
     getShiftTypesInMonth: (member, y, m) => getShiftTypesInMonth(member, y, m, monthOnScreen(member, y, m).snapshot),
     getDisplayYear,
     getDisplayMonth,
     computeEaster,
     resolveMemberRoster,
     // A loading month the member's stored copy is drawn for IS a grid on screen — the renderer draws
-    // it `stale` — so it gets its key by the same rule (whole-app review, Oct 2026).
+    // it `stale` — so it gets its key by the same rule.
     displayVerdict: () => monthOnScreen(getCurrentMember(), getDisplayYear(), getDisplayMonth()).display,
     isTeamViewMode: () => teamView.isTeamViewMode(),
     isFirstRun,
@@ -349,13 +307,12 @@ const updateLegend = () => legend.update();
 function _showStaleMemberBanner(staleName, fallbackName) {
     const banner = document.getElementById('errorBanner');
     if (!banner) return;
-    // A LINE OF ITS OWN, BESIDE WHATEVER THE BANNER ALREADY SAYS (17 Nov 2026). The start-up roster
-    // check writes its warning here first, to stay until a reload; this line replaced it, and its
-    // 30-second timer then hid the banner with that warning gone too. Now only this line times out,
-    // and the banner goes with it only when nothing else is left in it.
+    // A LINE OF ITS OWN, BESIDE WHATEVER THE BANNER ALREADY SAYS. The start-up roster check may have
+    // written its warning here first, to stay until a reload; only this line times out, and the
+    // banner goes with it only when nothing else is left in it.
     const line = document.createElement('div');
-    // The signed-in member's OWN name (a row hidden after a move into management, say) is said to them,
-    // not about them in quotes (18 Nov 2026).
+    // The signed-in member's OWN name (a row hidden after a move into management, say) is said to
+    // them, not about them in quotes.
     line.textContent = `${staleName === getSession()?.name ? 'Your name' : `"${staleName}"`} is no longer in the roster — showing ${fallbackName}'s calendar. Choose a name from the list below.`;
     banner.appendChild(line);
     banner.classList.add('visible');
@@ -396,14 +353,13 @@ function showFirstRunPrompt() {
 let _dismissSyncError = () => {};
 
 /**
- * "Try again" from the withheld-grid panel (v20.40) — the recovery for a month whose overrides
- * could not be read, where before there was nothing to press because the base roster simply went up
- * as though it were current.
+ * "Try again" from the withheld-grid panel — the recovery for a month whose overrides could not be
+ * read.
  *
  * Forgets the month BEFORE re-fetching, on purpose: that repaints the wait state immediately, so a
- * press on a slow connection visibly does something instead of leaving the failure panel sitting
- * there. `clearFetchedMonth` re-arms both the fetch (it releases the claim) and the one-shot failure
- * repaint, so a second failure is reported rather than swallowed.
+ * press on a slow connection visibly does something. `clearFetchedMonth` re-arms both the fetch (it
+ * releases the claim) and the one-shot failure repaint, so a second failure is reported rather than
+ * swallowed.
  * @param {number} year
  * @param {number} month - 0-indexed
  */
@@ -458,15 +414,12 @@ function renderCalendar() {
             checking: _initialFetchInProgress,   // the first check is running: "couldn't check" would be false
         });
         // Preserve keyboard focus across the re-render. Wiping #calendarDisplay drops focus to
-        // <body>, after which the page's keyboard shortcuts (`initCalendarShortcuts`) treat arrows as MONTH
-        // jumps instead of day steps. Capture whether a day cell was focused, then restore the new
-        // roving anchor below. Doing it HERE (the render choke point) covers BOTH the synchronous
-        // PageUp/Down month change AND the async override-fetch re-render that follows when paging
-        // beyond the cached window (v16.55) — the case a keyboard-only fix in calendar-keyboard.js
-        // missed. preventScroll so a background re-render can't yank the viewport. A render with no
-        // day cells ("Checking this month", the failure panel) leaves the focus OWED (10 Nov 2026):
-        // it fell to <body> there, so the grid that followed found no cell focused and restored none.
-        // The debt is kept by calendar-redraw.js (`focusWanted` / `focusSettled`).
+        // <body>, after which the page's keyboard shortcuts (`initCalendarShortcuts`) treat arrows as
+        // MONTH jumps instead of day steps. Doing it HERE (the render choke point) covers BOTH the
+        // synchronous PageUp/Down month change AND the async override-fetch re-render that follows.
+        // preventScroll so a background re-render can't yank the viewport. A render with no day cells
+        // ("Checking this month", the failure panel) leaves the focus OWED, so the grid that follows
+        // restores it. The debt is kept by calendar-redraw.js (`focusWanted` / `focusSettled`).
         const _active = document.activeElement;
         const _wantsFocus = redraw.focusWanted({
             onCell: _active instanceof HTMLElement && _active.classList.contains('calendar-day'),
@@ -503,16 +456,14 @@ function renderCalendar() {
 }
 
 
-// ============================================
-// EVENT LISTENERS
-// ============================================
+// ── EVENT LISTENERS ──
 
 // The one callback for a month read that lands later — a function with ONE identity, because
 // `ensureOverridesCached` keeps its waiters by identity: several waits on one month repaint once.
 // Deliberately unguarded by member: the read is everyone's, so a member switched mid-read is
-// waiting on it too, and so is a Team View opened on that month. Team View waits with it as well, so
-// a read it started still repaints the Calendar if it lands after Team View is left (10 Nov 2026).
-// A BACKGROUND repaint, so it never lands under a swiping finger (v16.23) — calendar-redraw.js, rule 1.
+// waiting on it too, and so is Team View — a read it started still repaints the Calendar if it
+// lands after Team View is left. A BACKGROUND repaint, so it never lands under a swiping finger —
+// calendar-redraw.js, rule 1.
 function _repaintAfterMonthRead() { redraw.repaint('month-read'); }
 
 // The first load's callback, on whichever surface is on screen: the same kind of repaint, and then
@@ -520,26 +471,22 @@ function _repaintAfterMonthRead() { redraw.repaint('month-read'); }
 function _repaintAfterFirstLoad() { redraw.repaint('first-load'); _markReadyIfGridShown(); }
 
 const _teamMemberSelect = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
-// The member picker opens the app's OWN sheet rather than the OS dropdown (v23.33). ~50 names in
-// a Material radio list was the worst instance of the fault select-sheet.js exists for; the select
-// itself is untouched as the value holder, so the change handler below is unchanged.
+// The member picker opens the app's OWN sheet rather than the OS dropdown (CLAUDE.md → "No native
+// <select> POPUP"); the select stays the value holder, so the change handler below is unchanged.
 enhanceSelect(_teamMemberSelect, { title: 'Whose roster are you reading?', placeholder: 'Choose your name', searchLabel: 'Search names', createLightbox });
-// `?.` null-guard (matches the #prevMonth handler below): this is attached at MODULE SCOPE, before
-// the init try/catch, so an uncaught throw here (were #teamMemberSelect ever renamed/absent) would
-// blank-splash the whole app. The scheduler's `saveName` reads the element only from inside this
-// listener's work, so a null element simply attaches nothing.
+// `?.` null-guard: this is attached at MODULE SCOPE, before the init try/catch, so an uncaught throw
+// here (were #teamMemberSelect ever renamed/absent) would blank-splash the whole app.
 // The change is applied now, or — during a swipe — as soon as the whole gesture has finished, and
-// never dropped: the picker has already moved, and a dropped change left it showing one name over
-// another's roster (v16.19). In Team View the name is saved and the Calendar is not drawn (v16.21).
-// Both rules, and the single wait, are calendar-redraw.js's (rules 1 to 3).
+// never dropped: a dropped change left the picker showing one name over another's roster. In Team
+// View the name is saved and the Calendar is not drawn. Both rules, and the single wait, are
+// calendar-redraw.js's (rules 1 to 3).
 _teamMemberSelect?.addEventListener('change', () => { redraw.nameChanged(); });
 
 
 document.getElementById('prevMonth')?.addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
     // During first run renderCalendar() early-returns to keep the "choose your name" prompt up, so
-    // changeMonth() would silently drift the hidden month/year and the calendar later renders on the
-    // wrong month instead of today. No-op the relative nav until a name is chosen (v16.21).
+    // changeMonth() would silently drift the hidden month. No-op the relative nav until a name is chosen.
     if (isFirstRun()) return;
     // aria-disabled is set at the boundary — honour it as a true no-op so AT users
     // (and PageUp via .click()) don't trigger a pointless re-render/announce.
@@ -597,14 +544,14 @@ document.getElementById('todayBtn')?.addEventListener('click', () => {
     if (isSwipeCooldown()) return;
     if (teamView.isTeamViewMode()) {
         teamView.jumpToCurrentWeek();   // Team View draws a first run itself, so 📍 works there too
-    } else if (!isFirstRun()) {   // prompt is up — don't pulse/announce a month the user can't see (v16.23)
+    } else if (!isFirstRun()) {   // prompt is up — don't pulse/announce a month the user can't see
         goToToday();
     }
 });
 
 document.getElementById('nextMonth')?.addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
-    if (isFirstRun()) return;   // don't drift the hidden month behind the first-run prompt (v16.21)
+    if (isFirstRun()) return;   // don't drift the hidden month behind the first-run prompt
     if (/** @type {Element} */ (e.currentTarget).getAttribute('aria-disabled') === 'true') return;
     changeMonth(1);
     renderCalendar();
@@ -613,15 +560,10 @@ document.getElementById('nextMonth')?.addEventListener('click', (e) => {
 
 // Pay button — opens the calculator on the payslip PAID in the month being viewed (the 💷 in its
 // grid: `periodPaidInMonth`, paycalc-periods.js), for anyone.
-// DELIBERATELY NOT `navigateToPaycalc`, and not gated by `personalActionsAllowed`. That helper
-// guards the three routes that name a DAY and so read as a personal action (the day panel's
-// button, a desktop click on a pay-marked cell, keyboard Enter on one — CALENDAR_DATA.md
-// invariant 14). This button names no member and no day: paycalc opens on the reader's OWN
-// localStorage-namespaced data, or shows its own in-place login if they have no local identity,
-// so there is nothing here to scope to a person.
-// This comment used to say the login happened "via navigateToPaycalc" — the handler has never
-// called it. That is the v22.93 trap in a second place: a reader tightening the helper would
-// believe this route inherited it.
+// DELIBERATELY NOT `navigateToPaycalc`, and not gated by `personalActionsAllowed`: that helper
+// guards the routes that name a DAY (CALENDAR_DATA.md 14). This button names no member and no day:
+// paycalc opens on the reader's OWN localStorage-namespaced data, or its own in-place login. So a
+// reader tightening the helper must not believe this route inherits it.
 document.getElementById('payBtn')?.addEventListener('click', () => {
     // paycalc shows its own in-place login for unsigned users — navigate there directly.
     const m = String(getDisplayMonth() + 1).padStart(2, '0');
@@ -631,8 +573,8 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
 // lightboxPrintBtn is wired by the shared about-lightbox.js (initAboutLightbox below).
 
 // Every "today" here is read at render time: re-render when the date turns (see `watchLocalDate`).
-// (The pay-period strip under the controls was removed at v24.31 — owner decision; payday stays on
-// the grid's 💷/✂️ markers and the day panel's Pay estimate.)
+// (No pay-period strip under the controls — owner decision; payday stays on the grid's 💷/✂️ markers
+// and the day panel's Pay estimate.)
 // Before the first grant there is no workspace to repaint; the scheduler refuses that itself (rule 4).
 // Team View's week follows the same rule as the month (`weekAfterDateChange`), moved BEFORE the repaint.
 watchLocalDate((change) => {
@@ -665,24 +607,23 @@ document.getElementById('teamViewBtn')?.addEventListener('click', teamView.toggl
 // Modules are always deferred — the DOM is fully parsed before this code runs.
 // No DOMContentLoaded wrapper needed; initialize directly.
 try {
-    // ── THE CALENDAR WORKSPACE — deferred until access is granted (v20.12) ───────────────────────
+    // ── THE CALENDAR WORKSPACE — deferred until access is granted ────────────────────────────────
     //
     // Everything that puts ROSTER DATA on screen lives in here, and none of it runs until
     // `calendar-access.js` says this browser may see it. That is the primary gate, and it is a
-    // structural one: until the first grant there is no member dropdown, no rendered grid, no
-    // Team View and no override fetch — not hidden ones, ABSENT ones. Hiding a rendered Calendar
-    // behind an overlay would leave the data in the DOM for a screen reader, a devtools pane, or one
-    // CSS rule going missing; there is nothing to reveal here because nothing was built. A re-lock
-    // cannot un-build the workspace, so it hides it and EMPTIES the grid (the listeners at the foot).
+    // structural one: until the first grant there is no member dropdown, no rendered grid, no Team
+    // View and no override fetch — not hidden ones, ABSENT ones. Hiding a rendered Calendar behind an
+    // overlay would leave the data in the DOM for a screen reader, a devtools pane, or one CSS rule
+    // going missing. A re-lock cannot un-build the workspace, so it hides it and EMPTIES the grid
+    // (the listeners at the foot).
     //
     // The SECOND gate is in calendar-overrides.js (THE ACCESS GATE), which refuses the reads at
     // source. Both exist because they fail differently: this one is a call-ORDER property that a
     // future edit could break silently, and that one is a refusal that it could not.
     //
     // What stays OUTSIDE: the header, the nav drawer, the About panel, the document viewers and the
-    // splash dismissal. The guides are reachable without Calendar access on purpose — making somebody
-    // sign in to read the Railcard guide would be locking the building to reach the noticeboard. The
-    // document viewers are wired here, but their reads open only with the grant (calendar-doc-access.js,
+    // splash dismissal. The guides are reachable without Calendar access on purpose. The document
+    // viewers are wired here, but their reads open only with the grant (calendar-doc-access.js,
     // CALENDAR_DATA.md 15).
     _startCalendarWorkspace = async function startCalendarWorkspace() {
         // validateRosterPatterns() already ran at module load in roster-data.js.
@@ -701,54 +642,46 @@ try {
         populateTeamMemberDropdown();
         updateLegend();
 
-        // Show stale-member banner before branching on view mode so team-view
-        // users also see "X removed from roster" on the next open.
-        // takeStaleMemberName() is one-shot; renderCalendar() calls it again safely
-        // (returns null) and won't show a duplicate banner.
+        // Show stale-member banner before branching on view mode so team-view users also see it.
+        // takeStaleMemberName() is one-shot; renderCalendar() calls it again safely (returns null).
         const staleAtLoad = takeStaleMemberName();
         if (staleAtLoad) _showStaleMemberBanner(staleAtLoad, (/** @type {any} */ (getCurrentMember())).name);
 
-        // Start the initial 3-month override fetch BEFORE the first render (v16.23). It sets
+        // Start the initial 3-month override fetch BEFORE the first render. It sets
         // _initialFetchInProgress + pre-claims the window's months, so the first renderCalendar's
-        // ensureOverridesCached no longer fires a COMPETING per-month fetch for the display month —
-        // that duplicate read logged a bogus "[Firestore] Duplicate override" warn per doc on
-        // every launch and doubled the month's reads. (Previously called at the module tail.)
+        // ensureOverridesCached does not fire a COMPETING per-month fetch for the display month
+        // (a duplicate read that doubled the month's reads on every launch).
         const _initialFetch = initInitialFetch({
             isTeamViewMode: () => teamView.isTeamViewMode(),
             // ONE callback for both surfaces: the scheduler asks which is on screen. The 3-month
-            // fetch can resolve mid-swipe on a slow connection — an immediate Calendar render would
-            // wipe the carousel and freeze the grid on the old month (v16.23) — and with Team View
-            // active when it lands, its grid is repainted from the cache (v18.21 — without this an
-            // early/boot-time team view stayed base-roster-only: see initInitialFetch's JSDoc for
-            // the two-sided stand-down).
+            // fetch can resolve mid-swipe — an immediate Calendar render would wipe the carousel and
+            // freeze the grid on the old month — and with Team View active when it lands, its grid is
+            // repainted from the cache (see initInitialFetch's JSDoc for the two-sided stand-down).
             renderCalendar: _repaintAfterFirstLoad,
             renderTeamView: _repaintAfterFirstLoad,
             refetchTeamView: () => teamView.refetchShownWeek(),   // stale months released: re-READ, not repaint
             // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
-            // paint) deliberately does not — see AUTH_AND_SESSIONS.md → "The two-phase load (E1)". Since v20.12 the promise is
-            // `calendarAccessReady`, which is ALREADY RESOLVED whenever this runs: the whole
-            // workspace is deferred behind it. It is still passed rather than dropped, because the
-            // retry path re-reads it and the two-phase structure is what makes the gate legible.
+            // paint) deliberately does not — see AUTH_PLAN.md → E1. The promise is ALREADY RESOLVED
+            // whenever this runs (the whole workspace is deferred behind it); it is still passed,
+            // because the retry path re-reads it and the two-phase structure keeps the gate legible.
             authReady: calendarAccessReady,
-            // A read refused because ACCESS has gone reopens the unlock card instead of looping on
-            // the sync chip's retry, which an expired session can never satisfy (v20.12). ONE call:
-            // it shuts the access state first and only then puts the card up, so the local-cache
-            // path is never open behind it — see ACCESS LOST, BY WHICHEVER ROUTE, below.
+            // A read refused because ACCESS has gone reopens the sign-in card instead of looping on
+            // the sync chip's retry. ONE call: it shuts the access state first and only then puts the
+            // card up, so the local-cache path is never open behind it — see ACCESS LOST, below.
             onAccessLost: handleAccessLost,
         });
         _dismissSyncError = _initialFetch.dismissSyncError;
 
-        // ── LET THE LOCAL CACHE WIN THE FIRST PAINT (v21.29, external latency review) ────────────
+        // ── LET THE LOCAL CACHE WIN THE FIRST PAINT ──────────────────────────────────────────────
         //
-        // Phase 1 of the initial fetch reads IndexedDB with no network and no session (Auth init still gates it), and on a
-        // returning device it usually answers in a few milliseconds. But the first render used to
-        // fire SYNCHRONOUSLY beside it, so that device reliably painted "Checking this month…" and
-        // then repainted with data that had been milliseconds away — the eye's first meaningful
-        // impression of the app was a spinner it never needed to see.
+        // Phase 1 of the initial fetch reads IndexedDB with no network and no session (Auth init
+        // still gates it), and on a returning device it usually answers in a few milliseconds. A
+        // first render fired SYNCHRONOUSLY beside it painted "Checking this month…" and then
+        // repainted with data that had been milliseconds away.
         //
         // Bounded, and short. A cache MISS resolves false immediately, a slow read falls through at
-        // the deadline, and either way the old behaviour follows — so nothing waits on a device that
-        // has nothing to show. This is the one place in the boot where waiting is the faster answer.
+        // the deadline, so nothing waits on a device that has nothing to show. This is the one place
+        // in the boot where waiting is the faster answer.
         const _cachePainted = await Promise.race([
             _initialFetch.cacheSettled,
             new Promise(r => setTimeout(r, CACHE_FIRST_PAINT_MS)),
@@ -761,10 +694,9 @@ try {
             teamView.restoreTeamView();
         } else if (_cachePainted !== true) {
             // SKIPPED when phase 1 already painted: it renders through this same path the moment
-            // its cache read lands, so rendering again here is a second full grid build a few
-            // milliseconds later for an identical result. Only the non-team case can skip — phase 1
-            // runs before `restoreTeamView`, so it always paints the CALENDAR, and a team-view
-            // member still needs the restore below it.
+            // its cache read lands. Only the non-team case can skip — phase 1 runs before
+            // `restoreTeamView`, so it always paints the CALENDAR, and a team-view member still
+            // needs the restore.
             renderCalendar();
         }
 
@@ -776,7 +708,7 @@ try {
             isTeamViewMode: () => teamView.isTeamViewMode(),
             changeMonth,
             // Deferred: this dep only fires from restoreIncoming's background fetch callback,
-            // which can resolve during a NEW gesture (v16.23) — or after Team View has opened.
+            // which can resolve during a NEW gesture — or after Team View has opened.
             renderCalendar: _repaintAfterMonthRead,
             updateLegend,
             updateNavButtonState,
@@ -787,22 +719,17 @@ try {
     };
 
     // ── The splash comes down either way ────────────────────────────────────────────────────────
-    // Outside the workspace function DELIBERATELY. It used to sit after the first render, which was
-    // right when the first render was unconditional; now a locked Calendar would sit behind the
-    // splash for ever and the sign-in card would never be seen. Clearing it here means the member sees
-    // either their roster or a sign-in card, and never a loading screen with no way out.
+    // Outside the workspace function DELIBERATELY: a locked Calendar would otherwise sit behind the
+    // splash for ever and the sign-in card would never be seen. The member sees either their roster
+    // or a sign-in card, and never a loading screen with no way out.
     // (splash-watchdog.js is the backstop for the module graph failing entirely, not for this.)
     // It goes AT ONCE, a frame after the first render (index.css's splash block has why there is no fade).
     const splash = document.getElementById('splash');
     if (splash) requestAnimationFrame(() => splash.remove());
 
-        // ============================================
-        // ICON LIGHTBOX / ABOUT PANEL
-        // Lifecycle, SW status, bug link, and print machinery are the shared
-        // about-lightbox.js. The calendar adds two page-specific behaviours:
-        // content that swaps with the team-view mode (onOpen) and a landscape
-        // @page rule when printing the team week (printFn).
-        // ============================================
+        // ── ICON LIGHTBOX / ABOUT PANEL ──
+        // Lifecycle, SW status, bug link and print machinery are the shared about-lightbox.js; the
+        // calendar adds content that swaps with the team-view mode (onOpen).
         (function() {
             const titleIcon = document.querySelector('.title-icon');
             if (!titleIcon) return;
@@ -817,8 +744,8 @@ try {
             const about = initAboutLightbox({
                 appLabel: 'Marylebone Roster',
                 // WHO IS REPORTING, as every other page says it: the signed-in member, or how the
-                // Calendar was opened without one (18 Nov 2026). It named the member on screen, which
-                // is a colleague's calendar as often as the reader's own — so that has a line of its own.
+                // Calendar was opened without one. The member on screen is a colleague's calendar as
+                // often as the reader's own, so it has a line of its own.
                 getUserName: () => getSession()?.name || 'Not signed in',
                 getReportLines: () => [`Calendar shown: ${getAccessType() === 'none' ? 'None (locked)'
                     : isFirstRun() ? 'Not selected' : ((/** @type {any} */ (getCurrentMember()))?.name || 'Not selected')}`],
@@ -828,19 +755,15 @@ try {
                     if (calendarTips)  calendarTips.hidden  = inTeam;
                     if (teamViewTips)  teamViewTips.hidden  = !inTeam;
                     if (teamViewBadge) teamViewBadge.hidden = !inTeam;
-                    // The emoji keeps its own aria-hidden span, as the markup gives it (lightbox review, 22 Nov
-                    // 2026): `textContent` wiped it on the first open, and a screen reader then said "printer".
-                    // The Team button's v22.87 fix (calendar-team-view.js), for the same defect.
+                    // The emoji keeps its own aria-hidden span, as the markup gives it: `textContent`
+                    // would wipe it, and a screen reader would then say "printer".
                     if (printBtn)  printBtn.innerHTML    = '<span aria-hidden="true">🖨️</span> ' + (inTeam ? 'Print this week’s roster' : 'Print this calendar');
                     if (printHint) printHint.textContent = inTeam ? 'Prints in A4 landscape — select landscape in your print settings if needed' : 'Prints the current month’s calendar';
                 },
                 // Just print. The paper is decided by which VIEW is open, not by which control
                 // reached the printer — `calendar-team-view.js`'s `applyTeamPrintPage` installs the
-                // landscape @page while team view is active and removes it on the way out (v23.20).
-                // Before that this function owned the rule, so Ctrl+P, File → Print and AirPrint all
-                // printed the week grid portrait while this button printed it landscape (the `p` key
-                // is not a route here: Team View's keys stop before it); and the v16.21 leak-clearing
-                // dance here existed only because removal depended on an `afterprint` iOS may never fire.
+                // landscape @page while team view is active and removes it on the way out, so Ctrl+P,
+                // File → Print and AirPrint print the same as this button.
                 printFn() { window.print(); },
             });
             if (!about) return;
@@ -848,9 +771,8 @@ try {
             // Calendar keeps its header logo opening About (no "back" target on
             // home). Also expose it so the nav-panel drawer logo opens the same panel.
             openAboutLightbox = about.open;
-            // The logo opens the About panel — make it a keyboard-operable control (it was a
-            // non-focusable <img> with a click handler). Its own label describes the ACTION (the
-            // <img alt> stays the brand). About is also reachable via the nav-drawer brand button. v18.29.
+            // The logo opens the About panel — a keyboard-operable control. Its own label describes
+            // the ACTION (the <img alt> stays the brand). About is also reachable via the drawer brand.
             const titleIconEl = /** @type {HTMLElement} */ (titleIcon);
             titleIconEl.setAttribute('role', 'button');
             titleIconEl.setAttribute('aria-label', 'About Marylebone Roster');
@@ -889,24 +811,18 @@ try {
     }
 }
 
-// ============================================
-// INITIAL 3-MONTH FETCH + SYNC CHIP + VISIBILITY GUARD
-// See calendar-initial-fetch.js.
-// ============================================
-// initInitialFetch moved into the init try-block ABOVE the first renderCalendar (v16.23) — it
-// must set _initialFetchInProgress + pre-claim the 3 months before any render can fetch.
+// ── INITIAL 3-MONTH FETCH + SYNC CHIP + VISIBILITY GUARD ── calendar-initial-fetch.js, started inside
+// the init try-block ABOVE the first renderCalendar: it must set _initialFetchInProgress +
+// pre-claim the 3 months before any render can fetch.
 
-// ============================================
-// PRINT HEADER — stamp timestamp before printing
-// ============================================
+// ── PRINT HEADER — stamp timestamp before printing ──
 // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
 // eagerly on load. The beforeprint handler is kept for desktop browsers, where it
 // updates both attributes to the moment of printing.
 function stampPrintDate() {
-    // `printedStamp`, not a `dateStyle: 'long'` locale string: this sheet is printed from the same
-    // app as the Team View one beside it in the folder, and the two used to spell the same day
-    // differently ("18 September 2026 at 14:23" against "18 Sep 2026"). roster-data.js → "the
-    // provenance line every printable surface closes on" has the argument and the other four.
+    // `printedStamp`, not a `dateStyle: 'long'` locale string, so this sheet spells a day as the
+    // Team View one does. roster-data.js → "the provenance line every printable surface closes on"
+    // has the argument and the other four.
     const now    = new Date();
     const header = document.querySelector('.header');
     if (!header) return;
@@ -921,7 +837,7 @@ stampPrintDate();
 window.addEventListener('beforeprint', stampPrintDate);
 
 // Small delay so any in-flight render cycle completes before the page tears down — and the reload
-// asks AGAIN whether anyone is looking when it fires (v24.28; the frozen-resume race is in sw-register.js).
+// asks AGAIN whether anyone is looking when it fires (the frozen-resume race is in sw-register.js).
 registerServiceWorker({
     beforeReload: () => setTimeout(() => reloadWhileHidden(), 500),
     bfcache: true,
@@ -932,22 +848,18 @@ registerServiceWorker({
     deferWhileVisible: true,
 });
 
-// ============================================
-// HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
-// ============================================
+// ── HUDDLE VIEWER — initialised via calendar-huddle-viewer.js ──
 // `authReady` (persistence configured) is what the READ needs; `documentAccess` is what PERMITS it
-// (v23.17, owner decision: the Huddle, Circular and Newsletter are not visible without a password —
-// the staff PIN, which also opened them, is retired). The two are separate on purpose. `authReady` is
-// a promise the viewers can await with a bound; access is a GATE they consult and subscribe to,
-// opened by the full grant in `initCalendarAccess` below and shut when access is lost — so a locked
-// visitor's tap is answered with a message rather than a read, and a notification tap that landed on
-// a sign-in card is finished the moment the member signs in. calendar-doc-access.js carries the argument, including why the
-// local Firestore cache is the reason a rules change alone could not do this.
+// (owner decision: the Huddle, Circular and Newsletter are behind a sign-in). The two are separate
+// on purpose. `authReady` is a promise the viewers can await with a bound; access is a GATE they
+// consult and subscribe to, opened by the full grant in `initCalendarAccess` below and shut when
+// access is lost — so a locked visitor's tap is answered with a message rather than a read, and a
+// notification tap that landed on a sign-in card is finished the moment the member signs in.
+// calendar-doc-access.js carries the argument, including why the local Firestore cache is the
+// reason a rules change alone could not do this.
 initHuddleViewer({ authReady, docAccess: documentAccess });
 
-// ============================================
-// CIRCULAR / NEWSLETTER VIEWER — opened from a #circular/#newsletter notification deep link
-// ============================================
+// ── CIRCULAR / NEWSLETTER VIEWER — opened from a #circular/#newsletter notification deep link ──
 /** @type {(v?: any) => void} */ let _accessDecided = () => {};   // settled by initCalendarAccess below
 initDocViewer({ authReady, docAccess: documentAccess, accessDecided: new Promise(r => { _accessDecided = r; }) });   // same gate
 
@@ -956,11 +868,8 @@ initDocViewer({ authReady, docAccess: documentAccess, accessDecided: new Promise
 // block below waits on `calendarAuthReady` instead, and says why.
 
 
-// ============================================
-// PUSH NOTIFICATIONS — the one-off prompt strip and the silent renewal: calendar-notif-prompt.js
-// ============================================
-// Extracted at v23.16 with the coordinator four lines under its ratchet. Both access rules the
-// block carries (named only) are argued in that module's header.
+// ── PUSH NOTIFICATIONS — the one-off prompt strip and the silent renewal: calendar-notif-prompt.js ──
+// Both access rules the block carries (named only) are argued in that module's header.
 initNotifPrompt({ authReady: calendarAuthReady, getAccessType });
 
 // The install strip. Wired AFTER the notification prompt's IIFE above, and it hides that strip
@@ -971,48 +880,33 @@ initInstallPrompt({ accessReady: calendarAuthReady, getAccessType });
 // Tooltip and keyboard navigation — see calendar-keyboard.js.
 initCalendarTooltip();
 initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
-// Error reporter + usage counter both write to Firestore (need request.auth) — gate them
-// on the shared auth promise defined above, the same one the push renewal awaits.
-// Telemetry waits for ACCESS, not merely for auth (v20.12), and on a locked Calendar it therefore
-// never runs. That is the honest reading: with no identity at all these writes would be rejected by
-// every rule, and a page view for a Calendar nobody was shown is not a figure worth an
-// authenticated session to collect. The cost is real and worth stating — a sign-in that FAILS on
-// this page is invisible to the error log, so it shows up in staff reports rather than in the
-// Operations Error Log card.
-// `calendarAuthReady`, NOT `calendarAccessReady` (v20.22). They were different instants in the
-// anonymous `open` mode (retired v24.34 with the `CALENDAR_PIN_ACCESS` switch), where access was
-// granted before the sign-in landed; gating these writes on access alone fired them into a window
-// with no token. Every grant now holds a real user, so the two coincide — but every call below
-// writes to Firestore, and the write gate is still the right promise to wait on.
+// Error reporter + usage counter both write to Firestore (need an auth context — AUTH_AND_SESSIONS.md
+// 13), so they wait for ACCESS, and on a locked Calendar they never run: with no identity these
+// writes would be rejected by every rule. The cost is worth stating — a sign-in that FAILS on this
+// page is invisible to the error log, so it shows up in staff reports rather than in the Operations
+// Error Log card.
+// `calendarAuthReady`, NOT `calendarAccessReady`: every grant now holds a real user, so the two
+// coincide — but every call below writes to Firestore, and the write gate is the right promise.
 calendarAuthReady.finally(() => {
     initErrorReporter();
     // For the admin exclusion use the signed-in SESSION name, NOT the selected member: the default
     // selection is an admin (CONFIG.DEFAULT_MEMBER_NAME), and a selection says whose roster is on
-    // screen, not who is looking. A signed-in admin — the same signal the other pages use — is the
-    // real thing to skip. The SELECTED member is passed too, as a dedup key only, for a load with
-    // nobody signed in (usage-reporter.js header).
+    // screen, not who is looking. The SELECTED member is passed too, as a dedup key only, for a load
+    // with nobody signed in (usage-reporter.js header) — one argument doing both meant a station PC
+    // left on the admin's row dropped every staff open on it.
     //
-    // The `isFirstRun()` guard is what makes the fallback safe, and it is the same one the nav
-    // panel's open counters use ten lines below. Before a member picks anyone the "selection" is
-    // only CONFIG.DEFAULT_MEMBER_NAME — an admin — so keying on it unguarded would silently
-    // exclude every fresh visitor from both the usage counts and the migration metric.
-    //
-    // TWO ARGUMENTS SINCE v25.00 (Usage card review): the session, which alone can exclude, and the
-    // selection, which is only a dedup key. One argument doing both meant a station PC left on the
-    // admin's row dropped every staff open on it — the same trap the speed call below was fixed for.
+    // The `isFirstRun()` guard is what makes the fallback safe: before a member picks anyone the
+    // "selection" is only CONFIG.DEFAULT_MEMBER_NAME — an admin — so keying on it unguarded would
+    // silently exclude every fresh visitor from both the usage counts and the migration metric.
     recordUsage('calendar', getSession()?.name || null, isFirstRun() ? null : getCurrentMember()?.name || null);
-    // SPEED TAKES THE SESSION ONLY (App Speed review, Oct 2026). Its identity does one job — leaving
-    // the admin's own opens out — and the SELECTED member is not who is looking: a station PC left on
-    // the admin's row once dropped every staff open on it from the speed figures. The usage counts
-    // above keep the fallback, because there the name is also a dedup key.
+    // SPEED TAKES THE SESSION ONLY. Its identity does one job — leaving the admin's own opens out —
+    // and the usage counts above keep the fallback, because there the name is also a dedup key.
     recordPageLatency('calendar', getSession()?.name || null);
 });
 
 // Back after a sign-out elsewhere must not put a member's roster on screen for whoever picks the
-// device up next (page-session.js, v24.52 — every protected page installs the same guard).
+// device up next (page-session.js — every protected page installs the same guard).
 reloadIfRestoredForSomeoneElse();
-// (The staff PIN's own Back guard went with the PIN, 23 Nov 2026: no page is granted to a viewer any
-// more, so no restored page can hold a roster a viewer was shown.)
 // The menu, built for the session saved NOW — which pills, whose name, Sign out.
 // calendar-drawer.js decides it, and can build it again after a sign-in that does not reload.
 wireCalendarDrawer({
@@ -1022,8 +916,8 @@ wireCalendarDrawer({
     canReadDocuments: hasDocumentAccess,
 });
 // THE NEWSLETTER'S ☰ BUTTON FOLLOWS ITS LATEST ISSUE (newsletter-recency.js, owner, 14 Nov 2026). Asked
-// HERE, once a load, as the documents open: the moment this page's other reads run, through the gate a
-// tap passes. Every page's drawer then reads the answer this device keeps; a locked Calendar asks nothing.
+// HERE, once a load, as the documents open, through the gate a tap passes. Every page's drawer then
+// reads the answer this device keeps; a locked Calendar asks nothing.
 checkLatestNewsletter({ ready: calendarAuthReady, canRead: hasDocumentAccess, fetchLatest: getLatestNewsletter });
 
 // ── Start the Calendar, or ask for a sign-in ─────────────────────────────────────────────────────
@@ -1040,9 +934,9 @@ checkLatestNewsletter({ ready: calendarAuthReady, canRead: hasDocumentAccess, fe
 const _passwordForceSettled = new Promise(resolve => { _resolvePasswordForce = resolve; });
 
 /**
- * The "set your own password" step, on the Calendar (v23.21). Since v23.19 the front door IS a
- * sign-in, so this is where most members now sign in — and the one-shot marker that sign-in sets
- * was consumed nowhere until they next opened Admin or Settings. Two things about the shape:
+ * The "set your own password" step, on the Calendar — the front door is a sign-in, so this is where
+ * most members sign in, and the one-shot marker that sign-in sets must be consumed here. Two things
+ * about the shape:
  *   · The marker is read HERE first. `initPasswordForce` checks it too, but `ensureNamedSession`
  *     has to run before it (below), and that must not become an unconditional step on every load
  *     of the app's most-opened page — the Calendar's boot is measured to the millisecond.
@@ -1050,7 +944,6 @@ const _passwordForceSettled = new Promise(resolve => { _resolvePasswordForce = r
  *     identity WITHOUT feeding the auth store, so `authStatus` would read unresolved, the gate would
  *     refuse, and the marker — consumed before the gate on purpose — would be gone for good. For a
  *     member already current it is a local check, no network.
- * Never rejects: the overlay fails open by design, and the notices queue behind this promise.
  * @returns {Promise<boolean>}
  */
 async function _runPasswordForce() {
@@ -1077,14 +970,13 @@ function _onFirstGrant() {
 
 // ── ACCESS LOST, BY WHICHEVER ROUTE ──────────────────────────────────────────────────────────────
 // Two routes notice a loss mid-session: the first load (`onAccessLost`, above) and a month read
-// (navigation and Team View, through calendar-overrides.js — the likelier one, v20.15). Both end in
-// ONE call, `handleAccessLost`, which shuts the one access state and THEN puts the card up. What must
-// follow a loss listens for that write in the module that owns it; this file shuts no gate, and
-// calendar-access-state.js says why. Clearing the member's stored copy (calendar-own-copy.js paints and
-// keeps it) and the grid is this file's: a Calendar
-// that has lost access keeps neither — not the copy (v24.59), nor the month or week the grant drew,
-// which the card hides but the page still holds (18 Nov 2026); the next grant repaints it
-// (`onEveryGrant`). Wired before access is decided, so neither can be missing when a read is refused.
+// (navigation and Team View, through calendar-overrides.js). Both end in ONE call, `handleAccessLost`,
+// which shuts the one access state and THEN puts the card up. What must follow a loss listens for
+// that write in the module that owns it; this file shuts no gate (calendar-access-state.js says why).
+// Clearing the member's stored copy (calendar-own-copy.js) and the grid is this file's: a Calendar
+// that has lost access keeps neither — the card hides the month or week, but the page would still
+// hold it; the next grant repaints it (`onEveryGrant`). Wired before access is decided, so neither
+// can be missing when a read is refused.
 setOverrideAccessLostHandler(handleAccessLost);
 onCalendarAccess(({ open }) => { if (!open) clearSnapshot(); });
 onCalendarAccess(({ open }) => { if (!open) document.getElementById('calendarDisplay')?.replaceChildren(); });
@@ -1100,23 +992,22 @@ initCalendarAccess({
     // their name, Sign out); and the Back guard, so a restore for them is not reloaded for nothing.
     // Everything else reads the session when it runs, or is built by the grant that follows.
     onSignedInInPlace: () => { rewireCalendarDrawer(); rebaseRestoreGuard(); },
-    // EVERY grant, not just the first (v20.41): what a re-lock takes away has to come back when
-    // access returns (a re-grant; it was the staff PIN's re-entry after a rotation, until the PIN went). The roster
-    // reads and the documents are not reopened HERE: the grant opens both itself, BEFORE this hook
-    // runs (calendar-access.js → `grant`, THE ONE WRITE). What is here is the page's.
+    // EVERY grant, not just the first: what a re-lock takes away has to come back when access
+    // returns. The roster reads and the documents are not reopened HERE: the grant opens both
+    // itself, BEFORE this hook runs (calendar-access.js → `grant`, THE ONE WRITE). What is here is
+    // the page's.
     onEveryGrant: () => {
-        // The own-roster copy belongs to a NAMED grant; nothing else may inherit one (v24.59).
+        // The own-roster copy belongs to a NAMED grant; nothing else may inherit one.
         if (getAccessType() !== 'named') clearSnapshot();
-        // A RE-grant also repaints (v20.45). `grant()` un-hides the workspace exactly as the
-        // re-lock left it, and nothing else asks for a render — every fetch in this app is pulled
-        // by one — so without this a re-granted reader looked at the grid
-        // from BEFORE the lock, up to fifteen minutes stale, until their next navigation. The
-        // repaint goes through the ordinary paths on purpose: the grant has just cleared the month
-        // claims (calendar-overrides.js → A GRANT IS A FRESH START), so `renderCalendar`'s own
+        // A RE-grant also repaints. `grant()` un-hides the workspace exactly as the re-lock left it,
+        // and nothing else asks for a render — every fetch in this app is pulled by one — so without
+        // this a re-granted reader would look at the grid from BEFORE the lock. The repaint goes
+        // through the ordinary paths on purpose: the grant has just cleared the month claims
+        // (calendar-overrides.js → A GRANT IS A FRESH START), so `renderCalendar`'s own
         // `ensureOverridesCached` re-fetches the display month and the readiness model narrates it
-        // honestly ("Checking this month" → grid) rather than this code hand-managing freshness.
-        // `restoreTeamView` is the team-side equivalent — render + week fetch — and is safe to
-        // re-enter (`_pushOverlayState` dedupes its Back handler; the chrome calls are idempotent).
+        // honestly ("Checking this month" → grid). `restoreTeamView` is the team-side equivalent —
+        // render + week fetch — and is safe to re-enter (`_pushOverlayState` dedupes its Back
+        // handler; the chrome calls are idempotent).
         if (!redraw.reached('workspace')) return;
         if (teamView.isTeamViewMode()) teamView.restoreTeamView();
         else redraw.repaint('access-returned');
@@ -1125,15 +1016,10 @@ initCalendarAccess({
     onGranted: () => {
         redraw.reach('workspace');
         _onFirstGrant();
-        // CAUGHT, because the workspace start became async at v21.29 (it awaits a bounded chance
-        // for the local cache to paint first). An un-awaited async call with no catch turns any
-        // throw in here into an unhandled rejection — which `error-reporter.js` does capture, so it
-        // would reach the Error Log, but the member would be left looking at an empty workspace
-        // with nothing said and no way to know a reload might fix it. Reporting it here keeps the
-        // failure attached to the thing that failed.
-        // …and the catch SAYS so, as the synchronous start's does, and rethrows on a fresh task so the Error Log
-        // still records it (whole-app review, 24 Nov 2026): logged to the console alone, the member got an empty
-        // workspace with nothing said, and the Error Log got nothing either.
+        // CAUGHT, because the workspace start is async (it awaits a bounded chance for the local
+        // cache to paint first): an un-awaited async call with no catch would leave the member on
+        // an empty workspace with nothing said. The catch SAYS so, as the synchronous start's does,
+        // and rethrows on a fresh task so the Error Log still records it.
         Promise.resolve(_startCalendarWorkspace?.()).catch(err => {
             console.error('[Calendar] the workspace failed to start', err);
             const banner = document.getElementById('errorBanner');
@@ -1145,8 +1031,8 @@ initCalendarAccess({
         });
     },
 }).then((t) => {
-    // Not a member's own grant — no access at all: the copy is not shown again (v24.59). 'none' is also
-    // what a silent sign-in still pending reads as, so that member loses the next open's instant paint.
+    // Not a member's own grant — no access at all: the copy is not shown again. 'none' is also what a
+    // silent sign-in still pending reads as, so that member loses the next open's instant paint.
     // Accepted (owner, 24 Nov 2026): keeping the copy instead would keep it after a sign-in that fails.
     if (t !== 'named') clearSnapshot();
     _accessDecided(t);

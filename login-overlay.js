@@ -3,11 +3,8 @@
  * login-overlay.js — the single shared in-place sign-in overlay for every protected page
  * (grep for the import), and the Calendar's front door, where it is mounted inline.
  *
- * WHY THIS EXISTS: each page used to either carry its own copy of the login overlay + wiring
- * (admin, settings — duplicated logic) or redirect to admin to sign in (operations, links,
- * paycalc — inconsistent: you signed in somewhere else and bounced back). This module unifies
- * both: any page calls initLoginOverlay({...}) and gets an identical, in-place login. No page
- * redirects elsewhere to authenticate.
+ * WHY THIS EXISTS: one identical, in-place login for every page — no page carries its own copy,
+ * and no page redirects elsewhere to authenticate.
  *
  * It injects its own markup (like nav-panel.js), so a consuming page needs NO login HTML.
  *
@@ -18,7 +15,7 @@
  * Does NOT own: what happens AFTER a confirmed sign-in — the caller passes onSuccess (typically a
  *   page's in-place init, with a reload only as the fallback).
  *
- * ── TWO WAYS TO MOUNT IT (v23.19) ───────────────────────────────────────────────────────────────
+ * ── TWO WAYS TO MOUNT IT ────────────────────────────────────────────────────────────────────────
  *
  * By default it is a fixed full-screen OVERLAY: a modal dialog over a page the member is not yet
  * allowed to use, with a scroll lock, a focus trap, Escape back to the roster and a "← Back to
@@ -61,13 +58,11 @@ export const SIGN_IN_SLOW_LINE = 'Sign-in is taking longer than usual…';
 const GRADE_ORDER = CONFIG.GRADE_ORDER;   // single source (roster-data CONFIG) — shared with admin-app's selector
 const GRADE_KEY   = 'myb_login_grade';
 /** Canonical label for the reset-request control — restored after every send, success or failure.
- *  MARKUP, not text (polish round 2): the question and the request are each one `.login-reset-clause`
- *  span, so the only place the line can break is BETWEEN them. `text-wrap: balance` alone measured
- *  "Can’t get in? Ask the admin" over "to reset your password" at every width from 320 to 1280 — even
- *  lines, split in the wrong place. Wrapping only the request was tried and is not enough: balance
- *  then pulled "in?" down beside it ("Can’t get" / "in? Ask the admin…"), so BOTH halves are atomic.
- *  The accessible name and `textContent` are unchanged. A constant string with no interpolation, so
- *  writing it as HTML carries nothing from outside. */
+ *  MARKUP, not text: the question and the request are each one `.login-reset-clause` span, so the
+ *  only place the line can break is BETWEEN them — `text-wrap: balance` alone split it in the wrong
+ *  place at every width measured, and wrapping only the request pulled "in?" down beside it, so BOTH
+ *  halves are atomic. The accessible name and `textContent` are unchanged. A constant string with no
+ *  interpolation, so writing it as HTML carries nothing from outside. */
 const RESET_BTN_LABEL = '<span class="login-reset-clause">Can’t get in?</span> '
     + '<span class="login-reset-clause">Ask the admin to reset your password</span>';
 
@@ -112,23 +107,19 @@ export function dismissLoginOverlay() {
     if (lockedScroll) unlockBodyScroll();
 }
 
-// ── WHEN ARRIVING SIGNED OUT A LEFTOVER STAFF-PIN SESSION (v25.78; the PIN retired, 23 Nov 2026) ────
+// ── WHEN ARRIVING SIGNED OUT A LEFTOVER STAFF-PIN SESSION (the PIN retired, 23 Nov 2026) ───────────
 //
-// The shared staff PIN is retired, and every page — the Calendar and Trains included — signs a leftover
-// viewer session out on arrival (session.js → `reconcileExpiredIdentity`; staff-pin-ended.js tells us).
-// The sign-out is the rule; its silence would be the fault: a station computer that used the PIN
-// yesterday would meet this card with nothing to say why the code no longer works. So the card says ONE
-// line (`STAFF_PIN_ENDED_NOTICE`, staff-pin-ended.js — one sentence wherever it happens), on BOTH
-// mounts: the inline one is the Calendar's front door, which is now where most of them land. Its way
-// back is untouched — there is no PIN box to send anybody to. Transition plumbing, removed with the rest
-// of the viewer's in the cleanup release.
+// Every page signs a leftover viewer session out on arrival (session.js → `reconcileExpiredIdentity`;
+// staff-pin-ended.js tells us). The sign-out is the rule; its silence would be the fault: a station
+// computer that used the PIN would meet this card with nothing to say why the code no longer works.
+// So the card says ONE line (`STAFF_PIN_ENDED_NOTICE`), on BOTH mounts. Transition plumbing, removed
+// with the rest of the viewer's in the cleanup release.
 
 /**
  * Say on this card that arriving signed out a leftover staff-PIN session. The notice line is in the
  * card from the start (`overlayHtml`), empty, and the words wait for the card to have been DRAWN
- * (`speakAfterMount`, status-text.js): when the teardown had already landed, this runs on a microtask
- * of the task that mounted the card, which is that same task — and a live region filled in the task
- * that created it is read by nobody (17 Nov 2026).
+ * (`speakAfterMount`, status-text.js): a live region filled in the task that created it is read by
+ * nobody.
  * @param {HTMLElement} overlay
  */
 function sayStaffPinEnded(overlay) {
@@ -206,9 +197,9 @@ function overlayHtml(pageLabel, alternative, about, showBackLink = true) {
 }
 
 /**
- * A page's own explanation on its sign-in card (v25.50 — the Pay Calculator's, paycalc-role-card.js):
- * what the page is and who it is for, so a visitor it will not serve — somebody on
- * the wrong grade — learns that from the card rather than from a failed sign-in.
+ * A page's own explanation on its sign-in card (the Pay Calculator's first, paycalc-role-card.js):
+ * what the page is and who it is for, so a visitor it will not serve — somebody on the wrong grade —
+ * learns that from the card rather than from a failed sign-in.
  * @typedef {{ lines: readonly string[], link?: Readonly<{ href: string, label: string }>, footnote?: string }} LoginAbout
  */
 
@@ -305,11 +296,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // app being slow, and the sign-in has a figure of its own.
     markAwaitingInput();
     // The notice is written once the card has been DRAWN, not merely put in the document: it is a
-    // `role="status"` live region, and a live region only announces CHANGES made while it is in the
-    // accessibility tree, which catches up between tasks. Written here, on the line after the mount,
-    // it was the same task, so "Calendar access has expired" arrived as text the region was created
-    // with, and was read by nobody (17 Nov 2026). `speakAfterMount` (status-text.js) waits a frame
-    // and a task; the Calendar's own cards do the same.
+    // `role="status"` live region, which only announces CHANGES made while it is in the accessibility
+    // tree — and that catches up between tasks. Written in the mounting task, it is read by nobody.
+    // `speakAfterMount` (status-text.js) waits a frame and a task; the Calendar's own cards do the same.
     if (notice) { const n = overlay.querySelector('#loginNotice'); speakAfterMount(n, () => { if (n) n.textContent = notice; }); }
     // Did arriving on this page sign out a leftover staff-PIN session? Then say so — now if it has, or when the
     // teardown lands, which can be after the card is up (see `sayStaffPinEnded`).
@@ -326,22 +315,20 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
     const errorEl       = /** @type {HTMLElement} */ (overlay.querySelector('#loginError'));
     const resetBtn      = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginResetRequest'));
-    // The kill switch used to be checked inside the reveal, which is no longer a thing — the link now
-    // renders with the card, so the flag has to remove it AT MOUNT or turning the feature off would
-    // leave a permanently-visible link whose only outcome is an error. Removed rather than hidden:
-    // nothing re-shows it, and an element that must never come back should not be one attribute away.
+    // The flag removes the reset link AT MOUNT, because it renders with the card: turning the feature
+    // off must not leave a visible link whose only outcome is an error. Removed rather than hidden —
+    // an element that must never come back should not be one attribute away.
     if (!CONFIG.PASSWORD_RESET_REQUESTS) resetBtn?.remove();
     const resetStatusEl = /** @type {HTMLElement} */ (overlay.querySelector('#loginResetStatus'));
     const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
     const backLink      = /** @type {HTMLElement} */ (overlay.querySelector('.login-back'));
 
     // Show/hide the password. Typing it blind on a phone is the main cause of the 3-strikes 30s
-    // lockout, so the card offers a reveal. It IS a secret — members choose their own since
-    // FORCE_PASSWORD_SET — so it starts masked, shows only when the member asks, and is masked again
-    // whenever the person in the card changes (`personChanged`, below).
+    // lockout. It IS a secret, so it starts masked, shows only when the member asks, and is masked
+    // again whenever the person in the card changes (`personChanged`, below).
     // A plain button whose name says what it will do, NOT a toggle (sessions-5): with `aria-pressed`
-    // as well, a screen reader read "Hide password, pressed" — a toggle's label must not change with
-    // its state (WAI-ARIA APG, Button), and this one's visible "Show"/"Hide" has to stay in its name.
+    // a screen reader read "Hide password, pressed" — a toggle's label must not change with its state
+    // (WAI-ARIA APG, Button), and this one's visible "Show"/"Hide" has to stay in its name.
     /** @param {boolean} shown */
     function setPasswordShown(shown) {
         passwordInput.type = shown ? 'text' : 'password';
@@ -364,11 +351,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // trap on a card the drawer sits beside is a cage — see the module header.
     if (!inline) overlay.addEventListener('keydown', e => {
         // Ignore Escape while a sign-in is in progress — navigating mid-submit would leave the
-        // user neither signed in nor on the calendar. Keyed on _signingIn, NOT submitBtn.disabled
-        // (v16.23): the button is also disabled for the whole 30s password lockout, which made
-        // Escape-to-calendar silently dead there — the back link already uses this exact narrower
-        // guard for the same reason.
-        // To wherever the back link goes: the roster.
+        // user neither signed in nor on the calendar. Keyed on _signingIn, NOT submitBtn.disabled:
+        // the button is also disabled for the whole 30s password lockout, when Escape must still work
+        // (the back link uses the same narrower guard).
         if (e.key === 'Escape') { if (!_signingIn) window.location.href = backLink.getAttribute('href') || './'; return; }
         trapFocus(overlay, e);
     });
@@ -390,26 +375,22 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // otherwise be offered and lead to an empty name list.
     GRADE_ORDER.filter(g => getMembersForGrade(g).length > 0).forEach(g => gradeSelect.appendChild(new Option(g, g)));
 
-    // THE SIGN-IN CASCADE GOES THROUGH THE APP'S OWN PICKER (v23.49, external review). It was the
-    // last native `<select>` a member could meet, and the odd one out: the Calendar stopped handing
-    // a ~50-name roster to Android's full-bleed radio sheet at v23.33, while the LOGIN page — the
-    // first dropdown anybody ever touches, and the same roster — still did. `select-sheet-parity`
-    // held it as an open owner decision rather than an approval; this takes it.
+    // THE SIGN-IN CASCADE GOES THROUGH THE APP'S OWN PICKER (CLAUDE.md → "No native <select> POPUP"):
+    // the first dropdown anybody ever touches, and the same ~50-name roster as the Calendar's.
     //
     // `createLightbox` is INJECTED, not imported by select-sheet.js — and without it `openOptionSheet`
     // returns null and the trigger is a button that does nothing. Silent: the control renders, it
     // just never opens. Every other caller passes it; this one has to as well.
     const refreshGrade = enhanceSelect(gradeSelect, { title: 'Select your grade', createLightbox });
-    // ── THE PASSWORD BOX IS FOCUSED INSIDE THE TAP ON A NAME (iPhone audit, 7 Nov 2026) ────────────
+    // ── THE PASSWORD BOX IS FOCUSED INSIDE THE TAP ON A NAME (iPhone audit) ──────────────────────
     //
     // The `change` handler below focuses the password box once the name is set — but the sheet sets
     // it only after its close has LANDED (select-sheet.js → `openOptionSheet`), long after the tap,
-    // and iOS raises its keyboard only for a focus made synchronously inside the tap. So an iPhone
-    // got a caret in the box and no keyboard. `focusOnPick` runs IN the tap, after the sheet has
-    // handed focus back to the name control. It empties the box there too, for a DIFFERENT name —
-    // which is what the handler below does — and notes for whom, because the member can start typing
-    // before the pick lands and the handler must not then wipe what they typed (`_pwClearedFor`).
-    // The same name picked again keeps whatever is in the box, as it always did.
+    // and iOS raises its keyboard only for a focus made synchronously inside the tap. `focusOnPick`
+    // runs IN the tap, after the sheet has handed focus back to the name control. It empties the box
+    // there too, for a DIFFERENT name, and notes for whom, because the member can start typing before
+    // the pick lands and the handler must not then wipe what they typed (`_pwClearedFor`). The same
+    // name picked again keeps whatever is in the box.
     let _pwClearedFor = '';
     const refreshName = enhanceSelect(nameSelect, {
         title: 'Select your name', createLightbox,
@@ -429,14 +410,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     const syncName = () => { try { refreshName?.(); } catch { /* a repaint must never block sign-in */ } };
     const syncGrade = () => { try { refreshGrade?.(); } catch { /* the same */ } };
 
-    /** Hold the person in the card still while a sign-in is in flight (review, Nov 2026). The
-     *  pickers stayed live, so changing the name mid-flight let the EARLIER person's failure land on
-     *  the new one: the reset link raised, the 30-second lock applied and the password they had just
-     *  typed wiped. Disabling the selects is what the triggers mirror (`enhanceSelect` paints
-     *  `disabled` across); the explicit repaint makes that immediate rather than a microtask later.
-     *  Released by deriving, not remembering: the grade is always choosable, and the name is
-     *  choosable once a grade is — `populateNames`'s own rule. A pick that lands after this from a
-     *  sheet already closing is the case the settle check in `attempt` exists for.
+    /** Hold the person in the card still while a sign-in is in flight. Live pickers let the EARLIER
+     *  person's failure land on the new one: the reset link raised, the 30-second lock applied and the
+     *  password they had just typed wiped. Disabling the selects is what the triggers mirror
+     *  (`enhanceSelect` paints `disabled` across); the explicit repaint makes that immediate rather
+     *  than a microtask later. Released by deriving, not remembering: the grade is always choosable,
+     *  and the name is choosable once a grade is — `populateNames`'s own rule. A pick that lands after
+     *  this from a sheet already closing is the case the settle check in `attempt` exists for.
      *  @param {boolean} inert */
     function setPickersInert(inert) {
         gradeSelect.disabled = inert;
@@ -445,17 +425,12 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         syncName();
     }
 
-    // ── WHO IS THIS CARD FOR? (v23.58) ──────────────────────────────────────────────────────────
+    // ── WHO IS THIS CARD FOR? ───────────────────────────────────────────────────────────────────
     //
-    // The Calendar's come-back card already says "Calendar · G. Miller" in its heading — a member
-    // whose local session outlived their Firebase identity. (Not, as this said until 7 Nov 2026, every
-    // iPhone member who goes a week without opening the app: Safari's seven-day rule deletes the local
-    // session WITH the identity — KNOWN_LIMITATIONS → "One interaction to expect on iOS".) Until now,
-    // tapping its Sign in button opened this form
-    // asking them to pick their grade and then their own name from the whole roster, on the way to
-    // the one field only they can fill. With `FORCE_PASSWORD_SET` on, the silent surname re-auth
-    // fails for every migrated member, so this card IS their routine way back in — the taps were
-    // paid weekly by exactly the people the app most wants to keep.
+    // The Calendar's come-back card already names the member in its heading — one whose local
+    // session outlived their Firebase identity. Making them pick their grade and then their own name
+    // from the whole roster, on the way to the one field only they can fill, cost taps on the routine
+    // way back in for every member with their own password.
     //
     // The grade is found by asking each grade's OWN list whether it holds the name — the same
     // `getMembersForGrade` that builds the dropdown — never by reading a role off the member record.
@@ -475,17 +450,16 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         gradeSelect.value = grade;
         // Restoring the grade in CODE mutates no attribute and fires no event, so neither the
         // observer nor the change listener sees it and the trigger keeps saying "Select grade".
-        // Same defect class as v23.42's pay-period picker. `input` is what the sheet listens for.
+        // `input` is what the sheet listens for.
         gradeSelect.dispatchEvent(new Event('input', { bubbles: false }));
         populateNames(grade);
         if (namePreset) {
             nameSelect.value = presetName;
             // The same rule, one control down — a value set in code must SAY so — though here it is
-            // BELT AND BRACES rather than load-bearing, and the mutation that proved it is worth
-            // recording: deleting this dispatch left the browser test green, because `populateNames`
-            // has just rewritten the options and the sheet's MutationObserver repaints on childList,
-            // as a microtask, after this line has run. The dispatch stays so the face does not depend
-            // on that ordering; what actually paints it today is the observer.
+            // BELT AND BRACES rather than load-bearing: deleting this dispatch left the browser test
+            // green, because `populateNames` has just rewritten the options and the sheet's
+            // MutationObserver repaints on childList, as a microtask, after this line. The dispatch
+            // stays so the face does not depend on that ordering.
             nameSelect.dispatchEvent(new Event('input', { bubbles: false }));
         }
     } else {
@@ -494,11 +468,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     syncName();
 
     // Move focus INTO the dialog, onto the first control the user still needs (grade, or name when
-    // grade was restored). Without this, focus stays on <body> behind the opaque overlay: the first
-    // Tab lands on the page controls hidden behind it, and — critically — the `trapFocus` keydown
-    // handler below only engages once focus is already inside the overlay, so it was dead. Sighted
-    // keyboard-only sign-in was effectively broken on all five protected pages (axe can't see focus
-    // movement, so the a11y gate stayed green). v18.28.
+    // grade was restored). Without this, focus stays on <body> behind the opaque overlay, and the
+    // `trapFocus` keydown handler only engages once focus is already inside the overlay — keyboard
+    // sign-in would be broken on every protected page (axe can't see focus movement).
     //
     // Inline, only on a device with a real keyboard: autofocusing a select on a phone throws the
     // picker up over a card the member has not read yet.
@@ -510,12 +482,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     }
 
     /** The person in the card just changed — a different grade or name — so nothing of the previous
-     *  person's may stay (sessions-3, Nov 2026; until then only the first two went): their error,
-     *  their reset-request line or emphasis (see `resetResetRequest`), and a password they chose to
-     *  show, or the next person types theirs in clear. Their failure streak is not reset here but
-     *  counted per person (`_failFor`), because a `change` can fire for the same name re-picked — and
-     *  the 30-second lock is theirs alone (`showLockFor`): it outlived a change of person until the
-     *  review of Nov 2026, locking the next colleague at a shared PC out for the last one's mistakes. */
+     *  person's may stay (sessions-3): their error, their reset-request line or emphasis (see
+     *  `resetResetRequest`), and a password they chose to show. Their failure streak is not reset here
+     *  but counted per person (`_failFor`), because a `change` can fire for the same name re-picked —
+     *  and the 30-second lock is theirs alone (`showLockFor`), never the next colleague's at a shared PC. */
     function personChanged() {
         errorEl.classList.remove('visible');
         resetResetRequest();
@@ -571,19 +541,17 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
     /** @param {string} msg */
     function showError(msg) {
-        // The box is display:none while empty, so it is NOT the live region: its always-rendered parent is
-        // (review, 11 Nov 2026 — calendar-lock-cards.js `say` has the reasoning).
+        // The box is display:none while empty, so it is NOT the live region: its always-rendered parent
+        // is (calendar-lock-cards.js `say` has the reasoning).
         errorEl.classList.add('visible');
         errorEl.textContent = msg;
     }
 
     /** Draw the eye to the reset route after repeated credential failures. The link is ALWAYS on
-     *  screen (v20.48) — this only raises its weight at the moment the app can see the member is
-     *  stuck, which is what the old reveal-on-failure behaviour was really for.
+     *  screen — this only raises its weight at the moment the app can see the member is stuck.
      *
      *  Still called ONLY for a credential failure: a network or rate-limit failure is not a forgotten
-     *  password, and pointing at a reset for one would send the admin a request that fixes nothing.
-     *  That distinction was the sound half of the v18.93 design and it survives here intact. */
+     *  password, and pointing at a reset for one would send the admin a request that fixes nothing. */
     function promptResetRequest() {
         resetBtn?.classList.add('login-reset-request--prompted');
     }
@@ -591,14 +559,11 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     /** Return the link to its resting state: quiet again, tappable again, no stale status.
      *
      *  Called when the identity in the card changes (grade or name), which is what makes the
-     *  click-time read of `nameSelect.value` safe. v18.94 fixed a real bug here — the link used to be
-     *  REVEALED by one member's failure while reading the dropdown at click time, so failing as A,
-     *  switching to B and tapping filed a request for B, who never asked, and acting on it reset THEM.
-     *  Now the link is not tied to any failure: it means "I am the person named above and I cannot get
-     *  in", so the dropdown IS the referent and reading it at click time is the correct behaviour
-     *  rather than the bug. What must not survive a name change is the *status* text — "Request sent"
-     *  under a different name would tell the new member their request is filed when it is not — nor
-     *  the outcome of a send still on its way, which `_resetSeq` drops when it lands. */
+     *  click-time read of `nameSelect.value` safe: the link means "I am the person named above and I
+     *  cannot get in", so the dropdown IS the referent. (Tying it to a failure once let A's failure
+     *  file a request for B.) What must not survive a name change is the *status* text — "Request
+     *  sent" under a different name would tell the new member their request is filed when it is not —
+     *  nor the outcome of a send still on its way, which `_resetSeq` drops when it lands. */
     function resetResetRequest() {
         _resetSeq++;
         if (resetBtn) {
@@ -653,9 +618,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             if (!current()) return;
             setResetStatus(resetRequestFailureLine(e, timedOut(e)), 'fail');   // a timeout, a 404 and a 503 differ
         } finally {
-            // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
-            // button disabled and reading "Sending…" behind `hidden`, so a later credential failure
-            // re-revealed a dead control. Not for a stale send: the control is no longer its own.
+            // ALWAYS restore, including on success: otherwise the button stays disabled and reading
+            // "Sending…" behind `hidden`, and a later credential failure re-reveals a dead control.
+            // Not for a stale send: the control is no longer its own.
             if (current()) {
                 resetBtn.disabled = false;
                 resetBtn.innerHTML = original;
@@ -670,24 +635,22 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     /** @type {ReturnType<typeof setTimeout>[]} */
     let _statusTimers = [];
     /** @param {string} msg */
-    // Named for its surface, not generically: `setStatus` is the shared helper in
-    // status-text.js, and two functions of that name doing nearly the same job to the same
-    // kind of element is how one of them gets called by accident (v21.85).
+    // Named for its surface, not generically: `setStatus` is the shared helper in status-text.js, and
+    // two functions of that name doing nearly the same job is how one gets called by accident.
     function setLoginStatus(msg) { setStatus(statusEl, msg); statusEl.classList.toggle('visible', !!msg); }
     function startStatusProgress() {
         setLoginStatus('Checking your sign-in…');
         _statusTimers.push(setTimeout(() => setLoginStatus('Still checking — almost there…'), 1500));
         _statusTimers.push(setTimeout(() => setLoginStatus('Still working — this can happen after an app update or on weak signal.'), 4000));
-        // 8 SECONDS IS "LONGER THAN USUAL", NOT A FAILURE (external review, 23 Nov 2026): the attempt goes on
-        // to an answer, or to `SIGN_IN_GIVE_UP_MS` (login-core.js). The owner's wording (24 Nov 2026).
+        // 8 SECONDS IS "LONGER THAN USUAL", NOT A FAILURE: the attempt goes on to an answer, or to
+        // `SIGN_IN_GIVE_UP_MS` (login-core.js). The owner's wording (24 Nov 2026).
         _statusTimers.push(setTimeout(() => setLoginStatus(SIGN_IN_SLOW_LINE), AUTH_RESTORE_TIMEOUT_MS));
     }
     function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setLoginStatus(''); }
 
     /** One more credential failure for `who`, and the 30-second lock at the third. Counted PER PERSON
-     *  (sessions-3): a newcomer's first mistake is their first, not the previous person's third —
-     *  which locked them out and pushed them to a reset. Records only: painting the card is the
-     *  caller's, and only for the person the card is showing.
+     *  (sessions-3): a newcomer's first mistake is their first, not the previous person's third.
+     *  Records only: painting the card is the caller's, and only for the person the card is showing.
      *  @param {string} who */
     function countFailureFor(who) {
         if (_failFor !== who) { _failFor = who; _failCount = 0; }
@@ -716,11 +679,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         // is removed (`dismissLoginOverlay`), and a re-show builds a new one.
         resetResetRequest();
         // One-shot "a real sign-in just happened" marker for the forced set-password overlay
-        // (password-force.js, AUTH_AND_SESSIONS.md → "The forced password overlay"). Written in this card — the one place every
-        // protected page's sign-in passes through — rather than in each coordinator's onSuccess,
-        // so the five pages can't drift on it. Consumed by initPasswordForce on the authorised
-        // path (both the reload and the in-place branch run it). Deliberately set BEFORE
-        // onSuccess, which on the reload path never returns — and held since the attempt began (`holdPasswordMarker`).
+        // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written in this card — the one place every
+        // protected page's sign-in passes through — so the pages can't drift on it. Deliberately set
+        // BEFORE onSuccess, which on the reload path never returns — and held since the attempt began
+        // (`holdPasswordMarker`).
         lsSet(PW_FORCE_PENDING_PREFIX + name, '1');
         // Confirm success before the (usually slow) reload kicks in, so there is no silent
         // "did it work?" gap between the click and the destination page appearing.
@@ -730,10 +692,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             await onSuccess(name);
             // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
         } catch (e) {
-            // onSuccess CAN reject (the admin path does inline work before reloading). The
-            // rejection used to be swallowed by the click handler's .catch(()=>{}), stranding
-            // the primary button disabled on "Signed in — opening …" forever. The session IS
-            // saved at this point, so recover the UI and let the user retry (v16.23).
+            // onSuccess CAN reject (the admin path does inline work before reloading). Swallowed, it
+            // would strand the button disabled on "Signed in — opening …" for ever. The session IS
+            // saved at this point, so recover the UI and let the user retry.
             console.warn('[Login] onSuccess failed after a successful sign-in:', e);
             clearLoginStart();   // drop the perf marker — a later open must not log an inflated loginTotal
             submitBtn.disabled = false;
@@ -743,15 +704,15 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     }
 
     /**
-     * An attempt the app ended (`SIGN_IN_GIVE_UP_MS`) that answers anyway: if it signed the colleague in and
-     * the card is still up, for them, with nothing else in flight, it opens the page — the saved session the
-     * failure kept is confirmed (external review, 23 Nov 2026). Committed through `runNamedSignIn` with the
-     * answer already in hand, so the local session is written by the one path that writes it.
-     * A newer attempt of theirs that FAILED does not withdraw it: it was their own correct password, and
-     * Firebase holds that account whatever this card does (login-core.js → "A LATE ANSWER AFTER A NEWER
-     * ATTEMPT"). The set-password marker's hold is released first, whatever the card then does. One answered
-     * DURING the retry is held for it, and opens the page if the retry fails (`openOnHeldLateSignIn`, external
-     * review of v26.67: dropped, it left "Password not recognised" over a colleague Firebase had signed in).
+ * An attempt the app ended (`SIGN_IN_GIVE_UP_MS`) that answers anyway: if it signed the colleague in and
+ * the card is still up, for them, with nothing else in flight, it opens the page — the saved session the
+ * failure kept is confirmed. Committed through `runNamedSignIn` with the answer already in hand, so the
+ * local session is written by the one path that writes it.
+ * A newer attempt of theirs that FAILED does not withdraw it: it was their own correct password, and
+ * Firebase holds that account whatever this card does (login-core.js → "A LATE ANSWER AFTER A NEWER
+ * ATTEMPT"). The set-password marker's hold is released first, whatever the card then does. One answered
+ * DURING the retry is held for it, and opens the page if the retry fails (`openOnHeldLateSignIn`) —
+ * dropped, it would leave "Password not recognised" over a colleague Firebase had signed in.
      * @param {string} name @param {string} typedPw @param {Promise<boolean>} late
      */
     function awaitLateSignIn(name, typedPw, late) {
@@ -790,10 +751,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         try {
             const name = nameSelect.value;
             usernameInput.value = name;   // a preset name is set in code and raises no change event
-            // The RAW typed password — NOT normalised. A chosen password keeps its case/digits/
-            // symbols; the surname fallback is applied (gated) inside ensureFirebaseSession via
-            // credentialCandidatesFor. Firebase is now the authority — there is no local surname
-            // pre-check (AUTH_AND_SESSIONS.md → "The gated dual-attempt"). Whitespace-trim only for the empty-field guard.
+            // The RAW typed password — NOT normalised. A chosen password keeps its case/digits/symbols;
+            // the surname fallback is applied (gated) inside ensureFirebaseSession via
+            // credentialCandidatesFor. Firebase is the authority (PASSWORD_DESIGN.md §3.2).
+            // Whitespace-trim only for the empty-field guard.
             const typedPw = passwordInput.value;
             errorEl.classList.remove('visible');
 
@@ -802,10 +763,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             if (!typedPw.trim())      { showError('Enter your password.'); passwordInput.focus(); return; }
 
             lsSet(GRADE_KEY, gradeSelect.value);
-            // Visible in-progress state — establishing the Firebase session is a network round trip,
-            // so the button must not look idle (and silently swallow taps) while we wait. The Back
-            // link is also made inert for this window (see the .login-back guard below) so a mid-
-            // submit "Back to roster" tap can't strand the user in the half signed-in state.
+            // Visible in-progress state — the button must not look idle (and silently swallow taps)
+            // while we wait. The Back link is also made inert for this window (the .login-back guard
+            // below) so a mid-submit "Back to roster" tap can't strand the user half signed-in.
             submitBtn.disabled = true;
             submitBtn.textContent = 'Signing in…';
             _signingIn = true;
@@ -819,26 +779,25 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             markLoginStart();
 
             // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
-            // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
-            // class; see runNamedSignIn / AUTH_AND_SESSIONS.md → "The login freeze"). On failure we restore the button and
-            // show the message it returns; on success we hand off to onSuccess (reload/navigate).
+            // slow/hung Firebase Auth can never leave a "half signed-in" state (runNamedSignIn /
+            // PASSWORD_DESIGN.md §3.6). On failure we restore the button and show the message it
+            // returns; on success we hand off to onSuccess.
             holdPasswordMarker(name);   // before Firebase can announce anybody (login-core.js says why)
             const _result = await runNamedSignIn(signInDeps(name, typedPw)).catch((e) => { releasePasswordMarker(name, false); throw e; });
             if (_result.ok || !_result.late) releasePasswordMarker(name, _result.ok);   // a late answer releases its own
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
-                // This attempt's own late answer is waited for FIRST, whatever happens next: it holds the set-password
-                // marker until it answers, and opening on an earlier one used to return before it was (external review
-                // of v26.69 — the hold outlived the page, and the next failed sign-in left the marker behind).
+                // This attempt's own late answer is waited for FIRST, whatever happens next: it holds
+                // the set-password marker until it answers, and returning on an earlier answer before
+                // it is waited for would let the hold outlive the page.
                 if (_result.late) awaitLateSignIn(name, typedPw, _result.late);
                 if (await openOnHeldLateSignIn(name)) return;   // an earlier attempt of theirs signed them in meanwhile
                 // Is the card still showing the person this attempt was for? The pickers are inert in
                 // flight (`setPickersInert`), but a pick from a sheet that was already closing when the
                 // member pressed Enter still lands. Then this failure is the EARLIER person's: it is
                 // counted for them (the streak and the lock are per person), and nothing of it is
-                // painted on the card in front of somebody else — not the error, not the reset
-                // emphasis, not a wiped password, not their lock on the button (review, Nov 2026).
+                // painted on the card in front of somebody else.
                 if (nameSelect.value !== name) {
                     if (_result.kind === 'credential') countFailureFor(name);
                     submitBtn.disabled = false;
@@ -852,9 +811,8 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 // the real rate-limiting; this is a UX brake on hammering.
                 if (_result.kind === 'credential') {
                     countFailureFor(name);
-                    // From the SECOND failure (FIX, v18.94). v18.93 revealed on the first, which
-                    // contradicted its own stated rationale — "the remedy for a mistype is to try
-                    // again" — since failure #1 is precisely the mistype case.
+                    // From the SECOND failure: failure #1 is precisely the mistype case, whose remedy is
+                    // to try again.
                     if (_failCount >= 2) promptResetRequest();
                     if (_failCount >= 3) {
                         submitBtn.disabled = true;
@@ -875,18 +833,16 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             _heldLateSignIn = null;   // this attempt signed them in itself
             await opened(name);
         } finally {
-            // Release the in-flight mutex on completion, every time. It used to stay latched for the
-            // 30-second lock, its timer releasing it — which kept the NEXT person out as well, the lock
-            // being the last person's (review, Nov 2026). The lock is `lockHolds`'s to enforce now, for
-            // its holder alone. The handlers below must NOT also reset `_attempting`: an early-returned
-            // call would otherwise clear the flag mid-flight and let a concurrent attempt start.
-            // `_attempting` is owned solely here and at the top of this function.
+            // Release the in-flight mutex on completion, every time — not latched for the 30-second
+            // lock, which would keep the NEXT person out too. The lock is `lockHolds`'s to enforce,
+            // for its holder alone. The handlers below must NOT also reset `_attempting`: an
+            // early-returned call would otherwise clear the flag mid-flight and let a concurrent
+            // attempt start. `_attempting` is owned solely here and at the top of this function.
             _attempting = false;
-            // Belt-and-braces: an UNEXPECTED throw after the button was set to "Signing in…"
-            // (above) but before any normal branch restored it would leave it stuck disabled
-            // (a soft-lock). Every intended exit already restores the button — success left the
-            // page, failure/lockout branches reset it — so acting ONLY on the still-"Signing in…"
-            // text touches nothing but the genuinely-stuck case, and never the success/lockout label.
+            // Belt-and-braces: an UNEXPECTED throw after the button was set to "Signing in…" but
+            // before any normal branch restored it would leave it stuck disabled. Every intended exit
+            // already restores the button, so acting ONLY on the still-"Signing in…" text touches
+            // nothing but the genuinely-stuck case.
             if (submitBtn.textContent === 'Signing in…') {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign in →';
