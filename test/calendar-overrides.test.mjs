@@ -79,7 +79,7 @@ mock.module('../firebase-client.js', {
             if (_deferGetDocs) await new Promise((res, rej) => _releases.push((/** @type {any} */ err) => err ? rej(err) : res(undefined)));
             return { size: docs.length, forEach: cb => docs.forEach(cb), metadata: { fromCache } };
         },
-        // Phase 1 of the two-phase load (AUTH_PLAN.md → E1). Defaults to an EMPTY cache so every
+        // Phase 1 of the two-phase load (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). Defaults to an EMPTY cache so every
         // existing test keeps exercising the server path unchanged; the cache tests set _mockCacheDocs.
         getDocsFromCache: async (/** @type {any} */ q) => {
             _cacheQueries.push(q);
@@ -1165,7 +1165,7 @@ describe('ensureOverridesCached fetch failure', () => {
     });
 });
 
-// ── fetchOverridesForRangeFromCache — phase 1 of the two-phase load (AUTH_PLAN.md → E1) ──
+// ── fetchOverridesForRangeFromCache — phase 1 of the two-phase load (AUTH_AND_SESSIONS.md → "The two-phase load (E1)") ──
 //
 // The contract that matters: it MERGES but never EVICTS. A local-cache snapshot is a possibly-stale
 // subset, so treating an absent key as a delete would make it a second authoritative reconciler

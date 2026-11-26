@@ -65,9 +65,9 @@ const listed = (text, name) =>
 test('a file counts as listed only by its WHOLE name — guard the guard', () => {
     assert.equal(listed('- `date-picker.js` — the date picker', 'picker.js'), false, 'a longer name satisfied a shorter one');
     assert.equal(listed('test:unit runs page-session.test.mjs', 'session.test.mjs'), false);
-    assert.equal(listed('docs/AUTH_PLAN.md', 'PLAN.md'), false);
+    assert.equal(listed('docs/SECURITY_RELEASE_PLAN.md', 'PLAN.md'), false);
     for (const [text, name] of [['### `ls.js`', 'ls.js'], ['├── ls.js ← wrappers', 'ls.js'], ["import from './ls.js'", 'ls.js'],
-        ['a.test.mjs session.test.mjs b.test.mjs', 'session.test.mjs'], ['[AUTH_PLAN.md](AUTH_PLAN.md)', 'AUTH_PLAN.md']]) {
+        ['a.test.mjs session.test.mjs b.test.mjs', 'session.test.mjs'], ['[DATA_MODEL.md](DATA_MODEL.md)', 'DATA_MODEL.md']]) {
         assert.equal(listed(text, name), true, `a genuine listing was missed: ${text}`);
     }
 });
@@ -644,7 +644,8 @@ test('the symbol guard would catch the two defects that motivated it — guard t
 //                              split moved it to `functions/documents.js`. This is the one that
 //                              cost something: it is a BREAK-GLASS instruction for stopping Huddle
 //                              pushes, so being wrong costs most at exactly the moment it is read.
-//   `RESET_REQUESTS_ENABLED` — PASSWORD_DESIGN, same split, now `functions/auth-endpoints.js`.
+//   `RESET_REQUESTS_ENABLED` — the password design doc (folded into AUTH_AND_SESSIONS.md on
+//                              26 Nov 2026), same split, now `functions/auth-endpoints.js`.
 //                              Also an incident switch.
 //   `pruneOldHuddles`        — DATA_MODEL, same split, then `functions/documents.js` (and since
 //                              v25.89 `functions/huddle-retention.js`).
@@ -666,7 +667,8 @@ test('the symbol guard would catch the two defects that motivated it — guard t
 // statements). No exemption list, for the reason 1b gives.
 //
 // It runs over EVERY markdown file except the ones whose job is the past — wider than LIVE_DOCS,
-// which is the point: `RESET_REQUESTS_ENABLED` was in PASSWORD_DESIGN.md, and a plan document is
+// which is the point: `RESET_REQUESTS_ENABLED` was in a plan document (the password design, since
+// folded into AUTH_AND_SESSIONS.md), and a plan document is
 // where a location claim goes stale longest because nobody reads it end to end.
 
 /**
@@ -753,6 +755,8 @@ test('the location guard catches the domain-split defects that motivated it — 
     const shipped = [
         ['docs/OPERATIONS_REFERENCE.md', '**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent.'],
         ['docs/DATA_MODEL.md', 'Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/index.js`, awaited at the end of every `ingestHuddle` run.'],
+        // The first label names the document as it stood then; it was folded into AUTH_AND_SESSIONS.md
+        // on 26 Nov 2026. A label only — locationClaims never reads the file.
         ['docs/PASSWORD_DESIGN.md', 'the public function stayed callable. `RESET_REQUESTS_ENABLED` in `functions/index.js` now closes it with a 503.'],
     ];
     for (const [doc, line] of shipped) {
@@ -1335,7 +1339,7 @@ test('no doc writes down the size of a roster-owned list', () => {
     const WORD = { ten: 10, eleven: 11, twelve: 12 };
     const wrong = [];
     for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/KNOWN_LIMITATIONS.md', './docs/OPERATIONS_REFERENCE.md',
-                       './docs/SECURITY_RELEASE_PLAN.md', './docs/AUTH_PLAN.md', './docs/PASSWORD_DESIGN.md',
+                       './docs/SECURITY_RELEASE_PLAN.md', './docs/AUTH_AND_SESSIONS.md', './docs/RECOVERY_RUNBOOK.md',
                        './docs/ARCHITECTURE.md', './.claude/rules/paycalc.md']) {
         const lines = read(doc).split('\n');
         lines.forEach((line, i) => {

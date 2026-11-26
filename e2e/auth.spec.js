@@ -390,7 +390,7 @@ test('in-place sign-in: settings still offers an install the browser offered BEF
     await expect(page.locator('#installBtn')).toBeVisible();
 });
 
-// ── FORCED SET-PASSWORD OVERLAY (PASSWORD_DESIGN.md Phase 2, v18.92) ────────────────────────────
+// ── FORCED SET-PASSWORD OVERLAY (AUTH_AND_SESSIONS.md → "The forced password overlay") ────────────────────────────
 // The compel is a HARD BLOCK, so the tests that matter most are the ones proving it cannot become a
 // lockout: it must not appear unless it can actually be satisfied, and it must not appear at all when
 // the kill switch is off. `forcePasswordSet` opts in — the suite default is OFF (see fixtures.js).
@@ -553,7 +553,7 @@ for (const p of APP_PAGES.filter(pg => !['index.html', 'paycalc.html'].includes(
     });
 }
 
-// ── RESET REQUEST LINK (PASSWORD_DESIGN.md — the request queue) ─────────────────────────────────
+// ── RESET REQUEST LINK (AUTH_AND_SESSIONS.md → "The reset-request queue") ─────────────────────────────────
 // ALWAYS ON SCREEN since v20.48. It was revealed only after two credential failures, on the
 // reasoning that the remedy for a mistype is to try again — true, but it made the member who KNOWS
 // they have forgotten fail twice on purpose before the app would tell them how to ask. The gate is

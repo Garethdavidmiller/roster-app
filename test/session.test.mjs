@@ -873,7 +873,7 @@ describe('reconcileExpiredIdentity', () => {
 });
 
 // ── ensureFirebaseSession identity tracking (B0) ──────────────────────────────
-// B0 (SECURITY_RELEASE_PLAN.md): ensureFirebaseSession now records whether it established
+// B0 (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"): ensureFirebaseSession now records whether it established
 // the member's NAMED identity or none at all (the anonymous fallback it once recorded went with the
 // `ENFORCE_NAMED_SESSION` switch, retired v24.34).
 // firebaseSessionIsNamed() is the signal per-member write isolation (B2) will depend on.
@@ -915,7 +915,7 @@ describe('ensureFirebaseSession identity tracking', () => {
         assert.equal(_anonCalled, false, 'no anonymous fallback');
     });
 
-    test("PASSWORD_DESIGN §3.3: a CREDENTIAL rejection does NOT fall back to anonymous → 'none'", async () => {
+    test("AUTH_AND_SESSIONS.md → A credential rejection never falls back: a CREDENTIAL rejection does NOT fall back to anonymous → 'none'", async () => {
         _signInBehavior = 'auth/invalid-credential';
         const ok = await ensureFirebaseSession('G. Miller');
         assert.equal(ok, false);
@@ -1222,7 +1222,7 @@ describe('silent-sign-in.js — what the sign-in nobody typed may try', () => {
 });
 
 // ── ensureFirebaseSession requires the member's OWN named session (B1.1) ──────
-// B1.1 (SECURITY_RELEASE_PLAN.md): write pages require the member's OWN named session —
+// B1.1 (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"): write pages require the member's OWN named session —
 // ensureFirebaseSession must NOT create accounts and must NOT fall back to an anonymous session;
 // a failed named sign-in returns false / 'none' so the page can prompt a re-login. This was the
 // `ENFORCE_NAMED_SESSION: true` branch; the switch was retired at v24.34 and it is the only one.
