@@ -797,9 +797,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             const typedPw = passwordInput.value;
             errorEl.classList.remove('visible');
 
-            if (!gradeSelect.value)   { showError('Please select your grade.'); gradeTrigger()?.focus(); return; }
+            if (!gradeSelect.value)   { showError('Choose your grade first.'); gradeTrigger()?.focus(); return; }
             if (!name)                { showError('Choose your name first.'); nameTrigger()?.focus(); return; }
-            if (!typedPw.trim())      { showError('Please enter your password.'); passwordInput.focus(); return; }
+            if (!typedPw.trim())      { showError('Enter your password.'); passwordInput.focus(); return; }
 
             lsSet(GRADE_KEY, gradeSelect.value);
             // Visible in-progress state — establishing the Firebase session is a network round trip,

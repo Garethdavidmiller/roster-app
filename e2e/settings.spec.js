@@ -1434,7 +1434,7 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
             gets ? 'Get alerts for staff updates and pay reminders' : 'Get alerts for staff updates', { useInnerText: true });
         await expect(page.locator('#notifKindPay')).toBeVisible({ visible: gets });
         // The status line points at the list, which is the member's own — so it never names the pay reminder.
-        await expect(page.locator('#notifStatusMsg')).toHaveText('Select “Enable notifications” to get the alerts listed above.');
+        await expect(page.locator('#notifStatusMsg')).toHaveText('Select “Turn on notifications” to get the alerts listed above.');
     });
 }
 

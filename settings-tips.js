@@ -55,8 +55,8 @@ export const CARD_TIPS = {
                 { icon: '🚆', html: '<strong>Timetable changes</strong> — the evening before Chiltern’s timetable changes, with what changes at Marylebone.' },
             ]},
             { heading: 'How it works', items: [
-                { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
-                { icon: '🔕', html: 'Select <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
+                { icon: '📲', html: 'Select <strong>Turn on notifications</strong> and allow it when your phone asks. That is all.' },
+                { icon: '🔕', html: 'Select <strong>Turn off notifications</strong> to stop them at any time. You can turn them back on later.' },
                 { icon: '🚫', html: 'If you chose <strong>Don’t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn them back on in your phone’s or browser’s settings — the card shows you where.' },
             ]},
             { heading: 'iPhone users', items: [

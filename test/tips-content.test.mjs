@@ -349,7 +349,7 @@ describe('the pay reminder is promised only to the grades it is sent to, everywh
     test('Settings: the status lines promise nothing the member\'s own list does not', () => {
         assert.doesNotMatch(card, /pay cut-off|pay reminder/i, 'a status line names the pay reminder, which only some members are sent');
         assert.match(card, /'Notifications are on for this device — you’ll get each alert listed above\.'/);
-        assert.match(card, /'Select “Enable notifications” to get the alerts listed above\.'/);
+        assert.match(card, /'Select “Turn on notifications” to get the alerts listed above\.'/);
     });
     test('the Staff Guide, which cannot know who reads it, says whom the reminder is for', () => {
         const line = /<strong>Notifications<\/strong>[^<]*(?:<[^>]+>[^<]*)*?Settings/.exec(guide)?.[0] ?? '';
