@@ -626,7 +626,7 @@ last 2026/27 payday. Extending it needs the 2027/28 row, the thresholds and the 
 mostly unpublished until early 2027 — adding a year now would present guessed figures as fact, which
 `.claude/rules/paycalc.md` forbids. The pay award is not needed first. **Due** before the first 2027/28
 payslip's shifts begin — Sunday 7 March 2027, for the payslip paid on 9 April — not at the tax year's
-start: `.claude/rules/paycalc.md` → "The tax year rollover"; `MAINTENANCE_CALENDAR.md` carries the date.
+start: `docs/PAYCALC_REFERENCE.md` → "The tax year rollover"; `MAINTENANCE_CALENDAR.md` carries the date.
 
 ### Not a payslip replacement
 
@@ -1006,7 +1006,7 @@ know:
   `DEFAULT_MAX_RUN`; with the full objective set on, the status line states the achieved figure and the
   shortfall. The trade is **weekends off**: on the 24-line default every weight that reached the target
   cost 3–4 full weekends. **An owner decision still to be made** — a longer run inside the company limit
-  against weekends staff feel — so it is recorded, not tuned (`.claude/rules/links-design.md` → the
+  against weekends staff feel — so it is recorded, not tuned (`docs/LINKS_REFERENCE.md` → Line order, the
   run-cap switch has the measurements).
 - **Designs longer than the rotation are left exactly as they are** (`.claude/rules/links-design.md` →
   Line numbering). The admin's *Keep only the shortlist* bins every design saved before 2 Nov 2026 in
@@ -1028,7 +1028,7 @@ know:
     rotations end to end reports a longest run that belongs to the join, so a design's figures mean
     something only once its lines are one rotation.
 - **The generator's objectives genuinely conflict** — line ORDER is one scarce resource, and `gentle`
-  and `variety` are opposites (`.claude/rules/links-design.md` → Line ORDER). The switches are the
+  and `variety` are opposites (`docs/LINKS_REFERENCE.md` → Line order). The switches are the
   answer: the designer makes the trade.
 - **Interleaving the waves inside the generator is a WON'T-DO, measured** (`.claude/rules/links-design.md`
   → the generator): a 6h25 turnaround and two long weekends lost for no gain. A test fails if it returns.

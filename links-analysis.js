@@ -375,7 +375,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // ── A CHIP MAY NOT REPORT ONE OF TWO COUNTS (v22.56, external review) ───────────
             // `summariseDemand` returns `uncovered` beside `outside`, and `assessFatigue` `present`
             // beside `standing`; the strip once kept the flattering half of each ("All service
-            // covered", "No fatigue factors"). Say what the number IS — links-design.md → "The sticky
+            // covered", "No fatigue factors"). Say what the number IS — LINKS_REFERENCE.md → "The sticky
             // summary bar" has the argument. "WITH TRAINS" (Nov 2026): the card's red 0s count every
             // staffed hour with nobody on, and "No gaps in staffed hours" once sat above one. The
             // SHORT clean form (owner, Nov 2026: the long one wrapped the phone bar to four rows)
@@ -862,7 +862,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // NOTHING TO FIX IS SAID OUT LOUD, never as a tick: a quiet panel must not read as approval. The
         // points to discuss lead it (alone it read as a pass), "these checks" says whose finding it is, and
         // the company limits' missing policy source is said under it from the heading's own switch (reviews
-        // of 14, 15 and 18 Nov 2026). Why: .claude/rules/links-design.md → the triage block.
+        // of 14, 15 and 18 Nov 2026). Why: docs/LINKS_REFERENCE.md → the triage block.
         const discussing = triage.discuss.length;
         const nothingToFix = discussing ? `${discussing} ${discussing === 1 ? 'point below is' : 'points below are'} worth discussing — these checks found nothing that has to be fixed`
             : 'These checks found nothing that has to be fixed — the rows below say what each one looked at';

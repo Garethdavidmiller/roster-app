@@ -42,7 +42,7 @@ import { setStatus } from './status-text.js';
  * with the box blank and estimates nothing until a figure is typed: invariant 1.
  *
  * EMPTY while no award is pending. When the NEXT award is announced, flag its tax year and add
- * `'<year>': <announced %>` here (.claude/rules/paycalc.md → "When the NEXT award is announced").
+ * `'<year>': <announced %>` here (docs/PAYCALC_REFERENCE.md → "When the NEXT award is announced").
  * @type {Readonly<Record<string, number>>}
  */
 const PENDING_AWARD_PCT = Object.freeze({});
