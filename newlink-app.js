@@ -38,7 +38,8 @@
  * (`showNotForYou`). Those are the only words on the page that are not newlink-render.js's: they belong to the gate.
  */
 
-import { formatISO, escapeHtml } from './roster-data.js';
+import { SHARED_SCREEN } from './login-core.js';
+import { formatISO, escapeHtml, teamMembers } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { sessionReady, reconcileExpiredIdentity } from './session.js';
 import { signOutAndLeave, onReturnToPage } from './page-session.js';
@@ -89,7 +90,8 @@ export function init() {
     // so, never a silent jump to the roster — the pill is not offered to them, but a shared link still brings them here.
     // So the refusal keeps the session: it is a real view by a real member, signed in, guarded and counted. The standard
     // lost-session card carries this page's `about`, arriving with the member's name chosen and saying why they are asked.
-    startPage({ page: 'newlink', label: 'New link', about: ABOUT, refusalKeepsSession: true,
+    // The shared-screen line every sign-in card carries (polish review, 26 Nov 2026: this one stopped without it).
+    startPage({ page: 'newlink', label: 'New link', about: { ...ABOUT, footnote: SHARED_SCREEN }, refusalKeepsSession: true,
         run: (member) => start(member, true),
         refuse: (_decision, { member }) => start(/** @type {string} */ (member), false) });
 }
@@ -117,7 +119,7 @@ function start(member, admitted) {
     // drawer has the row. A ? on a card hidden from them is never pressed.
     initTipsLightbox(CARD_TIPS);
     if (!admitted) {
-        showNotForYou();
+        showNotForYou(member);
         markPageReady();
         // No proposals follow, so nothing will read the sign-in timer: drop it, or the next page opened within two minutes
         // would count this visit as its sign-in time (as Pay's and Overtime's refusals do).
@@ -141,16 +143,28 @@ function start(member, admitted) {
  * The page for a signed-in colleague it is not for (sign-in audit B1): one card in place of the proposals — what the page
  * is and who it is for, in the sign-in card's own box and words (`ABOUT`), and the way back to their roster. The header,
  * the drawer and Sign out are wired as on any page, by `start`.
+ * @param {string} member  the signed-in name
  */
-function showNotForYou() {
+function showNotForYou(member) {
+    // THE APP'S ONE REFUSAL CARD (polish review, 26 Nov 2026): Admin's and the Pay Calculator's `.role-card` — the sign-in
+    // card's panel, a masthead, the reason, a "What it does" box and "← Back to roster" — where this page had a full-width page
+    // card and a navy button of its own. Two doors that look nothing alike read as two different apps (shared.css). The
+    // reason fits the reader: an Other Staff login has no contract to speak of, and Admin refuses it too.
+    const other = teamMembers.find(m => m.name === member)?.otherStaff === true;
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = 'role-card';
     card.id = 'nlNotForYou';
-    card.innerHTML = `<div class="card-header card-header--row"><div><h2><span aria-hidden="true">🔁</span> The new link doesn’t apply to your contract</h2></div></div>
-        <div class="card-body">
-            <div class="login-about">${ABOUT.lines.map(line => `<p class="login-about-line">${escapeHtml(line)}</p>`).join('')}</div>
-            <a href="./" class="btn-action btn-primary">Back to your roster</a>
-        </div>`;
+    card.innerHTML = `<div class="role-card-icon" aria-hidden="true">🔁</div>
+        <h2 class="role-card-title">${other ? 'The new link is for the CEA roster' : 'The new link doesn’t apply to your contract'}</h2>
+        <p class="role-card-why">${other
+            ? 'It is the proposed new rota for colleagues on a normal CEA contract. An Other Staff login has no roster line, so there is nothing here for it.'
+            : 'It is the proposed new rota for colleagues on a normal CEA contract, and yours keeps its own link.'}</p>
+        <div class="login-about">
+            <p class="field-eyebrow">What it does</p>
+            ${ABOUT.lines.map(line => `<p class="login-about-line">${escapeHtml(line)}</p>`).join('')}
+        </div>
+        <p class="login-help">${other ? 'The Calendar, Trains and Settings work as normal.' : 'Everything else in the app works as normal.'}</p>
+        <a href="./" class="role-card-back">← Back to roster</a>`;
     el('newlinkMain')?.replaceChildren(card);
 }
 

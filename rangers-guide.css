@@ -174,7 +174,7 @@ h2.section:first-of-type { margin-top: 4px; }
     flex-wrap: wrap;
     margin-bottom: 2px;
 }
-.rr-name { font-size: 16px; font-weight: 800; color: var(--navy); }
+.rr-name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--navy); }   /* the Railcard's card name (26 Nov 2026) */
 .rr-who { font-size: 12px; color: var(--light); margin-bottom: 8px; }
 
 /* ── The Marylebone-first status pair (v20.37) ────────────────────────────────
@@ -287,7 +287,7 @@ h2.section:first-of-type { margin-top: 4px; }
     font-size: 12.5px;
     line-height: 1.45;
 }
-.ct-label { font-weight: 800; color: var(--amber); margin-right: 5px; }
+.ct-label { font-weight: 700; color: var(--amber); margin-right: 0; }   /* as the Railcard's: the typed space is the gap (26 Nov 2026) */
 
 /* An UNRESOLVED rule is not an amber Chiltern note (v20.08, external review). The amber banner
    means "here is the local answer no national page gives" — a thing you can act on. A rule whose
@@ -345,26 +345,28 @@ h2.section:first-of-type { margin-top: 4px; }
     border-radius: 3px;
 }
 
-.check-steps { display: flex; flex-direction: column; gap: 8px; }
+/* ONE card of six rows, as the Railcard guide's "How to check one" is (polish review, 26 Nov 2026): six shadowed cards
+   with a larger number read as a different page's list. */
+.check-steps { display: flex; flex-direction: column; background: var(--white); border-radius: 12px; box-shadow: var(--shadow-card); overflow: hidden; }
 .check-item {
     display: grid;
-    grid-template-columns: 26px 1fr;
-    gap: 10px;
+    grid-template-columns: 18px 1fr;
+    gap: 9px;
     align-items: start;
-    background: var(--white);
-    border-radius: 12px;
-    box-shadow: var(--shadow-card);
-    padding: 10px 12px;
+    padding: 10px 13px;
+    border-bottom: 1px solid var(--border);
     font-size: 13px;
 }
+.check-item:last-child { border-bottom: none; }
 .check-num {
-    width: 22px;
-    height: 22px;
+    margin-top: 1px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: var(--navy);
     color: var(--white);
     font-weight: 800;
-    font-size: 12px;
+    font-size: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -440,7 +442,7 @@ h2.section:first-of-type { margin-top: 4px; }
     h2.section + .rr-notes { break-after: avoid; }
     .rr-notes h3 { font-size: 13px; font-weight: 800; color: var(--navy); }   /* paper keeps its sub-heading; screen: guide-shell.css */
     /* A shadow is a screen's edge; on paper the stripe is the card's, as on the Railcard guide's print. */
-    .rr-card, .rr-no-item, .check-item, .rr-notes, .key { box-shadow: none; }
+    .rr-card, .rr-no-item, .check-steps, .check-item, .rr-notes, .key { box-shadow: none; }
 }
 
 /* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────

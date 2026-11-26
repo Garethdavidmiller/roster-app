@@ -201,6 +201,7 @@ body {
 
 /* Password card (PASSWORD_DESIGN.md) */
 .pw-nudge {
+    text-wrap: pretty;   /* a div, out of reach of the global p rule: its last line was one word (polish review, 26 Nov 2026) */
     background: var(--gold-wash-bg);
     border: 1px solid var(--gold-wash-border);
     border-radius: var(--radius-lg);

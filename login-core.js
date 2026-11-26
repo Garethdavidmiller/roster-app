@@ -215,7 +215,7 @@ export function releasePasswordMarker(name, signedIn) {
 // passes no `about` of its own for these pages) without each coordinator carrying another copy. Each
 // says what the page holds, that you sign in as yourself to use it, and has the
 // shared-screen footnote Admin's and Pay's carry. `e2e/auth.spec.js` holds every page's card to it.
-const SHARED_SCREEN = 'On a shared screen, sign out from the menu when you finish.';
+export const SHARED_SCREEN = 'On a shared screen, sign out from the menu when you finish.';
 const SIGN_IN_ABOUT_BY_PAGE = Object.freeze({
     Settings: Object.freeze({
         lines: Object.freeze([

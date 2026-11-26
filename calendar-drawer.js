@@ -79,6 +79,23 @@ let _deps = null;
 export function wireCalendarDrawer(deps) {
     _deps = deps;
     initNavPanel(calendarDrawerOptions(getSession(), deps));
+    gateQuickButtons(getSession()?.name || null);
+}
+
+/**
+ * The Calendar's own Admin and Pay buttons follow the drawer's pills, from the same gate (polish review,
+ * 26 Nov 2026): an Other Staff login is refused both pages, and was offered two buttons the drawer did not
+ * offer it. With no session they stay, as each page asks for a sign-in itself. Not a boundary: the pages
+ * refuse in place whatever is drawn here.
+ * @param {string|null} name  the SAVED session's name
+ */
+export function gateQuickButtons(name) {
+    if (typeof document === 'undefined') return;
+    const refused = !!name && !navGatesFor(name).isNotOtherStaff;
+    for (const id of ['adminBtn', 'payBtn']) {
+        const el = document.getElementById(id);
+        if (el) el.hidden = refused;
+    }
 }
 
 /**
@@ -91,5 +108,6 @@ export function rewireCalendarDrawer() {
     if (!_deps) return false;
     resetNavPanel();
     initNavPanel(calendarDrawerOptions(getSession(), _deps));
+    gateQuickButtons(getSession()?.name || null);
     return true;
 }

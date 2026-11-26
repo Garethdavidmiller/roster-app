@@ -752,6 +752,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 @media screen {
     body { font-size: var(--type-body); }
     .two-up .card p, .section-intro { font-size: var(--type-body); color: var(--text); }
+    /* Reading text in the text colour, as the shell says: the steps and the not-FIP descriptions were still grey (26 Nov 2026). */
+    .steps li span, .not-fip-desc { color: var(--text); }
     .foot-disclaimer { font-size: var(--type-small); }
     .content { padding-top: var(--guide-top); }
 }

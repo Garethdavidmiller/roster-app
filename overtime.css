@@ -427,6 +427,7 @@ body {
     font-size: var(--type-body);
     line-height: 1.55;
     color: var(--text-mid);
+    text-wrap: balance;   /* even lines on a phone too, as on a laptop (polish review, 26 Nov 2026) */
 }
 /* A message, not a banner: on a laptop the paused line ran as ONE centred line of 113 characters across 1,068px. At a
    measure and balanced it reads as two even lines under its icon (laptop polish, 13 Nov 2026). The error box keeps the
@@ -434,6 +435,9 @@ body {
 @media (min-width: 1024px) {
     .ot-state:not(.ot-state--error) { max-width: 48ch; margin-inline: auto; text-wrap: balance; }
 }
+
+/* The way back, as every refusal card has (polish review, 26 Nov 2026): on its own line under the message. */
+.ot-state .role-card-back { display: block; width: fit-content; margin: var(--space-2) auto 0; }
 
 .ot-state-icon {
     display: block;

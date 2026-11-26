@@ -291,7 +291,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `GLOSSARY_KEY` · `openGlossary` · `initTipsLightbox`
 
 ### `login-core.js`
-- **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `holdPasswordMarker` · `releasePasswordMarker` · `signInAboutFor`
+- **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `holdPasswordMarker` · `releasePasswordMarker` · `SHARED_SCREEN` · `signInAboutFor`
 
 ### `login-overlay.js`
 - **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `sayStaffPinEndedIn` · `SIGN_IN_SLOW_LINE` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
@@ -1088,7 +1088,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `GESTURE_POLL_MS` · `START_STAGES` · `createRedrawScheduler`
 
 ### `calendar-drawer.js`
-- **Exports:** `calendarDrawerOptions` · `wireCalendarDrawer` · `rewireCalendarDrawer`
+- **Exports:** `calendarDrawerOptions` · `wireCalendarDrawer` · `gateQuickButtons` · `rewireCalendarDrawer`
 
 ## What not to do, and the version bump
 

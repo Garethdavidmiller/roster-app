@@ -33,7 +33,7 @@ describe('the words', () => {
     test('the app\'s own words: Year to Date spelled out, the two payslip figures by name, never "sick"', () => {
         const all = GLOSSARY.map(g => g.line).join(' ');
         assert.doesNotMatch(all, /\bYTD\b|\bsick/i);
-        assert.match(GLOSSARY.find(g => g.term === 'Year to Date')?.line ?? '', /Taxable Pay and Tax Paid/);
+        assert.match(GLOSSARY.find(g => g.term === 'Year to Date')?.line ?? '', /Taxable Pay and Tax\sPaid/);
     });
 
     test('the panel title has no emoji: it is the dialog\'s name, read out', () => {

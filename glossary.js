@@ -29,7 +29,7 @@ export const GLOSSARY = Object.freeze([
     { term: 'Spare', icon: '📋', line: 'On standby: you are at work that day, but your shift is not set yet.' },
     { term: 'Pay cut-off', icon: '✂️', line: 'The last day of shifts paid on the coming payday; shifts after it are paid on the payday after that.' },
     { term: 'Lieu day', icon: '🎁', line: 'A day of leave owed for a day you worked, such as a Boxing Day you were rostered to work; it is added to your allowance.' },
-    { term: 'Year to Date', icon: '📊', line: 'The running totals on your payslip since the tax year began on 6 April, such as Taxable Pay and Tax Paid.' },
+    { term: 'Year to Date', icon: '📊', line: 'The running totals on your payslip since the tax year began on 6\u00a0April, such as Taxable Pay and Tax\u00a0Paid.' },
 ].map(e => Object.freeze(e)));
 
 /** The panel's own title — the drawer row's words, and with no emoji: it is the dialog's name, read out (tips-content.test.mjs). */

@@ -497,3 +497,6 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
 ::selection { background: color-mix(in srgb, var(--gold) 35%, transparent); }
 input::placeholder { color: var(--placeholder); opacity: 1; }
 input, textarea, select { caret-color: var(--navy); }
+
+/* A figure that must not break at its own hyphen ("4-" / "week" ended a line — polish review, 26 Nov 2026). */
+.nw { white-space: nowrap; }

@@ -226,6 +226,7 @@ td strong { color: var(--navy); }
 /* ── Footer ──────────────────────────────────────────── */
 .guide-footer {
     text-align: center;
+    text-wrap: balance;   /* a div, out of reach of the shell's p rule: its last line was two words (polish review, 26 Nov 2026) */
     font-size: 10.5px;
     color: var(--light);
     margin-top: 20px;
@@ -303,4 +304,13 @@ code { background: var(--card-fill); padding: 1px 5px; border-radius: 4px; font-
        first heading's 4px came to 16px on a phone and 22px on a desktop. */
     .page:first-of-type { padding-top: var(--guide-top); }
     .page:first-of-type .cols > div > h2:first-child { margin-top: 0; }
+    /* …but only a COLUMN's top heading is flush, and only the first column's on a phone, where the second stacks under
+       it: a heading first in a screen-only wrapper (the Staff Guide's Trains), or the second column's first on a phone,
+       sat 8px under the text above it, where every other sits about 22px (polish review, 26 Nov 2026). */
+    .cols > div > .no-print > h2:first-child { margin-top: 22px; }
+}
+@media screen and (max-width: 640px) {
+    .page:first-of-type .cols > div + div > h2:first-child,
+    .cols > div + div > h2:first-child,
+    .cols > div > .no-print > h2:first-child { margin-top: 20px; }
 }

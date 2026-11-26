@@ -177,7 +177,7 @@ test('calendar: a removed saved member falls back to the calendar + stale banner
     await expect(page.locator('#errorBanner')).toContainText('no longer in the roster');
     // The picker is a list, on a phone a sheet: "the dropdown" named neither (18 Nov 2026).
     await expect(page.locator('#errorBanner')).toContainText('"Z. Nonexistent" is no longer in the roster');
-    await expect(page.locator('#errorBanner')).toContainText('Choose a name from the list above.');
+    await expect(page.locator('#errorBanner')).toContainText('Choose a name from the list below.');
 });
 
 // THE SIGNED-IN MEMBER'S OWN NAME (18 Nov 2026): a row hidden after a move into management, say, while the
@@ -189,7 +189,7 @@ test('calendar: a member whose own name has left the list is told so in their ow
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     const shown = ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
     await expect(page.locator('#errorBanner'))
-        .toContainText(`Your name is no longer in the roster — showing ${shown}'s calendar. Choose a name from the list above.`);
+        .toContainText(`Your name is no longer in the roster — showing ${shown}'s calendar. Choose a name from the list below.`);
     await expect(page.locator('#errorBanner')).not.toContainText('"A. Person"');
 });
 

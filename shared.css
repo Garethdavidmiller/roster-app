@@ -3167,6 +3167,7 @@ button.nav-panel-link--notices {
     /* Restore the dropdown arrow that appearance:none removes. */
     background-image: var(--caret-chevron-small);
     background-repeat: no-repeat;
+    background-size: 12px 7px;   /* its own size, not `.fieldpick`'s 1em (polish review, 26 Nov 2026) */
     background-position: right 10px center;
     padding-right: 30px;
     text-align: center;
@@ -3310,6 +3311,7 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
 /* Persistent "can't get in?" signpost so a forgotten-surname / not-in-list / rate-limited user
    is never a dead-end — account matters route to "the admin" per the wording conventions. */
 .login-help {
+    text-wrap: balance;   /* two even lines, not one word alone on the second (polish review, 26 Nov 2026) */
     font-size: var(--type-small);
     color: var(--text-light);
     margin-top: 16px;
@@ -3499,7 +3501,7 @@ body.auth-ready .boot-placeholder { display: none; }
 .card-toggle-arrow {
     font-size: var(--type-micro); color: var(--text-light);
     transition: transform var(--dur-slow) var(--ease-standard); flex-shrink: 0;
-    padding: 3px 0 0 12px; line-height: 1.5;
+    margin: 3px 0 0 12px; line-height: 1.5;   /* MARGIN, not padding: a turn pivots on the padded box, and the glyph jumped 12px onto the ? (26 Nov 2026) */
 }
 .card-header-toggle.open .card-toggle-arrow { transform: rotate(180deg); }
 /* Reduced motion: the arrows still turn over to say open or shut — they do not swing there. */
@@ -3719,6 +3721,7 @@ body.auth-ready .boot-placeholder { display: none; }
     /* Per-row hairline dividers dropped (v18.69 light-polish): a divider under every row read as a
        dense ledger. The icon tint-chip column + row spacing separate the rows more calmly now. */
 }
+.tips-lb-item > span:last-child { text-wrap: pretty; }   /* out of the global p rule's reach: lines ended on one word (26 Nov 2026) */
 /* Each emoji sits in a soft rounded tint chip — anchors the icon column and gives the panel
    structure, matching the Account-status pills. Neutral container; the emoji carries its own colour. */
 .tips-lb-icon {

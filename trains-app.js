@@ -58,6 +58,7 @@
  * 13 December: docs/ROADMAP.md → "Trains page — what comes after the preview".
  */
 
+import { SHARED_SCREEN } from './login-core.js';
 import { CONFIG } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
@@ -110,7 +111,8 @@ export function init() {
     // The start-up every card-opening page shares (page-start.js), decided from the LOCAL session, as Operations
     // and Overtime do — the auth store is often still initialising here, and a role-gated page must not treat
     // "pending" as "allowed".
-    startPage({ page: 'trains', label: 'Trains', about: SIGN_IN_ABOUT,
+    // The shared-screen line every sign-in card carries (polish review, 26 Nov 2026: this one stopped without it).
+    startPage({ page: 'trains', label: 'Trains', about: { ...SIGN_IN_ABOUT, footnote: SHARED_SCREEN },
         // No member: the sign-in. The teardown runs FIRST — it is what signs out a leftover session of the
         // retired staff PIN (owner, 23 Nov 2026) — but for no longer than the Calendar gives it
         // (`ACCESS_DECISION_BUDGET_MS`, calendar-access.js). It begins by awaiting `authReady`, which never

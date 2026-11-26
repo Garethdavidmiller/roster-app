@@ -1092,7 +1092,9 @@ body:not(.auth-ready) .app-header { display: none; }
 /* Room for the chevron: `.gen-select`'s padding out-ranks `.fieldpick`'s 30px, and the face ran
    under it. Two classes, so it wins on both pointers. This picker only: 24px more per slot-time
    picker would widen a table that already scrolls. */
-.gen-sets-row .gen-select.fieldpick { padding-right: 30px; }
+/* Its chevron is the slot-time pickers' small one, at its own size: the large one at this 13px text drew half theirs in the
+   same card (polish review, 26 Nov 2026). */
+.gen-sets-row .gen-select.fieldpick { padding-right: 30px; background-image: var(--caret-chevron-small); background-size: auto; background-position: right 10px center; }
 /* The setup buttons wrap as ONE block, onto their own line once the label and picker fill it. */
 .gen-sets-actions {
     display: flex;
@@ -1104,6 +1106,9 @@ body:not(.auth-ready) .app-header { display: none; }
    stranded Delete ~700px from its group. */
 @media (max-width: 767px) {
     .gen-sets-actions .btn-set--danger { margin-left: auto; }
+    /* On a phone the picker takes the row under its label, as every labelled field does there: beside it, it had about
+       185px and cut a setup's name short ("No staffing setups sav…", polish review, 26 Nov 2026). */
+    .gen-sets-row .gen-select { flex: 1 1 100%; max-width: none; }
 }
 /* SETUP BUTTONS. Use setup leads: the most pressed, and the only one that changes the screen. They
    are buttons, so the button corner (css-tokens.md → Corners), not a chip's pill. */
@@ -1847,7 +1852,9 @@ body:not(.auth-ready) .app-header { display: none; }
     /* EVERY sticky cell needs an OPAQUE fill: the spare row's own tint is 90% see-through. */
     .gen-th-time, .gen-td-time { background: var(--surface); }
     .gen-slot-table thead .gen-th-time { background: var(--surface-sunken); }
-    .gen-spare-row .gen-td-label { background: color-mix(in oklch, var(--purple) 8%, var(--surface)); }
+    /* Mixed in sRGB, as the row's cells are against `transparent`: in oklch the off-white's own hue pulled the purple to blue,
+       and the sticky label cell read as a second colour beside its row (polish review, 26 Nov 2026). */
+    .gen-spare-row .gen-td-label { background: color-mix(in srgb, var(--purple) 8%, var(--surface)); }
     .gen-total-row td:first-child { background: var(--surface-sunken); }
     /* In em, so the column grows with the text: a px minimum held at large text and cut the end time. */
     .gen-select { min-width: 7.5em; }

@@ -879,6 +879,7 @@ body.auth-ready .container { display: grid; }
 :where(.container) select, :where(.container) .fieldpick {
     background-image: var(--caret-chevron-small);
     background-repeat: no-repeat;
+    background-size: 12px 7px;   /* its own size, not `.fieldpick`'s 1em (polish review, 26 Nov 2026) */
     background-position: right 10px center;
     padding-right: 30px;
 }
@@ -1093,7 +1094,7 @@ body.auth-ready .container { display: grid; }
 .acct-stat {
     display: inline-flex;
     align-items: baseline;
-    gap: 5px;
+    gap: 0;   /* "0/53 work email", not "0 /53": the number and its fraction are one figure (polish review, 26 Nov 2026) */
     padding: 4px 11px;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);

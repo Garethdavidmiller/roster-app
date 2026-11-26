@@ -44,7 +44,7 @@ const WHAT_IT_DOES =
  * The refusal card's words for a member the calculator will not price.
  * `what` is null where the card should not explain the calculator (the not-on-the-roster case).
  * @param {string|null|undefined} role  the member's roster `role`; absent for a name the roster lacks
- * @returns {{ title: string, what: string|null, why: string }}
+ * @returns {{ title: string, what: string|null, why: string, help?: string }}  `help`: the footer line, when not the general one
  */
 export function unsupportedRoleCopy(role) {
     if (!role) {
@@ -58,7 +58,7 @@ export function unsupportedRoleCopy(role) {
         return {
             title: "The Pay Calculator doesn’t cover Dispatcher pay yet",
             what: WHAT_IT_DOES,
-            why: 'Dispatcher pay will be added once Dispatcher rates are confirmed. Until then any figure it gave you would be guessed — one that looks right and isn\'t.',
+            why: 'Dispatcher pay will be added once Dispatcher rates are confirmed. Until then any figure it gave you would be guessed — one that looks right and isn’t.',
         };
     }
     if (role === 'Management') {
@@ -75,6 +75,8 @@ export function unsupportedRoleCopy(role) {
             title: 'The Pay Calculator is for CEAs and CESs',
             what: WHAT_IT_DOES,
             why: 'It works out pay from a roster line and a grade’s rates, so it has nothing to work from for your sign-in.',
+            // Admin refuses this login too, so "everything else" would be untrue: Admin's own card says the same line.
+            help: 'The Calendar, Trains and Settings work as normal.',
         };
     }
     return {
@@ -103,6 +105,8 @@ export function paintRoleCard(member, doc = document) {
     if (what) what.textContent = copy.what ?? '';
     if (about) about.hidden = !copy.what;
     if (why) why.textContent = copy.why;
+    const help = doc.getElementById('unsupportedGradeHelp');
+    if (help) help.textContent = copy.help ?? 'Everything else in the app works as normal.';
 }
 
 /**

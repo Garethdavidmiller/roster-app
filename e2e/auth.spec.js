@@ -1021,6 +1021,9 @@ test('every page\'s sign-in card says what the page is, and none mentions the re
             await expect(about, `${url}: the card does not say why you sign in as yourself`).toContainText('so you sign in as yourself.');
             await expect(page.locator('#loginOverlay #loginFootnote'), `${url}: no shared-screen footnote`).toBeVisible();
         }
+        // Every card ends with the shared-screen line, Trains' and New link's too (polish review, 26 Nov 2026); Pay's says its own.
+        if (url !== '/paycalc.html') await expect(page.locator('#loginOverlay #loginFootnote'), `${url}: no shared-screen footnote`)
+            .toHaveText('On a shared screen, sign out from the menu when you finish.');
     }
 });
 
@@ -1415,6 +1418,10 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await expect(page.locator('.calendar-grid')).toBeVisible();
         // A colleague's roster: they have none of their own, so the picker holds somebody else.
         await expect(page.locator('#teamMemberSelect')).not.toHaveValue('');
+        // The Calendar's own Admin and Pay buttons follow the drawer (polish review, 26 Nov 2026): both pages refuse this login.
+        await expect(page.locator('#adminBtn')).toBeHidden();
+        await expect(page.locator('#payBtn')).toBeHidden();
+        await expect(page.locator('#todayBtn, .today-btn').first()).toBeVisible();
         await page.locator('#navMenuBtn').click();
         await expect(page.locator('.nav-panel-pill--calendar')).toBeVisible();
         await expect(page.locator('.nav-panel-pill--trains')).toBeVisible();
@@ -1447,6 +1454,10 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await expect(page.locator('#adminRoleCard')).toBeVisible();
         await page.goto('/paycalc.html');
         await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
+        // Links sends a non-designer to Admin, and this login to the Calendar: Admin refuses it too (polish review, 26 Nov 2026).
+        await page.goto('/links.html');
+        await expect(page).not.toHaveURL(/links\.html|admin\.html/);
+        await expect(page.locator('.calendar-grid, .cal-lock-card').first()).toBeVisible();
     });
 
     // …AND THE SAME WHEN THE LOGIN IS MADE ON ADMIN'S OWN SIGN-IN CARD (24-hour review, 25 Nov 2026). The gate ran
