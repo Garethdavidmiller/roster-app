@@ -473,7 +473,7 @@ export function ytdSourceOffered(p, ty, now = new Date(), firstPNum = _firstEmpl
  * today's, clamped into the year. A member copying from a payslip issued before its payday can
  * correct it: the picker offers that payslip from its cut-off (`ytdSourceOffered`). Do not replace it
  * with a stamp that records NOTHING until the member picks: one who never picked was then stamped one
- * payslip LATE, the mirror image of the double count (paycalc.md → Design decisions).
+ * payslip LATE, the mirror image of the double count (paycalc.md → "the first-entry stamp").
  * @param {{ first:number, last:number }} ty @param {Date} [now]
  * @returns {number} a period number
  */

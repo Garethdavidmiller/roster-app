@@ -8,45 +8,31 @@
  * intervals between duties (3), cumulative (8), circadian phase shift (4). Twenty are numbered FF1
  * to FF20; the rest are FF8b and four rows the sheet attributes to MRSF rather than numbering.
  *
- * **The count was wrong in the docs (24) AND in this module (23), and neither was the answer.** From
- * v19.46 the header said 24 and the panel rendered 23, with the gap logged as unresolvable because
- * the source could not be reached from this environment. It became reachable in Aug 2026, and the
- * sheet says 25. The two rows nobody had implemented were both MRSF rows in the Cumulative family,
- * and they are not interchangeable:
+ * The count was read off the source (Aug 2026), after the docs said 24 and the panel rendered 23 — a
+ * disagreement between two numbers is settled by reading the source, never by picking whichever is
+ * easier to change. The two MRSF rows added then are not interchangeable:
  *
  *   · **"More than 7 consecutive 8h shifts"** — the tightest consecutive-working rule on the page,
- *     and the one most likely to bite a link whose duties are around eight hours. FF11 allows 13
- *     shifts between 48h breaks; this allows 7. It was simply absent, so the panel was silent about
- *     the rule most likely to have something to say.
+ *     and the one most likely to bite a link whose duties are around eight hours (FF11 allows 13
+ *     shifts between 48h breaks; this allows 7).
  *   · **"More than 6 consecutive night or early shifts in a permanent pattern"** — not applicable to
  *     a link, which is a rotating pattern by construction, and rendered saying so. FF15 is its
  *     rotating counterpart, at a threshold of 4.
  *
- * The lesson is the one this module already states about statuses, now applied to itself: a
- * disagreement between two numbers is not settled by picking whichever is easier to change. It is
- * settled by reading the source — and until somebody does, neither number is evidence.
+ * ── A COVER WEEK IS AN UNKNOWN, NOT A NO ────────────────────────────────────────────────────────
  *
- * ── A COVER WEEK IS AN UNKNOWN, NOT A NO (v21.98) ───────────────────────────────────────────────
+ * A plain run scan ENDS a run at a spare day (no times, so it fails any predicate): FF15 once reported
+ * a longest early-shift run of 3 with a green tick against a worst case of 6 over a threshold of 4.
+ * FF10, FF15 and the 8h rule use `runLengthsWhere` (links-design.js) — `workedRunLengths`'s spare-week
+ * budget with the question as a parameter. Two boundaries make it honest rather than merely louder:
  *
- * Found regression-checking the row above, and it was two rows wider than the new one. FF10, FF15
- * and the new 8h rule all measured their runs with a plain scan, so a spare day — which has no
- * times and therefore fails any predicate — ENDED the run. **FF15's false clear was live**: on the
- * shipped default design it reported a longest early-shift run of 3 with a green tick, against a
- * worst case of 6 over a threshold of 4.
+ *   · **four, never seven.** Counting a whole cover week fuses the blocks either side (the live
+ *     roster read 15 against a true 9).
+ *   · **extend, never create** (`requireMatch`): otherwise FF10 reports a run of four made entirely of
+ *     unknowns on a design with no duty over twelve hours — a finding about nothing.
  *
- * All three now use `runLengthsWhere` (links-design.js), which is `workedRunLengths`'s own
- * spare-week budget with the question as a parameter — four duties a week, no reset, one reading
- * shared by every rule that counts a run. Two boundaries make it honest rather than merely louder:
- *
- *   · **four, never seven.** Counting a whole cover week fuses the blocks either side, which is the
- *     v19.79 defect that reported the live roster at 15 against a true 9.
- *   · **extend, never create** (`requireMatch`). The default design contains no duty over twelve
- *     hours, and without this FF10 would report a run of four made entirely of unknowns — a finding
- *     about nothing, on the row that exists to find something.
- *
- * Where the worst case and the certain figure differ, the row says both. A number the reader cannot
- * take apart is one they either over-trust or discount, and this panel has already been discounted
- * once for over-reporting.
+ * Where the worst case and the certain figure differ, the row says both: a number the reader cannot
+ * take apart is either over-trusted or discounted.
  *
  * WHY THIS IS ITS OWN MODULE, and what it deliberately does NOT do.
  *
@@ -68,11 +54,10 @@
  *    half the rotation on every design is how a check gets ignored; it is reported with a count and
  *    marked `standing`.
  *
- * 4. **A rule whose reading is not ORR's own is marked `confirm: true`** so the UI can say so. Four
- *    rows carried it until 28 Sep 2026 (MRSF's 7×8h, FF17, FF18, FF19); the owner checked them against
- *    ORR's Managing rail staff fatigue (Aug 2024) that day, and only FF19 keeps it — its reading is the
- *    owner's choice and is more lenient than ORR's wording (see the row). Shipping a number whose
- *    definition is unagreed, unlabelled, is the false-assurance failure in miniature.
+ * 4. **A rule whose reading is not ORR's own is marked `confirm: true`** so the UI can say so. The
+ *    owner checked MRSF's 7×8h, FF17, FF18 and FF19 against ORR's Managing rail staff fatigue (Aug
+ *    2024) on 28 Sep 2026, and only FF19 keeps it — its reading is the owner's choice and more lenient
+ *    than ORR's wording (see the row).
  *
  * Hours caveat: SPARE days carry no times, so they add nothing to a count of long duties, and on
  * the duties the rota fixes they add no hours to the 55-hour row either. `hoursAreFloor` says
@@ -83,14 +68,13 @@
  */
 
 import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS, spareDrawsOnFour, isRest, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
-// FF18 is the one factor here whose subject is what happens BETWEEN lines, so it is the one that
-// needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
-// only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
+// FF18 is about what happens BETWEEN lines, so it needs the adjacency maths. Direction is fatigue →
+// adjacency → design: no cycle (asserted by import-graph.test.mjs).
 import { scoreOrder, GENTLE_THRESHOLD_MINUTES } from './links-adjacency.js';
 import { normaliseWindow, windowMinutes } from './links-window.js';
 
-/** A day key as a reader names it, for the rows that say where something is — FF8b here, and the Design checks'
- *  short turnarounds (links-analysis.js), which printed the stored keys until 17 Nov 2026. */
+/** A day key as a reader names it, for the rows that say where something is — FF8b here, and the
+ *  Design checks' short turnarounds (links-analysis.js). */
 export const DAY_NAME = /** @type {Record<string, string>} */ ({
     sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday',
 });
@@ -100,10 +84,8 @@ const EARLY_FROM = 5 * 60;
 const EARLY_TO   = 7 * 60;      // exclusive — 07:00 itself is not an early start
 
 /**
- * Minutes as `"6h 25m"` or `"4h 08m"` — FF13's shortest rest and FF18's week-to-week step. It is
- * `hmFromHours`, the workspace's one hours-and-minutes formatter, since 17 Nov 2026: this panel
- * printed "11h 5m" here while the hours row on the same card printed "34h 05m", two shapes for one
- * kind of figure.
+ * Minutes as `"6h 25m"` or `"4h 08m"` — FF13's shortest rest and FF18's week-to-week step, through
+ * `hmFromHours`, the workspace's one hours-and-minutes formatter.
  * @param {number} mins
  * @returns {string}
  */
@@ -111,8 +93,7 @@ function _hm(mins) {
     return hmFromHours(Math.round(mins) / 60);
 }
 
-// The rest predicate lives in links-design.js (v25.23), re-exported here for the readers that import it
-// from this module; links-adjacency.js reads the same one.
+// The rest predicate lives in links-design.js, re-exported here; links-adjacency.js reads the same one.
 export { isRest };
 /** @param {any} s */
 export function isWorked(s) { return !isRest(s); }
@@ -120,18 +101,12 @@ export function isWorked(s) { return !isRest(s); }
 /**
  * Duty length in minutes, or null when the value carries no times (RD / SPARE / unparseable).
  *
- * A duty whose end is at or before its start has run past midnight, so it gains 24h — handled by
- * `endMinutesAbs` in links-design.js, which is the ONE place that rule lives (v19.47; this module
- * carried its own copy of the expression for one version). Nothing in the current CEA link runs past
- * midnight — duties finish 23:55, and `normaliseCustomShift` refuses one at input — but legacy or
- * imported data can carry one, and the version of this rule that ignores the case reports a
- * NEGATIVE duty length rather than failing.
+ * A duty whose end is at or before its start has run past midnight, so it gains 24h — `endMinutesAbs`
+ * in links-design.js, the ONE place that rule lives (ignoring the case reports a NEGATIVE duty length).
  * @param {any} shift
  */
-// MOVED to links-design.js at v20.04 and re-exported here, so every existing importer and test is
-// untouched. It belongs beside `endMinutesAbs`: `weeklyHours` needs the same reading of a duty's
-// length, that module cannot import this one (this one imports it), and a second copy is precisely
-// the failure `endMinutesAbs` was extracted to end.
+// Lives in links-design.js beside `endMinutesAbs`, re-exported here: a second copy is precisely the
+// failure `endMinutesAbs` was extracted to end.
 export { dutyMinutes };
 
 /** Does this duty start in the FF2 early window? @param {any} shift */
@@ -156,11 +131,8 @@ export function coversNightWindow(shift) {
     const st = startMinutes(shift);
     const len = dutyMinutes(shift);
     if (st === null || len === null) return false;
-    // Exact interval overlap, NOT a sampled walk. The first version stepped through the duty in
-    // 15-minute hops and asked whether any sample landed before 05:00, which meant a duty that
-    // crossed midnight by less than one step was missed: "23:50-00:05" returned false while
-    // "23:00-00:10" returned true. On the one rule whose whole job is to be a loud alarm, an answer
-    // that depends on where the samples happen to fall is worse than no rule.
+    // Exact interval overlap, NOT a sampled walk: 15-minute samples missed "23:50-00:05". On the one
+    // rule whose job is to be a loud alarm, an answer that depends on where samples fall is worse than none.
     const end = st + len;   // st < 1440 and len <= 1440, so end < 2880 — two windows cover it
     const hits = (/** @type {number} */ from) => st < from + EARLY_FROM && end > from;
     return hits(0) || hits(24 * 60);
@@ -187,24 +159,19 @@ export function toSequence(patterns, lines = ROTATING_LINES) {
  *
  * FF11 says "more than 13 consecutive shifts without a 48h break" — which is NOT the same as the
  * longest run of consecutive worked days that `runDesignChecks` already reports. A SINGLE rest day
- * is not COUNTED as a 48h break: two rest days together are, and they always give more than 48 hours
- * off. One alone usually gives less — but not always: an early finish before it and a late start
- * after can leave 48 hours (Both Ways, line 2's Saturday 06:20–14:50 into line 3's Monday
- * 16:00–23:55, 49h 10m; external review, 6 Nov 2026). The detail text said "a single rest day is
- * not a 48h break" until then, which is false as a statement about hours. Counting pairs only can
- * OVERSTATE a run, never understate it — the safe direction for a fatigue check — and on the 21
- * Links 26 designs that day it changed no warning. So a pattern of six on / one off / six on is a 12-shift run for FF11 and two
- * separate 6-day runs for the existing check. They coincide on the current link only because its
- * rest days happen to come in pairs.
+ * is not COUNTED as a 48h break: two rest days together are, and always give more than 48 hours off.
+ * One alone usually gives less — not always (an early finish before it and a late start after can
+ * leave 49h 10m), so the detail never says it "is not a 48h break". Counting pairs only can OVERSTATE
+ * a run, never understate it — the safe direction for a fatigue check. So six on / one off / six on
+ * is a 12-shift run for FF11 and two separate 6-day runs for the existing check.
  * @param {Array<{shift: any}>} seq
  */
 export function longestRunBetween48hBreaks(seq) {
     const n = seq.length;
     if (!n) return 0;
-    // Shifts in the whole cycle. A SPARE week contributes four, not seven — it is the ceiling this
-    // function's answer is capped at, so counting all seven here would let the cap re-admit the
-    // very over-count the body was fixed to remove (v19.79). The four are Monday to Saturday; a
-    // spare Sunday is overtime on top of them, so it adds one (`spareDrawsOnFour`, v25.03).
+    // Shifts in the whole cycle — the cap on the answer. A SPARE week contributes four, not seven (or
+    // the cap would re-admit the over-count); the four are Monday to Saturday, and a spare Sunday is
+    // overtime on top, adding one (`spareDrawsOnFour`).
     const spareWeeks = new Set();
     let spareSundays = 0;
     for (let i = 0; i < n; i++) {
@@ -217,8 +184,7 @@ export function longestRunBetween48hBreaks(seq) {
 
     // Does a 48h break exist ANYWHERE in the rotation? If not, the person never gets one, and the
     // answer is every worked day in the cycle — recurring forever. Capping at the sequence LENGTH
-    // (as a first draft of this did) both overstates it, by counting rest days as shifts, and
-    // understates it, by implying the run ends. Caught by the six-on/one-off/six-on test.
+    // would both count rest days as shifts and imply the run ends (the six-on/one-off/six-on test).
     let has48 = false;
     for (let i = 0; i < n && !has48; i++) {
         if (isRest(seq[i].shift) && isRest(seq[(i + 1) % n].shift)) has48 = true;
@@ -235,25 +201,20 @@ export function longestRunBetween48hBreaks(seq) {
         const s = seq[idx].shift;
         if (s === 'SPARE') {
             // A spare week is FOUR duties, and its three rest days need not be adjacent — so in the
-            // worst case it supplies NO 48h break at all while still adding four shifts. Counting
-            // all seven as shifts (what this did to v19.78) inflated the run; counting the week as
-            // a break would deflate it. Four, and no reset, is the honest ceiling.
+            // worst case it supplies NO 48h break while adding four shifts. Four, and no reset, is
+            // the honest ceiling (seven inflates the run; a break would deflate it).
             //
-            // Keyed on the UNMODDED index, so the second lap gets its own budget. That is not a
-            // detail: the second lap exists to measure a run that wraps the cycle end, and on the
-            // next time round the wheel it is genuinely a fresh spare week with four fresh duties.
-            // Sharing the budget would silently truncate exactly the wrapping run the lap is for.
+            // Keyed on the UNMODDED index, so the second lap — which measures a run wrapping the
+            // cycle end — gets its own budget: next time round it is a fresh spare week. Sharing it
+            // would silently truncate exactly the wrapping run the lap is for.
             //
-            // The four are Monday to Saturday. A spare SUNDAY is overtime on top of them, so in
-            // the worst case it is a shift that spends none of the four (v25.03).
+            // The four are Monday to Saturday; a spare SUNDAY is overtime that spends none of them.
             const line = Math.floor(i / 7);
             const used = spent.get(line) || 0;
             const drawsOnFour = spareDrawsOnFour(i);
             if (!drawsOnFour || used < SPARE_WORKED_DAYS) {
-                // A spare duty is a SHIFT, so it must honour the same reset the worked branch does.
-                // Omitting this line chained the run straight through a real 48h break and put the
-                // bilingual roster at 23 against a true worst case of 15 — caught by walking the
-                // roster by hand, because the wrong answer was still plausible.
+                // A spare duty is a SHIFT, so it honours the same reset the worked branch does —
+                // without it the bilingual roster read 23 against a true worst case of 15.
                 if (restRun >= 2) run = 0;
                 if (drawsOnFour) spent.set(line, used + 1);
                 restRun = 0;
@@ -276,13 +237,8 @@ export function longestRunBetween48hBreaks(seq) {
 
 /**
  * Longest run of consecutive worked days, wrapping — delegated to `worstCaseWorkedRun` in
- * links-design.js (v19.79) so there is ONE reading of what a spare week costs a person.
- *
- * It used to count a spare week as seven worked days, which fused the blocks either side of it:
- * the live main roster reported 15 against a true ceiling of 9. Kept as a named export because it
- * is this module's vocabulary, but it must never grow its own copy of the rule again — the two
- * checks disagreeing about the same roster is exactly the failure `endMinutesAbs` was extracted to
- * end.
+ * links-design.js so there is ONE reading of what a spare week costs a person. A named export for
+ * this module's vocabulary; it must never grow its own copy of the rule.
  * @param {Array<{shift:any}>} seq
  */
 export function longestWorkedRun(seq) {
@@ -312,11 +268,9 @@ export function longestRunOf(seq, pred) {
  * by one rest day is not what the factor is describing, and counting it would fire on almost every
  * design. Returns the offending blocks so the UI can name them.
  *
- * CIRCULAR, like every other rule here. The first version scanned index 0 → n and so cut any block
- * straddling the rotation's wrap point in half: two earlies on the last day of line 28 and the first
- * day of line 1, followed by a single rest day, became two blocks of one and were reported as
- * nothing at all. The rotation has no start — the person on line 28 goes to line 1 next week — so
- * the scan begins at the first NON-early day and laps once from there.
+ * CIRCULAR, like every other rule here: a scan from index 0 cuts a block straddling the wrap point
+ * into two blocks of one, reported as nothing. The rotation has no start, so the scan begins at the
+ * first NON-early day and laps once from there.
  * @param {Array<{shift:any, line:number, day:string}>} seq
  */
 export function earlyBlocksWithShortRecovery(seq) {
@@ -356,8 +310,8 @@ export function earlyBlocksWithShortRecovery(seq) {
  * Maximum hours worked in any rolling 7-day window, on the duties the rota FIXES.
  *
  * A FLOOR, not an estimate: SPARE contributes zero because it carries no times. MRSF's threshold is
- * 55h in a 7-day period, and since 17 Nov 2026 the row's verdict is not taken on this figure but on
- * `worstHoursInAny7Days` — this is the half of the row that is certain.
+ * 55h in a 7-day period; the row's verdict is taken on `worstHoursInAny7Days`, and this is the half of
+ * the row that is certain.
  * @param {Array<{shift:any}>} seq
  */
 export function maxHoursInAny7Days(seq) {
@@ -366,8 +320,7 @@ export function maxHoursInAny7Days(seq) {
 
 /**
  * The same rolling week in whole MINUTES. A 55-hour verdict is taken on minutes, never on the
- * rounded hours: 55h 02m rounds to 55.0, and "more than 55" asked of 55.0 said no (whole-app review,
- * Oct 2026).
+ * rounded hours: 55h 02m rounds to 55.0, and "more than 55" asked of 55.0 says no.
  * @param {Array<{shift:any}>} seq
  */
 function maxMinutesInAny7Days(seq) {
@@ -395,11 +348,10 @@ export const COVER_DUTY_WORDS = `a quarter of the contracted week (${hmFromHours
 
 /**
  * Maximum hours in any rolling 7-day window at a cover week's WORST (17 Nov 2026) — the reading
- * every run in this module already takes ("A cover week is an unknown, not a no", links-design.md).
+ * every run in this module takes ("A cover week is an unknown, not a no", links-design.md); the
+ * floor above reads CLEAR on designs that cross 55 when a cover week falls badly.
  *
- * The floor above counts a cover week as no hours, so the row read CLEAR on designs that cross 55
- * when a cover week falls badly — while the New link page, built from the pack's worst case,
- * counted it. Here a spare day is a duty of `COVER_DUTY_MINUTES`, with the same two bounds the run
+ * Here a spare day is a duty of `COVER_DUTY_MINUTES`, with the same two bounds the run
  * rules keep: a cover week works FOUR of Monday to Saturday (`spareDrawsOnFour`), placed as badly
  * as the window allows, and its Sunday is worked on top. Asking each window for its own worst is
  * exact for a maximum, for the reason `worstCaseWorkedRun` gives: no two windows need one week's
@@ -502,7 +454,7 @@ export function rotationDirection(seq) {
 /**
  * What a cover week can add to a run in the worst case — one clause, so every row that qualifies a
  * figure says it the same way. Its four duties are Monday to Saturday, and its Sunday can be worked
- * on top as overtime (`spareDrawsOnFour`, v25.03).
+ * on top as overtime (`spareDrawsOnFour`).
  */
 const COVER_WEEK_ADDS = `a cover week can supply up to ${SPARE_WORKED_DAYS} more on Monday to Saturday, and one on its `
     + 'Sunday as overtime, whose times are not yet assigned';
@@ -533,10 +485,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
     patterns = patterns || {};
     const seq = toSequence(patterns, lines);
     const timed = seq.filter(x => startMinutes(x.shift) !== null);
-    // Hours are a FLOOR only where a spare day is counted at zero (the header's caveat). This was the
-    // constant `true`, so a design with no spare day at all was told its "real totals are higher" on
-    // the panel and the compare card, when they are exact (whole-app review, Nov 2026). A worked cell
-    // with no readable time also counts zero; the hours row names those, and an import refuses them.
+    // Hours are a FLOOR only where a spare day is counted at zero (the header's caveat) — never the
+    // constant `true`, which told an exact design its "real totals are higher". A worked cell with no
+    // readable time also counts zero; the hours row names those, and an import refuses them.
     const hoursAreFloor = seq.some(x => x.shift === 'SPARE');
 
     /** @type {FatigueResult[]} */
@@ -553,13 +504,10 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
             : 'No duty reaches into 00:00–05:00. Customer Experience Ambassadors (CEAs) do not work nights.' });
 
     const earlies = seq.filter(x => isEarlyStart(x.shift));
-    // The opening is the DESIGN's window, not a fixed 06:20 (Nov 2026): a design whose window opens
-    // later says so, and the sentence claims "unavoidable" only while the opening itself is early.
-    // So does the STATUS (24-hour check, Nov 2026): `standing` means "from the operation, not from this
-    // design" (point 3 above; the panel's triage line says exactly that), which is true only while the
-    // opening itself falls in 05:00–07:00. Opened earlier or later, the opening does not need these
-    // starts, so they are this design's own and count as `present`. Three sentences, one per case: the
-    // second used to say an opening BEFORE 05:00 came after every 05:00–07:00 start.
+    // The opening is the DESIGN's window, not a fixed 06:20. `standing` means "from the operation, not
+    // from this design" (point 3 above), true only while the opening itself falls in 05:00–07:00;
+    // opened earlier or later, these starts are this design's own and count as `present`. Three
+    // sentences, one per case.
     const opens = normaliseWindow(win).monSat.start;
     const opensMin = windowMinutes(opens);
     const opensEarly = opensMin !== null && opensMin >= EARLY_FROM && opensMin < EARLY_TO;
@@ -581,10 +529,8 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
         status: veryEarly.length ? 'present' : 'clear', value: veryEarly.length });
 
     // ── Duty length ──────────────────────────────────────────────────────────
-    // NOT APPLICABLE and CLEAR are different answers, and conflating them is the false-assurance
-    // failure in miniature: with a very early duty present but none over 8h, the first version said
-    // "not applicable" — directly contradicting the FF3 row two lines above, which had just counted
-    // those same duties. The reassuring label was the wrong one.
+    // NOT APPLICABLE and CLEAR are different answers: with a very early duty present but none over 8h
+    // this is CLEAR, or it contradicts the FF3 row above, which counted those same duties.
     const veryEarlyOver8 = veryEarly.filter(x => (dutyMinutes(x.shift) ?? 0) > 8 * 60);
     add({ code: 'FF4', family: 'Duty length', title: 'Very early shift (before 05:00) over 8h', threshold: '8h',
         status: veryEarlyOver8.length ? 'present' : (veryEarly.length ? 'clear' : 'n/a'),
@@ -606,9 +552,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
     // ── Recovery time ────────────────────────────────────────────────────────
     const ff8b = earlyBlocksWithShortRecovery(seq);
     // The WORST block is ONE block, chosen by a stated rule — the fewest rest days after it, then the
-    // longest — and described whole, where it starts included. The longest length taken from one
-    // block and the fewest rest days from another described a block the design does not contain
-    // (whole-app review, Nov 2026).
+    // longest — and described whole, never figures from two blocks describing one that does not exist.
     const ff8bWorst = ff8b.reduce((w, b) =>
         (b.restDays < w.restDays || (b.restDays === w.restDays && b.blockLength > w.blockLength) ? b : w), ff8b[0]);
     add({ code: 'FF8b', family: 'Recovery time', title: 'Fewer than 2 days rest after a block of early starts',
@@ -627,19 +571,10 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
                 : '') });
 
     // ── Cumulative ───────────────────────────────────────────────────────────
-    // ── FF10 AND FF15 CARRIED THE SAME DEFECT, AND FF15's WAS LIVE (v21.98) ─────────────────
-    // Both used a plain run scan, so a cover week — whose duties have no times and therefore fail
-    // any predicate — ENDED the run. Measured on the shipped default design, FF15 reported a
-    // longest early-shift run of 3 with a green tick against a worst case of 6, over a threshold of
-    // 4. A factor that goes quiet whenever a cover week lands mid-block is the false-assurance
-    // failure this module's header names as its dominant risk, and it was two rows wide.
-    //
-    // `requireMatch` is the other half. A cover week may EXTEND a run and must not CREATE one: at
-    // the default, no duty anywhere is over twelve hours, and without it FF10 would report a run of
-    // four made entirely of unknowns — a finding about nothing, on the row that exists to find
-    // something.
-    // A 12-HOUR shift is twelve hours or more (whole-app review, Oct 2026). It read "more than
-    // twelve", so a run of exactly-12h days — the commonest 12h duty there is — never fired.
+    // FF10 and FF15 measure runs with `runLengthsWhere`, never a plain scan, and `requireMatch`: see
+    // the header ("A cover week is an unknown, not a no").
+    // A 12-HOUR shift is twelve hours or more: "more than twelve" never fired on exactly-12h days,
+    // the commonest 12h duty there is.
     const is12h = (/** @type {any} */ s) => (dutyMinutes(s) ?? 0) >= 12 * 60;
     const runs10 = runLengthsWhere(seq, is12h, { requireMatch: true });
     const ff10 = runs10.length ? Math.max(...runs10) : 0;
@@ -657,14 +592,12 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 12 consecutive day shifts',
         status: consec > 12 ? 'present' : 'clear', value: consec, threshold: 12 });
 
-    // THE VERDICT IS ON A COVER WEEK'S WORST CASE (17 Nov 2026), as every run above is. It was on the
-    // FLOOR — a cover week as no hours — so Balanced V6 read CLEAR at 50.9 while one of its cover
-    // weeks falling badly comes to over 60, and Links' Design checks said 3 factors present where
-    // the New link page, from the pack's worst case, said 4. The figure shown is the worst case, the
-    // floor beside it in the sentence, as `_spareCaveat` does for a run. Both are MINUTES first:
-    // the verdict is never asked of a rounded figure (`_hours55`).
+    // THE VERDICT IS ON A COVER WEEK'S WORST CASE (17 Nov 2026), as every run above is — on the floor,
+    // Balanced V6 read CLEAR at 50.9 while a cover week falling badly comes to over 60. The figure shown
+    // is the worst case, the floor beside it in the sentence, as `_spareCaveat` does for a run. Both are
+    // MINUTES first: the verdict is never asked of a rounded figure (`_hours55`).
     const floor7 = maxMinutesInAny7Days(seq), worst7 = worstMinutesInAny7Days(seq), over55 = worst7 > 55 * 60;
-    // The cover week's duties, from the constant and in ONE clause for both sentences (whole-app check, Nov 2026).
+    // The cover week's duties, from the constant and in ONE clause for both sentences.
     const coverDuties = `its ${SPARE_WORKED_DAYS} duties on Monday to Saturday`;
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 55 hours worked in any 7-day period',
         status: over55 ? 'present' : 'clear', value: _hours55(worst7), threshold: 55,
@@ -674,27 +607,14 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
                 : `${_hours55(worst7)} hours in the worst case, and ${_hours55(floor7)} on the duties the link fixes. A cover week's times are not yet assigned, so ${coverDuties} are placed as badly as they can be and its Sunday is worked as overtime, each counted as ${COVER_DUTY_WORDS}.`
                   + (over55 && floor7 <= 55 * 60 ? ' Over 55 only if a cover week falls that way — and the worst case is what is reported, as for every run in this panel.' : '') });
 
-    // ── THE TWO ROWS THAT WERE MISSING (v21.97) ─────────────────────────────
-    // Added when the ORR source was read for the first time. It carries FOUR MRSF rows in this
-    // family; this module implemented two. See the header — neither 23 nor 24 was the right count.
+    // ── THE ORR SHEET'S OTHER TWO MRSF ROWS (see the header) ────────────────
 
-    // "More than 7 consecutive 8h shifts". The tightest consecutive-working rule on the page and
-    // the one most likely to bite THIS link, whose duties are around eight hours: FF11 allows 13
-    // shifts between 48h breaks, and this allows 7. "8h shifts" has more than one defensible reading
-    // and the choice changes what fires; the owner settled it on 28 Sep 2026, so the row carries no
-    // `confirm` (see the line above the `add`).
-    //
-    // Read here as EIGHT HOURS OR MORE, which is the direction that reports rather than the one
-    // that stays quiet — a nine-hour duty is not less fatiguing than an eight-hour one, and this
-    // module's stated failure mode is false assurance, not noise. The alternatives are "about 8h"
-    // (a band nobody has drawn) and "exactly 8h" (which would exclude most of this link and make
-    // the row silent on the designs it exists for).
-    // `runLengthsWhere`, NOT `longestRunOf` — and the difference is the whole row. A plain run scan
-    // treats a cover week as a BREAK, because a spare day has no times and fails the predicate: on
-    // the shipped default design that reported 5 and a green tick, against a worst case of 8 and a
-    // threshold of 7. A spare day is an UNKNOWN, not a no. The shared helper counts it towards the
-    // run, capped at four a week, which is the same reading FF11 and the longest-run check already
-    // use — one rule, three questions.
+    // "More than 7 consecutive 8h shifts" — read as EIGHT HOURS OR MORE, the direction that reports
+    // rather than stays quiet (a nine-hour duty is not less fatiguing; "exactly 8h" would silence the
+    // row on this link). Settled by the owner on 28 Sep 2026, so no `confirm`.
+    // `runLengthsWhere`, NOT `longestRunOf` — the difference is the whole row: a plain scan treats a
+    // cover week as a BREAK, and the default design read 5 with a green tick against a worst case of 8
+    // over a threshold of 7.
     const runs8 = runLengthsWhere(seq, s => (dutyMinutes(s) ?? 0) >= 8 * 60, { requireMatch: true });
     const eightPlus = runs8.length ? Math.max(...runs8) : 0;
     const certain8 = longestRunOf(seq, s => (dutyMinutes(s) ?? 0) >= 8 * 60);
@@ -711,12 +631,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
             + ' tiring than an eight-hour one.' });
 
     // "More than 6 consecutive night or early shifts in a permanent pattern". NOT APPLICABLE to a
-    // link, and it renders saying so rather than being left out. A link is a rotating pattern by
-    // construction — everyone moves one line a week — so the permanent-pattern rule cannot apply,
-    // and FF15 above is its rotating counterpart at a threshold of 4. Omitting it would leave the
-    // panel quietly two rows short of the source it cites, which is how the count went wrong in
-    // the first place; the module's own rule is that not-applicable, clear and standing are three
-    // different answers and none of them is silence.
+    // link (a rotating pattern by construction; FF15 is its rotating counterpart), and it renders
+    // saying so rather than being left out: not-applicable, clear and standing are three different
+    // answers and none of them is silence.
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 6 consecutive night or early shifts in a permanent pattern',
         status: 'n/a', value: 'rotating pattern',
         detail: 'This link is a rotating pattern, so the permanent-pattern rule does not apply. '
@@ -732,50 +649,23 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
         value: `${rot.backward} backward / ${rot.forward} forward`,
         detail: 'ORR defines backward rotation as starting a shift earlier than the previous one, and asks for forward-rotating patterns (Managing rail staff fatigue, 7.67–7.68). Counted as steps within a working block; present when backward steps outnumber forward ones.' });
 
-    // FF18 — THE CADENCE IS STANDING, THE STEP IS THE DESIGN CHOICE (v19.69).
+    // FF18 — THE CADENCE IS STANDING, THE STEP IS EXTRA INFORMATION.
     //
-    // This row reported a HARDCODED `standing` from v19.46 to v19.68, which broke this module's own
-    // "never hardcode a status" rule for the second time (FF13 was the first, v19.48). It was
-    // written when the plan read the factor as being about the weekly CADENCE — and since a link
-    // moves everyone one line a week by construction, that reading makes every design identical and
-    // the row informationless.
-    //
-    // The owner corrected that reading (Aug 2026): the concern FF18 names is the SIZE OF THE STEP.
-    // A rotation whose consecutive lines sit close together asks far less of the body clock than one
-    // where they do not. The cadence is fixed; the step is a real design choice — and since v19.58
-    // it is measurable, by the same `scoreOrder` the generator's line-order switches optimise.
-    //
-    // So the row now reports THIS design: the typical week-to-week move, the worst one, and how many
-    // of the boundaries exceed two hours.
-    //
-    // WHY THE STATUS STAYS `standing` WHEN IT IS MEASURABLE, rather than turning `present` above
-    // some figure: the ORR gives no threshold for FF18, and inventing one would be exactly the
-    // pass/fail rendering this panel must never produce. A weekly rotation IS present in every link,
-    // unavoidably, which is what `standing` means. The measurement belongs in the value, where it
-    // informs without pretending to adjudicate. The derived branch is REAL: a design with no timed
-    // lines at all (every line SPARE) has no measurable step, and a row that cannot be computed does
-    // not get to claim anything — that is `n/a`, and it is what the FF13 lesson was about.
-    //
-    // The 2h figure is not invented either: it is the ORR's own FF19 threshold, and the week
-    // boundary is precisely the "across rest days" reading FF19's own detail flags as unconfirmed.
-    // The owner checked it against ORR on 28 Sep 2026, so it no longer carries `confirm: true`.
-    // Lines 1..lines, like every other rule here — NOT the keys the design happens to carry. A design
-    // saved at an older, longer rotation still stores its surplus lines, and walking the keys counted
-    // those hidden lines and lapped at the wrong boundary. A missing line is unmeasurable, not skipped.
+    // NEVER HARDCODE THIS STATUS (it was, twice, in this module). The row reports THIS design's
+    // week-to-week step — typical, worst, and how many boundaries exceed 2h (the ORR's own FF19
+    // threshold) — by the same `scoreOrder` the line-order switches optimise. It stays `standing` when
+    // measurable, never `present` above some figure: the ORR gives no threshold for FF18, and inventing
+    // one is the pass/fail rendering this panel must never produce. A design with no timed line has no
+    // measurable step and claims nothing: `n/a`.
+    // Lines 1..lines, like every other rule here — NOT the keys the design carries: a design saved at an
+    // older, longer rotation stores surplus lines. A missing line is unmeasurable, not skipped.
     const ff18Order = Array.from({ length: lines }, (_, i) => String(i + 1));
     const adj = scoreOrder(patterns, ff18Order);
-    // Measurable iff at least one BOUNDARY actually produced a step — never merely "fewer
-    // unmeasurable boundaries than `lines`". The first version tested `adj.unmeasurable < lines`
-    // while walking only the keys the design had, so an EMPTY
-    // design (0 keys, 0 unmeasurable, 28 claimed) passed as measurable and reported "typically
-    // 0h 0m a week" — a confident figure about a design with no shifts in it, which is precisely
-    // the flattery this module exists to prevent. Found by the v19.70 regression pass, not by the
-    // v19.69 tests, because those all passed `lines` equal to the key count.
+    // Measurable iff at least one BOUNDARY actually produced a step — an empty design must never report
+    // "typically 0h 0m a week".
     const stepMeasurable = ff18Order.length - adj.unmeasurable > 0;
-    // NOT-APPLICABLE only when no line carries a time at all (48-hour review). Walking lines 1..lines
-    // made a part-built design whose drawn lines are not NEIGHBOURS — lines 1, 3 and 5 — measure no
-    // boundary, and it reported "No line carries a start time", which is false. The weekly cadence
-    // still applies to it, so it stays `standing` and says why no step can be measured yet.
+    // NOT-APPLICABLE only when no line carries a time at all: a part-built design whose drawn lines are
+    // not NEIGHBOURS (1, 3, 5) measures no boundary but stays `standing`, saying why.
     const anyTimed = timed.length > 0;
     // FF18 SETTLED 28 Sep 2026 (owner, on ORR's text): ORR's concern is how OFTEN a person's shift type
     // changes — rapid (about two days per shift type) or slow (about 21) rotation "may be preferable to
@@ -813,11 +703,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
         ['FF14', 'More than 4 consecutive nights in a rotating pattern'],
         ['FF16', 'More than 3 consecutive night shifts over 8h'], ['FF20', 'First night shift'],
     ]) {
-        // FAMILY IS 'Night shifts', not 'Night (not applicable)' (v19.52). The family names a group;
-        // whether it APPLIES is per-row `status` and changes with the design. Baking the verdict into
-        // the group name meant the UI, which renders the family as a heading, printed
-        // "Night (not applicable)" above seven rows that had all just turned `present` — an
-        // all-clear headline over the exact state this family exists to make loud.
+        // FAMILY IS 'Night shifts', not 'Night (not applicable)': the family is a heading, and whether
+        // it APPLIES is per-row `status` — a verdict in the name would print an all-clear over rows
+        // that had turned `present`.
         add({ code, family: 'Night shifts', title,
             status: nights.length ? 'present' : 'n/a',
             detail: nights.length ? 'A night duty is present, so this factor now needs assessing.' : undefined });
@@ -826,10 +714,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
     // FF13 IS the short-turnaround check, so the rule is read from runDesignChecks rather than
     // reimplemented — the two must never disagree about the same design.
     //
-    // The status was hardcoded `clear` for one version, which is worse than the silence this module's
-    // header warns about: a design with a 6h25m turnaround showed the short-turnaround check in amber
-    // and, directly beneath it, FF13 with a GREEN TICK. An affirmative all-clear on a factor that is
-    // present. Never hardcode a status here — if a factor cannot be computed, it does not get a tick.
+    // Never hardcode a status here (a hardcoded `clear` put FF13's GREEN TICK beneath an amber 6h25m
+    // turnaround) — if a factor cannot be computed, it does not get a tick.
+
     const ff13 = runDesignChecks(patterns, lines).turnarounds;
     const worst = Math.min(...ff13.map(t => t.restMinutes));   // read only when there is one
     // A negative shortest rest is an OVERLAP (a duty past midnight into a next-day start before its own

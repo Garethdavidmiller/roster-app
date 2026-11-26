@@ -16,8 +16,7 @@
  * Tested by links-design.test.mjs (the constructions), links-contract.test.mjs (the refusals),
  * links-adjacency.test.mjs and links-default-targets.test.mjs.
  *
- * Moved out of links-design.js on 25 Nov 2026, when that module reached its line cap — the code and
- * every comment beside it unchanged. Its rules that must survive an edit:
+ * Its rules that must survive an edit:
  *
  * `generateLink` groups slots into WAVES by start time (within `WAVE_SPAN_MINUTES`, the FF19
  * threshold) and gives each wave a contiguous block of lines, so a line never leaves its wave.
@@ -32,8 +31,8 @@
  * owns the SHAPE; `links-adjacency.js` owns the ORDER. A test fails if the interleave returns.
  *
  * **`generateLink` REFUSES targets that do not pay the contracted week EXACTLY** — the mean
- * `weeklyHours` reports (links-design.js), `short-hours` (v20.98) and
- * `over-hours` (v20.99). The check is on the TARGETS, because the arithmetic is settled before a
+ * `weeklyHours` reports (links-design.js), `short-hours` and
+ * `over-hours`. The check is on the TARGETS, because the arithmetic is settled before a
  * cell is laid out and no arrangement can rescue a table that asks for the wrong amount of work.
  * A permanent surplus is not a lesser fault than a shortfall: it commits the rotation to overtime
  * it never declared. Read the note at the check before adding a tolerance — an equality over whole
@@ -52,19 +51,15 @@ import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, CONTRACTED_HOURS_PER_WEEK,
  * each with its own time and per-day-class headcount, rather than a single
  * "early" and "late".
  *
- * TWO CONSTRUCTIONS, and the DEFAULT changed at v19.59. `generateLink` tries the
- * settled-week construction first and falls back to the original rotating window
- * only when the targets cannot be met that way. Which one ran is REPORTED, never
- * silent — the two produce visibly different designs.
+ * TWO CONSTRUCTIONS. `generateLink` tries the settled-week construction first and
+ * falls back to the rotating window only when the targets cannot be met that way.
+ * Which one ran is REPORTED, never silent — the two produce visibly different designs.
  *
- * ── 1. SETTLED WEEKS (default, v19.59) ─────────────────────────────────────
- * Measured against the real roster, the old construction was giving people a week
- * nobody at Marylebone has ever worked. Within-week start spread averaged 7h58 and
- * EVERY line exceeded 4h; the real main roster averages 3h44 with 7 of 16 above 4h,
- * because it hands out WEEKS — week 2 is all lates, week 3 all earlies, week 9 all
- * 11:00 middles. FF19 (successive starts more than 2h apart) counted 6 on the real
- * roster and 29 on the generated one. The tool reports FF19, and its own generator
- * was the thing inflating it.
+ * ── 1. SETTLED WEEKS (default) ─────────────────────────────────────────────
+ * The real roster hands out WEEKS — week 2 all lates, week 3 all earlies, week 9 all
+ * 11:00 middles: within-week start spread averages 3h44, where the rotating window
+ * averaged 7h58 with EVERY line over 4h, and FF19 counted 6 on the real roster
+ * against 29 on the generated one.
  *
  * So: group the slots into WAVES — start times within `WAVE_SPAN_MINUTES` of each
  * other, the same 2h threshold FF19 uses — give each wave a contiguous BLOCK of
@@ -72,29 +67,25 @@ import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, CONTRACTED_HOURS_PER_WEEK,
  * decide who works which day. A line therefore stays in one wave all week: its exact
  * time can move between 06:20 and 07:15, never between 06:20 and 15:25.
  *
- * Waves rather than exact times, deliberately. Per-TIME blocks are infeasible here —
- * the roster seed produces 23 distinct times over 24 working lines, and several are
- * Saturday-only, so a block per time would need more lines than exist. Waves are also
- * what the real roster does: line 3 works 06:20-14:20 midweek and 06:20-14:00 on the
- * Saturday. Grouping by the FF19 threshold means the within-week movement this
- * construction still allows is, by definition, movement FF19 does not count.
+ * Waves rather than exact times, deliberately: the roster seed has about as many
+ * distinct times as working lines, several Saturday-only, so a block per time would
+ * need more lines than exist. Waves are what the real roster does (line 3 works
+ * 06:20-14:20 midweek and 06:20-14:00 on the Saturday), and grouping by the FF19
+ * threshold means the movement left is, by definition, movement FF19 does not count.
  *
  * ── 2. ROTATING WINDOW (fallback) ──────────────────────────────────────────
  * Picture the lines around a wheel. Each day a window of consecutive lines is on duty
  * and slides forward a few lines, completing exactly one lap per week. Within the
  * window slots run latest-start at the front, earliest at the back.
  *
- * Its documented promise — "a person's week only moves later, never a late finish
- * then an early start" — was NOT TRUE and is now enforced rather than asserted
- * (v19.59). Positions are read mod `working`, so every line wraps from the front of
- * the order to the back exactly once a week; that wrap IS a late-finish-to-early-start
- * step, and it lands on a rest day only when the day's target leaves enough lines
- * resting. At high staffing it does not: with all three slots filling every line of
- * the then-28-line rotation the construction produced **27** short turnarounds, `15:15-23:55` into
- * `06:20-14:20` — 6h25 rest — and the test that "asserted" the promise used a fixture
- * staffing 13 of 24 lines, where the wrap always landed on RD.
+ * Its old promise — "a person's week only moves later, never a late finish then an
+ * early start" — was NOT TRUE, so it is enforced rather than asserted. Positions are
+ * read mod `working`, so every line wraps front to back once a week; that wrap IS a
+ * late-finish-to-early-start step, landing on a rest day only when the day's target
+ * leaves enough lines resting (at full staffing: 27 turnarounds of 6h25, `15:15-23:55`
+ * into `06:20-14:20`).
  *
- * The strides are no longer near-equal. Each day's stride is capped at
+ * So the strides are not near-equal. Each day's stride is capped at
  * `working − (next day's total)`, which is exactly the condition for every wrapping
  * line to be resting the following day, and the lap is distributed in proportion to
  * those caps. When the caps cannot sum to a full lap the targets leave less than one
@@ -104,18 +95,11 @@ import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, CONTRACTED_HOURS_PER_WEEK,
  * Daily targets are met EXACTLY by both constructions (the window size equals the
  * target headcount for that day).
  *
- * SPARE IS A WHOLE WEEK, NOT A SCATTER OF DAYS (v19.58, owner). A spare line is
- * spare on all seven days: you are cover, you work four days of that week, and
- * you can be put on any range of shifts. The real roster is built this way —
- * main lines 1, 7, 12 and 17 are `SPARE` on every day, and there is not one
- * scattered spare day anywhere in it.
- *
- * The previous model took a per-day-class spare HEADCOUNT and fed it to the
- * window as one more segment. Because the window slides daily, that gave each
- * person spare on some days and a timed duty on others — the opposite of a
- * spare week, and a shape the roster has never had. Daily SP headcount came out
- * right, which is why it went unnoticed: the total was correct and the
- * distribution was wrong.
+ * SPARE IS A WHOLE WEEK, NOT A SCATTER OF DAYS (owner). A spare line is spare on
+ * all seven days: you are cover, you work four days of that week, and you can be
+ * put on any range of shifts — as the real roster's main lines 1, 7, 12 and 17. (A
+ * per-day spare headcount fed to the sliding window scattered spare days across
+ * people while the daily SP total stayed right.)
  *
  * So `spareLines` whole lines are reserved and spread evenly around the wheel,
  * and the rotation is built over the REMAINING lines. Daily targets are still
@@ -127,8 +111,8 @@ import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, CONTRACTED_HOURS_PER_WEEK,
  * simply a third day class with its own headcount, exactly like `weekday` and `sat`. Nothing in this
  * module, `runDesignChecks` or `links-fatigue.js` treats a Sunday duty as voluntary.
  *
- * That is mostly harmless — the cover still has to be found, and for FATIGUE purposes an hour worked
- * is an hour worked however it is paid — but two readings do change:
+ * Mostly harmless (for FATIGUE an hour worked is an hour worked however it is paid), but two readings
+ * change:
  *   · the Sunday column is cover you HOPE to fill, not cover you can require, so a Sunday target the
  *     generator meets exactly is a plan rather than a commitment;
  *   · "weekends off" counts Sat-not-worked plus Sun-not-worked, and a Sunday you do not work is the
@@ -165,10 +149,8 @@ const CLASS_DAYS = /** @type {Record<string, number>} */ ({ weekday: 5, sat: 1, 
  * The ex-Sunday duty a TARGET TABLE asks for, in minutes per week of rotation.
  *
  * Sunday counts are read and deliberately discarded: Sunday is not contracted, so a Sunday duty
- * sits on TOP of the contracted week and can never help a design reach it. Folding it in would let
- * a link that pays people short look compliant by rostering more Sundays — which is the same
- * flattering error `weeklyHours` excludes Sundays to avoid, arriving from the targets instead of
- * from the patterns.
+ * sits on TOP of the contracted week — folded in, a link paying people short would look compliant
+ * by rostering more Sundays (the flattery `weeklyHours` excludes Sundays to avoid).
  *
  * Minutes, not hours, because the comparison it feeds is an equality: `working x 35h` is a whole
  * number of minutes, every duty is a whole number of minutes, and rounding to hours first is how
@@ -225,19 +207,14 @@ const waveNeed = (/** @type {Array<any>} */ group) =>
  * time. Returns a new wave list; deterministic, and it always terminates because each pass removes
  * one wave.
  *
- * WHY (measured, v19.59). Splitting purely on the 2h span left the roster seed with a wave holding
- * only the two 08:30 weekend slots — 2 duties, but a floor of 1 line, so one whole line existed to
- * work Saturday and Sunday and nothing else. Days worked per line came out 2 to 6 where the real
- * roster runs 3 to 6 clustered at 5, and the old rotating construction — whose single global window
- * shares the work across every line — was FAIRER. A shape improvement paid for with an unfair link
- * is not an improvement.
+ * WHY (measured). Splitting purely on the 2h span left a wave of only the two 08:30 weekend slots,
+ * so one whole line worked Saturday and Sunday and nothing else (days worked per line 2 to 6, where
+ * the real roster runs 3 to 6 clustered at 5). A shape improvement paid for with an unfair link is
+ * not an improvement. The real roster does the same: line 3's weekend duty comes from its own wave.
  *
- * The real roster solves it the same way: line 3 works 06:20-14:20 midweek and 06:20-14:00 on the
- * Saturday, so its weekend duty comes from its own wave rather than from a weekend-only line.
- *
- * Merging widens a wave past the FF19 threshold (06:20…08:30 is 2h10), so the movement inside it can
- * be a factor the panel counts. That is the right way round: the panel reports it, and a link where
- * somebody works two days a week is the worse answer with nothing to report it at all.
+ * Merging widens a wave past the FF19 threshold (06:20…08:30 is 2h10), so its movement can be a
+ * factor the panel counts — the right way round: the panel reports it, where a two-day line would
+ * report nothing.
  * @param {Array<Array<any>>} waves
  * @param {number} working
  */
@@ -306,10 +283,9 @@ function allocateWaveLines(waves, working) {
  * Window starts for a block of `n` lines: strides sum to `n`, one lap per week, and the movement is
  * spread ACROSS the seven days rather than front-loaded into the first few.
  *
- * The obvious `base + (i < rem)` form is wrong for a small block and quietly unfair (v19.59). With
- * n = 3 it gives strides [1,1,1,0,0,0,0], so the window laps in three days and then sits still from
- * Wednesday to Saturday — the same lines work all four of those days and one line catches almost
- * nothing. Measured on the roster seed it produced a line working TWO days a week.
+ * The obvious `base + (i < rem)` form is wrong for a small block and quietly unfair: with n = 3 it
+ * gives strides [1,1,1,0,0,0,0], so the window sits still Wednesday to Saturday and one line works
+ * TWO days a week.
  *
  * `floor((i+1)·n/7) − floor(i·n/7)` distributes the same total evenly (n = 3 → [0,0,1,0,1,0,1]),
  * which shares the work out exactly: all three lines get four days instead of 6/4/2.
@@ -359,8 +335,8 @@ function cappedStarts(working, totals) {
 }
 
 /**
- * THE WAVES ARE DEALT IN CONTIGUOUS BLOCKS, AND INTERLEAVING THEM HERE WAS TRIED AND REVERTED
- * (v19.60). Read this before "fixing" it again.
+ * THE WAVES ARE DEALT IN CONTIGUOUS BLOCKS, AND INTERLEAVING THEM HERE WAS TRIED AND REVERTED.
+ * Read this before "fixing" it again.
  *
  * Laying the waves out contiguously means every morning line, then every middles line, then every
  * afternoon line — and since you move one line a week, that is **11 consecutive weeks of mornings
@@ -432,22 +408,17 @@ function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** 
 /**
  * Repair every turnaround shorter than the minimum rest, by SWAPPING TWO LINES' DUTIES ON ONE DAY.
  *
- * ── WHY A SWAP, AND WHY WITHIN A SINGLE DAY COLUMN (v21.11) ────────────────────────────────────
+ * ── WHY A SWAP, AND WHY WITHIN A SINGLE DAY COLUMN ─────────────────────────────────────────────
  *
  * Owner, Aug 2026: "It keeps offering me a gap of 11 hours 45 minutes between a shift. That would
- * never be allowed by Chiltern." It was right — the generated default put a Sunday 09:05–18:35 in
- * front of a Monday 06:20 open, 11h45 apart against a 12-hour minimum — and the app only REPORTED
- * it, in the Design checks, after building it. A minimum rest period is not an observation about a
- * design; it is a condition of one being legal, which is the same class of statement as the
- * contract, and the contract is refused rather than reported.
+ * never be allowed by Chiltern." A minimum rest period is a condition of a design being legal, like
+ * the contract, so it is a GATE, not a finding.
  *
- * The construction cannot easily be taught the rule: it is a sliding window whose stride arithmetic
- * decides feasibility, and adding a per-cell constraint to it risks making ordinary tables
- * unbuildable for reasons no message could explain. So the repair runs AFTER, and it is a swap
- * because a swap is the one edit that **changes nothing anybody asked for**. Exchanging two lines'
- * duties in the same day column leaves that day's headcount on every shift time exactly as it was,
- * so the targets, the contract, the coverage heat map and the demand fit are all untouched by
- * construction rather than by re-checking. Only WHO works WHICH duty moves.
+ * The construction's stride arithmetic cannot easily take a per-cell constraint, so the repair runs
+ * AFTER, and it is a swap because a swap **changes nothing anybody asked for**: two lines' duties
+ * exchanged in one day column leave that day's headcount on every shift time as it was, so the
+ * targets, the contract, the heat map and the demand fit are untouched by construction. Only WHO
+ * works WHICH duty moves.
  *
  * ── WHAT IT WILL AND WILL NOT TRADE ────────────────────────────────────────────────────────────
  *
@@ -457,7 +428,7 @@ function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** 
  * unchanged either way — the duty still exists — but an individual line's is not, which is why it
  * is the second choice and not the first.
  *
- * SPARE lines are never touched. A spare week is a whole week (v19.58); swapping a duty into one
+ * SPARE lines are never touched. A spare week is a whole week; swapping a duty into one
  * would silently turn a cover week into a working week with six spare days, which is a different
  * thing wearing the same word.
  *
@@ -514,7 +485,7 @@ export function repairShortRest(patterns, lines = ROTATING_LINES, minRest = MIN_
         const bad = breaches();
         if (!bad.length) break;
         let done = false;
-        // Either duty of the pair can move: the LATER first, as before; the EARLIER only if no swap of it works (Nov 2026).
+        // Either duty of the pair can move: the LATER first; the EARLIER only if no swap of it works.
         for (const { w, d } of [{ w: bad[0].line, d: bad[0].day }, prevOf(bad[0].line, bad[0].day)]) {
             if (done || isSpareLine(w)) continue;         // cannot move a cover week's day
             const mine = at(w, d);
@@ -542,9 +513,8 @@ export function repairShortRest(patterns, lines = ROTATING_LINES, minRest = MIN_
  * Generate a link, reporting WHICH construction produced it.
  *
  * `generatePatterns` is the thin wrapper that returns only the patterns; it keeps the older
- * signature, which the construction tests are written against — the page itself calls this one,
- * because the mode matters — the two constructions give visibly different designs, and a designer who
- * is not told which they got cannot account for the difference.
+ * signature the construction tests use. The page calls this one, because the two constructions give
+ * visibly different designs and a designer must be told which they got.
  *
  * @param {Object} opts
  * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
@@ -557,9 +527,8 @@ export function repairShortRest(patterns, lines = ROTATING_LINES, minRest = MIN_
  *            reason: string|null, askedMinutes?: number, needMinutes?: number, working?: number,
  *            shortRest?: number, shortRestCount?: number}}
  *   The extra fields accompany a REFUSAL and nothing else. `askedMinutes`/`needMinutes`/`working`
- *   belong to `short-hours` and `over-hours`, `shortRest`/`shortRestCount` to `short-rest`. They are
- *   the whole actionable content of those refusals — a caller told merely that the targets are wrong
- *   cannot say by how much, and the gap is the only number a designer can do anything with.
+ *   belong to `short-hours` and `over-hours`, `shortRest`/`shortRestCount` to `short-rest`: the gap
+ *   is the whole actionable content of those refusals.
  */
 export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, settled = true,
                                requireContract = true, requireRest = true }) {
@@ -585,48 +554,30 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
         totalFor[cls] = total;
     }
 
-    // ── THE CONTRACT IS A CONSTRAINT ON THE TARGETS, NOT A REPORT ON THE RESULT (v20.98) ────────
+    // ── THE CONTRACT IS A CONSTRAINT ON THE TARGETS, NOT A REPORT ON THE RESULT ─────────────────
     //
     // Owner, Aug 2026: a generated link must average exactly the contracted week ex-Sunday, and one
-    // that falls short must not be produced at all.
+    // that misses must not be produced at all. Checked against the TARGETS: the duty a table asks for
+    // and the working lines are fixed before a cell is laid out, so no arrangement can rescue it.
     //
-    // It is checked HERE, against the targets, rather than against the finished patterns — and the
-    // difference is not tidiness. The arithmetic is settled before a single cell is laid out: the
-    // duty a target table asks for is fixed, the working lines are fixed, and every construction
-    // places exactly those duties on exactly those lines. So no arrangement can rescue a short
-    // table, and a check on the output would be re-measuring an answer already determined by the
-    // input — reporting a build failure for what is really a decision about how much work there is.
-    //
-    // BOTH DIRECTIONS (v20.99, owner). v20.98 refused only a short table, on the reasoning that a
-    // surplus is workable — it gets paid as overtime or absorbed by adding lines. That was the wrong
-    // reading of the instruction. The rule is not a floor, it is an equality: a link IS the
-    // contracted week, and a design carrying a permanent surplus is a design that has quietly
-    // committed the rotation to overtime it never declared. Both refusals therefore say the same
-    // thing in opposite directions, which is why they share their arithmetic and their fields and
-    // differ only in the verb the caller uses.
+    // BOTH DIRECTIONS (owner): the rule is an equality, not a floor — a permanent surplus quietly
+    // commits the rotation to overtime it never declared. The two refusals share their arithmetic and
+    // fields, and differ only in the verb the caller uses.
     //
     // ⚠️ AN EQUALITY OVER WHOLE DUTIES IS NOT ALWAYS SATISFIABLE, and that is not a defect to
-    // tolerance away. `working x 35h` is a fixed number of minutes; a target table can only move in
-    // steps of one duty, so a set of shift times whose lengths do not combine to that total has NO
-    // valid table — the generator will refuse everything until a duty is lengthened, shortened or a
-    // cover week is added or removed. The refusal names the gap in both directions precisely so the
-    // designer can see which of those to reach for. A tolerance would hide the same problem behind a
-    // design that is silently a few hours out, which is what v20.98 replaced.
+    // tolerance away: shift times whose lengths do not combine to `working x 35h` have NO valid table
+    // until a duty is lengthened, shortened or a cover week added or removed. The refusal names the gap
+    // in both directions so the designer can see which to reach for; a tolerance would hide it behind
+    // a design silently a few hours out.
     //
-    // MINUTES, and an exact comparison. `working x 35h` is a whole number of minutes and every duty
-    // is a whole number of minutes, so "exactly" can be meant literally; rounding to hours first is
-    // how exactly-35 quietly becomes about-35.
+    // MINUTES, and an exact comparison: rounding to hours first is how exactly-35 becomes about-35.
     // ── THE OPT-OUT, AND WHY IT IS NOT A BACK DOOR ──────────────────────────────────────────────
     //
     // `requireContract` defaults ON, so every real call is gated: `links-app.js` never passes it,
     // and `links-contract.test.mjs` fails if it ever does. What passes `false` is the
     // CONSTRUCTION tests — wave containment, spare spread, turnarounds, fairness — whose fixtures
-    // describe a rotation shape rather than a week's worth of work.
-    //
-    // Making those fixtures carry 35 hours was tried first and rejected: an exact-fit target set
-    // exists, but adopting it would change which waves merge and how the load spreads, which are
-    // the very things those tests assert. Altering a scenario to satisfy an unrelated rule leaves
-    // the test green and no longer about what it says it is about.
+    // describe a rotation shape rather than a week's worth of work (an exact-fit fixture would change
+    // which waves merge and how the load spreads, the very things those tests assert).
     if (requireContract) {
         const askedMin = targetExSundayMinutes(/** @type {any} */ (slots));
         if (askedMin === null) return fail('bad-time');
@@ -684,10 +635,9 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
 /**
  * The last gate before a design leaves the generator: no turnaround under the minimum rest.
  *
- * It REPAIRS first and refuses only if it cannot (v21.11). The refusal names the shortest remaining
- * gap because that is the whole actionable content — a designer told merely that the rest is wrong
- * cannot see which pair of times to move, and the fix is always a shift time rather than anything
- * about the rotation.
+ * It REPAIRS first and refuses only if it cannot (invariant 4). The refusal names the shortest
+ * remaining gap — the whole actionable content, as the fix is always a shift time.
+
  *
  * @param {Record<string, any>} patterns @param {'settled'|'rotating'} mode
  * @param {number} waves @param {number} lines @param {boolean} requireRest

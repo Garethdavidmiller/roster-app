@@ -19,77 +19,52 @@
  * compete with EACH OTHER, over the one scarce resource of which line follows which.
  *
  * WHICH IS WHY THEY ARE SWITCHES, NOT A FORMULA (owner, Aug 2026). Turning one on takes freedom from
- * the others, and the honest thing for the tool to do is let you turn each on and SHOW what it cost
- * the rest — not to blend them into a single score that hides the trade. `scoreOrder` returns every
- * figure whatever you optimised for, so the price is always visible.
+ * the others, so the tool lets you turn each on and SHOWS what it cost the rest, rather than blending
+ * them into one score that hides the trade. `scoreOrder` returns every figure whatever you optimised for.
  *
- * THE TRAP, and it is the same one this workspace keeps meeting: **a spare week must not read as a
- * gentle transition.** A spare line carries no times, so the step across it cannot be measured — and
- * an optimiser that scored "unmeasurable" as "no change" would learn to park spare weeks between the
- * two harshest lines in the design and report a beautiful number. That is precisely the false
- * assurance `links-fatigue.js` exists to avoid. Unmeasurable steps are counted and reported
- * SEPARATELY, never folded into the mean.
+ * THE TRAP: **a spare week must not read as a gentle transition.** A spare line carries no times, so
+ * the step across it cannot be measured — scored as "no change", an optimiser would park spare weeks
+ * between the two harshest lines and report a beautiful number (the false assurance
+ * `links-fatigue.js` exists to avoid). Unmeasurable steps are counted and reported SEPARATELY, never
+ * folded into the mean.
  *
- * ── THREE MORE RULES, MOVED HERE FROM CLAUDE.md's FILE TREE (v20.11) ───────────────────────────
+ * ── THREE MORE RULES ─────────────────────────────────────────────────────────────────────────────
  *
- * **The spare spread is charged UNCONDITIONALLY, not as a switch.** Every other term here is a
- * preference; this one protects a guarantee. `generateLink` places the cover weeks evenly and the
- * reorder used to undo that, because clustering them helped the objectives it had been told about —
- * measured on the live seed it returned gaps 9,3,1,7,4 with two ADJACENT, against the generator's
- * 5,5,5,4,5. Two adjacent spare weeks chain into one long run, taking FF11 from 9 to 14: the tool
- * was reporting a fatigue finding of its own making. It is the only term that can make a design
- * WORSE than the one the reorder was handed.
+ * **The spare spread is charged UNCONDITIONALLY, not as a switch.** Every other term is a preference;
+ * this one protects a guarantee: `generateLink` places the cover weeks evenly, and two ADJACENT spare
+ * weeks chain into one long run (FF11 from 9 to 14 — a fatigue finding of the tool's own making). It
+ * is the only term that can make a design WORSE than the one the reorder was handed. **Its weight is
+ * 3000**, because these terms ACCUMULATE at different rates — comparing per-unit weights (500 "above
+ * `variety`'s 400") is the mistake; `cost` holds the measurement. Two tests guard it and neither
+ * replaces the other: one pins 3000 against every switch slipping a unit at once, the other drives a
+ * real generated design through the real optimiser (1500 passes the first while leaving designs uneven).
  *
- * **Its weight is 3000, and the reason it is not 500 is the lesson worth keeping.** 500 was chosen
- * as "above `variety`'s 400" — true per unit, and not the question, because these terms ACCUMULATE.
- * Two units of block excess bid 800, `variety` won, and the default came back uneven. The unit test
- * asserting the priority compared one unit against one unit and passed throughout; **comparing
- * rates between terms that accumulate at different rates is the mistake**, and writing the assertion
- * that way is what made it look settled. 3000 came from measuring 16 design shapes reordered two
- * ways each: total excess 10 at w=500, 7 at 800, 8 at 1200, 7 at 1500, and 0 from 2000 upward — so
- * 3000 sits one step inside the dominating plateau rather than on its edge. Safe to treat as a
- * constraint because excess 0 is ALWAYS reachable (the target is `floor(lines / spares)`) — a
- * dominating weight over an unreachable target sets the optimiser chasing a residual it can never
- * clear. Two tests guard it and neither replaces the other: one pins 3000 against every switch
- * slipping a unit at once, the other drives a real generated design through the real optimiser. The
- * first is necessary and not sufficient — 1500 passes it while still leaving designs uneven.
- *
- * **Rest across the week boundary is a constraint too (v25.06 — it was a switch).** Minimum rest is
- * a gate the generator applies BEFORE the reorder (v21.11), so a switch that let the reorder ignore
- * it was a switch for undoing the gate. It is charged in every configuration and filtered on.
+ * **Rest across the week boundary is a constraint too.** Minimum rest is a gate the generator applies
+ * BEFORE the reorder, so a switch to ignore it would be a switch for undoing the gate. It is charged
+ * in every configuration and filtered on.
  *
  * **`variety` and `gentle` are opposite ends of ONE dial, and `variety` must stay on by default.**
- * Minimising the week-to-week step, taken to its limit, IS a long block of the same shift — the
- * smallest possible step is no step at all. Settling each week and laying the waves out contiguously
- * gave a person 11 straight weeks of mornings and 11 of afternoons; the live roster's longest run on
- * much the same shift is 3, which is `DEFAULT_BLOCK_TARGET`. So `variety` is weighted as a
- * CONSTRAINT (excess × 400): the optimiser alternates, but by the smallest step available — early →
- * middles → late rather than early → late. `blockRuns` treats a SPARE line as TRANSPARENT: a cover
- * week interrupts but does not change what you go back to, and counting it as a break would let four
- * spare weeks hide a 20-week block behind a reported maximum of 4. And it reads the rotation as a
- * CIRCLE, from every line, so what `variety` charges cannot depend on which line is numbered 1.
+ * Minimising the week-to-week step, taken to its limit, IS a long block of the same shift (laid out
+ * contiguously, the waves gave 11 straight weeks of mornings then 11 of afternoons; the live roster's
+ * longest is 3, `DEFAULT_BLOCK_TARGET`). So `variety` is weighted as a CONSTRAINT (excess × 400): the
+ * optimiser alternates by the smallest step available — early → middles → late. `blockRuns` treats a
+ * SPARE line as TRANSPARENT and reads the rotation as a CIRCLE, from every line.
  *
- * `runExcess` is a GRADIENT, never a statistic — it sums excess over every start (a 14-day run also
- * shows as a 13, a 12…) because a maximum is a plateau the 2-opt cannot climb: measured, it stalled
- * at 8 where a random search found 6.
+ * `runExcess` is a GRADIENT, never a statistic (see it).
  *
  * Deterministic PER ATTEMPT: attempt 0 is the greedy start, so the first press is the canonical
- * design. Reading blocks round the circle (10 Nov 2026) left the roster seed's first six presses as
- * they were — the seed every figure in the docs is measured on — and moved the default target set's,
- * measured and the owner's call (`blockRuns`); attempt N ≥ 1 is
- * best-of-three seeded shuffles (mulberry32 on the attempt number — **never `Math.random`, never the
- * clock**), so "design 3" is the same design on every device. The spare spread is a FILTER on
- * candidates as well as a weight: a local search can only pay a price it can find a path away from,
- * and attempt 6's three starts all converged into minima that broke the spread. If all three fail,
- * the attempt falls back to attempt 0 and the status line says so.
+ * design (the roster seed every figure in the docs is measured on); attempt N ≥ 1 is best-of-three
+ * seeded shuffles (mulberry32 on the attempt number — **never `Math.random`, never the clock**), so
+ * "design 3" is the same design on every device. The spare spread is a FILTER on candidates as well
+ * as a weight (see `reorderLines`). If all three fail, the attempt falls back to attempt 0 and the
+ * status line says so.
  */
 import { DAYS, startMinutes, restBetween, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek, isRest, MIN_REST_MINUTES } from './links-design.js';
 
 /** The things the order can be TUNED for — one per checkbox on the generator card, whose `key` is
  *  what `reorderLines` and `cost` read. This array does not draw the switches: they are static markup
  *  in links.html, worded there, so a label changed here changes nothing on screen. Rest across the
- *  week boundary was the sixth until v25.06 and is now a constraint, like the spare spread — see
- *  `cost`. */
+ *  week boundary is a constraint, like the spare spread — see `cost`. */
 export const OBJECTIVES = Object.freeze([
     { key: 'variety',      label: 'Vary the shift type week to week' },
     { key: 'maxRun',       label: 'Cap the shifts in a row' },
@@ -107,7 +82,7 @@ export const GENTLE_THRESHOLD_MINUTES = 2 * 60;
  *  the main 20-week link's longest is 3 and the bilingual 8-week's is 2. */
 export const DEFAULT_BLOCK_TARGET = 3;
 
-// Rest is RD/OFF only — SPARE is NOT rest. `isRest` is links-design.js's, shared with links-fatigue.js (v25.23).
+// Rest is RD/OFF only — SPARE is NOT rest. `isRest` is links-design.js's, shared with links-fatigue.js.
 
 /**
  * The average start time of a line's worked days, or null when it has none that carry a time.
@@ -147,9 +122,8 @@ function _stepBetween(/** @type {number|null} */ pa, /** @type {number|null} */ 
  *
  * **SUNDAY IS NOT CONTRACTED** (owner, Aug 2026), so `days` and `given` are two different answers and
  * both are returned. A Sunday you do not work is the DEFAULT, not something the design granted you:
- * Sat + Sun off is a two-day break but only ONE contracted day given. Rolled into a single number,
- * a design that simply never rosters Sundays would score as generous with weekends while giving
- * nothing away — which is the same flattery this workspace guards against everywhere else.
+ * Sat + Sun off is a two-day break but only ONE contracted day given — one number would flatter a
+ * design that never rosters Sundays.
  *
  * `days` is what the person experiences and is the right figure for fatigue. `given` is what the
  * design actually cost, and is the right figure for judging the design.
@@ -177,36 +151,29 @@ export function breakLength(a, b) {
  */
 export function boundaryRest(a, b) {
     if (!a || !b) return null;
-    return restBetween(a.sat, b.sun);   // the ONE reading of a turnaround (links-design.js, 25 Nov 2026)
+    return restBetween(a.sat, b.sun);   // the ONE reading of a turnaround (links-design.js)
 }
 
 /**
  * Split the rotation into BLOCKS — maximal runs of consecutive lines whose working day stays within
  * `span` of the run's first. "How many weeks in a row am I working much the same time."
  *
- * WHY THIS EXISTS (v19.60, owner). Settling each week fixed one problem and created its opposite:
- * every line sat in one shift wave, but the waves were laid onto the lines in contiguous blocks, so
- * moving one line a week gave **11 straight weeks of mornings then 11 of afternoons**. The live
- * roster's longest block is **3** (bilingual 2). Eleven is not a rota, it is a season, and a long
- * block of lates in particular is the socially punishing one.
+ * WHY THIS EXISTS (owner). Contiguous shift waves gave **11 straight weeks of mornings then 11 of
+ * afternoons**; the live roster's longest block is **3** (bilingual 2). Eleven is not a rota, it is a
+ * season, and a long block of lates in particular is the socially punishing one.
  *
  * Anchored to the run's FIRST line, not to each step. A design that drifts an hour later every week
  * is a gradual drift, not a block; being stuck within 2h of the same start for eleven weeks is.
  *
- * SPARE LINES ARE TRANSPARENT — they neither break a block nor count towards one. A cover week is a
- * genuine interruption, but it does not change what you go back to the week after, and treating it
- * as a break would let four spare weeks hide a 20-week block behind a reported maximum of 4. That is
- * the flattering reading, and it is the one this workspace keeps having to refuse.
+ * SPARE LINES ARE TRANSPARENT — they neither break a block nor count towards one. A cover week does
+ * not change what you go back to the week after, and treating it as a break would let four spare
+ * weeks hide a 20-week block behind a reported maximum of 4.
  *
  * A PROPERTY OF THE CIRCLE (owner, 10 Nov 2026). An anchored walk round a circle partitions it
- * differently depending on where it starts: weeks starting 06:20, 08:30, 07:15, 09:30 read as blocks
- * of 1 and 3 from the first line and 1, 1 and 2 from the 09:30 line. The walk used to start at the
- * first step over `span` in the order it was given, so `variety` charged one rotation two ways
- * depending on which line happened to be numbered 1 — and with no step over `span` at all it charged a
- * gradual drift as one long block. Now it walks from EVERY line and keeps the reading that shows the
- * most weeks stuck on one shift (the longest block first, then the next): the same rotation is charged
- * the same however it is numbered, and its longest block is `longestBlockOf`, the figure a designer
- * is told. It changed the default generated design at attempt 0 — the owner's decision, made knowing.
+ * differently depending on where it starts (06:20, 08:30, 07:15, 09:30 read as 1+3 from the first
+ * line and 1+1+2 from the 09:30 line), so it walks from EVERY line and keeps the reading with the most
+ * weeks stuck on one shift (longest block first, then the next): the same rotation is charged the
+ * same however it is numbered. Its longest block is `longestBlockOf`, the figure a designer is told.
  * @param {Record<string, any>} patterns
  * @param {string[]} order
  * @param {number} [span]
@@ -279,23 +246,12 @@ export function blockExcess(/** @type {number[]} */ runs, /** @type {number} */ 
  * How far the SPARE weeks have been clustered, for a given order — 0 when they are spread as evenly
  * as the rotation allows.
  *
- * ── WHY THE OPTIMISER NEEDS TO BE TOLD THIS (v20.02) ───────────────────────────────────────────
+ * ── WHY THE OPTIMISER NEEDS TO BE TOLD THIS ────────────────────────────────────────────────────
  *
- * `generateLink` reserves whole spare lines and **spreads them evenly around the wheel** — measured
- * on the live seed at 24 lines / 5 spare it places them at 1, 6, 11, 15, 20 (gaps 5, 5, 5, 4, 5).
- * The reorder then ran over the top of that with no objective that cared, and clustering spare weeks
- * happened to help the ones it did care about: the same design came back at 1, 4, 5, 12, 16 — gaps
- * 9, 3, 1, 7, 4, with two spare weeks ADJACENT.
- *
- * That is not cosmetic. Two adjacent spare weeks chain (the first week's four duties at its end, the
- * second's Sunday and its four from the Monday — `worstCaseWorkedRun` documents exactly this), so the reorder was
- * taking FF11 from **9 to 14** on the generator's own output and pushing it past the threshold the
- * panel reports against. The generator got it right and the optimiser undid it, silently, because
- * the objectives it was given had nothing to say about spare weeks.
- *
- * It is a CONSTRAINT, not a switch. Every other objective here is a preference a designer may not
- * want; an even spread of cover is a property the generator already guarantees, and the reorder's
- * job is to improve the order without destroying what it was handed. There is no "cluster the spare
+ * `generateLink` **spreads the spare lines evenly around the wheel** (gaps 5, 5, 5, 4, 5 on a
+ * historical 24-line seed); a reorder with no objective that cared clustered them (gaps 9, 3, 1, 7, 4,
+ * two ADJACENT). Two adjacent spare weeks chain (`worstCaseWorkedRun`), taking FF11 from **9 to 14**
+ * on the generator's own output. It is a CONSTRAINT, not a switch: there is no "cluster the spare
  * weeks" design anyone would ask for.
  *
  * The measure is the shortfall against the largest gap that always fits — `floor(lines / spares)` —
@@ -326,10 +282,9 @@ export function spareSpread(patterns, order) {
  * The longest run of consecutive worked days this order produces, across line boundaries.
  *
  * Delegates to `worstCaseWorkedRun`, which is the ONE reading of a run in this app — so a SPARE week
- * counts as **four** duties of seven and not seven (owner: you are marked spare all week because you
- * are available for cover, but four is what you work, plus possibly an RDW Sunday on top). Counting
- * seven is what reported the live main roster at 15 consecutive days against a true 9, and it is the
- * mistake most easily repeated by anything that measures runs. Do not re-derive it here.
+ * counts as **four** duties of seven and not seven (owner: four is what you work, plus possibly an RDW
+ * Sunday on top). Counting seven reported the live main roster at 15 consecutive days against a true
+ * 9. Do not re-derive it here.
  *
  * @param {Record<string, any>} patterns
  * @param {string[]} order
@@ -352,10 +307,8 @@ function runSequence(/** @type {Record<string, any>} */ patterns, /** @type {str
  * The optimiser's GRADIENT for the run cap — total excess over the target across every starting day.
  *
  * Not a statistic, and deliberately not reported: a run of 8 shows up again as a 7 from the next day
- * and a 6 from the one after, so long runs count many times over. That multiplicity is the point —
- * it is what makes the surface climbable. Penalising the MAXIMUM instead leaves almost every pair
- * swap scoring identically, and the optimiser stalled at 8 on the live seed where a random search
- * found 6 (measured, at 6 and 30 passes). `blockExcess` sums for the same reason.
+ * and a 6 from the one after — the multiplicity that makes the surface climbable. Penalising the
+ * MAXIMUM, the optimiser stalled at 8 where a random search found 6. `blockExcess` sums for the same reason.
  *
  * @param {Record<string, any>} patterns
  * @param {string[]} order
@@ -413,13 +366,10 @@ export function scoreOrder(patterns, order, opts = {}) {
  * The one walk round an order that both scorers share: every figure `cost` reads, plus the pieces
  * `scoreOrder` reports from (`abs`, `breaks`, `unmeasurable`, `spare`).
  *
- * WHY THE SEARCH DOES NOT CALL `scoreOrder` (whole-app review, Nov 2026). A press of Generate scores
- * a few thousand whole orders. Through `scoreOrder`, each one read every line's start profile three
- * times (twice in `weekStep`, once more in `blockRuns`), built and walked the run sequence twice, and
- * measured figures the search never reads (`longestRun`, `longestBlock`). The search calls this alone,
- * with a `profileOf` that reads each line's profile once per reorder. It is ONE copy of the arithmetic,
- * not a leaner second one, so the figure a designer is shown and the figure the search chose by cannot
- * drift apart.
+ * WHY THE SEARCH DOES NOT CALL `scoreOrder`: a press of Generate scores a few thousand orders, and
+ * `scoreOrder` measures figures the search never reads. The search calls this alone, with a
+ * `profileOf` that reads each line's profile once per reorder. It is ONE copy of the arithmetic, so
+ * the figure a designer is shown and the figure the search chose by cannot drift apart.
  * @param {Record<string, any>} patterns
  * @param {string[]} order
  * @param {(key: string) => number|null} profileOf - a line's `lineStartProfile`
@@ -466,32 +416,20 @@ function _orderFigures(patterns, order, profileOf, minRest, maxRunTarget) {
  * @param {number} [longWeekendTarget]
  * @param {number} [blockTarget] - weeks in a row on much the same shift before it costs
  *
- * NOTE the run cap takes NO target here, unlike the other two, and the asymmetry is real rather than
- * an oversight. `blocks` and `longWeekends` are reported as arrays and counts, so their shortfall
- * against a target can be worked out afterwards from what `scoreOrder` returned. The run gradient
- * cannot: it is a reduction over ~170 per-day run lengths that are deliberately NOT reported (see
- * `runExcess` on why), so the target has to be applied while the sequence is being walked.
- * `scoreOrder` therefore takes `maxRunTarget` and this function reads the result.
+ * NOTE the run cap takes NO target here, unlike the other two, deliberately: the run gradient is a
+ * reduction over per-day run lengths that are NOT reported (`runExcess`), so its target is applied
+ * while the sequence is walked — `scoreOrder` takes `maxRunTarget` and this reads the result.
  */
 export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_TARGET) {
     let c = 0;
     // AN EVEN SPREAD OF COVER IS NOT A SWITCH — it is charged unconditionally, and heavily.
     //
-    // Every other term here is a preference a designer may reasonably not want. This one protects a
-    // property the GENERATOR already established: it reserves whole spare lines and spreads them
-    // around the wheel, and before v20.02 the reorder cheerfully undid that because clustering them
-    // helped the objectives it was told about. Two adjacent spare weeks chain into one long run, so
-    // the reorder was taking FF11 from 9 to 14 on the generator's own output — past the threshold
-    // the panel reports against — with nothing on screen to say the order had done it.
+    // It protects a property the GENERATOR established (spare lines spread around the wheel; see the
+    // module header).
     //
-    // THE WEIGHT HAS TO DOMINATE, NOT MERELY LEAD — and the first attempt did not.
-    //
-    // It was written at 500, with a comment claiming it was "weighted above `variety`, the previous
-    // heaviest". Per unit it was. But these terms ACCUMULATE at different rates: two units of block
-    // excess bid 800, so `variety` simply outbid it, and the default (every switch on) came back with
-    // gaps of 7,6,5,6 where 6,6,6,6 was available. Comparing per-unit weights between terms that
-    // accumulate differently is the mistake; the comment read as though the question had been settled.
-    // Caught before release, in this same version — 500 never reached a device.
+    // THE WEIGHT HAS TO DOMINATE, NOT MERELY LEAD. At 500 ("above `variety`") two units of block excess
+    // bid 800 and `variety` outbid it: gaps 7,6,5,6 where 6,6,6,6 was available. These terms ACCUMULATE
+    // at different rates, so comparing per-unit weights is the mistake.
     //
     // Measured across 16 design shapes (20/22/24/28 lines × 3/4/5/6 cover weeks), each reordered with
     // every switch on and with `variety` alone — 32 runs, total excess against a perfect spread:
@@ -512,9 +450,8 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
     // excess 0 is reachable for every shape — the optimiser can never be told to chase a residual it
     // cannot clear, which is what a dominating weight over an unreachable target would do.
     //
-    // NOTE the harm this term was written for — two adjacent cover weeks chaining into one long run —
-    // was already prevented at 500 (zero adjacencies in all 32 runs, at every weight tried). What the
-    // weight buys is the last of the evenness, which is what was actually asked for.
+    // (Adjacencies were already prevented at 500; the weight buys the last of the evenness, which is
+    // what was asked for.)
     c += (s.spareExcess ?? 0) * 3000;
     // Variety is the heaviest of the SWITCHES, because it works as a constraint rather than a
     // preference: keep the blocks short, and let the other objectives arrange things inside that.
@@ -525,13 +462,7 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
     // Only the EXCESS over the target costs, so the optimiser has no reason to trade anything away
     // once the cap is met — the aim is "no more than N", not "as few as possible", and treating it
     // as the latter would spend the other objectives' freedom on a number nobody asked to minimise.
-    // WEIGHT CHOSEN BY MEASUREMENT — AND THE MEASUREMENT WAS RE-TAKEN, because the first one was
-    // partly the spare-spread bug talking.
-    //
-    // 40 was originally justified as: 100/150/300 reach run 7 but take FF11 to 14 and weekends down
-    // to 4, so pushing the cap harder makes the design worse on the factor the panel reports. With
-    // the cover weeks now held evenly (above), that is no longer what happens. Re-measured on the
-    // live seed, everything else on:
+    // WEIGHT CHOSEN BY MEASUREMENT, on the live seed with the cover weeks held evenly, everything else on:
     //
     //     w= 40  run 8 · FF11 11 · 9 weekends off      w=200  run 6 · FF11 16 · 6 weekends
     //     w=100  run 7 · FF11 11 · 7 weekends          w=300  run 6 · FF11  9 · 6 weekends
@@ -544,15 +475,9 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
     // target costs 3–4 full weekends off across the rotation.
     //
     // 40 is kept on that trade — a longest run of 8 sits well inside the 13-day company limit, and
-    // three or four more full weekends is a thing staff actually feel. It is an OWNER decision
-    // rather than a tuning exercise, which is why the alternative is written down here instead of
-    // being quietly adopted. See KNOWN_LIMITATIONS.md → Links design workspace (the run cap).
-    //
-    // So this is deliberately a firm PREFERENCE rather than the near-absolute weight `variety`
-    // carries. With the switch on alone it reaches the 6 target; with the full set on it reaches 8,
-    // and the status line says so rather than letting the box imply a guarantee it did not deliver
-    // (the rotating fallback's phantom "never a late finish then an early start" is what that
-    // mistake looks like when nobody checks).
+    // three or four more full weekends is a thing staff actually feel. An OWNER decision, not a tuning
+    // exercise (LINKS_DEC2026_PLAN.md → the run cap). So it is a firm PREFERENCE: alone it reaches the 6
+    // target, with the full set 8, and the status line says so rather than implying a guarantee.
     if (on.maxRun)       c += (s.runExcess ?? 0) * 40;
     if (on.gentle)       c += s.gentleMean + s.gentleOver * 60;
     if (on.weekends)     c += -s.weekends * 120;
@@ -560,23 +485,18 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
     // whole rest budget on a handful of lines and leave the rest of the rotation with none — "now
     // and again" is the requirement, not "as many as possible".
     if (on.longWeekends) c += Math.max(0, longWeekendTarget - s.longWeekends) * 240;
-    // REST ACROSS THE WEEK BOUNDARY IS CHARGED UNCONDITIONALLY TOO — a switch until v25.06. Minimum
-    // rest became a GATE at v21.11 (owner: "That would never be allowed by Chiltern"): the generator
-    // repairs every short turnaround before this module sees the design. But the reorder ran AFTER
-    // that gate, and with the switch unticked it was free to put a 23:55 Saturday finish in front of
-    // a 07:15 Sunday start — measured on the default design, 45 of the 64 switch-and-attempt
-    // combinations without it came back with one. The weight stays the switch's 600, so the shipped
-    // default (every switch on) scores exactly as it did; `reorderLines` also FILTERS on it, because
-    // a weight can always be outbid.
+    // REST ACROSS THE WEEK BOUNDARY IS CHARGED UNCONDITIONALLY TOO. Minimum rest is a GATE (owner:
+    // "That would never be allowed by Chiltern"), applied before this module sees the design; as a
+    // switch, unticked, the reorder put a 23:55 Saturday finish before a 07:15 Sunday start in 45 of 64
+    // combinations. `reorderLines` also FILTERS on it, because a weight can always be outbid.
     c += (s.shortBoundary ?? 0) * 600;
     return c;
 }
 
 /**
  * A tiny seeded PRNG (mulberry32). Exists so ATTEMPTS below are reproducible: the same attempt
- * number always shuffles the same way, on every device. `Math.random` here would quietly convert
- * "deterministic per attempt" into "random per press", which is precisely the property being
- * protected — two designers on attempt 3 must be looking at the same design.
+ * number always shuffles the same way, on every device. Never `Math.random`: two designers on
+ * attempt 3 must be looking at the same design.
  * @param {number} seed
  */
 function mulberry32(seed) {
@@ -592,20 +512,11 @@ function mulberry32(seed) {
 /**
  * Reorder the lines to suit the objectives that are switched on.
  *
- * DETERMINISTIC PER ATTEMPT (v20.07 — was flatly deterministic, which made the Generate button a
- * dead end: pressing it again returned the identical design, so a designer could never ask "is
- * there another arrangement?" without changing a target they did not want to change — the owner's
- * report). The 2-opt is a local search, and a local search's result is a function of where it
- * STARTS: attempt 0 starts from the greedy order exactly as before (byte-identical output, so every
- * measured figure in the docs still describes the first press), and attempt N ≥ 1 starts from three
- * seeded shuffles instead, keeping the best of the three by cost. Different attempts land in
- * different local minima — different designs, same coverage.
- *
- * What was deliberately KEPT from the old rule is reproducibility, because that was always the
- * point of the determinism: the same design, switches and attempt number give the same order on any
- * device, so a designer can get a variant back by pressing Generate the same number of times, and
- * two designers comparing "design 3" are comparing the same thing. The seed comes from the attempt
- * counter, never from `Math.random` or the clock.
+ * DETERMINISTIC PER ATTEMPT, so pressing Generate again can offer another arrangement (owner): the
+ * 2-opt's result depends on where it STARTS. Attempt 0 starts from the greedy order (the first press,
+ * which every measured figure in the docs describes); attempt N ≥ 1 from three seeded shuffles, best
+ * by cost — different local minima, same coverage. The same design, switches and attempt number give
+ * the same order on any device: the seed is the attempt counter, never `Math.random` or the clock.
  *
  * A greedy nearest-neighbour pass (attempt 0) followed by repeated pair swaps (a bounded 2-opt).
  * Exact ordering is a travelling-salesman problem; this is not optimal and does not pretend to be —
@@ -624,9 +535,8 @@ function mulberry32(seed) {
 export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_TARGET,
     maxRunTarget = DEFAULT_MAX_RUN, passes = 6, attempt = 0 } = {}) {
     const keys = Object.keys(patterns || {}).sort((a, b) => Number(a) - Number(b));
-    // Measured against the CHOSEN run target, not the default. Nothing on screen reads `runExcess`
-    // today, so this changes no visible figure — but a scorecard handed back to the caller measured
-    // against a target the caller did not ask for is a trap set for whoever displays it next.
+    // Measured against the CHOSEN run target, not the default, so a scorecard handed back is never
+    // measured against a target the caller did not ask for.
     const before = scoreOrder(patterns, keys, { maxRunTarget });
     const anyOn = OBJECTIVES.some(o => on[o.key]);
     // Everything off means leave it alone. Re-sorting by an empty objective set would hand back a
@@ -663,9 +573,8 @@ export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTa
     let starts;
     if (attempt === 0) {
         // Greedy: keep the first line where it is and repeatedly take whichever remaining line makes
-        // the best next step. Starting from line 1 rather than the best possible start keeps it
-        // stable. This is the ORIGINAL path, untouched — attempt 0 must keep producing the exact
-        // design every doc figure was measured on.
+        // the best next step. Attempt 0 must keep producing the exact design every doc figure was
+        // measured on.
         const remaining = keys.slice(1);
         const order = [keys[0]];
         while (remaining.length) {
@@ -697,24 +606,18 @@ export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTa
         }
     }
 
-    // THE SPARE SPREAD IS A FILTER HERE, NOT JUST A WEIGHT — found by measurement before this
-    // shipped. On the live seed, attempt 6's three shuffled starts all converged into minima the
-    // 2-opt could not climb out of, and the best of them carried cover-week gaps 6,7,6,5: the
-    // w=3000 weight made it EXPENSIVE, but a local search can only pay a price it can find a path
-    // away from. An even cover spread is the one property v20.02 promised the reorder can never
-    // undo, so a candidate that breaks it is not a worse candidate — it is not a candidate.
-    // If every start fails (never observed, but a shuffle owes no guarantees), fall back to the
-    // canonical greedy design, whose spread the 128-configuration sweep holds: a duplicate of
-    // design 1 is a dull answer, an uneven one is a broken promise.
+    // THE SPARE SPREAD IS A FILTER HERE, NOT JUST A WEIGHT: attempt 6's three shuffled starts all
+    // converged into minima carrying gaps 6,7,6,5 — a local search can only pay a price it can find a
+    // path away from. A candidate that breaks the even spread is not a worse candidate, it is not a
+    // candidate. If every start fails, fall back to the canonical greedy design: a duplicate of design
+    // 1 is a dull answer, an uneven one is a broken promise.
     //
-    // MINIMUM REST IS A FILTER TOO (v25.06). The generator refuses a design it cannot rest — a GATE
-    // since v21.11 — and that gate runs BEFORE this order is chosen, so a candidate with more short
-    // Saturday-into-Sunday turnarounds than it was handed is not a candidate either.
+    // MINIMUM REST IS A FILTER TOO: the generator's rest gate runs BEFORE this order is chosen, so a
+    // candidate with more short Saturday-into-Sunday turnarounds than it was handed is not a candidate.
     //
-    // And if attempt 0 itself fails either filter, the order it was HANDED is kept. That line shipped
-    // the failing candidate anyway until v25.06, against the reasoning above it: the generator's own
-    // order already keeps both promises, and a duplicate of it is a dull answer where a breach is a
-    // broken one.
+    // And if attempt 0 itself fails either filter, the order it was HANDED is kept: the generator's
+    // own order already keeps both promises.
+
     const scored = starts.map(s => {
         const r = twoOpt(s);
         const sc = scoreOrder(patterns, r.order, { maxRunTarget });
