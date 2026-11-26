@@ -12,7 +12,7 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, signInMembers, isValidEmail, isChilternWorkEmail, workEmailFrom, escapeHtml } from './roster-data.js';
+import { CONFIG, signInMembers, isValidEmail, isChilternWorkEmail, workEmailFrom, escapeHtml, teamMembers, isOtherStaff } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -78,7 +78,8 @@ export function init() {
     // guarded, `sessionReady` fulfilled (admin-auth.js and huddle.js await it), the set-password step and
     // the error reporter. Signed in as anybody else: Admin (access control, not a login divert).
     if (!startPage({ page: 'operations', label: 'Operations', again: init,
-        refuse: () => window.location.replace('./admin.html') })) return;
+        // An Other Staff login goes to the Calendar instead, as from Links: Admin refuses it too (regression review, 26 Nov 2026).
+        refuse: () => window.location.replace(teamMembers.find(m => m.name === getSession()?.name && isOtherStaff(m)) ? './' : './admin.html') })) return;
 
     // ============================================
     // SESSION — read from localStorage (shared with admin-app.js via session.js)

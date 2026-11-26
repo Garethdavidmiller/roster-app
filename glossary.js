@@ -37,11 +37,11 @@ export const GLOSSARY_TITLE = 'Words used in the app';
 
 /**
  * How each word is written where it is used. The short forms count only in capitals, as whole words: "al" inside
- * a word is not AL, and "spare" in a sentence is the ordinary word. The rest in any case ("cut-off", "a lieu day",
+ * a word is not AL, and "spare" in a sentence is the ordinary word. The rest in any case ("pay cut-off", "a lieu day",
  * "year to date"), with "Annual leave" and "Rest Day Working" the long forms of AL and RDW.
  */
 const SHORT_FORMS = /\b(?:RDW|AL|Spare)\b/;
-const WORDS = /Rest Day Working|\bannual leave\b|\bcut-off\b|\blieu\b|\byear to date\b/i;
+const WORDS = /Rest Day Working|\bannual leave\b|\bpay cut-off\b|\blieu\b|\byear to date\b/i;   // "pay cut-off": Overtime's "cut-off" is its deadline (26 Nov 2026)
 
 /**
  * Does this text use a word the glossary defines? Markup is ignored, so a word inside a tag's attribute is not

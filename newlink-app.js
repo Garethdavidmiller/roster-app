@@ -163,7 +163,7 @@ function showNotForYou(member) {
             <p class="field-eyebrow">What it does</p>
             ${ABOUT.lines.map(line => `<p class="login-about-line">${escapeHtml(line)}</p>`).join('')}
         </div>
-        <p class="login-help">${other ? 'The Calendar, Trains and Settings work as normal.' : 'Everything else in the app works as normal.'}</p>
+        <p class="login-help">${other ? 'The Calendar, Trains and Settings work as normal.' : 'Your own roster carries on as it is.'}</p>
         <a href="./" class="role-card-back">← Back to roster</a>`;
     el('newlinkMain')?.replaceChildren(card);
 }

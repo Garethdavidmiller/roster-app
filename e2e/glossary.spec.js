@@ -33,6 +33,29 @@ test.describe('the glossary', () => {
         expect(errors).toEqual([]);
     });
 
+    // A page that refuses its reader never builds its own `?` panels, so the glossary builds the panel itself on the
+    // first tap (tips-lightbox.js → openGlossary). Pay's refusal and paused Overtime are the two such pages a member reaches.
+    for (const [label, who, url, ready] of /** @type {const} */ ([
+        ['the Pay Calculator, refusing a Dispatcher', 'D. Minto', '/paycalc.html', '#unsupportedGradeBanner'],
+        ['Overtime, paused', 'G. Miller', '/overtime.html', '#otMineContent'],
+    ])) {
+        test(`it opens on ${label}`, async ({ page }) => {
+            const errors = collectFatalErrors(page);
+            await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, overtimeEnabled: false }; });
+            await seedSession(page, who);
+            await page.goto(url);
+            await expect(page.locator(ready)).toBeVisible();
+            await page.locator('#navMenuBtn').click();
+            await page.locator('.nav-panel-link--glossary').click();
+            await expect(page.locator('#tipsLightbox')).toHaveClass(/open/);
+            await expect(page.locator('#tipsLbTitle')).toHaveText(GLOSSARY_TITLE);
+            await expect(page.locator('#tipsLbBody .tips-lb-item')).toHaveCount(GLOSSARY.length);
+            await page.keyboard.press('Escape');
+            await expect(page.locator('#tipsLightbox')).not.toHaveClass(/open/);
+            expect(errors).toEqual([]);
+        });
+    }
+
     test('a ? panel that uses a roster word ends with the link; one that does not, without it', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await seedSession(page, 'G. Miller');

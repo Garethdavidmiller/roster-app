@@ -38,16 +38,23 @@ const GLOSSARY_TIPS = Object.freeze({
     sections: [{ items: GLOSSARY.map(g => ({ icon: g.icon, html: `<strong>${escapeHtml(g.term)}</strong>: ${escapeHtml(g.line)}` })) }],
 });
 
-/** The page's panel opener, once `initTipsLightbox` has run on a page that has a panel. @type {((key: string) => void)|null} */
-let pageOpener = null;
+/**
+ * The ONE panel built on this page's `#tipsLightbox`, once built: a second `createLightbox` on the same overlay would
+ * close twice on one ✕, unlocking the scroll twice and taking a second history entry off. A later `initTipsLightbox`
+ * hands its content to this one instead (regression review, 26 Nov 2026).
+ * @type {{ lb: HTMLElement, set: (tips: object, getIsAdmin: Function|undefined) => void, open: (key: string) => void }|null}
+ */
+let built = null;
 
 /**
- * Open the page's `?` panel as the glossary — the drawer's "Words used in the app". False on a page with no panel.
+ * Open the page's `?` panel as the glossary — the drawer's "Words used in the app". A page that has not built its panel
+ * yet (Overtime while paused, Pay's refusal card: no card is drawn, so nothing asked) has it built here, with no cards;
+ * the page's own later call fills them in. False only on a page with no `#tipsLightbox` at all.
  * @returns {boolean}
  */
 export function openGlossary() {
-    if (!pageOpener) return false;
-    pageOpener(GLOSSARY_KEY);
+    if (!built && !initTipsLightbox({}, { trigger: null })) return false;
+    built?.open(GLOSSARY_KEY);
     return true;
 }
 
@@ -69,6 +76,11 @@ export function openGlossary() {
  */
 export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '.btn-card-tips', key: 'card' } } = {}) {
     const lb       = document.getElementById('tipsLightbox');
+    if (lb && built?.lb === lb) {
+        built.set(cardTips, getIsAdmin);
+        wireTriggers(trigger, built.open);
+        return { open: built.open };
+    }
     const content  = document.getElementById('tipsLightboxContent');
     const closeBtn = document.getElementById('tipsLightboxClose');
     const titleEl  = document.getElementById('tipsLbTitle');
@@ -95,7 +107,7 @@ export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '
         }
         // A panel that uses one of the glossary's words says where they are explained.
         if (tips !== GLOSSARY_TIPS && mentionsGlossaryTerm(html)) {
-            html += '<button type="button" class="tips-lb-glossary" data-glossary><span aria-hidden="true">📖</span> What these words mean</button>';
+            html += '<button type="button" class="tips-lb-glossary" data-glossary><span aria-hidden="true">📖</span><span class="tips-lb-glossary-words">What these words mean</span></button>';
         }
         return html;
     }
@@ -120,14 +132,25 @@ export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '
         openTips(GLOSSARY_KEY);
         /** @type {HTMLElement|null} */ (closeBtn)?.focus();
     });
-    pageOpener = openTips;
+    built = { lb, open: openTips, set: (tips, isAdmin) => { cardTips = tips; getIsAdmin = isAdmin; } };
 
-    // Wire every card's ? button — stopPropagation prevents collapsing the card
-    if (trigger) document.querySelectorAll(trigger.selector).forEach(btn => {
-        btn.addEventListener('click', e => {
+    wireTriggers(trigger, openTips);
+    return { open: openTips };
+}
+
+/**
+ * Wire every card's ? button to the panel, once each — stopPropagation keeps the press from collapsing the card.
+ * @param {{ selector: string, key: string }|null} trigger @param {(key: string) => void} open
+ */
+function wireTriggers(trigger, open) {
+    if (!trigger) return;
+    document.querySelectorAll(trigger.selector).forEach(btn => {
+        const b = /** @type {HTMLElement} */ (btn);
+        if (b.dataset.tipsWired) return;
+        b.dataset.tipsWired = '1';
+        b.addEventListener('click', e => {
             e.stopPropagation();
-            openTips(/** @type {HTMLElement} */ (btn).dataset[trigger.key]);
+            open(/** @type {string} */ (b.dataset[trigger.key]));
         });
     });
-    return { open: openTips };
 }

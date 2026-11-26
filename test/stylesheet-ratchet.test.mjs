@@ -81,7 +81,7 @@ const CAPS = {
     // link (glossary.js), which every page's ? panel can draw, so it can live nowhere else; and the glossary row's
     // button reset in the drawer, one selector added to the circular, newsletter and App Notices rule.
     // 3772 → 3776 (26 Nov 2026, at 3,776), a RAISE of four lines from the polish review: the picker chevron's own
-    // size on the sign-in card, the refusal footer's even wrap, the tips' even wrap and the Pay arrow's margin —
+    // size on the sign-in card, the refusal footer's even wrap, the tips' even wrap —
     // each a rule on a shared surface (the sign-in card, the Tips panel, the card header), so it can live nowhere else.
     'shared.css':     3776,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     // 2700 → 2650 (Nov 2026, at 2,574): the week grid's five-column template and the two blocks that

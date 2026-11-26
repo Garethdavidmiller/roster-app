@@ -319,8 +319,9 @@ export function clockTextStatus(text) {
     const t = String(text ?? '').trim();
     if (!t) return 'empty';
     if (isClockTime(t)) return 'time';
-    // The shape of a time with digits missing, and no more digits than one: an edit the member has not finished.
-    return /^\d{0,2}:?\d{0,2}$/.test(t) && !/^\d{2}:\d{2}$/.test(t) ? 'unfinished' : 'not-a-time';
+    // The shape of a time with a digit missing: an edit the member has not finished. Four digits are a whole
+    // time's worth, with or without the colon, so "9999" or "25:00" is not a time, never an edit in progress.
+    return /^\d{0,2}:?\d{0,2}$/.test(t) && t.replace(':', '').length < 4 ? 'unfinished' : 'not-a-time';
 }
 
 /**

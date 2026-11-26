@@ -1094,7 +1094,7 @@ body:not(.auth-ready) .app-header { display: none; }
    picker would widen a table that already scrolls. */
 /* Its chevron is the slot-time pickers' small one, at its own size: the large one at this 13px text drew half theirs in the
    same card (polish review, 26 Nov 2026). */
-.gen-sets-row .gen-select.fieldpick { padding-right: 30px; background-image: var(--caret-chevron-small); background-size: auto; background-position: right 10px center; }
+.gen-sets-row .gen-select.fieldpick { padding-right: 30px; background-image: var(--caret-chevron-small); background-size: 0.92em auto; background-position: right 10px center; }
 /* The setup buttons wrap as ONE block, onto their own line once the label and picker fill it. */
 .gen-sets-actions {
     display: flex;

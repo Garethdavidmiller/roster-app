@@ -27,7 +27,9 @@ export const CARD_TIPS = Object.freeze({
             { heading: 'What this page is', items: [
                 { icon: '🔁', html: 'A <strong>link</strong> is the set of weeks everyone works through in turn, one week each, then on to the next. The new link replaces today’s for the people on the main CEA roster.' },
                 { icon: '📋', html: 'The three proposals are shown A to Z, never ranked. Tap a name to see its weeks.' },
-                { icon: '💬', html: `This page decides nothing: it shows the proposals and what they would mean. ${CONTACT}, ${CONTACT_ROLE}, is leading the change; tell them or your manager what you think.` },
+                // No invitation: the page stops inviting views once a design is chosen or the start has come (newlink-config.js →
+                // CHOSEN), and a static panel cannot know which (regression review, 26 Nov 2026). "Have your say" invites, while it may.
+                { icon: '💬', html: `This page decides nothing: it shows the proposals and what they would mean. ${CONTACT}, ${CONTACT_ROLE}, is leading the change.` },
             ] },
             { heading: 'Your own roster', items: [
                 { icon: '🗓️', html: 'Nothing here changes your roster or your calendar. Until the new link starts, you work today’s.' },

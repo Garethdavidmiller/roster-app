@@ -257,7 +257,7 @@ body.auth-ready .container { display: grid; }
     width: auto;
     min-height: 44px;
     align-content: center;
-    padding: 8px 38px 8px 10px;   /* the arrow's 1em + its 10px inset + 12px clear of the longest option */
+    padding: 8px 38px 8px 10px;   /* the arrow's 0.75em + its 10px inset + clear of the longest option */
     border: var(--field-border);
     border-radius: var(--radius-field);
     font-size: var(--type-medium);
@@ -879,7 +879,7 @@ body.auth-ready .container { display: grid; }
 :where(.container) select, :where(.container) .fieldpick {
     background-image: var(--caret-chevron-small);
     background-repeat: no-repeat;
-    background-size: 12px 7px;   /* its own size, not `.fieldpick`'s 1em (polish review, 26 Nov 2026) */
+    background-size: 0.75em auto;   /* its own 12px on a 16px field, in em so it grows with the phone's text (polish review, 26 Nov 2026) */
     background-position: right 10px center;
     padding-right: 30px;
 }

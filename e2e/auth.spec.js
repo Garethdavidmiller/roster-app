@@ -1434,7 +1434,7 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
 
     // Admin SAYS why it is not for them, as the Pay Calculator does (owner, 24 Nov 2026): it used to send them back to
     // the Calendar with nothing said, and the Calendar's 📝 Admin button and "Record leave" both land there.
-    test('Admin and the Pay Calculator each say why they are not for them; Operations goes to Admin', async ({ page }) => {
+    test('Admin and the Pay Calculator each say why they are not for them; Operations and Links go to the Calendar', async ({ page }) => {
         await withOtherStaff(page, NAME);
         await seedSession(page, NAME);
         await page.goto('/admin.html#book-annual-leave');
@@ -1450,8 +1450,10 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
             await expect(page.locator(hidden), `${hidden} shows behind the card`).toBeHidden();
         }
         await expect(page.locator('#navMenuBtn'), 'the drawer is the way out').toBeVisible();
+        // Operations sends a non-admin to Admin, and this login to the Calendar: Admin would only refuse it again (review, 26 Nov 2026).
         await page.goto('/operations.html');
-        await expect(page.locator('#adminRoleCard')).toBeVisible();
+        await expect(page).not.toHaveURL(/operations\.html|admin\.html/);
+        await expect(page.locator('.calendar-grid, .cal-lock-card').first()).toBeVisible();
         await page.goto('/paycalc.html');
         await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
         // Links sends a non-designer to Admin, and this login to the Calendar: Admin refuses it too (polish review, 26 Nov 2026).
@@ -1487,6 +1489,28 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await page.goto('/paycalc.html');
         await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
         await expect(page.locator('#netDisplay')).toBeHidden();
+    });
+
+    // The leave panel shows a colleague's leave to this login (there is no roster of its own), and its "Record leave"
+    // leads to Admin, which refuses it — so the link goes, as the Calendar's own Admin button does (review, 26 Nov 2026).
+    test('the leave panel has no "Record leave" for them', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await withOtherStaff(page, NAME);
+        await seedMemberSession(page, NAME);
+        await page.goto('/');
+        await expect(page.locator('.calendar-grid')).toBeVisible();
+        await page.locator('#alBtn').click();
+        await expect(page.locator('#alLightbox')).toHaveClass(/open/);
+        await expect(page.locator('#alLbRecordLink')).toBeHidden();
+        expect(errors).toEqual([]);
+    });
+
+    test('New link says it is for the CEA roster, in the app\'s refusal card', async ({ page }) => {
+        await withOtherStaff(page, NAME);
+        await seedSession(page, NAME);
+        await page.goto('/newlink.html');
+        await expect(page.locator('.role-card-title')).toHaveText('The new link is for the CEA roster');
+        await expect(page.locator('.role-card-back')).toHaveAttribute('href', './');
     });
 
     test('Settings and Trains open for them', async ({ page }) => {

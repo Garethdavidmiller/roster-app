@@ -3167,7 +3167,7 @@ button.nav-panel-link--notices {
     /* Restore the dropdown arrow that appearance:none removes. */
     background-image: var(--caret-chevron-small);
     background-repeat: no-repeat;
-    background-size: 12px 7px;   /* its own size, not `.fieldpick`'s 1em (polish review, 26 Nov 2026) */
+    background-size: 0.75em auto;   /* its own 12px on a 16px field, in em so it grows with the phone's text (polish review, 26 Nov 2026) */
     background-position: right 10px center;
     padding-right: 30px;
     text-align: center;
@@ -3741,8 +3741,9 @@ body.auth-ready .boot-placeholder { display: none; }
 
 /* "What these words mean" (glossary.js, 26 Nov 2026): the foot of a ? panel that uses a roster word; it redraws the panel as
    the glossary. The panel's link look (blue, 600, underlined), on a 44px row a thumb finds, set off by a hairline. */
-.tips-lb-glossary { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 12px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--border-light); background: none; font: inherit; font-size: var(--type-label); font-weight: 600; text-align: left; color: var(--primary-blue); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; touch-action: manipulation; }
-@media (hover: hover) and (pointer: fine) { .tips-lb-glossary:hover { text-decoration-thickness: 2px; } }
+.tips-lb-glossary { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 12px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--border-light); background: none; font: inherit; font-size: var(--type-label); font-weight: 600; text-align: left; color: var(--primary-blue); cursor: pointer; touch-action: manipulation; }
+.tips-lb-glossary-words { text-decoration: underline; text-underline-offset: 2px; }   /* on the WORDS: a flex button hands its underline to the 📖 too */
+@media (hover: hover) and (pointer: fine) { .tips-lb-glossary:hover .tips-lb-glossary-words { text-decoration-thickness: 2px; } }
 .tips-lb-glossary:active { opacity: 0.6; }
 .tips-lb-glossary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
 

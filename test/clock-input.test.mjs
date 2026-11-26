@@ -343,6 +343,8 @@ describe('readClockBox — a time to take, an empty box, or a refusal with its r
             ['06:30', 'time'], ['23:59', 'time'], ['', 'empty'], ['  ', 'empty'],
             ['6:30', 'unfinished'], ['22:3', 'unfinished'], [':30', 'unfinished'], ['223', 'unfinished'],
             ['25:00', 'not-a-time'], ['06:60', 'not-a-time'], ['9am', 'not-a-time'], ['06:300', 'not-a-time'],
+            // Four digits are a whole time's worth: never an edit still in progress, colon or none.
+            ['0630', 'not-a-time'], ['9999', 'not-a-time'],
         ])) assert.equal(clockTextStatus(text), status, JSON.stringify(text));
     });
 

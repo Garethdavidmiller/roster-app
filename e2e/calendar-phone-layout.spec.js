@@ -582,3 +582,27 @@ for (const width of [320, 333, 360]) {
             .toBe(width < 360 ? 0 : 4);
     });
 }
+
+// A corner marker's cell pads its date off the marker's side (index.css, ≤480px; polish review, 26 Nov 2026). On a
+// 320px phone at 1.6× text (measured: a 40px cell, a 25px "20") the cell is narrower than the date and a fixed 12px pad together, and the cell's
+// `overflow: hidden` clipped the last digit — so the pad gives way first. Nothing but a browser can see a clipped digit.
+for (const k of [1, 1.3, 1.6]) {
+    test(`calendar: a date beside a payday or cut-off marker is never clipped at 320px (${k}× text)`, async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-16T09:00:00Z'));   // November 2026: a payday and a cut-off
+        await page.setViewportSize({ width: 320, height: 700 });
+        await page.goto('/');
+        await expect(page.locator('.calendar-day.payday').first()).toBeVisible();
+        if (k !== 1) await scaleText(page, k);
+        const clipped = await page.evaluate(() => [...document.querySelectorAll(
+            '.calendar-day.payday .day-number, .calendar-day.cutoff .day-number, .calendar-day.bank-holiday .day-number')]
+            .map(el => {
+                const cell = /** @type {HTMLElement} */ (el.closest('.calendar-day')).getBoundingClientRect();
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                const text = range.getBoundingClientRect();
+                return { date: el.textContent, out: Math.max(cell.left - text.left, text.right - cell.right) };
+            })
+            .filter(d => d.out > 0.5));
+        expect(clipped, 'a date runs past its cell').toEqual([]);
+    });
+}

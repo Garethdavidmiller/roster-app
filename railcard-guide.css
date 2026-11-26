@@ -546,6 +546,7 @@ div.check {
     .myb-row { background: transparent; border-bottom: 0.25pt solid #ccc; }
     .split-half, .photo-note { border: 0.5pt solid #999; break-inside: avoid; }
     .rc-correction, .rc-transition, .rc-unsourced { background: transparent; border-left: 2pt solid #333; }
+    .gotcha--wide { box-shadow: none; }   /* after its screen rule, or that wins: a shadow is a screen's edge */
 }
 
 /* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────

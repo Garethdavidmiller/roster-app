@@ -48,13 +48,13 @@ describe('the words', () => {
 describe('mentionsGlossaryTerm — which panels end with the link', () => {
     test('each word, short form and long', () => {
         for (const text of ['Shows as RDW 1.25 on your payslip', 'Use Rest Day Working', 'Record AL here', 'Annual leave you have booked',
-            'A Spare week', 'the pay cut-off', 'Cut-off dates', 'a day in lieu', 'Your Year to Date figures', 'year to date']) {
+            'A Spare week', 'the pay cut-off', 'Pay cut-off dates', 'a day in lieu', 'Your Year to Date figures', 'year to date']) {
             assert.equal(mentionsGlossaryTerm(text), true, text);
         }
     });
 
     test('not the ordinary word, a word inside another, or markup', () => {
-        for (const text of ['If you have a spare moment', 'Totals for the year', 'Additional hours', 'normal shifts',
+        for (const text of ['If you have a spare moment', 'Totals for the year', 'Additional hours', 'normal shifts', 'answers close at the cut-off',
             '<span class="AL RDW" data-x="Spare">Nothing here</span>', '']) {
             assert.equal(mentionsGlossaryTerm(text), false, text);
         }

@@ -26,7 +26,7 @@ mock.module('../nav-panel.js', { namedExports: {
 } });
 mock.module('../session.js', { namedExports: { getSession: () => session } });
 
-const { CONFIG, teamMembers } = await import('../roster-data.js');
+const { CONFIG, teamMembers, isOtherStaff } = await import('../roster-data.js');
 const { canOpenNewlink } = await import('../auth-policy.js');
 const drawer = await import('../calendar-drawer.js');
 
@@ -128,5 +128,41 @@ describe('wiring and rebuilding', () => {
         drawer.rewireCalendarDrawer();
         assert.equal(calls.at(-1)?.opts.memberName, null);
         assert.equal(calls.at(-1)?.opts.onSignOut, null);
+    });
+});
+
+describe('gateQuickButtons — the Calendar’s own routes to pages a login cannot open', () => {
+    /** A fake document holding the three controls as the Calendar does: Admin and Pay in one pair. */
+    function fakeDoc() {
+        const pay = { hidden: false };
+        const admin = { hidden: false };
+        const pair = { hidden: false, contains: (/** @type {any} */ el) => el === pay || el === admin };
+        Object.assign(admin, { closest: (/** @type {string} */ sel) => sel === '.control-group--pair' ? pair : null });
+        const record = { hidden: false };
+        /** @type {Record<string, any>} */ const byId = { adminBtn: admin, payBtn: pay, alLbRecordLink: record };
+        return { pair, pay, record, doc: /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => byId[id] ?? null }) };
+    }
+    const OTHER = /** @type {any} */ (teamMembers.find((/** @type {any} */ m) => isOtherStaff(m)))?.name;
+
+    test('an Other Staff login: the Admin and Pay pair and the leave panel’s Record link are hidden', () => {
+        assert.ok(OTHER, 'the roster holds an Other Staff login to test with');
+        const { pair, record, doc } = fakeDoc();
+        drawer.gateQuickButtons(OTHER, doc);
+        assert.equal(pair.hidden, true);
+        assert.equal(record.hidden, true);
+    });
+
+    test('a member, and nobody signed in, keep all three — and a later member shows them again', () => {
+        for (const name of [MEMBER, ADMIN, null]) {
+            const { pair, record, doc } = fakeDoc();
+            drawer.gateQuickButtons(OTHER, doc);
+            drawer.gateQuickButtons(name, doc);
+            assert.equal(pair.hidden, false, `pair for ${name}`);
+            assert.equal(record.hidden, false, `record for ${name}`);
+        }
+    });
+
+    test('no document (a Node caller) is a no-op, not a throw', () => {
+        assert.doesNotThrow(() => drawer.gateQuickButtons(OTHER, null));
     });
 });
