@@ -93,7 +93,7 @@ test('1. the Staff Guide no longer offers the staff PIN, nor the way to it (reti
     }
     assert.ok(!/\bdata-staff-pin\b/.test(GUIDE), 'the guide still carries the PIN paragraph\'s anchor');
     // …and it still tells a reader with no login what to do instead: ask the admin (an account matter).
-    assert.match(shown, /No login yet\? Ask the admin/, 'the guide no longer tells somebody with no login to ask the admin');
+    assert.match(shown, /No account yet\? Ask the admin/, 'the guide no longer tells somebody with no account to ask the admin');
 });
 
 test('1. the Calendar\'s sign-in card offers no alternative way in', () => {

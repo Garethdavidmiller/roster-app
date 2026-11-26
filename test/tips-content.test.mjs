@@ -394,7 +394,7 @@ describe('the work email and password lines state today, and promise nothing', (
 
     test('the card and the guide both give today\'s route', () => {
         assert.match(settings, /Self-service recovery isn’t available yet\. For now, ask the admin if you forget your password\./);
-        assert.match(guide, /Self-service recovery isn't available yet: for now, ask the admin if you forget your password\./);
+        assert.match(guide, /Self-service recovery isn't available yet\. For now, ask the admin if you forget your password\./);
     });
     test('neither makes an undated promise', () => {
         for (const [where, text] of [['settings.html', settings], ['staff-guide.html', guide]]) {
