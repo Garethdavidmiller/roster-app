@@ -63,15 +63,15 @@ export const CONFIG = {
     MANAGER_NAMES:                    ['D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers', 'W. Cummings'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management', 'Other Staff'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js), the admin member-selector optgroups (admin-app.js) AND the Calendar's name picker (calendar-member.js), so they can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
-    // Compel un-migrated members to set their own password at their NEXT SIGN-IN (password-force.js;
+    // Compel un-migrated members to set their own password at their NEXT SIGN-IN OR OPEN (password-force.js;
     // AUTH_AND_SESSIONS.md → "The forced password overlay"). This is the KILL SWITCH: `false` stops
     // compelling instantly, with no other change; the Settings card, the admin reset and
     // `passwordStatus` are unaffected.
     //
-    // Safe to switch on: the overlay only appears right after a confirmed `named` sign-in still on the
-    // surname default, the calendar is NOT behind it, and it fails open before showing and after (a
-    // "Continue for now" escape). See password-force.js's header. No forced sign-out drives it:
-    // sessions cap at 60 days (`SESSION_MS`), so coverage completes inside that window, staggered.
+    // Safe to switch on: the overlay only appears for a confirmed `named` member still on the surname
+    // default, as a page loads, and it fails open before showing and after (a "Continue for now"
+    // escape). See password-force.js's header. No forced sign-out drives it: it asks at a sign-in and
+    // on an ordinary open alike, so it no longer waits for a session to run out.
     FORCE_PASSWORD_SET:               true,
     // The "ask the admin to reset my password" request queue (AUTH_AND_SESSIONS.md → "The
     // reset-request queue"). Kill switch for the LINK only: `false` hides it on the login overlay.

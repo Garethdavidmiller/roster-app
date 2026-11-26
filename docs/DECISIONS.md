@@ -1690,3 +1690,22 @@ Q3 (duplicate rows — the script asks about differing duplicates, so the Save n
 unanswered), Q7 (column E — only dated days are written, never an undated lump) and Q8 (who saves the
 file — the older-copy refusal trusts the clerks' save time, and "removed since" protects either way).
 An answer that differs changes the script, not the Save's guards.
+
+## The installed app stays signed in (owner, 26 Nov 2026)
+
+"If it is on someone's personal mobile, why am I asking them to sign in every 60 days. Makes sense on
+desktop I think." The 60-day limit protected nothing an account depends on: a leaver's disabled
+account, an admin reset, a sign-out and the claim sweep all end access at once, whatever the timer
+says (KNOWN_LIMITATIONS.md → the 60-day session). So:
+
+- **In the app installed on a phone, a session renews on each open** (`renewWhenServerVouches`,
+  session.js) — once the member's own account is restored AND the server has issued its token within
+  the hour, so a disabled account stops renewing within that hour. A browser tab or a desktop keeps
+  the fixed 60 days, because a computer may be shared. The work phones are one person each (owner),
+  so they count as personal. Invariant: AUTH_AND_SESSIONS.md 2.
+- **"You should still be made to reset the surname password"** (the owner's condition): the
+  set-password step now asks on an ordinary open as well as after a sign-in, asking for the current
+  password up front, so it no longer waits for a session to run out (password-force.js).
+- **Rejected:** renewing everywhere (a forgotten session on the station PC would live as long as
+  somebody kept using that PC); a shorter session for everybody to cover the admin's phone (the
+  planned answer is a password check before admin actions, SECURITY_RELEASE_PLAN.md → F).

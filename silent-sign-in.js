@@ -136,3 +136,34 @@ export function sessionStartMs(user, email, now) {
     const at = user && user.email === email ? Date.parse(user.metadata?.lastSignInTime ?? '') : NaN;
     return Number.isFinite(at) && Math.abs(now - at) <= SIGN_IN_CLOCK_SKEW_MS ? at : now;
 }
+
+// ── THE INSTALLED APP STAYS SIGNED IN (owner, 26 Nov 2026) ───────────────────────────────────────
+//
+// A session lasts `SESSION_MS` from sign-in in a browser tab or on a desktop, where the device may be
+// shared. In the app installed on a phone's home screen it is RENEWED each time the app opens with the
+// member's own Firebase identity live: "If it is on someone's personal mobile, why am I asking them to
+// sign in every 60 days." Nobody installs the app on a shared station PC, and the work phones are one
+// person each (owner), so the installed app is the personal phone.
+//
+// What keeps that safe is that the renewal asks Firebase, never the device: it happens only once the
+// member's own account has been restored AND the server has issued its token within the hour
+// (`renewWhenServerVouches`, session.js), so a disabled account stops renewing within the hour,
+// revoked credentials or a sign-out end it as they always did, and an admin reset still signs
+// the phone out (`sessionPredatesReset` compares the session's START, which renewal never moves). A
+// session that has already ended is never revived, and a renewal writes at most once a day.
+
+/** The least a renewal moves the expiry — so an app opened every few minutes writes once a day. */
+export const RENEW_STEP_MS = 86_400_000;
+
+/**
+ * The new expiry for a session opened now, or null when nothing should be written.
+ * @param {{ expiry: unknown, installed: boolean, now: number, sessionMs: number }} input
+ *   `expiry` the stored expiry; `installed` the app is running from the home screen.
+ * @returns {number|null}
+ */
+export function renewedExpiry({ expiry, installed, now, sessionMs }) {
+    if (!installed) return null;                                  // a tab or a desktop keeps the fixed lifetime
+    if (typeof expiry !== 'number' || !Number.isFinite(expiry) || now >= expiry) return null;   // never revive an ended session
+    const next = now + sessionMs;
+    return next - expiry >= RENEW_STEP_MS ? next : null;
+}

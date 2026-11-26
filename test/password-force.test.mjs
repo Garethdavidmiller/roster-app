@@ -9,7 +9,7 @@
  * has consequences. Each of its four conditions prevents a specific failure that is either invisible
  * or unrecoverable:
  *   · `flagOn`     — the kill switch. If it leaked, turning the feature off wouldn't turn it off.
- *   · `hasMarker`  — restricts the overlay to real sign-ins. Without it a member is ambushed
+ *   · `occasion`   — a confirmed sign-in or an ordinary open, and nothing else. Without it a member is ambushed
  *                    mid-task on an ordinary page load (the v14.77 "Fix 4" defect).
  *   · `authStatus` — must be exactly 'named'. An anonymous (calendar) or soft-failed (paycalc)
  *                    identity cannot call updatePassword, so showing a HARD BLOCK to one traps the
@@ -41,7 +41,7 @@ const PASSWORD_FORCE = await import('../password-force.js');
 const { shouldForcePasswordSet } = PASSWORD_FORCE;
 
 /** The state of a member who SHOULD be compelled — each test varies one field from this. */
-const COMPEL = { flagOn: true, hasMarker: true, authStatus: 'named', migrated: false };
+const COMPEL = /** @type {const} */ ({ flagOn: true, occasion: 'sign-in', authStatus: 'named', migrated: false });
 
 describe('shouldForcePasswordSet', () => {
     test('compels a named, un-migrated member who just signed in', () => {
@@ -52,8 +52,14 @@ describe('shouldForcePasswordSet', () => {
         assert.equal(shouldForcePasswordSet({ ...COMPEL, flagOn: false }), false);
     });
 
-    test('never without the one-shot sign-in marker (no mid-task ambush)', () => {
-        assert.equal(shouldForcePasswordSet({ ...COMPEL, hasMarker: false }), false);
+    test('an ordinary open compels too — the installed app no longer signs anyone out (owner, 26 Nov 2026)', () => {
+        assert.equal(shouldForcePasswordSet({ ...COMPEL, occasion: 'open' }), true);
+    });
+
+    test('never without an occasion — a sign-in or an open, nothing else', () => {
+        for (const occasion of [null, undefined, 'mid-task', '']) {
+            assert.equal(shouldForcePasswordSet({ ...COMPEL, occasion: /** @type {any} */ (occasion) }), false, String(occasion));
+        }
     });
 
     test('never for an already-migrated member', () => {

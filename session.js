@@ -24,7 +24,7 @@ import { noteStaffPinEnded } from './staff-pin-ended.js';
 import { shedCalendarViewer } from './viewer-shed.js';
 export { shedCalendarViewer };
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
-import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal, sessionStartMs, AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
+import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal, sessionStartMs, renewedExpiry, AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
@@ -84,12 +84,14 @@ export const AUTH_KEY    = 'myb_admin_session';
 export const SESSION_MS  = 60 * 24 * 60 * 60 * 1000; // 60 days — the ONE session lifetime
 export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 
-// 60 DAYS (owner), and NO idle cutoff (AUTH_AND_SESSIONS.md 2). The absolute bound is not what
+// 60 DAYS (owner), and NO idle cutoff (AUTH_AND_SESSIONS.md 2) — renewed on each open in the INSTALLED
+// app only (`renewInstalledSession`; owner, 26 Nov 2026). The bound is not what
 // protects an account: every genuine revocation is immediate and independent of it — `clearSession`
 // (which signs Firebase out too), a disabled or deleted account, revoked credentials, the claim
-// sweeps. Two things READ this number: the forced password migration completes within it, and
-// Operations → Usage's "signed in within 30 days" (the note beside `_appendSignInSection`,
-// operations-usage.js). The idle clock only ever signed out the members who use the app least.
+// sweeps. One thing READS this number: Operations → Usage's "signed in within 30 days" (the note
+// beside `_appendSignInSection`, operations-usage.js). The forced password step used to wait for it;
+// it now asks on an ordinary open too (password-force.js). The idle clock only ever signed out the
+// members who use the app least.
 // Removed rather than lengthened: a dormant policy gets "restored" by someone who assumes it was
 // load-bearing.
 
@@ -621,7 +623,8 @@ export function getSession() {
         // …and so is one with no NAME: every caller derives the account from it, so
         // `ensureNamedSession(undefined)` threw and the page offered no sign-in at all.
         if (typeof s.name !== 'string' || !s.name.trim()) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
-        // `expiry` is absolute and set once at sign-in, so nothing here extends it. Older sessions
+        // Nothing HERE extends `expiry` — a read stays a read; only `renewInstalledSession` moves it, in
+        // the installed app, once the member's own account is restored. Older sessions
         // still carry a `lastActivity` field; it is simply ignored, which is why no SESSION_VER bump
         // is needed (bumping it would sign every member out).
         return s;
@@ -641,7 +644,8 @@ function _sessionCreatedMs() {
 
 
 /**
- * Persist a new session for the named user — 60-day absolute expiry, and nothing else.
+ * Persist a new session for the named user — `SESSION_MS` from sign-in (renewed later only in the
+ * installed app, `renewInstalledSession`), and nothing else.
  * @param {string} name
  * @returns {boolean} true if the session actually persisted; false when storage is blocked
  *   (e.g. iOS Safari Private Browsing — lsSet swallows the SecurityError, so nothing is written).
@@ -715,7 +719,11 @@ export async function reconcileExpiredIdentity() {
     // restore wait if a newer login/logout already superseded us.
     const u = auth.currentUser || (gen === _authGen ? await restoreFirstAuthUser().catch(() => null) : null);
     if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
-    if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
+    if (!u || u.isAnonymous) return;                 // no lingering NAMED identity
+    const live = getSession();
+    // A valid session is never ended here. In the installed app it is RENEWED — only now, with the
+    // member's own account restored (silent-sign-in.js → "The installed app stays signed in").
+    if (live) { void renewWhenServerVouches(live, u); return; }
     // Release this device's push record FIRST, while the expired member is still the identity — the
     // delete is theirs to make, and after the sign-out nobody can. NOT for the staff PIN (audit C3):
     // it owns no record, so the release dropped THIS BROWSER's subscription — a member's own phone,
@@ -732,6 +740,59 @@ export async function reconcileExpiredIdentity() {
     } catch (err) {
         console.warn('[Auth] expired-identity signOut failed:', /** @type {any} */ (err)?.message);
     }
+}
+
+/** Running from the home screen, not a browser tab: the personal phone (silent-sign-in.js says why). */
+function installedApp() {
+    try {
+        return globalThis.matchMedia?.('(display-mode: standalone)')?.matches === true
+            || /** @type {any} */ (globalThis.navigator)?.standalone === true;
+    } catch { return false; }
+}
+
+/** How recently the server must have issued the account's token for a renewal to count it as live. */
+const TOKEN_FRESH_MS = 65 * 60_000;
+
+/**
+ * Renew only once the SERVER has vouched for the account: a token issued within the hour. The user
+ * `reconcileExpiredIdentity` restores comes from this device's own storage, and a disabled account is
+ * refused only when its token next refreshes — which `getIdTokenResult` does when the one held has
+ * expired. So a leaver's phone stops renewing within the hour of the account being disabled, and their
+ * session then ends as it always did. Fire-and-forget; never throws.
+ * @param {{ name: string, expiry: number }} live @param {any} u
+ * @returns {Promise<boolean>} whether the session was renewed
+ */
+export async function renewWhenServerVouches(live, u) {
+    try {
+        if (!installedApp()) return false;   // a tab or a desktop: no token work at all
+        const r = await u.getIdTokenResult();
+        if (!(Date.now() - Date.parse(r?.issuedAtTime ?? '') < TOKEN_FRESH_MS)) return false;
+        if (auth.currentUser !== u || getSession()?.name !== live.name) return false;   // somebody else since
+        return renewInstalledSession(live, u, { installed: true });
+    } catch { return false; }
+}
+
+/**
+ * In the installed app, move a live session's expiry to `SESSION_MS` from now — at most once a day, and
+ * only for the member's OWN restored account (`renewedExpiry`, silent-sign-in.js). Its START is written
+ * as it was: the reset check compares that (`sessionPredatesReset`), and a session saved before
+ * `createdAt` existed derives its start from its expiry, which would otherwise move with it.
+ * Exported for its test. Never throws.
+ * @param {{ name: string, expiry: number }} session  the live session, as `getSession()` returned it
+ * @param {{ email?: string|null, isAnonymous?: boolean }|null|undefined} user  the restored Firebase user
+ * @param {{ installed?: boolean, now?: number }} [opts]  for tests
+ * @returns {boolean} whether the session was renewed
+ */
+export function renewInstalledSession(session, user, { installed = installedApp(), now = Date.now() } = {}) {
+    try {
+        if (!user || user.isAnonymous || user.email !== nameToEmail(session.name)) return false;
+        const next = renewedExpiry({ expiry: session.expiry, installed, now, sessionMs: SESSION_MS });
+        if (next === null) return false;
+        const createdAt = _sessionCreatedMs();
+        const payload = JSON.stringify({ ...session, expiry: next, ...(createdAt === null ? {} : { createdAt }) });
+        lsSet(AUTH_KEY, payload);
+        return lsGet(AUTH_KEY) === payload;
+    } catch { return false; }
 }
 
 /**

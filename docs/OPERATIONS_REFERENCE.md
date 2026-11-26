@@ -641,7 +641,8 @@ re-saves the record with its owner at the next load.
 Operations → Usage shows an **exact** count of accounts signed in, from `getSignInStats` (admin-only),
 which reads Firebase Auth's own `lastSignInTime` — nothing new is stored. It is filtered to the current
 server-owned roster (so an un-swept leaver cannot inflate it) and returns four integers, no identity. It
-measures **sign-ins, not activity**: sessions last 60 days, so most opens are restores, and only the last
+measures **sign-ins, not activity**: sessions last 60 days and renew on each open in the installed app, so
+most opens are restores, and only the last
 sign-in is kept. `neverSignedIn` is the actionable figure.
 
 ### Which address staff are on

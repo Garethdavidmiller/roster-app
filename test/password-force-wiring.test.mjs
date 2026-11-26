@@ -42,7 +42,15 @@ mock.module('../firebase-client.js', { namedExports: {
 } });
 mock.module('../auth-state.js', { namedExports: { getAuthSnapshot: () => ({ status: authStatus }) } });
 mock.module('../overlay.js', { namedExports: { lockBodyScroll() {}, unlockBodyScroll() {} } });
-mock.module('../ls.js', { namedExports: { lsGet: () => '1', lsDel(/** @type {string} */ k) { lsDeleted.push(k); } } });
+/** What the page has stored — a real store, so what the module WRITES is what the next load reads. */
+const stored = new Map();
+const MARKER = 'myb_pw_force_pending_G. Miller';
+const KNOWN = 'myb_pw_own_known_G. Miller';
+mock.module('../ls.js', { namedExports: {
+    lsGet: (/** @type {string} */ k) => (stored.has(k) ? stored.get(k) : null),
+    lsSet(/** @type {string} */ k, /** @type {string} */ v) { stored.set(k, v); },
+    lsDel(/** @type {string} */ k) { lsDeleted.push(k); stored.delete(k); },
+} });
 
 // ── A minimal fake DOM: exactly the elements the overlay looks up ──────────────────────────────────
 /** Every event the overlay dispatched on the document, by type — the host page's cue. @type {string[]} */
@@ -98,7 +106,7 @@ function enter(/** @type {any} */ target) {
     return prevented;
 }
 
-beforeEach(() => { setCalls = 0; reauthCalls = 0; authStatus = 'named'; setImpl = null; statusImpl = null; lsDeleted.length = 0; dispatched.length = 0; freshDom(); });
+beforeEach(() => { setCalls = 0; reauthCalls = 0; authStatus = 'named'; setImpl = null; statusImpl = null; lsDeleted.length = 0; dispatched.length = 0; stored.clear(); stored.set(MARKER, '1'); freshDom(); });
 
 /** Let promise chains and the overlay's handlers run (setImmediate, so a mocked setTimeout cannot hold it). */
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };
@@ -259,11 +267,56 @@ test('Enter in the revealed current-password field re-authenticates and saves', 
     assert.equal(setCalls, 2, 'and the save was retried');
 });
 
-test('the one-shot marker is consumed, so an ordinary later load is never compelled', async () => {
+test('the one-shot marker is consumed, so a later load is never taken for a sign-in', async () => {
     authStatus = 'none';                                       // refused below — this is about the marker
     assert.equal(await initPasswordForce('G. Miller'), false);
-    assert.ok(lsDeleted.includes('myb_pw_force_pending_G. Miller'),
-        'the marker was left in place, so the NEXT ordinary page load would be ambushed too');
+    assert.ok(lsDeleted.includes(MARKER),
+        'the marker was left in place, so the NEXT load would be treated as a sign-in too');
+});
+
+// ── An ORDINARY open asks too (owner, 26 Nov 2026): the installed app no longer signs anyone out, so
+// a member on the surname would otherwise never be asked. ──────────────────────────────────────────
+test('an ordinary open compels a member still on the surname — and asks for the current password from the start', async () => {
+    stored.delete(MARKER);
+    let read = 0;
+    statusImpl = async () => { read++; return {}; };           // {}: not migrated
+    const done = initPasswordForce('G. Miller');
+    for (let i = 0; i < 40 && doc.activeElement !== ids.pwfNew; i++) await new Promise(r => setTimeout(r, 5));
+    assert.equal(doc.activeElement, ids.pwfNew, 'the overlay did not open on an ordinary open');
+    assert.equal(read, 1);
+    assert.equal(ids.pwfCurrentWrap.hidden, false, 'weeks after a sign-in, Firebase needs the current password: ask for it up front');
+    ids.pwfEscape.click();
+    await done;
+});
+
+test('after a sign-in the current-password box stays hidden — the sign-in was seconds ago', async () => {
+    const done = initPasswordForce('G. Miller');
+    for (let i = 0; i < 40 && doc.activeElement !== ids.pwfNew; i++) await new Promise(r => setTimeout(r, 5));
+    assert.equal(ids.pwfCurrentWrap.hidden, true);
+    ids.pwfEscape.click();
+    await done;
+});
+
+test('an ordinary open costs nothing once this device has seen the member\'s own password', async () => {
+    stored.delete(MARKER);
+    let read = 0;
+    statusImpl = async () => { read++; return { passwordSetAt: { toMillis: () => 1 } }; };
+    assert.equal(await initPasswordForce('G. Miller'), false);
+    assert.equal(read, 1, 'the first open asks the server');
+    assert.equal(stored.get(KNOWN), '1', 'and keeps the answer');
+    assert.equal(await initPasswordForce('G. Miller'), false);
+    assert.equal(read, 1, 'the next open needs no read at all');
+});
+
+test('a sign-in asks the server whatever this device remembers — and forgets a "migrated" the server denies', async () => {
+    stored.set(KNOWN, '1');                                    // e.g. remembered from before an admin reset
+    statusImpl = async () => ({});                             // the server: back on the surname
+    const done = initPasswordForce('G. Miller');
+    for (let i = 0; i < 40 && doc.activeElement !== ids.pwfNew; i++) await new Promise(r => setTimeout(r, 5));
+    assert.equal(doc.activeElement, ids.pwfNew, 'a remembered answer must never stop the step after a sign-in');
+    assert.equal(stored.has(KNOWN), false, 'the stale "migrated" was kept, so later opens would skip the step');
+    ids.pwfEscape.click();
+    await done;
 });
 
 test('a load whose identity is not a named member is never compelled — whatever the marker says', async () => {

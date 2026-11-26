@@ -22,8 +22,8 @@ import { authReady, getLatestNewsletter } from './firebase-client.js';
 import { checkLatestNewsletter } from './newsletter-recency.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
-import { initPasswordForce } from './password-force.js';
-import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW } from './storage-keys.js';
+import { initPasswordForce, passwordStepMayBeDue } from './password-force.js';
+import { TEAM_VIEW } from './storage-keys.js';
 import { initTeamView } from './calendar-team-view.js';
 import { wireCalendarDrawer, rewireCalendarDrawer } from './calendar-drawer.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox, confirmDialog } from './overlay.js';
@@ -937,9 +937,10 @@ const _passwordForceSettled = new Promise(resolve => { _resolvePasswordForce = r
  * The "set your own password" step, on the Calendar — the front door is a sign-in, so this is where
  * most members sign in, and the one-shot marker that sign-in sets must be consumed here. Two things
  * about the shape:
- *   · The marker is read HERE first. `initPasswordForce` checks it too, but `ensureNamedSession`
- *     has to run before it (below), and that must not become an unconditional step on every load
- *     of the app's most-opened page — the Calendar's boot is measured to the millisecond.
+ *   · Whether it could be due is asked HERE first (`passwordStepMayBeDue`: a sign-in marker, or no
+ *     record that this device has seen the member's own password). `ensureNamedSession` has to run
+ *     before it (below), and that must not become an unconditional step on every load of the app's
+ *     most-opened page — the Calendar's boot is measured to the millisecond.
  *   · `ensureNamedSession` is passed as `ready`, not skipped. The Calendar's boot confirms an
  *     identity WITHOUT feeding the auth store, so `authStatus` would read unresolved, the gate would
  *     refuse, and the marker — consumed before the gate on purpose — would be gone for good. For a
@@ -949,7 +950,7 @@ const _passwordForceSettled = new Promise(resolve => { _resolvePasswordForce = r
  */
 async function _runPasswordForce() {
     const name = getSession()?.name;
-    if (!name || getAccessType() !== 'named' || !lsGet(PW_FORCE_PENDING_PREFIX + name)) return false;
+    if (!name || getAccessType() !== 'named' || !passwordStepMayBeDue(name)) return false;
     try {
         return await initPasswordForce(name, { ready: ensureNamedSession(name).catch(() => false) });
     } catch (e) {

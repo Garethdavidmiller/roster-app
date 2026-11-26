@@ -438,18 +438,22 @@ security controls; the default password is still the surname, so this is hardeni
 remediation. Practical risk is low for a small known team. Status of record:
 AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)".
 
-### A signed-in session lasts 60 days regardless of use (owner decisions — accepted trade)
+### A signed-in session lasts 60 days regardless of use — renewed on each open in the installed app (owner decisions — accepted trade)
 
-`SESSION_MS` in `session.js` is absolute, set once at sign-in, and the only clock (owner decisions:
-v20.41 removed the 7-day inactivity cutoff, v20.47 doubled 30 days to 60). **Do not restore an
-inactivity cutoff** on the assumption it was load-bearing. `session.test.mjs` pins the properties;
+`SESSION_MS` in `session.js` is set at sign-in and is the only clock (owner decisions: v20.41 removed
+the 7-day inactivity cutoff, v20.47 doubled 30 days to 60). In the app installed on a phone it is
+renewed on each open (owner, 26 Nov 2026 — `renewInstalledSession`; AUTH_AND_SESSIONS.md 2), so a
+member using it at least every two months never signs in again; a browser tab or desktop keeps the
+fixed 60 days. **Do not restore an inactivity cutoff** on the assumption it was load-bearing. `session.test.mjs` pins the properties;
 `createdAt` is no second clock, only compared with the member's last reset (`sessionPredatesReset`).
 
-- **What reads FROM this number:** the forced password migration (Track C) reaches everybody only at
-  the session's pace, up to 60 days; and Operations → Usage's "Accounts that have signed in — last 30
-  days" counts sign-ins, not people (`_appendSignInSection`). Do not restore an active-people claim
+- **What reads FROM this number:** Operations → Usage's "Accounts that have signed in — last 30
+  days", which counts sign-ins, not people (`_appendSignInSection`). The forced password step no longer
+  does: it asks on an ordinary open too (AUTH_AND_SESSIONS.md → "The forced password overlay"). Do not restore an active-people claim
   unless the window is derived from `SESSION_MS`.
-- **Who notices:** a LEAVER whose device holds a session keeps the signed-in *UI* for up to 60 days.
+- **Who notices:** a LEAVER whose device holds a session keeps the signed-in *UI* for up to 60 days —
+  in the installed app, 60 days from the last renewal, which stops within the hour of their account being
+  disabled (a renewal needs a token the server issued within the hour).
   **The real control** is Operations → Staff Login Accounts → tick "Disable accounts for anyone no
   longer on the roster (leavers)" → Set up accounts: the ID token stops refreshing (≤1 hour), every
   read and write fails, and Admin blocks a name that is no longer on the roster. Sign-out, a disabled

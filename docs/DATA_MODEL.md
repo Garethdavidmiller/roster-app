@@ -362,8 +362,9 @@ write. The window sum and each address row are clamped at zero, because a lost `
 behind until that day leaves the window. Counts are per member-device — a usage trend, not an exact
 headcount. **The EXACT unique count sits beside it**, from the `getSignInStats` Cloud Function, which
 reads Firebase Auth's own `lastSignInTime` — nothing new is stored and no identity returned. It
-measures **sign-ins, not activity**: sessions last 60 days, so most page opens are session RESTORES, and
-the 30-day sign-in window misses anyone signed in 31–60 days ago who uses the app daily, as well as
+measures **sign-ins, not activity**: sessions last 60 days and renew on each open in the installed app, so
+most page opens are session RESTORES, and the 30-day sign-in window misses anyone who signed in earlier and
+uses the app daily, as well as
 including anyone who signed in once and stopped. Do not describe it as bounding active people unless
 its window is derived from `SESSION_MS`. There is no month-over-month history either (only the LAST
 sign-in is stored). Both figures are shown, each labelled with what it measures. `neverSignedIn` is the
