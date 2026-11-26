@@ -743,6 +743,9 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `paycalc-form-data.js`
 - **Exports:** `emptyPeriodData` · `syncNoSpecialTick` · `pensionToStore` · `readFormData` · `settingFieldsWrite` · `writeFormData`
 
+### `paycalc-period-merge.js`
+- **Exports:** `PERIOD_UNITS` · `planPeriodSave` · `formChangedSince` · `fieldsOfUnits` · `unitValueText` · `periodSaveQuestion`
+
 ### `paycalc-inputs.js`
 - **Exports:** `numVal` · `numValOr` · `intVal` · `hoursTextToHM` · `hmPair` · `hhmmDec` · `clampMins` · `_decHintEl` · `decimalHoursText` · `decPreview` · `paintTaxCodeWarning` · `commitFocusedField` · `wireIosTap`
 

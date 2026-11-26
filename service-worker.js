@@ -335,6 +335,7 @@ const APP_FILES = [
     'paycalc-migrations.js',
     'paycalc-money-banner.js',
     'paycalc-pension.js',
+    'paycalc-period-merge.js',
     'paycalc-periods.js',
     'paycalc-result-headline.js',
     'paycalc-role-card.js',

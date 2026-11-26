@@ -636,7 +636,10 @@ const CAPS = {
     // 1052 → 1065 (26 Nov 2026), a RAISE of thirteen lines, all generated: the nine app pages and their
     // stylesheets joined APP_FILES, one per line like every module, and the three hand-written lines that
     // listed them in each of NETWORK_FIRST_FILES and CORE_ASSETS went. No logic moved and none was added.
-    'service-worker.js':       1065,
+    // 1065 → 1066 (26 Nov 2026), a RAISE of exactly one generated line: the precache entry for
+    // `paycalc-period-merge.js`, the two-tab merge rule that went into a module of its own rather than
+    // into paycalc-app.js. Nothing else in the worker grew.
+    'service-worker.js':       1066,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

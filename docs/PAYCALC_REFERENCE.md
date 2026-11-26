@@ -682,6 +682,17 @@ sits beside a short one.
 
 ## State management
 
+**"Entries saved" means storage holds what is on screen** (Nov 2026). The autosave reads every write
+back (`lsSetVerified`) before the status says so; a write that does not land keeps the typed figures on
+screen under "⚠ Not saved — try again", and the next edit tries again. A Clear checks its delete
+(`lsDelVerified`); a refused one puts the stored figures back and says it could not clear.
+
+**Two tabs on one payslip merge, they do not overwrite** (`planPeriodSave`, `paycalc-period-merge.js`,
+whose header holds the rule). The coordinator keeps the stored version its form was opened from; a save
+takes another tab's figures for the rows this tab did not change, and asks — in the app's own dialog —
+about a row both changed differently, or a payslip cleared elsewhere. The `storage` event only brings a
+quiet tab up to date early; every save checks storage itself.
+
 **The two-tap "Clear all entries"** — `createClearConfirm` in `paycalc-clear-confirm.js` (25 Nov 2026;
 it was the coordinator's `_clearState`) holds the arm, the live countdown and both timers so they reset
 together; a confirming tap within 500 ms of arming (`CLEAR_CONFIRM_MIN_MS`, read on `performance.now()`)
