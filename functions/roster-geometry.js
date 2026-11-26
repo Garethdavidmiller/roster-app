@@ -9,10 +9,8 @@
  * ── THE PROBLEM THIS IS THE ONLY ANSWER TO ──────────────────────────────────────────────────────
  *
  * The import's day-drift defences — the row read, `sundayScan`, `columnScan` — are three readings
- * by ONE model of ONE PDF in ONE call. They are not independent witnesses: when the model visually
- * collapses a blank Sunday cell and slides the week a day left, every one of them repeats the same
- * positional mistake and every cross-check agrees with the wrong answer. `roster-alignment.js`
- * compares against the member's base roster instead — genuinely independent, but WEAK by design,
+ * by ONE model of ONE PDF in ONE call, so they repeat one positional mistake together.
+ * `roster-alignment.js` compares against the base roster instead — independent, but WEAK by design,
  * because a published roster legitimately carries leave, absence, overtime and swaps.
  *
  * A STRONG witness turns out to be in the file. The table's rules are DRAWN — stroked `moveTo`/
@@ -28,29 +26,25 @@
  *
  *     An AI day the physical cell cannot support is REFUSED, not weighed.
  *
- * No probability, no second opinion, no repair. A claim (a duty, an absence, anything that is not a
- * rest day) landing in an empty cell becomes an UNREADABLE review cell, and the member's row is
- * reported to the client so the WHOLE row starts unticked — because a claim in an empty cell means
- * the row is misaligned, and the cells that happen to land on occupied days are wrong too, just
- * invisibly. Measured on the corpus: **zero false refusals**, and it refuses every one of the
- * blank-Sunday collapses that are the reported bug.
+ * No probability, no second opinion, no repair. A claim (anything that is not a rest day) landing in
+ * an empty cell becomes an UNREADABLE review cell, and the WHOLE row starts unticked — a claim in an
+ * empty cell means the row is misaligned, its other cells too. Measured on the corpus: **zero false
+ * refusals**, and it refuses every blank-Sunday collapse.
  *
  * What it cannot see, stated rather than implied: a member whose week is FULLY occupied has no
  * empty cell for a shifted claim to contradict, so a drift on that row passes this witness (it may
  * still trip `roster-alignment.js`). And `RD` written into an occupied cell is not checked here —
  * telling a printed "RD" from a printed duty means READING the text, which is phase 3, and a rule
- * that read it now would be the model's job done twice with two sets of failure modes. (The one
- * sub-case that needs only "is the cell filled at all" — an EMPTY read of a filled cell on the
- * geometry path — is `reviewBlankReadsOfFilledCells` in roster-prompt.js, whole-app review H3; its
- * reverse, a rest day read for an EMPTY weekday cell, is `reviewRestReadsOfEmptyCells` beside it.)
+ * that read it now would be the model's job done twice with two sets of failure modes. (An EMPTY
+ * read of a filled cell on the geometry path is `reviewBlankReadsOfFilledCells` in roster-prompt.js;
+ * a rest day read for an EMPTY weekday cell, `reviewRestReadsOfEmptyCells` beside it.)
  *
  * ── FAIL OPEN, EVERYWHERE, AND SAY SO ───────────────────────────────────────────────────────────
  *
  * pdfjs missing, a page without the grid, a member whose name the PDF spells differently, a
  * scanned sheet with no text layer: each is "no signal for that cell", never an error, and never a
- * refusal. The import behaved without this witness for two years; a witness that could take the
- * import down would be a worse trade than none. The stats it returns exist so the client can SHOW
- * the admin when the witness did not run — a fail-open that is invisible is the v16.70 lesson.
+ * refusal: a witness that could take the import down would be a worse trade than none. The stats it
+ * returns let the client SHOW the admin when the witness did not run — a fail-open must be visible.
  *
  * ── THE HAZARDS GEOMETRY INTRODUCES IN EXCHANGE FOR THE ONE IT REMOVES ─────────────────────────
  *
@@ -67,28 +61,21 @@
  * TRANSFORMED ones, so a page drawn under a scaling `cm` puts its text beside its grid rather than in
  * it. The corpus draws none; such a page places no row and fails open as `no-rows`.
  *
- * pdfjs is PINNED EXACTLY, to 6.5.438 (v25.91), in functions/package.json and the root's copy for
- * the tests — dependency-pin-parity.test.mjs holds the two together. This file reads
- * `OPS.constructPath`'s argument shape directly, and pdfjs has changed it before (5.1.91, and the
- * codes renumbered at 5.4.394): a change does not throw, it makes every document `no-grid`, so the
- * witness stops SILENTLY. The real-pdfjs tests in roster-geometry.test.mjs are what say so — run
- * them on any new version before the pin moves. What the move from v4 established:
- *   · the encoding is `rulesFromOperatorList`'s header. A `re` arrives as lines and is skipped
- *     (`isRectangleOp`), or a page clip or a shaded cell adds columns; and `s`, `b` and `b*` arrive
- *     carrying a close pdfjs added, which is dropped. Compared with 4.10.38 on thirty-five ways of
- *     drawing the table (13 Nov 2026, v25.94), the rows read are the same to the byte on every one
- *     but three, all named in `isRectangleOp`, where 6.x reads NO grid, fails open, and the review
- *     says so — never a different grid. The first comparison, at the move (v25.91), had eleven
- *     drawings and no closing paint operator among them, and that release misread 16 of these 35,
- *     four of them by reading a WRONG row; the review that day found it. No real roster was to
- *     hand, so the first import after the move is the check — its review must not say the layout
- *     check couldn't run;
+ * pdfjs is PINNED EXACTLY, to 6.5.438, in functions/package.json and the root's copy for the tests —
+ * dependency-pin-parity.test.mjs holds the two together. This file reads `OPS.constructPath`'s
+ * argument shape directly, and pdfjs has changed it before (5.1.91, and the codes renumbered at
+ * 5.4.394): a change does not throw, it makes every document `no-grid`, so the witness stops
+ * SILENTLY. The real-pdfjs tests in roster-geometry.test.mjs are what say so — run them on any new
+ * version before the pin moves. What the move from v4 established:
+ *   · the encoding is `rulesFromOperatorList`'s header. Compared with 4.10.38 on thirty-five ways of
+ *     drawing the table, the rows read are the same to the byte on every one but three, all named in
+ *     `isRectangleOp`, where 6.x reads NO grid, fails open, and the review says so — never a
+ *     different grid. Proven on synthetic pages only, so the first real import after the move is the
+ *     check — its review must not say the layout check couldn't run;
  *   · the legacy build stays — from 5.x it polyfills `Map.prototype.getOrInsertComputed`, which
  *     neither Node 22 nor Node 24.22 has (measured 4 Nov 2026);
- *   · `isEvalSupported` is gone (pdf.js PR 21005), and with it every route from a PDF to `eval`:
- *     the 6.5.438 builds hold no `Function` constructor but a polyfill's fixed `return this`
- *     (counted 13 Nov 2026). What a PDF CAN still become is WebAssembly, so the adapter turns that
- *     off (`useWasm: false`, below);
+ *   · `isEvalSupported` is gone (pdf.js PR 21005), and with it every route from a PDF to `eval`.
+ *     What a PDF CAN still become is WebAssembly, so the adapter turns that off (`useWasm: false`);
  *   · NEVER below 6.5.438: every 5.x and 6.x before it can HANG synchronously on a malformed
  *     Type 4 function (its tree builder had no work limit until pdf.js PR 22365; 5.7.284's is
  *     byte-identical to 6.4.299's), and no time budget in this file can stop a synchronous loop;
@@ -133,7 +120,7 @@ const PATH_OPERANDS = Object.freeze({ 0: 2, 1: 2, 2: 6, 3: 4, 4: 0 });
  * Split one path's data into subpaths — `[{ points: [[x, y], …], ops: [code, …] }]`. Null when the
  * data holds a code this reader does not know, or runs short: an operand cannot be stepped over
  * without knowing how many there are, and reading past one turns every later number into a phantom
- * point (the import-server-7 lesson). The caller reads nothing from such a path.
+ * point. The caller reads nothing from such a path.
  * @param {ArrayLike<number>} data
  */
 function subpathsOf(data) {
@@ -161,18 +148,16 @@ function subpathsOf(data) {
  * or, when the width or height is zero, a move, one straight line and a close. v4 kept every `re`
  * out of the rules, and the corner order is the only trace of one that 6.x leaves.
  *
- * So a box drawn by hand in any other order — down the page first, as a table drawing each cell as a
- * closed path may — cannot be a `re`; v4 read its sides, and so does this. One drawn by hand in a
- * `re`'s own order and closed with `h` cannot be told from one, and is skipped; nor can a single
- * line closed with `h` before its stroke (`m l h S`), which pdfjs writes exactly as it writes a
- * zero-width `re`. Those are the two drawings on which 6.5.438 reads LESS than 4.10.38 did
- * (measured 13 Nov 2026, on synthetic pages: either one costs the page its grid). Reading less fails
- * open, and the review says so ("The extra PDF layout check couldn't run"); reading more could hand
- * the cell read a WRONG grid, and a wrong grid puts a duty on the wrong day — the failure this whole
- * module exists to stop.
+ * So a box drawn by hand in any other order cannot be a `re`; v4 read its sides, and so does this.
+ * One drawn by hand in a `re`'s own order and closed with `h` cannot be told from one, and is
+ * skipped; nor can a single line closed with `h` before its stroke (`m l h S`), which pdfjs writes
+ * exactly as a zero-width `re`. Those are the drawings on which 6.5.438 reads LESS than 4.10.38 did
+ * (synthetic pages). Reading less fails open, and the review says so ("The extra PDF layout check
+ * couldn't run"); reading more could hand the cell read a WRONG grid, which puts a duty on the wrong
+ * day — the failure this module exists to stop.
  *
- * A close straight after a close closes nothing new, so a run of them counts as one: `re h S` — a
- * `re` closed again before its stroke — is still a `re` (v25.94).
+ * A close straight after a close closes nothing new, so a run of them counts as one: `re h S` is
+ * still a `re`.
  * @param {{ ops: number[], points: number[][] }} subpath
  */
 function isRectangleOp({ ops: codes, points: pts }) {
@@ -201,33 +186,21 @@ function isRectangleOp({ ops: codes, points: pts }) {
  * array of codes (`PATH_OP`) and absolute coordinates. Anything else — the v4 shape included — has
  * no array where the paths are, so it reads no rule and the page fails open as `no-grid`.
  *
- * A RECTANGLE IS NOT A RULE, and the new encoding no longer says which subpaths were rectangles: a
- * PDF `re` arrives as lines and a close. So exactly what a `re` becomes is skipped (`isRectangleOp`),
- * as v4 skipped its `rectangle` operator — a page clip or a shaded cell otherwise adds columns
- * (measured on 6.4.299, 4 Nov 2026). A box drawn BY HAND is not skipped wholesale: a table can draw
- * its cells as closed boxes, and v4 read their sides (`isRectangleOp` says which ones it cannot).
+ * A RECTANGLE IS NOT A RULE, and a PDF `re` arrives as lines and a close, so exactly what a `re`
+ * becomes is skipped (`isRectangleOp`) — a page clip or a shaded cell otherwise adds columns. A box
+ * drawn BY HAND is not skipped wholesale: v4 read its sides (`isRectangleOp` says which it cannot).
  *
  * `s`, `b` and `b*` CLOSE the path as they paint it, and pdfjs writes that close INTO the path's
- * data: its evaluator pushes one onto the path buffer for exactly those three paint operators (read
- * at 6.5.438, where the buffer becomes the operator's only data array). Nobody drew it, so it is
- * dropped before anything else reads the path (v25.94). Kept, it cost both ways (the 13 Nov 2026
- * review, on synthetic pages): a rule stroked with `s` arrived as a move, a line and a close —
- * exactly a zero-width `re` — and was skipped, so a table drawn that way read no grid; and a `re`
- * painted with `s` or `b` arrived with two closes, stopped looking like a `re`, and was read as four
- * rules — a page border or a shaded cell added columns, and a row highlight inset in a row added two
- * row boundaries, which moved a Sunday time printed above the highlight out of its own row. That
- * row's Sunday then read as an EMPTY cell: on the grid path an empty Sunday is a rest day, the
- * witness refuses only claims, and over a rest-day base Sunday the review showed nothing at all — a
- * worked Sunday dropped silently. The real-pdfjs test pins the appended close to the installed
- * library, because if a later pdfjs stopped adding it, dropping the last close would make every
- * `re s` four rules again.
- *
- * The close is not a segment either way: the reader never draws one (the pen just goes back to the
- * start, below), so dropping it removes no line — it only stops the `re` test being fooled.
+ * data. Nobody drew it, so it is dropped before anything else reads the path. Kept, it cost both
+ * ways: a rule stroked with `s` looked like a zero-width `re` and was skipped (no grid), and a `re`
+ * painted with `s` or `b` stopped looking like one and was read as four rules — which could move a
+ * worked Sunday's time out of its row, to be dropped silently as a rest day. The real-pdfjs test pins
+ * the appended close to the installed library, because if a later pdfjs stopped adding it, dropping
+ * the last close would make every `re s` four rules again. Dropping it removes no line: the reader
+ * never draws a close (the pen just goes back to the start).
  *
  * A curve's end point is NOT taken as the current point, exactly as under v4 — the corpus was
- * measured that way (experiments/roster-pdf-geometry), and the rules are straight. Its operands are
- * still stepped over (`subpathsOf`), which is what import-server-7 was about.
+ * measured that way (experiments/roster-pdf-geometry). Its operands are still stepped over (`subpathsOf`).
  *
  * @param {{ fnArray: number[], argsArray: any[] }} ops   a pdfjs operator list
  * @param {Record<string, number>} OPS                     pdfjs's OPS enum
@@ -287,19 +260,15 @@ function rulesFromOperatorList(ops, OPS) {
 
 // ── 2. Text runs → cells ────────────────────────────────────────────────────────────────────────
 
-// ── A CELL'S DAY IS ITS COLUMN'S, SO THE COLUMNS' ORDER IS READ (review, Nov 2026) ──────────────
+// ── A CELL'S DAY IS ITS COLUMN'S, SO THE COLUMNS' ORDER IS READ ─────────────────────────────────
 //
-// Every cell takes its day from its column's POSITION — the first day column is Sunday because every
-// roster measured prints Sunday first. Nothing read the sheet's own header row to say so: it was page
-// furniture, dropped with the title. So a template printed Monday first was read cleanly, every member
-// placed, and each row handed over a day early — Monday's duties as Sunday's — with nothing on the
-// review to say so. The header is now read before it is dropped: a page whose header names the days in
-// any other order gives no rows (`extractRosterGeometry`), and the cell path runs only once a header
-// has been read in order (`buildCellTable`, roster-prompt.js). A page printing no header of its own is
-// still read Sunday first, the measured order — until another page of the same file prints its days
-// in another order. Then it gives no rows either, to the witness as much as to the cell path: a
-// Monday-first file whose second page repeats no header would otherwise refuse a correctly read
-// Saturday as "a day out", and keep a disputed Sunday a slid read put there.
+// Every cell takes its day from its column's POSITION — Sunday first, as every roster measured
+// prints. A template printed Monday first would hand every row over a day early, every check
+// agreeing. So the header is read before it is dropped: a page whose header names the days in any
+// other order gives no rows (`extractRosterGeometry`), and the cell path runs only once a header has
+// been read in order (`buildCellTable`, roster-prompt.js). A page printing no header of its own is
+// read Sunday first — until another page of the same file prints another order; then it gives no
+// rows either, to the witness as much as to the cell path.
 
 /** A header cell's day — `headerToDayIndex` of a line or a word of it — or undefined when it names
  *  none, or more than one. "Sunday", "Sun 30/08" and "30/08 | Sun" all name Sunday.
@@ -449,11 +418,9 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
     let task = null;
     try {
         const data = pdfBytes instanceof Uint8Array ? new Uint8Array(pdfBytes) : new Uint8Array(Buffer.from(pdfBytes));
-        // useWasm:false — nothing in a PDF is compiled into code that runs here. PDF.js 6 has no
-        // `eval` left to switch off (`isEvalSupported` went with it: glyphs become path data), but by
-        // default it compiles a PDF's Type 4 functions to WebAssembly; off, it runs them from its own
-        // instruction list. Text and geometry need neither. The hang a malformed Type 4 function
-        // caused is bounded on BOTH routes only from 6.5.438 (pdf.js PR 22365): never pin below it.
+        // useWasm:false — nothing in a PDF is compiled into code that runs here (by default PDF.js
+        // compiles Type 4 functions to WebAssembly). The hang a malformed Type 4 function caused is
+        // bounded on BOTH routes only from 6.5.438 (pdf.js PR 22365): never pin below it.
         task = pdfjs.getDocument({ data, useSystemFonts: true, verbosity: 0, useWasm: false });
         const doc = await task.promise;
         for (let p = 1; p <= doc.numPages; p++) {
@@ -496,12 +463,9 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
     } finally {
         try { if (task) await task.destroy(); } catch { /* nothing left to free */ }
     }
-    // A page that prints no day header of its own — a continuation page — is read in the order every
-    // roster measured prints, Sunday first. Once a page of the SAME file has printed its days in
-    // another order, that is no longer a safe assumption about the rest of the file, and nothing on
-    // such a page says which order it is in: its rows are left out too. Not only of the cell path,
-    // which already needs a header, but of the witness and the disputed-Sunday settlement, which read
-    // these rows by position just the same (section 2).
+    // A continuation page (no day header of its own) is read Sunday first — unless a page of the SAME
+    // file printed another order; then its rows are left out of the witness and the disputed-Sunday
+    // settlement too, which read rows by position just the same (section 2).
     for (const { page, rows, headed } of pageRows) {
         if (!headed && result.pagesMisordered && rows.length) {
             console.warn(`[roster-geometry] page ${page}: no day header, and another page's runs in another order — no row on it is read`);
@@ -510,9 +474,8 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
         result.rows.push(...rows);
     }
     result.available = result.rows.length > 0;
-    // A page READ is a page with text and the nine-column grid, so when such a page placed no member
-    // row the honest reason is that — not `no-text`, which sent the reader to a scanned sheet. A grid
-    // refused for its day order says so, not `no-grid`, which sends the reader to the operator list.
+    // The honest reason: a page READ that placed no member row is `no-rows`, not `no-text` (a scanned
+    // sheet); a grid refused for its day order is `day-order`, not `no-grid` (the operator list).
     if (!result.available && !result.reason) {
         result.reason = result.pagesMisordered ? 'day-order'
             : result.pagesRead ? 'no-rows' : result.pagesRejected ? 'no-grid' : 'no-text';
@@ -535,18 +498,12 @@ function nameTokens(name) {
  * same letter ("Gareth Miller" for "G. Miller"). More than one candidate at either tier is NO
  * signal — `Vacant` appears three times on one real sheet.
  *
- * ── THE ONE WAY A TIE IS BROKEN, AND WHY IT IS SAFE (v24.03) ───────────────────────────────────
+ * ── THE ONE WAY A TIE IS BROKEN, AND WHY IT IS SAFE ─────────────────────────────────────────────
  *
- * A real Dispatch sheet carries TWO rows for the same person: an EMPTY `S Faure` placeholder above
- * the real `S. Faure` row. They tokenise identically, so the tie rule above refused both and she
- * got no geometry signal on any Dispatch import — the witness silently skipping one member, every
- * week, which is exactly the shape of failure this module exists to remove.
- *
- * So a tie is broken when EXACTLY ONE of the tied rows has any content at all. An empty row states
- * nothing, and cannot be the row that was meant. Note what this deliberately does NOT do: two tied
- * rows that BOTH carry content stay refused, because then the sheet really is ambiguous and picking
- * either would be a guess. It can only ever narrow a tie the old rule dropped — it can never
- * promote a non-match, and it never chooses between two rows that both say something.
+ * A real Dispatch sheet carries TWO rows for one person: an EMPTY placeholder above the real row.
+ * A tie is broken when EXACTLY ONE of the tied rows has any content at all — an empty row states
+ * nothing. Two tied rows that BOTH carry content stay refused: picking either would be a guess. It
+ * can never promote a non-match.
  *
  * ONE ROW CAN STILL ANSWER TWO MEMBERS, and that is for the callers to refuse: tier 2 gives "J. Smith"
  * the row "J Smith-Jones" when J. Smith is not on the sheet, and two people printed in one band (the
@@ -615,10 +572,9 @@ function applyGeometryWitness(safeEntries, geometry, dates) {
     if (!Array.isArray(dates) || dates.length < 7) return stats;
     stats.ran = true;
 
-    // A ROW TWO MEMBERS MATCH SPEAKS FOR NEITHER (review, Nov 2026 — `matchGeometryRow` says how one
-    // can). Its cells are at most one person's, so checking the other against them refuses a true week
-    // or passes a wrong one. Neither is checked: both count as not covered, which the review states,
-    // and a disputed Sunday of theirs goes to the review (`settleDisputedSundays`).
+    // A ROW TWO MEMBERS MATCH SPEAKS FOR NEITHER (`matchGeometryRow` says how one can): its cells are
+    // at most one person's. Both count as not covered, which the review states, and a disputed Sunday
+    // of theirs goes to the review (`settleDisputedSundays`).
     const rowOf = new Map(safeEntries.map(e => [e, matchGeometryRow(e.memberName, geometry.rows)]));
     /** @type {Map<object, number>} */
     const holders = new Map();
@@ -650,23 +606,10 @@ function applyGeometryWitness(safeEntries, geometry, dates) {
 
 /**
  * The coverage figure the ADMIN is shown — counted over the rows that reach the review, not over
- * everything the model returned (v22.45, external review).
- *
- * THE DEFECT. `applyGeometryWitness` runs before hallucinated names are filtered out, because a
- * refusal has to be stamped into the entry while the entry still exists. A name the roster does not
- * contain can never match a physical row, so it lands in `unmatched` and inflates `total` — and
- * only `total`. One real member fully checked alongside one invented name reported `1 of 2 rows
- * checked — partial`, and the admin then read a "check the remaining rows carefully" banner about a
- * review in which every row HAD been checked. Nothing bad is written; the warning is simply
- * pessimistic, and a warning that cries wolf is how a witness stops being read.
- *
- * WHY THIS IS NOT THE v16.76 MISTAKE, which the column cross-check carries a comment about: there
- * the bug was MIXING populations — a numerator counted over everything against a denominator
- * counted over the filtered rows, so a hallucinated row with strong column signal pushed the ratio
- * to 'complete' while a real member went unchecked. Both figures here come from the same
- * population, and the asymmetry that makes it safe is specific: a hallucinated name can only ever
- * be `unmatched`, never `checked`, because matching requires a row bearing that name in the PDF.
- * So recounting can only ever REMOVE an unchecked row, never add a checked one.
+ * everything the model returned. `applyGeometryWitness` runs before hallucinated names are filtered
+ * out, and an invented name can only ever be `unmatched`, so it would make a fully checked review
+ * read `partial` — a warning that cries wolf. Both figures here come from ONE population, and
+ * recounting can only ever REMOVE an unchecked row, never add a checked one.
  *
  * @param {{ checked: number, total: number, unmatched: string[], ran: boolean }} stats  from applyGeometryWitness
  * @param {string[]} reviewedNames  the member names that actually reach the review table
@@ -687,19 +630,15 @@ function geometryCoverage(stats, reviewedNames) {
  * How long the caller will WAIT for the grid read, each time it waits — and the reason the budget
  * is on the wait rather than on the work.
  *
- * Since phase 2 (v24.04) the read is awaited BEFORE the model call, because a usable grid decides
- * which prompt is sent, so it sits on the critical path: under a second a document on the corpus,
- * at most this budget. Only a wait that gave up is repeated after the model has answered
- * (`settledGeometry`), so a pathological PDF costs two budgets at worst. That tail is what the bound
- * is for (v22.39): a PDF where pdfjs never settles would otherwise hold a finished parse until the
- * Cloud Function's own 120s timeout — an OPTIONAL check extending the critical path without bound,
- * which contradicts the whole fail-open contract.
+ * The read is awaited BEFORE the model call (a usable grid decides which prompt is sent), so it is
+ * on the critical path: under a second a document on the corpus, at most this budget. Only a wait
+ * that gave up is repeated after the model has answered (`settledGeometry`), so a pathological PDF
+ * costs two budgets at worst — never an OPTIONAL check holding a finished parse until the
+ * function's own timeout.
  *
  * **Stopping the wait is not stopping the work**, exactly as `fetch-timeout.js` says on the client
- * side. The extraction keeps running in the instance until it finishes or the instance goes; that
- * costs nothing on the request, and the witness has no side effects to leave half-done. The
- * `workBudgetMs` between-pages check above is the other half — it bounds the CPU, this bounds the
- * wait, and the two answer different questions.
+ * side: the extraction keeps running, with no side effects to leave half-done. The `workBudgetMs`
+ * between-pages check bounds the CPU; this bounds the wait.
  */
 const GEOMETRY_WAIT_BUDGET_MS = 8000;
 
@@ -724,8 +663,7 @@ async function awaitGeometryWithin(promise, ms = GEOMETRY_WAIT_BUDGET_MS) {
     const timedOut = { available: false, reason: 'wait-timeout', rows: [], pagesRead: 0, pagesRejected: 0 };
     try {
         return await Promise.race([
-            // A rejection here would be a bug in a function documented never to throw, but the
-            // whole point of this file is that the import survives one — so it fails open too.
+            // A function documented never to throw rejected — the import survives it: fail open.
             promise.catch(err => {
                 console.warn(`[roster-geometry] the witness rejected, which it is not meant to do: ${err && err.message}`);
                 return { available: false, reason: 'threw', rows: [], pagesRead: 0, pagesRejected: 0 };
@@ -743,23 +681,12 @@ async function awaitGeometryWithin(promise, ms = GEOMETRY_WAIT_BUDGET_MS) {
 /**
  * Reuse a settled geometry result, and ask again ONLY when the early wait gave up.
  *
- * ── WHY THIS IS A FUNCTION AND NOT TWO LINES IN THE COORDINATOR (v24.05) ───────────────────────
- *
- * Phase 2 moved the first `awaitGeometryWithin` in FRONT of the model call so the cells could be
- * handed over already separated. The first cut of that then reused the early result for the
- * phase-1 witness further down, on the reasoning that the promise had settled by then.
- *
- * It has not settled when the early wait TIMED OUT. `awaitGeometryWithin` is a `Promise.race`: the
- * extraction keeps running and the caller is holding the fail-open object. Reusing it threw away a
- * witness the PRE-phase-2 ordering would have had — before, the only await came after the model
- * call, so a slow extraction had the model's whole latency plus the budget; after, it had the
- * budget alone, and a PDF that overran it lost BOTH the geometry path and the witness. A safety net
- * getting smaller as a side effect of a change that was meant to add one.
- *
- * It lives here rather than inline because it was a WIRING mistake, not a rule mistake — the
- * helpers were both correct and the coordinator used them wrongly, which is the one shape a unit
- * test of either helper can never catch. As a named function it is drivable directly, and the
- * coordinator's use of it is a single call with no branch left to get wrong.
+ * WHY THIS IS A FUNCTION AND NOT TWO LINES IN THE COORDINATOR: when the early wait TIMED OUT, the
+ * extraction is still running (`awaitGeometryWithin` is a `Promise.race`) and the caller holds the
+ * fail-open object. Reusing it would lose BOTH the geometry path and the witness on a slow PDF, so it
+ * is asked again — on `wait-timeout` and ONLY on that: every other reason is a settled answer, and
+ * re-asking would spend the budget again on every ordinary fallback. A named function, so the
+ * coordinator's use is a single call with no branch left to get wrong.
  *
  * @param {RosterGeometry|null|undefined} early   what the pre-model wait returned
  * @param {Promise<RosterGeometry>} promise       the SAME extraction, still running on a timeout
