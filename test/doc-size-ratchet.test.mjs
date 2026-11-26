@@ -5,7 +5,7 @@
  *
  * ── WHAT IT HOLDS ───────────────────────────────────────────────────────────────────────────────
  *
- * Every hand-read document — `docs/*.md`, the area rules (`.claude/rules/*.md`, loaded into a session
+ * Every hand-read document — every `.md` under `docs/`, its sub-folders included, the area rules (`.claude/rules/*.md`, loaded into a session
  * whenever their files are opened), the skills and `README.md` — carries a ceiling in CHARACTERS, set
  * a little above its size on the day it was measured (26 Nov 2026, after the documentation rounds
  * that took `docs/` and the rules from 1.88 MB to 1.63 MB). `CLAUDE.md` is not here: it has its own,
@@ -29,8 +29,8 @@
  *   plan, a "until v24 this did X" story, a fact also stated in a module header or another document.
  *   Only then, if the growth is real content, RAISE the cap in the same commit, with a one-line reason
  *   beside it. Raising is allowed; raising silently is what this prevents.
- * - **Too far under its cap:** a document that has shrunk must bring its cap down with it (the
- *   rounding rule below), or the saving is banked as room for the next story.
+ * - **Too far under its cap:** a cap more than 1,000 characters (`SLACK`, one rounding step) above what
+ *   the rule below gives must come down to that figure, or the saving is banked as room for the next story.
  * - **No cap at all:** a new document — give it one by the same rule.
  * - **A cap for a file that is gone:** delete the entry.
  *
@@ -87,6 +87,10 @@ const CAPS = {
     'docs/IPHONE_RELEASE_CHECKLIST.md':      12_000,
     'docs/KNOWN_LIMITATIONS.md':             92_000,
     'docs/LATENCY.md':                       21_000,
+    'docs/links-26/30-days-off/README.md':     23_000,
+    'docs/links-26/HISTORY.md':               685_000,
+    'docs/links-26/README.md':                 30_000,
+    'docs/links-26/RULES.md':                  12_000,
     'docs/LINKS_REFERENCE.md':              106_000,
     'docs/MAINTENANCE_CALENDAR.md':          24_000,
     'docs/OPERATIONS_REFERENCE.md':         106_000,
@@ -97,11 +101,22 @@ const CAPS = {
     'docs/RECOVERY_RUNBOOK.md':              45_000,
     'docs/ROADMAP.md':                       57_000,
     'docs/SECURITY_RELEASE_PLAN.md':         34_000,
+    'docs/timetable-dec26/tooling/README.md': 10_000,
     'docs/VALIDATION_REGISTER.md':           16_000,
 };
 
 /** The cap the rule above would give a document of this size. */
 const capFor = (/** @type {number} */ n) => Math.ceil(n * 1.05 / 1000) * 1000;
+
+/**
+ * How far above `capFor(size)` a cap may sit before it counts as banked headroom: one rounding step.
+ * A document may shrink by a sentence or two without touching its cap; past 1,000 characters below
+ * the rule's figure, the cap must come down.
+ */
+const SLACK = 1000;
+
+/** True when a cap has more room than the rule gives a document of `n` characters. */
+const tooGenerous = (/** @type {number} */ n, /** @type {number} */ cap) => cap > capFor(n) + SLACK;
 
 /** Every document the ratchet covers, found on disk — so a new one cannot slip in uncapped. */
 function documents() {
@@ -111,7 +126,8 @@ function documents() {
         .map(d => `.claude/skills/${d}/SKILL.md`)
         .filter(f => existsSync(new URL(f, REPO_ROOT_URL)));
     return [
-        ...inDir('docs/', n => n.endsWith('.md')),
+        ...readdirSync(new URL('docs/', REPO_ROOT_URL), { recursive: true })
+            .map(String).filter(n => n.endsWith('.md')).map(n => 'docs/' + n.split('\\').join('/')),
         ...inDir('.claude/rules/', n => n.endsWith('.md')),
         ...skills,
         'README.md',
@@ -134,7 +150,7 @@ test('and no cap is quietly generous — a shrunk document brings its cap down',
     const slack = Object.entries(CAPS)
         .filter(([f]) => existsSync(new URL(f, REPO_ROOT_URL)))
         .map(([f, cap]) => [f, size(f), cap])
-        .filter(([, n, cap]) => Number(cap) > capFor(Number(n)) + 2000)
+        .filter(([, n, cap]) => tooGenerous(Number(n), Number(cap)))
         .map(([f, n, cap]) => `${f}: ${n} characters under a cap of ${cap} — lower it to ${capFor(Number(n))}`);
     assert.deepEqual(slack, [],
         `these caps have more room than the rule gives:\n  ${slack.join('\n  ')}\n` +
@@ -156,5 +172,8 @@ test('the scan finds the documents it is meant to — guard the guard', () => {
     assert.ok(docs.filter(f => f.startsWith('docs/')).length > 20, 'the docs/ scan found almost nothing');
     assert.ok(docs.filter(f => f.startsWith('.claude/rules/')).length > 10, 'the rules scan found almost nothing');
     assert.ok(docs.includes('docs/DECISIONS.md'), 'the scan missed DECISIONS.md');
+    assert.ok(docs.includes('docs/links-26/RULES.md'), 'the scan stopped reading docs/ sub-folders');
     assert.equal(capFor(10_000), 11_000, 'the cap rule moved without this file\'s header');
+    assert.equal(tooGenerous(2_860, 6_000), true, 'a small document that halved must bring its cap down');
+    assert.equal(tooGenerous(5_244, 6_000), false, 'a document at the rule\'s own figure is not too generous');
 });
