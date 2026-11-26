@@ -77,6 +77,62 @@ test('paycalc: changing a setting never writes over saved entries that could not
         'only something the member TYPES may replace damaged entries').toBe('{not json');
 });
 
+// A period holding valid JSON of the wrong SHAPE — a list — read as a payslip with nothing in it, so
+// the screen said "No entries saved" over it. It is damaged, and says so, and nothing rewrites it.
+test('paycalc: a saved payslip that is a list, not a record, shows the damaged warning and is left alone', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_p57', '[]');
+    });
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('.save-status.corrupt')).toBeVisible();
+    await expect(page.locator('#saveStatus')).toContainText("Couldn't read this period's saved entries");
+    await changeSettings(page);
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p57')),
+        'a damaged period was rewritten without the member typing').toBe('[]');
+});
+
+// The developer's payslip-actuals sheet said "Imported … Reloading" over a write the browser had
+// refused, and the reload took the pasted text with it. Success is now what storage reads back.
+test('paycalc: the payslip actuals sheet reports a save or a clear the browser refused, and stays put', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);   // G. Miller — the account whose device offers the actuals sheet
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_actuals', '{"2025-04-11":{"gross":1,"tax":1,"ni":1,"net":1}}');
+        const KEY = 'myb_pc_gmiller_actuals';
+        const set = Storage.prototype.setItem, remove = Storage.prototype.removeItem;
+        Storage.prototype.setItem = function (k, v) {
+            if (k === KEY) { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; }
+            return set.call(this, k, v);
+        };
+        Storage.prototype.removeItem = function (k) { if (k !== KEY) remove.call(this, k); };   // refused silently
+    });
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await payPageReady(page);
+    if (!await page.locator('#settingsBody').evaluate(el => el.classList.contains('open'))) {
+        await page.locator('#settingsToggle .card-toggle-arrow').click();
+    }
+    await page.locator('#actualsImportBtn').click();
+    await expect(page.locator('#actualsLightbox.visible')).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__noReload = true; });
+
+    const pasted = '{"2025-05-09":{"gross":2,"tax":2,"ni":2,"net":2}}';
+    await page.locator('#actualsInput').fill(pasted);
+    await page.locator('#actualsImport').click();
+    await expect(page.locator('#actualsStatus')).toHaveText(
+        'These figures could not be saved on this device. Your text is still in the box, so you can try again.');
+    await expect(page.locator('#actualsInput')).toHaveValue(pasted);
+
+    await page.locator('#actualsClear').click();
+    await expect(page.locator('#actualsStatus')).toHaveText(
+        'The stored figures could not be removed from this device. Please try again.');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__noReload), 'the page reloaded over a failure').toBe(true);
+    await expect(page.locator('#actualsLightbox.visible')).toBeVisible();
+});
+
 // Review, 15 Nov 2026: "a loan applies to every payslip" moved from under the plan, which every first
 // visit read, into the block that shows only once a loan is chosen. paycalc-copy-parity.test.mjs pins
 // WHERE the words are; this pins that their block is shown with a loan and only then — a Postgraduate

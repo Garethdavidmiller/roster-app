@@ -38,6 +38,7 @@
 import { hmPair, numVal } from './paycalc-inputs.js';
 import { parseSmartFloatOrNull } from './roster-data.js';
 import { minutesFieldText, HM_PAIRS } from './paycalc-format.js';
+import { isSavedPeriodShape } from './paycalc-inventory.js';
 
 // isDataEmpty — whether a saved payslip counts as entered — reads this schema's fields and lives in
 // paycalc-format.js, the zero-import pure home beside HM_PAIRS; import it from there.
@@ -186,7 +187,9 @@ export function settingFieldsWrite(raw, formNow, fields) {
     if (!raw) return null;
     let saved;
     try { saved = JSON.parse(raw); } catch { return null; }
-    if (!saved || typeof saved !== 'object') return null;
+    // The SHARED shape check (paycalc-inventory.js): a list passed `typeof === 'object'` here and was
+    // spread into a fresh record, so a damaged period was rewritten on a mere setting change.
+    if (!isSavedPeriodShape(saved)) return null;
     const next = { ...saved };
     for (const f of fields) next[f] = formNow[f];
     return JSON.stringify(next);
@@ -200,12 +203,19 @@ export function settingFieldsWrite(raw, formNow, fields) {
  * that module here would drag its seven-module graph into what is otherwise a document-only unit,
  * and force every test of this file through module mocks.
  *
+ * `only` writes just the named SAVED fields (`satH`, `peer`, `pension`…) and leaves every other box
+ * as it is: a save merged with another tab's (paycalc-period-merge.js) brings the form up to the
+ * figures it took from storage, and must not rewrite the box the member is typing in — "7." would
+ * become "7" under their cursor. Omitted, every field is written, exactly as before.
+ *
  * @param {any} d a saved period object (or `emptyPeriodData()`)
+ * @param {{ only?: Set<string> }} [opts]
  * @returns {{ adjNegative: boolean }} the ± state the caller should adopt for `otherAdj`
  */
-export function writeFormData(d) {
+export function writeFormData(d, { only } = {}) {
+    const want = (/** @type {string} */ f) => !only || only.has(f);
     const set = /** @param {string} id @param {any} v */ (id, v) => {
-        /** @type {HTMLInputElement} */ (document.getElementById(id)).value = v || '';
+        if (want(id)) /** @type {HTMLInputElement} */ (document.getElementById(id)).value = v || '';
     };
     // A saved non-zero minutes value shows two digits ("05"), as a calendar fill does
     // (`minutesFieldText`). DISPLAY ONLY: readFormData parses the box, so "05" reads back as 5 and the
@@ -219,23 +229,24 @@ export function writeFormData(d) {
     set('rdwH', d.rdwH || ''); set('rdwM', mins(d.rdwM));
     set('sunH', d.sunH || ''); set('sunM', mins(d.sunM));
     set('boxH', d.boxH || ''); set('boxM', mins(d.boxM));
-    /** @type {HTMLElement} */ (document.getElementById('peerVal')).textContent = d.peer || 0;
-    /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = d.slSkip || false;
+    if (want('peer')) /** @type {HTMLElement} */ (document.getElementById('peerVal')).textContent = d.peer || 0;
+    if (want('slSkip')) /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = d.slSkip || false;
     const _noSpecial = /** @type {HTMLInputElement|null} */ (document.getElementById('noSpecialCheck'));
-    if (_noSpecial) _noSpecial.checked = !!d.noSpecialHours;
+    if (_noSpecial && want('noSpecialHours')) _noSpecial.checked = !!d.noSpecialHours;
     const _rawAdj = d.otherAdj ?? 0;
     const adjNegative = _rawAdj < 0;
-    /** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value =
+    if (want('otherAdj')) /** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value =
         _rawAdj ? Math.abs(_rawAdj).toFixed(2) : '';
     // Restore pension only when period data has a saved value; period-specific default is
     // applied by the caller (loadPeriodData or clearPeriod) when d.pension is null.
     // Loose != null so that pension = 0 (salary sacrifice opted out) is preserved correctly.
     const pa = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
-    if (pa && d.pension != null) pa.value = d.pension;
+    if (pa && d.pension != null && want('pension')) pa.value = d.pension;
     const an = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput'));
-    if (an) an.value = d.actualNet != null ? d.actualNet : '';
-    const _actuals = [['actualGrossInput', d.actualGross], ['actualTaxInput', d.actualTax],
-        ['actualNiInput', d.actualNi], ['actualPensionInput', d.actualPension]];
+    if (an && want('actualNet')) an.value = d.actualNet != null ? d.actualNet : '';
+    const _actuals = [['actualGrossInput', d.actualGross, 'actualGross'], ['actualTaxInput', d.actualTax, 'actualTax'],
+        ['actualNiInput', d.actualNi, 'actualNi'], ['actualPensionInput', d.actualPension, 'actualPension']]
+        .filter(([, , field]) => want(String(field)));
     for (const [id, v] of _actuals) {
         const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(String(id)));
         if (_el) _el.value = v != null ? String(v) : '';

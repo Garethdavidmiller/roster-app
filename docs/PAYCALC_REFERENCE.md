@@ -682,6 +682,17 @@ sits beside a short one.
 
 ## State management
 
+**"Entries saved" means storage holds what is on screen** (Nov 2026). The autosave reads every write
+back (`lsSetVerified`) before the status says so; a write that does not land keeps the typed figures on
+screen under "⚠ Not saved — try again", and the next edit tries again. A Clear checks its delete
+(`lsDelVerified`); a refused one puts the stored figures back and says it could not clear.
+
+**Two tabs on one payslip merge, they do not overwrite** (`planPeriodSave`, `paycalc-period-merge.js`,
+whose header holds the rule). The coordinator keeps the stored version its form was opened from; a save
+takes another tab's figures for the rows this tab did not change, and asks — in the app's own dialog —
+about a row both changed differently, or a payslip cleared elsewhere. The `storage` event only brings a
+quiet tab up to date early; every save checks storage itself.
+
 **The two-tap "Clear all entries"** — `createClearConfirm` in `paycalc-clear-confirm.js` (25 Nov 2026;
 it was the coordinator's `_clearState`) holds the arm, the live countdown and both timers so they reset
 together; a confirming tap within 500 ms of arming (`CLEAR_CONFIRM_MIN_MS`, read on `performance.now()`)
@@ -703,6 +714,24 @@ fresh → discard / ✕ → decide later); `resolveLegacyMigration()` applies th
 `myb_pc_ns_migrated` guard. Device-level flags (migration guards, "seen this notice",
 `myb_pc_ns_migrated`) stay unnamespaced — see `DEVICE_KEYS`. Never build a paycalc key without
 `pcPrefix()`/`SK`.
+
+**A "mine" is CLAIMED before anything moves.** `resolveLegacyMigration` writes `myb_pc_ns_claim`
+(who answered, which keys) and reads it back before copying; if it will not hold, nothing changes and
+the question stays open. While a claim stands nobody is asked and nobody else's answer moves anything;
+the claimant's own later loads finish the copy without asking, and the claim goes only once
+`myb_pc_ns_migrated` reads back. Every migration read that decides a write, a delete or a flag is a
+CHECKED one (`lsGetChecked` / `lsKeysChecked`, `ls.js`): "could not read" is never "absent", and on
+any doubt both values stay and nothing advances. A saved payslip period must be an object
+(`isSavedPeriodShape`, `paycalc-inventory.js`) — any other JSON is DAMAGED on the screen and in the
+backup's preflight, never empty, and is never rewritten for it — Settings' Save included, which says
+the payslip kept its old pension figure.
+
+**Backup and restore read the same way.** A backup is built only from a checked list and a checked
+read of every value (`collectBackupEntries`, `paycalc-transfer.js`); if any fails, no file or copy is
+offered and the card names what could not be read, payslips by payday first. A restore reads every
+original it will touch before its first write and stops, writing nothing, if one cannot be read;
+its rollback puts each original back and is verified by checked reads, and anything it cannot
+confirm is reported as part-restored, never as "nothing was changed" (`applyRestore`).
 
 ## Payslip identity — dates first, and a month's payslip
 

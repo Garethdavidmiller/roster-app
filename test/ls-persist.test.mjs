@@ -367,6 +367,37 @@ describe('lsMove — the source is confirmed gone, or the move is not finished',
     });
 });
 
+// ── CHECKED READS: "could not read" is never "absent" ───────────────────────────────────────────
+// `lsGet` answers null, and `lsKeys` [], both when there is nothing and when storage would not say.
+// A migration acting on that silence deleted the only copy of a value, wrote an older value over a
+// newer one and closed its question over keys it never saw. The checked forms tell the two apart;
+// the forgiving forms keep their meaning.
+describe('lsGetChecked / lsKeysChecked — absent and unreadable are different answers', () => {
+    test('a value, an absent key, and a read that throws', async () => {
+        const store = fakeStorage({ a: '1' });
+        const { mod } = await load({ store, persistImpl: undefined });
+        assert.deepEqual(mod.lsGetChecked('a'), { ok: true, value: '1' });
+        assert.deepEqual(mod.lsGetChecked('missing'), { ok: true, value: null });
+        store.getItem = () => { throw new Error('SecurityError'); };
+        assert.deepEqual(mod.lsGetChecked('a'), { ok: false, value: null }, 'a failed read passed as a read');
+        assert.equal(mod.lsGet('a'), null, 'lsGet still forgives');
+    });
+
+    test('an enumeration, an empty one, and one that throws part-way', async () => {
+        const store = fakeStorage({ a: '1', b: '2' });
+        const { mod } = await load({ store, persistImpl: undefined });
+        assert.deepEqual(mod.lsKeysChecked(), { ok: true, keys: ['a', 'b'] });
+        assert.deepEqual(mod.lsKeys(), ['a', 'b']);
+        const empty = fakeStorage({});
+        globalThis.localStorage = /** @type {any} */ (empty);
+        assert.deepEqual(mod.lsKeysChecked(), { ok: true, keys: [] });
+        globalThis.localStorage = /** @type {any} */ (store);
+        store.key = (/** @type {number} */ i) => { if (i === 1) throw new Error('SecurityError'); return 'a'; };
+        assert.deepEqual(mod.lsKeysChecked(), { ok: false, keys: [] }, 'a half-read list passed as the whole list');
+        assert.deepEqual(mod.lsKeys(), [], 'lsKeys still forgives');
+    });
+});
+
 // ── WILL THIS BROWSER SAVE AT ALL? (the iPhone audit, 7 Nov 2026) ───────────────────────────────
 //
 // The Pay Calculator promised "Saved automatically as you type" over storage that kept nothing.

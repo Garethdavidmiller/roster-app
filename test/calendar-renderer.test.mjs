@@ -122,7 +122,7 @@ mock.module('../override-utils.js', {
 // Stubbing it would mean these tests assert against a model that is not the shipped one.
 const { noteKnowledge, _reset: _resetKnowledge } = await import('../calendar-data-state.js');
 
-const { createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer, monthOnScreen, setSnapshotSource } =
+const { createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer, monthOnScreen, setSnapshotSource, rovingCellFor } =
     await import('../calendar-renderer.js');
 
 /** The month every grid test builds. Since v20.40 a container is only POPULATED when the month's
@@ -1241,6 +1241,48 @@ describe('buildCalendarContainer — grid structure', () => {
         const container = buildCalendarContainer(0, 2026);
         const cell = getDayCell(container, 1);
         assert.equal(cell?.getAttribute('role'), 'button');
+    });
+});
+
+// ── rovingCellFor — which cell a drawn grid gives keyboard focus to (26 Nov 2026) ───────────────
+// The day is the one calendar-redraw.js kept for a background repaint (its `focusDay`), matched by
+// the cell's `data-detail-day`. The ORDER that needs it is calendar-redraw.test.mjs's "which day a
+// redraw gives focus back to"; this is the lookup on a REAL grid, and its fall-back.
+describe('rovingCellFor', () => {
+    const tabStops = (container) => container.querySelectorAll('.calendar-day:not(.other-month)')
+        .filter(c => c.getAttribute('tabindex') === '0');
+
+    test('the kept day takes focus AND the roving tab stop, from the anchor', () => {
+        _mockIsSameDay = (a) => a.getDate() === 14;          // today, the anchor: Wednesday 14 January
+        const container = buildCalendarContainer(0, 2026);
+        const cell = rovingCellFor(container, 'Friday 16 January 2026');
+        assert.equal(cell, getDayCell(container, 16));
+        assert.deepEqual(tabStops(container), [cell], 'one tab stop, on the kept day — Tab out and back returns to it');
+    });
+
+    test('no kept day: the anchor, as before (today, else the 1st)', () => {
+        _mockIsSameDay = (a) => a.getDate() === 14;
+        const today = buildCalendarContainer(0, 2026);
+        assert.equal(rovingCellFor(today, null), getDayCell(today, 14));
+        _mockIsSameDay = () => false;
+        const noToday = buildCalendarContainer(0, 2026);
+        assert.equal(rovingCellFor(noToday, null), getDayCell(noToday, 1));
+    });
+
+    test('a kept day this grid does not have falls back to the anchor — another month\'s day, or a 31st February lacks', () => {
+        _mockIsSameDay = (a) => a.getDate() === 14;
+        const jan = buildCalendarContainer(0, 2026);
+        assert.equal(rovingCellFor(jan, 'Friday 18 September 2026'), getDayCell(jan, 14));
+        assert.deepEqual(tabStops(jan), [getDayCell(jan, 14)], 'the tab stop did not move');
+        // The 31st on the grid that has it is kept; on February's, the same words find no cell.
+        assert.equal(rovingCellFor(jan, 'Saturday 31 January 2026'), getDayCell(jan, 31));
+        noteKnowledge('2026-02', 'authoritative');
+        const feb = buildCalendarContainer(1, 2026);
+        assert.equal(rovingCellFor(feb, 'Saturday 31 January 2026')?.dataset.detailDay, 'Saturday 14 February 2026');
+    });
+
+    test('a panel with no day cells gives nothing to focus', () => {
+        assert.equal(rovingCellFor({ querySelectorAll: () => [] }, 'Friday 16 January 2026'), null);
     });
 });
 

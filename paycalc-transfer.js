@@ -19,8 +19,10 @@
  */
 
 import { DEVICE_KEYS, memberSlug, PAY_DATA_GENERATION, keyOwnerSlug } from './paycalc-migrations.js';
-import { inventoryOf, damagedEntries, classifyPayKey } from './paycalc-inventory.js';
+import { inventoryOf, damagedEntries, classifyPayKey, describePayKey } from './paycalc-inventory.js';
 import { formatISO, teamMembers } from './roster-data.js';
+import { periodByNum, payslipPeriodNum } from './paycalc-periods.js';
+import { fdLong } from './paycalc-format.js';
 
 /** Identifies our own blobs. A file that does not carry this is not ours, whatever its extension. */
 export const BACKUP_FORMAT = 'myb-paycalc-backup';
@@ -73,6 +75,88 @@ export function selectBackupKeys(allKeys, prefix) {
     return allKeys
         .filter(k => k.startsWith(prefix) && !DEVICE_KEYS.has(k) && KEY_RE.test(k))
         .sort();
+}
+
+/**
+ * Read everything a backup will carry — or say exactly what could not be read, and carry nothing.
+ *
+ * A BACKUP IS WHOLE OR IT IS NOT MADE (Nov 2026). The card read each value with `lsGet`, which answers
+ * null both for "nothing there" and for "storage would not answer", and skipped the nulls — so a
+ * device holding two payslips whose second read was refused downloaded the first alone, counted one
+ * payslip, and showed the ordinary download line. A member keeps that file as THE copy of their pay
+ * history. So the list of keys and every value are CHECKED reads (`lsKeysChecked` / `lsGetChecked`,
+ * ls.js): one that fails means no file at all, and the card names what it could not read.
+ *
+ * A key the list named that then reads back ABSENT (removed in another tab between the two) is simply
+ * not there any more, and is left out: that read worked.
+ *
+ * The reads are injected, like `applyRestore`'s, so the refusal is testable against a storage that
+ * fails on demand.
+ *
+ * @param {object} io
+ * @param {() => { ok: boolean, keys: string[] }} io.listKeys  `lsKeysChecked`
+ * @param {(k: string) => { ok: boolean, value: string|null }} io.read  `lsGetChecked`
+ * @param {string} io.prefix  `pcPrefix()`
+ * @returns {{ ok: true, entries: Record<string,string> }
+ *          | { ok: false, reason: 'list-failed' }
+ *          | { ok: false, reason: 'read-failed', unreadable: string[] }}
+ */
+export function collectBackupEntries({ listKeys, read, prefix }) {
+    const listed = listKeys();
+    if (!listed.ok) return { ok: false, reason: 'list-failed' };
+    /** @type {Record<string,string>} */
+    const entries = {};
+    /** @type {string[]} */
+    const unreadable = [];
+    for (const k of selectBackupKeys(listed.keys, prefix)) {
+        const r = read(k);
+        if (!r.ok) unreadable.push(k);
+        else if (r.value !== null) entries[k] = r.value;
+    }
+    return unreadable.length ? { ok: false, reason: 'read-failed', unreadable } : { ok: true, entries };
+}
+
+/**
+ * One saved entry named as a member would recognise it in a sentence: a payslip by its PAYDAY first,
+ * with the printed P-number as the cross-check, as every payslip list on the page names one
+ * (`appendPayslipOptions`) — "the payslip paid 3 July 2026 (P16)". Anything else is named as the
+ * damage notice names it (`describePayKey`): "back pay 2026/27", "your settings". A payslip number
+ * the period grid does not hold falls back to that too.
+ * @param {string} key a full key under `prefix` @param {string} prefix @returns {string}
+ */
+function nameOfEntry(key, prefix) {
+    const tail = key.slice(prefix.length);
+    const c = classifyPayKey(tail);
+    const p = c.period !== null ? periodByNum(c.period) : undefined;
+    if (!p) return describePayKey(tail);
+    const payslip = `the payslip paid ${fdLong(p.payday)} (P${payslipPeriodNum(p)})`;
+    return c.kind === 'snapshot' ? `the figures filled from your calendar for ${payslip}` : payslip;
+}
+
+/**
+ * The line a backup that could not be made ends on: what could not be read, and the button to try
+ * again with. Nothing is claimed — no file was offered, so nothing is half-saved.
+ * @param {{ reason: 'list-failed' } | { reason: 'read-failed', unreadable: string[] }} failure
+ *   `collectBackupEntries`'s refusal
+ * @param {string} prefix `pcPrefix()`
+ * @param {string} button the label of the button that was tapped, to tap again
+ * @param {string} nothing what did not happen: "Nothing was saved." / "Nothing was copied."
+ * @returns {string}
+ */
+export function unreadableBackupLine(failure, prefix, button, nothing) {
+    const retry = `${nothing} Tap ${button} to try again.`;
+    if (failure.reason === 'list-failed') {
+        return "This device wouldn't list the pay data saved on it, so a backup made now could be missing "
+            + `some of it. ${retry}`;
+    }
+    const names = failure.unreadable.map(k => nameOfEntry(k, prefix));
+    const shown = names.slice(0, 4);
+    const more = names.length - shown.length;
+    const list = more > 0 ? `${shown.join(', ')} and ${more} more`
+        : shown.length > 1 ? `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`
+        : shown[0];
+    return `${list.charAt(0).toUpperCase()}${list.slice(1)} couldn't be read on this device, so a backup made now `
+        + `would be missing ${names.length === 1 ? 'it' : 'them'}. ${retry}`;
 }
 
 /**
@@ -361,33 +445,71 @@ export function backupFilename(member, when) {
  * write error on a device that has stopped accepting writes leaves the member wiped and told
  * "Restored".
  *
+ * ── THE THIRD HALF: A READ THAT FAILS IS NOT AN ABSENT KEY (Nov 2026) ──────────────────────────
+ *
+ * The snapshot of what was here used to be taken with `lsGet`, which answers null for a refused read
+ * exactly as for a key that is not there. One refused read of an existing payslip, then one refused
+ * write, and the rollback "put back" that payslip by DELETING it — and with the snapshot saying null
+ * and the key now gone, the check agreed and the card said "nothing was changed". So every read here
+ * is CHECKED (`lsGetChecked`):
+ *
+ *   · Before the first write, every original the restore will touch is read. Absent is recorded as
+ *     CONFIRMED absence; a read that fails stops the restore with nothing written ('unreadable').
+ *   · A write is verified only by a read that worked and matches.
+ *   · A rollback puts each original back exactly — rewrites what had a value, deletes what was
+ *     confirmed absent — and is then VERIFIED, key by key, with checked reads. `restored: true` only
+ *     when every key reads back as it was; otherwise 'part-restored', which the card words as what it
+ *     is: some of this device's pay data may now be the backup's.
+ *   · A surplus key is gone only when a read that worked finds nothing.
+ *
  * @param {object} io
- * @param {(k: string) => string|null} io.get
+ * @param {(k: string) => { ok: boolean, value: string|null }} io.read - a CHECKED read (`lsGetChecked`)
  * @param {(k: string, v: string) => void} io.set
  * @param {(k: string) => void} io.del
  * @param {string[]} io.existing - every pay key currently on the device
  * @param {Record<string,string>} io.entries - the keys/values to end up with
- * @returns {{ ok: boolean, reason?: 'write-failed'|'surplus-remains', restored: boolean }}
- *   `restored` says whether the device was put back exactly as it was; it is meaningful only when
- *   `ok` is false, and it is what decides between "nothing was changed" and "contact the admin".
+ * @returns {{ ok: true, restored: false }
+ *          | { ok: false, reason: 'unreadable', restored: true, unreadable: string[] }
+ *          | { ok: false, reason: 'write-failed', restored: true }
+ *          | { ok: false, reason: 'part-restored', restored: false, unverified: string[] }
+ *          | { ok: false, reason: 'surplus-remains', restored: false }}
+ *   `restored` is meaningful only when `ok` is false: true means the device holds exactly what it held
+ *   before, checked by reading it back — the only case the card may call "nothing was changed".
  */
-export function applyRestore({ get, set, del, existing, entries }) {
+export function applyRestore({ read, set, del, existing, entries }) {
     // THE UNION. Everything this operation could touch, from either side.
-    const touched = new Set([...existing, ...Object.keys(entries)]);
+    const touched = [...new Set([...existing, ...Object.keys(entries)])];
+
+    // WHAT WAS HERE, READ BEFORE ANYTHING IS WRITTEN. A value we could not read is a value we could not
+    // put back, so the restore does not start.
     /** @type {Map<string, string|null>} */
-    const before = new Map([...touched].map(k => [k, get(k)]));
+    const before = new Map();
+    /** @type {string[]} */
+    const unreadable = [];
+    for (const k of touched) {
+        const r = read(k);
+        if (r.ok) before.set(k, r.value);
+        else unreadable.push(k);
+    }
+    if (unreadable.length) return { ok: false, reason: 'unreadable', restored: true, unreadable };
+
+    /** Does `k` read back, by a read that WORKED, as `want` (null = confirmed absent)?
+     *  @param {string} k @param {string|null} want */
+    const holds = (k, want) => { const r = read(k); return r.ok && r.value === want; };
 
     for (const [k, v] of Object.entries(entries)) set(k, v);
 
-    const failed = Object.entries(entries).filter(([k, v]) => get(k) !== v);
-    if (failed.length) {
-        // Roll the WHOLE union back: restore what had a value, remove what did not exist.
+    if (Object.entries(entries).some(([k, v]) => !holds(k, v))) {
+        // Roll the WHOLE union back: rewrite what had a value, remove what was confirmed absent…
         for (const [k, v] of before) {
             if (v === null) del(k);
             else set(k, v);
         }
-        const restored = [...before].every(([k, v]) => get(k) === v);
-        return { ok: false, reason: 'write-failed', restored };
+        // …and believe it only when every key reads back as it was.
+        const unverified = [...before].filter(([k, v]) => !holds(k, v)).map(([k]) => k);
+        return unverified.length
+            ? { ok: false, reason: 'part-restored', restored: false, unverified }
+            : { ok: false, reason: 'write-failed', restored: true };
     }
 
     // Only now remove what the backup does not contain. An own-property check, not `k in entries`:
@@ -398,8 +520,9 @@ export function applyRestore({ get, set, del, existing, entries }) {
     const surplus = [...existing].filter(k => !Object.prototype.hasOwnProperty.call(entries, k));
     for (const k of surplus) del(k);
 
-    // …and verify it. A swallowed delete would otherwise be reported as a successful replace.
-    if (surplus.some(k => get(k) !== null)) {
+    // …and verify it. A swallowed delete would otherwise be reported as a successful replace, and so
+    // would a read that could not say.
+    if (surplus.some(k => !holds(k, null))) {
         return { ok: false, reason: 'surplus-remains', restored: false };
     }
 

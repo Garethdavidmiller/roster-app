@@ -180,7 +180,8 @@
       transition: color var(--dur-slower);
     }
     .save-status.saved   { color: var(--success-text); }
-    .save-status.corrupt { color: var(--warning-amber); font-weight: 600; }
+    /* corrupt: saved entries that cannot be read; failed: what is on screen did not reach storage */
+    .save-status.corrupt, .save-status.failed { color: var(--warning-amber); font-weight: 600; }
     .clear-btn {
       font-size: var(--type-small); font-weight: 600; color: var(--text-light);
       background: none; border: none; cursor: pointer;

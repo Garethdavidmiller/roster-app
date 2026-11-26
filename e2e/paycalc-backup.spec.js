@@ -9,6 +9,7 @@
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
 import { PT_QUIET } from './paycalc-helpers.js';
+import { readFile } from 'node:fs/promises';
 
 // ── Back up your pay data (v19.16) ────────────────────────────────────────────
 // A restore REPLACES a member's entire pay history, and the rules that decide whether to do it are
@@ -361,6 +362,187 @@ test('paycalc: a restore onto storage that refuses writes changes nothing', asyn
     await expect(page.locator('#ptStatus')).toContainText('nothing was changed');
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p16'))).toBe('STALE-VALUE');
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_surplus'))).toBe('SHOULD-SURVIVE');
+});
+
+// ── A READ THAT FAILS IS NEVER "NOTHING THERE" (Nov 2026) ─────────────────────────────────────────
+// `lsGet` answers null for a refused read, so a backup of two payslips whose second read was refused
+// downloaded the first alone, counted one payslip and said nothing; and a restore that could not read
+// one of the originals it was about to replace treated it as absent, so its rollback DELETED it and
+// the card said "nothing was changed". The storage is made to refuse on demand here, by key.
+
+/** Make the browser's own `getItem` throw for the keys in `window.__unreadable`, and for the Nth read
+ *  of `window.__failNth.key` counted from when it is set. @param {import('@playwright/test').Page} page */
+const refuseReads = (page) => page.evaluate(() => {
+    const w = /** @type {any} */ (window);
+    const proto = Object.getPrototypeOf(localStorage);
+    const real = proto.getItem;
+    w.__unreadable = new Set();
+    w.__failNth = null;
+    proto.getItem = function (/** @type {string} */ k) {
+        if (w.__unreadable.has(k)) throw new DOMException('read refused', 'UnknownError');
+        if (w.__failNth && w.__failNth.key === k && ++w.__failNth.seen === w.__failNth.n) {
+            throw new DOMException('read refused', 'UnknownError');
+        }
+        return real.call(this, k);
+    };
+});
+
+/** A backup of G. Miller's figures, written by hand. @param {Record<string,string>} data */
+const handBackup = (data) => JSON.stringify({ format: 'myb-paycalc-backup', version: 1, member: 'G. Miller', slug: 'gmiller', data });
+
+test('paycalc: a payslip that cannot be read stops the backup, and the card names it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_gmiller_p52', '{"satH":7,"satM":30}');   // paid 5 June 2026
+        localStorage.setItem('myb_pc_gmiller_p53', '{"satH":8,"satM":0}');    // paid 3 July 2026
+    });
+    await fakeShareDevice(page, ANDROID_UA);         // the download path on every engine
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    let downloads = 0;
+    page.on('download', () => { downloads++; });
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__copied = [];
+        Object.defineProperty(navigator, 'clipboard', { configurable: true,
+            value: { writeText: async (/** @type {string} */ t) => { w.__copied.push(t); } } });
+    });
+    await refuseReads(page);
+    await page.evaluate(() => /** @type {any} */ (window).__unreadable.add('myb_pc_gmiller_p53'));
+
+    const status = page.locator('#ptSaveStatus');
+    await page.locator('#ptDownload').click();
+    await expect(status).toHaveText("The payslip paid 3 July 2026 (P16) couldn't be read on this device, so a backup made "
+        + 'now would be missing it. Nothing was saved. Tap Download backup to try again.');
+    await expect(status).toHaveClass(/pt-status--warn/);
+    await page.locator('#ptCopy').click();
+    await expect(status).toContainText('Nothing was copied. Tap Copy as text to try again.');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__copied.length), 'no partial copy reaches the clipboard').toBe(0);
+    expect(downloads, 'no partial file is offered').toBe(0);
+
+    // The retry it offers works once storage answers, and carries both payslips.
+    await page.evaluate(() => /** @type {any} */ (window).__unreadable.clear());
+    const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#ptDownload').click()]);
+    const blob = JSON.parse(await readFile(/** @type {string} */ (await download.path()), 'utf8'));
+    expect(Object.keys(blob.data).filter(k => /_p\d+$/.test(k)).sort()).toEqual(['myb_pc_gmiller_p52', 'myb_pc_gmiller_p53']);
+    expect(blob.data.myb_pc_gmiller_p53).toBe('{"satH":8,"satM":0}');
+    expect(blob.counts.periods).toBe(2);
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: a restore that cannot read an original it would replace writes nothing and says so truthfully', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.evaluate(() => {
+        localStorage.setItem('myb_pc_gmiller_p52', 'ORIG-52');
+        localStorage.setItem('myb_pc_gmiller_p53', 'ORIG-53');
+    });
+    await refuseReads(page);
+    await page.locator('#ptPaste').fill(handBackup({ myb_pc_gmiller_p52: 'NEW-52', myb_pc_gmiller_p53: 'NEW-53' }));
+    await page.locator('#ptPasteGo').click();
+    // The original is unreadable ONCE, after the question: the card's own check reads it first, and the
+    // restore's read of what it is about to replace is the one refused. Then a write is refused too.
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__failNth = { key: 'myb_pc_gmiller_p52', n: 2, seen: 0 };
+        const proto = Object.getPrototypeOf(localStorage);
+        const realSet = proto.setItem;
+        proto.setItem = function (/** @type {string} */ k, /** @type {string} */ v) {
+            if (k === 'myb_pc_gmiller_p53') throw new DOMException('quota', 'QuotaExceededError');
+            return realSet.call(this, k, v);
+        };
+    });
+    await page.locator('.dialog-btn-confirm').click();
+    await expect(page.locator('#ptStatus')).toHaveText("This device couldn't read the pay data already saved on it, so "
+        + 'nothing was changed. Your backup is still fine — try the restore again.');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p52')), 'the original is still here').toBe('ORIG-52');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p53'))).toBe('ORIG-53');
+});
+
+test('paycalc: a restore over pay data it cannot read or list does not even ask, and writes nothing', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_p52', 'ORIG-52'));
+    await refuseReads(page);
+    const unread = "This device couldn't read the pay data already saved on it, so nothing was changed. "
+        + 'Your backup is still fine — try the restore again.';
+    // An unreadable value…
+    await page.evaluate(() => /** @type {any} */ (window).__unreadable.add('myb_pc_gmiller_p52'));
+    await page.locator('#ptPaste').fill(handBackup({ myb_pc_gmiller_p52: 'NEW-52' }));
+    await page.locator('#ptPasteGo').click();
+    await expect(page.locator('#ptStatus')).toHaveText(unread);
+    await expect(page.locator('.dialog-btn-confirm'), 'no question over data it could not read').toHaveCount(0);
+    // …and a list of keys the browser will not give.
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__unreadable.clear();
+        Object.getPrototypeOf(localStorage).key = function () { throw new DOMException('list refused', 'UnknownError'); };
+    });
+    await page.locator('#ptStatus').evaluate(el => { el.textContent = ''; });
+    await page.locator('#ptPasteGo').click();
+    await expect(page.locator('#ptStatus')).toHaveText(unread);
+    await expect(page.locator('.dialog-btn-confirm')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p52'))).toBe('ORIG-52');
+});
+
+test('paycalc: pay data that becomes unreadable while the replace question is open is not called "changed"', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_p52', 'ORIG-52'));
+    await refuseReads(page);
+    await page.locator('#ptPaste').fill(handBackup({ myb_pc_gmiller_p52: 'NEW-52' }));
+    await page.locator('#ptPasteGo').click();
+    await expect(page.locator('.dialog-btn-confirm')).toBeVisible();
+    // Every line the status shows from here is recorded: a passing "changed while that question was
+    // open" would be a claim about the member's data that nobody could have checked.
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__said = [];
+        new MutationObserver(recs => { for (const r of recs) for (const n of r.addedNodes) w.__said.push(n.textContent); })
+            .observe(/** @type {Element} */ (document.getElementById('ptStatus')), { childList: true });
+        w.__unreadable.add('myb_pc_gmiller_p52');
+    });
+    await page.locator('.dialog-btn-confirm').click();
+    await expect(page.locator('#ptStatus')).toHaveText("This device couldn't read the pay data already saved on it, so "
+        + 'nothing was changed. Your backup is still fine — try the restore again.');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__said)).toEqual([expect.stringContaining("couldn't read")]);
+    await page.evaluate(() => /** @type {any} */ (window).__unreadable.clear());
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p52'))).toBe('ORIG-52');
+});
+
+test('paycalc: a restore whose rollback cannot put everything back says the device may be part-restored', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_p52', 'ORIG-52'));
+    await page.locator('#ptPaste').fill(handBackup({ myb_pc_gmiller_p52: 'NEW-52', myb_pc_gmiller_p53: 'NEW-53' }));
+    await page.locator('#ptPasteGo').click();
+    // p53's write is refused, and once p52 holds the backup's figure, putting the original back is refused too.
+    await page.evaluate(() => {
+        const proto = Object.getPrototypeOf(localStorage);
+        const realSet = proto.setItem;
+        let p52Written = false;
+        proto.setItem = function (/** @type {string} */ k, /** @type {string} */ v) {
+            if (k === 'myb_pc_gmiller_p53' || (k === 'myb_pc_gmiller_p52' && p52Written)) throw new DOMException('quota', 'QuotaExceededError');
+            if (k === 'myb_pc_gmiller_p52') p52Written = true;
+            return realSet.call(this, k, v);
+        };
+    });
+    await page.locator('.dialog-btn-confirm').click();
+    const status = page.locator('#ptStatus');
+    await expect(status).toContainText('so some of your pay data here may now be from the backup and some from before');
+    await expect(status).toContainText('restore from the same file again');
+    await expect(status).not.toContainText('nothing was changed');
+    await expect(status).toHaveClass(/pt-status--warn/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p52')), 'premise: genuinely part-restored').toBe('NEW-52');
 });
 
 // "Download backup" said "Saved as …" the instant the tap landed — before iOS had saved anything —

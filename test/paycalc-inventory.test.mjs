@@ -28,6 +28,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import {
     KEY_KINDS, classifyPayKey, inventoryOf, inventoryLines, inventorySummary, damagedEntries, describePayKey,
+    isSavedPeriodShape,
 } from '../paycalc-inventory.js';
 
 const P = 'myb_pc_gmiller_';
@@ -172,6 +173,21 @@ describe('over-reporting', () => {
                           [k('hpp_mode_2025_26')]: '{"mode":"exact","exact":"320.00"}', [k('pension_timeline')]: '[]' };
         assert.deepEqual(damagedEntries(entries, P).map(d => d.label).sort(),
             ['Holiday Pay Premium 2026/27', 'figures filled from your calendar for payslip 16', 'payslip 16']);
+    });
+
+    test('a payslip period must be an OBJECT — a list, a string, null or a number is damaged, never empty', () => {
+        // `[]` is valid JSON and an object to `typeof`, so it passed as a healthy, empty payslip, and
+        // the Pay screen showed "No entries saved" over it. One shape check serves the screen's reader
+        // (parseSavedPeriod) and this preflight; the reader's half is in paycalc-migrations.test.mjs.
+        const cases = { '[]': true, '"text"': true, 'null': true, '42': true, '{bad': true, '{"satH":8}': false, '{}': false };
+        for (const [raw, damaged] of Object.entries(cases)) {
+            const flagged = damagedEntries({ [k('p16')]: raw }, P).map(d => d.label);
+            assert.deepEqual(flagged, damaged ? ['payslip 16'] : [], `a payslip holding ${raw}`);
+            assert.equal(isSavedPeriodShape((() => { try { return JSON.parse(raw); } catch { return undefined; } })()), !damaged,
+                `isSavedPeriodShape(${raw})`);
+        }
+        // Scoped to the PERIOD record: a pension timeline IS a list, and stays healthy.
+        assert.deepEqual(damagedEntries({ [k('pension_timeline')]: '[]' }, P), []);
     });
 
     test('setup_years_migrated is not a tax year, and ytd_pay is not ytd_pay_2026_27', () => {

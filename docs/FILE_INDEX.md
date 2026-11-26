@@ -211,6 +211,7 @@ roster-app/
 ├── paycalc-format.js       ← shared pure paycalc formatters and time-input helpers. See also paycalc-format.test.mjs.
 ├── paycalc-breakdown.js    ← the PURE HTML builders for the pay-result card. Tested by paycalc-breakdown.test.mjs
 ├── paycalc-form-data.js ← the per-period form ↔ saved-data ROUND TRIP. Tested by paycalc-form-data.test.mjs
+├── paycalc-period-merge.js ← what a payslip's save may write when another tab saved it too: the three-way merge and the question it asks. Pure; tested by paycalc-period-merge.test.mjs and paycalc-saving.spec.js
 ├── paycalc-inputs.js       ← the pay form's input helpers, free of coordinator state so they test against a fake `document`. Tested by paycalc-inputs.test.mjs
 ├── paycalc-inventory.js ← what a stored pay key IS and what a set of them adds up to — the one authority behind the backup summary and the damage preflight. Tested by paycalc-inventory.test.mjs
 ├── paycalc-transfer.js ← the pay-data BACKUP FORMAT and import rules; `validateBackup` is the TRUST BOUNDARY. Tested by paycalc-transfer.test.mjs. See also paycalc-key-parity.test.mjs.
@@ -520,6 +521,7 @@ roster-app/
 │   ├── paycalc-clear-confirm.test.mjs ← the two-tap Clear: no delete nobody confirmed. Part of test:hygiene
 │   ├── paycalc-breakdown.test.mjs ← the pay-result card builders. Part of test:hygiene
 │   ├── paycalc-form-data.test.mjs ← the paycalc form round trip, a case per historical defect (--experimental-test-module-mocks)
+│   ├── paycalc-period-merge.test.mjs ← two tabs on one payslip: the merge rule, a clear made elsewhere, and the question
 │   ├── paycalc-backpay-state.test.mjs ← the back-pay boxes, a case per historical defect. Part of test:hygiene
 │   ├── paycalc-backpay.test.mjs ← the back-pay lump sum assembled end to end, figures derived from the tax-year table
 │   ├── paycalc-grade.test.mjs ← which grade a payslip's days were worked under. Part of test:hygiene
@@ -680,6 +682,7 @@ roster-app/
 │   ├── paycalc-page.spec.js ← the Pay Calculator's sign-in, period selector and picker, privacy note and desktop workspace
 │   ├── paycalc-calendar-fill.spec.js ← figures from the calendar: the gold highlight, Fill this tax year, Fill and Replace
 │   ├── paycalc-entries.spec.js ← entered hours and settings: what a settings change may save, the loan line, Clear all entries
+│   ├── paycalc-saving.spec.js ← what "Entries saved" promises: two tabs on one payslip, a write that did not land, a clear that did not clear
 │   ├── paycalc-ytd.spec.js ← the payslip check and the Year to Date figures
 │   ├── paycalc-notices.spec.js ← the Pay notices and the Holiday Pay Premium, a joiner's included
 │   ├── paycalc-backup.spec.js ← backup and restore, the share sheet, a browser that will not save

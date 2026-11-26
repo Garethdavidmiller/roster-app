@@ -47,7 +47,7 @@ mock.module('../ls.js', {
     namedExports: {
         lsGet: k => _ls.has(k) ? _ls.get(k) : null,
         lsSet: (k, v) => { _ls.set(k, String(v)); },
-        lsDel: k => { _ls.delete(k); }, lsDelVerified: (/** @type {string} */ k) => { _ls.delete(k); return true; }, lsKeys: () => [..._ls.keys()],
+        lsDel: k => { _ls.delete(k); }, lsDelVerified: (/** @type {string} */ k) => { _ls.delete(k); return true; }, lsKeys: () => [..._ls.keys()], lsGetChecked: (/** @type {string} */ k) => ({ ok: true, value: _ls.has(k) ? _ls.get(k) : null }), lsKeysChecked: () => ({ ok: true, keys: [..._ls.keys()] }),
         // Real semantics, not an always-succeeds stub: the Map cannot fail, so these mirror
         // what ls.js does when storage works.
         lsSetVerified: (k, v) => { _ls.set(k, String(v)); return true; },
@@ -618,6 +618,38 @@ describe('confirmSettings — the pension it writes into the viewed payslip obey
         assert.equal(await saveWithPension(p, ''), null, 'blank → the default, never £0');
         assert.equal(await saveWithPension(p, 'abc'), null, 'garbage → the default, never £0');
     });
+
+    // A PERIOD SAVED IN THE WRONG SHAPE IS DAMAGED, NOT SAVED (Nov 2026). A JSON list parses, so the
+    // bare `JSON.parse` patch set `.pension` on an array, `JSON.stringify` dropped it, the same bytes
+    // went back — and the card said "✓ Settings saved" over a payslip it had not touched. It now asks
+    // `parseSavedPeriod`, the Pay screen's own reader, and says the payslip kept its old figure.
+    for (const raw of ['[1,2]', '"text"', '7', 'null']) {
+        test(`a payslip saved as ${raw} is reported as damaged and left exactly as it was`, async () => {
+            fresh();
+            const p = postAward();
+            const { confirmSettings } = await import('../paycalc-settings.js');
+            els = {};
+            global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => (els[id] ??= makeEl()) });
+            els.periodSelect = makeEl(); els.periodSelect.value = String(p.num);
+            els.gradeSelect  = makeEl(); els.gradeSelect.value = 'cea';
+            els.pensionAmt   = makeEl(); els.pensionAmt.value = '£200.00';
+            // The feedback line is written by setStatus as a glyph span and a text node: record both.
+            /** @type {string[]} */ const said = [];
+            els.settingsSaveFeedback = { ...makeEl(), set textContent(/** @type {string} */ t) { said.length = 0; if (t) said.push(t); },
+                get textContent() { return said.join(''); },
+                appendChild(/** @type {any} */ n) { said.push(n.textContent); return n; },
+                ownerDocument: { createElement: () => ({ setAttribute() {}, textContent: '' }),
+                    createTextNode: (/** @type {string} */ t) => ({ textContent: t }) } };
+            _ls.set(periodKey(p.num), raw);
+            let calculated = 0;
+            confirmSettings(() => { calculated++; });
+            assert.equal(_ls.get(periodKey(p.num)), raw, 'the damaged period is never rewritten');
+            assert.match(els.settingsSaveFeedback.textContent, /saved data is damaged and kept its old pension figure/,
+                'and the card says so rather than "Settings saved"');
+            assert.doesNotMatch(els.settingsSaveFeedback.textContent, /✓/);
+            assert.equal(calculated, 1);
+        });
+    }
 });
 
 // ── A FAKE SETTINGS CARD, FOR THE BLOCKS BELOW THAT DRIVE loadSettings / saveSettings ─────────────

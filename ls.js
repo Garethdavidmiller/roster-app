@@ -82,12 +82,15 @@ export function lsDelVerified(k) {
 }
 
 /**
- * Read a key and say whether the read itself worked — `lsGet` answers null both for "nothing there"
- * and for "storage would not answer", and a rollback cannot tell those apart.
+ * A CHECKED read: says whether the read itself worked. `lsGet` answers null both for "nothing there"
+ * and for "storage would not answer", which is right for a preference and wrong for any caller whose
+ * READ DECIDES A WRITE OR A DELETE — a migration that took "could not read" for "absent" deleted the
+ * only copy of a tax code, wrote an older value over a newer one, and recorded itself finished
+ * (paycalc-migrations.js). Such a caller acts only on `ok: true`; on `ok: false` it changes nothing.
  * @param {string} k
- * @returns {{ ok: boolean, value: string|null }}
+ * @returns {{ ok: boolean, value: string|null }} `ok` false when the read threw; `value` null when absent (or unread)
  */
-function _readChecked(k) {
+export function lsGetChecked(k) {
     try { return { ok: true, value: localStorage.getItem(k) }; }
     catch (e) { _warnOnce(e); return { ok: false, value: null }; }
 }
@@ -122,8 +125,8 @@ function _restore(k, before) {
 export function lsSetBothVerified(keyA, valueA, keyB, valueB) {
     // A COPY TO PUT BACK, OR NO WRITE AT ALL (external audit of v26.92): a key whose old value could
     // not be read has nothing trustworthy to restore it to, so nothing is written.
-    const a = _readChecked(keyA);
-    const b = _readChecked(keyB);
+    const a = lsGetChecked(keyA);
+    const b = lsGetChecked(keyB);
     if (!a.ok || !b.ok) return false;
     const beforeA = a.value;                        // null when the key held nothing
     const beforeB = b.value;
@@ -174,16 +177,26 @@ export function lsAvailable() {
 
 /** Snapshot of all localStorage key names (empty array if storage is unavailable).
  *  Uses the standard length/key(i) enumeration so it never clashes with object
- *  methods, and returns a snapshot so callers can safely delete keys while iterating. */
-export function lsKeys() {
+ *  methods, and returns a snapshot so callers can safely delete keys while iterating.
+ *  @returns {string[]} */
+export function lsKeys() { return lsKeysChecked().keys; }
+
+/**
+ * A CHECKED enumeration — `lsKeys` with the failure told apart. `lsKeys` answers `[]` both for "no
+ * keys" and for "storage would not list them", so a migration that enumerated nothing recorded
+ * itself done over data it had never seen. A caller that will set a flag or delete on the strength
+ * of the list acts only on `ok: true`.
+ * @returns {{ ok: boolean, keys: string[] }} `ok` false when the enumeration threw part-way; `keys` empty then
+ */
+export function lsKeysChecked() {
     try {
         const out = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
             if (k !== null) out.push(k);
         }
-        return out;
-    } catch(e) { _warnOnce(e); return []; }
+        return { ok: true, keys: out };
+    } catch(e) { _warnOnce(e); return { ok: false, keys: [] }; }
 }
 
 /** Device flag: what the durability request last knew — `granted`, or the levers that held when it

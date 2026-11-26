@@ -13,10 +13,12 @@ import assert from 'node:assert/strict';
 import {
     BACKUP_FORMAT, BACKUP_VERSION,
     selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
-    applyRestore, restoredLine,
+    applyRestore, restoredLine, collectBackupEntries, unreadableBackupLine,
 } from '../paycalc-transfer.js';
 import { PAY_DATA_GENERATION, keyOwnerSlug, memberSlug } from '../paycalc-migrations.js';
 import { teamMembers } from '../roster-data.js';
+import { periodByNum } from '../paycalc-periods.js';
+import { fdLong } from '../paycalc-format.js';
 
 /** The ROSTER's name for a slug the fixtures below use — read, never written here. @param {string} slug */
 const rosterNameOf = (slug) => /** @type {string} */ (teamMembers.find(m => memberSlug(m.name) === slug)?.name);
@@ -669,13 +671,35 @@ describe('filename', () => {
 // Every case here needs a storage that fails ON DEMAND, which is exactly what a browser will not do
 // to order — and is why the io is injected rather than importing ls.js.
 describe('applyRestore', () => {
-    /** A fake localStorage whose writes/deletes can be made to fail for chosen keys. */
-    function fakeStore(initial = {}, { failWrites = [], failDeletes = [] } = {}) {
+    /**
+     * A fake localStorage whose writes, deletes and READS can be made to fail for chosen keys. `read` is
+     * the CHECKED read the card passes (`lsGetChecked`): `{ ok: false }` for a refused read, never a null
+     * that looks like an absent key. `failReadsOnce` refuses the first read of each key named; `failReadAt`
+     * refuses the Nth read of a key (1-based). `failWritesAfter` refuses every write to a key once it has
+     * been written once — a rollback whose put-back is refused. `writes` records every write attempted.
+     */
+    function fakeStore(initial = {}, {
+        failWrites = [], failDeletes = [], failReadsOnce = [], failReadAt = {}, failWritesAfter = [],
+    } = /** @type {any} */ ({})) {
         const map = new Map(Object.entries(initial));
+        /** @type {Map<string, number>} */ const reads = new Map();
+        const once = new Set(failReadsOnce);
+        const written = new Set();
+        /** @type {[string, string][]} */ const writes = [];
         return {
-            map,
-            get: (/** @type {string} */ k) => (map.has(k) ? map.get(k) : null),
-            set: (/** @type {string} */ k, /** @type {string} */ v) => { if (!failWrites.includes(k)) map.set(k, v); },
+            map, writes,
+            read: (/** @type {string} */ k) => {
+                const n = (reads.get(k) ?? 0) + 1;
+                reads.set(k, n);
+                if (once.delete(k) || /** @type {any} */ (failReadAt)[k] === n) return { ok: false, value: null };
+                return { ok: true, value: map.has(k) ? map.get(k) : null };
+            },
+            set: (/** @type {string} */ k, /** @type {string} */ v) => {
+                writes.push([k, v]);
+                if (failWrites.includes(k) || (failWritesAfter.includes(k) && written.has(k))) return;
+                written.add(k);
+                map.set(k, v);
+            },
             del: (/** @type {string} */ k) => { if (!failDeletes.includes(k)) map.delete(k); },
         };
     }
@@ -717,6 +741,7 @@ describe('applyRestore', () => {
         const r = applyRestore({ ...st, existing: [], entries: { 'new1': 'a', 'new2': 'b' } });
         assert.equal(r.ok, false);
         assert.equal(r.restored, false, 'a created key that will not delete means the device was left changed');
+        assert.equal(r.reason, 'part-restored', 'a result of its own, which the card words as part-restored');
         assert.equal(st.map.get('new1'), 'a');
     });
 
@@ -743,6 +768,147 @@ describe('applyRestore', () => {
         const r = applyRestore({ ...st, existing: ['constructor'], entries: { 'p1': 'a' } });
         assert.equal(r.ok, true);
         assert.equal(st.map.has('constructor'), false);
+    });
+
+    // ── A READ THAT FAILS IS NOT AN ABSENT KEY (Nov 2026) ─────────────────────────────────────────
+    // With `lsGet` as the reader, the snapshot took a refused read for "nothing there": one refused read
+    // of an existing payslip, then one refused write, and the rollback "put it back" by DELETING it, then
+    // agreed with itself and reported restored:true — the card's "nothing was changed".
+
+    test('THE DEFECT: an original read once refused, then a refused write — the original survives and nothing is written', () => {
+        const st = fakeStore({ A: 'origA', B: 'origB' }, { failReadsOnce: ['A'], failWrites: ['B'] });
+        const r = applyRestore({ ...st, existing: ['A', 'B'], entries: { A: 'newA', B: 'newB' } });
+        assert.equal(r.ok, false);
+        assert.equal(r.reason, 'unreadable');
+        assert.deepEqual(/** @type {any} */ (r).unreadable, ['A']);
+        assert.equal(st.writes.length, 0, 'nothing is written before every original has been read');
+        assert.equal(st.map.get('A'), 'origA', 'the original was deleted by the rollback before');
+        assert.equal(st.map.get('B'), 'origB');
+    });
+
+    test('an original that cannot be read at all stops the restore with nothing written', () => {
+        const st = fakeStore({ A: 'origA' }, { failReadAt: { A: 1 } });
+        const r = applyRestore({ ...st, existing: ['A'], entries: { A: 'newA', C: 'newC' } });
+        assert.equal(r.reason, 'unreadable');
+        assert.equal(r.restored, true, 'true only because nothing was touched');
+        assert.equal(st.writes.length, 0);
+        assert.equal(st.map.has('C'), false);
+    });
+
+    test('a key confirmed ABSENT before the restore is deleted on rollback, and the result is verified', () => {
+        const st = fakeStore({ A: 'origA' }, { failWrites: ['B'] });
+        const r = applyRestore({ ...st, existing: ['A'], entries: { A: 'newA', C: 'newC', B: 'newB' } });
+        assert.equal(r.reason, 'write-failed');
+        assert.equal(r.restored, true);
+        assert.equal(st.map.has('C'), false, 'a key the restore created goes again');
+        assert.equal(st.map.get('A'), 'origA');
+    });
+
+    test('refused writes on two different keys over two pre-existing values roll back to exactly what was there', () => {
+        const st = fakeStore({ A: 'origA', B: 'origB', S: 'surplus' }, { failWrites: ['B', 'C'] });
+        const r = applyRestore({ ...st, existing: ['A', 'B', 'S'], entries: { A: 'newA', B: 'newB', C: 'newC', D: 'newD' } });
+        assert.equal(r.reason, 'write-failed');
+        assert.equal(r.restored, true);
+        assert.deepEqual(Object.fromEntries(st.map), { A: 'origA', B: 'origB', S: 'surplus' }, 'the device as it was, byte for byte');
+    });
+
+    test('a rollback write that is itself refused is PART-RESTORED, never "nothing was changed"', () => {
+        // A takes the backup's figure, B is refused, and putting A's original back is refused too.
+        const st = fakeStore({ A: 'origA', B: 'origB' }, { failWrites: ['B'], failWritesAfter: ['A'] });
+        const r = applyRestore({ ...st, existing: ['A', 'B'], entries: { A: 'newA', B: 'newB' } });
+        assert.equal(r.ok, false);
+        assert.equal(r.reason, 'part-restored');
+        assert.equal(r.restored, false);
+        assert.deepEqual(/** @type {any} */ (r).unverified, ['A']);
+        assert.equal(st.map.get('A'), 'newA', 'premise: the device really is part-restored');
+    });
+
+    test('a rollback whose check cannot READ a key is part-restored too — unknown is not restored', () => {
+        // A: read 1 (the original), read 2 (the write check), read 3 (the rollback check) refused.
+        const st = fakeStore({ A: 'origA' }, { failWrites: ['B'], failReadAt: { A: 3 } });
+        const r = applyRestore({ ...st, existing: ['A'], entries: { A: 'newA', B: 'newB' } });
+        assert.equal(r.reason, 'part-restored');
+        assert.equal(st.map.get('A'), 'origA', 'premise: it was in fact put back, but nothing could confirm it');
+    });
+
+    test('a write whose check cannot READ it counts as failed, and is rolled back', () => {
+        const st = fakeStore({ A: 'origA' }, { failReadAt: { B: 2 } });
+        const r = applyRestore({ ...st, existing: ['A'], entries: { A: 'newA', B: 'newB' } });
+        assert.equal(r.reason, 'write-failed');
+        assert.equal(r.restored, true);
+        assert.equal(st.map.get('A'), 'origA');
+        assert.equal(st.map.has('B'), false);
+    });
+
+    test('a surplus key whose removal cannot be confirmed by a read is not reported as removed', () => {
+        const st = fakeStore({ A: 'origA', S: 'old' }, { failReadAt: { S: 2 } });
+        const r = applyRestore({ ...st, existing: ['A', 'S'], entries: { A: 'newA' } });
+        assert.equal(r.reason, 'surplus-remains');
+    });
+});
+
+// ── A BACKUP IS WHOLE OR IT IS NOT MADE (Nov 2026) ───────────────────────────────────────────────
+// The card read each value with `lsGet` and skipped the nulls, so a refused read of one payslip left it
+// out of a file that counted the rest and downloaded under the ordinary message. The card's use is
+// driven in a browser (e2e/paycalc-backup.spec.js → "a payslip that cannot be read stops the backup").
+describe('collectBackupEntries and the line a refused backup ends on', () => {
+    const P52 = `${PREFIX}p52`, P53 = `${PREFIX}p53`;
+    /** @param {Record<string,string>} data @param {string[]} [refuse] @param {boolean} [listOk] */
+    const io = (data, refuse = [], listOk = true) => ({
+        listKeys: () => (listOk ? { ok: true, keys: Object.keys(data) } : { ok: false, keys: [] }),
+        read: (/** @type {string} */ k) => (refuse.includes(k) ? { ok: false, value: null } : { ok: true, value: data[k] ?? null }),
+        prefix: PREFIX,
+    });
+
+    test('every value read: the entries, whole', () => {
+        const r = collectBackupEntries(io({ [P52]: 'a', [P53]: 'b', myb_pc_ns_migrated: '1' }));
+        assert.deepEqual(r, { ok: true, entries: { [P52]: 'a', [P53]: 'b' } });
+    });
+
+    test('THE DEFECT: one payslip unreadable — no entries at all, and that payslip named', () => {
+        const r = collectBackupEntries(io({ [P52]: 'a', [P53]: 'b' }, [P53]));
+        assert.equal(r.ok, false);
+        assert.deepEqual(r, { ok: false, reason: 'read-failed', unreadable: [P53] });
+        assert.equal(/** @type {any} */ (r).entries, undefined, 'never a partial set to build a file from');
+    });
+
+    test('a list that cannot be taken is no backup either', () => {
+        assert.deepEqual(collectBackupEntries(io({ [P52]: 'a' }, [], false)), { ok: false, reason: 'list-failed' });
+    });
+
+    test('a key listed and then found gone is left out — that read worked', () => {
+        const r = collectBackupEntries({ ...io({ [P52]: 'a' }), listKeys: () => ({ ok: true, keys: [P52, P53] }) });
+        assert.deepEqual(r, { ok: true, entries: { [P52]: 'a' } });
+    });
+
+    test('a payslip is named by its payday first, as every payslip list names one', () => {
+        assert.equal(fdLong(periodByNum(53).payday), '3 July 2026', 'premise: internal payslip 53 is paid 3 July 2026');
+        assert.equal(unreadableBackupLine({ reason: 'read-failed', unreadable: [P53] }, PREFIX, 'Download backup', 'Nothing was saved.'),
+            "The payslip paid 3 July 2026 (P16) couldn't be read on this device, so a backup made now would be missing it. "
+            + 'Nothing was saved. Tap Download backup to try again.');
+    });
+
+    test('several are listed, other kinds by their own names, and a long list is cut short', () => {
+        const two = unreadableBackupLine({ reason: 'read-failed', unreadable: [P52, `${PREFIX}bp_state_2026_27`] },
+            PREFIX, 'Copy as text', 'Nothing was copied.');
+        assert.equal(two, "The payslip paid 5 June 2026 (P12) and back pay 2026/27 couldn't be read on this device, so a "
+            + 'backup made now would be missing them. Nothing was copied. Tap Copy as text to try again.');
+        const six = unreadableBackupLine({ reason: 'read-failed', unreadable: [50, 51, 52, 53, 54, 55].map(n => `${PREFIX}p${n}`) },
+            PREFIX, 'Download backup', 'Nothing was saved.');
+        assert.match(six, /^The payslip paid 10 April 2026 \(P4\), the payslip paid 8 May 2026 \(P8\), .* and 2 more couldn't be read/);
+        const snap = unreadableBackupLine({ reason: 'read-failed', unreadable: [`${PREFIX}snap_53`] }, PREFIX, 'Download backup', 'Nothing was saved.');
+        assert.match(snap, /^The figures filled from your calendar for the payslip paid 3 July 2026 \(P16\) couldn't be read/);
+    });
+
+    test('a payslip number the grid does not hold falls back to its plain name', () => {
+        assert.match(unreadableBackupLine({ reason: 'read-failed', unreadable: [`${PREFIX}p16`] }, PREFIX, 'Download backup', 'Nothing was saved.'),
+            /^Payslip 16 couldn't be read on this device/);
+    });
+
+    test('a refused list says so, and offers the same retry', () => {
+        assert.equal(unreadableBackupLine({ reason: 'list-failed' }, PREFIX, 'Download backup', 'Nothing was saved.'),
+            "This device wouldn't list the pay data saved on it, so a backup made now could be missing some of it. "
+            + 'Nothing was saved. Tap Download backup to try again.');
     });
 });
 

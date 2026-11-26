@@ -345,5 +345,35 @@ describe('settingFieldsWrite — a setting change carries only its own fields', 
     test('saved entries that cannot be read are never written over', () => {
         assert.equal(settingFieldsWrite('{not json', formNow, ['slSkip']), null);
         assert.equal(settingFieldsWrite('null', formNow, ['slSkip']), null);
+        // Valid JSON of the wrong shape is damaged too (isSavedPeriodShape) — a list was spread into
+        // a fresh record and written over the period.
+        for (const raw of ['[]', '[1,2]', '"text"', '42']) {
+            assert.equal(settingFieldsWrite(raw, formNow, ['slSkip']), null, `a period holding ${raw} was rewritten`);
+        }
+    });
+});
+
+// ── WRITING ONLY SOME FIELDS (Nov 2026) ─────────────────────────────────────────────────────────
+// A save merged with another tab's brings the form up to the figures it took from storage
+// (paycalc-period-merge.js). It must touch only those boxes: rewriting the one being typed in would
+// turn "7." into "7" under the member's cursor.
+describe('writeFormData — `only` writes just the named fields', () => {
+    test('the named fields are written; every other box keeps what it holds', () => {
+        _els.satH.value = '7.'; _els.otherAdj.value = '1.5'; _els.actualTaxInput.value = '99';
+        _els.peerVal.textContent = '2';
+        writeFormData({ ...emptyPeriodData(), satH: 3, sunH: 5, sunM: 30, actualTax: 12, otherAdj: -2, peer: 0 },
+            { only: new Set(['sunH', 'sunM', 'actualTax']) });
+        assert.equal(_els.sunH.value, '5');
+        assert.equal(_els.sunM.value, '30');
+        assert.equal(_els.actualTaxInput.value, '12');
+        assert.equal(_els.satH.value, '7.', 'the box being typed in is left alone');
+        assert.equal(_els.otherAdj.value, '1.5');
+        assert.equal(_els.peerVal.textContent, '2');
+    });
+
+    test('with no `only`, every field is written exactly as before', () => {
+        _els.satH.value = '7.';
+        writeFormData({ ...emptyPeriodData(), satH: 3 });
+        assert.equal(_els.satH.value, '3');
     });
 });

@@ -229,7 +229,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `takeStaleMemberName` · `getDefaultMemberIndex` · `isFirstRun` · `getSelectedMemberIndex` · `_resetSelectionFallbackForTest` · `saveSelectedMember` · `populateTeamMemberDropdown` · `getCurrentMember` · `validateTeamMembers`
 
 ### `calendar-renderer.js`
-- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer`
+- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer` · `rovingCellFor`
 
 ### `calendar-huddle-viewer.js`
 - **Exports:** `wrapTables` · `initHuddleViewer`
@@ -743,6 +743,9 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `paycalc-form-data.js`
 - **Exports:** `emptyPeriodData` · `syncNoSpecialTick` · `pensionToStore` · `readFormData` · `settingFieldsWrite` · `writeFormData`
 
+### `paycalc-period-merge.js`
+- **Exports:** `PERIOD_UNITS` · `planPeriodSave` · `formChangedSince` · `fieldsOfUnits` · `unitValueText` · `periodSaveQuestion`
+
 ### `paycalc-inputs.js`
 - **Exports:** `numVal` · `numValOr` · `intVal` · `hoursTextToHM` · `hmPair` · `hhmmDec` · `clampMins` · `_decHintEl` · `decimalHoursText` · `decPreview` · `paintTaxCodeWarning` · `commitFocusedField` · `wireIosTap`
 
@@ -753,10 +756,10 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `parsePensionTimeline` · `serialisePensionTimeline` · `isOptedOutAt` · `withPensionChange` · `withOptOutStartAt` · `withRejoinAt` · `optOutStartsAt` · `migrateLegacyOptOut`
 
 ### `paycalc-inventory.js`
-- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines` · `inventorySummary`
+- **Exports:** `KEY_KINDS` · `isSavedPeriodShape` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines` · `inventorySummary`
 
 ### `paycalc-transfer.js`
-- **Exports:** `BACKUP_FORMAT` · `BACKUP_VERSION` · `selectBackupKeys` · `summarise` · `buildBackup` · `validateBackup` · `rekeyEntries` · `restoredLine` · `backupFilename` · `applyRestore`
+- **Exports:** `BACKUP_FORMAT` · `BACKUP_VERSION` · `selectBackupKeys` · `collectBackupEntries` · `unreadableBackupLine` · `summarise` · `buildBackup` · `validateBackup` · `rekeyEntries` · `restoredLine` · `backupFilename` · `applyRestore`
 
 ### `paycalc-transfer-card.js`
 - **Exports:** `initTransferCard`
@@ -908,7 +911,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** none
 
 ### `ls.js`
-- **Exports:** `lsGet` · `lsSet` · `lsDel` · `lsSetVerified` · `lsMove` · `lsDelVerified` · `lsSetBothVerified` · `lsAvailable` · `lsKeys` · `requestPersistentStorage`
+- **Exports:** `lsGet` · `lsSet` · `lsDel` · `lsSetVerified` · `lsMove` · `lsDelVerified` · `lsGetChecked` · `lsSetBothVerified` · `lsAvailable` · `lsKeys` · `lsKeysChecked` · `requestPersistentStorage`
 
 ### `storage-keys.js`
 - **Exports:** `SELECTED_MEMBER` · `TEAM_VIEW` · `CALENDAR_SNAPSHOT` · `NOTIF_PROMPT_DONE` · `PW_FORCE_PENDING_PREFIX` · `SW_UPDATE_RELOAD`

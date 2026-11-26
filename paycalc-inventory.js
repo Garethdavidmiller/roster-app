@@ -83,6 +83,20 @@ function isStructured(/** @type {any} */ hit, /** @type {string} */ tail) {
     return typeof hit.structured === 'function' ? hit.structured(tail) : true;
 }
 
+/**
+ * Is this parsed value the SHAPE of a saved payslip period? One plain object of fields — never an
+ * array, a string, a number or `null`, every one of which is valid JSON. The ONE check, asked by the
+ * Pay screen's reader (`parseSavedPeriod`, paycalc-migrations.js) and by the damage preflight below,
+ * so the two can never disagree about a period. A `[]` used to pass both as "nothing saved": the
+ * screen showed the ordinary empty state over it and a backup carried it without a warning. Scoped
+ * to the period record on purpose — other structured kinds may legitimately hold a list.
+ * @param {unknown} value the result of `JSON.parse` on a stored period
+ * @returns {boolean}
+ */
+export function isSavedPeriodShape(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 /** `bp_state_2026_27` → `2026/27`. Returns '' when the tail carries no year. */
 function taxYearOf(/** @type {string} */ tail) {
     const m = /_(\d{4})_(\d{2})$/.exec(tail);
@@ -199,7 +213,11 @@ export function damagedEntries(entries, prefix) {
         const c = classifyPayKey(tail);
         if (!c.structured) continue;
         let usable = false;
-        try { const parsed = JSON.parse(v); usable = parsed !== null && typeof parsed === 'object'; } catch { /* unreadable */ }
+        try {
+            const parsed = JSON.parse(v);
+            // A payslip period is an OBJECT, never a list (isSavedPeriodShape); other kinds may be either.
+            usable = c.kind === 'payslip' ? isSavedPeriodShape(parsed) : parsed !== null && typeof parsed === 'object';
+        } catch { /* unreadable */ }
         if (!usable) bad.push({ key: k, tail, label: describePayKey(tail) });
     }
     return bad;

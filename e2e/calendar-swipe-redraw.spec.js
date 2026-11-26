@@ -373,6 +373,43 @@ test('redraw: focus moved to a control while a month loads stays there when the 
         .toBe('prevMonth');
 });
 
+// WHICH DAY, not only whether (26 Nov 2026). On the cached September grid a keyboard reader arrowed
+// from Wednesday 16th (today, the grid's anchor) to Friday 18th; the month's background read then
+// landed, the grid was rebuilt, and focus jumped back to the 16th. A background repaint gives focus
+// back to the day that had it (calendar-redraw.js → `focusWanted` / `focusDay`); a press still takes
+// the new grid's anchor, which the PageDown tests above pin.
+test('redraw: a background read landing on the same month keeps focus on the day the reader arrowed to', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'the keyboard route');
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // The month is painted from the cache while the first server read is held open.
+        w.__E2E.cacheDocs = w.__E2E.docs = [{ id: 'c1', memberName: 'G. Miller', date: '2026-09-25', type: 'annual_leave', value: 'AL', note: '' }];
+        w.__E2E.docsHeld = true;
+    });
+    await page.goto('/');
+    const shown = page.locator('#calendarDisplay > .calendar-container');
+    await expect(shown).toHaveAttribute('data-override-state', 'stale');
+    await page.locator('#calendarDisplay .calendar-day.today').focus();
+    expect(await focusedDay(page), 'premise: today is the anchor').toBe('Wednesday 16 September 2026');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    expect(await focusedDay(page), 'premise: the arrows moved between days').toBe('Friday 18 September 2026');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });   // the read lands
+    await expect(shown, 'premise: the grid was rebuilt by the read').toHaveAttribute('data-override-state', 'render');
+    expect(await focusedDay(page), 'the background read threw focus back to the anchor').toBe('Friday 18 September 2026');
+    await expect(page.locator('#calendarDisplay .calendar-day[tabindex="0"]'), 'one tab stop, on the kept day')
+        .toHaveAttribute('data-detail-day', 'Friday 18 September 2026');
+    await page.keyboard.press('ArrowRight');
+    expect(await focusedDay(page), 'and the arrows carry on from there').toBe('Saturday 19 September 2026');
+    // A PRESS in the same month is not a background draw: T means today, not the day focus was on.
+    await page.keyboard.press('t');
+    await expect.poll(() => focusedDay(page), { message: 'T kept the day instead of going to today' })
+        .toBe('Wednesday 16 September 2026');
+});
+
 test('calendar: closing the day panel after the grid was redrawn behind it returns focus to that day', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'the keyboard route');
     await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));

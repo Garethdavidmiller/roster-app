@@ -4,7 +4,8 @@
  *
  * Owns: how far the page's start-up has got; the ONE wait for a swipe to finish, and the two things
  *   that wait behind it (a background repaint, a change of name in the picker); the keyboard focus
- *   a panel with no day cells owes the grid that follows it.
+ *   a panel with no day cells owes the grid that follows it, and WHICH day a background repaint
+ *   gives it back to.
  * Does NOT own: drawing (calendar-app.js → `renderCalendar`, calendar-team-view.js), whether a
  *   gesture is live (calendar-swipe.js → `isSwipeGestureActive`), saving the chosen name
  *   (calendar-member.js), or what a month is known to be (calendar-data-state.js). It is handed the
@@ -87,6 +88,11 @@ export function createRedrawScheduler({ gestureLive, teamViewOn, drawCalendar, d
     let nameHeld = false;
     let waiting = false;      // ONE poll, however much is held (rule 2)
     let focusOwed = false;
+    /** The day whose cell had focus when a BACKGROUND draw began — the one it gives focus back to.
+     *  @type {string|null} */
+    let keptDay = null;
+    /** True while a draw this scheduler started — one nobody pressed for — is running. */
+    let inBackground = false;
 
     /** @param {StartStage} name @returns {number} */
     const indexOf = (name) => {
@@ -101,7 +107,13 @@ export function createRedrawScheduler({ gestureLive, teamViewOn, drawCalendar, d
         nameHeld = false;
         held.clear();
         if (name) saveName();                                       // saved whichever surface is on screen
-        if ((name || repaint) && !teamViewOn()) drawCalendar();     // ONE draw for both; none into Team View
+        if ((name || repaint) && !teamViewOn()) {                   // ONE draw for both; none into Team View
+            // A repaint alone is nobody's press, so the reader keeps the day they were on. A new
+            // name is a different roster, and its draw is the picker's, as a press is.
+            const was = inBackground;
+            inBackground = !name;
+            try { drawCalendar(); } finally { inBackground = was; }
+        }
         if (name) nameApplied();
     }
 
@@ -163,20 +175,43 @@ export function createRedrawScheduler({ gestureLive, teamViewOn, drawCalendar, d
          * it (10 Nov 2026), as long as it is still nowhere: a reader who has since moved it to a
          * control keeps it there.
          *
+         * WHICH CELL (26 Nov 2026). A BACKGROUND draw — a read landing, the date turning, access
+         * coming back — gives focus back to the SAME DAY: nobody pressed anything, so a reader who
+         * had arrowed from the 16th to the 18th was thrown back to the 16th (the grid's anchor) by a
+         * read they never asked for. A draw somebody pressed for (PageDown, T, a button, a swipe)
+         * takes the new grid's anchor, as it always did: T means today, even in the same month. The
+         * debt keeps the day it was owed from, so a background panel ("couldn't check") followed by
+         * the grid still lands on it; a pressed draw drops it. Never stolen: a reader whose focus is
+         * on a control, a lightbox or the picker is not wanted at all.
+         *
          * Asked BEFORE the grid is replaced, with where focus is now.
-         * @param {{ onCell: boolean, nowhere: boolean }} at  on a day cell · on <body> or nothing
+         * @param {{ onCell: boolean, nowhere: boolean, day?: string|null }} at  on a day cell · on
+         *   <body> or nothing · which day that cell is (its `data-detail-day`)
          * @returns {boolean} whether the grid about to be drawn should take focus
          */
-        focusWanted({ onCell, nowhere }) { return onCell || (focusOwed && nowhere); },
+        focusWanted({ onCell, nowhere, day = null }) {
+            const wanted = onCell || (focusOwed && nowhere);
+            if (!wanted || !inBackground) keptDay = null;     // a press, or nothing to give: the anchor
+            else if (onCell) keptDay = day;                   // a repaint under the reader: this day
+            return wanted;                                     // (owed and nowhere: the day it was owed from)
+        },
+
+        /** The day the grid being drawn should give focus to, or null for its anchor cell. Asked
+         *  between `focusWanted` and `focusSettled`; a day the new grid lacks is the caller's to
+         *  fall back from (calendar-renderer.js → `rovingCellFor`). @returns {string|null} */
+        focusDay() { return keptDay; },
 
         /**
          * Told AFTER the draw: what `focusWanted` answered, and whether a cell was there to take it.
          * @param {boolean} wanted @param {boolean} given
          */
-        focusSettled(wanted, given) { focusOwed = wanted && !given; },
+        focusSettled(wanted, given) {
+            focusOwed = wanted && !given;
+            if (!focusOwed) keptDay = null;
+        },
 
         /** What the next draw owes — for a reader, and for the tests.
-         *  @returns {{ name: boolean, repaint: RepaintWhy[], focus: boolean, stage: StartStage }} */
-        owed() { return { name: nameHeld, repaint: [...held], focus: focusOwed, stage: START_STAGES[stage] }; },
+         *  @returns {{ name: boolean, repaint: RepaintWhy[], focus: boolean, focusDay: string|null, stage: StartStage }} */
+        owed() { return { name: nameHeld, repaint: [...held], focus: focusOwed, focusDay: keptDay, stage: START_STAGES[stage] }; },
     };
 }

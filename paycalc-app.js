@@ -7,7 +7,8 @@
  *   settings, the rate and what the Settings card says for a tax year (paycalc-settings.js), the roster
  *   hint bar (paycalc-roster-hint.js), HPP (paycalc-hpp.js), back pay (paycalc-backpay.js), pay maths
  *   AND what the payslip on screen is priced on (paycalc-calc.js → takeHomeInputs), HOW a field
- *   persists (paycalc-form-data.js), the result card's markup (paycalc-breakdown.js), the sticky
+ *   persists (paycalc-form-data.js), what a save may write over another tab's (paycalc-period-merge.js),
+ *   the result card's markup (paycalc-breakdown.js), the sticky
  *   take-home bar (paycalc-sticky-total.js), the Year to Date card's wiring (paycalc-ytd-card.js), the
  *   money banners' ticks and links (paycalc-money-banner.js) and the two-tap Clear
  *   (paycalc-clear-confirm.js).
@@ -26,7 +27,7 @@ import {
   payslipGross, pricePayslip, takeHomeInputs,
 } from './paycalc-calc.js';
 import { resetOverrides } from './paycalc-roster-suggestions.js';
-import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
+import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, lsSetVerified, lsDelVerified, requestPersistentStorage } from './ls.js';
 import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -61,7 +62,7 @@ import {
 } from './paycalc-backpay.js';
 import { hppTaxYearForPayslip } from './paycalc-hpp-schedule.js';
 import { initNavPanel } from './nav-panel.js';
-import { initCardCollapse, createLightbox, openCardNamedByHash } from './overlay.js';
+import { initCardCollapse, createLightbox, openCardNamedByHash, confirmDialog } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
@@ -73,6 +74,7 @@ import { fdShort, fdLong, fmt, minutesFieldText, isDataEmpty } from './paycalc-f
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } from './paycalc-form-data.js';
+import { planPeriodSave, periodSaveQuestion, fieldsOfUnits, formChangedSince } from './paycalc-period-merge.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { classifyPayKey } from './paycalc-inventory.js';
 import { buildSummaryRows, buildLoanLines, buildBreakdownRows, buildProvChips, buildBreakBar } from './paycalc-breakdown.js';
@@ -378,22 +380,101 @@ export function init() {
      *  opt-out locks the box, rather than storing the lock's £0.00 over it. @param {number} pNum */
     const _savedPension = (pNum) => parseSavedPeriod(lsGet(periodKey(pNum))).data?.pension ?? null;
 
+    /** The form on screen, as a save would store it. @param {number} pNum */
+    const _readForm = (pNum) => { const p = periodByNum(pNum);
+      return readFormData({ adjNegative: _adjNegative, periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }); };
+
+    // ── TWO TABS, ONE PAYSLIP (paycalc-period-merge.js holds the rule) ──
+    // `_base` is the stored payslip this form was last in step with — set on load, and after every
+    // write this tab read back. A save merges the form into what storage holds NOW against it, so a
+    // stale tab never writes its old figures over another tab's; what both changed is asked about.
+    /** @type {{ raw: string|null }} */
+    let _base = { raw: null };
+    let _asking = false;   // a merge question is open: no save until it is answered
+    /** The "not saved" line on show, or null. updateSaveStatus keeps it until a save lands. @type {string|null} */
+    let _notSavedText = null;
+    const NOT_SAVED = '⚠ Not saved — try again';
+    const NOT_SAVED_ASK = '⚠ Not saved — this payslip was also changed in another tab';
+    /** @param {number} pNum @param {string} text */
+    const _notSaved = (pNum, text) => { _notSavedText = text; updateSaveStatus(pNum); };
+    /** The boxes showing the calendar's suggestion rather than a typed figure. */
+    const _goldFields = () => new Set([...document.querySelectorAll('.roster-suggested')].map(el => el.id));
+
+    /** Bring the form up to the units a merge took from storage, leaving every other box alone.
+     *  @param {Record<string, any>} data @param {string[]} unitIds */
+    function _applyFromDisk(data, unitIds) {
+      if (!unitIds.length) return;
+      const only = fieldsOfUnits(unitIds);
+      for (const f of only) document.getElementById(f)?.classList.remove('roster-suggested');   // a typed figure now
+      const { adjNegative } = writeFormData(data, { only });
+      if (only.has('otherAdj')) { _adjNegative = adjNegative; updateAdjSign(); }
+      if (only.has('pension') && data.pension == null) _paintDefaultPension(periodByNum(currentPeriodNum()));
+    }
+
+    /** Store `data` and say "saved" only once it reads back. @param {number} pNum @param {Record<string, any>} data
+     *  @param {string[]} fromDisk @returns {boolean} */
+    function _commit(pNum, data, fromDisk) {
+      const json = JSON.stringify(data);
+      if (!lsSetVerified(periodKey(pNum), json)) { _notSaved(pNum, NOT_SAVED); return false; }   // the typed work stays on screen; the next edit retries
+      _base = { raw: json };
+      _notSavedText = null;
+      _applyFromDisk(data, fromDisk);
+      recordCalendarFigures(pNum);   // the snapshot describes what was just saved: gold pairs at their saved values (paycalc-3-1)
+      updateSaveStatus(pNum);
+      return true;
+    }
+
+    /** Save the form on screen into payslip `pNum`, merged with any other tab's save. @param {number} pNum */
+    function _savePeriod(pNum) {
+      if (_asking) return;
+      const diskRaw = lsGet(periodKey(pNum));
+      const plan = planPeriodSave({ base: _base, diskRaw, form: _readForm(pNum), suggested: _goldFields() });
+      if (plan.kind === 'write') { _commit(pNum, plan.data, plan.fromDisk); return; }
+      // Nothing readable where entries were: storage that will not answer reads null too — no question then.
+      if (plan.kind === 'cleared' && !lsAvailable()) { _notSaved(pNum, NOT_SAVED); return; }
+      _notSaved(pNum, NOT_SAVED_ASK);
+      _asking = true;
+      // A dismissal (Escape, the backdrop, Back) is "not now": nothing is written, and the next edit asks again.
+      confirmDialog({ ...periodSaveQuestion(plan), dismissResult: null }).then((keepMine) => {
+        _asking = false;
+        if (keepMine === null || currentPeriodNum() !== pNum) return;
+        if (lsGet(periodKey(pNum)) !== diskRaw) { autosave(); return; }   // changed again while asking: ask afresh
+        if (plan.kind === 'conflict') {
+          _commit(pNum, keepMine ? plan.mine : plan.theirs,
+            keepMine ? plan.fromDisk : [...plan.fromDisk, ...plan.conflicts.map(c => c.unit.id)]);
+        } else if (keepMine) _commit(pNum, _readForm(pNum), []);
+        else if (plan.kind === 'cleared') loadPeriodData(pNum);   // leave it cleared: the form shows what is stored
+        else return;                                              // unreadable, "Not now": the screen keeps its figures
+        runCalcBackPay();
+        calculate();
+      });
+    }
+
     function autosave() {
       const pNum = currentPeriodNum();   // SAVED before calculate() below: HPP and the year card read storage
-      const _autoP = periodByNum(pNum);
-      const d    = readFormData({
-        adjNegative: _adjNegative,
-        periodDefaultPension: _autoP ? periodDefaultPension(_autoP) : null,
-        savedPension: _savedPension(pNum),
-      });
-      try {
-        lsSet(periodKey(pNum), JSON.stringify(d));
-        recordCalendarFigures(pNum);   // the snapshot describes what was just saved: gold pairs at their saved values (paycalc-3-1)
-        updateSaveStatus(pNum);
-      } catch { /* storage unavailable */ }
+      _savePeriod(pNum);
       runCalcBackPay();   // the lump accrues from SAVED hours, so it re-prices from what was just saved (paycalc-2-2)
       calculate();
     }
+
+    // Another tab saved: bring this form up to its figures now, where nothing this tab changed is in
+    // the way. Only a prompt — `_savePeriod` checks storage itself, as a tab can miss the event.
+    window.addEventListener('storage', (e) => {
+      const pNum = currentPeriodNum();
+      if (_asking || (e.key !== null && e.key !== periodKey(pNum))) return;
+      const diskRaw = lsGet(periodKey(pNum));
+      if (diskRaw === _base.raw) return;
+      const form = _readForm(pNum), suggested = _goldFields();
+      const plan = planPeriodSave({ base: _base, diskRaw, form, suggested });
+      if (plan.kind === 'cleared' && !formChangedSince(_base, form, suggested)) { loadPeriodData(pNum); return; }
+      if (plan.kind !== 'write') return;   // a conflict, a clear over edits, or damage: the next save asks
+      _base = { raw: diskRaw };
+      _applyFromDisk(plan.data, plan.fromDisk);
+      updateSaveStatus(pNum);
+      runCalcBackPay();
+      calculate();
+      updateRosterHint();
+    });
     /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
      *  (`autosave` would save the calendar's suggestion too — see `settingFieldsWrite`). @param {string[]} fields */
     const persistSetting = (fields) => () => { const pNum = currentPeriodNum(), p = periodByNum(pNum);
@@ -415,8 +496,11 @@ export function init() {
       // parseSavedPeriod tells CORRUPT from missing: unreadable entries must not pose as an empty form,
       // or the member could type over them unknowing. The form loads empty (nothing is deleted until
       // they type), and updateSaveStatus says so.
-      const _parsed = parseSavedPeriod(lsGet(periodKey(pNum)));
+      const _raw = lsGet(periodKey(pNum));
+      const _parsed = parseSavedPeriod(_raw);
       if (_parsed.data) d = _parsed.data;
+      _base = { raw: _raw };   // the version this form is now in step with — what a save merges against
+      _notSavedText = null;
       _periodLoadWasCorrupt = !!_parsed.error;   // gates the background fetch's auto-apply
       clearRosterSuggestedAll();   // writeFormData expects the gold highlights cleared first
       _adjNegative = writeFormData(d).adjNegative;
@@ -444,6 +528,9 @@ export function init() {
     /** @param {number} pNum */
     function updateSaveStatus(pNum) {
       const el  = /** @type {HTMLElement} */ (document.getElementById('saveStatus'));
+      // What is on screen did not reach storage: say so, never "saved" for the figures storage still
+      // holds — until a save is read back, or the payslip is loaded again.
+      if (_notSavedText) { setStatus(el, _notSavedText); el.className = 'save-status failed'; return; }
       const raw = lsGet(periodKey(pNum));
       if (raw) {
         const { data: d, error } = parseSavedPeriod(raw);
@@ -477,7 +564,15 @@ export function init() {
     /** Clear the payslip on screen — the confirmed second tap of "Clear all entries". */
     function clearPeriod() {
       const pNum = currentPeriodNum();
-      lsDel(periodKey(pNum));
+      // A CLEAR IS CHECKED, as a save is: a delete storage refused left the boxes empty over the stored
+      // figures, which came back on reload. Then the form shows what is still stored, and says so.
+      if (!lsDelVerified(periodKey(pNum))) {
+        loadPeriodData(pNum);
+        _notSaved(pNum, "⚠ Couldn't clear this payslip — its saved entries are still there. Try again");
+        return;
+      }
+      _base = { raw: null };
+      _notSavedText = null;
       lsDel(snapKey(pNum));
       // Mark the form as user-touched BEFORE blanking it: programmatic writes fire no 'input', so a
       // fetch in flight would otherwise refill + autosave the fields just cleared.

@@ -20,7 +20,8 @@ import {
     pcPrefix, setPaycalcNamespace, SK, memberSlug,
     periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey,
     runMigrations, hasPendingLegacyMigration, resolveLegacyMigration,
-    parseSavedPeriod, keyOwnerSlug,
+    parseSavedPeriod, readSavedPeriod, keyOwnerSlug,
+    writePayslipActuals, clearPayslipActuals, readPayslipActuals, DEVICE_KEYS,
 } from '../paycalc-migrations.js';
 import { teamMembers } from '../roster-data.js';
 
@@ -373,6 +374,23 @@ describe('parseSavedPeriod', () => {
         assert.deepEqual(parseSavedPeriod('not json'),    { data: null, error: true });
         assert.deepEqual(parseSavedPeriod('{"a":1,,}'),   { data: null, error: true });
     });
+
+    test('valid JSON of the wrong SHAPE is damaged, never an empty payslip', () => {
+        // `[]` read as a saved period with nothing in it, so the Pay screen showed the ordinary empty
+        // state over it. A period is an object of fields; the shape check is shared with the backup's
+        // damage preflight (isSavedPeriodShape, paycalc-inventory.js).
+        for (const raw of ['[]', '[1,2]', '"text"', 'null', '42', 'true']) {
+            assert.deepEqual(parseSavedPeriod(raw), { data: null, error: true }, `a period holding ${raw}`);
+        }
+    });
+
+    test('through the real reader: a damaged period is reported, and left exactly as it is', () => {
+        global.localStorage = makeLocalStorage({ myb_pc_p16: '[]', myb_pc_p17: '{"satH":8}' });
+        assert.deepEqual(readSavedPeriod(16), { data: null, error: true });
+        assert.deepEqual(readSavedPeriod(17), { data: { satH: 8 }, error: false });
+        assert.deepEqual(readSavedPeriod(18), { data: null, error: false }, 'a period never saved is not damaged');
+        assert.equal(global.localStorage.getItem('myb_pc_p16'), '[]', 'reading it rewrote or removed it');
+    });
 });
 
 describe('back-pay per-year migration (v17.86)', () => {
@@ -704,7 +722,14 @@ describe('a legacy source that will not be removed, load after load', () => {
         assert.equal(after.myb_pc_ns_migrated, undefined, 'the question was closed over a value that never arrived');
         assert.equal(after.myb_pc_code, '1257L', 'the tax code was lost');
         assert.equal(after.myb_pc_p43, '{"std":140}', 'the payslip that DID copy kept its source too');
-        assert.equal(hasPendingLegacyMigration(A.name), true, 'so A is asked again');
+        // A answered: A is not asked again — the copy is carried forward on A's next load instead.
+        assert.equal(hasPendingLegacyMigration(A.name), false, 'A was asked a question A had already answered');
+        ls.ctl.failSet = () => false;
+        ls.ctl.refuse = () => false;
+        load(A);
+        assert.equal(ls.getItem(`${nsOf(A)}code`), '1257L', "A's next load finishes the copy");
+        assert.equal(ls.getItem('myb_pc_code'), null, 'and removes the source');
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1', 'and only then closes the question');
 
         // CEA: one copy fails, another lands beside a source that will not go — still deferred.
         const cea = makeStubbornStorage({ cea_code: '1257L', cea_grade: 'cea' });
@@ -738,5 +763,359 @@ describe('a legacy source that will not be removed, load after load', () => {
         assert.equal(after[`${nsOf(B)}code`], 'B', "another member's key was deleted from a list");
         assert.equal(after.myb_pc_cea_migrated, '1');
         assert.equal(after.myb_pc_ns_migrated, '1');
+    });
+});
+
+// ── A "MINE" THAT DOES NOT FINISH STAYS THE CLAIMANT'S (invariant 3) ────────────────────────────
+// Member A answered "mine"; one copy landed beside a source that would not go, another copy failed.
+// The withheld flag then read exactly like an unanswered question: once storage recovered, member B
+// was asked, and B's "mine" copied A's tax code and loan setting into B's namespace. The claim is
+// now recorded first — who answered, and what is left — and these drive every step of that story.
+//
+// And a READ that failed is not an ABSENT value: one transient failure deleted the only copy,
+// overwrote a newer value with an older one, or closed the question over keys nothing enumerated.
+
+/** A storage whose reads, writes, removals and enumeration can each be made to fail by predicate.
+ *  `ctl.get(k, present)` throws a read; `ctl.set` throws a write; `ctl.silentSet` drops one without a
+ *  word; `ctl.del` throws a removal; `ctl.enumerate()` throws `length`/`key()`. */
+function makeFaultStorage(initial = {}) {
+    const store = new Map(Object.entries(initial));
+    const never = () => false;
+    const ctl = { get: never, set: never, silentSet: never, del: never, enumerate: never };
+    const boom = (/** @type {string} */ what) => { const e = new Error(`${what} refused`); e.name = 'SecurityError'; throw e; };
+    return {
+        ctl,
+        getItem(k)    { if (ctl.get(k, store.has(k))) boom('read'); return store.has(k) ? store.get(k) : null; },
+        setItem(k, v) { if (ctl.set(k)) boom('write'); if (!ctl.silentSet(k)) store.set(k, String(v)); },
+        removeItem(k) { if (ctl.del(k)) boom('removal'); store.delete(k); },
+        key(i)        { if (ctl.enumerate()) boom('key'); return Array.from(store.keys())[i] ?? null; },
+        get length()  { if (ctl.enumerate()) boom('length'); return store.size; },
+        dump()        { return Object.fromEntries(store); },
+    };
+}
+
+/** A predicate that answers true the first time `pred` does, and never again. */
+const once = (/** @type {(...a: any[]) => boolean} */ pred) => {
+    let fired = false;
+    return (/** @type {any[]} */ ...a) => (!fired && pred(...a) ? (fired = true) : false);
+};
+
+describe('a "mine" that does not finish stays the claimant\'s', () => {
+    const A = MEMBER;
+    const B = { name: /** @type {string} */ (teamMembers.find(m => !m.hidden && !m.managerOnly && m.name !== A.name)?.name), role: 'CEA' };
+    const nsOf = (/** @type {{name:string}} */ m) => `myb_pc_${memberSlug(m.name)}_`;
+    const FLAGS = { myb_pc_cea_migrated: '1', myb_pc_pension_v882_migrated: '1' };
+    const bKeys = (/** @type {any} */ ls) => Object.keys(ls.dump()).filter(k => k.startsWith(nsOf(B)));
+
+    test('the claim record is a device key, never somebody\'s pay data', () => {
+        assert.ok(DEVICE_KEYS.has('myb_pc_ns_claim'));
+    });
+
+    test('A → a partial failure → B → A: B is never asked and never receives A\'s figures; A finishes without being asked', () => {
+        const ls = makeFaultStorage({ ...FLAGS, myb_pc_code: 'A-code', myb_pc_sl: 'A-loan' });
+        global.localStorage = ls;
+        load(A);
+        assert.equal(hasPendingLegacyMigration(A.name), true, 'premise: A is asked');
+
+        // The copy of the loan setting throws; the tax code copies but its source will not go.
+        ls.ctl.set = k => k === `${nsOf(A)}sl`;
+        ls.ctl.del = k => k === 'myb_pc_code';
+        resolveLegacyMigration(A.name, 'mine');
+        assert.equal(ls.getItem(`${nsOf(A)}code`), 'A-code', 'premise: the tax code reached A');
+        assert.equal(ls.getItem(`${nsOf(A)}sl`), null, 'premise: the loan setting did not');
+        assert.equal(ls.getItem('myb_pc_sl'), 'A-loan', 'the loan setting was lost');
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), null, 'the question was closed over a value that never arrived');
+        assert.equal(JSON.parse(/** @type {string} */ (ls.getItem('myb_pc_ns_claim'))).by, memberSlug(A.name), 'the claim names A');
+        assert.equal(hasPendingLegacyMigration(A.name), false, 'A was asked again after answering');
+        assert.equal(hasPendingLegacyMigration(B.name), false, "B was asked about A's pay data");
+
+        // Storage recovers. B signs in on the same phone.
+        ls.ctl.set = () => false;
+        ls.ctl.del = () => false;
+        const before = ls.dump();
+        load(B);
+        assert.deepEqual(ls.dump(), before, "B's load carried A's claim forward — only A's own load may");
+        assert.equal(hasPendingLegacyMigration(B.name), false, "B was asked about A's pay data once storage recovered");
+        resolveLegacyMigration(B.name, 'mine');   // a stale prompt, or any caller that did not ask first
+        assert.deepEqual(ls.dump(), before, "B's \"mine\" changed storage during A's claim");
+        resolveLegacyMigration(B.name, 'fresh');
+        assert.deepEqual(ls.dump(), before, "B's \"No — delete it\" changed storage during A's claim");
+        load(B);
+        assert.deepEqual(bKeys(ls), [], "A's figures reached B's namespace");
+        assert.deepEqual(ls.dump(), before, "B's load carried A's claim forward");
+
+        // A signs in again: the copy finishes, without a question.
+        load(A);
+        assert.equal(hasPendingLegacyMigration(A.name), false, 'A was asked again');
+        assert.equal(ls.getItem(`${nsOf(A)}code`), 'A-code');
+        assert.equal(ls.getItem(`${nsOf(A)}sl`), 'A-loan', "A's next load did not finish the copy");
+        assert.equal(ls.getItem('myb_pc_code'), null);
+        assert.equal(ls.getItem('myb_pc_sl'), null);
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1', 'and the question is closed');
+        assert.equal(ls.getItem('myb_pc_ns_claim'), null, 'and the claim is cleared');
+
+        load(B);
+        assert.equal(hasPendingLegacyMigration(B.name), false);
+        assert.deepEqual(bKeys(ls), [], "A's figures reached B's namespace after all");
+    });
+
+    test('the claim outlives a closing flag that did not land, so B is still never asked', () => {
+        const ls = makeFaultStorage({ ...FLAGS, myb_pc_code: 'A-code' });
+        global.localStorage = ls;
+        load(A);
+        ls.ctl.silentSet = k => k === 'myb_pc_ns_migrated';   // the copy works; the answer will not stay
+        resolveLegacyMigration(A.name, 'mine');
+        assert.equal(ls.getItem(`${nsOf(A)}code`), 'A-code', 'premise: the copy landed');
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), null, 'premise: the flag did not');
+        assert.notEqual(ls.getItem('myb_pc_ns_claim'), null, 'the claim went before the flag held');
+        load(B);
+        assert.equal(hasPendingLegacyMigration(B.name), false);
+        ls.ctl.silentSet = () => false;
+        load(A);
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');
+        assert.equal(ls.getItem('myb_pc_ns_claim'), null);
+    });
+
+    for (const [label, arm] of Object.entries({
+        'the write throws':     (/** @type {any} */ ls) => { ls.ctl.set = (/** @type {string} */ k) => k === 'myb_pc_ns_claim'; },
+        'the write is dropped': (/** @type {any} */ ls) => { ls.ctl.silentSet = (/** @type {string} */ k) => k === 'myb_pc_ns_claim'; },
+        'the read-back fails':  (/** @type {any} */ ls) => { ls.ctl.get = once((/** @type {string} */ k, /** @type {boolean} */ present) => k === 'myb_pc_ns_claim' && present); },
+    })) test(`a claim that cannot be recorded (${label}) changes nothing, and A is asked again`, () => {
+        const seed = { ...FLAGS, myb_pc_code: 'A-code', myb_pc_sl: 'A-loan' };
+        const ls = makeFaultStorage(seed);
+        global.localStorage = ls;
+        load(A);
+        arm(ls);
+        resolveLegacyMigration(A.name, 'mine');
+        assert.deepEqual(ls.dump(), seed, 'something changed without a claim on record');
+        ls.ctl.set = ls.ctl.silentSet = ls.ctl.get = () => false;
+        assert.equal(hasPendingLegacyMigration(A.name), true, 'the question was closed, or claimed, without a record');
+        resolveLegacyMigration(A.name, 'mine');
+        assert.equal(ls.getItem(`${nsOf(A)}code`), 'A-code', 'with storage working the answer goes through');
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');
+    });
+
+    test('a claim record that cannot be READ asks nobody and moves nothing; once it can be read, A finishes', () => {
+        const seed = { ...FLAGS, myb_pc_code: 'A-code', myb_pc_ns_claim: JSON.stringify({ by: memberSlug(A.name), keys: ['myb_pc_code'] }) };
+        const ls = makeFaultStorage(seed);
+        ls.ctl.get = k => k === 'myb_pc_ns_claim';
+        global.localStorage = ls;
+        load(B);
+        assert.equal(hasPendingLegacyMigration(B.name), false, 'an unreadable claim was taken for no claim');
+        resolveLegacyMigration(B.name, 'mine');
+        load(A);
+        assert.deepEqual(ls.dump(), seed, 'something moved while the claim could not be read');
+        ls.ctl.get = () => false;
+        load(A);
+        assert.equal(ls.getItem(`${nsOf(A)}code`), 'A-code');
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');
+    });
+
+    test('a claim record that will not parse blocks everybody and resumes for nobody', () => {
+        const seed = { ...FLAGS, myb_pc_code: 'A-code', myb_pc_ns_claim: '{not json' };
+        const ls = makeFaultStorage(seed);
+        global.localStorage = ls;
+        for (const m of [A, B]) {
+            load(m);
+            assert.equal(hasPendingLegacyMigration(m.name), false, `${m === A ? 'A' : 'B'} was asked over a damaged claim`);
+            resolveLegacyMigration(m.name, 'mine');
+        }
+        assert.deepEqual(ls.dump(), seed);
+    });
+
+    test('a claim left beside a closed question is tidied away, and copies nothing', () => {
+        const ls = makeFaultStorage({ ...FLAGS, myb_pc_ns_migrated: '1', myb_pc_code: 'later',
+            myb_pc_ns_claim: JSON.stringify({ by: memberSlug(A.name), keys: ['myb_pc_code'] }) });
+        global.localStorage = ls;
+        load(A);
+        assert.equal(ls.getItem('myb_pc_ns_claim'), null);
+        assert.equal(ls.getItem(`${nsOf(A)}code`), null, 'a stale claim copied data into A');
+        assert.equal(ls.getItem('myb_pc_code'), 'later');
+    });
+
+    // ── an unreadable value is not an absent one ──
+    test('a source read that fails once: the only copy is kept, and the question is not closed', () => {
+        const ls = makeFaultStorage({ ...FLAGS, myb_pc_code: '1257L' });
+        global.localStorage = ls;
+        load(A);
+        ls.ctl.get = once(k => k === 'myb_pc_code');
+        resolveLegacyMigration(A.name, 'mine');
+        assert.equal(ls.getItem('myb_pc_code'), '1257L', 'one failed read deleted the only copy');
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), null, 'and recorded the migration finished');
+        load(A);
+        assert.equal(ls.getItem(`${nsOf(A)}code`), '1257L', "A's next load finishes it");
+        assert.equal(ls.getItem('myb_pc_code'), null);
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');
+    });
+
+    test('a destination read that fails once: the member\'s newer value is never overwritten', () => {
+        const ls = makeFaultStorage({ ...FLAGS, myb_pc_code: 'OLD', [`${nsOf(A)}code`]: 'NEWER' });
+        global.localStorage = ls;
+        load(A);
+        ls.ctl.get = once(k => k === `${nsOf(A)}code`);
+        resolveLegacyMigration(A.name, 'mine');
+        assert.equal(ls.getItem(`${nsOf(A)}code`), 'NEWER', 'the older legacy value overwrote the newer one');
+        assert.equal(ls.getItem('myb_pc_code'), 'OLD', 'both are left as they were');
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), null);
+        load(A);
+        assert.equal(ls.getItem(`${nsOf(A)}code`), 'NEWER');
+        assert.equal(ls.getItem('myb_pc_code'), null);
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');
+    });
+
+    for (const choice of /** @type {const} */ (['mine', 'fresh'])) {
+        test(`an enumeration that fails ("${choice}"): nothing changes and the question stays open`, () => {
+            const seed = { ...FLAGS, myb_pc_code: '1257L' };
+            const ls = makeFaultStorage(seed);
+            global.localStorage = ls;
+            load(A);
+            ls.ctl.enumerate = once(() => true);
+            resolveLegacyMigration(A.name, choice);
+            assert.deepEqual(ls.dump(), seed, 'the question was closed over keys nothing listed');
+            assert.equal(hasPendingLegacyMigration(A.name), true);
+        });
+    }
+
+    test('an answered question that cannot be read is not reopened for anybody', () => {
+        const seed = { ...FLAGS, myb_pc_ns_migrated: JSON.stringify(['myb_pc_code']), myb_pc_code: 'A-code', [`${nsOf(A)}code`]: 'A-code' };
+        const ls = makeFaultStorage(seed);
+        ls.ctl.get = k => k === 'myb_pc_ns_migrated';
+        global.localStorage = ls;
+        load(B);
+        assert.equal(hasPendingLegacyMigration(B.name), false, 'an unreadable answer was taken for no answer');
+        resolveLegacyMigration(B.name, 'mine');
+        assert.deepEqual(bKeys(ls), [], "A's leftover reached B");
+    });
+});
+
+describe('the other migrations: a read that fails decides nothing', () => {
+    const legacy = () => { setPaycalcNamespace(undefined); return { code: SK.code, ytdPay: SK.ytdPay, ytdTax: SK.ytdTax }; };
+
+    test('CEA rename: an unreadable flag copies nothing back over a deleted value', () => {
+        const ls = makeFaultStorage({ myb_pc_cea_migrated: JSON.stringify(['cea_code']), cea_code: '1257L',
+            myb_pc_ns_migrated: '1', myb_pc_pension_v882_migrated: '1' });
+        ls.ctl.get = once(k => k === 'myb_pc_cea_migrated');
+        ls.ctl.del = k => k === 'cea_code';
+        global.localStorage = ls;
+        load(MEMBER);
+        assert.equal(ls.getItem(legacy().code), null, 'the deleted tax code was copied back');
+    });
+
+    test('CEA rename: an unreadable source or destination waits — nothing lost, nothing overwritten', () => {
+        const L = legacy();
+        let ls = makeFaultStorage({ cea_code: '1257L' });
+        ls.ctl.get = once(k => k === 'cea_code');
+        global.localStorage = ls;
+        load(MEMBER);
+        assert.equal(ls.getItem('cea_code'), '1257L');
+        assert.equal(ls.getItem('myb_pc_cea_migrated'), null, 'the rename closed over a value it never read');
+
+        ls = makeFaultStorage({ cea_code: 'OLD', [L.code]: 'NEWER' });
+        ls.ctl.get = once(k => k === L.code);
+        global.localStorage = ls;
+        load(MEMBER);
+        assert.equal(ls.getItem(L.code), 'NEWER', 'the older CEA value overwrote the newer one');
+        assert.equal(ls.getItem('myb_pc_cea_migrated'), null);
+        load(MEMBER);
+        assert.equal(ls.getItem(L.code), 'NEWER');
+        assert.equal(ls.getItem('cea_code'), null);
+        assert.equal(ls.getItem('myb_pc_cea_migrated'), '1');
+    });
+
+    test('Year to Date and the premium: an unreadable per-year key is never written over', () => {
+        const L = legacy();
+        const payKey = ytdPayKey({ label: '2025/26' });
+        const hppKey = hppActualKey({ label: '2025/26' });
+        const ls = makeFaultStorage({ myb_pc_cea_migrated: '1', myb_pc_pension_v882_migrated: '1',
+            [L.ytdPay]: '100.00', [payKey]: '9999.00', cea_hpp_actual: '12.00', [hppKey]: '345.00' });
+        ls.ctl.get = (k) => k === payKey || k === hppKey;
+        global.localStorage = ls;
+        load(MEMBER);
+        ls.ctl.get = () => false;
+        assert.equal(ls.getItem(payKey), '9999.00', 'an older Year to Date figure overwrote the newer one');
+        assert.equal(ls.getItem(L.ytdPay), '100.00', 'and its source was removed');
+        assert.equal(ls.getItem(hppKey), '345.00', 'an older premium overwrote the newer one');
+        assert.equal(ls.getItem('cea_hpp_actual'), '12.00');
+
+        ls.ctl.get = once(k => k === L.ytdPay);
+        load(MEMBER);
+        assert.equal(ls.getItem(L.ytdPay), '100.00', 'an unreadable source was acted on');
+        load(MEMBER);
+        assert.equal(ls.getItem(L.ytdPay), null, 'with reads working the source goes');
+        assert.equal(ls.getItem(payKey), '9999.00');
+        assert.equal(ls.getItem(hppKey), '345.00');
+    });
+
+    test('Year to Date: one figure unreadable beside the other is never taken for an absent one', () => {
+        // With Tax Paid present the migration runs, and an unreadable Taxable Pay read as absent wrote
+        // '' into its per-year key and removed the legacy figure — the only copy.
+        const L = legacy();
+        const payKey = ytdPayKey({ label: '2025/26' });
+        const taxKey = ytdTaxKey({ label: '2025/26' });
+        const ls = makeFaultStorage({ myb_pc_cea_migrated: '1', myb_pc_pension_v882_migrated: '1',
+            [L.ytdPay]: '12345.67', [L.ytdTax]: '2345.67' });
+        ls.ctl.get = once(k => k === L.ytdPay);
+        global.localStorage = ls;
+        load(MEMBER);
+        assert.equal(ls.getItem(L.ytdPay), '12345.67', 'the only copy of Taxable Pay was removed');
+        assert.equal(ls.getItem(payKey), null, 'an empty figure was written in its place');
+        load(MEMBER);
+        assert.equal(ls.getItem(payKey), '12345.67');
+        assert.equal(ls.getItem(taxKey), '2345.67');
+        assert.equal(ls.getItem(L.ytdPay), null);
+    });
+
+    test('pension patch: a payslip that could not be read keeps the marker waiting', () => {
+        const P = { num: 60, payday: new Date(2026, 5, 5), start: new Date(2026, 4, 1), cutoff: new Date(2026, 4, 28) };
+        const ls = makeFaultStorage({ myb_pc_cea_migrated: '1', myb_pc_ns_migrated: '1', myb_pc_p60: '{"pension":154.77}' });
+        ls.ctl.get = once(k => k === 'myb_pc_p60');
+        global.localStorage = ls;
+        const d = { getPeriods: () => [P], getLoggedMember: () => null, getPensionDefault: () => 147.36 };
+        setPaycalcNamespace(undefined); runMigrations(d);
+        assert.equal(ls.getItem('myb_pc_pension_v882_migrated'), null, 'the marker was stamped over a payslip never read');
+        setPaycalcNamespace(undefined); runMigrations(d);
+        assert.equal(JSON.parse(/** @type {string} */ (ls.getItem('myb_pc_p60'))).pension, 147.36);
+        assert.equal(ls.getItem('myb_pc_pension_v882_migrated'), '1');
+    });
+
+    test('back pay: an unreadable year key is never written over by the old blob', () => {
+        const ns = `myb_pc_${memberSlug(MEMBER.name)}_`;
+        const old = JSON.stringify({ year: '2026/27', newR: 'OLD' });
+        const ls = makeFaultStorage({ myb_pc_cea_migrated: '1', myb_pc_pension_v882_migrated: '1', myb_pc_ns_migrated: '1',
+            [`${ns}bp_state`]: old, [`${ns}bp_state_2026_27`]: JSON.stringify({ year: '2026/27', newR: 'NEWER' }) });
+        ls.ctl.get = once(k => k === `${ns}bp_state_2026_27`);
+        global.localStorage = ls;
+        load(MEMBER);
+        assert.equal(JSON.parse(/** @type {string} */ (ls.getItem(`${ns}bp_state_2026_27`))).newR, 'NEWER');
+        assert.equal(ls.getItem(`${ns}bp_state`), old, 'the old blob was dropped without its year key being read');
+        load(MEMBER);
+        assert.equal(JSON.parse(/** @type {string} */ (ls.getItem(`${ns}bp_state_2026_27`))).newR, 'NEWER');
+        assert.equal(ls.getItem(`${ns}bp_state`), null);
+    });
+});
+
+// ── THE PAYSLIP ACTUALS IMPORT: success is what storage reads back ──────────────────────────────
+describe('payslip actuals — saved and cleared only when storage confirms it', () => {
+    const MAP = { '2025-04-11': { gross: 1, tax: 2, ni: 3, net: 4 } };
+    test('a write that throws, or is dropped, is not a save', () => {
+        for (const how of ['set', 'silentSet']) {
+            const ls = makeFaultStorage();
+            ls.ctl[how] = () => true;
+            global.localStorage = ls;
+            assert.equal(writePayslipActuals(MAP), false, `${how}: a failed write was reported as saved`);
+            assert.deepEqual(readPayslipActuals(), {});
+        }
+    });
+    test('a write that reads back is a save; a clear that reads back empty is a clear', () => {
+        const ls = makeFaultStorage();
+        global.localStorage = ls;
+        assert.equal(writePayslipActuals(MAP), true);
+        assert.deepEqual(readPayslipActuals(), MAP);
+        ls.ctl.del = () => true;
+        assert.equal(clearPayslipActuals(), false, 'a refused removal was reported as cleared');
+        assert.deepEqual(readPayslipActuals(), MAP);
+        ls.ctl.del = () => false;
+        assert.equal(clearPayslipActuals(), true);
+        assert.deepEqual(readPayslipActuals(), {});
     });
 });

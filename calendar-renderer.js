@@ -5,8 +5,8 @@
  * Owns: buildCalendarContainer (the month grid, or the panel that stands in for it) and its parts —
  *   createCalendarHeader, createDayCell, dayCellParts, dayCellName, shiftWords, splitShiftLine,
  *   dayMarkers, weekContext, changeProvenance — getSwipeDirection, setSnapshotSource (where the
- *   member's own stored copy is read from) and monthOnScreen (what a month shows: the one rule the
- *   grid and the legend both ask).
+ *   member's own stored copy is read from), monthOnScreen (what a month shows: the one rule the
+ *   grid and the legend both ask) and rovingCellFor (which cell a drawn grid gives focus to).
  * Does NOT own: display state (calendar-app.js), override fetching (calendar-overrides.js),
  *   member selection (calendar-member.js).
  * Edit here for: day cell HTML, calendar grid structure, month header, swipe maths.
@@ -727,4 +727,28 @@ export function buildCalendarContainer(month, year, opts = {}) {
 
     calendarContainer.appendChild(grid);
     return calendarContainer;
+}
+
+/**
+ * THE CELL A DRAWN GRID GIVES KEYBOARD FOCUS TO, with the roving tabindex moved onto it.
+ *
+ * `day` is the day the draw was asked to keep (calendar-redraw.js → `focusDay`, a background repaint
+ * of the month the reader was arrowing through), matched by the words every in-month cell carries in
+ * `data-detail-day` — "Friday 18 September 2026", which names its month and year, so a different
+ * month's grid never matches. With no day, or a day this grid does not have, it is the grid's own
+ * entry cell (today, else the 1st), exactly as before. The kept cell takes `tabindex="0"` from the
+ * anchor, so Tab out and back returns to it, as the arrow keys' roving does.
+ *
+ * @param {{ querySelectorAll: (sel: string) => ArrayLike<any> }} container  the grid just drawn
+ * @param {string|null} day
+ * @returns {HTMLElement|null} null when the panel has no day cells ("Checking this month", the failure panel)
+ */
+export function rovingCellFor(container, day) {
+    const cells = /** @type {HTMLElement[]} */ ([...Array.from(container.querySelectorAll('.calendar-day:not(.other-month)'))]);
+    const anchor = cells.find(c => c.getAttribute('tabindex') === '0') ?? null;
+    const kept = day ? cells.find(c => c.dataset.detailDay === day) : undefined;
+    if (!kept || kept === anchor) return anchor;
+    anchor?.setAttribute('tabindex', '-1');
+    kept.setAttribute('tabindex', '0');
+    return kept;
 }
