@@ -119,7 +119,7 @@ test('the panel says what a cover week does to its hours figures — when there 
         assert.equal(/the 55-hour row counts each as a quarter of the contracted week \(8h 45m\)/.test(html), floor,
             `${label}: the caveat names what the 55-hour row counts a cover day as`);
         assert.doesNotMatch(html, /Every hours figure here is a/, `${label}: the 55-hour figure is not a floor any more`);
-        assert.equal(/51\.8 hours in the worst case, and 40 on the duties the rota fixes/.test(html), floor,
+        assert.equal(/51\.8 hours in the worst case, and 40 on the duties the link fixes/.test(html), floor,
             `${label}: the 55-hour row gives the worst case and the floor`);
         assert.equal(assessFatigue(patterns, ROTATING_LINES).hoursAreFloor, floor, `${label}: the flag itself`);
     }

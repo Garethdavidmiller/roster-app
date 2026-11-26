@@ -77,7 +77,7 @@ export function checkName(name, ctx = {}) {
     if (!trimmed) return { ok: false, reason: 'empty', message: `Give the ${noun} a name first.` };
     if (trimmed.length > MAX_DESIGN_NAME) {
         return { ok: false, reason: 'too-long',
-                 message: `That name is too long (max ${MAX_DESIGN_NAME} characters). Please shorten it.` };
+                 message: `That name is too long. A name can be up to ${MAX_DESIGN_NAME} characters.` };
     }
     const clash = nameConflict(trimmed, existing, exceptId);
     if (clash) {
