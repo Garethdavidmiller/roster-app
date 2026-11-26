@@ -9,7 +9,7 @@
 // worker cache is invalidated by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.97';
+export const APP_VERSION = '26.98';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its line
@@ -63,18 +63,20 @@ export const CONFIG = {
     MANAGER_NAMES:                    ['D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers', 'W. Cummings'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management', 'Other Staff'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js), the admin member-selector optgroups (admin-app.js) AND the Calendar's name picker (calendar-member.js), so they can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
-    // Phase 2 of PASSWORD_DESIGN.md — compel un-migrated members to set their own password at their
-    // NEXT SIGN-IN (password-force.js). This is the KILL SWITCH: `false` stops compelling instantly,
-    // with no other change; the Settings card, the admin reset and `passwordStatus` are unaffected.
+    // Compel un-migrated members to set their own password at their NEXT SIGN-IN (password-force.js;
+    // AUTH_AND_SESSIONS.md → "The forced password overlay"). This is the KILL SWITCH: `false` stops
+    // compelling instantly, with no other change; the Settings card, the admin reset and
+    // `passwordStatus` are unaffected.
     //
     // Safe to switch on: the overlay only appears right after a confirmed `named` sign-in still on the
     // surname default, the calendar is NOT behind it, and it fails open before showing and after (a
     // "Continue for now" escape). See password-force.js's header. No forced sign-out drives it:
     // sessions cap at 60 days (`SESSION_MS`), so coverage completes inside that window, staggered.
     FORCE_PASSWORD_SET:               true,
-    // The "ask the admin to reset my password" request queue (PASSWORD_DESIGN.md). Kill switch for the
-    // LINK only: `false` hides it on the login overlay. It does NOT disable the endpoint (a functions
-    // deploy) or hide the Operations card, so requests already filed remain actionable.
+    // The "ask the admin to reset my password" request queue (AUTH_AND_SESSIONS.md → "The
+    // reset-request queue"). Kill switch for the LINK only: `false` hides it on the login overlay.
+    // It does NOT disable the endpoint (a functions deploy) or hide the Operations card, so requests
+    // already filed remain actionable.
     PASSWORD_RESET_REQUESTS:          true,
     // Claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every device to
     // refresh its Firebase ID token ONCE on next app open, picking up newly-set custom claims at once
