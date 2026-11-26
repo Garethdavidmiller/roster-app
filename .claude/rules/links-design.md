@@ -10,11 +10,12 @@ paths:
 
 **This is the authoritative contract for the Links workspace.** Other documents link here rather
 than restating grid, generator, coverage, fatigue, concurrency or deletion rules.
-`LINKS_DEC2026_PLAN.md` holds the December 2026 project context. The reasoning behind most rules is
+`DECISIONS.md` → The new CEA link holds what the December 2026 plan settled, and `ROADMAP.md` →
+The new CEA link what is still open. The reasoning behind most rules is
 in the module header beside the code, and this file points there rather than copying it.
 
 **The workspace builds and judges proposals. It decides nothing.** S. Silva, the RMT rep, leads the
-December 2026 roster change and makes the final call (`LINKS_DEC2026_PLAN.md` → Who leads). Nothing
+December 2026 roster change and makes the final call (`DECISIONS.md` → The new CEA link, Who leads). Nothing
 on the page, and nothing written here, may suggest that the owner or the admin decides which link
 is used.
 
@@ -952,7 +953,7 @@ finish runs into Sunday's start.
   three or four full weekends off across the rotation (the FF11 figures across weights are search
   noise, not a property of the weight). Which matters more is a judgement about conditions for the
   room, not a tuning exercise, so leave the weight alone unless that answer comes back
-  (`LINKS_DEC2026_PLAN.md` → the run cap; KNOWN_LIMITATIONS.md). With the switch on alone the reorder
+  (`cost`'s run-cap comment in `links-adjacency.js`; KNOWN_LIMITATIONS.md). With the switch on alone the reorder
   reaches the target; with the full set it may not, **and the status line says what it reached** — a
   box naming a target the design silently misses is the phantom guarantee again.
 - **The spare spread is a constraint, not a switch** — the next section.
@@ -1015,7 +1016,7 @@ An "increase every target by N%" control was built and then removed on the owner
 - **A slot at 0 for a day class stays 0.** Zero is not a small number: it means that shift does not run
   that day.
 
-**The finding it was built to surface still stands** (`LINKS_DEC2026_PLAN.md`): every extra duty comes
+**The finding it was built to surface still stands** (`DECISIONS.md` → The new CEA link): every extra duty comes
 out of a rest day, so a service increase cannot be absorbed by making the existing lines denser — the
 link has to get bigger, which means more staff. That is an argument to take into the room, not a
 control to put on a page.

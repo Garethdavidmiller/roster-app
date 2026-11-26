@@ -79,9 +79,7 @@ live anchors:
 | `AUTH_ARCHITECTURE.md` | **Pointer** — folded into `AUTH_AND_SESSIONS.md`, 24 Nov 2026 | Code comments cite it by Track 1, phase number and PAYSLIP_ACTUALS; the phase record is in git |
 | `OTHER_DAYS.md` | Shipped | Code comments cite "OTHER_DAYS.md decision N" |
 | `LATENCY.md` | **CLOSED 19 Sep 2026 — nothing open.** The wall is the `accounts:lookup` round trip. The fast path built against it rarely fired, and was retired on 26 Sep 2026 and replaced by the own-roster copy (`CALENDAR_DATA.md` 17); Phase 2 closed on its own rule; Phase 3 measured and declined; Phase 4's trigger unfired. The App Speed card that carried its instruments was trimmed on 25 Oct 2026 | Holds the readings, the decision rules, and THE CLOSING READ of 19 Sep 2026 |
-| `LINKS_DEC2026_PLAN.md` | Live | Holds the Dec 2026 project context |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |
-| `AL_UPLOADER_PLAN.md` | **Live** — Phases 0–2 built: the check (v26.11), then the Save, its record and its Undo (v26.13) | Code comments cite its sections (§3 the leave file, §4 the card); §10 holds the owner's decisions and §12 what was built and what changed |
 | `DECISIONS.md` | Historical | **The closed decisions.** Features declined, and choices recorded so they are not re-argued |
 | `A11Y_BASELINE.md` | Live baseline | The axe triage the gate is measured against |
 | `ANDROID_RELEASE_CHECKLIST.md` | Release pass | The Android checks no test here can run — run by hand: a Chrome tab, the installed app, Samsung Internet, the largest text |
@@ -91,6 +89,9 @@ live anchors:
 genuinely dies, move each decision in it that still binds to `DECISIONS.md` or the area rule file it
 binds, then delete the plan, naming the last commit that held it. `ROADMAP_HISTORY.md`, the archive
 this repo kept until 25 Nov 2026, went that way: its last text is `git show 28b217d0:docs/ROADMAP_HISTORY.md`.
+So did `LINKS_DEC2026_PLAN.md` and `AL_UPLOADER_PLAN.md` on 26 Nov 2026, their work shipped: their decisions
+are `DECISIONS.md` → "The new CEA link" and "The annual leave uploader", what is open is `ROADMAP.md`, and
+their last text is `git show 16386f9b:docs/<name>`.
 
 ---
 

@@ -2,7 +2,7 @@
 /**
  * operations-al-sheet.js — the Annual leave sheet card on operations.html: a leave file in, the app's
  * own records beside it, every difference on screen. Phases 1 and 2b of the annual leave uploader
- * (docs/AL_UPLOADER_PLAN.md): it reads, compares and shows, and hands each person to the Save
+ * (docs/DECISIONS.md → The annual leave uploader): it reads, compares and shows, and hands each person to the Save
  * (operations-al-save.js), which adds the leave the app is missing for the people the admin confirms.
  *
  * The file is made in a SESSION from the clerks' workbook (scripts/make-leave-file.mjs) and checked

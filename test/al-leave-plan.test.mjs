@@ -2,7 +2,7 @@
 // @lane hygiene
 /**
  * al-leave-plan.test.mjs — what one Save of the Annual leave sheet writes, what its log says, and
- * what an Undo may take back (al-leave-plan.js; docs/AL_UPLOADER_PLAN.md §4.5–4.10).
+ * what an Undo may take back (al-leave-plan.js and its header).
  * Run: node scripts/run-tests.mjs test/al-leave-plan.test.mjs   (part of `npm run test:hygiene`)
  *
  * Every person here is INVENTED. They borrow the real roster PATTERNS, because a member needs a line to

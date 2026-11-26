@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * al-leave-save.js — the Annual leave sheet's Save, its upload log and its Undo, against Firestore.
- * Phase 2b of the annual leave uploader (docs/AL_UPLOADER_PLAN.md §4.9–4.10). WHAT is written is
+ * Phase 2b of the annual leave uploader (docs/DECISIONS.md → The annual leave uploader). WHAT is written is
  * decided by al-leave-plan.js; this module sends it, checked, and reads back what landed. The card
  * (operations-al-save.js) wires it.
  *
@@ -285,7 +285,7 @@ export async function pruneUploadLogs(keepFrom) {
 }
 
 /**
- * Undo one Save (plan §4.10, header): delete each day it ADDED that is still its own — person by
+ * Undo one Save (header; al-leave-plan.js header): delete each day it ADDED that is still its own — person by
  * person, each part checked, a refused day kept and the rest sent again — then mark the log, once:
  * taken back, every day of the Save's now gone, this press's and any earlier one's. A failure other
  * than a refusal stops it before the mark, so pressing it again finishes it.

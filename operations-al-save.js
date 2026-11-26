@@ -2,13 +2,13 @@
 /**
  * operations-al-save.js — the Annual leave sheet's Save on Operations: the rest-day answers, a
  * confirmation per person, the "after" figures, the Save button, the receipt and the Undo. Phase 2b of
- * the uploader (docs/AL_UPLOADER_PLAN.md §4.7–4.10). The card (operations-al-sheet.js) draws the check
+ * the uploader (docs/DECISIONS.md → The annual leave uploader). The card (operations-al-sheet.js) draws the check
  * and hands each person here; WHAT a Save writes is al-leave-plan.js's, and sending it al-leave-save.js's.
  *
  * ── NOTHING IS SAVED FOR A PERSON NOBODY CONFIRMED ──────────────────────────────────────────────
  *
- * Each person's additions are confirmed on their own row, never by one "accept all" (plan §4.6,
- * defence 3), with what the Save would leave them on beside the box: the figures AFTER it, from the
+ * Each person's additions are confirmed on their own row, never by one "accept all" (the
+ * uploader's third defence against cancelled leave coming back; al-leave-plan.js header), with what the Save would leave them on beside the box: the figures AFTER it, from the
  * same comparison run over the records the Save would leave (`recordsAfter`), and whatever would
  * still differ in the chips' own words. A rest day is asked about in Admin's own words and never
  * defaulted; unanswered, it is not saved. A file the plan refuses (a year before last, too old, of

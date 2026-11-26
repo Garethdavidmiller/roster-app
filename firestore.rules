@@ -1084,7 +1084,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // ── alUploads — the annual leave uploader's log (v26.11, AL_UPLOADER_PLAN.md §4.6) ──────────
+    // ── alUploads — the annual leave uploader's log (v26.11; DATA_MODEL.md → alUploads) ──────────
     //
     // One document per Save on Operations → Annual leave sheet: which copy of the clerks' workbook
     // the Save used, and which member-days it brought into line with the sheet. BACKEND-FIRST:

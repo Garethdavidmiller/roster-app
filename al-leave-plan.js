@@ -2,13 +2,13 @@
 /**
  * al-leave-plan.js — what one Save of the Annual leave sheet would write, person by person; what its
  * upload log says; and what an Undo of it may take back. Phase 2b of the annual leave uploader
- * (docs/AL_UPLOADER_PLAN.md §4.5–4.10). Pure: no DOM, no Firebase. The writer is al-leave-save.js and
+ * (docs/DECISIONS.md → The annual leave uploader). Pure: no DOM, no Firebase. The writer is al-leave-save.js and
  * the card is operations-al-sheet.js.
  *
  * ── THE DAYS IT WRITES, AND THE ONES IT NEVER DOES ──────────────────────────────────────────────
  *
  * It starts from the comparison (al-leave-compare.js), which has already asked the app's own rules
- * what each day is, and adds only what is specific to a Save (plan §4.5):
+ * what each day is, and adds only what is specific to a Save:
  *
  *   not-in-app    ADD leave, for a person the admin has confirmed
  *   rest-day      ASKED, as the Admin leave card asks: "swapped" adds leave that costs a day,
@@ -17,7 +17,7 @@
  *                 swap recorded, so it costs a day; otherwise nothing
  *   anything else NOTHING. Leave that already agrees needs nothing; a shift, an absence or a
  *                 correction there is a conflict, which is Phase 3; and RDW, an Other day or a Spare
- *                 turn is work and pay evidence, which an upload never overwrites (plan §4.5)
+ *                 turn is work and pay evidence, which an upload never overwrites (DECISIONS.md → The annual leave uploader)
  *
  * Nothing at all is written for a person whose row is not confirmed: their answers wait with them.
  *
@@ -28,12 +28,12 @@
  *   · NEVER ON 25 OR 26 DECEMBER. From 2026 the app's own Christmas leave decides those days
  *     (christmas-leave.js), and a stored record there is one nothing counts.
  *
- * ── LEAVE CANCELLED IN THE APP MUST NOT COME BACK (plan §4.6) ───────────────────────────────────
+ * ── LEAVE CANCELLED IN THE APP MUST NOT COME BACK ────────────────────────────────────────────────
  *
  * The workbook is always older than the upload, and a deletion leaves no trace. So a sheet day that
  * an earlier Save's log says was in line, and that the app now holds nothing on, was REMOVED IN THE
  * APP SINCE: it is shown and never written, and Admin's leave card puts it back if it should be there.
- * That is narrower than the plan, which left such a day unticked for the admin to tick: this release
+ * That is narrower than the plan of record (now in git), which left such a day unticked for the admin to tick: this release
  * has no tick on a single day, and never writing one is the safe half of that choice.
  *
  * ── EACH WRITE IS THE ADMIN LEAVE CARD'S OWN WRITE OF THE DAY ───────────────────────────────────
@@ -244,7 +244,7 @@ export function saveTotals(plans) {
 
 /**
  * A member's records as they would be after this person's part of the Save — for the "after"
- * figures (plan §4.7). Every field the write carries is kept, `replacedType` and `leaveYear`
+ * figures. Every field the write carries is kept, `replacedType` and `leaveYear`
  * included — as `overridesAfterSave` (admin-al-projection.js) now keeps them too (`writtenRecord`,
  * 21 Nov 2026), so the two agree: dropped, a swapped rest day would read as free. The new records are stamped with the device's clock, as the page's own copies are,
  * which `shouldReplaceOverride` ranks newest.
@@ -266,7 +266,7 @@ export function recordsAfter(records, plan, now = new Date()) {
  */
 
 /**
- * What the logs already written say about a new file (plan §4.6): whether it may be saved at all, and
+ * What the logs already written say about a new file (header): whether it may be saved at all, and
  * which days earlier Saves brought into line. `logs` are this year's and last year's (header).
  *   · A copy saved BEFORE the newest one logged for its year is refused by name. The same copy again
  *     is allowed: what its last Save wrote shows as already right, so a Save that stopped half way is
@@ -419,7 +419,7 @@ export function logFields({ file, inLine, added, savedBy, appVersion }) {
 }
 
 /**
- * What an Undo of `log` may take back (plan §4.10): each day the Save ADDED whose record is still
+ * What an Undo of `log` may take back (header): each day the Save ADDED whose record is still
  * the Save's own — at the fixed id, annual leave, written by the log's author, and still carrying the
  * log's id (header). A day rewritten since, by anybody, has lost the mark and is kept; a day already
  * gone is neither. So a log written before the mark (no `writesMarked`) takes NOTHING back: its

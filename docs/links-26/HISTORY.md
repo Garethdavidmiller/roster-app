@@ -124,7 +124,7 @@ designs discarded*, near the end, has the tables.
 **The pack is deliberately vague about how the choice is made** (owner, 4 Nov 2026: "It is deliberately vague"). S. Silva
 leads the change, as the RMT rep, and nothing in the pack may give the impression that the developer is in charge of it.
 So a rebuild adds nothing about who decides, votes or recommends — the process is recorded in
-`../LINKS_DEC2026_PLAN.md`'s dashboard, and stays there. What the decks and sheets said on it was left as it was on
+`../DECISIONS.md` → The new CEA link, and stays there. What the decks and sheets said on it was left as it was on
 4 Nov, and the owner was asked on 5 Nov: the union rep went from the proposal sheets' and managers' decks' line ("Not
 yet seen by the roster office" stays), the "recommended" marks went from every deck and sheet, and the colleague decks'
 last slide now says what the New link page says, "Tell S. Silva or your manager what worries you" (*The whole pack
@@ -2850,7 +2850,7 @@ their manager (`newlink-config.js`: `STARTS`, `CONTACT`). The page's last line n
 saw it on a phone the same afternoon: *"The wording at the very bottom is not needed"* — it went at v25.11. The Links
 page's 219-day row gave its basis as *Chiltern December 2026 link rules*; it now reads *Chiltern rules for the new link*.
 
-**The plan's dates.** `../LINKS_DEC2026_PLAN.md` counts back from the timetable, so its deadlines are about three weeks
+**The plan's dates.** The December 2026 plan (deleted 26 Nov 2026; `git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`) counts back from the timetable, so its deadlines are about three weeks
 earlier than the link itself needs; it says so, and keeps them.
 
 ## Clean Slate and Next Step — shift times chosen afresh, and Even Step with three retimed (3 Nov 2026)
@@ -5044,7 +5044,7 @@ days" row and the app's own FF11 detail.
 - **The app (v25.42).** The Links designer's FF11 explanation said the same, and now matches: "Longest run between
   two-day breaks … a single rest day does not reset this count, even when the shifts either side leave 48 hours, so it
   can only overstate a run". `links-app.js`'s comparison line says "without a two-day break". The module header,
-  `AI_MAP.md`, `LINKS_DEC2026_PLAN.md` and `.claude/rules/links-design.md` say "is not counted as" instead of "is not".
+  `AI_MAP.md`, the December 2026 plan (since deleted; `git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`) and `.claude/rules/links-design.md` say "is not counted as" instead of "is not".
 
 **3. The 55-hour "up to" is a figure with 8-hour cover duties, not a ceiling.** The contract counts a cover week as 35
 hours, and four 8-hour duties are 32. So the sheets now:
@@ -5796,7 +5796,7 @@ the 24-line `folderStats`) and, in the two modules, their import depths:
 | `tooling/report-data.mjs`, `tooling/cover-placement.mjs` (the 24-line ones, not this folder's) | `tooling/reference-24/` | `league.mjs`, for its Familiar Nine (24) row |
 | `proposals/Familiar-Nine-F9-24-K31s.json` | `tooling/reference-24/` | that row, and `leave.mjs --check`'s second case |
 | `presentations/Familiar-Nine-for-colleagues.pptx`, `…-for-managers.pptx` | `tooling/reference-24/` | `second-nature-decks.py`, which builds the template every deck in the pack starts from |
-| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/links-design.md`, which sends a reader to it to measure the default, and `docs/LINKS_DEC2026_PLAN.md`, which quotes what it printed at 24 lines |
+| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/links-design.md`, which sends a reader to it to measure the default, and the December 2026 plan, which quoted what it printed at 24 lines (deleted 26 Nov 2026; `git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`) |
 | `proposals/Fifteen-Turns-FT-24-EXT.json`, `proposals/Weekday-Lates-WL-24-EXT.json` | `test-fixtures/links-designs/`, lower-cased as the fixtures there are | `links-compare.test.mjs` and `links-compare-analysis.test.mjs` |
 
 The Familiar Nine row could not simply go: it sits inside the main league's range (`REF_IN_RANGE=1`), so every score
@@ -5827,13 +5827,13 @@ and sends a reader to `default-baseline.mjs` for the default, so the figures abo
 for the 24-line rules. ESLint, `payroll-anonymity.test.mjs` and `doc-parity.test.mjs` lost the folder from their patterns;
 `hosting-ignore-parity.test.mjs` and `deploy-hosting.yml` mention it only in history ("later `docs/links-24/`, removed 7 Nov
 2026"). The scripts here that came from that folder say so, with the restore command. The dated
-sections above, and `docs/LINKS_DEC2026_PLAN.md`, name `../links-24/` paths as they were; the note at the top of each says so.
+sections above, and the December 2026 plan (deleted 26 Nov 2026; `git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`), name `../links-24/` paths as they were; the note at the top of each says so.
 
 **For a check of a new code or name** (the sections above checked them "against every code in `links-24/`"): the 24-line
 codes began AC, B2, BB, C17, CF, CFT, CS, EF, F9, FO, FR, FT, JE, P2, PC, PT, Q2, QT, RR, S4, SL, ST, TF, TM, TN, WL, WL2,
 WL3, WL4 and WS, each followed by `-24-`; the eleven shipped sheets were All Clear, Anchored Lines, Clean Sweep, Evening Peak,
 Familiar Nine, Fifteen Turns, Full Overhaul, Polished Clean, Right Away, Silva Lining and Weekday Lates, and the withdrawn
-designs are named in `docs/LINKS_DEC2026_PLAN.md` → Proposals.
+designs are named in the December 2026 plan's Proposals section (`git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`).
 
 **Checks** (after the move, the folder gone):
 - `regenerate.mjs --check`: 24 proposals, every fingerprint as pinned;

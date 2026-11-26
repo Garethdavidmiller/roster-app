@@ -309,7 +309,7 @@ undone            list of "Name|YYYY-MM-DD" — what the undo took back: every a
                   that press removed it, an earlier press cut short did, or somebody removed it since — so an
                   undo stopped part way is finished by pressing it again. Never longer than added
 ```
-**What it is for**: the Save (Phase 2b) reads it three ways (AL_UPLOADER_PLAN.md §4.6, §4.10). A check
+**What it is for**: the Save (Phase 2b) reads it three ways (al-leave-plan.js header). A check
 reads the logs of the file's year AND the year before, because last year's sheet ran into this January. A sheet day a
 log says was brought into line, and the app no longer holds, was removed in the app since: it is shown,
 never ticked, so leave cancelled in the app does not come back. A copy of the workbook saved before the

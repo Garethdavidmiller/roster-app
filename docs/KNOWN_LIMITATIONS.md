@@ -1021,7 +1021,7 @@ Operations → Annual leave sheet compares the clerks' workbook with the app and
 admin confirms, **adds the leave the app is missing** — a working day with nothing recorded, or a rest
 day answered "swapped" — and counts leave the app already holds on a rest day answered "swapped".
 Every other difference is put right by hand, a day at a time, in Admin
-(AL_UPLOADER_PLAN.md; OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet"). What that leaves
+(DECISIONS.md → The annual leave uploader; OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet"). What that leaves
 open:
 
 - **The FIRST Save of a year cannot tell "cancelled since" from "never recorded".** Once a copy has

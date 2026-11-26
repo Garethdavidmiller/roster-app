@@ -2,7 +2,7 @@
 // @ts-check
 /**
  * make-leave-file.mjs — STAGE 1 of the annual leave uploader: the clerks' workbook in, a leave file
- * out (docs/AL_UPLOADER_PLAN.md §3). Run in a SESSION, never by the app, and never inside CI on a
+ * out (docs/DECISIONS.md → The annual leave uploader). Run in a SESSION, never by the app, and never inside CI on a
  * real workbook: the workbook and the file both name colleagues against their leave.
  *
  *   node scripts/make-leave-file.mjs --workbook <book.xlsx> --year 2026 \
@@ -72,7 +72,7 @@
  * that could be either January with no date beside it to settle it: each becomes a QUESTION, and
  * no file is written until it is answered. Every NAME answer and match goes into the file's
  * `nameMap`, and the NEXT run reads them from the previous file — so two sessions match the same names
- * from the same workbook (plan §3.4). The other answers (which duplicate row, which January, an entry
+ * from the same workbook (owner decision 2, docs/DECISIONS.md → The annual leave uploader). The other answers (which duplicate row, which January, an entry
  * read by hand, the dates beside a blank count, a commented row that counts nobody) are keyed by row
  * and cell, which move between copies of the sheet, so they are not carried: a new copy asks them
  * again (leave-file-script.test.mjs pins it). The map is never committed: the exceptions in it are

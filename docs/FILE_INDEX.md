@@ -364,7 +364,6 @@ roster-app/
 │   ├── VALIDATION_REGISTER.md ← what the app ALREADY ASSERTS on evidence nobody has checked, each row with a stable `VAL-*` id
 │   ├── DATA_MODEL.md ← the FIRESTORE COLLECTIONS and what every field means; `firestore.rules` is the authority on access
 │   ├── AL_WORKBOOK.md ← the roster clerks' annual-leave quota spreadsheet — a WORK IN PROGRESS. **Read §0 first**: `AL over depot quota` days are real leave, invisible in the calendar grid
-│   ├── AL_UPLOADER_PLAN.md ← the plan of record for the annual leave uploader (workbook → sealed leave file → Operations → Annual leave sheet)
 │   ├── CALENDAR_DATA.md ← the Calendar's feature CONTRACT: what may be shown and when, each invariant routed to its module header
 │   ├── AUTH_AND_SESSIONS.md ← the authentication feature CONTRACT: session, identity and claim, the invariants across them, and the architecture (two pure layers and a store); status lives in SECURITY_RELEASE_PLAN.md
 │   ├── SECURITY_RELEASE_PLAN.md ← the security tracks' status: **the CANONICAL TRACK STATUS table** (update a stage there and nowhere else; `auth-plan-parity.test.mjs`), plus each track's ordering, decisions and lessons
@@ -373,7 +372,6 @@ roster-app/
 │   ├── AUTH_PLAN.md ← Track E, full-app authentication, in its ONE home: what "behind authentication" can mean for static files on public hosting, and the E0–E6 phases, their order, risks and owner questions. Status: SECURITY_RELEASE_PLAN.md's table, whose Track E section points here
 │   ├── AUTH_ARCHITECTURE.md     ← POINTER: folded into AUTH_AND_SESSIONS.md → Architecture (24 Nov 2026); the Track 1 phases are in git
 │   ├── RECOVERY_RUNBOOK.md      ← the "break glass" backup, rollback and disaster-recovery runbook
-│   ├── LINKS_DEC2026_PLAN.md ← the Links workspace against the December 2026 timetable change ("Dec 26" is the timetable, NOT Boxing Day): the service, the window, the baseline and the current 26-line state
 │   ├── BRASS_PLAN.md ← modelling BRASS (the RPS pension top-up) in the pay calculator; nothing ships until its owner questions are answered
 │   ├── OVERTIME_AVAILABILITY.md ← the design record for Overtime Availability, holding only what no module header owns
 │   ├── OTHER_DAYS.md            ← the "Other" day family: the numbered design decisions cited from code, and the Phase B checklist
@@ -768,7 +766,7 @@ roster-app/
 │   ├── test-lanes.mjs            ← which lane each Node suite runs in, read from its own `// @lane` line; `run-tests.mjs --lane` and `test-nodeps.mjs` ask it
 │   ├── test-nodeps.mjs           ← `npm run test:nodeps` — every suite that needs nothing installed; its exclusions are the `functions` and `rules` lanes
 │   ├── hosting-upload-check.mjs  ← refuses to publish anything to Hosting that git does not track (run by deploy-hosting.yml)
-│   ├── make-leave-file.mjs       ← STAGE 1 of the leave uploader, run in a session on the clerks' workbook (AL_UPLOADER_PLAN.md). Never run on a real workbook in CI
+│   ├── make-leave-file.mjs       ← STAGE 1 of the leave uploader, run in a session on the clerks' workbook (DECISIONS.md → The annual leave uploader). Never run on a real workbook in CI
 │   ├── xlsx-read.mjs             ← just enough .xlsx reading for that script; the workbook is untrusted
 │   ├── mutate.mjs                ← break ONE line on purpose, run a command, put the file back — the tool CLAUDE.md requires before claiming a guard. Its header
 │   ├── mutation-sweep.mjs        ← `npm run test:mutation`: every manifest entry through mutate.mjs, one table; fails on a survivor or a stale entry. Weekly in `mutation.yml`. Its header

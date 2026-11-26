@@ -2,7 +2,7 @@
 /**
  * links-demand.js — the SERVICE a link design has to cover: trains per hour at Marylebone.
  *
- * `LINKS_DEC2026_PLAN.md` package 3. Pure — no DOM, no Firebase.
+ * Package 3 of the December 2026 plan (DECISIONS.md → The new CEA link). Pure — no DOM, no Firebase.
  *
  * WHY THIS EXISTS. The coverage heat map shows people on duty per hour against *nothing*. It can
  * tell you the shape of a design; it cannot tell you whether that shape is right, because the thing
@@ -98,7 +98,7 @@ export const DAY_CLASS_KEYS = /** @type {const} */ (['weekday', 'sat', 'sun']);
  *
  * RE-MEASURING from a new simplifier meets two traps that both failed silently the first time: a
  * `+` in a time (`05+46`) marks an ECS move, not a separator, and some times arrive as Excel serial
- * fractions rather than text. LINKS_DEC2026_PLAN.md has the counts each one cost.
+ * fractions rather than text. DECISIONS.md → The new CEA link has the counts each one cost.
  *
  * Totals: weekday 311 movements / 1,756 cars · Sat 215 / 1,266 · Sun 188 / 1,059.
  */

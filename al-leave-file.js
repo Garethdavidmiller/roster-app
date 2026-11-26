@@ -10,7 +10,7 @@
  * never reads the workbook. A session reads it, following AL_WORKBOOK.md (scripts/make-leave-file.mjs,
  * "Stage 1"), and writes this file; the Operations card reads the FILE (operations-al-sheet.js,
  * "Stage 2"). This module is the contract between the two, and both import it, so they cannot
- * disagree about what a valid file is or how its seal is worked out (docs/AL_UPLOADER_PLAN.md §3).
+ * disagree about what a valid file is or how its seal is worked out (docs/DECISIONS.md → The annual leave uploader).
  *
  * ── WHAT THE FILE PROMISES, AND HOW THE APP CHECKS IT RATHER THAN TRUSTING IT ───────────────────
  *
@@ -360,7 +360,7 @@ export function validateLeaveFile(file) {
     if (!isObj(m) || !only(m, ['on', 'script', 'appVersion']) || !isRealIsoDate(m.on)
         || typeof m.script !== 'string' || m.script.length > 64 || typeof m.appVersion !== 'string' || m.appVersion.length > 16) bad('made');
 
-    // nameMap — carried for the NEXT run (AL_UPLOADER_PLAN.md §3.4); the app never renders it.
+    // nameMap — carried for the NEXT run (scripts/make-leave-file.mjs → IT ASKS, NEVER GUESSES); the app never renders it.
     const nm = file.nameMap;
     if (!isObj(nm) || !only(nm, ['rows', 'cells', 'tags'])
         || !['rows', 'cells', 'tags'].every(k => isObj(nm[k]) && Object.entries(nm[k]).every(

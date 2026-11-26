@@ -13,7 +13,7 @@ import { buildDefaultTargets } from '../links-default-targets.js';
 /**
  * The profile is measured data, so the tests that matter most are the ones that would catch it
  * being TRANSCRIBED wrong — a plausible-looking table nobody can check by eye. Totals and peaks are
- * pinned against the figures in LINKS_DEC2026_PLAN.md, which is where the measurement is written up.
+ * pinned against the figures in links-demand.js's header, which is where the measurement is written up.
  */
 describe('DEC_2026_DEMAND — the measured profile', () => {
     const sum = (a) => a.reduce((x, y) => x + y, 0);

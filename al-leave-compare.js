@@ -1,13 +1,13 @@
 // @ts-check
 /**
  * al-leave-compare.js — the clerks' leave sheet beside what the app holds, person by person and day
- * by day. Phase 1 of the annual leave uploader (docs/AL_UPLOADER_PLAN.md §4): it DECIDES nothing and
+ * by day. Phase 1 of the annual leave uploader (docs/DECISIONS.md → The annual leave uploader): it DECIDES nothing and
  * writes nothing. It answers "where do the app and the sheet disagree, and why", which is
  * AL_WORKBOOK.md §11's reconcile-and-report — the half of an uploader that was always safe.
  *
  * ── THE APP'S OWN RULES, NEVER A RESTATEMENT ────────────────────────────────────────────────────
  *
- * Draft 1 of the plan had its own table of what each day meant, and it got Admin's rules wrong in
+ * Draft 1 of the uploader's plan (now in git) had its own table of what each day meant, and it got Admin's rules wrong in
  * three places. So nothing here re-derives a rule. What a day COSTS is `consumesEntitlement`, with
  * the winning record resolved first (`shouldReplaceOverride`, as `countedAlDates` does). What a day
  * with nothing recorded WOULD do is `projectAlBooking` — the same pure function the Admin leave card
@@ -81,7 +81,7 @@ export const NEEDS_A_LOOK = Object.freeze(['not-in-app', 'rest-day', 'free-in-ap
     'before-start']);
 /** Every count a person (and the whole file) carries: the day states, then the reasons that are not days. */
 export const COUNT_KEYS = Object.freeze([...DAY_STATES, 'app-only', 'beyond', 'undated', 'figures']);
-/** Work recorded on a day: never overwritten by an upload, because it is pay evidence (plan §4.5). */
+/** Work recorded on a day: never overwritten by an upload, because it is pay evidence (DECISIONS.md → The annual leave uploader). */
 const WORK_TYPES = new Set(['rdw', 'other', 'spare_shift']);
 
 /**

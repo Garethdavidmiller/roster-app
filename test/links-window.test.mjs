@@ -1,6 +1,6 @@
 // @lane hygiene
 /**
- * links-window.test.mjs — the operating window of a link design (LINKS_DEC2026_PLAN package 1).
+ * links-window.test.mjs — the operating window of a link design (links-window.js).
  * Run: node scripts/run-tests.mjs test/links-window.test.mjs   (part of `npm run test:hygiene`)
  *
  * The weight here is on the two things that decide whether the feature helps or misleads:

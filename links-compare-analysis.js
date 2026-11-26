@@ -8,7 +8,7 @@
  * Compare mode showed two grids with a gold cell diff, and from v22.60 a strip of four headline
  * figures. The Coverage and Design-checks cards below still described only the ACTIVE design. So the
  * two reasons anybody compares proposals — their cover against the service, and their fatigue
- * findings — were the one thing compare mode did not do. LINKS_DEC2026_PLAN.md recorded it as
+ * findings — were the one thing compare mode did not do. The December 2026 plan (now in git) recorded it as
  * "deliberately deferred, not rejected … built once there are two real proposals to compare", and by
  * September 2026 there were twenty-two.
  *

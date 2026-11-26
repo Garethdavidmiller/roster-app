@@ -2,7 +2,7 @@
 // @lane hygiene
 /**
  * al-leave-file.test.mjs — what a valid leave file is, and that a changed one is refused
- * (al-leave-file.js; docs/AL_UPLOADER_PLAN.md §3).
+ * (al-leave-file.js; docs/DECISIONS.md → The annual leave uploader).
  * Run: node scripts/run-tests.mjs test/al-leave-file.test.mjs   (part of `npm run test:hygiene`)
  *
  * Every person here is INVENTED ("A. Example" and friends) and so is every date and figure: a leave
