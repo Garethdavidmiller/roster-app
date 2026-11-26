@@ -3,9 +3,10 @@
  * notif.js — Shared Web Push notification state + subscribe/unsubscribe logic.
  *
  * Single source of truth for the VAPID key and the push-subscription lifecycle.
- * Imported by nav-bell.js (the drawer bell) and nav-panel.js (sign-out's release), calendar-notif-prompt.js (renewal + the one-off prompt),
- * notif-card.js (the Settings Notifications card), settings-app.js, install-prompt.js,
- * paycalc-transfer-card.js, and session.js (dynamically, for `releaseDevicePush`).
+ * Imported by nav-bell.js (the drawer bell), nav-panel.js (sign-out's release), nav-panel-markup.js
+ * (whether to draw the bell), calendar-notif-prompt.js (renewal + the one-off prompt), notif-card.js
+ * (the Settings Notifications card), install-prompt.js, settings-install-card.js, paycalc-transfer-card.js,
+ * and session.js (dynamically, for `releaseDevicePush`).
  *
  * Public API:
  *   notifSupported()        → boolean — push usable on this device/browser
@@ -47,8 +48,18 @@ function _rememberOwner() { const uid = currentAuthUid(); if (uid) lsSet(SUB_OWN
 export function notifOffByChoice() {
     return lsGet(USER_OFF_KEY) === '1';
 }
-/** No subscription: a lapse, unless the member chose it. */
-const noSubState = () => (notifOffByChoice() ? 'off-default' : 'off-lapsed');
+/**
+ * No subscription: a lapse, unless the member chose it — or this device never had one to lose (owner,
+ * 26 Nov 2026). Granted permission with no subscription is also what a device looks like that was
+ * granted permission once and never subscribed here (a permission given to another feature, or a
+ * turn-on that failed before its first save), and the card told that member notifications "have
+ * stopped". The VAPID fingerprint is the device's memory of a subscription: written only once one
+ * exists (a successful `subscribe`, or `getNotifState` finding a live one), and cleared by nothing,
+ * so an absent fingerprint means nothing here was ever on. The cost, accepted: a device whose
+ * storage was wiped (Safari's seven-day eviction) and whose subscription then lapsed reads as plain
+ * off — which still offers Turn on, the one thing either member needs to do.
+ */
+const noSubState = () => (notifOffByChoice() || lsGet(VAPID_VER_KEY) === null ? 'off-default' : 'off-lapsed');
 
 /** True on iOS/iPadOS (incl. iPadOS reporting as MacIntel with touch). */
 export function isIOS() {
@@ -94,7 +105,7 @@ export function notifSupported() {
 /**
  * swReady() can pend forever when SW registration fails
  * (e.g. private browsing on some Android builds). Race it against a timeout
- * so the Notifications card buttons never get stuck at "Enabling…" indefinitely.
+ * so the Notifications card buttons never get stuck at "Turning on…" indefinitely.
  */
 function swReady() {
     // The timer is cleared once the race settles — left armed, every call that found the worker
@@ -119,7 +130,7 @@ function vapidKey() {
  * How long turning notifications on — or the daily re-save in `getNotifState` — waits for the server
  * to take the record (whole-app check, 17 Nov 2026). A Firestore write settles only when the server
  * acknowledges it, and with no connection that is never — only a sign-out bounded it — so the
- * Settings card sat on "Enabling…", and the bell and the Calendar's strip waited with it. Past this
+ * Settings card sat on "Turning on…", and the bell and the Calendar's strip waited with it. Past this
  * the save counts as failed. Turning on, the rollback below runs, so the 'off-lapsed' the device then
  * reports is TRUE whatever becomes of the queued write: should it land later, its record names an
  * endpoint that no longer exists, and the next send's 410 deletes it. The member can simply turn it
@@ -380,7 +391,7 @@ async function _disableNotifications() {
             await sub.unsubscribe();
             // STARTED, NOT AWAITED (whole-app review, Oct 2026). A Firestore delete resolves only on
             // the server's acknowledgement, so offline this waited for ever and the control sat on
-            // "Disabling…". The browser subscription is already gone, which is what stops the
+            // "Turning off…". The browser subscription is already gone, which is what stops the
             // notices; the record is tidied when the connection returns, or by the server on its
             // next send (a 410 from the push service deletes it).
             deletePushSubscription(endpoint).catch(() => {});

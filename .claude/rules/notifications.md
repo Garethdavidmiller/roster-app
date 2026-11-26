@@ -327,7 +327,10 @@ guarantees the leading emoji, the tag, and the scope-relative URL.
 
 `notif.js` stores the first 12 characters of the VAPID public key in `localStorage('myb_vapid_ver')`
 (`VAPID_VER_KEY`). On a genuine key change — a NON-NULL stored fingerprint that differs — it silently
-unsubscribes and re-subscribes; an absent or unreadable fingerprint is simply re-recorded.
+unsubscribes and re-subscribes; an absent or unreadable fingerprint is simply re-recorded. **It is
+also the device's memory of ever having subscribed** (owner, 26 Nov 2026): granted permission with no
+subscription reads as a LAPSE (`off-lapsed`, "have stopped") only when a fingerprint is stored, and as
+plain off (`off-default`) when none is — so nothing may clear the key (`noSubState`).
 `fanOutPush` deletes a subscription ONLY on 410/404 (genuinely dead); a 401 is a VAPID-auth failure
 (server misconfiguration) and is logged, NOT deleted — deleting on 401 would wipe the whole
 collection on any VAPID key error (`functions/push.js` header).
