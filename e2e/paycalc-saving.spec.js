@@ -8,7 +8,7 @@
  *   2. "SAVED" ONLY AFTER A VERIFIED WRITE. A write is read back before the status says so, and a
  *      Clear checks the payslip is really gone.
  *
- * The October 2026 payslip (paid 23 Oct, internal P57) of the seeded member, G. Miller, with made-up
+ * The October 2026 payslip (paid 23 Oct, internal P57) of the seeded member, with made-up
  * hours. Storage is seeded ONCE per context (a marker key), because a reload re-runs every init script
  * and would otherwise put the seeded figures back over what the test saved.
  */
