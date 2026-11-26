@@ -152,3 +152,23 @@ test('the summary does not stop at "e.g." and skips a directive comment', () => 
         'reads a list, e.g. the roster, and sorts it.');
     assert.equal(headerSummary('/* eslint-disable no-console */\n/** y.js — prints a report. */\n', 'y.js'), 'prints a report.');
 });
+
+test('a shared row that loses one module keeps its words for the one still on disk — in one run', () => {
+    for (const [gone, stays] of [['one-a.js', 'one-b.js'], ['one-b.js', 'one-a.js']]) {
+        const onDisk = new Set(['deploy.js', 'tide.js', stays, 'functions/index.js', 'functions/last.js']);
+        const disk = folderedDisk(['deploy.js', 'tide.js', stays], ['index.js', 'last.js'], onDisk);
+        const { text, added, removed } = planIndex(FOLDERED, disk);
+        assert.deepEqual(added, [], `${stays} was given a second row`);
+        assert.deepEqual(removed, [gone]);
+        assert.ok(text.split('\n').some(l => /^├── /.test(l) && l.includes(stays) && l.includes('← two modules on one row') && !l.includes(gone)),
+            `${stays} lost its row and its words:\n${text}`);
+        assert.equal(planIndex(text, disk).text, text, 'a second run had more to do — the first should have finished it');
+    }
+});
+
+test('a shared row goes only when every module it names has gone', () => {
+    const onDisk = new Set(['deploy.js', 'tide.js', 'functions/index.js', 'functions/last.js']);
+    const { text, removed } = planIndex(FOLDERED, folderedDisk(['deploy.js', 'tide.js'], ['index.js', 'last.js'], onDisk));
+    assert.deepEqual(removed.sort(), ['one-a.js', 'one-b.js']);
+    assert.ok(!text.includes('two modules on one row'));
+});

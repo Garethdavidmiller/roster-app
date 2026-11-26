@@ -129,7 +129,26 @@ export function planIndex(index, { rootModules, functionsModules, read, exists }
 
     // GONE means not on disk — never merely "not a module the index must row": a runner config or a
     // vendored file has a row too, and keeps it while it exists.
-    const removed = rows.filter(r => isModuleName(r.name) && !exists(r.section === 'root' ? r.name : `functions/${r.name}`));
+    const onDisk = (/** @type {{ section: string }} */ r, /** @type {string} */ n) => exists(r.section === 'root' ? n : `functions/${n}`);
+    const pathOf = (/** @type {{ section: string }} */ r, /** @type {string} */ n) => (r.section === 'root' ? n : `functions/${n}`);
+    // A row goes only when EVERY module it names has gone. A row naming two (`a.js / b.js`) that has lost
+    // one keeps its words for the one still on disk, and only that name leaves the row.
+    const removed = rows.filter(r => isModuleName(r.name) && r.names.filter(isModuleName).every(n => !onDisk(r, n)));
+    /** @type {string[]} names taken out of a row that stays */
+    const trimmedOut = [];
+    for (const r of rows) {
+        if (removed.includes(r)) continue;
+        const mods = r.names.filter(isModuleName);
+        const lost = mods.filter(n => !onDisk(r, n));
+        if (!lost.length) continue;
+        const line = lines[r.at];
+        const cut = line.indexOf(' ← ');
+        const head = cut >= 0 ? line.slice(0, cut) : line;
+        const start = head.indexOf('── ') + 3;
+        const kept = r.names.filter(n => !lost.includes(n)).join(' / ');
+        lines[r.at] = (head.slice(0, start) + kept).padEnd(head.trimEnd().length) + (cut >= 0 ? line.slice(cut) : '');
+        trimmedOut.push(...lost.map(n => pathOf(r, n)));
+    }
     /** @type {Map<number, string[]>} lines to insert AFTER a line index */
     const after = new Map();
     const added = [];
@@ -165,7 +184,7 @@ export function planIndex(index, { rootModules, functionsModules, read, exists }
         if (!gone.has(k)) out.push(lines[k]);
         for (const row of after.get(k) ?? []) out.push(row);
     }
-    return { text: out.join('\n'), added, removed: removed.map(r => (r.section === 'root' ? r.name : `functions/${r.name}`)) };
+    return { text: out.join('\n'), added, removed: [...removed.flatMap(r => r.names.filter(isModuleName).map(n => pathOf(r, n))), ...trimmedOut] };
 }
 
 /**
