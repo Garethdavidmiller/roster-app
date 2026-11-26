@@ -163,7 +163,7 @@ export function notifCardWords(d) {
     }
     if (d.state === 'off-lapsed') {
         return { report: 'action', chip: 'Off', button: 'enable', steps: null, kinds: 'shown',
-            status: 'Notifications were switched on but have stopped. Select “Enable notifications” to turn them back on.' };
+            status: 'Notifications were on but have stopped. Select “Turn on notifications” to start them again.' };
     }
     if (d.state === 'denied') {
         // BLOCKED, not off. The browser will not ask again, so the summary names it rather than
@@ -176,10 +176,10 @@ export function notifCardWords(d) {
         // Switched off HERE, on purpose (Sep 2026 review): `ok` to the summary, nothing to do — but
         // not good news, so the chip is not green (v25.14).
         return { report: 'ok', chip: 'Off', tone: 'plain', button: 'enable', steps: null, kinds: 'shown',
-            status: 'Notifications are off on this device. Select “Enable notifications” to turn them back on.' };
+            status: 'Notifications are off on this device. Select “Turn on notifications” to start them again.' };
     }
     return { report: 'action', chip: 'Off', button: 'enable', steps: null, kinds: 'shown',
-        status: 'Select “Enable notifications” to get the alerts listed above.' };
+        status: 'Select “Turn on notifications” to get the alerts listed above.' };
 }
 
 /**

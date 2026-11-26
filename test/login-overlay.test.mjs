@@ -647,7 +647,7 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
             await turns();
             mock.timers.tick(0);                                    // the words wait for the card to be drawn (speakAfterMount)
             assert.equal(card.notice.textContent, STAFF_PIN_ENDED_NOTICE, 'the card did not say the PIN is retired');
-            assert.match(STAFF_PIN_ENDED_NOTICE, /^The staff PIN has been retired\. Sign in with your own name — if you don’t have a login yet, ask the admin\.$/);
+            assert.match(STAFF_PIN_ENDED_NOTICE, /^The staff PIN has been retired\. Sign in with your own name — if you don’t have an account yet, ask the admin\.$/);
             // …and a card on a device that never held the PIN says nothing of it.
             forgetStaffPinEnded();
             const plain = mount('', () => {}, 'Calendar');

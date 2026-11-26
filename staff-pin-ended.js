@@ -49,7 +49,7 @@ import { speakAfterMount } from './status-text.js';
 
 /** The line said when arriving signed out a leftover staff-PIN session. */
 export const STAFF_PIN_ENDED_NOTICE =
-    'The staff PIN has been retired. Sign in with your own name — if you don’t have a login yet, ask the admin.';
+    'The staff PIN has been retired. Sign in with your own name — if you don’t have an account yet, ask the admin.';
 
 let ended = false;
 /** @type {Set<() => void>} */
