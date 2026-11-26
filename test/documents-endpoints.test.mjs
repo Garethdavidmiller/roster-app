@@ -1182,6 +1182,59 @@ describe('sendTimetableReminder — one broadcast, on the evening before the tim
     });
 });
 
+describe('sendNewlinkVoteReminderNotification — the New link page\'s own audience, once, at 18:00 on 26 November 2026 (v26.91)', () => {
+    // Owner, 26 Nov 2026: "a notification letting people know to check out new links before voting starts". Organised by
+    // what a wrong answer costs: sent to somebody the page turns away (a bilingual-contract CEA, a Dispatcher, an Other
+    // Staff login), it invites them to a door that is shut; sent as a broadcast, it reaches all of them; sent on another
+    // evening, it is a stale nudge from a function nobody remembered to delete.
+    const newlinkPath = require.resolve('./functions/newlink-reminder.js');
+    function buildNewlink() {
+        const b = build();                       // the push and account fakes, and a fresh pay-reminder.js
+        delete require.cache[newlinkPath];       // …which this module takes its account lookup from
+        const mod = require('./functions/newlink-reminder.js');
+        /** @type {{year: number, month: number, day: number}} */
+        let now = { year: 2026, month: 10, day: 26 };
+        const fn = mod.buildNewlinkVoteReminderNotification({ REGION: 'europe-west2', VAPID_PRIVATE_KEY: { value: () => 'vapid-private' },
+            VAPID_PUBLIC_KEY: 'vapid-public', STAFF_SITE_URL: 'https://myb-roster.web.app', rosterMembers: ROSTER, nowInLondon: () => now });
+        return { ...b, mod, fn, setNow: (/** @type {any} */ n) => { now = n; } };
+    }
+
+    test('26 November 2026 sends to EXACTLY the people the New link page lets in — targeted, never a broadcast', async () => {
+        const { canOpenNewlink } = await import('../auth-policy.js');
+        const b = buildNewlink();
+        await b.fn.run({});
+        assert.equal(b.sends.length, 0, 'a broadcast would reach everyone the page turns away');
+        assert.equal(b.targeted.length, 1);
+        const expected = ROSTER.activeMembers.filter((/** @type {string} */ n) => canOpenNewlink(n)).map((/** @type {string} */ n) => `uid:${n}`).sort();
+        const away = ROSTER.activeMembers.filter((/** @type {string} */ n) => !canOpenNewlink(n));
+        assert.ok(expected.length > 0 && away.length > 0, 'premise: the roster has people on both sides of the door');
+        assert.deepEqual([...b.targeted[0].uids].sort(), expected, 'the page\'s own question, asked of the generated roster');
+        const { payload, tag } = b.targeted[0];
+        assert.equal(tag, '[newlinkVote]');
+        assert.equal(payload.tag, 'newlink');
+        assert.equal(payload.title, '🔁 New link — vote coming soon');
+        assert.equal(payload.body, b.mod.NEWLINK_VOTE_REMINDER_BODY, 'the words were clipped: the body is over the 80-character budget');
+        assert.doesNotMatch(payload.title + payload.body, /!/, 'calm tone — no exclamation marks');
+        assert.ok(payload.url.endsWith('/newlink.html'), payload.url);
+    });
+
+    test('another evening, and 26 November of another year, send nothing', async () => {
+        const b = buildNewlink();
+        for (const n of [{ year: 2026, month: 10, day: 25 }, { year: 2026, month: 10, day: 27 }, { year: 2027, month: 10, day: 26 }]) {
+            b.setNow(n);
+            await b.fn.run({});
+        }
+        assert.equal(b.targeted.length + b.sends.length, 0);
+    });
+
+    test('a roster with no list sends to nobody — never "everyone"', async () => {
+        const b = buildNewlink();
+        await b.mod.sendNewlinkVoteReminder({ roster: { activeMembers: ROSTER.activeMembers }, vapidPrivate: null, vapidPublic: '', STAFF_SITE_URL: 'https://myb-roster.web.app' });
+        assert.equal(b.sends.length, 0);
+        assert.deepEqual(b.targeted.map(t => t.uids), [[]], 'addressed to no uids, which sendTargetedPush sends to nobody');
+    });
+});
+
 // ── getDocumentUrl — the short-lived URL (v24.16) ──────────────────────────────────────────────
 //
 // EXECUTED, not merely defined. `functions-surface.test.mjs` proves this endpoint exists; v20.50 is

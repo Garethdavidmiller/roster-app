@@ -973,7 +973,7 @@ const APP_SCOPE = self.registration.scope;
 // and each page runs its own gate (operations.html, the admin's reset-request queue, is only ever
 // SENT to the admin's own devices). It matches notifications.md → "Deep link" entry for entry
 // (sw-asset-check.test.mjs).
-const SAFE_NOTIFICATION_PAGES = ['', 'paycalc.html', 'operations.html', 'overtime.html', 'settings.html', 'trains.html'];
+const SAFE_NOTIFICATION_PAGES = ['', 'paycalc.html', 'operations.html', 'overtime.html', 'settings.html', 'trains.html', 'newlink.html'];
 
 self.addEventListener("notificationclick", event => {
     event.notification.close();
