@@ -1,6 +1,6 @@
 # Marylebone Roster — Product Roadmap
 
-*Last updated: November 2026 — v26.80 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.90 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -446,7 +446,9 @@ distinction; the story is in git), and it settled what the pass actually does:
 Guide already had the fact, stated perfectly, and it did not help, because a guide has to be OPENED
 and the member was reading the form. **Next subjects, in order of evidence: HPP and back pay** (both
 already carry the "nobody told me this exists" shape) — but wait for a real report rather than
-picking one.
+picking one. **The roster's own words have a glossary** (v26.89, `glossary.js`): RDW, AL, Spare, pay
+cut-off, lieu day and Year to Date, one line each, reached from the drawer and from the foot of any `?`
+panel that uses one — the point of use, as this item asks.
 
 **Method, per surface.** Read it as a first-time colleague and answer: what terminology does this
 screen assume · what important thing can only be found by somebody who already knows its name · what
