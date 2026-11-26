@@ -71,6 +71,11 @@ and `buildSafeEntries` skips the rest. `parseRosterPDF` sends each such member a
 (`repeatedMembers`, `functions/roster-prompt.js`, judged against the same names `missingMembers` is),
 and the review gives each one a line asking the admin to check them against the PDF.
 
+**The row that removes an earlier import (`REMOVE_IMPORT`) says what it does, not what it deletes**:
+"Earlier upload’s hours — this roster shows the normal shift", tagged **Back to normal**. It read "no
+longer on the roster" / "Clear old" until 26 Nov 2026, and under a member's name that read as the
+person having left (owner: "makes no sense"). A note on this row names the HOURS, never the member.
+
 ### A day the guards REFUSE to record is SHOWN — the `GUARDED` row
 
 Leave or an absence on a base REST day, and anything on a Sunday, is normalised to `RD` by
@@ -97,7 +102,7 @@ everywhere else (`AL on a rest day is ASKED about, never defaulted`) just becaus
   any year): the two days cannot be spare days (owner, 19 Nov 2026), so nothing is written over the
   base or a hand-made record, and an unreadable cell never offers the spare reading. **Over an earlier
   IMPORT it reads as the rest day the owner chose** — COVERED where that import is a rest day, else an
-  UNTICKED "Clear old" row, as a printed rest day's is — so a stale draft shift there can be removed.
+  UNTICKED "Back to normal" row, as a printed rest day's is — so a stale draft shift there can be removed.
 - **An Other day (Training, Meeting and the rest) printed on 25 or 26 December is held the same way**,
   under `christmas-other` (owner, 21 Nov 2026: "There cannot be training or meeting on December 25th or 26th"), times or not,
   and the entry control does not offer the Other pill on them. **On a Sunday 25 or 26 December too** (Boxing Day 2027):

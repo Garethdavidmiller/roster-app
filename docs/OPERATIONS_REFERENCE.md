@@ -353,7 +353,7 @@ computeCellStates(parsedResult, existingOverrides)
                     `replacedType`); "Rest day — leave it" writes nothing and clears an earlier record
                     on that day; unanswered writes nothing. "Skip all" takes an answer back. On 25 and
                     26 December from 2026 nothing is asked: the app's Christmas leave decides those
-                    days, and an earlier import there is offered as an unticked "Clear old"
+                    days, and an earlier import there is offered as an unticked "Back to normal"
     UNREADABLE    = normaliseShift couldn't parse the cell (UNKNOWN| sentinel). Answered on the row:
                     (a) pick one of the server's two candidate readings (`choices`), offered only when
                     they survive normalisation as DIFFERENT values and neither is leave or an absence

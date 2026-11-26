@@ -126,7 +126,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
         // A ROW NOBODY READ (decided default, whole-app fix, Nov 2026). When every Monday-to-Saturday
         // cell is a question, the Sunday is one too: a blank Sunday reads as a rest day, so for the
         // member printed on a second sheet who works most of the week elsewhere it was a pre-ticked
-        // "Update → Rest" over a rostered Sunday, or a ticked "Clear old" over recorded Sunday work.
+        // "Update → Rest" over a rostered Sunday, or a ticked "Back to normal" over recorded Sunday work.
         const unread = (/** @type {any} */ v) => !v || v === 'RDW' || isUnknownEncoded(v);
         const weekdays = parsedResult.dates.filter((/** @type {string} */ d) => !isSunday(d));
         const rowUnread = weekdays.length > 0 && weekdays.every((/** @type {string} */ d) => unread(entry.shifts?.[d]));
@@ -313,7 +313,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // ROSTERED Sunday it was a ticked DIFF that turned a worked day into rest.
                 // NOR CAN 25 OR 26 DECEMBER BE A SPARE DAY (owner, 19 Nov 2026), for the same reason:
                 // a "use new roster" there would record a rest day over a hand-recorded worked Boxing
-                // Day. (Over an earlier IMPORT it is a "Clear old" row instead — above.)
+                // Day. (Over an earlier IMPORT it is a "Back to normal" row instead — above.)
                 state = 'GUARDED';
             } else if (!existing || !isManual) {
                 // No override, or only a previous import.
@@ -348,7 +348,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     //    (say, an old shift) → the question is asked again, and the answer replaces
                     //    or removes it — never a default.
                     //  • On Christmas Day and Boxing Day nothing is asked, so a different import there
-                    //    is a "Clear old" row — unticked, as every row on those two days starts.
+                    //    is a "Back to normal" row — unticked, as every row on those two days starts.
                     const leaveOnRest = guarded === 'rest-day' && (parsedShift === 'AL' || parsedShift === 'SICK');
                     if (existing && leaveOnRest && normRest(existing.value) === parsedShift) state = 'COVERED';
                     else if (existing && leaveOnRest && !christmas) state = 'GUARDED';
@@ -755,7 +755,7 @@ export function guardedRowHtml({ key, s, dayName, dateStr, badgeHtml, esc }) {
     const asks = swapQuestionApplies(s);
     const recording = guardedWriteValue(s) !== null;
     // WHAT IS SAVED NOW, AND WHAT THE ANSWER DOES TO IT (same-day bug check). Since an old import
-    // under a guarded day stopped being a ticked "Clear old", this row was the only place it showed —
+    // under a guarded day stopped being a ticked "Back to normal", this row was the only place it showed —
     // and it did not: "Rest day — leave it" DELETES it (guardedWrites → deleteOnly) under a tag that
     // still said "Not recorded", and leaving the row unanswered keeps it. The admin is now shown both.
     const held = s.manualId && s.manualValue != null ? String(s.manualValue) : null;
