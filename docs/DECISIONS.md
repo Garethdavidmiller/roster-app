@@ -1382,7 +1382,7 @@ chose a REST DAY over Christmas leave. So from Christmas 2026:
   off (and on Boxing Day, which already refused Other days, the whole Other pill), and the Save
   refuses one (`checkDayRules`). The roster import shows a SPARE printed there as a row that records
   nothing (`christmas-spare`, `normaliseCellValue`), never as a change to tick — over an earlier
-  import, an unticked "Clear old" row instead (20 Nov 2026).
+  import, an unticked "Back to normal" row instead (20 Nov 2026).
 - **A Spare saved there before Save refused one is not drawn** (owner, 20 Nov 2026: "Fix"), in any
   year: the day shows what it would be without it — Rest, or Christmas leave for somebody due at work
   (`isOverrideDisplaySuppressed`, whose `christmasDay` input every caller must pass, so the typecheck

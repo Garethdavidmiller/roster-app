@@ -68,7 +68,7 @@ export function reviewRow({ key, s, date, dayName, dateStr, shiftDisplay, manual
         const approved = s.chosen !== false;
         if (!approved) cls.push('is-skipped');
         html = `
-            <button type="button" class="roster-tick${approved ? '' : ' off'}" data-key="${esc(key)}" aria-pressed="${approved}" aria-label="Clear this old entry">${approved ? '✓' : ''}</button>
+            <button type="button" class="roster-tick${approved ? '' : ' off'}" data-key="${esc(key)}" aria-pressed="${approved}" aria-label="Remove the earlier upload’s entry">${approved ? '✓' : ''}</button>
             <div class="roster-chg-day">
                 <span class="roster-day-abbr">${dayName}</span>
                 <span class="roster-day-date">${dateStr}</span>
@@ -76,9 +76,9 @@ export function reviewRow({ key, s, date, dayName, dateStr, shiftDisplay, manual
             <div class="roster-chg-vals">
                 <span class="roster-from-val">${manualShiftDisplay(s)}</span>
                 <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.baseShift, date)}</span>
-                <span class="roster-remove-note">${s.christmas ? CHRISTMAS_NOTE : 'no longer on the roster'}</span>
+                <span class="roster-remove-note">${s.christmas ? CHRISTMAS_NOTE : 'Earlier upload’s hours — this roster shows the normal shift'}</span>
             </div>
-            <span class="roster-act act-clear">Clear old</span>`;
+            <span class="roster-act act-clear">Back to normal</span>`;
     } else if (s.state === 'GUARDED') {
         // Said / did / why, plus the rest-day swap question (v24.42) — roster-review-states.js.
         cls.push('roster-change-guarded');

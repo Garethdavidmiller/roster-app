@@ -657,7 +657,7 @@ body.auth-ready .container { display: grid; }
 .roster-tick.off { background: white; border-color: var(--border-mid); color: transparent; }
 .roster-tick:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
-/* Per-row action tag: Update · Clear old · Your choice · Not saved */
+/* Per-row action tag: Update · Back to normal · Your choice · Not saved */
 .roster-act {
     flex: 0 0 auto; font-size: 9.5px; font-weight: 800; letter-spacing: 0.03em;
     text-transform: uppercase; padding: 3px 7px; border-radius: var(--radius-xs); white-space: nowrap;

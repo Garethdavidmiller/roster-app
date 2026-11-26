@@ -704,9 +704,9 @@ describe('computeCellStates — review state machine', () => {
     });
 
     // Whole-app fix, Nov 2026: two IMPORT copies of one day — two devices importing the same week, or a
-    // save pressed twice while the first was sending — and a replace or "Clear old" took only the
+    // save pressed twice while the first was sending — and a replace or "Back to normal" took only the
     // newer, so the older one came back on the Calendar until the roster was uploaded again.
-    test('two import copies of a day: a replace, and a "Clear old", take BOTH', () => {
+    test('two import copies of a day: a replace, and a "Back to normal", take BOTH', () => {
         const held = base === '10:00-18:00' ? '09:00-17:00' : '10:00-18:00';   // never the base itself
         const copies = [
             { memberName: mname, date: WD, value: held, type: 'shift', source: 'roster_import', id: 'copyA', createdAt: new Date(1000) },
@@ -1360,7 +1360,7 @@ describe('an unreadable cell on a base rest day', async () => {
 // ── A ROW NOBODY READ (decided default, whole-app fix, Nov 2026) ─────────────────────────────────
 // A blank weekday is a question and a blank Sunday a rest day — so for a member printed on a second
 // sheet who works most of the week elsewhere, every weekday was asked about while the Sunday was taken
-// as an answer and PRE-TICKED: "Update → Rest" over a rostered Sunday, or "Clear old" over Sunday work
+// as an answer and PRE-TICKED: "Update → Rest" over a rostered Sunday, or "Back to normal" over Sunday work
 // an earlier upload had recorded. When Monday to Saturday are all unread, the Sunday is unread too.
 describe('a row whose Monday to Saturday were all unread', () => {
     const SUNDAY = '2026-11-15';
@@ -1383,7 +1383,7 @@ describe('a row whose Monday to Saturday were all unread', () => {
         assert.deepEqual(writes, []);
     });
 
-    test('…nor a ticked "Clear old" over Sunday work an earlier upload recorded', () => {
+    test('…nor a ticked "Back to normal" over Sunday work an earlier upload recorded', () => {
         const imp = [{ id: 'i1', memberName: who.name, date: SUNDAY, type: 'rdw', value: '10:00-14:00', source: 'roster_import' }];
         const { s, writes } = sunday(blankWeek('RD'), imp);
         assert.equal(s.state, 'UNREADABLE');
@@ -2947,7 +2947,7 @@ describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
         assert.deepEqual([pillOff(XMAS), pillOff(BOXING), pillOff('2026-12-24')], [true, true, false]);
     });
 
-    test('a SPARE printed over an EARLIER IMPORT reads as the rest day the owner chose — an unticked "Clear old" (review, 20 Nov 2026)', () => {
+    test('a SPARE printed over an EARLIER IMPORT reads as the rest day the owner chose — an unticked "Back to normal" (review, 20 Nov 2026)', () => {
         // A draft's shift, or a pre-v26.38 Spare, left by an earlier upload. Kept GUARDED, it stayed with
         // no control to remove it — stricter than the same sheet printing RD there.
         for (const old of [{ type: 'shift', value: '13:30-21:00' }, { type: 'spare_shift', value: 'SPARE' }]) {
@@ -3025,7 +3025,7 @@ describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
         }
     });
 
-    test('an earlier import there is an unticked "Clear old", never a question — and the same leave again is left alone', () => {
+    test('an earlier import there is an unticked "Back to normal", never a question — and the same leave again is left alone', () => {
         const imp = { id: 'i1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00', source: 'roster_import' };
         const s = states({ [BOXING]: 'AL' }, [imp]).get(`${m.name}|${BOXING}`);
         assert.deepEqual([s.state, s.chosen], ['REMOVE_IMPORT', false]);
@@ -3296,14 +3296,15 @@ describe('a person\'s section and its rows', () => {
         assert.match(off.html, /class="roster-tick off"[^>]*aria-pressed="false"/);
     });
 
-    test('a CONFLICT starts on "Keep saved"; a REMOVE_IMPORT says the entry is no longer on the roster', () => {
+    test('a CONFLICT starts on "Keep saved"; a REMOVE_IMPORT says the earlier upload’s hours give way to the normal shift', () => {
         const c = draw({ state: 'CONFLICT', chosen: 'manual', manualValue: '07:00-15:00', parsedShift: '06:00-14:00' });
         assert.equal(c.className, 'roster-change-row roster-change-conflict');
         assert.match(c.html, /data-pick="manual" aria-pressed="true">Keep saved/);
         assert.match(c.html, /data-pick="pdf" aria-pressed="false">Use new roster/);
         const r = draw({ state: 'REMOVE_IMPORT', chosen: true, manualValue: '07:00-15:00', baseShift: 'RD' });
-        assert.match(r.html, /no longer on the roster/);
-        assert.match(r.html, /act-clear">Clear old/);
+        assert.match(r.html, /Earlier upload’s hours — this roster shows the normal shift/);
+        assert.doesNotMatch(r.html, /no longer on the roster/, 'under a name it read as the person having left (owner, 26 Nov 2026)');
+        assert.match(r.html, /act-clear">Back to normal/);
     });
 
     test('an UNREADABLE row with readings starts on NEITHER; one without readings offers the entry', () => {
