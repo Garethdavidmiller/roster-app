@@ -575,6 +575,7 @@ roster-app/
 │   ├── page-identity-parity.test.mjs ← page colour through `--page-accent`. Part of test:hygiene
 │   ├── coordinator-ratchet.test.mjs ← **coordinators coordinate; domain modules decide** — a size RATCHET. Part of test:hygiene
 │   ├── stylesheet-ratchet.test.mjs ← the stylesheet size ratchet
+│   ├── doc-size-ratchet.test.mjs ← every document's size ceiling in characters, so a document cannot quietly grow. Part of test:hygiene
 │   ├── public-data-classification.test.mjs ← **`roster-data.js` is served to anyone who asks**: every field needs a classification. Part of test:hygiene
 │   ├── payroll-anonymity.test.mjs ← no roster NAME on the same line as a payroll term anywhere in the tracked tree (the mirror serves it). Its header
 │   ├── doc-parity.test.mjs ← the documentation is CHECKED: routing, wiring, symbols, counts, and this tree's caps. Part of test:hygiene
