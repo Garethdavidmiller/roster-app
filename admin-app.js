@@ -584,7 +584,7 @@ export function init() {
         await executeSave(toSave, toDelete, skipped, kept);
         } catch (err) {
             console.error('[Admin] Save handler error:', err);
-            showError('Unexpected error — please reload and try again.');
+            showError('Something went wrong — reload the page and try again.');
         } finally {
             // Restore the Save button on every exit path, recomputed from the grid.
             setSaveInFlight(false);

@@ -2784,7 +2784,7 @@ describe('a roster read that fails in transit says what happened', () => {
     const line = parseFailureLine, expectedMs = PARSE_EXPECTED_MS;
 
     const DROPPED = /^The connection dropped before it finished\. .*keep this screen open/;
-    const SLOW = /^Parsing took longer than expected/;
+    const SLOW = /^Reading the PDF took longer than expected/;
     const UNREACHABLE = /^Couldn't reach the server/;
     const seen = (/** @type {Partial<{ online: boolean, elapsedMs: number, wasHidden: boolean }>} */ o = {}) =>
         ({ online: true, elapsedMs: 60_000, wasHidden: false, ...o });

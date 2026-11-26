@@ -66,7 +66,7 @@ test('every place a day can be found has words of its own', () => {
 test('a pattern shift in words', () => {
     assert.equal(patternWords('RD'), 'a rest day');
     assert.equal(patternWords('OFF'), 'a rest day');
-    assert.equal(patternWords('SPARE'), 'a spare day');
+    assert.equal(patternWords('SPARE'), 'a Spare day');
     assert.equal(patternWords('06:20-14:20'), '06:20–14:20');
     // An Other day reads as the Calendar's word for it, never as its code (review, 15 Nov 2026).
     assert.equal(patternWords('TRG'), 'Training');
@@ -85,10 +85,10 @@ test('what the Calendar draws, in words — the drawn day, never the stored reco
     assert.equal(drawn({ shift: 'SICK', type: 'sick' }), 'an absence');
     assert.equal(drawn({ shift: 'AL', type: 'annual_leave' }), 'annual leave');
     assert.equal(drawn({ shift: 'SPARE', type: 'spare_shift' }), 'a Spare turn');
-    assert.equal(drawn({ shift: 'RDW', rdwTime: '06:20-14:20', type: 'rdw' }), 'rest day working (RDW), 06:20–14:20');
-    assert.equal(drawn({ shift: 'RDW', rdwTime: '', type: 'rdw' }), 'rest day working (RDW)');
+    assert.equal(drawn({ shift: 'RDW', rdwTime: '06:20-14:20', type: 'rdw' }), 'Rest Day Working (RDW), 06:20–14:20');
+    assert.equal(drawn({ shift: 'RDW', rdwTime: '', type: 'rdw' }), 'Rest Day Working (RDW)');
     // An old timed shift on a Sunday is DRAWN as rest day working, so it is called that (review, 14 Nov 2026).
-    assert.equal(drawn({ shift: 'RDW', rdwTime: '08:00-16:00', type: 'shift' }), 'rest day working (RDW), 08:00–16:00');
+    assert.equal(drawn({ shift: 'RDW', rdwTime: '08:00-16:00', type: 'shift' }), 'Rest Day Working (RDW), 08:00–16:00');
     assert.equal(drawn({ shift: '13:45-21:45', type: 'shift' }), 'a shift, 13:45–21:45');
     assert.match(drawn({ shift: 'TRG', type: 'other' }), /Other day/);
     assert.equal(drawn({ shift: 'SOMETHING', type: 'shift' }), 'a change of shift');
@@ -121,13 +121,13 @@ test('a day’s app words say what the app shows and, where it matters, the year
     // An absence on a rest day is never drawn: the words say what IS drawn.
     assert.equal(appWords(day({ state: 'differs' }), 2026), 'The app shows a rest day on their pattern instead');
     assert.match(appWords(day({ state: 'worked', drawn: { shift: 'RDW', rdwTime: '06:20-14:20', fromPattern: false, type: 'rdw' } }), 2026),
-        /^The app shows rest day working \(RDW\), 06:20–14:20 — work, which an upload would never overwrite$/);
+        /^The app shows Rest Day Working \(RDW\), 06:20–14:20 — work, which an upload would never overwrite$/);
     assert.equal(appWords(day({ state: 'before-start' }), 2026), 'Before their start date in the app, which shows and counts nothing then');
     // A Sunday: what is drawn, which for leave or an absence there is the pattern (review, 14 Nov 2026).
     assert.equal(appWords(day({ state: 'sunday', pattern: '07:15-15:45', drawn: { ...PATTERN, shift: '07:15-15:45' } }), 2026),
         'The app shows 07:15–15:45 on their pattern that Sunday');
     assert.equal(appWords(day({ state: 'sunday', drawn: { shift: 'RDW', rdwTime: '08:00-16:00', fromPattern: false, type: 'rdw' } }), 2026),
-        'The app shows rest day working (RDW), 08:00–16:00 that Sunday');
+        'The app shows Rest Day Working (RDW), 08:00–16:00 that Sunday');
 });
 
 test('the figures line shows both sides, the corrected figure only when it differs, and an overdraw as Admin says it', () => {

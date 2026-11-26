@@ -4440,7 +4440,7 @@ test.describe('operations: the roster read, cut off', () => {
         await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__parseSent === true),
             { message: 'the read was never sent' }).toBe(true);
         await page.clock.runFor(131_000);
-        await expect(page.locator('#rosterParseFeedback')).toContainText("Couldn't read the roster: Parsing took longer than expected.");
+        await expect(page.locator('#rosterParseFeedback')).toContainText("Couldn't read the roster: Reading the PDF took longer than expected.");
         await expect(page.locator('#rosterParseBtn')).toHaveText('Read roster');
     });
 });

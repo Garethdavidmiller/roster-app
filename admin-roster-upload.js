@@ -64,7 +64,7 @@ export function parseFailureLine(err, { online, elapsedMs, wasHidden }) {
         return 'The connection dropped before it finished. Check your connection, keep this screen open, and try again.';
     }
     if (unreachable) return "Couldn't reach the server — check your internet connection or try again later.";
-    return 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
+    return 'Reading the PDF took longer than expected. The PDF may be large — try again, or check your connection.';
 }
 
 /**
@@ -370,7 +370,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             parseFeedback.textContent = '';
 
             // Fetch existing overrides for this week from Firestore so we can detect conflicts
-            parseFeedback.textContent = 'Checking for existing schedule changes…';
+            parseFeedback.textContent = 'Checking your existing saved changes…';
             const existingOverrides = await fetchOverridesForWeek(_parsedResult.dates);
             _shown = new Map(existingOverrides.map((/** @type {any} */ o) => [o.id, o]));
             parseFeedback.textContent = '';
