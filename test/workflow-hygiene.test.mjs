@@ -1929,11 +1929,11 @@ describe('the version guard exempts only what cannot go stale', () => {
         // So the corpus is the warm-up's own arrays, derived the way sw-asset-check derives them:
         // from the fetchInBatches calls, not from array names typed here.
         const sw = readFileSync('service-worker.js', 'utf8');
-        // A list that spreads the generated APP_MODULES (npm run generate:copies) holds each of its modules.
+        // A list that spreads the generated APP_FILES (npm run generate:copies) holds each of its modules.
         const arrayOf = (/** @type {string} */ n) => {
             const body = sw.match(new RegExp(`const ${n}\\s*=\\s*\\[([\\s\\S]*?)\\];`))?.[1] ?? '';
-            return n !== 'APP_MODULES' && body.includes('...APP_MODULES')
-                ? body + arrayOf('APP_MODULES').replace(/'([^']+)'/g, "'./$1'") : body;
+            return n !== 'APP_FILES' && body.includes('...APP_FILES')
+                ? body + arrayOf('APP_FILES').replace(/'([^']+)'/g, "'./$1'") : body;
         };
         const warmed = [...sw.matchAll(/fetchInBatches\(([\s\S]*?),\s*\w+\s*=>/g)]
             .flatMap(m => [...m[1].matchAll(/([A-Z_]+_ASSETS)/g)].map(x => x[1]));

@@ -24,6 +24,7 @@
  * than a redesign — and it is why the shared surface below is four small things and no logic.
  */
 import { formatDayMonth, formatClock } from './date-format.js';
+import { NAV_PAGES, pageName } from './nav-destinations.js';
 
 /**
  * The privacy footer both reporting cards end on — ONE declaration, two consumers (v21.29).
@@ -39,30 +40,21 @@ import { formatDayMonth, formatClock } from './date-format.js';
 const PRIVACY_FOOTER = 'Your own opens while signed in as admin are excluded. Anonymous — we never record who.';
 
 /**
- * Emoji + label for each page id — shared by the Usage and App Speed cards (was defined
- * identically inside both). One source so a label change (or a new page) is edited once.
+ * Emoji + label for each page id — shared by the Usage and App Speed cards.
  *
- * ── A MISSING ENTRY IS INVISIBLE UNTIL THE PAGE HAS TRAFFIC ─────────────────────────────────────
+ * ── READ FROM THE DRAWER, NOT KEPT BESIDE IT (26 Nov 2026) ──────────────────────────────────────
  *
- * Both cards fall back to the raw id and a generic 📄 when a page is not listed here, so `overtime`
- * shipped at v20.59 and rendered lower-case beside six title-case names for twenty-five releases —
- * until it had enough opens to appear at all. That is the whole failure mode: the fallback is
- * silent, the counter itself works, and nothing surfaces the gap while the page is quiet. Every
- * emoji matches the page's own nav pill (`NAV_PAGES`), which is what makes the two surfaces read as
- * one app. `page-contract-parity.test.mjs` now fails when a served page has no entry.
+ * This was a hand-kept table, and a missing entry was invisible until the page had traffic: both
+ * cards fall back to the raw id and a generic 📄, so `overtime` rendered lower-case beside six
+ * title-case names for twenty-five releases. Every emoji was already the page's own nav pill
+ * (`NAV_PAGES`), so the table is now read from there — a page with a pill has a row here. The one
+ * name that differs is the Pay Calculator, whose pill is the short "Pay": its `name` says so.
+ * `page-contract-parity.test.mjs` still fails when a served page has no entry.
  * @type {Record<string, { emoji: string, label: string }>}
  */
-const PAGE_META = {
-    calendar:   { emoji: '📅', label: 'Calendar' },
-    admin:      { emoji: '📝', label: 'Admin' },
-    paycalc:    { emoji: '💷', label: 'Pay calculator' },
-    operations: { emoji: '🔧', label: 'Operations' },
-    settings:   { emoji: '⚙️', label: 'Settings' },
-    links:      { emoji: '🔗', label: 'Links' },
-    overtime:   { emoji: '⏱️', label: 'Overtime' },
-    trains:     { emoji: '🚆', label: 'Trains' },
-    newlink:    { emoji: '🔁', label: 'New link' },
-};
+const PAGE_META = Object.fromEntries(NAV_PAGES.map((page) => [page.id, {
+    emoji: page.label.slice(0, page.label.indexOf(' ')), label: pageName(page),
+}]));
 
 /** Document/guide OPEN counters (v18.20) — share the pv_ counts map with the page ids above but
  *  render as their own "opens" group (an open is a different act from a page view). Emojis match

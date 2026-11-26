@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '26.95';
+const APP_VERSION = '26.96';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -87,8 +87,8 @@ const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSIO
 const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js']
     .map(f => SDK_URL_PREFIX + f);
 
-// GENERATED app modules: npm run generate:copies writes every line down to the END marker, from each app page's imports (scripts/app-pages.mjs). Never edit them by hand.
-const APP_MODULES = [
+// GENERATED app files: npm run generate:copies writes every line down to the END marker, from each app page, its stylesheets and its imports (scripts/app-pages.mjs). Never edit them by hand.
+const APP_FILES = [
     'about-lightbox.js',
     'account-calls.js',
     'admin-al-projection.js',
@@ -126,6 +126,8 @@ const APP_MODULES = [
     'admin-week-editor.js',
     'admin-week-row-state.js',
     'admin-week-swipe.js',
+    'admin.css',
+    'admin.html',
     'al-contract.js',
     'al-entitlement.js',
     'al-leave-compare.js',
@@ -188,6 +190,8 @@ const APP_MODULES = [
     'guide-search.js',
     'huddle-table-grid.js',
     'huddle.js',
+    'index.css',
+    'index.html',
     'install-prompt.js',
     'leave-year.js',
     'links-adjacency.js',
@@ -231,6 +235,8 @@ const APP_MODULES = [
     'links-today.js',
     'links-window-editor.js',
     'links-window.js',
+    'links.css',
+    'links.html',
     'login-core.js',
     'login-overlay.js',
     'ls.js',
@@ -248,6 +254,8 @@ const APP_MODULES = [
     'newlink-data.js',
     'newlink-render.js',
     'newlink-tips.js',
+    'newlink.css',
+    'newlink.html',
     'newsletter-recency.js',
     'notice-archive.js',
     'notif-card-core.js',
@@ -266,6 +274,8 @@ const APP_MODULES = [
     'operations-speed.js',
     'operations-tips.js',
     'operations-usage.js',
+    'operations.css',
+    'operations.html',
     'other-day.js',
     'overflow-hint.js',
     'overlay-focus.js',
@@ -288,6 +298,8 @@ const APP_MODULES = [
     'overtime-roster.js',
     'overtime-sunday-release.js',
     'overtime-tips.js',
+    'overtime.css',
+    'overtime.html',
     'own-password.js',
     'page-session.js',
     'page-start.js',
@@ -328,6 +340,8 @@ const APP_MODULES = [
     'paycalc-year-card.js',
     'paycalc-year-summary.js',
     'paycalc-ytd-card.js',
+    'paycalc.css',
+    'paycalc.html',
     'pdf-viewer-core.js',
     'pdf-viewer.js',
     'perf-reporter.js',
@@ -351,6 +365,9 @@ const APP_MODULES = [
     'settings-password-card.js',
     'settings-status.js',
     'settings-tips.js',
+    'settings.css',
+    'settings.html',
+    'shared.css',
     'silent-sign-in.js',
     'slow-save.js',
     'splash-watchdog.js',
@@ -374,6 +391,8 @@ const APP_MODULES = [
     'trains-tips.js',
     'trains-verdict.js',
     'trains-weekdays.js',
+    'trains.css',
+    'trains.html',
     'two-tap.js',
     'unsaved-draft.js',
     'upload-commit.js',
@@ -381,34 +400,28 @@ const APP_MODULES = [
     'usage-stats.js',
     'viewer-shed.js',
 ];
-// END GENERATED app modules
+// END GENERATED app files
 // The "managed" same-origin app files: HTML pages, JS modules, and CSS — all served from this
 // version's cache, never re-fetched once cached (HTML falls back to network-first on a miss). Each
 // must ALSO be in a precache list (CORE_ASSETS / SUPPLEMENTARY_ASSETS), or it is never precached.
 // Matching is SCOPE-RELATIVE, so these names match under both '/' (Firebase) and '/roster-app/'
 // (GitHub Pages). (Name kept for the sw-asset-check test that parses this array.)
 const NETWORK_FIRST_FILES = [
-    'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html', 'overtime.html', 'trains.html', 'newlink.html',
-    'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css', 'overtime.css', 'trains.css', 'newlink.css',
-    'shared.css',
-    'paycalc.html',
     'paycalc-guide.html',
     'fip-guide.html', 'staff-guide.html',
     'railcard-guide.html', 'rangers-guide.html',
     'guide-chips.js', 'guide-print.js', 'guide-back.js', 'fip-guide.js', 'legacy-redirect.js', 'guide-shell.css',
     'staff-guide.css', 'paycalc-guide.css', 'railcard-guide.css', 'rangers-guide.css', 'fip-guide.css', 'guide-doc.css',
     'purify.es.mjs',
-    ...APP_MODULES,
+    ...APP_FILES,
 ];
 
 // Critical app files — precached by the post-activation warm-up, never by install. Each is fetched
 // individually in Promise.allSettled batches (`fetchInBatches`), so a 404 or a network blip skips
 // that one file — logged, and retried on the next wake — rather than aborting the warm-up.
 const CORE_ASSETS = [
-    "./index.html", "./admin.html", "./operations.html", "./settings.html", "./overtime.html", "./links.html", "./trains.html", "./newlink.html", "./paycalc.html",
-    "./index.css", "./admin.css", "./paycalc.css", "./operations.css", "./settings.css", "./overtime.css", "./links.css", "./trains.css", "./newlink.css",
-    "./shared.css", "./manifest.json",
-    ...APP_MODULES.map(f => `./${f}`),
+    "./manifest.json",
+    ...APP_FILES.map(f => `./${f}`),
 ];
 
 // The guides with their scripts and styles, and the vendored DOMPurify — warmed after the core files.

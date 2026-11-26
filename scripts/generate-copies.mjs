@@ -38,14 +38,27 @@
  *              the version firebase-client.js imports. A worker on the old name would warm the old
  *              SDK's files while every page imports the new one's.
  *
- *   sw-modules
- *              `APP_MODULES` in service-worker.js — every local module an app page can load: its
- *              static imports, its `import('./…')` calls and its <script src>, walked from each
- *              scripts/app-pages.mjs entry — minus what SUPPLEMENTARY_ASSETS lists (the guides'
- *              scripts and DOMPurify, warmed after the core). Both the network-first match set and
- *              the core precache spread it. It was two hand-kept lists, and every merge of two
- *              branches that each added a module conflicted in them (25 Nov 2026). One module per
- *              line, sorted, so two such branches seldom touch the same line.
+ *   sw-app-files
+ *              `APP_FILES` in service-worker.js — every app page, the stylesheets it links, and every
+ *              local module it can load: its static imports, its `import('./…')` calls and its
+ *              <script src>, walked from each scripts/app-pages.mjs entry — minus what
+ *              SUPPLEMENTARY_ASSETS lists (the guides' files and DOMPurify, warmed after the core).
+ *              Both the network-first match set and the core precache spread it. The modules were
+ *              two hand-kept lists until 25 Nov 2026, and every merge of two branches that each added
+ *              one conflicted in them; the pages and their stylesheets joined on 26 Nov 2026. One file
+ *              per line, sorted, so two such branches seldom touch the same line.
+ *
+ *   rules-page-ids
+ *              the first line of `pvCountIds()` in firestore.rules — one analytics id per app page,
+ *              each page's `id` in scripts/app-pages.mjs. A page missing there counted nothing, and
+ *              the refused write was silent. The document and guide ids on the lines below it stay
+ *              hand-written: firestore-contract-parity.test.mjs holds them to NAV_GUIDES and the openers.
+ *
+ *   guide-back
+ *              `DESTINATIONS` in guide-back.js — the pages a guide's ← may return to, each page's file
+ *              from scripts/app-pages.mjs and its name from the drawer (`pageName`, nav-destinations.js).
+ *              Still a FIXED list in the file, because it is the allowlist that stops `?from=` naming
+ *              somewhere else; written here, it can no longer fall a page behind, as it did Overtime.
  *   welcome-emails
  *              the four ready-made welcome emails in .claude/skills/new-starter/ (one per grade a
  *              colleague signs in under), below each one's own hand-written header, from the general
@@ -67,6 +80,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { APP_PAGES, servedFiles } from './app-pages.mjs';
 import { gradeForRole } from '../roster-data.js';
+import { NAV_PAGES, pageName } from '../nav-destinations.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -217,7 +231,7 @@ function sdkVersion(read) {
     return [['service-worker.js', out]];
 }
 
-// ── sw-modules ───────────────────────────────────────────────────────────────────────────────────
+// ── sw-app-files ────────────────────────────────────────────────────────────────────────────────
 
 /** The LIVE body of `const <name> = [ … ];` in the worker, comments removed. @param {string} sw @param {string} name */
 function workerArray(sw, name) {
@@ -256,20 +270,66 @@ export function appModules(read) {
     return [...seen].sort();
 }
 
-const SW_MODULES_BEGIN = '// GENERATED app modules: npm run generate:copies writes every line down to the END marker, from each '
-    + 'app page\'s imports (scripts/app-pages.mjs). Never edit them by hand.';
-const SW_MODULES_END = '// END GENERATED app modules';
+/**
+ * Every app page, the stylesheets it links and every local module it can load, sorted.
+ * @param {Reader} read @returns {string[]}
+ */
+export function appFiles(read) {
+    const files = new Set(appModules(read));
+    for (const page of APP_PAGES) {
+        files.add(page.file);
+        for (const m of read(page.file).matchAll(/<link rel="stylesheet" href="(?:\.\/)?([^"]+\.css)"/g)) files.add(m[1]);
+    }
+    return [...files].sort();
+}
+
+const SW_FILES_BEGIN = '// GENERATED app files: npm run generate:copies writes every line down to the END marker, from each '
+    + 'app page, its stylesheets and its imports (scripts/app-pages.mjs). Never edit them by hand.';
+const SW_FILES_END = '// END GENERATED app files';
 
 /** @param {Reader} read @returns {Owned} */
-function swModules(read) {
+function swAppFiles(read) {
     const sw = read('service-worker.js');
     const later = new Set([...workerArray(sw, 'SUPPLEMENTARY_ASSETS').matchAll(/["']\.\/([^"']+)["']/g)].map(m => m[1]));
-    const modules = appModules(read).filter(f => !later.has(f));
+    const files = appFiles(read).filter(f => !later.has(f));
     const out = replaceOne(sw,
-        /^\/\/ GENERATED app modules[^\n]*\n[\s\S]*?^\/\/ END GENERATED app modules$/m,
-        () => [SW_MODULES_BEGIN, 'const APP_MODULES = [', ...modules.map(f => `    '${f}',`), '];', SW_MODULES_END].join('\n'),
-        'service-worker.js', 'GENERATED app modules region');
+        /^\/\/ GENERATED app (?:modules|files)[^\n]*\n[\s\S]*?^\/\/ END GENERATED app (?:modules|files)$/m,
+        () => [SW_FILES_BEGIN, 'const APP_FILES = [', ...files.map(f => `    '${f}',`), '];', SW_FILES_END].join('\n'),
+        'service-worker.js', 'GENERATED app files region');
     return [['service-worker.js', out]];
+}
+
+// ── rules-page-ids ──────────────────────────────────────────────────────────────────────────────
+
+/** @param {Reader} read @returns {Owned} */
+function rulesPageIds(read) {
+    const rules = read('firestore.rules');
+    const out = replaceOne(rules, /(function pvCountIds\(\) \{\n\s*return \[)[^\n]*\n/,
+        (m) => `${m[1]}${APP_PAGES.map(p => `'${p.id}'`).join(', ')},\n`,
+        'firestore.rules', 'the first line of pvCountIds()');
+    return [['firestore.rules', out]];
+}
+
+// ── guide-back ──────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The back arrow's words for one page: "Back to <name>" — the Calendar lower-case, as the guides have
+ * always called it ("Back to calendar").
+ * @param {string} id @returns {string}
+ */
+export function backLabel(id) {
+    const nav = NAV_PAGES.find(p => p.id === id);
+    if (!nav) throw new Error(`guide-back: app page '${id}' has no NAV_PAGES entry to take its name from`);
+    return `Back to ${id === 'calendar' ? 'calendar' : pageName(nav)}`;
+}
+
+/** @param {Reader} read @returns {Owned} */
+function guideBack(read) {
+    const src = read('guide-back.js');
+    const rows = APP_PAGES.map(p => `        ${`'${p.file}':`.padEnd(18)} { href: ${`'.${p.url === '/' ? '/' : p.url}',`.padEnd(20)} label: '${backLabel(p.id)}' },`);
+    const out = replaceOne(src, /(var DESTINATIONS = \{\n)[\s\S]*?(\n {4}\};)/,
+        (m) => `${m[1]}${rows.join('\n')}${m[2]}`, 'guide-back.js', 'DESTINATIONS');
+    return [['guide-back.js', out]];
 }
 
 // ── welcome-emails ──────────────────────────────────────────────────────────────────────────────
@@ -386,7 +446,9 @@ export const COPIES = Object.freeze(/** @type {Array<[string, (read: Reader) => 
     ['csp-meta', cspMeta],
     ['module-preloads', modulePreloads],
     ['sdk-version', sdkVersion],
-    ['sw-modules', swModules],
+    ['sw-app-files', swAppFiles],
+    ['rules-page-ids', rulesPageIds],
+    ['guide-back', guideBack],
     ['welcome-emails', welcomeEmails],
 ]));
 

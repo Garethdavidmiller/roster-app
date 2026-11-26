@@ -20,7 +20,9 @@ the five documents on the `CLAUDE.md · docs/AI_MAP.md · …` row are version-s
 runtime asset, so the document rows do not say so one by one.
 
 **When you add, remove or rename a module you must update this file AND `docs/AI_MAP.md`, in the same
-commit.** `githooks/pre-commit` checks both, and it now looks for a module here rather than in
+commit.** `npm run generate:file-index` does this file's half: it writes the new module's row from the opening
+line of its header, among the rows it shares a name with, and takes out the row of a module that has gone. Improve
+a written row's words by hand like any other; it is never rewritten. `githooks/pre-commit` checks both, and it now looks for a module here rather than in
 `CLAUDE.md`. `AI_MAP.md` holds each module's purpose and pointers, and a generated export line (`npm run generate:ai-map`); this says only what a file is.
 
 ```
@@ -571,6 +573,7 @@ roster-app/
 │   ├── hosting-ignore-parity.test.mjs ← **tooling is not part of the served app**: the dot-directories in firebase.json's ignore list. Part of test:hygiene
 │   ├── csp-meta-parity.test.mjs ← the RULE every page's generated `<meta>` CSP follows: the firebase.json header minus what a meta cannot carry. Part of test:hygiene
 │   ├── generated-copies.test.mjs ← everything `npm run generate:copies` writes is committed as it would write it now. Part of test:hygiene
+│   ├── file-index-generator.test.mjs ← `npm run generate:file-index` adds and removes module rows and touches nothing else; the real index needs nothing. Part of test:hygiene
 │   ├── guide-sources.test.mjs ← GUIDE_SOURCES.md's structure and its two-way contract with the pages. Part of test:hygiene
 │   ├── app-name-parity.test.mjs ← **"MYB" may name the STATION, never the SOFTWARE** ("Marylebone Roster"). Part of test:hygiene
 │   ├── rdw-term-parity.test.mjs ← **RDW has one name on screen: "Rest Day Working"**. Part of test:hygiene
@@ -759,6 +762,7 @@ roster-app/
 │   ├── generate-guide-index.mjs    ← `npm run generate:guide-index` — rebuilds guide-index.js from the guide pages
 │   ├── generate-ai-map.mjs         ← `npm run generate:ai-map` — rewrites the `- **Exports:**` line of every docs/AI_MAP.md entry from the module itself
 │   ├── generate-copies.mjs         ← `npm run generate:copies` — WRITES the facts kept in more than one file from the one place each is edited; its header lists them
+│   ├── generate-file-index.mjs     ← `npm run generate:file-index` — a row in this file for every module that has none (from its header), none for a script that has gone; every other row left as written
 │   ├── audit-functions-deps.sh ← the Cloud Functions' production-dependency audit, for the deploy gate and the weekly monitor. Its header
 │   ├── signed-in.mjs             ← `npm run test:signed-in`: a throwaway Firebase project, the emulators and the accounts, then Playwright. Writes nothing into the checkout
 │   ├── test-lanes.mjs            ← which lane each Node suite runs in, read from its own `// @lane` line; `run-tests.mjs --lane` and `test-nodeps.mjs` ask it

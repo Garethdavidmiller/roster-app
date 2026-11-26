@@ -26,16 +26,18 @@
  * on every page and the drawer doubles as a map rather than a list of exits.
  * colorClass is the page's own colour, Admin's navy with gold text (css-tokens.md → "A page is one
  * colour and one emoji"); `label` is its emoji and name, which its header and About badges repeat.
+ * `name` — the page's full name where the pill's is short ("Pay"): the Operations reports and a guide's
+ * back arrow read the name from here (`pageName`), so a new page is named once.
  * `otherStaffHidden` — not drawn for an "Other Staff" login (owner, 23 Nov 2026), who is shown the Calendar, Trains
  * and Settings; drawn for everyone else, signed out included. auth-policy.js refuses the same pages. Its
  * gate, `isNotOtherStaff`, is the one `initNavPanel` defaults to TRUE: a page that passes no gates (signed out) keeps
  * Admin and Pay as it always has, and every page that knows its member spreads `navGatesFor`.
- * @type {ReadonlyArray<{ id: string, label: string, url: string, colorClass: string, adminOnly?: boolean, linksDesignerOnly?: boolean, overtimeAudienceOnly?: boolean, newlinkAudienceOnly?: boolean, otherStaffHidden?: boolean }>}
+ * @type {ReadonlyArray<{ id: string, label: string, name?: string, url: string, colorClass: string, adminOnly?: boolean, linksDesignerOnly?: boolean, overtimeAudienceOnly?: boolean, newlinkAudienceOnly?: boolean, otherStaffHidden?: boolean }>}
  */
 export const NAV_PAGES = Object.freeze([
     { id: 'calendar',   label: '📅 Calendar',   url: './',      colorClass: 'nav-panel-pill--calendar'   },
     { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin',      otherStaffHidden: true },
-    { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay',        otherStaffHidden: true },
+    { id: 'paycalc',    label: '💷 Pay',         name: 'Pay Calculator', url: './paycalc.html',    colorClass: 'nav-panel-pill--pay',        otherStaffHidden: true },
     { id: 'operations', label: '🔧 Operations',   url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
     { id: 'links',      label: '🔗 Links',         url: './links.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
     // Overtime's audience only (filtered, not the boundary — the page and server gate themselves).
@@ -51,6 +53,15 @@ export const NAV_PAGES = Object.freeze([
     // has why). It comes last, so "work pages first" holds by position.
     { id: 'settings',   label: '⚙️ Settings',      url: './settings.html',   colorClass: 'nav-panel-pill--settings'   },
 ].map(p => Object.freeze(p)));
+
+/**
+ * A page's name — its `name`, or its pill's words without the emoji.
+ * @param {{ label: string, name?: string }} page
+ * @returns {string}
+ */
+export function pageName(page) {
+    return page.name ?? page.label.slice(page.label.indexOf(' ') + 1);
+}
 
 /**
  * The Latest section — flat, always open: the live workplace documents, in menu order. A document

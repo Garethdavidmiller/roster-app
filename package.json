@@ -25,6 +25,7 @@
     "generate:guide-index": "node scripts/generate-guide-index.mjs",
     "generate:ai-map": "node scripts/generate-ai-map.mjs",
     "generate:copies": "node scripts/generate-copies.mjs",
+    "generate:file-index": "node scripts/generate-file-index.mjs",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "node scripts/typecheck.mjs",
     "check": "npm run lint && npm run typecheck && npm test",
