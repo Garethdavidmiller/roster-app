@@ -158,7 +158,23 @@ def disagree(a, r):
 #     build ended cleanly. The two agree at every station both print (above), so the train calls at every station
 #     either prints: the row takes the UNION, in time order. A union whose order is not each copy's own printed
 #     order, or two stations at one minute (an order the times cannot settle), stops the build, naming both.
+# 1b. Two ROUTES are not two printings (external review of v26.92). London to Aylesbury runs either by the Met line
+#     (Harrow, Amersham, Great Missenden) or by the main line (Gerrards Cross, High Wycombe, Princes Risborough), and the
+#     two meet only at the ends. The union above trusts times alone, so an 08:00 via Amersham in one book and an 08:00 via
+#     High Wycombe in the other, both at Aylesbury at 09:00, became one train calling at High Wycombe and then Amersham.
+#     A copy calling on one route only, beside a copy calling on the other only, stops the build, naming both. One book
+#     merely leaving out a call is not that, and still unites.
+VIA_AMERSHAM = {'HOH', 'RIC', 'CLW', 'CFO', 'AMR', 'GMN', 'WND', 'SKM'}
+VIA_WYCOMBE  = {'WCX', 'SUD', 'SDH', 'NLT', 'SRU', 'WRU', 'DNM', 'DGC', 'GER', 'SRG', 'BCF', 'HWY', 'SDR', 'PRR', 'MRS', 'LTK'}
+def routes(copy):
+    calls = set(dict(copy['stops'])) | set(copy['calls']) | set(copy['barred'])
+    return {name for name, line in (('Amersham', VIA_AMERSHAM), ('High Wycombe', VIA_WYCOMBE)) if calls & line}
 def union_of(keep, other):
+    both = routes(keep) | routes(other)
+    if len(both) > 1:
+        sys.exit(f"assemble.py: the two books' copies of the {keep['t']} {keep['kind']} {keep['day']} go by different routes "
+                 f"(via Amersham and via High Wycombe) — {other['at']}, and {keep['at']}. Two trains, not one: check the book, "
+                 f"then teach assemble.py.")
     base = mins(keep['t'])
     def rel(t): return (mins(t) - base) % 1440
     times = dict(keep['stops'])

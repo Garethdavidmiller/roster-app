@@ -1117,6 +1117,22 @@ describe('unsaved-draft.js', () => {
             assert.ok(ud.createDraftSlot({ page: 'links', by: 'A. Member', now: () => NOW, usable: grid }).peek(), 'a whole one is offered');
             assert.equal(ud.createDraftSlot({ page: 'links', by: 'A. Member', now: () => NOW, usable: () => { throw new Error('x'); } }).peek(), null);
         });
+
+        test('keeping an UNUSABLE copy never erases the last usable one (external audit of v26.92)', () => {
+            // Admin's own test, as admin-app.js passes it. `usable` was asked only on reading, so keeping an
+            // empty week replaced the week that could be put back, and the next read dropped both.
+            const rows = (/** @type {any} */ d) => Array.isArray(d.rows) && d.rows.length > 0;
+            const AKEY = 'myb_draft_admin_A.%20Member';
+            const slot = ud.createDraftSlot({ page: 'admin', by: 'A. Member', now: () => NOW, usable: rows });
+            slot.keep({ member: 'A. Member', date: '2026-11-23' }, { rows: [{ date: '2026-11-23', type: 'al' }] });
+            const usable = ls.get(AKEY);
+            assert.ok(usable, 'premise: a week was kept');
+            slot.keep({ member: 'A. Member', date: '2026-11-23' }, { rows: [] });
+            assert.equal(ls.get(AKEY), usable, 'the empty week wrote nothing over it');
+            assert.ok(ud.createDraftSlot({ page: 'admin', by: 'A. Member', now: () => NOW, usable: rows }).peek(), 'and it is still offered');
+            slot.forget();
+            assert.equal(ls.has(AKEY), false, 'throwing it away is forget\'s job, and forget still does it');
+        });
     });
 
     test('END TO END IN NODE: hidden while dirty, the next page life asks — and only its own member', async () => {

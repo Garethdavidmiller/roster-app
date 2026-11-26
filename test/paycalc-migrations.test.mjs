@@ -521,4 +521,29 @@ describe('a migration that cannot write does not delete', () => {
         assert.equal(after[KEY], '1257L', 'destination populated');
         assert.equal(after.myb_pc_cea_migrated, '1', 'and the migration is recorded as done');
     });
+    // THE OTHER HALF: THE COPY LANDS, THE SOURCE WILL NOT GO (external audit of v26.92). Nothing is
+    // lost — both copies are there — but the move answered true, so the migration was recorded as
+    // done with the old key still in place. Now it waits, and the retry only removes the source.
+    test('a source that will not be removed withholds "done" — and the retry never writes over a NEWER destination', () => {
+        const KEY = legacyNames().code;
+        const storage = makeFailingStorage({ cea_code: '1257L' });
+        const realRemove = storage.removeItem;
+        storage.removeItem = () => {};                    // removals silently refused
+        global.localStorage = storage;
+        runMigrations(deps(MEMBER));
+        let after = global.localStorage.dump();
+        assert.equal(after.cea_code, '1257L', 'the source is still there');
+        assert.equal(after[KEY], '1257L', 'and so is the copy');
+        assert.equal(after.myb_pc_cea_migrated, undefined, 'so the migration is NOT recorded as done');
+
+        // Between loads the member changes their code; then storage lets removals through again.
+        storage.setItem(KEY, '1263L');
+        storage.removeItem = realRemove;
+        setPaycalcNamespace(undefined);
+        runMigrations(deps(MEMBER));
+        after = global.localStorage.dump();
+        assert.equal(after[KEY], '1263L', 'the retry kept the newer code — it never wrote the old one back over it');
+        assert.equal(after.cea_code, undefined, 'the source is gone now');
+        assert.equal(after.myb_pc_cea_migrated, '1', 'and only now is it recorded as done');
+    });
 });

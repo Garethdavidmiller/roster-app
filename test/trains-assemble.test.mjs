@@ -132,6 +132,24 @@ describe('assemble.py keeps one copy of a train only when the copies agree', { s
         assert.equal(r.out.trains[0].src, 'main');
     });
 
+    // TWO ROUTES ARE NOT TWO PRINTINGS (external review of v26.92). Side by side on purpose: a test that only asks
+    // for extra calls to survive rewards merging too much. Both copies leave at 08:00 and reach Aylesbury at 09:00.
+    test('the SAME route, one book leaving out a call: one train, every call kept', () => {
+        const met = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830'), cell('AYS', '0900')]);
+        const main = column(1, 1, [cell('MYB', '0800'), cell('GER', '0820'), cell('HWY', '0830'), cell('AYS', '0900')]);
+        const r = assemble([met], [main]);
+        assert.equal(r.status, 0, r.stderr);
+        assert.deepEqual(r.out.trains[0].calls, ['GER', 'HWY', 'AYS']);
+    });
+
+    test('via Amersham in one book and via High Wycombe in the other: two trains — the build stops, naming both', () => {
+        const met = column(1, 1, [cell('MYB', '0800'), cell('AMR', '0835'), cell('AYS', '0900')]);
+        const main = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830'), cell('AYS', '0900')]);
+        const r = assemble([met], [main]);
+        assert.notEqual(r.status, 0, 'one train was published calling at High Wycombe and then Amersham');
+        assert.match(r.stderr, /go by different routes \(via Amersham and via High Wycombe\) — met book, page 1, column 1, and main book, page 1, column 1/);
+    });
+
     test('and coming in to London, the union keeps travel order', () => {
         const met = { ...column(1, 1, [cell('AYS', '0700'), cell('HWY', '0730'), cell('MYB', '0800')]), dir: 'ret', rows: ['AYS', 'HWY', 'MYB'] };
         const main = { ...column(1, 1, [cell('AYS', '0700'), cell('HDM', '0715'), cell('MYB', '0800')]), dir: 'ret', rows: ['AYS', 'HDM', 'MYB'] };

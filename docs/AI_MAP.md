@@ -910,7 +910,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** none
 
 ### `ls.js`
-- **Exports:** `lsGet` · `lsSet` · `lsDel` · `lsSetVerified` · `lsMove` · `lsSetBothVerified` · `lsAvailable` · `lsKeys` · `requestPersistentStorage`
+- **Exports:** `lsGet` · `lsSet` · `lsDel` · `lsSetVerified` · `lsMove` · `lsDelVerified` · `lsSetBothVerified` · `lsAvailable` · `lsKeys` · `requestPersistentStorage`
 
 ### `storage-keys.js`
 - **Exports:** `SELECTED_MEMBER` · `TEAM_VIEW` · `CALENDAR_SNAPSHOT` · `NOTIF_PROMPT_DONE` · `PW_FORCE_PENDING_PREFIX` · `SW_UPDATE_RELOAD`

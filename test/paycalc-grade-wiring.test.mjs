@@ -46,7 +46,7 @@ mock.module('../ls.js', {
     namedExports: {
         lsGet: (/** @type {string} */ k) => (_ls.has(k) ? _ls.get(k) : null),
         lsSet: (/** @type {string} */ k, /** @type {any} */ v) => { _ls.set(k, String(v)); },
-        lsDel: (/** @type {string} */ k) => { _ls.delete(k); }, lsKeys: () => [..._ls.keys()],
+        lsDel: (/** @type {string} */ k) => { _ls.delete(k); }, lsDelVerified: (/** @type {string} */ k) => { _ls.delete(k); return true; }, lsKeys: () => [..._ls.keys()],
         lsSetVerified: (/** @type {string} */ k, /** @type {any} */ v) => { _ls.set(k, String(v)); return true; },
         lsMove: () => false,
     },
