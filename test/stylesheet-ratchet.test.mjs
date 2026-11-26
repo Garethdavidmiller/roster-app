@@ -77,7 +77,10 @@ const CAPS = {
     // 3855 → 3764 (25 Nov 2026, at 3,764), MOVED out: blocks one page uses went to that page's sheet — the
     // About panel's Tips section to index.css, `.help-btn` and `.lightbox-privacy` to paycalc.css (91 lines);
     // those two caps went up by what each gained. At the measured size: the room the sheet had is spent.
-    'shared.css':     3764,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
+    // 3764 → 3772 (26 Nov 2026, at 3,772), a deliberate RAISE of eight lines: the Tips panel's "What these words mean"
+    // link (glossary.js), which every page's ? panel can draw, so it can live nowhere else; and the glossary row's
+    // button reset in the drawer, one selector added to the circular, newsletter and App Notices rule.
+    'shared.css':     3772,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     // 2700 → 2650 (Nov 2026, at 2,574): the week grid's five-column template and the two blocks that
     // restated the stacked one over it became one rule; dead and inert rules out (css-admin-ops-15).
     // 2650 → 2600 (16 Nov 2026 (tidy-up), at 2,506): comments that had become a changelog cut to their reasons.

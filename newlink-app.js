@@ -46,6 +46,8 @@ import { startPage } from './page-start.js';
 import { navGatesFor } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
+import { initTipsLightbox } from './tips-lightbox.js';
+import { CARD_TIPS } from './newlink-tips.js';
 import { registerServiceWorker } from './sw-register.js';
 import { markPageReady, clearLoginStart } from './perf-reporter.js';
 import { initPdfViewer } from './pdf-viewer.js';
@@ -111,6 +113,9 @@ function start(member, admitted) {
     // Trains — made the drawer's logo throw instead of opening About (found 2 Nov 2026).
     openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — New link', getUserName: () => member })?.open ?? null;
     wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js — the one wiring)
+    // The cards' ? panels, and the panel the drawer's "Words used in the app" opens — for a refused visitor too, whose
+    // drawer has the row. A ? on a card hidden from them is never pressed.
+    initTipsLightbox(CARD_TIPS);
     if (!admitted) {
         showNotForYou();
         markPageReady();

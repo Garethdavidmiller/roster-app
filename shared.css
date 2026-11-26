@@ -2684,11 +2684,12 @@ button.lightbox-bug-link {
     .nav-panel-link:hover { background: var(--nav-raised); }
 }
 
-/* The circular, newsletter and App Notices entries are <button>s, not <a>s —
+/* The circular, newsletter, glossary and App Notices entries are <button>s, not <a>s —
    reset native button chrome so they sit identically alongside the anchor
    links. */
 button.nav-panel-link--circular,
 button.nav-panel-link--newsletter,
+button.nav-panel-link--glossary,
 button.nav-panel-link--notices {
     width: 100%;
     background: none;
@@ -3734,6 +3735,13 @@ body.auth-ready .boot-placeholder { display: none; }
     border-radius: var(--radius-sm);
     margin-top: 1px;
 }
+
+/* "What these words mean" (glossary.js, 26 Nov 2026): the foot of a ? panel that uses a roster word; it redraws the panel as
+   the glossary. The panel's link look (blue, 600, underlined), on a 44px row a thumb finds, set off by a hairline. */
+.tips-lb-glossary { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 12px; padding: 12px 0 0; border: 0; border-top: 1px solid var(--border-light); background: none; font: inherit; font-size: var(--type-label); font-weight: 600; text-align: left; color: var(--primary-blue); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; touch-action: manipulation; }
+@media (hover: hover) and (pointer: fine) { .tips-lb-glossary:hover { text-decoration-thickness: 2px; } }
+.tips-lb-glossary:active { opacity: 0.6; }
+.tips-lb-glossary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
 
 /* ---- Waiting for signal (v24.21, slow-save.js; moved here from admin.css at v24.23) ----
    In shared.css because the roster upload that wraps its writes runs on OPERATIONS, which does not

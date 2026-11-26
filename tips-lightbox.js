@@ -16,11 +16,40 @@
  * adminOnly/staffOnly filtering only applies when getIsAdmin is supplied
  * (admin.html shows different tips to admins and staff).
  *
+ * THE GLOSSARY OPENS IN THE SAME PANEL (26 Nov 2026). "Words used in the app" (glossary.js) is one more set of
+ * tips, keyed `GLOSSARY_KEY`, so it needs no overlay of its own: a panel whose text uses one of its words ends
+ * with a "What these words mean" button that redraws THIS panel as the glossary — no second overlay, so no
+ * shared Escape and no second history entry — and the drawer's Reference row opens it through `openGlossary`,
+ * which reaches the page's panel. Focus goes to the ✕, because the button that had it is redrawn away.
+ *
  * @module tips-lightbox
  */
 
 import { escapeHtml } from './roster-data.js';
 import { createLightbox } from './overlay.js';
+import { GLOSSARY, GLOSSARY_TITLE, mentionsGlossaryTerm } from './glossary.js';
+
+/** The glossary's key among a page's tips. Not a `data-card` value any page uses. */
+export const GLOSSARY_KEY = 'glossary';
+
+/** The glossary in the tips shape. */
+const GLOSSARY_TIPS = Object.freeze({
+    title: GLOSSARY_TITLE,
+    sections: [{ items: GLOSSARY.map(g => ({ icon: g.icon, html: `<strong>${escapeHtml(g.term)}</strong>: ${escapeHtml(g.line)}` })) }],
+});
+
+/** The page's panel opener, once `initTipsLightbox` has run on a page that has a panel. @type {((key: string) => void)|null} */
+let pageOpener = null;
+
+/**
+ * Open the page's `?` panel as the glossary — the drawer's "Words used in the app". False on a page with no panel.
+ * @returns {boolean}
+ */
+export function openGlossary() {
+    if (!pageOpener) return false;
+    pageOpener(GLOSSARY_KEY);
+    return true;
+}
 
 /**
  * Wire up the page's #tipsLightbox and every `?` button that opens it (`.btn-card-tips` by default).
@@ -64,12 +93,16 @@ export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '
                 html += `<div class="tips-lb-item"><span class="tips-lb-icon" aria-hidden="true">${item.icon}</span><span>${item.html}</span></div>`;
             }
         }
+        // A panel that uses one of the glossary's words says where they are explained.
+        if (tips !== GLOSSARY_TIPS && mentionsGlossaryTerm(html)) {
+            html += '<button type="button" class="tips-lb-glossary" data-glossary><span aria-hidden="true">📖</span> What these words mean</button>';
+        }
         return html;
     }
 
     /** @param {any} key */
     function openTips(key) {
-        const tips = /** @type {Record<string, any>} */ (cardTips)[key];
+        const tips = key === GLOSSARY_KEY ? GLOSSARY_TIPS : /** @type {Record<string, any>} */ (cardTips)[key];
         if (!tips) return;
         /** @type {HTMLElement} */ (lb).setAttribute('aria-label', tips.title);
         /** @type {HTMLElement} */ (titleEl).textContent = tips.title;
@@ -81,6 +114,13 @@ export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '
         lightbox.open();
         if (content) content.scrollTop = 0;
     }
+
+    bodyEl.addEventListener('click', e => {
+        if (!/** @type {Element} */ (e.target).closest?.('[data-glossary]')) return;
+        openTips(GLOSSARY_KEY);
+        /** @type {HTMLElement|null} */ (closeBtn)?.focus();
+    });
+    pageOpener = openTips;
 
     // Wire every card's ? button — stopPropagation prevents collapsing the card
     if (trigger) document.querySelectorAll(trigger.selector).forEach(btn => {

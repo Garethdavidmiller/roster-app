@@ -57,6 +57,7 @@ const PAGES = [
     // The Calendar's one ? is drawn by Team View (calendar-team-view.js), so that file is where its button is read.
     { js: 'calendar-tips.js',  html: 'calendar-team-view.js', noCardHeading: true },
     { js: 'trains-tips.js',    html: 'trains.html' },
+    { js: 'newlink-tips.js',   html: 'newlink.html' },
 ];
 
 // settings-tips.js lists Timetable changes only while one is due (`timetableListed`, notif-card-core.js),

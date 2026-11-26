@@ -318,6 +318,15 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (circular) { _openLatestDoc(circular, getLatestCircular, 'circular'); return; }
         const newsletter = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--newsletter'));
         if (newsletter) { _openLatestDoc(newsletter, getLatestNewsletter, 'newsletter'); return; }
+        // The glossary opens in the page's own ? panel (tips-lightbox.js), which pushes its own history entry: the
+        // drawer's is popped first and the panel opens once that Back has landed, as About does from the brand. Imported
+        // at the tap, not above: the page has already loaded it for its own ? panels (the same module, so the same panel),
+        // and the drawer keeps no dependency on the lightbox machinery it does not otherwise use.
+        if (/** @type {Element} */ (e.target).closest('.nav-panel-link--glossary')) {
+            closePanel();
+            whenHistorySettled(() => { import('./tips-lightbox.js').then(m => m.openGlossary()).catch(err => console.error('[nav-panel] glossary:', err)); });
+            return;
+        }
         if (/** @type {Element} */ (e.target).closest('.nav-panel-link--notices')) {
             _closePanelVisualOnly();
             _openNotices();

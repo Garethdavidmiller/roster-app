@@ -41,6 +41,17 @@
 
 <!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
 
+<!-- Tips lightbox: the cards' ? panels (newlink-tips.js), and the drawer's "Words used in the app" (glossary.js) -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+    <div id="tipsLightboxContent" class="lb-content">
+        <div class="tips-lb-top">
+            <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="tips-lb-title" id="tipsLbTitle"></div>
+        </div>
+        <div id="tipsLbBody"></div>
+    </div>
+</div>
+
 <!-- Icon lightbox -->
 <div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About Marylebone Roster" aria-modal="true">
     <div id="iconLightboxContent" class="lb-content">
@@ -105,6 +116,9 @@
                      so it is never typed here to show before the script has decided. -->
                 <span class="hint" id="nlStatusHint"></span>
             </div>
+            <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="status" aria-label="About the new link">?</button>
+            </div>
         </div>
         <div class="card-body" id="nlStatus"></div>
     </div>
@@ -165,6 +179,7 @@
                 <span class="hint">Pick the one most like you, to see the three against today</span>
             </div>
             <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="means" aria-label="Tips for reading what it means if you">?</button>
                 <span class="collapse-chevron open" id="nlMeansChevron">▾</span>
             </div>
         </div>
@@ -186,6 +201,7 @@
                 <span class="hint">Each proposal week by week — proposals, not your roster</span>
             </div>
             <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="weeks" aria-label="Tips for reading the weeks">?</button>
                 <span class="collapse-chevron open" id="nlWeeksChevron">▾</span>
             </div>
         </div>
