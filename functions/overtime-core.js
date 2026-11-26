@@ -24,13 +24,10 @@
  *    rates are only meaningful because of that: somebody who joined in October must never appear as
  *    a non-responder for August. Eligibility is the roster's own `!hidden && !managerOnly`, read
  *    from the generated server list — never a name comparison, and never the client's word. It
- *    binds every audience, so no audience can put a MANAGER in a population: they review by claim,
- *    and a manager in the snapshot is a permanent non-responder for nothing gained.
+ *    binds every audience, so no audience can put a MANAGER in a population.
  *
- * 4. NO SILENT OVERWRITE. `decideSubmission` is the whole concurrency model. `links-concurrency.js`
- *    exists because the same class of bug shipped three times in the Links workspace, each one a
- *    colleague's work quietly replaced. Availability is smaller but it is somebody's declaration
- *    about their own life, and losing it is worse, not better.
+ * 4. NO SILENT OVERWRITE. `decideSubmission` is the whole concurrency model — a declaration about
+ *    somebody's own life must never be quietly replaced.
  *
  * 5. NO RESPONSE IS NOT UNAVAILABLE. Nothing in this module ever manufactures an answer. An absent
  *    submission is absent; `normaliseDays` refuses a partial week rather than filling the gaps.
@@ -38,9 +35,8 @@
 
 // ── The clock this module stands on ─────────────────────────────────────────────────────────────
 //
-// london-clock.js requires nothing itself, so this module still loads on a bare checkout with no
-// functions/node_modules — which is why overtime-core.test.mjs can run in test:hygiene on every
-// branch rather than only in the Functions deploy lane. Keep it that way.
+// london-clock.js requires nothing itself, so this module still loads with no functions/node_modules
+// and overtime-core.test.mjs runs in test:hygiene on every branch. Keep it that way.
 const {
     londonOffsetMinutes,
     londonTimestamp,
@@ -75,51 +71,29 @@ const DEADLINE_HOUR_LONDON = 12;
 /**
  * The local hour the daily create-the-missing-weeks job runs at.
  *
- * ⚠️ This must equal the hour in `autoCreateOvertimeWindows`'s cron (`'0 5 * * *'`, Europe/London).
- * It is declared here because the horizon needs to know when the job LAST ran in order to say
- * whether a week it should already have created is overdue — and a horizon that guesses that hour
- * would either accuse a healthy schedule or excuse a broken one.
- *
- * 05:00 is safe from both pathologies `londonTimestamp` warns about: the UK moves its clocks at
- * 01:00–02:00 local, so 05:00 exists exactly once on every date of the year.
+ * ⚠️ This must equal the hour in `autoCreateOvertimeWindows`'s cron (`'0 5 * * *'`, Europe/London):
+ * the horizon needs to know when the job LAST ran to say whether a week is overdue. 05:00 exists
+ * exactly once on every date of the year (the UK changes clocks at 01:00–02:00).
  */
 const SCHEDULER_HOUR_LONDON = 5;
 
 /**
  * How far ahead staff are asked to declare availability, counted in weeks they can ANSWER for.
  *
- * ── THIS IS THE PRODUCT DECISION; `PLANNING_WEEKS` BELOW IS ARITHMETIC ──────────────────────────
- *
- * **Three (owner, Aug 2026 — was six).** Six was the original requirement and the code met it, but
- * it meant somebody in mid-August declaring for a weekend in early October. An external review put
- * the objection well: a declaration seven weeks out is far likelier to change than one three weeks
- * out, so the extra reach cost both response burden and data quality without buying planning value —
- * the draft and final roster cycles for a week are finished well inside three weeks.
- *
- * Raising it again is this one number. Everything else derives.
+ * THIS IS THE PRODUCT DECISION; `PLANNING_WEEKS` BELOW IS ARITHMETIC. **Three (owner, Aug 2026 —
+ * was six):** a declaration seven weeks out is far likelier to change, and the roster cycles for a
+ * week finish well inside three. Raising it again is this one number. Everything else derives.
  */
 const ANSWERABLE_WEEKS = 3;
 
 /**
  * How many week rows the planning horizon covers, starting at THIS week's Saturday.
  *
- * ── WHY IT IS THE REQUIREMENT PLUS TWO ──────────────────────────────────────────────────────────
- *
- * The rows are NOT the answerable count, because the first two are always behind or about to fall
- * behind their own deadline. A window closes 11 days before its Saturday, so:
- *
- *   row 1 (this week's Saturday)  final deadline was LAST Tuesday  → never answerable
- *   row 2 (next Saturday)         final deadline is THIS Tuesday   → answerable until Tue 12:00
- *
- * So the FLOOR — the count at the worst hour of the week, just after Tuesday noon — is rows minus
- * two, and the floor is what a requirement has to mean if it is to be true on a Wednesday as well as
- * a Sunday. That relation was found by measurement, not derivation, and it is asserted as a property
- * over a whole week in `overtime-core.test.mjs`: change the milestone offsets and that test fails
- * rather than the horizon quietly costing a week.
- *
- * Both rows are still SHOWN. The horizon is the only thing standing between the feature and a week
- * nobody created, and a row that has gone past its deadline unanswered is exactly what a reviewer
- * needs to see.
+ * WHY THE REQUIREMENT PLUS TWO: a window closes 11 days before its Saturday, so row 1 (this week)
+ * is never answerable and row 2 only until this Tuesday 12:00. The FLOOR — the count just after
+ * Tuesday noon — is rows minus two, asserted over a whole week in `overtime-core.test.mjs`: change
+ * the milestone offsets and that test fails. Both rows are still SHOWN — a row past its deadline
+ * unanswered is exactly what a reviewer needs to see.
  */
 const PLANNING_WEEKS = ANSWERABLE_WEEKS + 2;
 
@@ -145,15 +119,12 @@ function londonNoonTimestamp(isoDate) {
 /**
  * The most recent daily-scheduler boundary at or before `nowMs`.
  *
- * The whole of B6 rests on this one instant. The horizon tells a reviewer a missing week "opens
- * automatically overnight", which is true right up until the overnight run fails — after which the
- * row keeps saying it, indefinitely, and the reassurance becomes the fault. Comparing what the run
- * at THIS instant was due to create against what actually exists turns a silent scheduler failure
- * into a visible one, with no new stored state and nothing for the job itself to remember to write.
+ * The horizon says a missing week "opens automatically overnight", which stays true only while the
+ * overnight run works. Comparing what the run at THIS instant was due to create against what exists
+ * turns a silent scheduler failure into a visible one, with no new stored state.
  *
  * The previous day is reached with `addDays` on the CALENDAR date, never by subtracting 24 hours:
- * on a transition day the two differ by an hour, and 04:00 or 06:00 on the wrong side of the
- * boundary would move the answer by a whole run.
+ * on a clock-change day the two differ by an hour.
  * @param {number} nowMs
  * @returns {number} epoch ms
  */
@@ -260,25 +231,12 @@ function isOpenPhase(phase) {
 /**
  * May a participant be withdrawn from — or restored to — this week, right now?
  *
- * ── WHY WITHDRAWAL EXISTS AT ALL ────────────────────────────────────────────────────────────────
+ * WHY WITHDRAWAL EXISTS: the frozen population means a member who LEAVES stays in every open week
+ * as a permanent non-responder. Withdrawal stops the person being EXPECTED; nothing is deleted, and
+ * the page states who was withdrawn and by whom — an exclusion nobody can see is worse.
  *
- * The population is frozen at creation, and that freeze is right: it is the only reason a response
- * rate means anything. But it has one consequence nobody chose — a member who LEAVES stays in every
- * open week as a permanent non-responder, and the reviewer chasing outstanding forms is chasing
- * somebody who no longer works here, every week, until the horizon rolls past them.
- *
- * Withdrawal is the narrow answer: the person stops being EXPECTED. Nothing is deleted — the
- * participant record and any submission they made stay exactly where they are, and the page states
- * who was withdrawn and by whom, because an exclusion nobody can see is worse than the problem.
- *
- * ── AND WHY A CLOSED WEEK REFUSES IT ────────────────────────────────────────────────────────────
- *
- * A closed week is a RECORD of what was known when the roster was planned from it. Somebody who was
- * employed, was asked, and did not answer is accurately recorded as exactly that, and editing it
- * afterwards changes a historical response rate to make a past week look tidier. The problem
- * withdrawal solves is a live one — a person being chased now — so the fix is bounded to weeks that
- * are still live. Expired weeks are refused for the same reason plus a stronger one: they are on
- * their way out of the system entirely.
+ * WHY A CLOSED WEEK REFUSES IT: a closed week is a RECORD of what was known when the roster was
+ * planned; editing it afterwards would tidy a historical response rate. Expired weeks are refused too.
  *
  * @param {{initialDeadlineAt:number, finalDeadlineAt:number, retentionUntil:number}} milestones
  * @param {number} nowMs
@@ -292,36 +250,15 @@ function canChangeParticipation(milestones, nowMs) {
 }
 
 /**
- * May this withdrawal be UNDONE? (v21.26, external review of v21.22.)
+ * May this withdrawal be UNDONE? Restoring is not the mirror of withdrawing.
  *
- * Restoring is not the mirror of withdrawing, and treating it as one produced a false record.
+ * Withdrawn BEFORE the initial deadline and restored after it, a member would be marked **submitted
+ * after initial deadline** for a deadline they were never asked about. So this follows the rule
+ * `addMissingParticipants` already keeps (no new participant after the initial deadline). A
+ * withdrawal made AFTER the initial deadline is an ordinary undo and claims nothing false.
  *
- * ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────────
- *
- * Withdraw somebody BEFORE the initial deadline; let the deadline pass; restore them. They are now
- * expected for a week whose first deadline they were never asked about — so the moment they submit,
- * `deriveHistory` finds nothing accepted before that deadline and marks them **submitted after
- * initial deadline**. That is a true statement about the data and a false one about the person, on
- * the one screen a reviewer uses to judge who is responsive.
- *
- * ── WHY THIS RULE AND NOT A LOOSER ONE ──────────────────────────────────────────────────────────
- *
- * The app ALREADY refuses to add a new participant after the initial deadline — `addMissingParticipants`
- * returns early unless the window is `INITIAL_OPEN`, so a newly eligible member joins from the
- * following week instead, precisely so that nobody is recorded as having missed a deadline they were
- * never asked about. Restoring was the one path that escaped the principle. This makes the two agree
- * rather than inventing a second policy for the same situation.
- *
- * It still allows the case worth allowing: a withdrawal made AFTER the initial deadline is an
- * ordinary undo — an accidental press, a leaver who turned out to be staying — and the person's
- * history across that deadline is untouched, so restoring them claims nothing false.
- *
- * ── AN UNREADABLE STAMP REFUSES ─────────────────────────────────────────────────────────────────
- *
- * `withdrawnAt` has been written beside the flag since the feature shipped, so a withdrawn record
- * without one should not exist. If one does, we cannot tell which side of the deadline it fell, and
- * the two ways of being wrong are not equal: refusing blocks an undo (visible, and the person simply
- * joins next week), while allowing re-creates the false "late" marker this rule exists to prevent.
+ * AN UNREADABLE STAMP REFUSES: without `withdrawnAt` we cannot tell which side of the deadline it
+ * fell; refusing blocks an undo (visible), allowing re-creates the false "late" marker.
  *
  * @param {{initialDeadlineAt:number, finalDeadlineAt:number, retentionUntil:number}} milestones
  * @param {number|null|undefined} withdrawnAtMs when they were stood down, epoch ms
@@ -342,11 +279,9 @@ function canRestoreParticipant(milestones, withdrawnAtMs, nowMs) {
 /**
  * Is this frozen participant record withdrawn?
  *
- * A BOOLEAN field set only on withdrawal, never written `false` at creation — which is not a style
- * choice. Firestore's `where('x','==',null)` and `!=` both skip documents missing the field, so a
- * tri-state or a default-false would make every participant written before this feature invisible
- * to the count query, and `expected` would read 0 for every existing week. Counting the withdrawn
- * (usually none) and subtracting is correct for old and new documents alike.
+ * A BOOLEAN field set only on withdrawal, never written `false` at creation: Firestore's `==`/`!=`
+ * skip documents missing the field, so a default-false would hide every older participant from the
+ * count query. Counting the withdrawn and subtracting is correct for old and new documents alike.
  *
  * ⚠️ The reviewer's browser reads participants DIRECTLY from Firestore, so this rule also exists in
  * `overtime-format.js`. Keep them the same shape.
@@ -376,9 +311,9 @@ function validateWeekEnding(weekEnding, { nowMs, maxRosterYear }) {
 /**
  * The Manager planning horizon: `PLANNING_WEEKS` week-ending Saturdays, starting with this week's.
  *
- * Every row appears whether or not a window exists — this list is the ONLY thing standing between
- * the feature and its one catastrophic silent failure, a week nobody created. Nothing appears
- * outstanding, no reminder can fire, and "no window" is indistinguishable from "no overtime needed".
+ * Every row appears whether or not a window exists — this list is the ONLY guard against the
+ * feature's one catastrophic silent failure, a week nobody created, which otherwise looks exactly
+ * like "no overtime needed".
  * @param {number} nowMs
  * @returns {string[]} week-ending Saturdays, ascending
  */
@@ -392,18 +327,10 @@ function planningWeekEndings(nowMs) {
  *
  * The scheduler's whole decision, as a pure function of the clock and the week ids that exist.
  *
- * ── IT IS THE `canCreate` RULE, NOT A SECOND ONE ────────────────────────────────────────────────
- *
- * Exactly the filter behind the Manager's Create button — same horizon, same `validateWeekEnding`.
- * That equivalence is the point rather than a convenience: if the job used its own idea of which
- * weeks are due, the button and the schedule would disagree, and the disagreement would show up as
- * a week that is silently never created by either — the failure this whole feature is arranged
- * around. Automation does precisely what the button offers, for every week it offers it.
- *
- * A week whose INITIAL deadline has passed but whose FINAL has not is still returned, because
- * `validateWeekEnding` allows it and the button offers it. Creating that week late is worth doing:
- * members can still declare before the final cut-off, and a late form beats no form. Only a week
- * past its final deadline is refused, since nobody could ever submit to it.
+ * IT IS THE `canCreate` RULE, NOT A SECOND ONE: exactly the filter behind the Manager's Create
+ * button (same horizon, same `validateWeekEnding`), or the two would disagree and a week could be
+ * silently created by neither. A week past its INITIAL deadline but not its FINAL is still returned —
+ * a late form beats no form.
  *
  * @param {number} nowMs
  * @param {Iterable<string>} existingWeekEndings week ids already in Firestore
@@ -424,31 +351,16 @@ function weeksNeedingWindows(nowMs, existingWeekEndings, { maxRosterYear }) {
  * the deadline: a row that disappears the moment it becomes un-actionable hides the very omission
  * this horizon exists to surface.
  *
- * ── A CREATED WINDOW IS NOT AUTOMATICALLY AN OPEN ONE ───────────────────────────────────────────
+ * A CREATED WINDOW IS NOT AUTOMATICALLY AN OPEN ONE: the first row is always a week already closed
+ * (`created-closed`). The phase is decided HERE, from the stored milestones and the server's clock,
+ * never a phone's.
  *
- * `created` used to be the only existing-window answer, and the horizon rendered it as "Form open"
- * for every week that had a document. The FIRST row is always the current week, whose final deadline
- * is eleven days behind it — so in production every reviewer, on every visit, was told the form was
- * open for a week that closed a week earlier and whose roster had already been published. Two rows
- * of six were routinely wrong, and always the same two.
+ * A WEEK THAT WILL OPEN IS NOT ONE THAT ALREADY SHOULD HAVE: once a run has passed without creating
+ * a week it was due to, `not-created`'s reassurance becomes the scheduler's alibi. `autoOverdue` is
+ * that distinction; the caller decides it (see `lastSchedulerRun`).
  *
- * The phase is not extra information; it is the difference between "you can still chase people" and
- * "this is a record". Deciding it HERE, from the stored milestones and the server's clock, keeps it
- * out of the browser — a horizon that read a phone's clock would put a week either side of its
- * deadline depending on whose phone was reading it.
- * ── AND A WEEK THAT WILL OPEN IS NOT ONE THAT ALREADY SHOULD HAVE ───────────────────────────────
- *
- * `not-created` promises the reviewer that the schedule will handle it. That promise is only worth
- * making while it is still true. Once a run has come and gone without creating a week it was due to
- * create, the same row keeps offering the same reassurance — every day, for as long as the fault
- * lasts — and the horizon stops being the monitor over the scheduler and starts being its alibi.
- * `autoOverdue` is that distinction and nothing more; the caller decides it (see
- * `lastSchedulerRun`), because only the caller knows which weeks exist.
- *
- * A week ending after the roster's last year can never be created — `validateWeekEnding` refuses it
- * (`beyond-horizon`), so it is never `autoOverdue` either — and as `not-created` it said "Opens
- * automatically overnight" every day until "Missed" (overtime-core-6). `beyondRoster` gives it its
- * own state at every phase, because its cause, a CONFIG year nobody raised, is the same throughout.
+ * A week ending after the roster's last year can never be created (`beyond-horizon`), so
+ * `beyondRoster` gives it its own state at every phase — its cause, a CONFIG year nobody raised.
  *
  * @param {{ initialDeadlineAt: number, finalDeadlineAt: number }} milestones  the week's (`milestonesFor`)
  * @param {number} nowMs
@@ -476,11 +388,9 @@ const AUDIENCES = Object.freeze(['restricted', 'all']);
 /**
  * Is this generated member a participant for a week starting `weekStart`?
  *
- * The start-date rule is a deliberate PRODUCT decision, not an implementation detail: somebody
- * beginning employment mid-week is excluded from that whole Sunday–Saturday window and first
- * appears in the next one. Every participant answers all seven days, and asking a new starter to
- * declare availability for days before they were employed is incoherent. A four-day part week is
- * the alternative, and it would leak into counts, reminders and the seven-day schema everywhere.
+ * The start-date rule is a deliberate PRODUCT decision: somebody starting mid-week is excluded from
+ * that whole Sunday–Saturday window and first appears in the next one. Every participant answers all
+ * seven days; a part week would leak into counts, reminders and the seven-day schema everywhere.
  * @param {{ name?: unknown, startDate?: string|null }|null|undefined} member  a generated roster row
  * @param {string} weekStart @returns {boolean}
  */
@@ -495,7 +405,7 @@ function isEligibleForWeek(member, weekStart) {
  * `roster` is the GENERATED server list (`overtimeRoster`) — WHO EXISTS, carrying each member's
  * `hidden` and `managerOnly` flags. It is never a client payload.
  *
- * ── TWO STAGES, AND THE ORDER IS THE POINT ──────────────────────────────────────────────────────
+ * TWO STAGES, AND THE ORDER IS THE POINT.
  *
  * Stage 1 — WHO COULD EVER BE ASKED. The roster's own flags: on this week (`startDate`), still here
  * (`!hidden`), and not a manager (`!managerOnly`). This binds EVERY audience, including ones not
@@ -503,38 +413,21 @@ function isEligibleForWeek(member, weekStart) {
  *
  * Stage 2 — which of them THIS audience asks:
  *
- *   restricted   the admin, plus any ordinary member named in the beta list. A TESTING population:
- *                it started as the admin alone (the one person who cannot be harmed by a
- *                half-finished feature) and widens a name at a time, by invitation, so a real
- *                member's experience can be watched before every member has it.
+ *   restricted   the admin, plus any ordinary member named in the beta list — a TESTING population
+ *                that widens a name at a time, by invitation.
  *   all          everybody stage 1 allows. The end state.
  *
  * A beta member is a PARTICIPANT and nothing else. Reviewing is the `admin`/`manager` claim, and
- * these two lists must not be allowed to converge: this one decides who is ASKED, and letting it
- * also decide who can LOOK would hand a colleague's declarations to whoever was invited to test.
+ * these two lists must not be allowed to converge: letting this one also decide who can LOOK would
+ * hand a colleague's declarations to whoever was invited to test.
  *
- * ── A MANAGER IS A REVIEWER AND NEVER A PARTICIPANT ─────────────────────────────────────────────
+ * A MANAGER IS A REVIEWER AND NEVER A PARTICIPANT — which is why the flag test is stage 1, not a
+ * clause in each branch (the restricted branch selects by ENTITLEMENT, so a manager holding the admin
+ * entitlement would otherwise slip through). A manager already sees every answer by claim; in the
+ * frozen population they would read as a non-responder permanently. Tested against every audience
+ * in `AUDIENCES`.
  *
- * That is why the flag test is stage 1 and not a clause repeated in each branch: it must not be
- * possible to write an audience that reaches a manager, and the restricted branch selects by
- * ENTITLEMENT, so a manager who also held the admin entitlement would otherwise slip through.
- *
- * The reason is not tidiness. Review rights come from the `manager` CLAIM, so a manager already
- * sees every week's answers without appearing in any of them — being in the population adds no
- * access and does add a record that they were expected to answer. Frozen means for ever: they read
- * as a non-responder for that week permanently, and it cannot be corrected afterwards.
- *
- * ── WHAT MOVED HERE FROM THE GENERATOR (v20.72), AND WHY IT IS STILL WORTH IT ────────────────────
- *
- * `!hidden && !managerOnly` used to run in `generate-roster-members.mjs`, so the list this function
- * received was already narrowed and the same rule was in force. The behaviour is unchanged; what
- * changed is that the rule is now READABLE — stated beside the audiences it binds, with the reason
- * attached, and tested against every audience in `AUDIENCES` rather than against the two that
- * happen to exist. A rule baked into a generated JSON file is a rule nobody can find, and the way
- * that surfaced was a genuine question — "open it to the managers for testing" — that the code
- * could not have answered without an edit in a file that does not look like policy.
- *
- * Widening the beta is still a one-word edit — `currentAudience()`.
+ * Widening the beta is a one-word edit — `currentAudience()`.
  *
  * @param {OvertimeRosterRow[]} roster
  * @param {{ weekStart:string, audience:string, adminNames?:string[], betaNames?:string[] }} ctx
@@ -561,10 +454,9 @@ function selectParticipants(roster, { weekStart, audience, adminNames = [], beta
 /**
  * Is `name` safe as a Firestore document path segment?
  *
- * Participant and submission documents are keyed by canonical member name for legibility, so a
- * name that cannot be a path segment corrupts a write rather than failing a lint. Applied to
- * GENERATED data, in CI — a future starter with an unusual name must break the build, not
- * production. Firestore's own rules: non-empty, no '/', not '.' or '..', no __reserved__ form,
+ * Participant and submission documents are keyed by member name, so a name that cannot be a path
+ * segment would corrupt a write. Applied to GENERATED data, in CI — an unusual name must break the
+ * build, not production. Firestore's rules: non-empty, no '/', not '.' or '..', no __reserved__ form,
  * at most 1500 bytes. @param {unknown} name @returns {boolean}
  */
 function isSafeDocId(name) {
@@ -589,18 +481,10 @@ function isSafeDocId(name) {
 const AVAILABILITY_MODES = Object.freeze({
     unavailable:  Object.freeze([]),
     all_day:      Object.freeze([]),
-    // ── LEGACY since v21.24. Still PARSED for ever; no longer OFFERED by any client ──────────────
-    //
-    // "Available for up to 12 hours" (v20.83, owner) answered a different question from every mode
-    // beside it: the others say WHEN somebody can work, this one said HOW LONG. One mutually
-    // exclusive control cannot carry two dimensions, so the two competed — on a rest day it
-    // duplicated `all_day`, and on a worked day it gave a duration with no window, which a clerk
-    // cannot build a duty from. Both were reported by external review of v21.22, and the owner
-    // settled it by splitting the dimensions: willingness became `fullTwelve` below.
-    //
-    // IT MUST STAY IN THIS TABLE. Revisions are append-only and immutable, so answers stored under
-    // this mode live for the length of their retention window and have to keep parsing and
-    // rendering. Removing it would not tidy the schema; it would make existing records unreadable.
+    // LEGACY: still PARSED for ever; no longer OFFERED by any client. "Up to 12 hours" said HOW LONG
+    // where every other mode says WHEN, so the owner split the dimensions: it became `fullTwelve`.
+    // IT MUST STAY IN THIS TABLE: revisions are immutable, so answers stored under it must keep
+    // parsing and rendering until they expire.
     twelve_hours: Object.freeze([]),
     before:       Object.freeze(['until']),
     after:        Object.freeze(['from']),
@@ -609,71 +493,35 @@ const AVAILABILITY_MODES = Object.freeze({
 });
 
 /**
- * The one field that may accompany ANY available answer (v21.24, owner — the availability /
- * willingness split).
+ * The one field that may accompany ANY available answer (owner — the availability / willingness
+ * split).
  *
- * ── WHY A FIELD AND NOT A MODE ──────────────────────────────────────────────────────────────────
+ * A FIELD, NOT A MODE: "when can you work" and "how long a day would you work" are independent, so
+ * they cannot share one exclusive control. "UP TO", deliberately: beside a window it grants
+ * PERMISSION to build a long duty rather than committing to a 12-hour turn.
  *
- * "When can you work" and "how long a day would you work" are independent questions, so they cannot
- * share a mutually exclusive control without one of them being lost. As a flag ALONGSIDE a window
- * both are expressible at once and nothing overlaps: "before and after my duty, and go long if it
- * helps" is one unambiguous statement — exactly what the old `twelve_hours` mode could not make.
- *
- * ── "UP TO", DELIBERATELY ───────────────────────────────────────────────────────────────────────
- *
- * As a mode competing with windows, "up to 12 hours" WAS the ambiguity: it admitted any duration
- * and named no window. As a flag beside a window it is precisely right — the member grants
- * PERMISSION to build a long duty rather than committing to a 12-hour turn. The window says where;
- * this says how far it may run.
- *
- * ── STORED ONLY WHEN TRUE ───────────────────────────────────────────────────────────────────────
- *
- * An unticked box is the ABSENCE of a declaration, not a declared "no" — the same reasoning that
- * makes a restored participant lose its `withdrawn` field rather than gain `withdrawn: false`. It
- * also keeps answers written before this field comparable with those written after: neither carries
- * the key, so nothing has to be migrated and no historical answer acquires an opinion it never gave.
+ * STORED ONLY WHEN TRUE: an unticked box is the ABSENCE of a declaration, not a declared "no", so
+ * older answers stay comparable and no historical answer acquires an opinion it never gave.
  *
  * It is refused on `unavailable`, which is the one mode it cannot mean anything beside.
  */
 const OPTIONAL_DAY_FIELDS = Object.freeze(['fullTwelve']);
 
 /**
- * ASK TO BE TAKEN OFF A ROSTERED SUNDAY (v23.80, owner) — the one field that may accompany ANY
- * answer, including `unavailable`.
+ * ASK TO BE TAKEN OFF A ROSTERED SUNDAY (owner) — the one field that may accompany ANY answer,
+ * including `unavailable`.
  *
- * ── WHAT IT IS, AND WHAT IT IS NOT ──────────────────────────────────────────────────────────────
+ * Every other field is about OVERTIME; this one is about CONTRACTED work — a rostered Sunday the
+ * member would like to be released from. The two are independent, so it is a field beside the
+ * answer, not a mode.
  *
- * Every other field on this schema is about OVERTIME: extra work the member is offering. This one is
- * about their CONTRACTED work — a Sunday they are rostered to and would like to be released from.
- * The two are independent, which is why it is a field beside the answer rather than a mode competing
- * with it: "I can work Monday evening, and please take me off Sunday" is one coherent statement, and
- * so is "I am not available at all that week, and please take me off Sunday".
+ * **It is a REQUEST and nothing more** (OVERTIME_AVAILABILITY.md invariant 14). It changes no roster,
+ * writes no override, and consumes no annual leave; Sundays stay uncontracted for leave
+ * (`SUNDAY_FORBIDDEN_TYPES`, override-utils.js). The roster team decides. The owner chose this over
+ * inventing a new kind of absence: the member ASKS through the form they already fill in that week.
  *
- * **It is a REQUEST and nothing more.** It changes no roster, writes no override, and consumes no
- * annual leave. Sundays stay uncontracted for leave (`SUNDAY_FORBIDDEN_TYPES`, override-utils.js) and
- * nothing here touches that. The roster team decides; this records what was asked, in the place the
- * member is already telling them about that week.
- *
- * ── WHY IT EXISTS ───────────────────────────────────────────────────────────────────────────────
- *
- * The depot's leave workbook has always been able to say "this person was away for their Sunday
- * duty" — it writes a free-text `N/A <name>` tag in the Sunday row — and the app could not represent
- * it at all. An external review (v23.78) proposed a new non-entitlement absence type; the owner's
- * answer was better, because it puts the fact where it is actually decided: a member ASKS through
- * the form they already fill in for that week, rather than the app inventing a kind of absence.
- *
- * ── ALLOWED ON EVERY MODE, UNLIKE `fullTwelve` ──────────────────────────────────────────────────
- *
- * `fullTwelve` is refused on `unavailable` because a willingness to work long cannot mean anything
- * beside "I cannot work". This one is the opposite case: a member unavailable all week is exactly
- * somebody who may need to be taken off a Sunday duty, so refusing it there would remove it from the
- * people most likely to want it.
- *
- * ── STORED ONLY WHEN TRUE ───────────────────────────────────────────────────────────────────────
- *
- * Same rule as `fullTwelve`, for the same reason: an absent field is the absence of a request, not a
- * declared "no". Answers written before this field and after it stay comparable, and no historical
- * answer acquires an opinion it never gave.
+ * ALLOWED ON EVERY MODE, UNLIKE `fullTwelve`: a member unavailable all week is exactly somebody who
+ * may need to come off a Sunday. STORED ONLY WHEN TRUE, for the same reason as `fullTwelve`.
  */
 const REQUEST_DAY_FIELDS = Object.freeze(['releaseRequested']);
 
@@ -703,10 +551,8 @@ function normaliseDay(raw) {
         if (raw.fullTwelve) day.fullTwelve = true;
     }
 
-    // The request to be taken off a rostered Sunday. Type-checked like everything else, written only
-    // when true, and NOT validated against the roster here — the server has no roster, and a request
-    // the member made is a fact about what they asked even if their shift changes afterwards. The
-    // client offers it only where it means something; see REQUEST_DAY_FIELDS.
+    // The Sunday release request. Written only when true, and NOT validated against the roster — the
+    // server has none, and a request is a fact about what was asked. See REQUEST_DAY_FIELDS.
     if (raw.releaseRequested !== undefined) {
         if (typeof raw.releaseRequested !== 'boolean') return { ok: false, error: 'bad-release-requested' };
         if (raw.releaseRequested) day.releaseRequested = true;
@@ -729,9 +575,8 @@ function normaliseDay(raw) {
     }
     if (mode === 'custom') {
         if (day.start === day.end) return { ok: false, error: 'custom-zero-length' };
-        // `nextDay` is not the member's opinion — it is a fact about the two times they gave. Taking
-        // it on trust would let a client store 18:00–23:00 flagged as overnight, which reads as a
-        // 29-hour availability window.
+        // `nextDay` is a fact about the two times given, not trusted from the client — 18:00–23:00
+        // flagged overnight would read as a 29-hour window.
         if (day.nextDay !== (day.end < day.start)) return { ok: false, error: 'next-day-mismatch' };
     }
     return { ok: true, day };
@@ -758,12 +603,9 @@ function normaliseDays(days, expectedDates) {
         if (!Object.prototype.hasOwnProperty.call(days, date)) return { ok: false, error: 'missing-day', date };
         const r = normaliseDay(days[date]);
         if (!r.ok) return { ok: false, error: r.error, date };
-        // The release request is a question about a SUNDAY duty and nothing else (v23.87, external
-        // review). The server still checks no roster — it has none, and a request is a fact about
-        // what was asked — but it does know the calendar, and the client only ever offers the control
-        // on a Sunday, so a request on any other date is a client this server does not recognise.
-        // Without this a manipulated payload could put "Asked to come off this Sunday" under a
-        // Monday on the reviewer's screen.
+        // The release request is about a SUNDAY duty and nothing else. The server checks the
+        // calendar, never the roster: a request on any other date is a client it does not recognise,
+        // and would put "Asked to come off this Sunday" under a Monday on the reviewer's screen.
         if (r.day.releaseRequested === true && isoDayOfWeek(date) !== 0) {
             return { ok: false, error: 'release-not-sunday', date };
         }
@@ -802,13 +644,11 @@ function revisionId(n) {
  *
  * The three-way split matters because two of the outcomes look like failure and are not:
  *
- *   noop      the content already IS the stored content. This is the ordinary duplicate click, and
- *             it is also the retry after a timeout — which is why it succeeds EVEN WITH a stale
- *             `ifRevision`. The caller is trying to save what is already authoritative; refusing
- *             would tell somebody their availability was rejected when it is saved and correct.
- *   conflict  the content differs AND the caller's baseline is stale, so somebody else (or the
- *             caller's own earlier, successful, timed-out request) has written since. Never
- *             last-write-wins: the loser of a silent race believes they submitted.
+ *   noop      the content already IS the stored content — a duplicate click or the retry after a
+ *             timeout — so it succeeds EVEN WITH a stale `ifRevision`; refusing would report a
+ *             saved, correct answer as rejected.
+ *   conflict  the content differs AND the caller's baseline is stale. Never last-write-wins: the
+ *             loser of a silent race believes they submitted.
  *   append    the ordinary genuine amendment.
  *
  * @param {{currentRevision:number, days:object}|null} head
@@ -874,16 +714,9 @@ function deriveHistory(revisions, headDays, initialDeadlineAt, openedAt = 0) {
 }
 
 /**
- * When each individual DATE's answer last changed (v21.26, external review of v21.22).
- *
- * A submission has ONE `updatedAt` for the whole form, and the reviewer's rows printed their age
- * from it — so somebody who answered all seven days a fortnight ago and edited only the Saturday
- * this morning had every day reported as declared today. Always in the FRESHER direction, which is
- * the one that costs something when a clerk is arranging short-notice cover.
- *
- * Derived rather than stored: the append-only revisions already hold every answer at every point,
- * so a stored copy would be a second version of a derivable truth, free to disagree with the
- * history it summarises. Same reasoning as `initialRevision` and `lateInitial` above.
+ * When each individual DATE's answer last changed — the form's one `updatedAt` would report every
+ * day as fresh when only one was edited. Derived from the append-only revisions rather than stored,
+ * so it cannot disagree with the history it summarises.
  *
  * ⚠️ THE CLIENT HAS ITS OWN COPY, in `overtime-format.js` — the Manager view is the only thing that
  * renders this, and it cannot import a CommonJS module. `overtime-parity.test.mjs` compares the two
@@ -923,24 +756,17 @@ function stableKeyOrder(v) {
     return out;
 }
 
-// ── Push notices (v21.47) ───────────────────────────────────────────────────────────────────────
+// ── Push notices ────────────────────────────────────────────────────────────────────────────────
 //
-// The feature runs on deadlines and, until v21.47, nothing nudged anyone: a window opened silently
-// overnight and the initial deadline passed silently at noon. A member who did not happen to open
-// the app that week became a permanent "No response" — the record the Manager view treats as its
-// most load-bearing distinction, manufactured by the absence of a reminder rather than by the
-// person. These are the WORDS and the WHEN; the sending (uids, subscriptions, the targeted-only
-// rule) lives in functions/overtime.js and push.js.
-//
-// Everything here is pure so the boundaries — the 24-hour lookahead, the already-sent stamp, the
-// clipped-title budget — are testable in test:hygiene without an emulator.
+// Without a nudge, a member who did not open the app that week becomes a permanent "No response".
+// These are the WORDS and the WHEN; the sending (uids, subscriptions, the targeted-only rule) lives
+// in functions/overtime.js and push.js. Pure, so the boundaries are testable in test:hygiene.
 
 /**
  * How far ahead of the initial deadline the reminder fires.
  *
  * The daily run is 05:00 London and the deadline is 12:00 London, so a 24-hour lookahead selects
- * exactly ONE run — the deadline's own morning, seven hours out. A window (rather than a same-day
- * test) keeps the rule pure: no timezone read, and a boundary a unit test can actually pin.
+ * exactly ONE run — the deadline's own morning. A window keeps the rule pure: no timezone read.
  */
 const REMINDER_LOOKAHEAD_MS = 24 * 60 * 60 * 1000;
 
@@ -976,8 +802,7 @@ function reminderDue(milestones, reminderSentAtMs, nowMs) {
 function londonDeadlineLabel(ms) {
     const d = new Date(ms);
     // The MONTH from our own list, never Intl's short month: Node's en-GB data spells September
-    // "Sept", which the client's `deadlineLabel` was rewritten to avoid — so the asked notice said
-    // "1 Sept" above a form saying "1 Sep" (whole-app review, Oct 2026). The reminder already used it.
+    // "Sept", where the client says "Sep".
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'numeric',
     }).formatToParts(d).map(p => [p.type, p.value]));
@@ -994,19 +819,11 @@ function londonDeadlineLabel(ms) {
  * `buildPushPayload` never has to clip it — asserted in overtime-core.test.mjs, because a clipped
  * deadline is worse than none.
  *
- * ONE notice per member per run, however many weeks they were just added to — the tag replaces on
- * the lock screen but each send still buzzes, and five buzzes in five seconds about one form is
- * not this app's register. The body names the SOONEST deadline, which is the one that can be
- * missed.
+ * ONE notice per member per run, however many weeks they were just added to — each send buzzes.
+ * The body names the SOONEST deadline, which is the one that can be missed.
  *
- * ── THE DEADLINE NAMED MUST BE ONE THAT IS STILL AHEAD (v21.56, external sweep) ─────────────────
- *
- * A window created AFTER its initial deadline is a supported path — the horizon's "first deadline
- * has passed" row exists to invite exactly that, because a late form beats no form. The notice
- * used to name `initialDeadlineAt` unconditionally, so everyone asked by a late-created week was
- * told to answer by a moment already days in the past — the same error direction as the v21.54
- * reminder fix: it tells somebody the thing is over when the form is in fact open until the FINAL
- * deadline. So when `nowMs` is past the initial deadline, the body names the final one instead.
+ * THE DEADLINE NAMED MUST BE ONE THAT IS STILL AHEAD: a window created after its initial deadline
+ * is supported, so past that deadline the body names the final one.
  *
  * @param {{ initialDeadlineAt: number, finalDeadlineAt: number }} soonest milestones of the
  *        earliest newly-asked week
@@ -1038,20 +855,9 @@ function reminderNotice(milestones) {
     const [, m, d] = milestones.weekEnding.split('-').map(Number);
     return {
         headline: 'Overtime — answers due today',
-        // ── "DUE", NEVER "CLOSES" (v21.54, external review P1) ──────────────────────────────────
-        //
-        // This said the form "closes at 12:00 today" and that is FALSE: noon is the INITIAL
-        // deadline, after which `phaseFor` returns FINAL_OPEN and `isOpenPhase` is still true —
-        // the member can make a first submission or change one for another week. The member's own
-        // screen has always said it correctly, in two lines ("Answers due …" / "Changes close …"),
-        // so the push was contradicting the app it came from.
-        //
-        // The direction of the error is what makes it worth a release on its own: it tells
-        // somebody who has missed noon that there is no point answering, which manufactures
-        // exactly the permanent non-response the reminder exists to prevent.
-        //
-        // "Initial" carries the distinction inside the budget; spelling out the second deadline
-        // as well does not fit in 80 characters and belongs on the page, where it already is.
+        // "DUE", NEVER "CLOSES": noon is the INITIAL deadline, after which the form is still open
+        // (FINAL_OPEN). "Closes" would tell somebody who missed noon there is no point answering.
+        // "Initial" carries the distinction inside the 80-character budget.
         body: `Initial answers for week ending Sat ${d} ${MONTH_ABB_EN[m - 1]} are due by ${time} today.`,
     };
 }
@@ -1091,8 +897,7 @@ module.exports = {
     REQUEST_DAY_FIELDS,
     OPTIONAL_DAY_FIELDS,
     // clock — the first two and londonIsoDate are RE-EXPORTS of london-clock.js, and must stay
-    // re-exports. Eight call sites reach them as `OT.x`; re-DECLARING one here would leave every
-    // one of them resolving and running, with two clocks in the process and nothing to say so.
+    // re-exports: re-DECLARING one here would leave two clocks in the process and nothing to say so.
     // `london-clock.test.mjs` asserts identity rather than presence, for exactly that reason.
     londonOffsetMinutes,
     londonTimestamp,        // exported for the DST-pathology tests, not for production callers
