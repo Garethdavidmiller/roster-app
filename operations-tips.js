@@ -83,9 +83,9 @@ export const CARD_TIPS = {
     'staff-login': {
         title: 'Staff Login Accounts',
         sections: [{ items: [
-            { icon: '🔐', html: 'Creates an app login for every active staff member so the app knows who is saving changes.' },
+            { icon: '🔐', html: 'Creates a sign-in account for every active staff member so the app knows who is saving changes.' },
             // The check list above the button (admin-auth.js).
-            { icon: '🔎', html: 'The card checks first. <strong>“members are not set up”</strong> names anyone with no login or the wrong permissions; <strong>“leavers can still sign in”</strong> names anyone who has left and still has a working account. <strong>✓ Everyone on the roster has a login</strong> means there is nothing to do.' },
+            { icon: '🔎', html: 'The card checks first. <strong>“members are not set up”</strong> names anyone with no account or the wrong permissions; <strong>“leavers can still sign in”</strong> names anyone who has left and still has a working account. <strong>✓ Everyone on the roster has a login</strong> means there is nothing to do.' },
             { icon: '✅', html: 'Safe to run any time for everyone already set up — a working account keeps its password, and a new joiner gets an account with their surname as the password.' },
             { icon: '🔁', html: 'It <strong>resets</strong> two kinds of account to the surname default and signs them out: one with <strong>no permissions</strong> (registered outside the app) and one that is <strong>disabled</strong>. The card names them before you press, and the result names them again — tell them their password is their surname.' },
             // The server reads the DEPLOYED roster-members.json, so a press before the starter's release is live creates nothing.
@@ -142,7 +142,7 @@ export const CARD_TIPS = {
         sections: [{ items: [
             { icon: '🔑', html: 'Staff who select <strong>“Can’t get in? Ask the admin to reset your password”</strong> on the sign-in card appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
             { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in card has no way to prove who is asking, so anyone could file a request in someone else’s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out on every device.' },
-            { icon: '🆕', html: 'A row saying <strong>“No account yet”</strong> means they have no login account yet, so there is nothing to reset. Run <strong>Set up accounts</strong> instead.' },
+            { icon: '🆕', html: 'A row saying <strong>“No account yet”</strong> means there is no account for them yet, so there is nothing to reset. Run <strong>Set up accounts</strong> instead.' },
             { icon: '🚫', html: 'A row saying <strong>“Account disabled”</strong> means the account is switched off, so a reset would not let them in. Run <strong>Set up accounts</strong> instead: it switches the account back on with their surname as the password, and signs them out.' },
             { icon: '🧹', html: '<strong>Clear</strong> removes the row once you have dealt with it. If they ask again it comes back, with the count showing how many times.' },
         ]}],
@@ -228,7 +228,7 @@ export const CARD_TIPS = {
                 { icon: '⎘', html: 'Use <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device and the time. It leaves out <strong>the name of the member it happened to</strong>: this card shows it, because unlike the Usage and App Speed cards it is not anonymous, but what you paste somewhere else does not need it.' },
             ]},
             { heading: 'Resolving errors', items: [
-                { icon: '✓', html: '<strong>Resolve</strong> marks an error as reviewed. It <strong>stays in the list</strong>, dimmed and below the unresolved ones, so you can see what you have already been through — up to 30 of them. It is not deleted immediately either: resolved errors are kept for 90 days, then pruned automatically.' },
+                { icon: '✓', html: '<strong>Resolve</strong> marks an error as reviewed. It <strong>stays in the list</strong>, dimmed and below the unresolved ones, so you can see what you have already been through — up to 30 of them. It is not deleted immediately either: resolved errors are kept for 90 days, then deleted automatically.' },
                 // operations-errors.js: the toolbar button re-reads and pulls the next batch; a single row's Resolve does not.
                 { icon: '☑️', html: '<strong>✓ Resolve all shown</strong> resolves every entry in the list at once, then loads the next batch — useful after a bad release.' },
                 { icon: '🔄', html: 'You don’t need to manually clean up the log — resolved errors expire on their own.' },

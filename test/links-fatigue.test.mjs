@@ -183,7 +183,7 @@ describe('the 55-hour week (MRSF): the floor the rota fixes, and a cover week at
         const row = assessFatigue(d, 1).results.find(r => r.title.includes('55 hours'));
         assert.equal(row?.status, 'present', 'over 55 when the spare days are worked, so present');
         assert.equal(row?.value, 59, 'the figure shown is the one the verdict was taken on');
-        assert.match(String(row?.detail), /^59 hours in the worst case, and 24 on the duties the rota fixes\./);
+        assert.match(String(row?.detail), /^59 hours in the worst case, and 24 on the duties the link fixes\./);
     });
     test('a cover day counts as a quarter of the contracted week — the app\'s own reading of a cover week', () => {
         assert.equal(COVER_DUTY_MINUTES, CONTRACTED_HOURS_PER_WEEK * 60 / SPARE_WORKED_DAYS);

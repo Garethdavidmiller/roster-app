@@ -659,7 +659,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * @param {any} a
      */
     function customHint(a) {
-        if (!a.start || !a.end) return 'Enter both times as HH:MM, e.g. 06:00';
+        if (!a.start || !a.end) return 'Enter both times as HH:MM, for example 06:00';
         if (a.start === a.end)  return 'Start and end cannot match';
         return a.nextDay ? 'Runs into the next day — still this day\'s answer' : '';
     }

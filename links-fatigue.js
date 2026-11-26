@@ -671,7 +671,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
         detail: !hoursAreFloor ? undefined
             : worst7 === floor7
                 ? `A cover week's times are not yet assigned. Counted at its worst — ${coverDuties} placed as badly as they can be, and its Sunday worked as overtime, each as ${COVER_DUTY_WORDS} — it makes no seven days longer than this.`
-                : `${_hours55(worst7)} hours in the worst case, and ${_hours55(floor7)} on the duties the rota fixes. A cover week's times are not yet assigned, so ${coverDuties} are placed as badly as they can be and its Sunday is worked as overtime, each counted as ${COVER_DUTY_WORDS}.`
+                : `${_hours55(worst7)} hours in the worst case, and ${_hours55(floor7)} on the duties the link fixes. A cover week's times are not yet assigned, so ${coverDuties} are placed as badly as they can be and its Sunday is worked as overtime, each counted as ${COVER_DUTY_WORDS}.`
                   + (over55 && floor7 <= 55 * 60 ? ' Over 55 only if a cover week falls that way — and the worst case is what is reported, as for every run in this panel.' : '') });
 
     // ── THE TWO ROWS THAT WERE MISSING (v21.97) ─────────────────────────────
