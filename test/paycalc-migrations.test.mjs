@@ -522,9 +522,9 @@ describe('a migration that cannot write does not delete', () => {
         assert.equal(after.myb_pc_cea_migrated, '1', 'and the migration is recorded as done');
     });
     // THE OTHER HALF: THE COPY LANDS, THE SOURCE WILL NOT GO (external audit of v26.92). Nothing is
-    // lost — both copies are there — but the move answered true, so the migration was recorded as
-    // done with the old key still in place. Now it waits, and the retry only removes the source.
-    test('a source that will not be removed withholds "done" — and the retry never writes over a NEWER destination', () => {
+    // lost — both copies are there. The copy is DONE, so the flag is set and names the source still
+    // to go; the next load only removes it (review of v26.95 — waiting re-ran the copy).
+    test('a source that will not be removed is LISTED, not retried — and the tidy never writes over a NEWER destination', () => {
         const KEY = legacyNames().code;
         const storage = makeFailingStorage({ cea_code: '1257L' });
         const realRemove = storage.removeItem;
@@ -534,7 +534,8 @@ describe('a migration that cannot write does not delete', () => {
         let after = global.localStorage.dump();
         assert.equal(after.cea_code, '1257L', 'the source is still there');
         assert.equal(after[KEY], '1257L', 'and so is the copy');
-        assert.equal(after.myb_pc_cea_migrated, undefined, 'so the migration is NOT recorded as done');
+        assert.deepEqual(JSON.parse(after.myb_pc_cea_migrated), ['cea_code'],
+            'so the copy is recorded as done, with the source listed for removal');
 
         // Between loads the member changes their code; then storage lets removals through again.
         storage.setItem(KEY, '1263L');
@@ -542,8 +543,200 @@ describe('a migration that cannot write does not delete', () => {
         setPaycalcNamespace(undefined);
         runMigrations(deps(MEMBER));
         after = global.localStorage.dump();
-        assert.equal(after[KEY], '1263L', 'the retry kept the newer code — it never wrote the old one back over it');
+        assert.equal(after[KEY], '1263L', 'the tidy kept the newer code — it never wrote the old one back over it');
         assert.equal(after.cea_code, undefined, 'the source is gone now');
-        assert.equal(after.myb_pc_cea_migrated, '1', 'and only now is it recorded as done');
+        assert.equal(after.myb_pc_cea_migrated, '1', 'and nothing is left to tidy');
+    });
+});
+
+// ── A SOURCE THAT WILL NOT GO, LOAD AFTER LOAD (review of v26.95) ───────────────────────────────
+// v26.95 made a move whose source would not be removed count as unfinished, so the one-shot flags
+// waited — and both migrations then re-ran over data that had ALREADY been copied:
+//   · on a shared phone, member B was asked "Is this your pay data?" about the tax code member A had
+//     just claimed, and "Yes" copied it into B's namespace (invariant 3);
+//   · the CEA rename copied `cea_code` back into `myb_pc_code` after the member's "No — delete it",
+//     where, with the ownership question closed, nothing would ever offer or clear it again.
+// The one test that reached a retry turned removal back ON before it, so neither branch was ever run
+// with the refusal still in force. These keep it refused across loads, and record every write.
+
+/** A storage whose removals are refused for keys `ctl.refuse` names, for as long as it says so, and
+ *  whose writes throw for keys `ctl.failSet` names. Every successful write is logged in `writes`. */
+function makeStubbornStorage(initial = {}) {
+    const store = new Map(Object.entries(initial));
+    /** @type {string[]} */
+    const writes = [];
+    const ctl = { refuse: (/** @type {string} */ _k) => true, failSet: (/** @type {string} */ _k) => false };
+    return {
+        ctl, writes,
+        getItem(k)    { return store.has(k) ? store.get(k) : null; },
+        setItem(k, v) {
+            if (ctl.failSet(k)) { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; }
+            writes.push(k); store.set(k, String(v));
+        },
+        removeItem(k) { if (!ctl.refuse(k)) store.delete(k); },
+        key(i)        { return Array.from(store.keys())[i] ?? null; },
+        get length()  { return store.size; },
+        dump()        { return Object.fromEntries(store); },
+    };
+}
+
+/** One page load: a fresh module namespace, then the real migrations. */
+function load(member) {
+    setPaycalcNamespace(undefined);
+    runMigrations(deps(member));
+}
+
+describe('a legacy source that will not be removed, load after load', () => {
+    const A = MEMBER;
+    const B = { name: /** @type {string} */ (teamMembers.find(m => !m.hidden && !m.managerOnly && m.name !== A.name)?.name), role: 'CEA' };
+    const nsOf = (/** @type {{name:string}} */ m) => `myb_pc_${memberSlug(m.name)}_`;
+    const FLAGS = { myb_pc_cea_migrated: '1', myb_pc_pension_v882_migrated: '1' };
+    const LEGACY = { myb_pc_code: '1257L', myb_pc_p43: '{"std":140}' };
+
+    // Two starting points: a first claim, and a phone v26.95–v26.98 left with BOTH copies and no flag
+    // (the copy landed, the source stayed, the flag waited) — which takes the "already there" branch.
+    const SEEDS = {
+        'a first claim': () => ({ ...FLAGS, ...LEGACY }),
+        'a v26.95 phone holding both copies': () => ({ ...FLAGS, ...LEGACY,
+            [`${nsOf(A)}code`]: '1257L', [`${nsOf(A)}p43`]: '{"std":140}' }),
+    };
+
+    for (const [label, seed] of Object.entries(SEEDS)) {
+        test(`shared phone (${label}): after A claims, B is never asked and never receives A's figures; A is not re-asked`, () => {
+            const ls = makeStubbornStorage(seed());
+            global.localStorage = ls;
+            load(A);
+            assert.equal(hasPendingLegacyMigration(A.name), true, 'premise: A is asked');
+            resolveLegacyMigration(A.name, 'mine');
+            assert.equal(ls.getItem(`${nsOf(A)}code`), '1257L', 'premise: A has the tax code');
+            assert.equal(ls.getItem('myb_pc_code'), '1257L', 'premise: the legacy source would not go');
+
+            load(A);
+            assert.equal(hasPendingLegacyMigration(A.name), false, 'A was asked again about data already claimed');
+            load(B);
+            assert.equal(hasPendingLegacyMigration(B.name), false, "B was asked about A's pay data");
+            resolveLegacyMigration(B.name, 'mine');   // a stale prompt, or any caller that did not ask first
+            load(B);
+            const bKeys = Object.keys(ls.dump()).filter(k => k.startsWith(nsOf(B)));
+            assert.deepEqual(bKeys, [], "A's figures reached B's namespace");
+            assert.equal(ls.getItem(`${nsOf(A)}code`), '1257L', "A's own copy is untouched");
+        });
+
+        test(`CEA rename (${label === 'a first claim' ? 'a first copy' : 'a v26.95 phone holding both copies'}) then "No — delete it": the deleted figure never comes back`, () => {
+            const initial = label === 'a first claim'
+                ? { cea_code: '1257L' }
+                : { cea_code: '1257L', myb_pc_code: '1257L' };   // copied by v26.95, flag withheld
+            const ls = makeStubbornStorage(initial);
+            ls.ctl.refuse = k => k.startsWith('cea_');           // only the CEA source is stuck
+            global.localStorage = ls;
+            load(A);
+            assert.equal(hasPendingLegacyMigration(A.name), true, 'premise: the renamed code is offered');
+            resolveLegacyMigration(A.name, 'fresh');
+            assert.equal(ls.getItem('myb_pc_code'), null, 'premise: "No — delete it" deleted it');
+
+            for (let i = 0; i < 3; i++) {
+                const wrote = ls.writes.length;
+                load(A);
+                assert.equal(ls.getItem('myb_pc_code'), null, `load ${i + 2}: the deleted tax code was copied back`);
+                assert.equal(ls.writes.length, wrote, `load ${i + 2}: a tidy that removed nothing still rewrote storage`);
+                assert.equal(hasPendingLegacyMigration(A.name), false);
+            }
+            assert.ok(!ls.writes.slice(ls.writes.indexOf('myb_pc_ns_migrated')).includes('myb_pc_code'),
+                'nothing wrote the tax code after the answer');
+            assert.equal(ls.getItem('cea_code'), '1257L', 'premise: the source is still refused');
+        });
+    }
+
+    for (const [label, initial] of Object.entries({
+        'a first copy': { cea_code: '1257L', myb_pc_p43: '{"std":140}' },
+        // v26.95 already copied both, so each takes the "already there" branch
+        'a v26.95 phone holding both copies': { cea_code: '1257L', myb_pc_code: '1257L',
+            myb_pc_p43: '{"std":140}', [`${nsOf(A)}p43`]: '{"std":140}' },
+    })) test(`removal starts working (${label}): the leftovers go, and nothing is copied a second time`, () => {
+        const ls = makeStubbornStorage(initial);
+        global.localStorage = ls;
+        load(A);
+        resolveLegacyMigration(A.name, 'mine');
+        assert.equal(ls.getItem(`${nsOf(A)}code`), '1257L', 'premise: the code reached A');
+        assert.equal(ls.getItem(`${nsOf(A)}p43`), '{"std":140}', 'premise: the payslip reached A');
+        ls.setItem(`${nsOf(A)}code`, '1263L');               // A corrects the code before the next load
+
+        const before = ls.writes.length;
+        ls.ctl.refuse = () => false;                         // storage behaves again
+        load(A);
+        const after = ls.dump();
+        for (const k of ['cea_code', 'myb_pc_code', 'myb_pc_p43']) assert.equal(after[k], undefined, `${k} was not tidied`);
+        assert.equal(after[`${nsOf(A)}code`], '1263L', "A's newer code was overwritten");
+        assert.equal(after.myb_pc_cea_migrated, '1');
+        assert.equal(after.myb_pc_ns_migrated, '1');
+        assert.deepEqual(ls.writes.slice(before).sort(), ['myb_pc_cea_migrated', 'myb_pc_ns_migrated'],
+            'the tidy wrote something other than its own flags');
+
+        const settled = ls.writes.length;
+        load(A);
+        assert.deepEqual(ls.writes.slice(settled), [], 'a settled device still writes on every load');
+        assert.equal(hasPendingLegacyMigration(B.name), false);
+    });
+
+    test('"No — delete it" over legacy keys that will not go: nobody is asked again, and a later load clears them', () => {
+        const ls = makeStubbornStorage({ ...FLAGS, ...LEGACY });
+        global.localStorage = ls;
+        load(A);
+        resolveLegacyMigration(A.name, 'fresh');
+        assert.equal(ls.getItem('myb_pc_code'), '1257L', 'premise: the delete was refused');
+        load(B);
+        assert.equal(hasPendingLegacyMigration(B.name), false, 'B was offered data A said to delete');
+
+        ls.ctl.refuse = () => false;
+        load(B);
+        assert.equal(ls.getItem('myb_pc_code'), null, 'the refused delete was never tried again');
+        assert.equal(ls.getItem('myb_pc_p43'), null);
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');
+    });
+
+    test('a COPY that fails still withholds the flag and loses nothing — even beside a source that will not go', () => {
+        const ls = makeStubbornStorage({ ...FLAGS, ...LEGACY });
+        ls.ctl.failSet = k => k === `${nsOf(A)}code`;        // quota: the tax code cannot be written
+        global.localStorage = ls;
+        load(A);
+        resolveLegacyMigration(A.name, 'mine');
+        let after = ls.dump();
+        assert.equal(after.myb_pc_ns_migrated, undefined, 'the question was closed over a value that never arrived');
+        assert.equal(after.myb_pc_code, '1257L', 'the tax code was lost');
+        assert.equal(after.myb_pc_p43, '{"std":140}', 'the payslip that DID copy kept its source too');
+        assert.equal(hasPendingLegacyMigration(A.name), true, 'so A is asked again');
+
+        // CEA: one copy fails, another lands beside a source that will not go — still deferred.
+        const cea = makeStubbornStorage({ cea_code: '1257L', cea_grade: 'cea' });
+        cea.ctl.failSet = k => k === 'myb_pc_code';
+        global.localStorage = cea;
+        load(A);
+        after = cea.dump();
+        assert.equal(after.myb_pc_cea_migrated, undefined, 'the CEA rename was recorded as done with a value missing');
+        assert.equal(after.cea_code, '1257L', 'the tax code was lost');
+        cea.ctl.failSet = () => false;
+        load(A);
+        assert.equal(cea.getItem('myb_pc_code'), '1257L', 'the retry copies what did not land');
+        assert.ok(cea.getItem('myb_pc_cea_migrated'), 'and only then is it recorded');
+    });
+
+    test('a tidy removes only what it listed, and only while it is still a legacy source', () => {
+        const ls = makeStubbornStorage({
+            myb_pc_cea_migrated: JSON.stringify(['cea_code', `${nsOf(A)}code`]),
+            myb_pc_ns_migrated:  JSON.stringify(['myb_pc_p43', `${nsOf(B)}code`, 'myb_pc_cea_migrated']),
+            cea_code: 'x', myb_pc_p43: 'y', myb_pc_p44: 'later',
+            [`${nsOf(A)}code`]: 'A', [`${nsOf(B)}code`]: 'B', myb_pc_pension_v882_migrated: '1',
+        });
+        ls.ctl.refuse = () => false;
+        global.localStorage = ls;
+        load(A);
+        const after = ls.dump();
+        assert.equal(after.cea_code, undefined);
+        assert.equal(after.myb_pc_p43, undefined);
+        assert.equal(after.myb_pc_p44, 'later', 'a legacy key nobody listed was swept up');
+        assert.equal(after[`${nsOf(A)}code`], 'A', "a member's own key was deleted from a list");
+        assert.equal(after[`${nsOf(B)}code`], 'B', "another member's key was deleted from a list");
+        assert.equal(after.myb_pc_cea_migrated, '1');
+        assert.equal(after.myb_pc_ns_migrated, '1');
     });
 });
