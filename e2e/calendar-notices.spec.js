@@ -317,7 +317,7 @@ test('install notice: never on a desktop — and not flagged there, so the membe
 // sign-in reaches the gate, that the link really lands them ON the New link page (which turns away
 // anybody the notice should not have told), and that on a real phone the order holds across reloads.
 // Who it is for, every name on the roster, and the dates are pinned there.
-const NEWLINK_NOTICE_DAY = new Date('2026-11-10T09:00:00Z');   // the day after its posting; offered to 5 Dec
+const NEWLINK_NOTICE_DAY = new Date('2026-11-27T09:00:00Z');   // the day after the vote notice's posting; offered to 5 Dec
 /** Somebody on the roster who fits — found, not named, so a leaver cannot break a test (newlink.spec.js's rule),
  *  and never on a role list, which would reach the page by that list instead. @param {string} what
  *  @param {(m: any) => boolean} fits @returns {string} */
@@ -335,17 +335,17 @@ test('New link notice: a colleague the page is for is told, and its link takes t
     await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
     await seedSession(page, NEWLINK_COLLEAGUE);
     await seedMemberSession(page, NEWLINK_COLLEAGUE);
-    await clearNoticeFlags(page, ['myb_notice_newlink_2026_done']);   // after the seeders: last write wins
+    await clearNoticeFlags(page, ['myb_notice_newlink_vote_2026_done']);   // after the seeders: last write wins
     await page.goto('/');
     const notice = page.locator('#newlinkNoticeLb');
     await expect(notice, 'on a desk there is no install notice to wait for, and on a phone the seeders answered it')
         .toHaveClass(/\bopen\b/, { timeout: 15_000 });
-    await expect(page.locator('#newlinkNoticeContent .lightbox-app-name')).toHaveText('See the three proposals for the new link');
+    await expect(page.locator('#newlinkNoticeContent .lightbox-app-name')).toHaveText('Voting on the new link starts soon');
     // The flag is read AS THE LINK IS PRESSED, not on the page it opens: the init scripts run again on that navigation,
     // and the one that re-enabled this notice for the test clears the flag — in whichever order they happen to run.
     // A document listener bubbles after the link's own, and sessionStorage survives the navigation untouched.
     await page.evaluate(() => document.addEventListener('click', () => {
-        sessionStorage.setItem('__newlinkDoneAtClick', localStorage.getItem('myb_notice_newlink_2026_done') ?? 'unset');
+        sessionStorage.setItem('__newlinkDoneAtClick', localStorage.getItem('myb_notice_newlink_vote_2026_done') ?? 'unset');
     }));
     await page.locator('#newlinkNoticeGo').click();
     await expect(page).toHaveURL(/\/newlink\.html$/);
@@ -374,7 +374,7 @@ test('New link notice: one Back from the page its link opened returns to the Cal
     await page.addInitScript(() => {
         if (location.pathname !== '/' || sessionStorage.getItem('__e2e_newlink_offered')) return;
         sessionStorage.setItem('__e2e_newlink_offered', '1');
-        localStorage.removeItem('myb_notice_newlink_2026_done');
+        localStorage.removeItem('myb_notice_newlink_vote_2026_done');
     });
     await page.goto('/railcard-guide.html');                   // where the member came from
     await page.goto('/');
@@ -395,12 +395,12 @@ test('New link notice: never for a colleague the page turns away — and not fla
     await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
     await seedSession(page, NOT_NEWLINK);
     await seedMemberSession(page, NOT_NEWLINK);
-    await clearNoticeFlags(page, ['myb_notice_newlink_2026_done']);
+    await clearNoticeFlags(page, ['myb_notice_newlink_vote_2026_done']);
     await page.goto('/');
     await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
     await page.waitForTimeout(2500);                          // past the 1,500ms defer
     await expect(page.locator('#newlinkNoticeLb')).not.toHaveClass(/\bopen\b/);
-    expect(await page.evaluate(() => localStorage.getItem('myb_notice_newlink_2026_done')), 'refused, so left unflagged').toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_newlink_vote_2026_done')), 'refused, so left unflagged').toBeNull();
     expect(errors).toHaveLength(0);
 });
 
@@ -422,7 +422,7 @@ test('on a phone, the New link notice comes the load after the install notice �
         // below must survive the reload that follows it (helpers.js → seedCalendarMember).
         if (!sessionStorage.getItem('__e2e_flags_cleared')) {
             sessionStorage.setItem('__e2e_flags_cleared', '1');
-            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
+            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
@@ -462,7 +462,7 @@ async function colleagueWithNoNoticesAnswered(page, day) {
         // below must survive the reload that follows it (helpers.js → seedCalendarMember).
         if (!sessionStorage.getItem('__e2e_flags_cleared')) {
             sessionStorage.setItem('__e2e_flags_cleared', '1');
-            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
+            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');

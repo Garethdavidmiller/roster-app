@@ -121,13 +121,25 @@ const TIMETABLE_SOON_RECORD = {
 };
 
 /**
- * What App Notices keeps of the New link notice. It used to add "Nothing is decided yet", which the
- * record would go on saying after the choice is made; the page itself says where things stand.
+ * What App Notices keeps of the FIRST New link notice (9 Nov 2026), retired on 26 Nov for the one below. Still revised
+ * on every load, because a device that archived it keeps the record for 180 days. It used to add "Nothing is decided
+ * yet", which the record would go on saying after the choice is made; the page itself says where things stand.
  */
 const NEWLINK_RECORD = {
     id: 'newlink-2026', section: 'New link', date: '9 Nov 2026',
     title: 'See the three proposals for the new link',
     body: 'The three proposals for the new link, which starts in January 2027, are on the New link page — open it '
+        + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',
+};
+
+/**
+ * What App Notices keeps of the vote notice (26 Nov 2026). The record is listed for 180 days, long after voting has
+ * begun, so it never says "starts soon" (the notice's title does): it says what to do BEFORE the vote, which stays true.
+ */
+const NEWLINK_VOTE_RECORD = {
+    id: 'newlink-vote-2026', section: 'New link', date: '26 Nov 2026',
+    title: 'Before the vote on the new link',
+    body: 'Before the vote on which of the three proposals goes forward, each one is on the New link page — open it '
         + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',
 };
 
@@ -148,7 +160,7 @@ const FOLLOWED_ENDS = {
     myb_notice_timetable_2026_done:   [OCTOBER_LAST_DAY, 1],
     myb_notice_ytd_figures_2026_done: [OCTOBER_LAST_DAY, 1],
     myb_notice_install_app_2026_done: ['22 Oct 2026', 90],
-    myb_notice_newlink_2026_done:     ['5 Dec 2026', 1],
+    myb_notice_newlink_vote_2026_done: ['5 Dec 2026', 1],
 };
 
 /**
@@ -249,7 +261,7 @@ export function initCalendarNotices({ after } = {}) {
         const FINAL_WEEK      = new Date(2026, 11, 6);     // local midnight, Sunday 6 December — from then it waits for nobody
         const CHANGE_EVE      = '12 Dec 2026';             // offered through the whole of the Saturday; gone on the day itself
         const FOLLOWS_INSTALL = 'myb_notice_install_app_2026_done';   // …where that notice is this device's
-        const FOLLOWS_NEWLINK = 'myb_notice_newlink_2026_done';       // …where that notice is the member's
+        const FOLLOWS_NEWLINK = 'myb_notice_newlink_vote_2026_done';  // …where that notice is the member's (the vote notice since 26 Nov)
 
         const overlay = document.getElementById('timetableSoonNoticeLb');
         if (!overlay) return;
@@ -389,13 +401,16 @@ export function initCalendarNotices({ after } = {}) {
             releaseInstallNoticeYield);   // refused at the open: the strip and the ask come back for this visit
     }());
 
-    // ── The New link page: three proposals, for the colleagues it is for (v25.61; owner, 9 Nov 2026) ──
+    // ── Voting on the new link starts soon (v26.90; owner, 26 Nov 2026) ──────────────────────────────
     //
-    // "A third in sequence on calendar advertising the new links page with a description and link to
-    // that page, but only for those who can view that page." The page opened at v25.60 to everyone on a
-    // normal CEA contract and the managers; this tells them it is there. A ONE-OFF on the rule every
-    // notice here follows — any dismissal marks it done — and its body names the menu route, so
-    // "Not now" loses nothing.
+    // "Take down the old new links app notice and create a new one in the sequence to appear on the
+    // calendar page to say voting starts soon on which set of links will go forward and to familiarise
+    // yourself with them now. This should appear for those who see the new links page." It REPLACES the
+    // first New link notice (v25.61, 9 Nov — "See the three proposals for the new link") in its place in
+    // the queue, on a NEW key, so a member who closed that one still gets this. Nothing about how the
+    // vote is run: it is not settled (owner, 26 Nov 2026). A ONE-OFF on the rule every notice here
+    // follows — any dismissal marks it done — and its body names the menu route, so "Not now" loses
+    // nothing.
     //
     // ONLY WHERE THE PAGE WOULD LET THEM IN. The question is the drawer pill's own, `canOpenNewlink`
     // (auth-policy.js), and newlink-config.test.mjs holds that to the page's door for every name on
@@ -414,13 +429,14 @@ export function initCalendarNotices({ after } = {}) {
     // screen and this one comes back next time (openNoticeIfClear).
     //
     // From its posting day (`STARTS` — before it, a device is left unflagged, not dismissed) to the end
-    // of Saturday 5 December (`LAST_DAY`), so it is gone before the timetable notice's final week, when
-    // that one stops waiting for it (v26.21). Its words say what the page says and no more: the month
-    // the page gives, no person (the page names who leads the change), and nothing about how the
-    // choice is made. Archived on OPEN, because the link leaves the page.
+    // of Saturday 5 December (`LAST_DAY`, the first notice's own end — owner, 26 Nov 2026), so it is gone
+    // before the timetable notice's final week, when that one stops waiting for it (v26.21). Its words say
+    // what the page says and no more: the month the page gives, the number of proposals the page's
+    // heading gives, and no person (the page names who leads the change). Archived on OPEN, because the
+    // link leaves the page.
     (function () {
-        const DONE_KEY        = 'myb_notice_newlink_2026_done';
-        const STARTS          = new Date(2026, 10, 9);     // local midnight, Monday 9 November — its posting day
+        const DONE_KEY        = 'myb_notice_newlink_vote_2026_done';   // NOT the first notice's key: it would hide this from all who closed that
+        const STARTS          = new Date(2026, 10, 26);    // local midnight, Thursday 26 November — its posting day
         const LAST_DAY        = '5 Dec 2026';              // offered through the whole of the Saturday
         const FOLLOWS_INSTALL = 'myb_notice_install_app_2026_done';   // …where that notice is this device's
 
@@ -437,7 +453,7 @@ export function initCalendarNotices({ after } = {}) {
             overlay,
             content:  /** @type {HTMLElement} */ (document.getElementById('newlinkNoticeContent')),
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('newlinkNoticeClose')),
-            onOpen() { archiveNotice(NEWLINK_RECORD); },
+            onOpen() { archiveNotice(NEWLINK_VOTE_RECORD); },
             onClose() { markDone(); },
         });
 

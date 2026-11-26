@@ -911,7 +911,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
     /** Every notice that asked for the screen on this load, in the order it asked. The first one takes it:
      *  openNoticeIfClear refuses a second while one is up, leaving that one unflagged for the next load. */
     const askedInOrder = () => _openedViaHelper.map(lb => lb._cfg.overlay.id);
-    const NOV_15 = new Date(2026, 10, 15, 21, 0).getTime(), NOV_17 = new Date(2026, 10, 17, 9, 0).getTime();
+    const NOV_15 = new Date(2026, 10, 15, 21, 0).getTime(), NOV_27 = new Date(2026, 10, 27, 9, 0).getTime()   // after the New link vote notice's posting day (26 Nov), which this waits for;
     const DEC_5  = new Date(2026, 11, 5, 21, 0).getTime(),  DEC_6  = new Date(2026, 11, 6, 9, 0).getTime();
     const DEC_12 = new Date(2026, 11, 12, 23, 0).getTime();
 
@@ -1016,7 +1016,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
         assert.equal(cta[2], 'Open the Trains page &rarr;', 'a destination, like the New link notice\'s button');
         assert.ok(block.includes(`<div class="notice-badge notice-badge--trains">${pill[1]}</div>`), 'the badge is the pill, word for word');
         assert.ok(block.includes(`☰&nbsp;then ${pill[1].replace(' ', '&nbsp;')}.`), 'the body names the pill, unbroken');
-        mock.timers.setTime(NOV_17);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, session: { name: NOT_NEWLINK } });
         await settleAccess();
         opened()._cfg.onOpen();                               // the harness records an open; the lightbox would run this itself
@@ -1027,7 +1027,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
     });
 
     test('from 16 November, on a desk, for a member the New link page turns away: it opens at once — nothing flagged yet', async () => {
-        mock.timers.setTime(NOV_17);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, session: { name: NOT_NEWLINK } });
         await settleAccess();
         assert.deepEqual(askedInOrder(), [SOON.overlay], 'nothing else is theirs to wait for');
@@ -1035,7 +1035,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
     });
 
     test('for a member the New link page lets in, the New link notice first — this one is NOT opened and NOT flagged', async () => {
-        mock.timers.setTime(NOV_17);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, session: { name: FOR_NEWLINK } });
         await settleAccess();
         assert.deepEqual(askedInOrder(), [NL.overlay]);
@@ -1043,7 +1043,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
     });
 
     test('NOT on the load the New link notice is answered — that flag is read at wiring time — and the load after, it opens', async () => {
-        mock.timers.setTime(NOV_17);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, session: { name: FOR_NEWLINK } });
         await settleAccess();
         asked(NL.overlay)._cfg.onClose();                     // answered: its flag is written now…
@@ -1063,7 +1063,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
     ];
     for (const [page, name, order] of PHONE_ORDERS) {
         test(`on a phone, for a member the New link page ${page}: ${order.join(', then ')} — one a load, each the load after the last`, async () => {
-            mock.timers.setTime(NOV_17);
+            mock.timers.setTime(NOV_27);
             /** @type {Record<string, string>} */ let store = { ...AFTER_OCTOBER };
             for (const next of order) {
                 await wire({ ...PHONE, session: { name }, store });
@@ -1132,7 +1132,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
     });
 
     test('not on the shared PIN station, in either part of its run — and not flagged there', async () => {
-        for (const day of [NOV_17, DEC_6]) {
+        for (const day of [NOV_27, DEC_6]) {
             mock.timers.setTime(day);
             await wire({ ...DESK, accessType: 'viewer', session: null });
             await settleAccess();
@@ -1142,7 +1142,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
     });
 
     test('every dismissal marks it done: the link, Not now, and the close', async () => {
-        mock.timers.setTime(NOV_17);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, session: { name: NOT_NEWLINK }, present: [SOON.overlay, 'timetableSoonNoticeGo', 'timetableSoonNoticeLater'] });
         await settleAccess();
         const lb = opened();
@@ -1211,9 +1211,10 @@ describe('10 · every section a notice archives under has its colour in App Noti
     });
 });
 
-describe('11 · the New link notice: only where the page would let them in, after the install notice, 9 Nov – 5 Dec (v25.61)', () => {
+describe('11 · the New link notice: only where the page would let them in, after the install notice, 26 Nov – 5 Dec (v25.61; the vote notice, v26.90)', () => {
     // Owner, 9 Nov 2026: "a third in sequence on calendar advertising the new links page with a description and link
-    // to that page, but only for those who can view that page." Organised by what a wrong answer costs. Shown to
+    // to that page, but only for those who can view that page." Replaced on 26 Nov by the vote notice, in the same place,
+    // for the same people, on a new key (owner: "voting starts soon … familiarise yourself with them now"). Organised by what a wrong answer costs. Shown to
     // somebody the page turns away, it advertises a door that is shut to them — a CEA on a bilingual contract, whose
     // links stay their own, or a Dispatcher. Waiting for the install notice where that notice is never coming, it
     // reaches nobody at a desk or in the installed app — the managers it is partly for are mostly at a desk. Sharing a
@@ -1223,7 +1224,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
     const INST   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
     const DONE   = DONE_KEY_OF(NL);
     const IIFE   = IIFE_OF('newlinkNoticeLb');
-    const NOV_10 = new Date(2026, 10, 10, 9, 0).getTime();
+    const NOV_27 = new Date(2026, 10, 27, 9, 0).getTime();   // the day after its posting
     const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === NL.overlay));
 
     /** Somebody on the roster who fits — FOUND rather than named, so a leaver cannot quietly turn one case into
@@ -1239,16 +1240,16 @@ describe('11 · the New link notice: only where the page would let them in, afte
     const DISPATCHER = someone('Dispatcher', m => m.role === 'Dispatcher' && !roles(m.name));
     const MANAGER    = /** @type {string} */ ((CONFIG.MANAGER_NAMES || [])[0]);
 
-    /** A colleague's desktop on 10 November: nothing to install there, so nothing to wait for. */
+    /** A colleague's desktop on 27 November: nothing to install there, so nothing to wait for. */
     const DESK = { accessType: /** @type {const} */ ('named'), session: { name: NORMAL_CEA }, route: null,
                    present: [NL.overlay, 'newlinkNoticeGo', 'newlinkNoticeLater'] };
 
-    test('in the matrix, members only, its own key, no snooze, 9 November to the end of 5 December, behind the REAL install key, and wired last', () => {
+    test('in the matrix, members only, its own key, no snooze, 26 November to the end of 5 December, behind the REAL install key, and wired last', () => {
         assert.ok(NL, 'found by the same pattern as every other notice');
         assert.equal(NL.audience, 'members', 'the page is signed-in only, so the station PIN is never told about it');
-        assert.equal(DONE, 'myb_notice_newlink_2026_done');
+        assert.equal(DONE, 'myb_notice_newlink_vote_2026_done', 'a NEW key: the first notice\'s would hide this from all who closed that one');
         assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
-        assert.equal(NL.starts, new Date(2026, 10, 9).getTime(), 'STARTS is its posting day, read from the source');
+        assert.equal(NL.starts, new Date(2026, 10, 26).getTime(), 'STARTS is its posting day, read from the source');
         assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
         assert.match(IIFE, /const LAST_DAY\s*=\s*'5 Dec 2026'/, 'gone before the timetable notice\'s final week, when that one stops waiting for it');
         assert.match(IIFE, /isNoticeExpired\(LAST_DAY, 1\)/, 'offered through the whole of the Saturday, gone on the Sunday');
@@ -1262,15 +1263,15 @@ describe('11 · the New link notice: only where the page would let them in, afte
         assert.equal(NOTICES[NOTICES.length - 1].overlay, NL.overlay, 'wired last, so it yields to every other notice');
     });
 
-    test('before 10 November nothing in the matrix is about it — it gets its rows here instead', () => {
+    test('before 26 November nothing in the matrix is about it — it gets its rows here instead', () => {
         assert.equal(due(NL), false, 'the pinned clock (22 Oct) is before its posting day');
         assert.equal(roles(NORMAL_CEA) || BILINGUAL === NORMAL_CEA, false, 'precondition: three different people, none on a role list');
         assert.equal(rosterRole(DISPATCHER), 'Dispatcher');
         assert.ok(MANAGER, 'precondition: the roster still names a manager');
     });
 
-    test('on a colleague\'s desktop on 10 November it opens — and nothing is flagged yet', async () => {
-        mock.timers.setTime(NOV_10);
+    test('on a colleague\'s desktop on 27 November it opens — and nothing is flagged yet', async () => {
+        mock.timers.setTime(NOV_27);
         await wire(DESK);
         await settleAccess();
         assert.ok(opened());
@@ -1283,7 +1284,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
         const { canOpenNewlink } = await import('../auth-policy.js');
         const wrong = [];
         for (const m of teamMembers.filter(x => !x.hidden)) {
-            mock.timers.setTime(NOV_10);
+            mock.timers.setTime(NOV_27);
             await wire({ ...DESK, session: { name: m.name } });
             await settleAccess();
             if (!!opened() !== canOpenNewlink(m.name)) wrong.push(`${m.name}: ${opened() ? 'told' : 'not told'}`);
@@ -1294,7 +1295,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
 
     test('not for a CEA on a bilingual contract, nor a Dispatcher — and NOT flagged for either', async () => {
         for (const name of [BILINGUAL, DISPATCHER]) {
-            mock.timers.setTime(NOV_10);
+            mock.timers.setTime(NOV_27);
             await wire({ ...DESK, session: { name } });
             await settleAccess();
             assert.equal(opened(), undefined, `${name} is turned away by the page, so is not told about it`);
@@ -1303,14 +1304,14 @@ describe('11 · the New link notice: only where the page would let them in, afte
     });
 
     test('a manager is told — the page is theirs too', async () => {
-        mock.timers.setTime(NOV_10);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, session: { name: MANAGER } });
         await settleAccess();
         assert.ok(opened(), `${MANAGER} is a manager, and the page opened to the managers at v25.60`);
     });
 
     test('on a phone browser it waits for the install notice — and is NOT flagged', async () => {
-        mock.timers.setTime(NOV_10);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, route: { how: 'menu', mirror: false } });
         await settleAccess();
         assert.equal(opened(), undefined);
@@ -1318,14 +1319,14 @@ describe('11 · the New link notice: only where the page would let them in, afte
     });
 
     test('on a phone browser, the load after the install notice was answered, it opens', async () => {
-        mock.timers.setTime(NOV_10);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, route: { how: 'ios', mirror: false }, store: { [DONE_KEY_OF(INST)]: '1' } });
         await settleAccess();
         assert.ok(opened());
     });
 
     test('NOT on the load the install notice is answered — that flag is read at wiring time', async () => {
-        mock.timers.setTime(NOV_10);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, route: { how: 'menu', mirror: false }, present: [...DESK.present, INST.overlay],
                      store: { [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' } });
         await settleAccess();
@@ -1340,7 +1341,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
     });
 
     test('not on the shared PIN station — and not flagged there', async () => {
-        mock.timers.setTime(NOV_10);
+        mock.timers.setTime(NOV_27);
         await wire({ ...DESK, accessType: 'viewer', session: null });
         await settleAccess();
         assert.equal(opened(), undefined);
@@ -1371,7 +1372,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
     });
 
     test('every dismissal marks it done, and it is archived on OPEN under its own section', async () => {
-        mock.timers.setTime(NOV_10);
+        mock.timers.setTime(NOV_27);
         await wire(DESK);
         await settleAccess();
         const lb = opened();
@@ -1387,7 +1388,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
         lb._cfg.onClose();
         assert.deepEqual(_writes, [[DONE, '1']], 'so does a close');
         lb._cfg.onOpen();                                     // the harness records an open; the lightbox would run this itself
-        const filed = _archived.find(n => n.id === 'newlink-2026');
+        const filed = _archived.find(n => n.id === 'newlink-vote-2026');
         assert.ok(filed, 'archived on OPEN, before the link can take the member away');
         assert.equal(filed.section, 'New link', 'filed under the page it is about — coloured in App Notices (block 10)');
     });
@@ -1406,7 +1407,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
         assert.match(text, new RegExp(`starts in ${month} ${y}\\b`), `the page starts the link in ${month} ${y} (newlink-config.js → STARTS)`);
         const page = readFileSync(new URL('./newlink.html', here), 'utf8');
         assert.match(page, /<h2><span[^>]*>[^<]*<\/span> The new link: three proposals<\/h2>/, 'the page still heads itself "three proposals"');
-        assert.match(text, /the three proposals on the shortlist/);
+        assert.match(text, /\bthe three proposals\b/);
         const { NAV_PAGES } = await import('../nav-destinations.js');
         const newlinkPill = NAV_PAGES.find(p => p.id === 'newlink');
         assert.ok(newlinkPill, 'the drawer still has a New link pill');
@@ -1414,7 +1415,17 @@ describe('11 · the New link notice: only where the page would let them in, afte
         assert.ok(text.includes(`then ${pill[1]}`), `the menu route names the pill as the drawer labels it: ${pill[1]}`);
         assert.ok(block.includes(`href="${pill[2]}"`), `the link goes where the pill goes: ${pill[2]}`);
         assert.ok(block.includes(`<div class="notice-badge notice-badge--newlink">${pill[1]}</div>`), 'the badge is the pill, word for word');
-        assert.doesNotMatch(text, /\bvote|ballot|decide which|admin\b/i, 'it says nothing about how the choice is made, nor who builds the page');
+        // A vote decides it (owner, 26 Nov 2026), and HOW it is run is not settled, so nothing is said about that.
+        assert.match(text, /decided by a vote/);
+        assert.doesNotMatch(text, /ballot|online|in person|polling|\badmin\b|how to vote/i, 'it says nothing about how the vote is run, nor who builds the page');
+        // App Notices keeps the record for 180 days, long after voting has begun: it never says "soon".
+        mock.timers.setTime(NOV_27);
+        await wire(DESK);
+        await settleAccess();
+        opened()?._cfg.onOpen();
+        const filed = _archived.find(n => n.id === 'newlink-vote-2026');
+        assert.ok(filed, 'premise: it was archived');
+        assert.doesNotMatch(filed.title + filed.body, /\bsoon\b|starts (on|in) /i, 'the record says what stays true after the vote has begun');
     });
 });
 
@@ -1519,7 +1530,7 @@ describe('14 · where storage will not keep a flag, no notice opens — and arch
     });
     test('every load corrects the two records whose words went out of date — with or without storage', async () => {
         for (const storageWorks of [true, false]) {
-            await wire({ accessType: 'named', storageWorks, store: { myb_notice_timetable_soon_2026_done: '1', myb_notice_newlink_2026_done: '1' } });
+            await wire({ accessType: 'named', storageWorks, store: { myb_notice_timetable_soon_2026_done: '1', myb_notice_newlink_vote_2026_done: '1' } });
             assert.deepEqual(_revised.map(r => r.id).sort(), ['newlink-2026', 'timetable-soon-2026']);
             for (const r of _revised) {
                 assert.doesNotMatch(r.title + r.body, /\bstarts on Sunday|Nothing is decided/, `${r.id} still says what will stop being true`);
@@ -1528,7 +1539,7 @@ describe('14 · where storage will not keep a flag, no notice opens — and arch
     });
     test('the record a notice files is the record it corrects', async () => {
         mock.timers.setTime(LIVE_DAY);
-        await wire({ accessType: 'named', present: ['timetableSoonNoticeLb'], store: { myb_notice_install_app_2026_done: '1', myb_notice_newlink_2026_done: '1' } });
+        await wire({ accessType: 'named', present: ['timetableSoonNoticeLb'], store: { myb_notice_install_app_2026_done: '1', myb_notice_newlink_vote_2026_done: '1' } });
         await settleAccess();
         const lb = /** @type {any} */ (_openedViaHelper.find(l => l._cfg.overlay.id === 'timetableSoonNoticeLb'));
         assert.ok(lb, 'premise: the timetable notice opened');

@@ -1448,7 +1448,7 @@ async function heldSessionWithReset(page, resetAgoMs) {
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 16 Nov – 12 Dec 2026 (v24.96; v26.21)
-        localStorage.setItem('myb_notice_newlink_2026_done', '1');   // the New link notice, 9 Nov – 5 Dec 2026 (v25.61)
+        localStorage.setItem('myb_notice_newlink_vote_2026_done', '1');   // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
         window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true });
     });
     await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route => route.fulfill(resetAgoMs
