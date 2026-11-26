@@ -45,7 +45,7 @@ conforming browser from overriding the scheme. **Do not add a `prefers-color-sch
 palette** without an explicit owner decision: a force-dark report is a device-side setting (Samsung
 Internet / Chrome auto-dark / system force-dark) or a stale install that predates the opt-out — fixed
 by updating the install — not an app bug to "fix" with a dark theme. **Samsung Internet is the one the
-opt-out cannot reach** (confirmed 23 Oct 2026); the answer is per device, not in code —
+opt-out cannot reach**; the answer is per device, not in code —
 KNOWN_LIMITATIONS.md → "Samsung Internet’s Dark mode repaints the app dark".
 
 ## Canonical card-header system
@@ -82,8 +82,7 @@ is the shared uppercase micro field label (GRADE, TAX CODE, …). Every card-bea
   360px), so a wider gap, a wider header chip or a bigger title size spends that line.
 - **The header shares the card's surface**: `--surface` with a hairline beneath it, the title
   `--type-body` at 700 with `-0.01em` tracking and `text-wrap: balance`. The `?` Tips circle is 24px
-  with `--type-small`, the size of the Pay Calculator's `.help-btn` (paycalc.css — its one user, so it
-  left shared.css on 25 Nov 2026), and keeps its 44px target.
+  with `--type-small`, the size of the Pay Calculator's `.help-btn` (paycalc.css — its one user), and keeps its 44px target.
 - **Settings' status chips are coloured by their card's state** (`data-tone`), by the SAME
   declarations as the summary strip, so the two cannot disagree; notifications switched off on purpose
   report `'plain'`, not `ok` (settings.css → "THE CARD CHIPS WEAR THE STRIP'S COLOURS"). Pinned by
@@ -105,17 +104,17 @@ default) is the app's common form and is allowed; `index.css` is held to the rul
 `calendar-controls-parity.test.mjs` 7.
 
 **Two overlay corner families, both named:** compact DIALOGS use `--radius-xl` (20px) — the white
-ones (month-jump, login, Tips — Team Week View's `?` among them since 25 Nov 2026 — confirm/prompt,
+ones (month-jump, login, Tips — Team Week View's `?` among them — confirm/prompt,
 the Calendar's Circular/Newsletter viewer); full navy GLASS SHEETS (About, notices, day detail,
 AL) use `--radius-panel` (24px). The Pay Calculator's `?` panels ARE the shared Tips panel (owner, Nov
-2026); they were a see-through glass sheet, the one `?` in the app the page showed through behind.
+2026), not a see-through glass sheet.
 
 **Within the glass family, five are SOLID:** the one-time notices, the About panel, the drawer's
 App Notices and Coming Soon panels and the Calendar's leave panel share one opaque navy sheet
 (`.notice-lb-content, #iconLightboxContent, #navNoticesContent, #navComingSoonContent,
 #alLightboxContent` in shared.css — a panel that wants it joins the selector list, never copies it).
 The leave panel joined on the owner's word (25 Nov 2026): it is a year's figures, not a look at
-something on screen, and the month's coloured cells showed through them. Day detail stays see-through:
+something on screen. Day detail stays see-through:
 it looks at the day still on screen. See-through, a notice's or About's contrast would depend on the page underneath (App
 Notices' section labels measured 3.0–3.4:1 over Admin's light cards).
 
@@ -218,8 +217,7 @@ or a second idiom (`max-width: Npx; width: 100%`) — variation in overlay width
 **Why 90vw:** it leaves the WIDEST overlay (the dialog) unchanged at phone width, where a clipped
 message would matter most.
 
-**One height cap, `--modal-max-h` (86dvh)**, for every panel — never a literal `vh` (lightbox review,
-22 Nov 2026). **The token holds its own fallback** — `86vh` in `:root`, `86dvh` only under
+**One height cap, `--modal-max-h` (86dvh)**, for every panel — never a literal `vh`. **The token holds its own fallback** — `86vh` in `:root`, `86dvh` only under
 `@supports (height: 1dvh)` — because a `vh` line above a `var()` is no fallback: the `var()` always
 parses, and a `dvh` token in a browser without `dvh` makes the cap compute to `none`
 (`css-var-parity.test.mjs`). So a call site writes `max-height: var(--modal-max-h)` alone. **One ✕ colour per surface family**: `.lb-close` reads `--lb-close-color` (light by
@@ -448,7 +446,7 @@ says so; focused, `6px double Highlight` at −2px — chosen ring inside, focus
 page-level copy: `native-surface-parity.test.mjs` contract 14 refuses one and refuses a brand token in
 any forced-colours block; `e2e/forced-colors.spec.js` proves the painting by removing the outline and
 counting what changed. **The guides are the one second home**: they load none of `shared.css`, so
-`guide-shell.css` rings their chosen section chip the same way (13 Nov 2026), and contract 14 holds it
+`guide-shell.css` rings their chosen section chip the same way, and contract 14 holds it
 to the ring and the focus pair rather than refusing it.
 
 ## Desktop layout — content width + reading measure
@@ -477,7 +475,7 @@ a navy void down the right; a narrow column only reads as deliberate when it is 
 generator intro) is capped with `max-width: ~64–72ch` at the `min-width: 1024px` breakpoint so text does
 not run past the ~75ch comfortable ceiling. Forms, tables, grids and data-viz keep the full column;
 data-viz bar charts (`.usage-bars`/`.speed-rows`) are capped (~540px) so bars stay comparable.
-- **A `ch` is not a character** (measured 14 Nov 2026): it is the width of a zero, about 1.3 average
+- **A `ch` is not a character** (measured): it is the width of a zero, about 1.3 average
   characters in Inter, so 64–72ch holds about 80–94 characters a line. Left as written (owner, 14 Nov
   2026): narrowing to a literal ~75 characters (about 56ch) adds roughly a line to every capped
   paragraph on a short laptop window. DECISIONS.md holds what would reopen it.
@@ -503,9 +501,8 @@ the colliding surfaces are rarely co-visible, and new hues would cost more than 
 
 - **paycalc pay badges deliberately borrow the roster's shift colours** — Saturday Early orange,
   Sunday Late blue, Bank Holiday the AL teal; the labels carry the meaning.
-- **`--purple` = Spare shift AND the Links page identity** — co-visible on Links itself since 22 Nov
-  2026, when Spare there took the app's purple (owner: Spare looks the same on every page, and purple
-  had meant Night on Links). The page identity is only the header badge and the drawer pill; every
+- **`--purple` = Spare shift AND the Links page identity** — co-visible on Links itself, where Spare
+  takes the app's purple (owner, 22 Nov 2026: Spare looks the same on every page). The page identity is only the header badge and the drawer pill; every
   Spare cell is labelled SP, so the label carries the meaning. Ordinary staff never see Links.
 - **`--blue-sky` = Late shift AND assorted admin accents** (source pill, overwrite-active) — labelled,
   low co-visibility.
@@ -566,7 +563,7 @@ fits**, and **Android's font/display scaling enlarges fonts and leaves the viewp
 width query or narrower test viewport reaches the state (a narrower viewport fires media queries the
 phone does not: a different layout, not a smaller one).
 
-Found twice — `.selectors` (its comment carries the reasoning) and `.container`. Pinned by the `@layout`
+`.selectors`' comment carries the reasoning. Pinned by the `@layout`
 tests in `e2e/pages.spec.js`, which create the scaled-text condition because nothing else can see it.
 
 ## Larger text: ask the box, in em — a container query, never a width query
@@ -599,8 +596,8 @@ browser's own blue/purple.
 
 `.visually-hidden` is the shared "read out, never seen" rule; `.sr-only` is the same rule under a
 second name (new markup takes `.visually-hidden`). Every declaration is `!important`, because an
-element rule outranks a class: Admin's `input[type="text"] { width: 100% … }` once gave the sign-in
-card's hidden username a full-width box, and the sign-in sheet scrolled sideways. Do not drop the
+element rule outranks a class: Admin's `input[type="text"] { width: 100% … }` otherwise gives the sign-in
+card's hidden username a full-width box, and the sheet scrolls sideways. Do not drop the
 `!important`s; the reasoning is beside it in `shared.css`.
 
 ## The 16px focusable-field rule is MEASURED, not assumed
@@ -755,8 +752,7 @@ control and the one refused-read tick (`docs/A11Y_BASELINE.md`).
 brand takes all the space between burger and badge, so the two never overlap whatever the badge's
 width, and the title ellipses rather than wraps. But centred in that leftover space the brand sat
 16–43px left of the page centre, differently on each page, **so from 1024px the brand is centred on
-the HEADER** (absolute, `left: 50%`), as the Calendar's title is, and the badge holds the right edge
-(laptop polish, 13 Nov 2026); every page's header shares one band, and the name keeps 45px or more from ☰ and the badge even at double text
+the HEADER** (absolute, `left: 50%`), as the Calendar's title is, and the badge holds the right edge; every page's header shares one band, and the name keeps 45px or more from ☰ and the badge even at double text
 size. **Below 1024px keep the flex rule**: a header can be far narrower there, and centred, 1.6× text
 ran the name into the badge. Pinned by `e2e/pages.spec.js` → "from 1024px the app's name sits at the
 window's centre" and its below-1024 sibling.
@@ -769,9 +765,6 @@ Pinned by `e2e/calendar-desktop.spec.js` → "from 768px the Calendar's header i
 which compares the computed metrics with Settings' at 768, 800 and 1366px.
 
 ## Touch-only UI, and never gating LAYOUT on hover
-
-Moved here from CLAUDE.md's architecture table (24 Nov 2026): both bind only stylesheets and the code that
-shows touch UI.
 
 | Decision | Rule |
 |----------|------|

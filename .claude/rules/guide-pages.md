@@ -45,8 +45,7 @@ paths:
 - **A guide that lists something the app keeps in one place is held to it.**
   `guide-app-parity.test.mjs` reads the app's own lists (the menu in `nav-destinations.js`, the Admin
   type buttons in `admin-shift-types.js`) and fails on the guide line that disagrees, in both directions.
-  (Its staff PIN check went with the PIN, 23 Nov 2026.) A new
-  list a guide restates gets a check there, not a reminder.
+  A new list a guide restates gets a check there, not a reminder.
 - **Draw an app control as the app draws it.** A reader matches the page to the screen by sight, so
   a depicted control wears the real one's colours AND shape: the Staff Guide's five Calendar buttons
   are rounded rectangles at the real corner's proportion (not pills, a shift badge's shape), and the
@@ -72,9 +71,8 @@ paths:
   loads a fourth, `fip-guide.js`, AFTER `guide-chips.js`: its country finder, the opening of a country's
   `<details>` on a jump or deep link, and its print preparation. **Every guide has a chip bar and
   `guide-chips.js` alone drives it**: nothing else measures a guide's sticky stack, and a second copy
-  would bind every chip twice. `fip-guide.js` carried one until Nov 2026, held to the shared one by four
-  exact strings; it carries none now, and `guide-chips.js` is wrapped in a function so the two scripts
-  share no globals. `page-contract-parity.test.mjs` requires all of it: the three tags on every guide,
+  would bind every chip twice. `guide-chips.js` is wrapped in a function so the two scripts share no
+  globals. `page-contract-parity.test.mjs` requires all of it: the three tags on every guide,
   the FIP guide's order, no chip-bar calls in `fip-guide.js`, no top-level code in `guide-chips.js`,
   and a `#savePdfBtn.btn-print`. **Only `guide-print.js` prints**: a second `window.print()` handler
   would open two sheets or bypass the iOS 27 guard.
@@ -128,7 +126,7 @@ guides keep their own four greys on purpose, and `--bg` means the page backgroun
   three, with screenshots: navy, each guide in its app page's colour, or gold on every guide). Navy is
   the app's colour for a button that DOES something, and three of the five guides belong to no page.
   A press is gold too, so a tap shows one colour. Giving one guide its app page's colour is a fresh
-  decision, not a tidy-up. **Under Windows High Contrast it is RINGED** (13 Nov 2026; 2px `Highlight`,
+  decision, not a tidy-up. **Under Windows High Contrast it is RINGED** (2px `Highlight`,
   `6px double` when focused). Pinned by `e2e/guides.spec.js` → "the chosen section chip is gold with
   navy words", `native-surface-parity.test.mjs` contract 14 and `e2e/forced-colors.spec.js` → "a guide:
   the chosen section chip".
@@ -173,19 +171,14 @@ guides keep their own four greys on purpose, and `--bg` means the page backgroun
 - **One top gap:** `--guide-top` (20px) from the bottom of the header and chips to a guide's first
   line, on all five, at every width. Pinned by "every guide starts its first line the same space below
   the header and chips", at 390 and 1280px.
-- **The chip bar's hold** (`guide-chips.js` header has the argument, on all five guides). On the
-  document guides' two columns (from 641px) no scroll position says which section is being read, so a
-  chip is lit only by a jump or a link to it, until the reader moves ON (the SECTION moving, so a
-  reflow lets go too); on one column the bar follows the reader. **A link holds its chip the way a tap
-  does**: a `#fragment` link lights the chip of the section it lands in (a card's or sub-heading's
-  section too) from the first paint, through the landing, until the reader moves on. A reload,
-  Back/Forward or a hash changed in place holds nothing. A section headed inside a navy banner (the
-  Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing. **A tap's jump is
-  judged when it ENDS** — at `scrollend` where the browser has it; the 1.5 s timer judges only where it
-  does not (run everywhere, it judged a slow jump in flight and let the chip go, Nov 2026).
-  `e2e/guides.spec.js` proves it in a browser: "a jump is judged when it ends…" pauses the page's
-  clock mid-jump on the Pay Calculator and FIP guides, and the FIP test waits out a slow jump. A test
-  that taps a chip waits for `scrollend` (`jumpTo`), never a set time.
+- **The chip bar's hold** (the argument is in `guide-chips.js`'s comments, on all five guides). On
+  the document guides' two columns (from 641px) a chip is lit only by a jump or a link to it, until the
+  reader moves ON; on one column the bar follows the reader. **A link holds its chip the way a tap
+  does**, from the first paint; a reload, Back/Forward or a hash changed in place holds nothing. A
+  section headed inside a navy banner (the Staff Guide's Admin Guide) starts at its banner. **A tap's
+  jump is judged when it ENDS** — at `scrollend` where the browser has it, the 1.5 s timer only where
+  it does not. `e2e/guides.spec.js` → "a jump is judged when it ends…" proves it; a test that taps a
+  chip waits for `scrollend` (`jumpTo`), never a set time.
 - **A bar too long for its window WRAPS** from 641px in a window at least 600px tall, and from 1024px at
   any height — a desktop bar hides its scrollbar, so a chip past the edge would never be found, and a
   window snapped to half a laptop screen is 683–768px wide (`guide-shell.css` has the figures). The page
@@ -276,9 +269,9 @@ estimated honestly; each row was checked against the code. The last column says 
 | 17 | `.claude/rules/guide-pages.md` | its `paths:` globs **and** its per-guide section (this file) | remembered |
 | 18 | `docs/FILE_INDEX.md` + `docs/AI_MAP.md` | the file catalogue, same-commit rule | enforced for a new `.js` module (pre-commit, `doc-parity.test.mjs`); the page and stylesheet lines remembered |
 
-Note #10 and #12 specifically: the analytics open-id mapping has already produced a real defect class
-(a substring match filed every Pay Calculator Guide open under the Staff Guide), and the register's
-two-way contract is what stops a high-risk claim losing its source.
+Note #10 and #12: the open-id mapping has produced a real defect (a substring match filed every Pay
+Calculator Guide open under the Staff Guide), and the register's two-way contract is what stops a
+high-risk claim losing its source.
 
 ---
 
@@ -314,7 +307,7 @@ this mid-transaction and get the right answer fast?"
 - A–Z order with numeric cards first — intentional.
 - **"If in doubt, ask your supervisor"** (this footer and the Rangers guide's) — deliberate: in the middle of a
   transaction at the gateline the person to ask is the supervisor on shift, a real role in that moment, not
-  "your manager", CLAUDE.md's contact for rota and leave questions (whole-app check, Nov 2026).
+  "your manager", CLAUDE.md's contact for rota and leave questions.
 
 ### The page answers the Marylebone question: three questions, kept apart
 
@@ -347,15 +340,13 @@ ticket rule, not a railcard card, and says twice that the retail system is the a
 
 The Network Railcard area ends at **Banbury (the boundary station)**: Kings Sutton, Bicester, Oxford,
 Marylebone and Reading are inside; Leamington Spa, Warwick, Solihull, Coventry and Birmingham are
-outside. It was settled from the boundary polygon in the railcard's own area-map PDF (a 41-vertex
-filled shape drawn immediately before the six `NETWORK RAILCARD AREA` labels, tested point-in-polygon)
-— **not from the map's station index**, which indexes the whole *London & the South East* map and also
-lists Bristol, Taunton, Weston-super-Mare and Exeter. **Re-checked on the June 2026 map (22 Nov 2026)**
-the same way: there the shape has 45 vertices and the labels are drawn as outlines, so they cannot be
-searched as text — find the shape by its fill and its position before the outlined letters, and place
-stations by their own markers. Banbury is still inside, on the edge (`GUIDE_SOURCES.md` → `rc-network-map`). A "correction" that read the index as the
-boundary, extending the area to Birmingham, was wrong, and was caught by the owner's operational
-knowledge. Two rules came out of it:
+outside. It is settled from the **boundary polygon** in the railcard's own area-map PDF, tested
+point-in-polygon — **never from the map's station index**, which indexes the whole *London & the South
+East* map (Bristol and Exeter included). On the current map the labels are drawn as outlines, so find
+the shape by its fill and its position before the outlined letters, and place stations by their own
+markers; Banbury is inside, on the edge (`GUIDE_SOURCES.md` → `rc-network-map`). A "correction" that
+read the index as the boundary, extending the area to Birmingham, was wrong, and was caught by the
+owner's operational knowledge. Two rules came out of it:
 
 - **Direction of failure.** "Not valid past Banbury" refuses valid tickets; "valid to Birmingham"
   accepts invalid ones. On a revenue-facing page the second is worse, so a claim that loosens a
@@ -394,10 +385,9 @@ next reader to re-read a page that already agrees. Two such non-conflicts, kept 
   Senior Railcard: 1/3 off **on Standard**. Other discount cards: Gold Cards: 1/3 off…"*. **"on
   Standard" binds to Senior**; Gold sits in a separate sentence with no class qualifier, and its own
   page says Standard *and* First twice.
-- **Chiltern's £13 minimum.** Chiltern's railcard table once read "£13 at all times", which looked like
-  a conflict with RDG's Mon–Fri minimum until its preamble was read: *"Restrictions listed below are
-  applicable Monday–Friday (excluding bank holidays)"*. Re-read on 10 November 2026, the Network row
-  itself now says "Mon-Fri" (`GUIDE_SOURCES.md` → `rc-myb-restrictions`).
+- **Chiltern's £13 minimum.** Chiltern's railcard table is scoped by its preamble — *"Restrictions
+  listed below are applicable Monday–Friday (excluding bank holidays)"* — so it agrees with RDG's
+  Mon–Fri minimum (`GUIDE_SOURCES.md` → `rc-myb-restrictions`).
 
 ### A correction callout may quote the old wrong wording — if it negates it
 
@@ -407,7 +397,7 @@ The "must not say" guards therefore skip those blocks — and a separate test fa
 block lacks an explicit negation, so the class cannot become somewhere to park a live claim. The
 exemption is **earned, not granted by the class name**.
 
-**And the rule comes first, the history after it** (review, 15 Nov 2026), so a reader at the gateline
+**And the rule comes first, the history after it**, so a reader at the gateline
 never meets the wrong rule before the right one. Each box that tells of this guide's past wording — a
 correction or an unsourced note alike — opens with the rule as its label, and the history follows on
 a line of its own under a dated label (`<br><span class="ct-label">Changed Aug 2026:</span>`, the
@@ -441,9 +431,8 @@ country page):
   a source; it can never prove the search was complete, so "nobody publishes this" is the one
   conclusion the register cannot safely reach on its own. Before recording an absence, enumerate the
   site's pages (the RST nav lists them) rather than the pages you happen to have open, and prefer "we
-  could not find X" in the register over "X does not exist". (The "you generally qualify after 12
-  months' service" rule was once struck out this way; it is published, under "When am I eligible for
-  FIP cards and International Coupons?" on `/rst/faqs.html`, and `guide-sources.test.mjs` pins it.)
+  could not find X" in the register over "X does not exist". (The "12 months' service" rule was once
+  struck out this way; it is published on `/rst/faqs.html`, and `guide-sources.test.mjs` pins it.)
 - **"Private operator" is not the test for FIP validity.** GySEV, Euskotren, the five Polish
   regionals and Switzerland's BLS are all in FIP. The operative rule is **check the undertaking**, with
   Italo/OUIGO/RegioJet/Leo Express as examples rather than as a category.
@@ -530,8 +519,7 @@ register test accepts a card-level marker **or** a claim-level one. The live spl
 ### State a BOUNDARY, not a station list
 
 A list of "its Chiltern stations" is a claim about the **intersection** of the ticket's area with
-Chiltern's network, and only the first of those two is sourceable from the product page — such lists
-went wrong in both directions at once. What the applicable-station list *does* prove is where the area
+Chiltern's network, and only the first of those two is sourceable from the product page. What the applicable-station list *does* prove is where the area
 **stops**, which is the only part a Marylebone gateline acts on. Prefer "reaches Leamington Spa and
 stops — Banbury is outside it" over any enumeration. Name a station individually only for a genuine
 near-miss whose neighbour differs: *Bicester Village but not Bicester North*, *Oxford but not Oxford
@@ -598,7 +586,7 @@ its marker. The banner goes when the last provisional row does.
   stricter than the railcard guide's two min-fare figures.
 - **Not a national catalogue, and not customer-facing.** It is a Marylebone guide: `railrover.org` and
   National Rail already do the catalogue, and the page is written for staff at the gateline, as the
-  railcard guide is (the retired plan's won't-do list, 2 Sep 2026).
+  railcard guide is.
 - **The date box gets the `.gotcha`.** It is the only ranger/rover rule a gateline can enforce by
   looking, and the one most likely to be unknown.
 - **A list of things we have NOT checked must not wear the "valid" tick.** The green ✓ is the token
