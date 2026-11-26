@@ -35,11 +35,16 @@
  *    later try to parse, and a key the backup lacks must genuinely disappear or the "replace" is a
  *    merge wearing a replace's label.
  *
+ * 3. **A read that fails is never "nothing there"** (Nov 2026). The backup is built, and the restore
+ *    decides, only from CHECKED reads (`lsGetChecked` / `lsKeysChecked`): a backup missing anything
+ *    is not offered, and names what could not be read; a restore that cannot read what it would
+ *    replace writes nothing. "Nothing was changed" appears only where that is true.
+ *
  * And every control is disabled when the member cannot be identified — **the paste pair included**,
  * whose omission once left one paste able to delete two members' pay history on a shared device.
  */
 
-import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';
+import { lsSet, lsDel, lsKeys, lsGetChecked, lsKeysChecked } from './ls.js';
 import { isIOS } from './notif.js';
 import { pcPrefix, memberSlug } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
@@ -51,7 +56,7 @@ import { APP_VERSION } from './roster-data.js';
 import { confirmDialog, openCardNamedByHash } from './overlay.js';
 import {
     selectBackupKeys, buildBackup, validateBackup, rekeyEntries, backupFilename, restoredLine,
-    applyRestore as applyStorageRestore,
+    applyRestore as applyStorageRestore, collectBackupEntries, unreadableBackupLine,
 } from './paycalc-transfer.js';
 import { inventoryOf, inventoryLines } from './paycalc-inventory.js';
 
@@ -97,10 +102,31 @@ export function initTransferCard() {
     }
 
     /** Every key and value of this member's pay data, as one string to compare: a payslip saved, changed or
-     *  removed in another tab changes it. @param {string[]} keys @returns {string} */
+     *  removed in another tab changes it. NULL when any value could not be read — a refused read is not
+     *  an absent payslip, and a restore must not start over data it could not see.
+     *  @param {string[]} keys @returns {string|null} */
     function snapshotOf(keys) {
-        return JSON.stringify([...keys].sort().map(k => [k, lsGet(k)]));
+        /** @type {[string, string|null][]} */
+        const pairs = [];
+        for (const k of [...keys].sort()) {
+            const r = lsGetChecked(k);
+            if (!r.ok) return null;
+            pairs.push([k, r.value]);
+        }
+        return JSON.stringify(pairs);
     }
+
+    /** This member's keys by a CHECKED enumeration, or null when storage would not list them.
+     *  @returns {string[]|null} */
+    function ownKeysChecked() {
+        const listed = lsKeysChecked();
+        return listed.ok ? selectBackupKeys(listed.keys, pcPrefix()) : null;
+    }
+
+    /** The line for a restore stopped because what is on this device could not be read — shown only
+     *  on paths that have written nothing, so "nothing was changed" is true wherever it appears. */
+    const UNREAD_BEFORE_RESTORE = "This device couldn't read the pay data already saved on it, so nothing was "
+        + 'changed. Your backup is still fine — try the restore again.';
 
     /** Render an inventory as the card's detail list. @param {string[]} lines */
     function paintInventory(lines) {
@@ -150,17 +176,20 @@ export function initTransferCard() {
         paintInventory(inventoryLines(inventoryOf(keys, pcPrefix())));
     }
 
-    /** Serialise the current member's data. @returns {{text: string, name: string}|null} */
-    function makeBackup() {
+    /**
+     * Serialise the current member's data — WHOLE, or not at all. Built only from a checked list of the
+     * keys and a checked read of every value (`collectBackupEntries`): a refused read used to be skipped
+     * as if absent, so a file missing a payslip downloaded under the ordinary message. `null` when there
+     * is nothing to save; `{ unreadable }` the line to show instead of a file, naming what failed.
+     * @param {string} button the tapped button's label @param {string} nothing what did not happen
+     * @returns {{text: string, name: string}|{unreadable: string}|null}
+     */
+    function makeBackup(button, nothing) {
         const member = memberName();
-        const keys = ownKeys();
-        if (!keys.length) return null;
-        /** @type {Record<string,string>} */
-        const entries = {};
-        for (const k of keys) {
-            const v = lsGet(k);
-            if (v !== null) entries[k] = v;
-        }
+        const got = collectBackupEntries({ listKeys: lsKeysChecked, read: lsGetChecked, prefix: pcPrefix() });
+        if (!got.ok) return { unreadable: unreadableBackupLine(got, pcPrefix(), button, nothing) };
+        const entries = got.entries;
+        if (!Object.keys(entries).length) return null;
         // One instant, two forms: the blob records it exactly, and the filename takes the day it is
         // HERE — named from the UTC form, a copy saved after midnight in summer carried the day
         // before (paycalc-2-21).
@@ -175,8 +204,9 @@ export function initTransferCard() {
     dlBtn?.addEventListener('click', () => {
         // BUILT SYNCHRONOUSLY, IN THE TAP: the iPhone branch below needs the tap's user gesture, and
         // an await before navigator.share() would spend it.
-        const b = makeBackup();
+        const b = makeBackup('Download backup', 'Nothing was saved.');
         if (!b) { saveStatus('There is nothing to save yet.', 'warn'); return; }
+        if ('unreadable' in b) { saveStatus(b.unreadable, 'warn'); return; }
         // ON AN IPHONE, THE SHARE SHEET — NOT A DOWNLOAD (the iPhone audit, 7 Nov 2026). A blob
         // download there asks "Download?" or, in the Home Screen app, may open a preview instead,
         // and this card used to say "Saved as …" the instant the tap landed, before iOS had saved
@@ -215,8 +245,9 @@ export function initTransferCard() {
     });
 
     copyBtn?.addEventListener('click', async () => {
-        const b = makeBackup();
+        const b = makeBackup('Copy as text', 'Nothing was copied.');
         if (!b) { saveStatus('There is nothing to save yet.', 'warn'); return; }
+        if ('unreadable' in b) { saveStatus(b.unreadable, 'warn'); return; }
         try {
             await navigator.clipboard.writeText(b.text);
             // The clipboard deserves the SHARPER warning of the two: clipboard history and
@@ -277,13 +308,18 @@ export function initTransferCard() {
         // destroyed, which is the half the member is actually deciding about — and the payslip
         // count alone described neither side, since a namespace also holds pension history,
         // back-pay figures and Year-to-Date totals that no payslip count mentions.
-        const existing = ownKeys();
+        // A CHECKED list and a CHECKED read of every value, before anything is asked: a refused read
+        // taken for "nothing there" left a restore free to replace, or roll back by deleting, a payslip
+        // it never saw.
+        const existing = ownKeysChecked();
+        if (!existing) { status(UNREAD_BEFORE_RESTORE, 'warn'); return; }
         // WHAT THE QUESTION DESCRIBES, to hold the write to (external review of v26.55). The dialog waits on the
         // member, and another tab can save a payslip meanwhile: the replace then wrote the backup over the list
         // taken HERE, left the new payslip beside it — a merge — and reported success. So the pay data is read
         // again just before writing, and if it has changed nothing is written and the question is asked again
         // with what is here now. Never deleted unseen, never merged in silence.
         const shown = snapshotOf(existing);
+        if (shown === null) { status(UNREAD_BEFORE_RESTORE, 'warn'); return; }
         const arriving = inventoryLines(res.inventory).map(l => `• ${l}`).join('\n');
         if (existing.length) {
             const here = inventoryLines(inventoryOf(existing, pcPrefix())).map(l => `• ${l}`).join('\n');
@@ -317,7 +353,10 @@ export function initTransferCard() {
             if (!ok) { status('Nothing was changed.'); return; }
         }
 
-        if (snapshotOf(ownKeys()) !== shown) {
+        const nowKeys = ownKeysChecked();
+        const now = nowKeys && snapshotOf(nowKeys);
+        if (now === null) { status(UNREAD_BEFORE_RESTORE, 'warn'); return; }
+        if (now !== shown) {
             status('Your pay data on this device changed while that question was open, so nothing was changed. '
                  + 'Here is what it holds now.', 'warn');
             return applyRestore(text);
@@ -330,9 +369,11 @@ export function initTransferCard() {
         // against a storage that fails on demand, which a browser will not do to order.
         // Re-keyed from the slug the ladder CHECKED, not re-read from the blob.
         const entries = rekeyEntries(res.blob.data, res.srcSlug, memberSlug(member));
-        const outcome = applyStorageRestore({ get: lsGet, set: lsSet, del: lsDel, existing, entries });
+        const outcome = applyStorageRestore({ read: lsGetChecked, set: lsSet, del: lsDel, existing, entries });
 
         if (!outcome.ok) {
+            // EACH RESULT ITS OWN WORDS, and "nothing was changed" only where a read-back proved it.
+            if (outcome.reason === 'unreadable') { status(UNREAD_BEFORE_RESTORE, 'warn'); return; }
             if (outcome.reason === 'surplus-remains') {
                 // The new data landed but the old data would not go. That is a MERGE, not the
                 // replace the member agreed to, so it must not be reported as success.
@@ -340,11 +381,16 @@ export function initTransferCard() {
                      + 'removed, so both are now present. Free up some space and restore again.', 'warn');
                 return;
             }
-            status(outcome.restored
-                ? "This device's storage refused the restore, so nothing was changed. Free up some space on the "
-                  + 'phone and try again — your backup is still fine.'
-                : "This device's storage refused the restore, and some of what was here could not be put back. "
-                  + 'Keep your backup and contact the admin.', 'warn');
+            // 'part-restored' — and anything else a read-back did not prove restored.
+            if (!outcome.restored) {
+                status("This device's storage stopped the restore part-way and could not put everything back, so "
+                     + 'some of your pay data here may now be from the backup and some from before. Keep your backup '
+                     + 'file and restore from the same file again. If that fails too, free up some space on the '
+                     + 'phone and try once more, and if it still fails, contact the admin.', 'warn');
+                return;
+            }
+            status("This device's storage refused the restore, so nothing was changed. Free up some space on the "
+                 + 'phone and try again — your backup is still fine.', 'warn');
             return;
         }
 

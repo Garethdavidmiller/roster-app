@@ -759,7 +759,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `KEY_KINDS` · `isSavedPeriodShape` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines` · `inventorySummary`
 
 ### `paycalc-transfer.js`
-- **Exports:** `BACKUP_FORMAT` · `BACKUP_VERSION` · `selectBackupKeys` · `summarise` · `buildBackup` · `validateBackup` · `rekeyEntries` · `restoredLine` · `backupFilename` · `applyRestore`
+- **Exports:** `BACKUP_FORMAT` · `BACKUP_VERSION` · `selectBackupKeys` · `collectBackupEntries` · `unreadableBackupLine` · `summarise` · `buildBackup` · `validateBackup` · `rekeyEntries` · `restoredLine` · `backupFilename` · `applyRestore`
 
 ### `paycalc-transfer-card.js`
 - **Exports:** `initTransferCard`

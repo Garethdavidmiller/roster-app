@@ -723,7 +723,15 @@ the claimant's own later loads finish the copy without asking, and the claim goe
 CHECKED one (`lsGetChecked` / `lsKeysChecked`, `ls.js`): "could not read" is never "absent", and on
 any doubt both values stay and nothing advances. A saved payslip period must be an object
 (`isSavedPeriodShape`, `paycalc-inventory.js`) — any other JSON is DAMAGED on the screen and in the
-backup's preflight, never empty, and is never rewritten for it.
+backup's preflight, never empty, and is never rewritten for it — Settings' Save included, which says
+the payslip kept its old pension figure.
+
+**Backup and restore read the same way.** A backup is built only from a checked list and a checked
+read of every value (`collectBackupEntries`, `paycalc-transfer.js`); if any fails, no file or copy is
+offered and the card names what could not be read, payslips by payday first. A restore reads every
+original it will touch before its first write and stops, writing nothing, if one cannot be read;
+its rollback puts each original back and is verified by checked reads, and anything it cannot
+confirm is reported as part-restored, never as "nothing was changed" (`applyRestore`).
 
 ## Payslip identity — dates first, and a month's payslip
 
