@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: November 2026 — v26.90 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Documentation milestone | `26.90` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The stamp in every stamped doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each is reviewed and re-stamped. |
+| Documentation milestone | `27.00` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The stamp in every stamped doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` — canonical, the **primary install + notification target**. The GitHub Pages mirror `https://garethdavidmiller.github.io/roster-app/` (**note the `/roster-app/` path**; the bare origin 404s) is where **most staff still open the app** (owner, Sep 2026 — a deliberate, gradual changeover). It serves **no redirects and no HTTP headers**, so weigh any change that relies on Firebase Hosting against the mirror, not the canonical URL — which is why every page carries a `<meta>` CSP. ARCHITECTURE.md EXC-006; the API key note below. |
 | Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name. Each endpoint's header holds its rules; the two that are easy to get wrong are marked: |

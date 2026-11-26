@@ -1,6 +1,6 @@
 # Marylebone Roster — Product Roadmap
 
-*Last updated: November 2026 — v26.90 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -344,8 +344,8 @@ rest.)
 today get neither — most of them, since the mirror is where most staff open the app. The cost is
 operational, not technical: telling colleagues, and reinstalling from the canonical URL.
 
-**Why AFTER the password plan, concretely.** The forced set-password overlay fires at next sign-in and
-completes itself within 60 days (sessions last 60 days). A new address is a NEW ORIGIN,
+**Why AFTER the password plan, concretely.** The forced set-password overlay fires at the next sign-in
+or open (since 26 Nov 2026, when the installed app stopped signing anyone out). A new address is a NEW ORIGIN,
 so `localStorage` — and therefore the session — does not come with it: everyone who moves is signed out and
 must sign in again there. Migrate first and a member meets an unfamiliar URL, a forced sign-in, and a
 mandatory password overlay in one go; that is the moment someone concludes the app is broken. Doing the
