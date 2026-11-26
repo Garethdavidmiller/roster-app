@@ -334,7 +334,6 @@
            nothing there, so it offers no hand, no hover lift and no press: Admin's picker arrows
            (.rp-nav-btn) answer the same way. */
         .controls button[aria-disabled="true"] { cursor: default; }
-        .controls .control-group--pair[hidden], .al-lb-link[hidden] { display: none; }   /* an Other Staff login is not offered Admin or Pay (calendar-drawer.js) */
 
         .controls button.today-btn {
             background: var(--accent-gold);

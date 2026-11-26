@@ -1088,7 +1088,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `GESTURE_POLL_MS` · `START_STAGES` · `createRedrawScheduler`
 
 ### `calendar-drawer.js`
-- **Exports:** `calendarDrawerOptions` · `wireCalendarDrawer` · `gateQuickButtons` · `rewireCalendarDrawer`
+- **Exports:** `calendarDrawerOptions` · `wireCalendarDrawer` · `rewireCalendarDrawer`
 
 ## What not to do, and the version bump
 

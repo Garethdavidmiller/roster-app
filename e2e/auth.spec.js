@@ -1418,10 +1418,10 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await expect(page.locator('.calendar-grid')).toBeVisible();
         // A colleague's roster: they have none of their own, so the picker holds somebody else.
         await expect(page.locator('#teamMemberSelect')).not.toHaveValue('');
-        // The Calendar's own Admin and Pay buttons follow the drawer (polish review, 26 Nov 2026): both pages refuse this login.
-        await expect(page.locator('#adminBtn')).toBeHidden();
-        await expect(page.locator('#payBtn')).toBeHidden();
-        await expect(page.locator('#todayBtn, .today-btn').first()).toBeVisible();
+        // The Calendar's own Admin and Pay buttons STAY for this login (owner, 26 Nov 2026), and each page says why it is
+        // not for them, as a manager is told on Pay — the drawer alone leaves the two pills out. Hiding them was tried and undone.
+        await expect(page.locator('#adminBtn')).toBeVisible();
+        await expect(page.locator('#payBtn')).toBeVisible();
         await page.locator('#navMenuBtn').click();
         await expect(page.locator('.nav-panel-pill--calendar')).toBeVisible();
         await expect(page.locator('.nav-panel-pill--trains')).toBeVisible();
@@ -1434,7 +1434,7 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
 
     // Admin SAYS why it is not for them, as the Pay Calculator does (owner, 24 Nov 2026): it used to send them back to
     // the Calendar with nothing said, and the Calendar's 📝 Admin button and "Record leave" both land there.
-    test('Admin and the Pay Calculator each say why they are not for them; Operations and Links go to the Calendar', async ({ page }) => {
+    test('Admin and the Pay Calculator each say why they are not for them; Operations and Links go to Admin', async ({ page }) => {
         await withOtherStaff(page, NAME);
         await seedSession(page, NAME);
         await page.goto('/admin.html#book-annual-leave');
@@ -1450,16 +1450,14 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
             await expect(page.locator(hidden), `${hidden} shows behind the card`).toBeHidden();
         }
         await expect(page.locator('#navMenuBtn'), 'the drawer is the way out').toBeVisible();
-        // Operations sends a non-admin to Admin, and this login to the Calendar: Admin would only refuse it again (review, 26 Nov 2026).
+        // Operations and Links send this login to Admin's card, which says why (owner, 26 Nov 2026): a message, never a
+        // silent hop back to the Calendar.
         await page.goto('/operations.html');
-        await expect(page).not.toHaveURL(/operations\.html|admin\.html/);
-        await expect(page.locator('.calendar-grid, .cal-lock-card').first()).toBeVisible();
+        await expect(page.locator('#adminRoleCard')).toBeVisible();
         await page.goto('/paycalc.html');
         await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
-        // Links sends a non-designer to Admin, and this login to the Calendar: Admin refuses it too (polish review, 26 Nov 2026).
         await page.goto('/links.html');
-        await expect(page).not.toHaveURL(/links\.html|admin\.html/);
-        await expect(page.locator('.calendar-grid, .cal-lock-card').first()).toBeVisible();
+        await expect(page.locator('#adminRoleCard')).toBeVisible();
     });
 
     // …AND THE SAME WHEN THE LOGIN IS MADE ON ADMIN'S OWN SIGN-IN CARD (24-hour review, 25 Nov 2026). The gate ran
@@ -1491,17 +1489,25 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await expect(page.locator('#netDisplay')).toBeHidden();
     });
 
-    // The leave panel shows a colleague's leave to this login (there is no roster of its own), and its "Record leave"
-    // leads to Admin, which refuses it — so the link goes, as the Calendar's own Admin button does (review, 26 Nov 2026).
-    test('the leave panel has no "Record leave" for them', async ({ page }) => {
+    // The Calendar's buttons are the way a colleague meets these pages, so the journey is pinned from them (owner, 26 Nov 2026).
+    test('the Calendar\'s 📝 Admin, 💷 Pay and "Record leave" each lead to the card that says why', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await withOtherStaff(page, NAME);
         await seedMemberSession(page, NAME);
         await page.goto('/');
         await expect(page.locator('.calendar-grid')).toBeVisible();
+        await page.locator('#payBtn').click();
+        await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
+        await page.goBack();
+        await expect(page.locator('.calendar-grid')).toBeVisible();
+        await page.locator('#adminBtn').click();
+        await expect(page.locator('#adminRoleCard .role-card-title')).toHaveText('Admin is for staff on the roster');
+        await page.goBack();
+        await expect(page.locator('.calendar-grid')).toBeVisible();
         await page.locator('#alBtn').click();
         await expect(page.locator('#alLightbox')).toHaveClass(/open/);
-        await expect(page.locator('#alLbRecordLink')).toBeHidden();
+        await page.locator('#alLightboxContent .al-lb-link', { hasText: 'Record leave' }).click();
+        await expect(page.locator('#adminRoleCard .role-card-title')).toHaveText('Admin is for staff on the roster');
         expect(errors).toEqual([]);
     });
 

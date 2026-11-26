@@ -79,27 +79,6 @@ let _deps = null;
 export function wireCalendarDrawer(deps) {
     _deps = deps;
     initNavPanel(calendarDrawerOptions(getSession(), deps));
-    gateQuickButtons(getSession()?.name || null);
-}
-
-/**
- * The Calendar's own ways into Admin and Pay follow the drawer's pills, from the same gate (polish review,
- * 26 Nov 2026): an Other Staff login is refused both pages, and was offered the 📝 Admin and 💷 Pay pair, and the
- * leave panel's "Record leave", that the drawer did not offer it. The PAIR goes as one (its wrapper is one flex item,
- * and an empty one left the row off centre). With no session they stay, as each page asks for a sign-in itself. Not a
- * boundary: the pages refuse in place whatever is drawn here.
- * @param {string|null} name  the SAVED session's name
- * @param {{ getElementById: (id: string) => any }|null} [doc]  null where there is no page (a Node caller)
- */
-export function gateQuickButtons(name, doc = (typeof document === 'undefined' ? null : document)) {
-    if (!doc) return;
-    const refused = !!name && !navGatesFor(name).isNotOtherStaff;
-    const pair = doc.getElementById('adminBtn')?.closest?.('.control-group--pair') ?? doc.getElementById('adminBtn');
-    if (pair) pair.hidden = refused;
-    const payBtn = doc.getElementById('payBtn');
-    if (payBtn && !pair?.contains?.(payBtn)) payBtn.hidden = refused;
-    const record = doc.getElementById('alLbRecordLink');
-    if (record) record.hidden = refused;
 }
 
 /**
@@ -112,6 +91,5 @@ export function rewireCalendarDrawer() {
     if (!_deps) return false;
     resetNavPanel();
     initNavPanel(calendarDrawerOptions(getSession(), _deps));
-    gateQuickButtons(getSession()?.name || null);
     return true;
 }

@@ -14,7 +14,7 @@
  *   siblings — no DOM, no Firebase there). The module list is FILE_INDEX.md's `links-*.js` rows.
  */
 
-import { CONFIG, escapeHtml, teamMembers, isOtherStaff } from './roster-data.js';
+import { CONFIG, escapeHtml } from './roster-data.js';
 import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
 import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry, whenOwnWritesSentFor } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
@@ -98,9 +98,7 @@ export function init() {
     // designer, their OWN named session re-established (or every write fails) and guarded, the set-password step and
     // the error reporter. A signed-in non-designer goes to Admin.
     if (!startPage({ page: 'links', label: 'Links', again: init,
-        // An Other Staff login goes to the Calendar instead: Admin refuses it too, and it met Admin's card about a page
-        // it never asked for (polish review, 26 Nov 2026).
-        refuse: () => window.location.replace(teamMembers.find(m => m.name === getSession()?.name && isOtherStaff(m)) ? './' : './admin.html') })) return;
+        refuse: () => window.location.replace('./admin.html') })) return;
     const currentSession  = getSession();
     const currentUser     = currentSession?.name ?? null;
     const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);
