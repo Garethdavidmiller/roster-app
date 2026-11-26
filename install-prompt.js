@@ -91,6 +91,9 @@
  */
 import { lsGet, lsSet } from './ls.js';
 import { isIOS, isStandalonePWA, onPagesMirror } from './notif.js';
+// Handed on for the Calendar's "move to the main address" notice (calendar-notices.js, 26 Nov 2026), which asks it on
+// EVERY device — a desk and the installed app too, where `installRoute()` is null.
+export { onPagesMirror };
 
 /** One-off per device, like the notification prompt beside it. */
 const DISMISSED_KEY = 'myb_install_prompt_done';

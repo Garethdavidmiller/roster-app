@@ -1073,7 +1073,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `initNotifPrompt`
 
 ### `install-prompt.js`
-- **Exports:** `installRoute` · `promptInstall` · `yieldToInstallNotice` · `releaseInstallNoticeYield` · `retireInstallStrip` · `installNoticeHasTheVisit` · `initInstallPrompt`
+- **Exports:** `onPagesMirror` · `installRoute` · `promptInstall` · `yieldToInstallNotice` · `releaseInstallNoticeYield` · `retireInstallStrip` · `installNoticeHasTheVisit` · `initInstallPrompt`
 
 ### `text-scale.js`
 - **Exports:** `LARGE_FROM` · `COMPACT_FROM` · `LARGE_VALUE` · `COMPACT_VALUE` · `tierFor` · `measureTextScale` · `applyTextScale`

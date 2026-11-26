@@ -43,7 +43,7 @@ import { noticeAudienceAllows } from './calendar-access-core.js';
 import { getSession } from './session.js';
 import { teamMembers } from './roster-data.js';
 import { payCalculatorPrices } from './pay-audience.js';   // the Pay page's own audience question
-import { installRoute, promptInstall, yieldToInstallNotice, releaseInstallNoticeYield, retireInstallStrip } from './install-prompt.js';
+import { installRoute, onPagesMirror, promptInstall, yieldToInstallNotice, releaseInstallNoticeYield, retireInstallStrip } from './install-prompt.js';
 import { canOpenNewlink } from './auth-policy.js';   // the New link notice's audience — the drawer pill's own question
 
 /**
@@ -143,6 +143,17 @@ const NEWLINK_VOTE_RECORD = {
         + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',
 };
 
+/**
+ * What App Notices keeps of the "move to the main address" notice (26 Nov 2026). It stays true for the 180 days the
+ * record is kept: the main address, and that Pay figures are moved by hand.
+ */
+const MOVE_RECORD = {
+    id: 'move-to-main-2026', section: 'General', date: '26 Nov 2026',
+    title: 'Move to the app’s main address',
+    body: 'Marylebone Roster’s main address is myb-roster.web.app. Pay Calculator figures move with 💾\u00a0Move Your '
+        + 'Pay\u00a0Data on the Pay page: save a copy on the old address, then restore it there.',
+};
+
 /** What every notice waits for after access — set once by `initCalendarNotices`. @type {Promise<any>} */
 let _after = Promise.resolve();
 
@@ -161,6 +172,7 @@ const FOLLOWED_ENDS = {
     myb_notice_ytd_figures_2026_done: [OCTOBER_LAST_DAY, 1],
     myb_notice_install_app_2026_done: ['22 Oct 2026', 90],
     myb_notice_newlink_vote_2026_done: ['5 Dec 2026', 1],
+    myb_notice_timetable_soon_2026_done: ['12 Dec 2026', 1],
 };
 
 /**
@@ -399,6 +411,54 @@ export function initCalendarNotices({ after } = {}) {
             () => !!installRoute() && (payNoticeDone || !payCalcIsTheirs()),   // payNoticeDone: always, since 1 Nov
             () => { decided = installRoute() ?? decided; yieldToInstallNotice(); },
             releaseInstallNoticeYield);   // refused at the open: the strip and the ask come back for this visit
+    }());
+
+    // ── Move to the app's main address (v26.90; owner, 26 Nov 2026) ──────────────────────────────────────────
+    //
+    // "A sequential app notice on calendar" for those still on the GitHub Pages copy: reinstall from the main address,
+    // and how to move their pay data — "encourage a few more, then mop up the stragglers so I can close the GitHub
+    // Pages version". ONLY ON THE MIRROR (`onPagesMirror`), on every kind of device there: a desk, a phone's browser
+    // and the installed app alike, which is why it is not `installRoute()` (null for a desk and the installed app).
+    // Asked at open time through the gate; a device on the main address is left unflagged, though it never changes
+    // address, so it never gets it.
+    //
+    // IN SEQUENCE, never sharing a visit: after the timetable notice (`FOLLOWS`, which itself comes after the install
+    // and vote notices until its final week) and after the install notice where that one is this device's — on the
+    // mirror it already says to install from the main address, so this is the second, fuller word. Both flags are read
+    // at WIRING time, and both ends are in `FOLLOWED_ENDS`, so neither holds it after it has ended.
+    //
+    // A ONE-OFF on the rule every notice here follows, from its posting day to the end of Thursday 31 December (owner,
+    // 26 Nov 2026). The stragglers get a RE-POST on a NEW key (the new-notice skill's first lesson): this key would hide
+    // it from everyone who closed this one. Its link leaves for the other address, so it is archived on OPEN.
+    (function () {
+        const DONE_KEY        = 'myb_notice_move_to_main_2026_done';
+        const STARTS          = new Date(2026, 10, 26);    // local midnight, Thursday 26 November — its posting day
+        const LAST_DAY        = '31 Dec 2026';             // offered through the whole of the Thursday
+        const FOLLOWS         = 'myb_notice_timetable_soon_2026_done';
+        const FOLLOWS_INSTALL = 'myb_notice_install_app_2026_done';   // …where that notice is this device's
+
+        const overlay = document.getElementById('moveNoticeLb');
+        if (!overlay) return;
+        if (lsGet(DONE_KEY)) return;
+        if (isNoticeExpired(LAST_DAY, 1)) { lsSet(DONE_KEY, '1'); return; }
+        if (Date.now() < STARTS.getTime()) return;
+        if (!followedDone(FOLLOWS)) return;
+        const installNoticeDone = followedDone(FOLLOWS_INSTALL);
+
+        const markDone = () => lsSet(DONE_KEY, '1');
+
+        const lb = createLightbox({
+            overlay,
+            content:  /** @type {HTMLElement} */ (document.getElementById('moveNoticeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('moveNoticeClose')),
+            onOpen() { archiveNotice(MOVE_RECORD); },
+            onClose() { markDone(); },
+        });
+
+        _wireNoticeLink('moveNoticeGo', lb, markDone);
+        document.getElementById('moveNoticeLater')?.addEventListener('click', () => lb.close());
+
+        _openWhenAudienceAllows(lb, 'members', () => onPagesMirror() && (installNoticeDone || !installRoute()));
     }());
 
     // ── Voting on the new link starts soon (v26.90; owner, 26 Nov 2026) ──────────────────────────────

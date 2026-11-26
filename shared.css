@@ -3435,7 +3435,7 @@ body.auth-ready .boot-placeholder { display: none; }
    could land between the burger glyph and the arrow, leaving a line starting "→ Daily Huddle" that
    reads as broken punctuation rather than a route. (v18.86) A web address told to staff is the same
    kind of token — "myb-" ending one line of the install notice read as a typo (v24.91). */
-.nav-path { white-space: nowrap; }
+.nav-path, .notice-address { white-space: nowrap; }   /* a menu route, and a web address, read whole: "myb-" alone is not one */
 .card-body { padding: var(--space-3) var(--space-4); }
 
 /* ── Collapsible card body + chevron — shared by every collapsible card (the chevron is the

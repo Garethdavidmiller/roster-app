@@ -137,9 +137,13 @@ mock.module('../session.js', {
 /** @type {{ how: 'prompt'|'ios'|'menu', mirror: boolean } | null} */
 let _route = { how: 'menu', mirror: false };
 /** @type {string[]} */ let _installCalls = [];
+/** Is the page served from the GitHub Pages mirror? Only the "move to the main address" notice asks, on every device.
+ *  Off by default; the move notice's block turns it on. */
+let _onMirror = false;
 mock.module('../install-prompt.js', {
     namedExports: {
         installRoute: () => _route,
+        onPagesMirror: () => _onMirror,
         promptInstall: () => { _installCalls.push('prompt'); return true; },
         yieldToInstallNotice: () => { _installCalls.push('yield'); },
         releaseInstallNoticeYield: () => { _installCalls.push('release'); },
@@ -166,8 +170,9 @@ let _n = 0;
  *  and a locked page carry none, which is what each of those really holds. */
 async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = /** @type {typeof _expired} */ (OCTOBER_OVER_BY_THE_CLOCK),
                       session = accessType === 'named' ? { name: 'G. Miller' } : null,
-                      route = /** @type {typeof _route} */ ({ how: 'menu', mirror: false }), storageWorks = true } = {}) {
+                      route = /** @type {typeof _route} */ ({ how: 'menu', mirror: false }), storageWorks = true, mirror = false } = {}) {
     _storageWorks = storageWorks;
+    _onMirror = mirror;
     _revised = [];
     _present = new Set(present);
     _accessType = accessType;
@@ -1546,5 +1551,121 @@ describe('14 · where storage will not keep a flag, no notice opens — and arch
         lb._cfg.onOpen();
         const filed = _archived.find(n => n.id === 'timetable-soon-2026');
         assert.deepEqual(filed, _revised.find(n => n.id === 'timetable-soon-2026'));
+    });
+});
+
+describe('15 · move to the main address: only on the GitHub Pages copy, after the timetable notice, 26 Nov – 31 Dec (v26.90)', () => {
+    // Owner, 26 Nov 2026: "a sequential app notice on calendar" for those still on the GitHub Pages copy — reinstall
+    // from the main address, and how to move their pay data. Organised by what a wrong answer costs: shown on the main
+    // address it tells somebody already there to move; missing a desk or the installed app on the mirror misses the
+    // stragglers it is for; sharing a visit breaks one-at-a-time; and flagged where refused, that device never sees it.
+    const MV   = /** @type {{ overlay: string, audience: string, follows: string|null, followsInstall: string|null, starts: number|null }} */ (NOTICES.find(n => n.overlay === 'moveNoticeLb'));
+    const SOON = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableSoonNoticeLb'));
+    const INST = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
+    const DONE = DONE_KEY_OF(MV);
+    const IIFE = IIFE_OF('moveNoticeLb');
+    const NOV_27 = new Date(2026, 10, 27, 9, 0).getTime();
+    const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === MV.overlay));
+    /** The timetable notice answered on an earlier load, and the October notices ended: the move notice's turn. */
+    const AFTER_TIMETABLE = { [DONE_KEY_OF(SOON)]: '1', [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' };
+    const ON_MIRROR = { accessType: /** @type {const} */ ('named'), mirror: true, route: null, store: AFTER_TIMETABLE,
+                        present: [MV.overlay, 'moveNoticeGo', 'moveNoticeLater'] };
+
+    test('in the matrix, members only, its own key, no snooze, 26 November to the end of 31 December, after the REAL timetable and install keys', () => {
+        assert.ok(MV, 'found by the same pattern as every other notice');
+        assert.equal(MV.audience, 'members');
+        assert.equal(DONE, 'myb_notice_move_to_main_2026_done');
+        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
+        assert.equal(MV.starts, new Date(2026, 10, 26).getTime(), 'STARTS is its posting day, read from the source');
+        assert.match(IIFE, /const LAST_DAY\s*=\s*'31 Dec 2026'/);
+        assert.match(IIFE, /isNoticeExpired\(LAST_DAY, 1\)/);
+        // Restated keys: a rename on either side would leave this notice waiting for a flag nothing writes.
+        assert.equal(MV.follows, DONE_KEY_OF(SOON));
+        assert.equal(MV.followsInstall, DONE_KEY_OF(INST));
+        assert.match(IIFE, /if \(!followedDone\(FOLLOWS\)\) return;/, 'the timetable notice, through its END too — never its flag alone');
+        assert.match(IIFE, /onPagesMirror\(\)/, 'the mirror is asked on every device, not through installRoute()');
+    });
+
+    test('on the mirror it opens on a desk, in the installed app and in a phone browser after the install notice', async () => {
+        mock.timers.setTime(NOV_27);
+        for (const [what, route, extra] of /** @type {const} */ ([
+            ['a desk', null, {}],
+            ['the installed app', null, {}],
+            ['a phone browser, install notice answered', { how: 'menu', mirror: true }, { [DONE_KEY_OF(INST)]: '1' }],
+        ])) {
+            await wire({ ...ON_MIRROR, route: /** @type {any} */ (route), store: { ...AFTER_TIMETABLE, ...extra } });
+            await settleAccess();
+            assert.ok(opened(), `not offered on ${what}`);
+            assert.deepEqual(_writes, [], `${what}: nothing flagged before an answer`);
+        }
+    });
+
+    test('on the main address it never opens — and nothing is flagged', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire({ ...ON_MIRROR, mirror: false });
+        await settleAccess();
+        assert.equal(opened(), undefined, 'it told somebody already on the main address to move');
+        assert.ok(!_writes.some(([k]) => k === DONE), 'refused, so left unflagged');
+    });
+
+    test('in a mirror phone browser it waits for the install notice, unflagged', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire({ ...ON_MIRROR, route: { how: 'menu', mirror: true } });
+        await settleAccess();
+        assert.equal(opened(), undefined, 'it shared a visit with the install notice');
+        assert.ok(!_writes.some(([k]) => k === DONE));
+    });
+
+    test('it waits for the timetable notice, and is not even wired on the load that one is still to come', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire({ ...ON_MIRROR, store: { [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' } });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.ok(!_writes.some(([k]) => k === DONE));
+    });
+
+    test('before 26 November nothing is offered', async () => {
+        mock.timers.setTime(new Date(2026, 10, 25, 9, 0).getTime());
+        await wire(ON_MIRROR);
+        await settleAccess();
+        assert.equal(opened(), undefined);
+    });
+
+    test('every dismissal marks it done; it is archived on OPEN, and its link replaces the notice\'s history entry', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire(ON_MIRROR);
+        await settleAccess();
+        const lb = opened();
+        assert.ok(lb);
+        const click = { type: 'click', button: 0 };
+        _listeners.get('moveNoticeGo:click')?.(click);
+        assert.deepEqual(_writes, [[DONE, '1']], 'the link marks it done before the page is left');
+        assert.equal(_followed.length, 1);
+        assert.equal(_followed[0].lb, lb);
+        _writes = [];
+        lb._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']], 'so does a close');
+        lb._cfg.onOpen();
+        const filed = _archived.find(n => n.id === 'move-to-main-2026');
+        assert.ok(filed, 'archived on OPEN, before the link takes the member to the other address');
+        assert.equal(filed.section, 'General');
+        assert.doesNotMatch(filed.title + filed.body, /\bsoon\b|will close|github\.io/i, 'the record says what stays true after the move');
+    });
+
+    test('its words name both addresses and the Pay page\'s own card, and its link is the install notice\'s', () => {
+        const here = new URL('.', REPO_ROOT_URL);
+        const html = readFileSync(new URL('./index.html', here), 'utf8');
+        const at = html.indexOf('id="moveNoticeLb"');
+        const block = html.slice(at, html.indexOf('<!--', at));
+        const text = block.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+        assert.match(text, /garethdavidmiller\.github\.io/);
+        assert.match(text, /myb-roster\.web\.app/);
+        // The card's name as the Pay page heads it, emoji and all: a renamed card would send people looking for nothing.
+        const pay = readFileSync(new URL('./paycalc.html', here), 'utf8');
+        const card = /<h2><span aria-hidden="true">([^<]+)<\/span> (Move Your Pay Data)<\/h2>/.exec(pay);
+        assert.ok(card, 'the Pay page still has its Move Your Pay Data card');
+        assert.ok(text.includes(`${card[1]} ${card[2]}`), `the notice names the card as the Pay page does: ${card[1]} ${card[2]}`);
+        const href = (/** @type {string} */ id) => new RegExp(`href="([^"]+)" id="${id}"`).exec(html)?.[1];
+        assert.equal(href('moveNoticeGo'), href('installNoticeGo'), 'one main address, written the same in both notices');
     });
 });
