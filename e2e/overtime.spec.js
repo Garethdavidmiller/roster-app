@@ -6,7 +6,7 @@
  * ever — no error, no timeout), that `hidden` actually hides, and that the Manager's planning
  * horizon lists weeks nobody has created.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, withOvertimeBeta } from './fixtures.js';
 import { seedSession, signInThroughOverlay, trackEndpointUse, endpointUse, waitForReadsToLand, isTouchProject } from './helpers.js';
 import { APP_PAGES } from '../scripts/app-pages.mjs';
 
@@ -3266,13 +3266,7 @@ test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybod
     // The LIVE list can be empty (7 Oct 2026: both participants withdrawn), and what this block pins
     // is how the page treats whoever is on it — so she is invited in the copy of roster-data.js this
     // browser is served, and nowhere else. The ordinary member below is unaffected either way.
-    test.beforeEach(async ({ page }) => {
-        await page.route('**/roster-data.js', async (route) => {
-            const res = await route.fetch();
-            const body = (await res.text()).replace(/OVERTIME_BETA:\s*(\/\*\*[^*]*\*\/\s*)?\(?\[[^\]]*\]\)?/, `OVERTIME_BETA: ['${BETA}']`);
-            await route.fulfill({ response: res, body });
-        });
-    });
+    test.beforeEach(async ({ page }) => { await withOvertimeBeta(page, [BETA]); });
 
     test('she gets her own form, and no way to see anyone else\'s', async ({ page }) => {
         await seedSession(page, BETA);
