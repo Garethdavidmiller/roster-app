@@ -38,7 +38,7 @@ invariant is appended and a retired one is struck through in place, never renumb
 | # | Invariant | Where it lives |
 |---|---|---|
 | 1 | **The local session is committed only AFTER auth resolves.** Never before, never optimistically — a timeout, a throw or a sign-in that resolves with no named identity commits nothing. A failed attempt clears a session this device holds for ANOTHER member, and leaves one it already holds for the SAME member as it was. | `login-core.js` (`runNamedSignIn`, its `keepsLocalSession` dependency; `SIGN_IN_GIVE_UP_MS`, when a typed attempt is ended) · `login-overlay.js` (re-exports it and supplies that dependency; `awaitLateSignIn`, which opens the page if an ended attempt's answer arrives late) |
-| 2 | **A session expires 60 days after SIGN-IN, full stop.** Nothing extends it, inactivity never ends it early, so `expiry` is written once and `getSession()` is a pure read. **An `expiry` that cannot be read is treated as EXPIRED, never as absent** — a comparison against a missing or NaN value is false, so a corrupt session would otherwise never expire. | `session.js` |
+| 2 | **A session expires 60 days after SIGN-IN — or, in the app INSTALLED on a phone, 60 days after it was last opened** (owner, 26 Nov 2026: the installed app is the personal phone). Inactivity never ends it early, and `getSession()` is a pure read: the one thing that extends a session is `renewInstalledSession`, only in the installed app, only once the member's OWN account is restored, at most once a day, never reviving one that has ended, and never moving its start (`createdAt`, which a reset is compared with — 23). **An `expiry` that cannot be read is treated as EXPIRED, never as absent** — a comparison against a missing or NaN value is false, so a corrupt session would otherwise never expire. | `session.js` |
 | 3 | **Three claim tiers, and admin outranks manager.** `{admin, name, member}` · `{manager, name, member}` · `{name, member}` (plus `linksDesigner` for a designer; an "Other Staff" login is the third tier, its narrower page set a CLIENT policy, `otherStaff` in `auth-policy.js` — DECISIONS.md, 23 Nov 2026) — all stamped by `setupRosterAuth` from the **server-owned** `roster-members.json`, never from the client payload. **A tier taken away stops at once** (sign-in audit, Nov 2026): a run that removes admin, manager or `linksDesigner` revokes that account's sessions, so the Cloud Functions refuse the old tier immediately (`checkRevoked`), and the rules, which read the token itself, follow when it renews within the hour. Never for the same tier or a higher one: a revocation signs the member out of every device. | `functions/auth-endpoints.js` · `functions/account-lifecycle.js` (`elevatedClaimsLost`) |
 | 4 | **Override writes are STRICT.** Your own verified name (`memberName()`, which is null unless `isMember()` — invariant 19), or `admin`/`manager` writing on behalf. The old "no `name` claim ⇒ allow" escape is gone and must not come back. | `firestore.rules` |
 | 5 | **A stale claim self-heals; it never fails silently.** Force a token refresh, retry ONCE, and preserve the original error if it still fails. Every write path uses it. | `claim-retry.js` |
@@ -302,12 +302,14 @@ migration state lives in Firestore, not in tokens.
 ### The forced password overlay
 
 `password-force.js` compels a member still on the surname default to choose a password at their
-**next sign-in**, on every page where a member signs in, the Calendar included, behind the
-`CONFIG.FORCE_PASSWORD_SET` kill switch. **Everyone at once, and nobody signed out to hurry it**
-(owner, 25 Jul 2026 — "force everyone, but only on the next log in"): a session lasts 60 days, so
-coverage completes itself within 60 days, staggered by each member's own expiry; a tiered rollout
-would have added releases without lowering the peak. Since the staff PIN was retired (23 Nov 2026)
-every reader signs in, so every reader meets it.
+**next sign-in, or their next open of the app** — on every page where a member signs in, the Calendar
+included, behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. It asked only at a sign-in until the
+installed app stopped running out (invariant 2), and the owner's condition for that change was "you
+should still be made to reset the surname password" (26 Nov 2026). On an ordinary open the current
+password is asked for from the start, since Firebase changes a password only after a recent sign-in;
+a member this device has seen the server confirm on their own password is not asked again, so the
+check costs a read only for those still on the surname. **Nobody is signed out to hurry it** (owner,
+25 Jul 2026).
 
 - It shows only for a `named` identity whose status is not migrated (`!isPasswordMigrated`), and
   **fails open before and after showing** (invariant 11; "Continue for now" stamps nothing).
@@ -317,8 +319,7 @@ every reader signs in, so every reader meets it.
 - The e2e suite defaults the flag OFF (`forcePasswordSet(page)` opts in); the browser tests assert
   VISIBILITY, not text, because two CSS defects once hid parts of it while the text was right.
 - Accepted: the compel marker is consumed before the identity is known, so a member whose session
-  does not settle in time loses that cycle. Restoring the marker re-creates a worse ambush, and
-  coverage completes anyway.
+  does not settle in time loses that sign-in's cycle; their next open asks again.
 
 ### The admin reset (break-glass)
 

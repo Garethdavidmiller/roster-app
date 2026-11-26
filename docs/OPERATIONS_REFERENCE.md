@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v26.90 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
 
 How the app is run day to day: the steps and facts an operator or an editor needs. Referenced from
 `CLAUDE.md`. What changed at which version is in git, not here.
@@ -641,7 +641,8 @@ re-saves the record with its owner at the next load.
 Operations → Usage shows an **exact** count of accounts signed in, from `getSignInStats` (admin-only),
 which reads Firebase Auth's own `lastSignInTime` — nothing new is stored. It is filtered to the current
 server-owned roster (so an un-swept leaver cannot inflate it) and returns four integers, no identity. It
-measures **sign-ins, not activity**: sessions last 60 days, so most opens are restores, and only the last
+measures **sign-ins, not activity**: sessions last 60 days and renew on each open in the installed app, so
+most opens are restores, and only the last
 sign-in is kept. `neverSignedIn` is the actionable figure.
 
 ### Which address staff are on

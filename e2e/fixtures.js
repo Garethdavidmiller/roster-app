@@ -883,6 +883,19 @@ export async function withLinksDesigners(page, names) {
 }
 
 /**
+ * Give one test its own Overtime beta participants (CONFIG.OVERTIME_BETA). Through the shared roster-data.js
+ * route, so the suite's defaults — the forced set-password step OFF among them — still apply: a spec that
+ * routed the file itself replaced that route, and once the step asked on an ordinary open (26 Nov 2026) its
+ * seeded member met the overlay. Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ * @param {string[]} names
+ */
+export async function withOvertimeBeta(page, names) {
+    _setConfigOverride(page, 'OVERTIME_BETA',
+        /OVERTIME_BETA:\s*(\/\*\*[^*]*\*\/\s*)?\(?\[[^\]]*\]\)?/, `OVERTIME_BETA: ${JSON.stringify(names)}`);
+}
+
+/**
  * Add one INVENTED "Other Staff" login to the served roster for this page (owner, 23 Nov 2026). Call BEFORE page.goto().
  * `fields` is JavaScript source for any further properties of the row — `roleHistory: [...]` for a colleague moved
  * to Other Staff from a priced grade.

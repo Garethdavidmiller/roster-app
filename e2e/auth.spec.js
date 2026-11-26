@@ -1530,3 +1530,30 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
         await expect(page.locator('#trStationPicker, #trOverviewBody').first()).toBeAttached();
     });
 });
+
+// ── An ORDINARY open asks too (owner, 26 Nov 2026) ─────────────────────────────────────────────
+// The installed app no longer signs anybody out, so a member still on the surname would never meet a
+// sign-in again. The set-password step therefore asks when an already-signed-in member opens a page —
+// and, since that sign-in may be weeks old, shows the current-password box from the start.
+test('forced overlay: an ordinary open of a member still on the surname asks, with the current password up front', async ({ page }) => {
+    await forcePasswordSet(page);
+    await seedMemberSession(page, 'G. Miller');   // signed in already: no sign-in marker, no sign-in card
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUserEmail: 'g.miller@myb-roster.local' }; });
+    await page.goto('/settings.html');
+    await expect(page.locator('#pwForceOverlay.visible')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('#loginOverlay.visible')).toHaveCount(0);
+    await expect(page.locator('#pwfCurrentWrap'), 'weeks after a sign-in Firebase wants the current password: ask for it at once').toBeVisible();
+});
+
+test('forced overlay: an ordinary open does not ask once this device has seen the member\'s own password', async ({ page }) => {
+    await forcePasswordSet(page);
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pw_own_known_G. Miller', '1');
+        window.__E2E = { ...(window.__E2E || {}), authUserEmail: 'g.miller@myb-roster.local' };
+    });
+    await page.goto('/settings.html');
+    await page.locator('#settingsPasswordCard, main').first().waitFor();
+    await page.waitForTimeout(1500);
+    await expect(page.locator('#pwForceOverlay.visible')).toHaveCount(0);
+});

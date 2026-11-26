@@ -462,8 +462,8 @@ function _appendSignInSection(content) {
         // State the caveats rather than let the number be read as "active staff". Until v20.47 there
         // was a tidy relationship to lean on: sessions capped at 30 days, so a live session REQUIRED
         // a sign-in inside 30 days and this figure was a slight OVER-count of active people. **That
-        // is no longer true and the direction has flipped** — at 60 days (`SESSION_MS`, session.js)
-        // someone can sign in once and use the app daily for two months without ever re-entering
+        // is no longer true and the direction has flipped** — at 60 days (`SESSION_MS`, session.js), renewed
+        // on each open in the installed app, someone can sign in once and use the app daily for months without ever re-entering
         // this window, so the count now misses active people as well as including stopped ones. It
         // is a sign-in count and nothing more, which is exactly what the visible note says; do not
         // re-add a claim about active staff in either direction unless the window is derived from

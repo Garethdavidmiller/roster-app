@@ -185,8 +185,9 @@ const {
     getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
     ensureNamedSession, isTransientAuthError, refreshClaimsIfStale, primeAuth,
-    reconcileExpiredIdentity, shedCalendarViewer,
+    reconcileExpiredIdentity, shedCalendarViewer, renewInstalledSession, renewWhenServerVouches,
 } = await import('../session.js');
+const { renewedExpiry, RENEW_STEP_MS } = await import('../silent-sign-in.js');
 const { nameToEmail, auth } = await import('../firebase-client.js');
 const { CONFIG } = await import('../roster-data.js');
 // The SAME instance session.js imports: what reconcile tells it is what these tests hear.
@@ -2376,3 +2377,120 @@ describe('a silent re-sign-in after an admin reset', () => {
     });
 });
 
+
+
+// ── The installed app stays signed in (owner, 26 Nov 2026) ───────────────────────────────────────
+// "If it is on someone's personal mobile, why am I asking them to sign in every 60 days." In the app
+// installed on a phone a session is renewed on each open — once the member's OWN account is restored,
+// never from the device alone — and a browser tab or a desktop keeps the fixed lifetime.
+describe('renewedExpiry — the rule', () => {
+    const DAY = 86_400_000, now = 1_800_000_000_000;
+    test('the installed app moves the expiry to a full lifetime from now', () => {
+        assert.equal(renewedExpiry({ expiry: now + 10 * DAY, installed: true, now, sessionMs: SESSION_MS }), now + SESSION_MS);
+    });
+    test('a browser tab or a desktop never renews', () => {
+        assert.equal(renewedExpiry({ expiry: now + 10 * DAY, installed: false, now, sessionMs: SESSION_MS }), null);
+    });
+    test('an ended session is never revived, and an unreadable expiry is never trusted', () => {
+        for (const expiry of [now, now - 1, NaN, undefined, null, '9999999999999']) {
+            assert.equal(renewedExpiry({ expiry, installed: true, now, sessionMs: SESSION_MS }), null, String(expiry));
+        }
+    });
+    test('at most one write a day — an app opened every few minutes does not rewrite storage each time', () => {
+        const fresh = now + SESSION_MS - RENEW_STEP_MS + 1;
+        assert.equal(renewedExpiry({ expiry: fresh, installed: true, now, sessionMs: SESSION_MS }), null);
+        assert.equal(renewedExpiry({ expiry: fresh - 1, installed: true, now, sessionMs: SESSION_MS }), now + SESSION_MS);
+    });
+});
+
+describe('renewInstalledSession — the wiring', () => {
+    const DAY = 86_400_000;
+    const own = { isAnonymous: false, email: nameToEmail('G. Miller') };
+    /** A live session that began `ageDays` ago, saved before `createdAt` existed when `legacy`. */
+    const seed = (/** @type {number} */ ageDays, legacy = false) => {
+        const createdAt = Date.now() - ageDays * DAY;
+        const sess = { name: 'G. Miller', ver: SESSION_VER, expiry: createdAt + SESSION_MS, ...(legacy ? {} : { createdAt }) };
+        store.set(AUTH_KEY, JSON.stringify(sess));
+        return { sess, createdAt };
+    };
+    beforeEach(() => { store.clear(); _signOutCalled = false; _existingUser = null; });
+    afterEach(() => { auth.currentUser = null; _existingUser = null; delete (/** @type {any} */ (globalThis)).matchMedia; });
+
+    test('renews the expiry and keeps the START, so an admin reset still ends it', () => {
+        const { sess, createdAt } = seed(50);
+        assert.equal(renewInstalledSession(sess, own, { installed: true }), true);
+        const after = JSON.parse(store.get(AUTH_KEY));
+        assert.ok(after.expiry > Date.now() + SESSION_MS - 5_000, 'the expiry is a full lifetime from now');
+        assert.equal(after.createdAt, createdAt, 'the start moved: a reset after the sign-in would look older than the session');
+    });
+
+    test('a session saved before createdAt existed has its start WRITTEN, not left to move with the expiry', () => {
+        const { sess, createdAt } = seed(50, true);
+        renewInstalledSession(sess, own, { installed: true });
+        assert.equal(JSON.parse(store.get(AUTH_KEY)).createdAt, createdAt);
+    });
+
+    test('only the member\'s own account renews their session — never another account, never an anonymous one', () => {
+        for (const user of [{ isAnonymous: false, email: 'someone.else@myb.test' }, { isAnonymous: true }, null]) {
+            const { sess } = seed(50);
+            const before = store.get(AUTH_KEY);
+            assert.equal(renewInstalledSession(sess, /** @type {any} */ (user), { installed: true }), false);
+            assert.equal(store.get(AUTH_KEY), before);
+        }
+    });
+
+    test('a browser tab keeps the fixed lifetime', () => {
+        const { sess } = seed(50);
+        const before = store.get(AUTH_KEY);
+        assert.equal(renewInstalledSession(sess, own, { installed: false }), false);
+        assert.equal(store.get(AUTH_KEY), before);
+    });
+
+    /** The restored member, whose token the server issued `minutesAgo` (or refused to refresh). */
+    const restored = (/** @type {number|null} */ minutesAgo) => ({ ...own,
+        getIdTokenResult: async () => {
+            if (minutesAgo === null) throw Object.assign(new Error('disabled'), { code: 'auth/user-disabled' });
+            return { issuedAtTime: new Date(Date.now() - minutesAgo * 60_000).toUTCString() };
+        } });
+    const settle = () => new Promise(r => setTimeout(r, 0));
+
+    test('through the real launch path: the installed app\'s restored identity renews the session, a tab\'s does not', async () => {
+        for (const installed of [true, false]) {
+            const { sess } = seed(50);
+            /** @type {any} */ (globalThis).matchMedia = (/** @type {string} */ q) => ({ matches: installed && q.includes('display-mode: standalone') });
+            auth.currentUser = /** @type {any} */ (restored(5));
+            await reconcileExpiredIdentity();
+            await settle();
+            const after = JSON.parse(store.get(AUTH_KEY));
+            assert.equal(after.expiry > sess.expiry, installed, installed ? 'the installed app was not renewed' : 'a browser tab was renewed');
+            assert.equal(_signOutCalled, false, 'a live session is never signed out here');
+        }
+    });
+
+    test('only once the SERVER has vouched within the hour — a disabled account, or a stale token, never renews', async () => {
+        /** @type {any} */ (globalThis).matchMedia = () => ({ matches: true });
+        for (const [minutesAgo, renews] of [[5, true], [64, true], [66, false], [null, false]]) {
+            const { sess } = seed(50);
+            const u = restored(/** @type {any} */ (minutesAgo));
+            auth.currentUser = /** @type {any} */ (u);
+            assert.equal(await renewWhenServerVouches(sess, u), renews, `token issued ${minutesAgo} min ago`);
+        }
+    });
+
+    test('a different member signed in while the token was asked for is never renewed into the old session', async () => {
+        /** @type {any} */ (globalThis).matchMedia = () => ({ matches: true });
+        const { sess } = seed(50);
+        const u = { ...own, getIdTokenResult: async () => { auth.currentUser = /** @type {any} */ ({ email: 'other@myb.test' }); return { issuedAtTime: new Date().toUTCString() }; } };
+        auth.currentUser = /** @type {any} */ (u);
+        assert.equal(await renewWhenServerVouches(sess, u), false);
+    });
+
+    test('an expired session is still signed out in the installed app — renewal never revives one', async () => {
+        store.set(AUTH_KEY, JSON.stringify({ name: 'G. Miller', ver: SESSION_VER, expiry: Date.now() - 1, createdAt: Date.now() - SESSION_MS - 1 }));
+        /** @type {any} */ (globalThis).matchMedia = () => ({ matches: true });
+        auth.currentUser = /** @type {any} */ (own);
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, true);
+        assert.equal(store.has(AUTH_KEY), false);
+    });
+});

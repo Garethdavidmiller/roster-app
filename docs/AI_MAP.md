@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for Marylebone Roster
 
-*Last updated: November 2026 — v26.90 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -308,10 +308,10 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - `functions/reset-request.js` — the public endpoint, which resets nothing and pushes to the admin's devices only; its bounds are argued in its header.
 
 ### `password-force.js`
-- **Exports:** `withTimeout` · `settleOrTimeout` · `shouldForcePasswordSet` · `initPasswordForce`
+- **Exports:** `withTimeout` · `settleOrTimeout` · `shouldForcePasswordSet` · `passwordStepMayBeDue` · `initPasswordForce`
 
 ### `session.js`
-- **Exports:** `shedCalendarViewer` · `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `signedInAs` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS`
+- **Exports:** `shedCalendarViewer` · `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `signedInAs` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `renewWhenServerVouches` · `renewInstalledSession` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS`
 
 ### `viewer-shed.js`
 - **Exports:** `shedCalendarViewer`
@@ -320,7 +320,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `STAFF_PIN_ENDED_NOTICE` · `noteStaffPinEnded` · `forgetStaffPinEnded` · `sayStaffPinEndedIn` · `onStaffPinEnded`
 
 ### `silent-sign-in.js`
-- **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
+- **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs` · `RENEW_STEP_MS` · `renewedExpiry`
 
 ### `auth-state-core.js`
 - **Exports:** `AUTH_STATUSES` · `INITIAL_STATE` · `reduceAuthState`

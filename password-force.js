@@ -30,23 +30,31 @@
  *       escape still hidden — the exact trap. `SAVE_TIMEOUT_MS` (own-password.js) converts a hang into a rejection
  *       (v18.94). When adding any await inside the overlay, time-box it or this property is void.
  *
- * ── WHY IT IS LOGIN-GATED ─────────────────────────────────────────────────────────────────────
+ * ── WHEN IT ASKS: AFTER A SIGN-IN, AND ON AN ORDINARY OPEN ──────────────────────────────────────
+ * Until 26 Nov 2026 it asked only after a sign-in, and the 60-day session limit was what brought every
+ * member back to one. The installed app now stays signed in (session.js → `renewInstalledSession`), so
+ * a member on their surname could have gone for ever without being asked — and the owner's condition
+ * for that change was "you should still be made to reset the surname password". So it also asks on an
+ * ordinary open: once the page has loaded, before the member has started anything, for a member this
+ * device has not seen the server confirm has their own password (`PW_OWN_KNOWN_PREFIX`, which keeps
+ * that from costing a read on every open). On that occasion the last sign-in may be weeks old, so the
+ * current password is asked for from the start (`askCurrent`). Everything below still holds.
+ *
+ * ── THE SIGN-IN MARKER ─────────────────────────────────────────────────────────────────────────
  * `login-overlay.js` sets a one-shot `myb_pw_force_pending_<member>` marker on a CONFIRMED sign-in;
  * this module consumes it as soon as it decides. Two reasons that matters:
  *   · A fresh sign-in is what makes `updatePassword` legal without re-entering the old password —
  *     Firebase requires a recent login, which a sign-in seconds ago satisfies. (If it doesn't, the
  *     `requires-recent-login` path below asks for the current password and reauthenticates.)
- *   · Without the marker the overlay would ambush a member mid-task on an ordinary page load — the
- *     v14.77 "Fix 4" defect, first seen with the (since retired) work-email check's identical marker.
+ *   · It says the sign-in was RECENT, so the current password is not asked for up front. The v14.77
+ *     "Fix 4" defect was a stale marker opening an overlay meant for a sign-in on a later load; an
+ *     ordinary open now asks on purpose (above), and says so by asking for the current password too.
  * The marker is consumed EVEN WHEN we then decide not to show (or fail to read the status), so it can
- * never resurface on a later non-login load. That costs a compel cycle on a failed read; leaving the
- * marker set would re-create Fix 4, which is worse.
+ * never resurface on a later load as if that load were a sign-in.
  *
- * Coverage note: this reaches anyone who signs in. Sessions are capped at 60 days absolute
- * (`SESSION_MS` in session.js — 30 days until v20.47; the 7-day idle cutoff went at v20.41), and an
- * expired session forces a real typed login (`reconcileExpiredIdentity`), so the rollout completes
- * itself within 60 days and staggers naturally by each member's own expiry. That window is a
- * CONSEQUENCE of the session length, not a policy of this module — it doubled when the session did.
+ * Coverage note: this reaches anyone who signs in AND anyone who opens the app signed in, so it no
+ * longer waits for a session to run out (it did until 26 Nov 2026, when the installed app stopped
+ * running out).
  * A member who only ever viewed the roster with the staff PIN never signed in anywhere and was never
  * compelled — the reason the calendar was put behind a login (Track E; the PIN retired, 23 Nov 2026).
  *
@@ -63,7 +71,7 @@
  * would be gone for good, so the member would never be asked anywhere.
  */
 
-import { lsGet, lsDel } from './ls.js';
+import { lsGet, lsSet, lsDel } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
 import { getPasswordStatus, changeOwnPassword, reauthenticateWithPassword } from './firebase-client.js';
@@ -72,6 +80,11 @@ import { runPasswordSave, withTimeout, settleOrTimeout } from './own-password.js
 import { isPasswordMigrated, validateNewPassword, MIN_PASSWORD_LENGTH, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
+
+/** "This device has seen the server say `<member>` has their own password" — this module's alone. It
+ *  keeps the ordinary-open check (see the header) from costing a read on every open of every member
+ *  who has moved on. Any read that says otherwise deletes it, and an admin reset signs the device out. */
+const PW_OWN_KNOWN_PREFIX = 'myb_pw_own_known_';
 
 /** How long to wait for the owner-only `passwordStatus` read before giving up for this login. */
 const STATUS_READ_TIMEOUT_MS = 4000;
@@ -88,19 +101,20 @@ export { withTimeout, settleOrTimeout };
  *
  * All four conditions are load-bearing:
  *  · `flagOn`      — CONFIG.FORCE_PASSWORD_SET, the one-line kill switch.
- *  · `hasMarker`   — only immediately after a confirmed sign-in (see the header).
+ *  · `occasion`    — a confirmed sign-in, or an ordinary open (since 26 Nov 2026, see the header);
+ *                    never anything else.
  *  · `authStatus`  — must be exactly `'named'`. NOT "an auth user exists": on the calendar that user
  *                    may be a leftover viewer of the retired staff PIN, and on paycalc (a `soft` policy page) a member
  *                    can be locally signed in with a FAILED Firebase session. In either case
  *                    `updatePassword` cannot succeed, so a hard block would trap them with no way through.
  *  · `!migrated`   — nothing to compel once they have their own password.
  *
- * @param {{ flagOn: boolean, hasMarker: boolean, authStatus: string, migrated: boolean }} input
+ * @param {{ flagOn: boolean, occasion: 'sign-in'|'open'|null, authStatus: string, migrated: boolean }} input
  * @returns {boolean}
  */
-export function shouldForcePasswordSet({ flagOn, hasMarker, authStatus, migrated }) {
+export function shouldForcePasswordSet({ flagOn, occasion, authStatus, migrated }) {
     if (!flagOn) return false;
-    if (!hasMarker) return false;
+    if (occasion !== 'sign-in' && occasion !== 'open') return false;
     if (authStatus !== 'named') return false;
     return !migrated;
 }
@@ -160,7 +174,18 @@ function _mount() {
  * @param {string} member
  * @returns {Promise<void>}
  */
-function _show(member) {
+/**
+ * Could the set-password step have anything to do for this member on this load? A sign-in marker, or no
+ * record that this device has seen their own password — read from local storage only, so the Calendar
+ * can skip the session step on every load of a member who has moved on.
+ * @param {string} member @returns {boolean}
+ */
+export function passwordStepMayBeDue(member) {
+    return !!lsGet(PW_FORCE_PENDING_PREFIX + member) || !lsGet(PW_OWN_KNOWN_PREFIX + member);
+}
+
+/** @param {string} member @param {{ askCurrent?: boolean }} [opts] */
+function _show(member, { askCurrent = false } = {}) {
     const overlay  = /** @type {HTMLElement} */ (_mount());
     const newEl    = /** @type {HTMLInputElement} */ (document.getElementById('pwfNew'));
     const confEl   = /** @type {HTMLInputElement} */ (document.getElementById('pwfConfirm'));
@@ -174,6 +199,9 @@ function _show(member) {
     const userEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwfUsername'));
     // Whose password this is, for the password manager — the roster name the sign-in card files it under.
     if (userEl) userEl.value = member;
+    // On an ordinary open the last sign-in may be weeks old, and Firebase changes a password only after a
+    // recent one: ask for the current password from the start rather than after a refusal.
+    curWrap.hidden = !askCurrent;
 
     // Hide whatever is behind from assistive tech while a modal is up (the login overlay can still be
     // mounted on the in-place sign-in path).
@@ -320,6 +348,7 @@ function _show(member) {
 
         /** The write completed: finish the flow. Shared by the in-time and the LATE success paths. */
         function onWriteConfirmed() {
+            lsSet(PW_OWN_KNOWN_PREFIX + member, '1');   // the next open need not ask the server again
             // Now, and only now, tell the password manager — through the form it watches, before the
             // overlay closes. A write the server refused (a stale sign-in, no connection) must never leave
             // Keychain holding a password the account does not have. The submit itself is cancelled above.
@@ -408,13 +437,17 @@ function _show(member) {
 export async function initPasswordForce(member, { ready } = {}) {
     if (!member) return false;
     const pendingKey = PW_FORCE_PENDING_PREFIX + member;
-    if (!lsGet(pendingKey)) return false;      // not a fresh sign-in → never ambush an ordinary load
-    lsDel(pendingKey);                         // one-shot: consume BEFORE any await (see header)
+    const knownKey = PW_OWN_KNOWN_PREFIX + member;
+    const afterSignIn = !!lsGet(pendingKey);
+    if (afterSignIn) lsDel(pendingKey);        // one-shot: consume BEFORE any await (see header)
     // The flag is checked AFTER consuming the marker, which looks backwards but is deliberate: if it
     // were checked first, a flag-OFF deployment would leave markers lying in localStorage, and the
     // day the flag is switched on every one of those members would be ambushed on their next ordinary
     // page load rather than at their next sign-in — the Fix-4 defect, arriving en masse.
     if (!CONFIG.FORCE_PASSWORD_SET) return false;
+    // An ORDINARY open asks too (owner, 26 Nov 2026), except where this device has already seen the
+    // server say the member has their own password — so only a member still on the surname pays a read.
+    if (!afterSignIn && lsGet(knownKey)) return false;
 
     if (ready) {
         try {
@@ -442,11 +475,14 @@ export async function initPasswordForce(member, { ready } = {}) {
         clearTimeout(readTimer);   // the read answered; its losing timer has nothing left to do (test audit, 7 Nov 2026)
     }
 
+    const migrated = isPasswordMigrated(status);
+    // What the server said, kept for the next open — and forgotten the moment it says otherwise.
+    if (migrated) lsSet(knownKey, '1'); else lsDel(knownKey);
     if (!shouldForcePasswordSet({
         flagOn:     CONFIG.FORCE_PASSWORD_SET,
-        hasMarker:  true,                       // consumed above
+        occasion:   afterSignIn ? 'sign-in' : 'open',
         authStatus,
-        migrated:   isPasswordMigrated(status),
+        migrated,
     })) return false;
 
     try {
@@ -456,7 +492,7 @@ export async function initPasswordForce(member, { ready } = {}) {
         // from — so "on close" never runs for them. That was the v18.94 bug: the work-email check's
         // one-shot marker was cleared after the await, survived, and ambushed the member on a later
         // ordinary load — the v14.77 "Fix 4" defect, re-created by the line meant to prevent it.
-        await _show(member);
+        await _show(member, { askCurrent: !afterSignIn });
     } catch (e) {
         console.warn('[Auth] forced password overlay failed to run:', e);
         return false;

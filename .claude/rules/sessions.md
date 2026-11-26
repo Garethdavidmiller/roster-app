@@ -33,8 +33,9 @@ them. This file holds the area's working notes; the rules every session needs ar
 ## One local session, every page
 
 `AUTH_KEY` in `session.js` is the one local session record, so a member signed in on any page arrives
-on every other without seeing the login overlay. It lasts 60 days from sign-in (AUTH_AND_SESSIONS.md
-2), and it is not an identity on its own (17).
+on every other without seeing the login overlay. It lasts 60 days from sign-in — renewed on each open in
+the INSTALLED app, once the server has vouched for the account within the hour (`renewWhenServerVouches`;
+owner, 26 Nov 2026; AUTH_AND_SESSIONS.md 2) — and it is not an identity on its own (17).
 
 ## Session re-establishment on page load
 
