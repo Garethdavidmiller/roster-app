@@ -17,9 +17,8 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.2.0/firebas
 // @ts-ignore
 import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getDocFromCache, getDocFromServer, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath, waitForPendingWrites } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported via `_getStorageSdk()` (handed to the shared
-// upload engine in documents-client.js, which is where the huddle/circular/newsletter sequence
-// lives since v21.90) — only
-// operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
+// upload engine in documents-client.js) — only operations.html uploads files, so the other pages
+// avoid the cost.
 // @ts-ignore
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js';
 import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent, ownWritesSentFor, leftoverNote } from './claim-retry.js';
@@ -75,9 +74,9 @@ export {
     getDocs, getDocsFromCache, getDoc, getDocFromCache, onSnapshot,
     // writes
     addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
-    // `deleteField` re-exported v19.41 for the Links soft-delete RESTORE: clearing deletedAt/
-    // deletedBy with a merge write leaves the rest of the document untouched, where a full setDoc
-    // would replace patterns with whatever the restoring device happens to hold.
+    // `deleteField` for the Links soft-delete RESTORE: clearing deletedAt/deletedBy with a merge write
+    // leaves the rest of the document untouched, where a full setDoc would replace patterns with
+    // whatever the restoring device happens to hold.
     deleteField,
 };
 
@@ -101,10 +100,8 @@ export const COLLECTIONS = {
 
 // isSafeStorageUrl + isDocxUpload live in the pure, import-free storage-utils.js so they can be
 // unit-tested directly (this module can't be imported in a Node test — it pulls the Firebase SDK
-// from the gstatic CDN). isSafeStorageUrl is re-exported so existing `from './firebase-client.js'`
-// importers (nav-panel, calendar-doc-viewer, the Huddle viewer) are unaffected; isDocxUpload is used
-// internally by the upload paths. The .docx wrap (officeViewerUrl) is no longer re-exported: since
-// v24.19 the openers call resolveDocumentOpenUrl, which applies it, and nothing imported it from here.
+// from the gstatic CDN). isSafeStorageUrl and resolveDocumentOpenUrl are re-exported for existing
+// importers; the openers call resolveDocumentOpenUrl, which applies the .docx wrap.
 import { isSafeStorageUrl, isDocxUpload, resolveDocumentOpenUrl, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { requestSignedDocumentUrl } from './document-url.js';
@@ -114,7 +111,7 @@ export { isSafeStorageUrl, resolveDocumentOpenUrl };
 // ---- Firebase Authentication ----
 
 /**
- * Shared Firebase Auth instance — `initializeAuth`, NOT `getAuth` (Oct 2026 production review).
+ * Shared Firebase Auth instance — `initializeAuth`, NOT `getAuth`.
  * `getAuth` adds the popup/redirect resolver, which on mobile, Safari and iOS the SDK initialises
  * proactively and AWAITS before restoring the user (auth 1.13.6: `_shouldInitProactively`) — loading
  * `apis.google.com` and a `firebaseapp.com` iframe, up to 30s on a dead connection, ahead of every
@@ -132,21 +129,16 @@ export const auth = initializeAuth(app, {
  * that case: it deletes all of a tab's storage together, these fallbacks included (KNOWN_LIMITATIONS
  * → "One interaction to expect on iOS").
  *
- * Factored into a function at v20.12, when the staff PIN's viewer brought a second, session-only mode
- * (retired with the PIN, 23 Nov 2026; its boot branch below is kept until the cleanup release). Signing a member in after a Calendar
- * viewer session must restore THIS chain — and the member paths call it through
- * `restoreMemberPersistence`, never by repeating the three-step ladder, so the fallback order
- * cannot drift between the two call sites.
+ * A function so the member paths call it through `restoreMemberPersistence`, never by repeating the
+ * three-step ladder, and the fallback order cannot drift between call sites. (The retired staff PIN's
+ * session-only viewer mode is why it exists; its boot branch below is kept until the cleanup release.)
  * @returns {Promise<'indexeddb'|'local'|'session'>} the mode that took; rejects if none did
  */
 function _setMemberPersistence() {
-    // THE RESULT IS OBSERVABLE, AND TOTAL FAILURE IS NOT SUCCESS (v20.39, audit §25).
-    // This used to swallow the final `.catch` and resolve with `undefined`, so a caller could not
-    // distinguish "stored in IndexedDB" from "no persistence could be established at all" — every
-    // outcome looked identical. That is tolerable for an ordinary member login (an in-memory session
-    // still works for this tab) and NOT tolerable for the viewer↔member transitions, which reason
-    // about which persistence mode the identity is in. Resolves with the mode that took; rejects if
-    // none did, so a security-sensitive caller can fail closed.
+    // THE RESULT IS OBSERVABLE, AND TOTAL FAILURE IS NOT SUCCESS (audit §25). Resolves with the mode
+    // that took; rejects if none did, so a security-sensitive caller (the viewer↔member transitions,
+    // which reason about which mode the identity is in) can fail closed. An ordinary member login can
+    // tolerate an in-memory session; boot catches the rejection (`authBootstrap`).
     return setPersistence(auth, indexedDBLocalPersistence).then(() => /** @type {const} */ ('indexeddb'))
         .catch(() => setPersistence(auth, browserLocalPersistence).then(() => /** @type {const} */ ('local')))
         .catch(() => setPersistence(auth, browserSessionPersistence).then(() => /** @type {const} */ ('session')))
@@ -156,10 +148,10 @@ function _setMemberPersistence() {
         });
 }
 
-// PURE, and imported for the same reason session.js imports it: the question "is this identity the
-// shared Calendar viewer?" must have ONE answer, and the boot-persistence decision below is a place
-// where a second local copy of that predicate would be a second place a bypass could be introduced.
-// calendar-access-core.js imports only the pure auth-identity.js — no cycle (import-graph.test.mjs).
+// PURE, and imported for the same reason session.js imports it: "is this identity the shared
+// Calendar viewer?" must have ONE answer — a second local copy of that predicate would be a second
+// place a bypass could be introduced. calendar-access-core.js imports only the pure auth-identity.js
+// — no cycle (import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
 // The one restore bound (8s), shared with session.js and login-core.js — silent-sign-in.js says why it lives there.
 import { AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
@@ -198,49 +190,33 @@ function _firstAuthUserAtBoot() {
     });
 }
 
-// BOOT MUST NOT INHERIT THE STRICTER POLICY (v20.39). `_setMemberPersistence` rejects when no
-// mode could be established, which is what the viewer↔member transitions need — but this promise is
-// awaited at boot by every page, mostly without a catch, so propagating here would turn a rare
-// storage failure into an unhandled rejection and a blank app. An in-memory session still works for
-// the current tab, which is the right trade for ordinary use. Security-sensitive callers use
+// BOOT MUST NOT INHERIT THE STRICTER POLICY. `_setMemberPersistence` rejects when no mode could be
+// established, but this promise is awaited at boot by every page, mostly without a catch, so
+// propagating here would turn a rare storage failure into an unhandled rejection and a blank app. An
+// in-memory session still works for the current tab. Security-sensitive callers use
 // `restoreMemberPersistence()` and get the rejection.
 //
 // ── THE RESTORED USER IS READ FIRST, AND THE CALENDAR VIEWER KEEPS SESSION PERSISTENCE ──────────
 //
-// This used to apply the member chain unconditionally, and that quietly broke the PIN feature's one
-// security property. `setPersistence` MIGRATES the current user between stores (SDK: AuthImpl.
-// setPersistence → getCurrentUser → removeCurrentUser → setCurrentUser under the new persistence) —
-// so on any page load of a browser holding the shared Calendar viewer, the unconditional
-// setPersistence(indexedDB) here lifted the viewer OUT of sessionStorage and INTO IndexedDB, where
-// it survives the browser closing. One ordinary reload of an unlocked Calendar was enough, and the
-// next person at a shared office PC then got the roster with no PIN. Measured in a real Chromium
-// against the Auth emulator (experiments/viewer-persistence-proof/): unlock → reload → browser
-// restart → still signed in; without the reload, correctly gone.
+// `setPersistence` MIGRATES the current user between stores (SDK: AuthImpl.setPersistence →
+// getCurrentUser → removeCurrentUser → setCurrentUser under the new persistence). Applied
+// unconditionally, it lifted a shared Calendar viewer OUT of sessionStorage and INTO IndexedDB, where
+// it survived the browser closing — measured in a real Chromium against the Auth emulator
+// (experiments/viewer-persistence-proof/). CALENDAR_DATA.md 12.
 //
-// So the boot now waits for the restore FIRST — which costs nothing, because setPersistence already
+// So the boot waits for the restore FIRST — which costs nothing, because setPersistence already
 // queues behind the SDK's initialisation and that initialisation IS the restore — and only then
-// chooses: the viewer re-asserts session-only persistence (a no-op when it is already there, and a
-// MIGRATION BACK OUT of IndexedDB for any browser the old behaviour has already leaked into, which
-// is what heals the office PCs affected before this fix); everyone else gets the member chain
-// exactly as before. Member sign-ins that REPLACE a viewer are unaffected — they run through
-// `shedCalendarViewer`, which signs the viewer out before calling `restoreMemberPersistence()`.
-// ── ONE BOOT AUTHORITY (v21.29, external latency review) ────────────────────────────────────────
+// chooses: the viewer re-asserts session-only persistence (migrating it back OUT of IndexedDB where
+// it had leaked); everyone else gets the member chain. Member sign-ins that REPLACE a viewer run
+// through `shedCalendarViewer`, which signs the viewer out before calling `restoreMemberPersistence()`.
 //
-// The question "who did this browser restore?" was being asked THREE times, by three separate
-// `onAuthStateChanged` subscriptions with three separate timeouts:
+// ── ONE BOOT AUTHORITY ───────────────────────────────────────────────────────────────────────────
 //
-//   `_firstAuthUserAtBoot` here (8s)   → and it then THREW THE ANSWER AWAY, returning only the
-//                                        persistence mode
-//   `restoreFirstAuthUser` in session.js  → re-asked, for `reconcileExpiredIdentity`
-//   `firstAuthUser` in calendar-access.js (6s) → re-asked again, for the access decision
-//
-// In normal operation Firebase answers a new subscriber immediately, so this cost nothing and was
-// invisible. In the degraded case it COMPOUNDED: the Calendar gave the reconcile 6.5s and then gave
-// its own restore another 6s, so one wedged auth layer could hold the access decision for ~12.5s.
-//
-// So the boot now resolves the pair — the restored user AND the persistence that was established for
-// them — once, and everything downstream consumes it. `authReady` is unchanged in meaning and still
-// yields the mode; it is now derived rather than separately computed.
+// "Who did this browser restore?" is answered ONCE, here: the restored user AND the persistence
+// established for them, which everything downstream consumes (`currentUserAfterBoot`, session.js's
+// `restoreFirstAuthUser`, calendar-access.js). Three separate subscriptions with their own timeouts
+// COMPOUNDED in the degraded case — one wedged auth layer held the access decision for ~12.5s.
+// `authReady` still yields the mode, derived from this.
 /** @type {Promise<{ user: any, persistence: 'indexeddb'|'local'|'session'|'none' }>} */
 export const authBootstrap = (async () => {
     let user = await _firstAuthUserAtBoot();
@@ -254,15 +230,14 @@ export const authBootstrap = (async () => {
     return { user, persistence: await _setMemberPersistence() };
 })().catch(() => ({ user: null, persistence: /** @type {const} */ ('none') }));
 
-// Unchanged in meaning: awaited before signing in, so persistence is configured before the auth
-// token is written (otherwise iOS may drop the session). Derived now rather than separately computed.
+// Awaited before signing in, so persistence is configured before the auth token is written
+// (otherwise iOS may drop the session).
 export const authReady = authBootstrap.then(b => b.persistence);
 
 /**
  * Who is signed in, once the one boot restore has had its chance?
  *
- * The shared replacement for "subscribe to `onAuthStateChanged` and wait for the first emission",
- * which is a BOOT-TIME question that three modules were each answering for themselves.
+ * The shared replacement for "subscribe to `onAuthStateChanged` and wait for the first emission".
  *
  * **It returns ground truth, not the boot snapshot** — deliberately, and it is the reason this is
  * safe to share. Returning `authBootstrap`'s remembered user would resurrect an identity that has
@@ -272,7 +247,7 @@ export const authReady = authBootstrap.then(b => b.persistence);
  * `currentUser` before it notifies listeners, so nothing is lost by reading it afterwards.
  *
  * Still bounded, because `setPersistence` sits inside the bootstrap and a storage layer that never
- * answers must not hold a page for ever. The bound no longer STACKS: whichever caller arrives first
+ * answers must not hold a page for ever. The bound does not STACK: whichever caller arrives first
  * pays the wait, and the rest find it settled.
  *
  * @param {number} [timeoutMs] how long to wait for the boot restore before answering from whatever
@@ -299,8 +274,8 @@ export async function currentUserAfterBoot(timeoutMs = AUTH_RESTORE_TIMEOUT_MS) 
  * in. The order is the whole point: `setPersistence` migrates the CURRENT user into the new
  * persistence, so doing this while the viewer is still signed in would move the shared viewer
  * session into IndexedDB — where it would survive the browser closing, which is exactly the
- * property that made unlocking a shared office PC safe. (Kept until the cleanup release: a leftover
- * viewer session from before the PIN was retired, 23 Nov 2026, is still shed this way.)
+ * property that made unlocking a shared office PC safe. (Kept until the cleanup release, for a
+ * leftover viewer session from before the PIN was retired.)
  * @returns {Promise<'indexeddb'|'local'|'session'>} the mode that took; rejects if none did
  */
 export function restoreMemberPersistence() { return _setMemberPersistence(); }
@@ -310,10 +285,9 @@ export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
- * (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"; v15.07 review H3). The operation is
+ * (SECURITY_RELEASE_PLAN.md → B3 "Live invariant — writeWithClaimRetry"). The operation is
  * read/write-agnostic: writes go through `writeWithClaimRetry` below (this, behind the write gate),
- * and reads — the Operations cards among them — call `withClaimRetry` directly (it previously
- * duplicated this as the byte-identical `adminReadWithRetry`, v17.08).
+ * and reads — the Operations cards among them — call `withClaimRetry` directly.
  *
  * Why: a freshly-provisioned or claim-changed MANAGER can appear signed in yet hold a Firebase token
  * minted *before* their `manager` claim existed (Firebase only refreshes ID tokens ~hourly). The
@@ -338,9 +312,9 @@ export async function withClaimRetry(fn) {
     // original error if the refresh itself fails) and WHERE the sign-out watch sits are the pure
     // runWatchedClaimRetry in claim-retry.js, unit-tested in claim-retry.test.mjs. Each attempt is
     // watched by abandonOnSignOut, which stops waiting on an account that has gone, whose commit
-    // Firestore never settles (the "stuck on Saving…" of v24.36) — but not the token refresh between
-    // them: a refused refresh signs the account out on its own, after the server has ALREADY refused
-    // the write, and a refusal is not a write of unknown outcome (claim-retry.js says why).
+    // Firestore never settles ("stuck on Saving…") — but not the token refresh between them: a refused
+    // refresh signs the account out after the server has ALREADY refused the write, and a refusal is
+    // not a write of unknown outcome (claim-retry.js says why).
     return runWatchedClaimRetry(fn, {
         retryCode: 'permission-denied',
         hasUser: () => !!auth.currentUser,
@@ -351,14 +325,14 @@ export async function withClaimRetry(fn) {
     });
 }
 
-/** withClaimRetry for WRITES, through `runGatedWrite` (claim-retry.js, v24.39): after an unconfirmed
+/** withClaimRetry for WRITES, through `runGatedWrite` (claim-retry.js): after an unconfirmed
  *  write no new one starts until reload. @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
 export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRetry(fn)); }
 /** Whether this device's queued writes reach the server within `ms` — a checked write asks first (claim-retry.js → ownWritesSent). @param {number} [ms] */
 export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrites(db), ms);
 /**
- * The same wait, and when it runs out, the records this save touches asked instead (24 Nov 2026,
- * claim-retry.js → `ownWritesSentFor`): true when none of `refs` has this account's own write still
+ * The same wait, and when it runs out, the records this save touches asked instead
+ * (claim-retry.js → `ownWritesSentFor`): true when none of `refs` has this account's own write still
  * queued. A checked save that knows its documents asks this; it rescues a phone whose queue holds
  * another account's leftover write, which the SDK's whole-queue wait never sees past.
  * @param {Iterable<any>} refs  every document the save writes or deletes
@@ -367,23 +341,22 @@ export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrite
 export const whenOwnWritesSentFor = (refs, ms) => ownWritesSentFor(() => waitForPendingWrites(db), getDocFromCache, refs, ms,
     { leftover: _leftover, online: () => globalThis.navigator?.onLine !== false });
 /** This phone's note that its queue holds a write it can never send — device state, one key whoever
- *  is signed in; the rules are claim-retry.js → "A PHONE KNOWN TO HOLD A LEFTOVER" (25 Nov 2026). */
+ *  is signed in; the rules are claim-retry.js → "A PHONE KNOWN TO HOLD A LEFTOVER". */
 const _leftover = leftoverNote({ get: lsGet, set: lsSet, del: lsDel }, 'myb_queue_leftover');
 
-/** How long the staff PIN's unsent writes get to leave before it is signed out (22 Nov 2026). */
+/** How long the staff PIN's unsent writes get to leave before it is signed out. */
 export const VIEWER_WRITES_GRACE_MS = 2000;
 /**
- * LET THE STAFF PIN'S WRITES GO BEFORE IT IS SIGNED OUT (22 Nov 2026). The PIN is retired (23 Nov
- * 2026), so the sign-outs left are a LEFTOVER viewer session's, and both await this first: a member
- * signing in over it (`shedCalendarViewer`, viewer-shed.js) and the expired-identity reconcile
+ * LET THE STAFF PIN'S WRITES GO BEFORE IT IS SIGNED OUT. The PIN is retired (23 Nov 2026), so the
+ * sign-outs left are a LEFTOVER viewer session's, and both await this first: a member signing in over
+ * it (`shedCalendarViewer`, viewer-shed.js) and the expired-identity reconcile
  * (`reconcileExpiredIdentity`, session.js), which is how the Calendar and Trains end one on arrival.
- * `clearSession()` does not. Until the retirement the PIN's own Lock and sign-out awaited it too, and
- * its unlock path's sign-outs did not. A viewer write still queued when it was signed out (its page views, speed
- * samples) stays in Firestore's on-device queue until the viewer signs in again — and the SDK's
- * `waitForPendingWrites` for the next member WAITS ON IT (its IndexedDB queue looks up the highest
- * unsent batch, `getHighestUnacknowledgedBatchId`, without bounding it to the signed-in account:
- * `@firebase/firestore` 4.19–4.20), so every checked save on that device ran out its 8s and every
- * checked removal was refused as offline. Reproduced on both engines; KNOWN_LIMITATIONS.md → "Admin saves are slow on iPhones".
+ * `clearSession()` does not. A viewer write still queued when it was signed out (its page views, speed
+ * samples) stays in Firestore's on-device queue — and the SDK's `waitForPendingWrites` for the next
+ * member WAITS ON IT (its IndexedDB queue looks up the highest unsent batch,
+ * `getHighestUnacknowledgedBatchId`, without bounding it to the signed-in account: `@firebase/firestore`
+ * 4.19–4.20), so every checked save on that device ran out its 8s and every checked removal was
+ * refused as offline. KNOWN_LIMITATIONS.md → "Admin saves are slow on iPhones".
  * Bounded, never throws, does not announce to the slow-save diagnostic, and does nothing offline
  * (nothing would leave) or for anybody but the viewer.
  * @param {number} [ms] @returns {Promise<boolean>} whether the viewer's queue drained
@@ -404,13 +377,11 @@ function refuseCachedRead(snap) {
 
 /**
  * Run a Storage `uploadBytes`, self-healing a stale-claim `storage/unauthorized` once — the
- * Storage-side mirror of {@link writeWithClaimRetry}. Document uploads (huddle/circular/newsletter)
- * hit Storage BEFORE any Firestore write, so a just-re-provisioned admin whose ID token predates the
- * `admin` claim would fail the upload before the Firestore-side retry could ever run. Force one token
- * refresh + one retry so the claim is picked up immediately. Only retries `storage/unauthorized` with
- * a live user; any other error (offline, a genuinely forbidden account) is re-thrown, at most once, so
- * a truly unauthorised upload still surfaces to the caller. The versioned storageRef is stable, so the
- * retry simply re-attempts the same object.
+ * Storage-side mirror of {@link writeWithClaimRetry}. Document uploads hit Storage BEFORE any
+ * Firestore write, so a just-re-provisioned admin whose ID token predates the `admin` claim would
+ * fail before the Firestore-side retry could run. Only retries `storage/unauthorized` with a live
+ * user, at most once; any other error is re-thrown. The versioned storageRef is stable, so the retry
+ * simply re-attempts the same object.
  * @param {(ref:any, data:any, meta:any)=>Promise<any>} uploadBytes  the lazily-loaded SDK fn
  * @param {any} storageRef @param {any} file @param {any} metadata
  */
@@ -425,11 +396,9 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
     });
 }
 
-// normaliseSurname + nameToEmail (the account-identity derivations) live in the pure, import-free
-// auth-identity.js so they can be unit-tested directly (this module can't load in a Node test — it
-// pulls the Firebase SDK from the gstatic CDN). Re-exported so existing importers (session.js) are
-// unaffected. The deliberate functions/roster-parse-helpers.js duplicate + surname-parity.test.mjs
-// source-equivalence check now read auth-identity.js.
+// normaliseSurname + nameToEmail live in the pure, import-free auth-identity.js so they can be
+// unit-tested directly, and are re-exported here for existing importers (session.js). The deliberate
+// functions/roster-parse-helpers.js duplicate is held to it by surname-parity.test.mjs.
 import { normaliseSurname, nameToEmail, resetAtFromRestDoc, isRestCredentialRejection, isRestThrottled } from './auth-identity.js';
 import { buildPasswordClient } from './own-password.js';
 import { buildAccountCalls } from './account-calls.js';
@@ -449,17 +418,16 @@ function _getStorageSdk() {
         _storagePromise = import('https://www.gstatic.com/firebasejs/13.2.0/firebase-storage.js')
             .then(({ getStorage, ref, uploadBytes, getDownloadURL, deleteObject }) =>
                 ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL, deleteObject }))
-            // Reset on rejection (v16.23): a rejected promise is truthy, so without this ONE
-            // transient CDN failure was memoised forever — every later upload failed instantly
-            // ("Upload failed — please try again" that could never succeed) until a full reload.
+            // Reset on rejection: a rejected promise is truthy, so ONE transient CDN failure would be
+            // memoised for ever — every later upload failing instantly until a full reload.
             .catch(err => { _storagePromise = null; throw err; });
     }
     return _storagePromise;
 }
 
 // ---- The three date-keyed document collections ----
-// Huddle · Circular · Newsletter. The upload SEQUENCE lives in documents-client.js (v21.90), which
-// takes every Firebase handle as an argument so it can be replayed in Node; its header has why.
+// Huddle · Circular · Newsletter. The upload SEQUENCE lives in documents-client.js, which takes every
+// Firebase handle as an argument so it can be replayed in Node; its header has why.
 const _docs = buildDocumentClient({
     db, collections: COLLECTIONS,
     fs: {
@@ -519,14 +487,13 @@ export function currentAuthUid() { return auth.currentUser?.uid ?? null; }
 export async function savePushSubscription(subscription) {
     const p256dh = subscription.getKey('p256dh');
     // Named authKey (not `auth`) so it can't shadow the module-level Firebase `auth` instance —
-    // a future claim check added here would otherwise silently read this 16-byte key buffer. (v17.40)
+    // a future claim check added here would otherwise silently read this 16-byte key buffer.
     const authKey = subscription.getKey('auth');
     if (!p256dh || !authKey) {
-        // Partially-initialised subscription — keys absent on some browsers/edge cases. THROW rather
-        // than silently returning: a silent skip let the caller mark the device "subscribed" (fingerprint
-        // + prompt-dismissed) with NO server record, so the bell showed "on" forever while the device got
-        // no pushes and never self-healed (fanOutPush's 410 cleanup never runs — nothing was written).
-        // The caller (notif.js subscribe) now rolls back the browser subscription on this throw. (review B2)
+        // Partially-initialised subscription — keys absent on some browsers. THROW rather than
+        // silently returning: a silent skip let the caller mark the device "subscribed" with NO server
+        // record, so the bell showed "on" for ever while the device got no pushes. The caller
+        // (notif.js subscribe) rolls back the browser subscription on this throw. (review B2)
         console.warn('[pushSubscriptions] subscription missing p256dh/auth keys — not saved');
         throw new Error('push/subscription-missing-keys');
     }
@@ -545,7 +512,7 @@ export async function savePushSubscription(subscription) {
     // (rule-rejected) unauthenticated case rather than writing a null.
     const owner = auth.currentUser?.uid;
     if (owner) data.owner = owner;
-    // Bounded by the account (v24.39) — else a sign-out left the bell on "Enabling…"; the id is fixed.
+    // Bounded by the account — else a sign-out left the bell on "Enabling…"; the id is fixed.
     await abandonOnSignOut(setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), data), { uid: owner, watch: cb => onAuthStateChanged(auth, cb) });
 }
 
@@ -585,10 +552,8 @@ export async function getStaffContact(memberName) {
  * @returns {Promise<void>}
  */
 export async function saveStaffContact(memberName, workEmail) {
-    // writeWithClaimRetry: staffContact writes require the member's own `name` claim. A
-    // just-provisioned member (or one whose token predates the claim) would otherwise get an
-    // unrecoverable permission-denied when saving their email before the ~hourly token
-    // refresh — self-heal by forcing a refresh + one retry, like every other name-gated write.
+    // writeWithClaimRetry: staffContact writes require the member's own `name` claim, and a token
+    // that predates the claim self-heals by a forced refresh + one retry, like every name-gated write.
     await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.staffContact, memberName), {
         memberName,
         workEmail,
@@ -625,7 +590,7 @@ export async function getAllStaffContacts() {
 
 /**
  * Read a member's password-migration record (owner or admin, Firestore rules). A `passwordSetAt` not yet confirmed reads as
- * its local ESTIMATE, not null — as null it told a member who had just chosen a password they were on their surname (13 Nov 2026).
+ * its local ESTIMATE, not null — as null it told a member who had just chosen a password they were on their surname.
  * @param {string} memberName @returns {Promise<{ resetAt?: any, passwordSetAt?: any } | null>}
  */
 export async function getPasswordStatus(memberName) {
@@ -634,7 +599,7 @@ export async function getPasswordStatus(memberName) {
 }
 
 /**
- * The member's last admin reset, asked BEFORE the app signs in (Oct 2026 bug check). Asked after, the
+ * The member's last admin reset, asked BEFORE the app signs in. Asked after, the
  * SDK had already announced and stored the user, so the Calendar granted the lost phone first and a
  * reload mid-check skipped the check. This signs in over the Identity Toolkit REST API (a token the
  * SDK never sees, stores or announces) and reads `passwordStatus/{name}` over Firestore REST with it.
@@ -688,7 +653,7 @@ export async function savePasswordSetAt(memberName) {
  */
 export async function getAllPasswordStatus() {
     const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.passwordStatus)));
-    // The id AFTER the spread, as in getResetRequests (v18.94): what the rules bind must win.
+    // The id AFTER the spread, as in getResetRequests: what the rules bind must win.
     return snap.docs.map(/** @param {any} d */ d => ({ ...d.data(), memberName: d.id }));
 }
 
@@ -725,17 +690,16 @@ export async function fetchSignedDocumentUrl(kind) {
     return requestSignedDocumentUrl(kind, () => user.getIdToken());
 }
 
-/** Admin-only Cloud Function returning the EXACT unique-account sign-in counts (v18.96). */
+/** Admin-only Cloud Function returning the EXACT unique-account sign-in counts. */
 const SIGN_IN_STATS_URL = functionUrl('getSignInStats');
 
 /**
  * How many distinct accounts have actually signed in (admin only — enforced server-side).
  *
  * The counterpart to `getUsageStats`'s active-account figure, which is deduped on the DEVICE and so
- * counts a member with a phone and a laptop twice. This one is exact because Firebase Auth already
- * holds one `lastSignInTime` per account — uniqueness is a property of the data, so no new
- * per-account record has to be stored to get it. The response is four integers; no identity is
- * returned. Read-only, hence GET.
+ * counts a member with a phone and a laptop twice. This one is exact because Firebase Auth holds one
+ * `lastSignInTime` per account. The response is four integers; no identity is returned. Read-only,
+ * hence GET.
  *
  * @returns {Promise<{ total: number, last7: number, last30: number, neverSignedIn: number }>}
  */
@@ -759,10 +723,9 @@ export async function getSignInStats() {
 export async function getResetRequests() {
     const snap = refuseCachedRead(await getDocs(collection(db, COLLECTIONS.resetRequests)));
     return snap.docs
-        // memberName AFTER the spread (v18.94): the doc ID is the thing the rules and the endpoint
-        // actually bound, so it must win over a field that could in principle differ. With the old
-        // order, Clear deleted `resetRequests/<field>` — a no-op Firestore reports as success, so a
-        // divergent row would silently reappear on every re-render and be unclearable.
+        // memberName AFTER the spread: the doc ID is what the rules and the endpoint bound, so it must
+        // win over a field that could differ — otherwise Clear deleted `resetRequests/<field>`, a no-op
+        // Firestore reports as success, and the row could never be cleared.
         .map(/** @param {any} d */ d => ({ ...d.data(), memberName: d.id }))
         .sort((/** @type {any} */ a, /** @type {any} */ b) =>
             (b.requestedAt?.toMillis?.() ?? 0) - (a.requestedAt?.toMillis?.() ?? 0));
@@ -778,8 +741,8 @@ export async function clearResetRequest(memberName) {
 }
 
 // ---- The error log and the usage/speed counters ----
-// The Firestore I/O lives in analytics-client.js (v24.64), which takes every handle as an argument so
-// it loads in Node; its header has the two properties every function there keeps.
+// The Firestore I/O lives in analytics-client.js, which takes every handle as an argument so it
+// loads in Node; its header has the two properties every function there keeps.
 const _analytics = buildAnalyticsClient({
     db, collections: COLLECTIONS,
     fs: {

@@ -60,8 +60,8 @@ import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
 /**
  * Admin's sign-in card (login-overlay.js → `about`; owner, 11 Nov 2026): Pay's arrangement, with Pay's
- * own-name clause word for word (its staff-PIN half went with the PIN, 23 Nov 2026).
- * The footnote is a shared screen's way out: a sign-in here stays until undone.
+ * own-name clause word for word. The footnote is a shared screen's way out: a sign-in here stays
+ * until undone.
  * @type {Readonly<{ lines: readonly string[], footnote: string }>}
  */
 const ADMIN_SIGN_IN_ABOUT = Object.freeze({
@@ -129,18 +129,16 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        // Header logo: back to the calendar, asking the drawer's own question (confirm review, Nov 2026) — it
-        // LEAVES the page, and leaving is one question wherever it starts. The banner is for moves within it.
+        // Header logo: back to the calendar, asking the drawer's own question — it LEAVES the page, and
+        // leaving is one question wherever it starts. The banner is for moves within it.
         wireHeaderLogo(() => leaveAfterAsking(hasUnsavedChanges, () => { window.location.href = './'; }));
     })();
 
     // ---- Per-card tips lightbox: content in admin-tips.js, lifecycle and filtering in tips-lightbox.js ----
-    // Managers pick members and see All staff exactly as the admin does, so they get the same tips (v24.56).
+    // Managers pick members and see All staff exactly as the admin does, so they get the same tips.
     initTipsLightbox(CARD_TIPS, { getIsAdmin: () => currentIsAdmin || currentIsManager });
 
-    // ============================================
-    // DOM
-    // ============================================
+    // ── DOM ──
     const fieldMember  = /** @type {HTMLSelectElement} */ (document.getElementById('fieldMember'));
     const fieldDate    = /** @type {HTMLInputElement} */ (document.getElementById('fieldDate'));
     const prevWeekBtn  = document.getElementById('prevWeekBtn');
@@ -161,9 +159,7 @@ export function init() {
     }
     watchScrollFade(document.querySelector('.col-side'));   // a short window scrolls the side column: the fade says so
 
-    // ============================================
-    // POPULATE MEMBER DROPDOWNS
-    // ============================================
+    // ── POPULATE MEMBER DROPDOWNS ──
     // Optgroups in CONFIG.GRADE_ORDER (as the sign-in's), not teamMembers order; unlisted roles go last.
     const _GRADE_ORDER = CONFIG.GRADE_ORDER;
     const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))]
@@ -186,8 +182,8 @@ export function init() {
 
     populateMemberDropdown(fieldMember);
 
-    // Selects `val` and returns true — or leaves the select as it was and returns false when no option carries it, where `.value` would empty it.
-    // (Written believing iOS Safari ignores `.value` with <optgroup>s; WebKit does not — measured 10 Nov 2026, see select-sheet.js.)
+    // Selects `val` and returns true — or leaves the select as it was and returns false when no option
+    // carries it, where `.value` would empty it.
     /**
      * @param {any} sel
      * @param {any} val
@@ -226,9 +222,7 @@ export function init() {
     // One writer owns the label's format (admin-week-editor.js).
     updateWeekNavLabel(fieldDate.value);
 
-    // ============================================
-    // UNSAVED CHANGES GUARD
-    // ============================================
+    // ── UNSAVED CHANGES GUARD ──
     // Tracks whether the USER has made a change since the last render.
     // renderWeekGrid() pre-fills rows from existing overrides — those are
     // NOT unsaved changes, so we use an explicit flag rather than checking
@@ -248,7 +242,7 @@ export function init() {
     }
 
     // Warn browser/OS before closing or navigating away — and ask in the page before a drawer link
-    // leaves, since a phone never shows the browser's prompt (whole-app review, Oct 2026).
+    // leaves, since a phone never shows the browser's prompt.
     warnOnUnload(hasUnsavedChanges);
     askBeforeLeavingByDrawer(hasUnsavedChanges);
 
@@ -265,8 +259,8 @@ export function init() {
         const discardBtn  = document.getElementById('unsavedDiscardBtn');
         const keepBtn     = document.getElementById('unsavedKeepBtn');
         if (!banner || !discardBtn || !keepBtn) return;
-        // THE IN-PAGE QUESTION'S OWN WORDS (review, 22 Nov 2026). Every banner question is a move WITHIN the
-        // page — another week, This week, another member, the date field, a jump to a booking — so it is
+        // THE IN-PAGE QUESTION'S OWN WORDS. Every banner question is a move WITHIN the page — another
+        // week, This week, another member, the date field, a jump to a booking — so it is
         // `DISCARD_QUESTION`, Overtime's in-page wording too; leaving the page asks `LEAVE_QUESTION`, in a dialog.
         banner.setAttribute('aria-label', DISCARD_QUESTION.title);
         const bannerMsg = document.getElementById('unsavedBannerMsg');
@@ -277,8 +271,7 @@ export function init() {
         discardBtn.addEventListener('click', () => {
             banner.style.display = 'none';
             // The discard action navigates/re-renders. Focus goes back to the control that asked to
-            // leave — the week arrow or the member picker — once it has, unless the new view took
-            // it; the banner hiding under the pressed button sent it to <body> (review, 21 Nov 2026).
+            // leave — the week arrow or the member picker — once it has, unless the new view took it.
             const asker = /** @type {HTMLElement|null} */ (_bannerReturnFocus);
             _bannerReturnFocus = null;
             // (A hidden button can still be the active element until the next style pass, so focus
@@ -326,9 +319,7 @@ export function init() {
         return false;
     }
 
-    // ============================================
-    // WEEK NAVIGATION
-    // ============================================
+    // ── WEEK NAVIGATION ──
     /**
      * Moves the selected week forwards or backwards by delta weeks.
      * Prompts for confirmation if there are unsaved changes.
@@ -363,10 +354,8 @@ export function init() {
         if (confirmNavigate(go)) go();
     });
 
-    // ============================================
     // WEEK GRID — SWIPE GESTURE. The gesture itself — lazy capture, the carousel, the cooldown — is
     // admin-week-swipe.js; what a week change MEANS stays here. No swipe with unsaved changes or no member/week.
-    // ============================================
     initAdminWeekSwipe({
         weekGrid: /** @type {HTMLElement} */ (weekGrid),
         fieldDate: /** @type {HTMLInputElement} */ (fieldDate),
@@ -384,9 +373,7 @@ export function init() {
         shiftWeek,
     });
 
-    // ============================================
-    // ANNUAL LEAVE BANNER
-    // ============================================
+    // ── ANNUAL LEAVE BANNER ──
     /** The year the AL range picker is SHOWING, or null until it crosses a year (see admin-al-year.js). */
     let alPickerViewYear = /** @type {number|null} */ (null);
 
@@ -449,8 +436,8 @@ export function init() {
         // checked — they are null together — so the type checker can prove the arithmetic never sees one.
         if (entitlement === null || remaining === null) { showNothing(); return; }
 
-        // OVER, NOT MINUS, as the Calendar's leave panel says it (`balanceFace`; owner, 25 Nov 2026): past the
-        // allowance the figure loses its minus and its label says "Over" — "-3" read as an error code.
+        // OVER, NOT MINUS, as the Calendar's leave panel says it (`balanceFace`; owner, 25 Nov 2026): past
+        // the allowance the figure loses its minus and its label says "Over" — "-3" read as an error code.
         const face = balanceFace(remaining);
         remEl.textContent    = face.figure;
         const remLbl = document.getElementById('alBannerLblRemaining');
@@ -458,7 +445,7 @@ export function init() {
         takenEl.textContent  = String(taken);
         bookedEl.textContent = String(booked);
         entEl.textContent    = String(entitlement);
-        // …AND WHICH YEAR (whole-app check, Nov 2026; admin-2-14): a save keeps the picker on the year it booked.
+        // …AND WHICH YEAR (admin-2-14): a save keeps the picker on the year it booked.
         const entLbl = document.getElementById('alBannerLblEntitlement');
         if (entLbl) entLbl.textContent = `${yearStr} entitlement`;
 
@@ -486,8 +473,8 @@ export function init() {
             // "2026: 3 over", never "2026: -3 left" (`balanceFace`).
             const headerWordEl = document.getElementById('alHeaderWord');
             if (headerWordEl) headerWordEl.textContent = face.short;
-            // …AND WHICH YEAR (review, Nov 2026): the banner's, which can be next year's in December. "2026: 12
-            // left" rather than "2026 AL left: 12", which wrapped the card's title onto two lines at 375px.
+            // …AND WHICH YEAR: the banner's, which can be next year's in December. "2026: 12 left"
+            // rather than "2026 AL left: 12", which wrapped the card's title onto two lines at 375px.
             const headerYearEl = document.getElementById('alHeaderYear');
             if (headerYearEl) headerYearEl.textContent = yearStr;
             headerBalEl.hidden = false;
@@ -497,9 +484,7 @@ export function init() {
         }
     }
 
-    // ============================================
-    // SAVE
-    // ============================================
+    // ── SAVE ──
     saveBtn.addEventListener('click', async () => {
         try {
         hideFeedback();
@@ -509,16 +494,15 @@ export function init() {
         // Clear any previous row-level errors
         weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
 
-        // What the rows ask to write, and why any cannot be (admin-week-collect.js, review 21 Nov 2026).
+        // What the rows ask to write, and why any cannot be (admin-week-collect.js).
         const collected = collectWeekRows({ rows: /** @type {NodeListOf<HTMLElement>} */ (weekGrid.querySelectorAll('.day-row')),
             memberName, formatDate: formatDisplay });
         let toSave = collected.toSave;
         const { toDelete, errors, swapAnswers } = collected;
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
-        // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day or a Spare
-        // turn on Christmas Day or Boxing Day.
-        // Here, after the collector (admin-week-collect.js): it reads the member, which the collector does not.
+        // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day or a
+        // Spare turn on Christmas Day or Boxing Day. Here, after the collector: it reads the member.
         const dayRules = checkDayRules({ toSave, member: teamMembers.find(m => m.name === memberName), formatDate: formatDisplay });
         dayRules.failedDates.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
         if (dayRules.errors.length)           return showError("Can't save — " + dayRules.errors.join(' · '));
@@ -550,10 +534,9 @@ export function init() {
             ovByDate: buildMemberDateMap(memberName), swapAnswers, overrides: getAllOverrides(),
         });
         // The planner decides; this names the days. Ordinarily the per-row check above has already
-        // refused and this never fires — it is reached when that check's input was stale, which the
-        // planner's own block explains. Marking the rows keeps the two refusals looking the same, and
-        // the question is PUT on each (review, Nov 2026): the row was drawn before the record that
-        // settled it went, so it had never asked, and the refusal named a question nobody could see.
+        // refused and this never fires — it is reached when that check's input was stale (the
+        // planner's own block explains). The question is PUT on each row: the row was drawn before the
+        // record that settled it went, so the refusal would otherwise name a question nobody could see.
         if (alPlan.unanswered.length) {
             alPlan.unanswered.forEach(d => {
                 const row = /** @type {HTMLElement|null} */ (document.querySelector(`.day-row[data-date="${d}"]`));
@@ -598,13 +581,14 @@ export function init() {
         // "Save anyway" after a discard must not write the batch back.
         hideALConfirm('week');
         // The bar is about to go under the pressed button: the keyboard goes to the week's date button
-        // first, rather than to the last receipt, which is about the work just thrown away (21 Nov 2026).
+        // first, rather than to the last receipt, which is about the work just thrown away.
         /** @type {HTMLElement|null} */ (document.getElementById('weekNavLabel'))?.focus({ preventScroll: true });
         renderWeekGrid();
     });
 
     // ── AL / sick — element handles and display helpers referenced by the member picker below ──
-    // Declared here because the fieldMember change handler references them.
+    // Declared here, ABOVE the fieldMember change handler, which can fire before initALSection() and
+    // initSickSection() have run. Do not move them inside those init functions (.claude/rules/admin.md).
     const alMember   = /** @type {HTMLSelectElement} */ (document.getElementById('alMember'));
     const sickMember = /** @type {HTMLSelectElement} */ (document.getElementById('sickMember'));
     /** Fill (or hide) one card's "Recording for <name>" row.
@@ -633,11 +617,10 @@ export function init() {
     /** @type {(() => void) | null} */ let _refreshAlPreview   = null;
     /** @type {(() => void) | null} */ let _refreshSickPreview = null;
 
-    /** EVERYTHING ON THE PAGE THAT SHOWS THIS MEMBER'S LEAVE AND ABSENCE, redrawn together (25 Nov 2026): the
-     *  AL banner and its chip, both Recorded-dates lists, and both range previews. Every path that changes
-     *  what is on record, or which member or week is in view, calls THIS — the lists it replaced were typed
-     *  by hand at each site and drifted: an AL booking's save left the Absence preview drawn over the days it
-     *  had just booked. A preview that is not set up yet is skipped. */
+    /** EVERYTHING ON THE PAGE THAT SHOWS THIS MEMBER'S LEAVE AND ABSENCE, redrawn together: the AL
+     *  banner and its chip, both Recorded-dates lists, and both range previews. Every path that changes
+     *  what is on record, or which member or week is in view, calls THIS — lists typed by hand at each
+     *  site drifted. A preview that is not set up yet is skipped. */
     function refreshLeaveViews() {
         updateALBanner(); updateALBookedBox(); updateSickBookedBox();
         _refreshAlPreview?.(); _refreshSickPreview?.();
@@ -645,9 +628,9 @@ export function init() {
 
     let lastFieldMember = fieldMember.value;
     /** Point the AL/Absence cards, banner, booked lists and previews at `name` (fieldMember and
-     *  fieldDate already set). ONE list for every path that switches member: ✏️ Edit and the jump
-     *  after a booking kept their own and lost resetPinned/hideALConfirm (review A8/A11), so the
-     *  booked box's ✕ could delete the previous member's periods. @param {string} name */
+     *  fieldDate already set). ONE list for every path that switches member: a path with its own list
+     *  lost resetPinned/hideALConfirm (review A8/A11), so the booked box's ✕ could delete the previous
+     *  member's periods. @param {string} name */
     function _followMember(name) {
         if (name !== lastFieldMember) _bookedPeriods.resetPinned();   // a year chosen for someone else
         lastFieldMember = name;
@@ -693,7 +676,6 @@ export function init() {
         fieldDate.value = lastFieldDate;
     });
 
-    // ============================================
 
     /**
      * Handles edit button clicks in the Saved Changes table.
@@ -755,18 +737,15 @@ export function init() {
     }
 
 
-    // ============================================
-    // UTILITIES
-    // ============================================
 
 
     /** @type {any} */ let _toastTimer = null;
     /** @type {any} */ let _feedbackTimer = null;
     /**
      * @param {string} msg
-     * @param {string[]} [lines] one per changed DAY — rendered as an expandable receipt (v21.38).
-     *   Built with DOM nodes rather than markup: the lines carry member-entered times and notes, and
-     *   textContent cannot be made to mean anything but text.
+     * @param {string[]} [lines] one per changed DAY — rendered as an expandable receipt. Built with DOM
+     *   nodes rather than markup: the lines carry member-entered times and notes, and textContent
+     *   cannot be made to mean anything but text.
      * @param {{ toast?: boolean }} [o] `toast: false` for STAGED days (Apply): the toast confirms a SAVE, and it covered the Unsaved bar.
      */
     function showSuccess(msg, lines, { toast = true } = {}) {
@@ -830,7 +809,7 @@ export function init() {
         cancelBtn:     /** @type {HTMLElement} */ (document.getElementById('alConfirmCancelBtn')),
         activeElement: () => document.activeElement, body: document.body,
         fallbackOpener: ({ batch, resume }) => batch ? saveBtn : document.getElementById(resume ? 'sickSaveBtn' : 'alSaveBtn'),
-        beforeShow:    () => clearTimeout(_feedbackTimer),   // an earlier success line's fade must not take the question down (Oct 2026)
+        beforeShow:    () => clearTimeout(_feedbackTimer),   // an earlier success line's fade must not take the question down
         isSaveInFlight, onBusy: showError,
         saveBatch:     executeSave,
         resumeDefault: triggerConfirmedALSave,
@@ -851,9 +830,7 @@ export function init() {
     /** Take the question down — given a card, only that card's. @param {'week'|'al'|'sick'|'saved'} [onlyFor] */
     function hideALConfirm(onlyFor) { _confirmBar.hide(onlyFor); }
 
-    // ============================================
-    // ANNUAL LEAVE BOOKING  (logic in admin-al.js)
-    // ============================================
+    // ── ANNUAL LEAVE BOOKING  (logic in admin-al.js) ──
     // The TWO dropdowns open the app's own sheet. `alMember` and `sickMember` must never join: they
     // are `hidden` value holders — the member is chosen ONCE, in the top bar — and enhancing them made a
     // second picker that moved what the SAVE reads under another person's name. select-sheet-parity
@@ -874,9 +851,7 @@ export function init() {
         showSuccess,
     })?.updateAlPreview ?? null;
 
-    // ============================================
-    // SICK DAYS RECORDING  (logic in admin-sick.js)
-    // ============================================
+    // ── SICK DAYS RECORDING  (logic in admin-sick.js) ──
     _refreshSickPreview = initSickSection({
         sickMember,
         syncSickMemberDisplay, populateMemberDropdown, lastMember,
@@ -949,9 +924,7 @@ export function init() {
 
     initCardCollapse('sickBookedToggle', 'sickBookedBody', 'sickBookedChevron');
 
-    // ============================================
-    // INIT — runs last so all dropdowns are populated
-    // ============================================
+    // ── INIT — runs last so all dropdowns are populated ──
 
     function applyPermissions() {
         if (currentIsAdmin || currentIsManager) return; // full access — nothing to restrict
@@ -995,9 +968,7 @@ export function init() {
         // SECOND writer of a collapse state. DECISIONS.md → "Admin task navigator".
     }
 
-    // ============================================
-    // ANNUAL LEAVE — booked dates collapsible box
-    // ============================================
+    // ── ANNUAL LEAVE — booked dates collapsible box ──
     function updateALBookedBox() {
         const alFrom = /** @type {HTMLInputElement|null} */ (document.getElementById('alFrom'));
         _renderBookedPeriods({
@@ -1007,7 +978,7 @@ export function init() {
             bodyId:     'alBookedBody',
             // THE SAME RULE THE BANNER USES — the function itself, so the two cannot disagree about a day.
             consumes:   consumesEntitlement,
-            // …but a Spare day past its week's four is LISTED, since the member is off (21 Nov 2026).
+            // …but a Spare day past its week's four is LISTED, since the member is off.
             listed:     costsWithoutSpareCap,
             // CHRISTMAS LEAVE — on record here, never counted (christmas-leave.js); and for any later year shown.
             christmas:  christmasLeaveByYear({ member: teamMembers.find(m => m.name === alMember.value),
@@ -1025,9 +996,7 @@ export function init() {
 
     initCardCollapse('alBookedToggle',      'alBookedBody',   'alBookedChevron');
 
-    // ============================================
-    // CARD COLLAPSE — AL, Sick, Overrides
-    // ============================================
+    // ── CARD COLLAPSE — AL, Sick, Overrides ──
     initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
     initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
     initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
@@ -1040,12 +1009,12 @@ export function init() {
      *  @param {string|null} member */
     function refuseThisLogin(member) {
         currentUser = member;   // the drawer and About name whoever this page refused, not the nobody it loaded for
-        // NOT FOR THIS LOGIN (owner, 24 Nov 2026): the page says why, as the Pay Calculator's role card does,
-        // instead of sending them back to the Calendar with nothing said — its 📝 Admin button and "Record
-        // leave" both land here. The card replaces the page (admin.css → `body.role-unsupported`), and the
-        // drawer and About are wired as on every page, so it is a refusal with a way out, not a dead end.
-        // Its session is the start-up's (`refusalKeepsSession`): re-established, guarded and counted, as for
-        // the page itself — `sessionReady` once went unfulfilled on this path (review of v26.72).
+        // NOT FOR THIS LOGIN (owner, 24 Nov 2026): the page says why, as the Pay Calculator's role card
+        // does, instead of sending them back to the Calendar with nothing said — its 📝 Admin button and
+        // "Record leave" both land here. The card replaces the page (admin.css → `body.role-unsupported`),
+        // and the drawer and About are wired as on every page, so it is a refusal with a way out. Its
+        // session is the start-up's (`refusalKeepsSession`): re-established, guarded and counted, as for
+        // the page itself — `sessionReady` must not go unfulfilled on this path.
         document.body.classList.add('auth-ready', 'role-unsupported');
         document.getElementById('adminRoleCard')?.classList.remove('hidden');
         wireNavPanel();
@@ -1089,8 +1058,8 @@ export function init() {
         if (_bulkPillsContainer) {
             _bulkPillsContainer.innerHTML = PILL_TYPES.filter(t => t !== 'other').map(t => typePillHtml(t)).join('');
         }
-        // UNSAVED WEEK EDITS OUTLIVE THE PAGE (iPhone audit, Nov 2026): iOS discards a hidden page and a swipe back asks
-        // nothing, so the staged rows are kept whenever the page is hidden and offered on the next load (unsaved-draft.js).
+        // UNSAVED WEEK EDITS OUTLIVE THE PAGE: iOS discards a hidden page and a swipe back asks nothing,
+        // so the staged rows are kept whenever the page is hidden and offered on the next load (unsaved-draft.js).
         const _draft = createDraftSlot({ page: 'admin', by: currentUser ?? '', usable: (d) => Array.isArray(d.rows) && d.rows.length > 0 });
         initOverrides({
             currentUser,
@@ -1099,8 +1068,8 @@ export function init() {
             showSuccess,
             showError,
             onAfterSave: () => {   // does NOT touch userMadeChanges: loads call this too (review A4)
-                // …the previews too: a range already picked, drawn while this member's records were still
-                // loading, asked about rest days its records answer (whole-app review, Oct 2026).
+                // …the previews too: a range already picked, drawn while this member's records were
+                // still loading, asked about rest days its records answer.
                 refreshLeaveViews();
                 if (!hasUnsavedChanges()) _draft.forget();   // saved: the kept copy is not work any more
             },
@@ -1126,8 +1095,8 @@ export function init() {
             await _draft.offer({ ask: confirmDialog, unsaved: (kept) => unsavedWeekDraft(kept.data, (d) => onDay.get(d), (id) => getAllOverrides().some(o => o.id === id)), apply: async (kept) => {
                 showInChangeAShift(member, date);
                 await ensureMemberLoaded(member).catch((e) => console.warn('[Admin] Draft restore: the member did not load:', e));
-                // ONLY ON ITS OWN MEMBER AND WEEK (whole-app check, Nov 2026). With changes staged here the jump stops at
-                // "Discard or keep editing?", and the rows went onto the member on screen. Not put back: the slot keeps it.
+                // ONLY ON ITS OWN MEMBER AND WEEK. With changes staged here the jump stops at "Discard or
+                // keep editing?", and the rows would go onto the member on screen. Not put back: the slot keeps it.
                 if (fieldMember.value !== member || fieldDate.value !== date) {
                     showError(hasUnsavedChanges()
                         ? 'Your unsaved changes weren’t put back, because this week has changes of its own. Save or discard them, and yours will be offered again the next time you open Admin.'
@@ -1145,8 +1114,8 @@ export function init() {
         // "Loading…" while it reads.
         renderWeekGrid();
         loadOverrides().then(_offerDraft).catch((err) => console.error('[Admin] The unsaved-changes offer failed:', err));
-        // AN INSTALLED APP STAYS OPEN FOR DAYS (iPhone audit, Nov 2026), and this week was read once, its "Today" stamped
-        // as it drew. Back after five minutes away, with nothing staged and nothing sending, it is read and drawn again.
+        // AN INSTALLED APP STAYS OPEN FOR DAYS, and this week was read once, its "Today" stamped as it
+        // drew. Back after five minutes away, with nothing staged and nothing sending, it is read again.
         onReturnToPage(5 * 60_000, () => { if (!hasUnsavedChanges() && writesInFlight() === 0 && !isSaveInFlight()) loadOverrides(); });
 
         // WHERE A HASH LANDS is `admin-deep-link.js`'s decision — which folds to open (a nested
@@ -1163,7 +1132,6 @@ export function init() {
         wireNavPanel();
     }
 
-    // ============================================
     // If the admin has unsaved changes, wait until they navigate away before reloading.
     registerServiceWorker({
         // A write still waiting on the server counts as unsaved (a range commits in chunks); both are
@@ -1198,14 +1166,14 @@ export function init() {
         }
     }
 
-    // The start-up every card-opening page shares (page-start.js), LAST, once everything above is wired: the Back
-    // guard, the policy ("any named user" — the admin/manager split gates ACTIONS, in applyPermissions, not the
-    // page), decided at load from the LOCAL session and again for whoever signs in on this page's own card. 'login'
-    // iff no local session: the shared card with Admin's explanation, and nothing loaded from Firestore until a
-    // confirmed sign-in runs initAuthorised() in place. NOTHING may be awaited on that path (the login freeze,
-    // AUTH_AND_SESSIONS.md → "The login freeze"). 'forbidden' only for an "Other Staff" login (owner, 23 Nov 2026), who has no roster
-    // to record leave against and no colleague to record it for — on both routes (24-hour review, 25 Nov 2026: the
-    // gate ran signed OUT, so that login made on THIS card got the whole page). The drawer is wired by
+    // The start-up every card-opening page shares (page-start.js), LAST, once everything above is wired:
+    // the Back guard, the policy ("any named user" — the admin/manager split gates ACTIONS, in
+    // applyPermissions, not the page), decided at load from the LOCAL session and again for whoever signs
+    // in on this page's own card. 'login' iff no local session: the shared card with Admin's explanation,
+    // and nothing loaded from Firestore until a confirmed sign-in runs initAuthorised() in place. NOTHING
+    // may be awaited on that path (the login freeze, AUTH_AND_SESSIONS.md → "The login freeze"). 'forbidden' only for an
+    // "Other Staff" login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague
+    // to record it for — on both routes, a login made on THIS card included. The drawer is wired by
     // initAuthorised() and by the refusal, so it renders once, with the signed-in identity.
     startPage({ page: 'admin', label: 'Admin', about: ADMIN_SIGN_IN_ABOUT, refusalKeepsSession: true,
         run: initAuthorised,

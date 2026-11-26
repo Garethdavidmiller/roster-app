@@ -41,18 +41,12 @@ const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
  * Returns '' when the document cannot say — legacy rows written before `changedBy` existed. An
  * absent line is honest; a guessed name is not, and this one names a colleague.
  *
- * **"LAST SAVED BY", NOT "CHANGED BY"** (v22.79, external review). `changedBy` is whoever wrote the
- * document that is currently winning — the LATEST writer, which is not always the person who made
- * the substantive change. A manager moving 06:20 to 07:00 is the author; a second manager whose
- * range booking later lands the same 07:00 on that day rewrites the document and takes over the
- * name. That is not hypothetical — v22.71 fixed the cache precisely so the panel REFRESHES on a
- * same-value re-save by a different person, which is that case reproduced.
- *
- * The old wording claimed authorship and was wrong in exactly that case, sending a member to ask
- * somebody who would say they had changed nothing. "Last saved by" is true in both, and its "last"
- * carries the useful signal the shorter phrasing loses: there may have been earlier edits. It is
- * the same discipline as `getALEntitlement` returning null rather than a plausible figure belonging
- * to somebody else — where the app cannot say the stronger thing, it says the weaker one.
+ * **"LAST SAVED BY", NOT "CHANGED BY".** `changedBy` is whoever wrote the document that is currently
+ * winning — the LATEST writer, not always the person who made the substantive change: a second
+ * manager whose range booking lands the same 07:00 on a day rewrites the document and takes over the
+ * name. "Changed by" claimed authorship and was wrong in exactly that case; "Last saved by" is true in
+ * both, and its "last" says there may have been earlier edits. Where the app cannot say the stronger
+ * thing, it says the weaker one.
  *
  * @param {string|undefined} source     'manual' | 'roster_import'
  * @param {string|undefined} changedBy  the writer's member name
@@ -66,14 +60,13 @@ export function changeProvenance(source, changedBy) {
 /**
  * The full words for a shift value — what the tooltip, the aria-label and the day-detail panel say.
  *
- * ONE function because there are now TWO callers: the shift a member is actually working, and (from
- * v22.64) the base-roster shift an override replaced. Two copies of this ladder would eventually
- * disagree about the same value, which on this panel would read as two different days.
+ * ONE function because there are TWO callers: the shift a member is actually working, and the
+ * base-roster shift an override replaced. Two copies of this ladder would eventually disagree about
+ * the same value, which on this panel would read as two different days.
  *
  * `alwaysTime` is what the base-roster line passes. A member with a `permanentShift` gets "Early
- * shift" with no time, because their badge never varies and the time would be noise — but the base
- * line exists precisely to answer "what was I rostered for?", where the time IS the answer. Without
- * it a permanent-early member whose 06:20 became 07:00 would read "Changed from Early shift".
+ * shift" with no time, because their badge never varies — but the base line answers "what was I
+ * rostered for?", where the time IS the answer ("Changed from Early shift" alone says nothing).
  *
  * @param {string} shift    the shift value (base or effective)
  * @param {any}    member   the member record — `permanentShift` decides whether the time is implied
@@ -93,18 +86,11 @@ export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
             + ((other.rdw || derivedRdw) ? ' — Rest Day Working' : '')
             + (other.time ? ` ${other.time}` : '');
     }
-    // A VALUE THE APP ITSELF CANNOT READ IS NOT A LATE SHIFT (v22.89).
-    //
-    // The ladder below has no branch for "I don't know": `getShiftKind` calls everything that is
-    // not an early or a night a LATE, so an unparseable value came back as "Late shift SEE NATHAN"
-    // — a confident, wrong name, on the one day the member tapped BECAUSE it looked wrong. The cell
-    // beside it wears ❓ Unknown from `shiftBadgeParts`, so the two surfaces stated different
-    // things about the same day and only one of them admitted to not knowing.
-    //
-    // Asked of `shiftBadgeParts` rather than re-tested here, because that function is already the
-    // one authority on what a value IS, and a second regex would be free to disagree with it. The
-    // raw value is kept: a real Supervisor roster says "SEE NATHAN", and that is information a
-    // member can act on where "not recognised" alone is not.
+    // A VALUE THE APP ITSELF CANNOT READ IS NOT A LATE SHIFT. `getShiftKind` calls everything that
+    // is not an early or a night a LATE, so an unparseable value would read "Late shift SEE NATHAN"
+    // while the cell beside it wears ❓ Unknown. Asked of `shiftBadgeParts`, the one authority on what
+    // a value IS, rather than a second regex free to disagree with it. The raw value is kept: a real
+    // Supervisor roster says "SEE NATHAN", which a member can act on where "not recognised" alone is not.
     if (shiftBadgeParts(shift).cls === 'badge-unknown') return `Not recognised: ${shift}`;
     return SHIFT_KIND_LABELS[getShiftKind(shift, member)]
         + ((member.permanentShift && !alwaysTime) ? '' : ` ${shift}`);
@@ -114,13 +100,12 @@ export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
  * THE SHIFT LINE, SPLIT SO A TIME CANNOT BREAK IN HALF.
  *
  * "Early shift 07:00-16:00" is one string, and at 320px the day panel has ~240px of content width —
- * so it wraps, and a browser will happily break at the hyphen INSIDE the value, leaving
- * "Early shift 07:00-" above "16:00". A shift time split across two lines is not a slightly worse
- * line break; it is a number that no longer reads as a number. Measured at 320 x 700, not reasoned.
+ * so it wraps, and a browser will break at the hyphen INSIDE the value, leaving "Early shift 07:00-"
+ * above "16:00": a number that no longer reads as a number. Measured at 320 x 700, not reasoned.
  *
- * Splitting here rather than in the panel keeps it pure and testable, and keeps the ONE regex that
- * knows what a time looks like out of a view module. The words keep any trailing clause the Other
- * grammar adds ("Training — Rest Day Working"), because only the final `HH:MM-HH:MM` is atomic.
+ * Splitting here keeps it pure and testable, and keeps the ONE regex that knows what a time looks
+ * like out of a view module. The words keep any trailing clause the Other grammar adds ("Training —
+ * Rest Day Working"), because only the final `HH:MM-HH:MM` is atomic.
  *
  * @param {string} text a rendered shift line from `shiftWords` (+ any RDW time the caller appended)
  * @returns {{ words: string, time: string }} `time` is '' when the line carries none
@@ -135,22 +120,18 @@ export function splitShiftLine(text) {
  *
  * The icons are the calendar cell's OWN markers, not a second vocabulary invented for the panel:
  * ⭐ bank holiday, 💷 payday, ✂️ cut-off, 🐣 Easter Sunday, 🎄 Christmas Day, all declared as
- * `::before`/`::after` content in `index.css`. That matters because the panel is where a member
- * goes to ask "what is that star on the cell?" — and until v22.70 it answered by naming the day in
- * a comma-joined gold sentence with the star nowhere in it. The one place the legend is read was
- * the one place the legend was absent.
+ * `::before`/`::after` content in `index.css` — the panel is where a member asks "what is that star?".
  *
- * `Today` gets a glyph of its own rather than being left bare: it is the only marker with no cell
- * icon (the cell tints its day number instead), so a chip row where one chip alone had no icon
- * would read as a chip that failed to load.
+ * `Today` gets a glyph of its own: it is the only marker with no cell icon, and a chip row where one
+ * chip alone had no icon would read as a chip that failed to load.
  *
  * The ORDER is deliberate and is not the cell's z-order: the date's own identity first (Christmas,
- * Easter, bank holiday), then Today, then the pay facts — a member reading downwards gets what the
- * day IS before what it PAYS. Boxing Day is deliberately absent, matching the cell, which is left
- * plain so 26 December still reads as an overtime opportunity (index.css says so beside the 🎄).
+ * Easter, bank holiday), then Today, then the pay facts — what the day IS before what it PAYS.
+ * Boxing Day is deliberately absent, matching the cell, which is left plain so 26 December still
+ * reads as an overtime opportunity (index.css says so beside the 🎄).
  *
- * Pure — it takes booleans, not a date, so the caller's existing `is*` calls are not repeated and
- * this cannot disagree with the classes the same call sites set on the cell.
+ * Pure — it takes booleans, not a date, so it cannot disagree with the classes the same call sites
+ * set on the cell.
  *
  * @param {{isToday?:boolean, isBH?:boolean, isXmas?:boolean, isEaster?:boolean, isPay?:boolean, isCutoff?:boolean}} f
  * @returns {{icon:string, label:string}[]}
@@ -170,24 +151,18 @@ export function dayMarkers(f) {
  * WHICH ROSTER WEEK THIS DATE FALLS IN — the panel's half of the header's week note.
  *
  * The month header carries "CEA Weeks 12–16", and on a phone that context is gone the moment the
- * day panel opens over it. One DATE resolves to exactly one week, so the panel can state precisely
- * what the header can only give as a range.
+ * day panel opens over it. One DATE resolves to exactly one week.
  *
  * TWO THINGS THIS MUST NOT DO, both of them one careless line away:
  *
  *   · **Never state a week for a FIXED line.** `getWeekNumberForDate` returns `currentWeek` for a
- *     fixed roster — which names WHICH FIXED PATTERN the member sits on, not a position in a
- *     rotation. Printed as "Week 2" it reads as the second week of a cycle that does not exist.
- *     `weekPrefix` is `''` for exactly those members, and that is the same test the header makes,
- *     so the two surfaces cannot disagree about who has a week at all.
+ *     fixed roster — WHICH FIXED PATTERN the member sits on, not a position in a rotation; "Week 2"
+ *     would read as a cycle that does not exist. `weekPrefix` is `''` for exactly those members, the
+ *     same test the header makes, so the two surfaces cannot disagree about who has a week at all.
  *   · **Resolve per DATE, never from the member's base fields.** Both calls below apply
- *     `resolveMemberRoster`, so a member with a scheduled `rosterChanges` move gets the roster they
- *     are actually on that day.
- *
- * The second point is also where the panel EARNS its place rather than repeating the header: in a
- * transition month the header suppresses the week label altogether (`isTransitionMonth` — one month
- * spanning two numbering schemes cannot honestly be written as a range), and the panel is then the
- * only place the week is available.
+ *     `resolveMemberRoster`, so a scheduled `rosterChanges` move gives the roster of that day. In a
+ *     transition month the header suppresses the week label altogether (`isTransitionMonth`), and
+ *     the panel is then the only place the week is available.
  *
  * @param {any} member the team member record
  * @param {Date} date  the date whose week is wanted
@@ -214,21 +189,19 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
         } else {
             // Plural: the prefix ends in "Week" — "CEA Week" → "CEA Weeks", "BL Week" → "BL Weeks"
             const pluralPrefix = weekPrefix + 's';
-            // En-dash for the range (v18.19) — matches the Team Week View's "19–25 July" strip;
-            // the ASCII hyphen was the app's one range rendered with the wrong dash.
+            // En-dash for the range — matches the Team Week View's "19–25 July" strip.
             const span = (/** @type {number} */ a, /** @type {number} */ b) => (a === b ? `${a}` : `${a}–${b}`);
-            // A MONTH THAT WRAPS THE CYCLE (17 Nov 2026): one that starts in week 19 of 20 ends in week
-            // 3, and "CEA Weeks 19–3" reads as a range run backwards — a third of member-months over a
-            // winter. It is the end of one cycle and the start of the next, so it says both. A THIN space after
-            // the comma (owner, 26 Nov 2026): this is the note's longest form, and on the owner's phone
-            // "November 2026" and "CEA Weeks 19–20, 1–3" missed one line by a pixel, so the note dropped below.
+            // A MONTH THAT WRAPS THE CYCLE: one that starts in week 19 of 20 ends in week 3, and "CEA
+            // Weeks 19–3" reads as a range run backwards. It is the end of one cycle and the start of
+            // the next, so it says both. A THIN space after the comma (owner, 26 Nov 2026): this is the
+            // note's longest form, and on the owner's phone it missed one line by a pixel.
             weekDisplay = firstWeekNum > lastWeekNum && cycleWeeks >= firstWeekNum
                 ? `${pluralPrefix} ${span(firstWeekNum, cycleWeeks)},\u2009${span(1, lastWeekNum)}`
                 : `${pluralPrefix} ${span(firstWeekNum, lastWeekNum)}`;
         }
     }
-    // No "·" between the month and the week note (v22.87): the note's smaller grey type already
-    // sets it apart, and the dot was 8px of the budget that keeps a 360px phone on one line.
+    // No "·" between the month and the week note: the note's smaller grey type already sets it
+    // apart, and the dot was 8px of the budget that keeps a 360px phone on one line.
     return `
         <div class="month-year" role="button" tabindex="0" aria-label="Jump to month — currently ${MONTH_NAMES[month]} ${year}">${MONTH_NAMES[month]} ${year}</div>
         <div class="week-info">
@@ -239,7 +212,7 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
 
 /**
  * The WORDS a day cell shows after its date: the badge's word, and the time beneath it when the
- * cell prints one. ONE answer for the cell and for its name (v25.27), so the name cannot describe a
+ * cell prints one. ONE answer for the cell and for its name, so the name cannot describe a
  * cell other than the one on screen — `createDayCell` renders from it, `dayCellName` speaks from it.
  *
  * RDW and Other days use rdwTime as a side-channel display string (shift itself is a sentinel:
@@ -262,13 +235,10 @@ export function dayCellParts(shift, permanentShift, isWorkedDay, rdwTime = '') {
 }
 
 /**
- * A day cell's accessible NAME, which CONTAINS WHAT THE CELL SHOWS, in the order it shows it (v25.27).
+ * A day cell's accessible NAME, which CONTAINS WHAT THE CELL SHOWS, in the order it shows it.
  *
  * WCAG 2.5.3, Label in Name: somebody driving the phone by voice says what they see — "tap 20" —
- * and that works only if those words are in the name, in that order. axe checks it word by word
- * from 4.14. The name used to read "Friday 20 November 2026 — Early shift 06:20-14:00": every word
- * right, and "November 2026" between the day and the badge, "shift" between the badge and the time.
- *
+ * and that works only if those words are in the name, in that order (axe checks it word by word).
  * So the cell's own words come first (weekday, day, badge, time) and the markers and the month
  * after them. Where the badge abbreviates — AL, RDW, Train, Ind, Unknown — the full words follow it,
  * so a screen reader still hears "Annual leave" and not "A L" alone. Where they would only add
@@ -326,16 +296,12 @@ export function getSwipeDirection(/** @type {any} */ startX, /** @type {any} */ 
 }
 
 /**
- * The grid we draw INSTEAD of the month when its overrides are not known yet (v20.40).
+ * The grid we draw INSTEAD of the month when its overrides are not known yet (CALENDAR_DATA.md 1).
  *
- * Deliberately not a skeleton of the real grid. `.calendar-fetching` already shimmers the cells
- * during the initial fetch and it does not work for this: the shift times stay perfectly legible
- * underneath it, so it reads as "loading, and here is your roster" when the truthful message is
- * "this is not your roster yet". A cell that might be wrong must not be on screen at all.
- *
- * The copy names what is missing rather than saying "loading", because that is the part a member
- * needs in order to judge the screen — a rest day drawn without its overrides looks exactly like a
- * rest day, and only the absent leave/absence/shift-change layer makes the difference.
+ * Deliberately not a skeleton of the real grid: `.calendar-fetching` leaves the shift times legible
+ * underneath, reading as "here is your roster" when the truthful message is "this is not your roster
+ * yet". A cell that might be wrong must not be on screen at all. The copy names what is missing,
+ * because a rest day drawn without its overrides looks exactly like a rest day.
  *
  * @param {'loading'|'unavailable'} display
  * @param {() => void} [onRetry]  omit to draw no button (see buildCalendarContainer's opts)
@@ -348,9 +314,8 @@ function buildGridPlaceholder(display, onRetry) {
     // status vs alert: a wait is a passing condition and must not interrupt, a failure is the end of
     // the road for this month and should be spoken when it happens.
     panel.setAttribute('role', failed ? 'alert' : 'status');
-    // NEUTRAL WORDS, NOT "YOUR" (17 Nov 2026): this panel stands over a colleague's calendar as
-    // often as the reader's own. And the failure says WHY the month is held back in a
-    // sentence that parses — it ended "the rota underneath it may be out of date".
+    // NEUTRAL WORDS, NOT "YOUR": this panel stands over a colleague's calendar as often as the
+    // reader's own. And the failure says WHY the month is held back.
     panel.innerHTML = failed
         ? '<div class="calendar-pending-emoji" aria-hidden="true">⚠️</div>'
           + '<h2>Couldn\'t check this month</h2>'
@@ -374,18 +339,17 @@ function buildGridPlaceholder(display, onRetry) {
 let _snapshotSource = null;
 
 /**
- * Register where a month's stored own-roster copy comes from (v24.59). Set once by calendar-app.js
- * (the source itself is calendar-own-copy.js), so every caller of `buildCalendarContainer` — the
- * month render AND the swipe carousel's adjacent panels — gets the same answer without each having
- * to ask.
+ * Register where a month's stored own-roster copy comes from. Set once by calendar-app.js (the
+ * source itself is calendar-own-copy.js), so every caller of `buildCalendarContainer` — the month
+ * render AND the swipe carousel's adjacent panels — gets the same answer.
  * @param {((memberName: string, year: number, month: number) => Map<string, any>|null) | null} fn
  */
 export function setSnapshotSource(fn) { _snapshotSource = fn; }
 
 /**
- * WHAT A MONTH SHOWS ON SCREEN — the one rule, asked by the grid AND by the legend (25 Nov 2026).
+ * WHAT A MONTH SHOWS ON SCREEN — the one rule, asked by the grid AND by the legend.
  *
- * ── THE MEMBER'S OWN COPY STANDS IN FOR A MONTH STILL LOADING (v24.59) ─────────────────────────
+ * ── THE MEMBER'S OWN COPY STANDS IN FOR A MONTH STILL LOADING (CALENDAR_DATA.md 17) ─────────────
  *
  * Only `loading` — a month that failed keeps its failure panel, and a month with real data draws
  * that. The copy is drawn as `stale` (no "As rostered" claims) and LABELLED, and it is read here,
@@ -393,11 +357,9 @@ export function setSnapshotSource(fn) { _snapshotSource = fn; }
  * Whether a copy may be offered at all — own calendar, signed in by name, not Team View — is the
  * source's decision (calendar-own-copy.js), not this view's.
  *
- * ONE function because the legend asked the same question in calendar-app.js in two hand-written
- * copies (which records its keys come from, and whether a key applies at all). A copy that forgot
- * the stored copy left an 🏖️ day on screen with no AL key (48-hour review), and one that disagreed
- * with the grid would key a month the reader cannot see. The ready metric in calendar-app.js
- * deliberately does NOT ask this: its own comment says why.
+ * ONE function because two hand-written copies in the legend could forget the stored copy (an 🏖️ day
+ * with no AL key) or disagree with the grid. The ready metric in calendar-app.js deliberately does
+ * NOT ask this: its own comment says why.
  *
  * @param {any} member - whose month; null or undefined means no stored copy can apply
  * @param {number} year
@@ -421,16 +383,16 @@ export function monthOnScreen(member, year, month, given) {
  * @param {number} month - 0-indexed JS month
  * @param {number} year
  * @param {{ onDayDetail?: Function, onRetryMonth?: Function, member?: any, snapshot?: Map<string, any>|null, checking?: boolean }} [opts]
- *   onDayDetail       — called when ANY day cell is activated, on every pointer type (v23.59)
+ *   onDayDetail       — called when ANY day cell is activated, on every pointer type
  *   onRetryMonth      — called as (year, month) from the "Try again" button of the withheld-grid
  *                       panel. Omitted while the first 3-month read runs (calendar-app.js and
  *                       calendar-swipe.js both do), in which case no button is drawn — an inert
  *                       control is worse than none.
- *   checking          — the first 3-month read is still running (v25.06). A cached month then draws
- *                       no "couldn't check" note: the check has not failed, it has not finished, and
+ *   checking          — the first 3-month read is still running. A cached month then draws no
+ *                       "couldn't check" note: the check has not failed, it has not finished, and
  *                       the sync chip is that read's label.
- *   member            — draw this member rather than the selected one (the pre-grant paint, v24.59,
- *                       which runs before the member selector exists)
+ *   member            — draw this member rather than the selected one (the pre-grant paint, which
+ *                       runs before the member selector exists)
  *   snapshot          — the member's OWN stored copy of this month (calendar-snapshot.js). Omitted,
  *                       the registered source is asked (`setSnapshotSource`).
  */
@@ -449,12 +411,10 @@ export function buildCalendarContainer(month, year, opts = {}) {
     const firstWeekNum = getWeekNumberForDate(firstDay, member);
     const lastWeekNum  = getWeekNumberForDate(lastDay,  member);
 
-    // A rosterChanges transition mid-month puts firstDay and lastDay on DIFFERENT rosters, so
-    // firstWeekNum and lastWeekNum come from two different numbering schemes and a "Weeks X–Y" range
-    // is nonsensical (e.g. "CEA Weeks 6–2", conflating a rotation week with a fixed-pattern id).
-    // Detect it from the resolved roster descriptor at each month end (rosterType OR currentWeek
-    // differs) and suppress the week label for that one month — every day cell is still resolved
-    // per-date and correct. No-op for the vast majority (no rosterChanges → same descriptor).
+    // A rosterChanges transition mid-month puts firstDay and lastDay on DIFFERENT rosters, so a
+    // "Weeks X–Y" range would mix two numbering schemes (e.g. "CEA Weeks 6–2"). Detect it from the
+    // resolved roster descriptor at each month end and suppress the week label for that one month —
+    // every day cell is still resolved per-date and correct.
     const rFirst = member ? resolveMemberRoster(member, firstDay) : null;
     const rLast  = member ? resolveMemberRoster(member, lastDay)  : null;
     const isTransitionMonth = !!(rFirst && rLast)
@@ -466,19 +426,17 @@ export function buildCalendarContainer(month, year, opts = {}) {
     header.innerHTML = createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year, roster.cycleLength);
     calendarContainer.appendChild(header);
 
-    // ── May this month's shifts be drawn at all? (v20.40) ───────────────────────────────────────
+    // ── May this month's shifts be drawn at all? (CALENDAR_DATA.md 1, 2) ────────────────────────
     //
-    // The base roster below is computed locally and is therefore always available — and for anybody
-    // with leave, an absence, a changed shift or an RDW it is WRONG. Those live only in Firestore.
-    // Until a read has settled for this month, drawing the grid states something the app does not
-    // know. See calendar-data-state.js for the four states and why `cached` is not one of the two
-    // that withhold.
+    // The base roster below is always available locally — and for anybody with leave, an absence, a
+    // changed shift or an RDW it is WRONG. Until a read has settled for this month, drawing the grid
+    // states something the app does not know (calendar-data-state.js has the four states).
     //
     // The HEADER is deliberately built first and kept in every state: it carries the month label and
     // it is the mount point for the sync chip (calendar-initial-fetch.js watches for it). Withholding
-    // the header as well would take the retry away in exactly the states that need one.
-    // The member's own stored copy stands in for a month still loading, drawn `stale` (no "As
-    // rostered" claims, see below) and labelled: `monthOnScreen` holds the rule and its argument.
+    // it would take the retry away in exactly the states that need one.
+    // The member's own stored copy stands in for a month still loading, drawn `stale` and labelled:
+    // `monthOnScreen` holds the rule and its argument.
     const { display: _display, snapshot } = monthOnScreen(member, year, month, opts.snapshot);
     calendarContainer.dataset.overrideState = snapshot ? 'snapshot' : _display;
     if (snapshot) {
@@ -488,13 +446,10 @@ export function buildCalendarContainer(month, year, opts = {}) {
         note.textContent = 'Checking for changes…';
         calendarContainer.appendChild(note);
     }
-    // A MONTH ANSWERED FROM THIS DEVICE'S CACHE IS LABELLED (whole-app review, Oct 2026). `stale`
-    // promises "labelled as possibly out of date, with a retry" (calendar-data-state.js), and for a
-    // month the first load did not cover nothing said so — the sync chip was the only label, and it
-    // belongs to the first load. Where that chip is on screen it speaks alone (index.css).
-    // NOT WHILE THAT FIRST CHECK IS STILL RUNNING (`checking`, v25.06): "couldn't check" was drawn over
-    // every returning member's cache paint until the 800ms chip arrived — and for the whole read when a
-    // redraw then took the chip away. Nothing had failed; the check had not finished.
+    // A MONTH ANSWERED FROM THIS DEVICE'S CACHE IS LABELLED. `stale` promises "labelled as possibly
+    // out of date, with a retry" (calendar-data-state.js). Where the first load's sync chip is on
+    // screen it speaks alone (index.css). NOT WHILE THAT FIRST CHECK IS STILL RUNNING (`checking`):
+    // nothing has failed; the check has not finished.
     if (_display === 'stale' && !snapshot && !checking) {
         const note = document.createElement('div');
         note.className = 'calendar-stale-note';
@@ -525,26 +480,22 @@ export function buildCalendarContainer(month, year, opts = {}) {
     // Single delegated click listener — replaces per-cell listener attachment.
     grid.addEventListener('click', (e) => {
         const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.calendar-day'));
-        // Exclude the greyed adjacent-month filler cells (v16.23): they carry no data-detail-*
-        // attributes (and are aria-hidden), so a touch tap opened a BLANK day-detail lightbox.
+        // Exclude the greyed adjacent-month filler cells: they carry no data-detail-* attributes
+        // (and are aria-hidden), so a tap would open a BLANK day-detail lightbox.
         if (!cell || cell.classList.contains('other-month')) return;
-        // ONE RULE, EVERY POINTER: clicking a day opens the day panel (v23.59, owner request —
-        // "I want the day detail lightboxes like mobile on desktop"). There is no pointer branch
-        // here any more, and that is the whole change.
+        // ONE RULE, EVERY POINTER: clicking a day opens the day panel (owner request — "I want the
+        // day detail lightboxes like mobile on desktop"). There is no pointer branch here, and there
+        // must not be one again.
         //
-        // WHAT IT REPLACED, so nobody restores it by accident: from v16.57 a desktop click on a
-        // PAY-MARKED cell jumped straight to the calculator, and a click on any other cell did
-        // nothing at all — the hover tooltip was the desktop route to a day's detail. That left
-        // the panel, which is where the app explains what a day IS, reachable on a mouse only by
-        // focusing a cell and pressing Enter. The panel already carries the pay route as an
-        // explicit "Pay estimate" button (#dayDetailPayBtn, calendar-al-lightbox.js), so the jump
-        // is one click deeper rather than lost — and it is now VISIBLE, where before it needed a
-        // hover to know the day was pay-marked at all.
+        // WHAT IT REPLACED, so nobody restores it by accident: a desktop click on a PAY-MARKED cell
+        // jumped straight to the calculator, and a click on any other cell did nothing — the panel,
+        // where the app explains what a day IS, was reachable on a mouse only by keyboard. The panel
+        // carries the pay route as an explicit "Pay estimate" button (#dayDetailPayBtn,
+        // calendar-al-lightbox.js), so the jump is one click deeper rather than lost, and VISIBLE.
         //
         // THE KEYBOARD IS DELIBERATELY UNCHANGED. Enter on a focused pay cell still jumps and
-        // falls through to this panel when the jump is refused (calendar-keyboard.js, v23.07):
-        // that is the one route with no pointer to hover and no button to see, so it keeps its
-        // express path.
+        // falls through to this panel when the jump is refused (calendar-keyboard.js): that is the
+        // one route with no pointer to hover and no button to see, so it keeps its express path.
         onDayDetail?.(cell);
     });
 
@@ -575,49 +526,41 @@ export function buildCalendarContainer(month, year, opts = {}) {
 
         // Firestore override — applied after the Christmas check so the base rule holds
         // for Dec 25, while Dec 26 (Boxing Day) can still become RDW for overtime. Resolved
-        // via the ONE shared ladder (shared with Team view + the month legend, v16.48) so the
-        // three consumers can never disagree. An Other day keeps its raw grammar value in
-        // `shift` (the badge + label parse it); rdwTime/otherDerivedRdw drive the hours slot.
+        // via the ONE shared ladder (with Team view + the month legend) so the three consumers
+        // can never disagree. An Other day keeps its raw grammar value in `shift` (the badge +
+        // label parse it); rdwTime/otherDerivedRdw drive the hours slot.
         const dateStr = formatISO(currentDate);
         // Before the member joined, `getBaseShift` has already suppressed the shift and no override
-        // may apply — so this day has no roster at all. Kept as a NAMED value because the "As
-        // rostered" branch below needs the same answer, and re-asking would be a second place for
-        // the two to disagree.
+        // may apply. A NAMED value because the "As rostered" branch below needs the same answer.
         const preStart = isBeforeMemberStart(member, currentDate);
         const override = preStart ? null
             : snapshot ? snapshot.get(dateStr) ?? null
             : rosterOverridesCache.get(`${member.name}|${dateStr}`);
-        // WHAT THE ROSTER SAID BEFORE THE CHANGE (v22.64). Captured here because the next line
-        // overwrites `shift` with the effective value, and the base is then unrecoverable — the
-        // day-detail panel could show "Early shift 07:00-16:00" with no way to tell whether that
-        // was the rostered turn or a shift given on a SPARE week, which are different weeks of
-        // somebody's life. `getBaseShift` has already applied start-date suppression, the
-        // Christmas rules and any scheduled roster change, so this is the member's real base.
+        // WHAT THE ROSTER SAID BEFORE THE CHANGE. Captured here because the next line overwrites
+        // `shift` with the effective value — and a rostered turn and a shift given on a SPARE week are
+        // different things. `getBaseShift` has already applied start-date suppression, the Christmas
+        // rules and any scheduled roster change, so this is the member's real base.
         const baseShift = shift;
-        // CHRISTMAS LEAVE (v25.37, owner 5 Nov 2026): due at work on 25 or 26 December by the pattern
-        // shows as annual leave that is never counted, wherever nothing is recorded on the day —
-        // christmas-leave.js has the rules. `isChristmasLeaveDay` already says no before a start date.
+        // CHRISTMAS LEAVE (owner 5 Nov 2026; CALENDAR_DATA.md 19): due at work on 25 or 26 December by
+        // the pattern shows as annual leave that is never counted, wherever nothing is recorded on the
+        // day — christmas-leave.js has the rules. `isChristmasLeaveDay` already says no before a start date.
         const christmasDue = isChristmasLeaveDay(member, currentDate);
         const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw, christmasLeave } =
             resolveDayShift(override, shift, isSunday(dateStr), christmasDue, isChristmasOrBoxingDay(dateStr));
         shift = _effShift;
         // WHAT THE MEMBER WAS ROSTERED, for the panel's "changed from" pair. `getBaseShift` makes
         // both Christmas days a rest day for everybody, so on a day the member was DUE at work the
-        // pair would read "Rest → Annual leave" about somebody rostered an early turn — the one
-        // fact this feature exists to state. The pattern is what they were rostered.
+        // pair would read "Rest → Annual leave" about somebody rostered an early turn. The pattern is
+        // what they were rostered.
         //
-        // …BUT ONCE A RECORD HAS CHANGED THE DAY, WHAT IT CHANGED IS THE LEAVE (6 Nov 2026 review).
-        // Unrecorded, a Christmas day the member was due to work IS annual leave, so a record making
-        // it work changed it from leave. Compared with the pattern instead, a worked shift entered
-        // with exactly the pattern's times read "As rostered" with no "changed by" line — on a day
-        // that only shows as worked because somebody recorded it. A record that is itself LEAVE
-        // changed nothing from that leave, so it is compared with the pattern again (7 Nov 2026
-        // review): against 'AL' it read "✓ As rostered" and lost who had recorded it.
-        // The same holds for ANY record that applies and is not leave — a correction to a rest day,
-        // a spare day or an absence over contracted work as well as work — and the panel then names
-        // the left badge as the Christmas leave it is, not as the base roster (18 Nov 2026):
-        // "Changed from base roster 🏖️ AL" described a day whose base roster was the very turn on
-        // the right.
+        // …BUT ONCE A RECORD HAS CHANGED THE DAY, WHAT IT CHANGED IS THE LEAVE. Unrecorded, a Christmas
+        // day the member was due to work IS annual leave, so a record making it work changed it from
+        // leave — compared with the pattern, a shift with the pattern's times would read "As rostered"
+        // with no "changed by" line. A record that is itself LEAVE changed nothing from that leave, so
+        // it is compared with the pattern again (against 'AL' it read "✓ As rostered" and lost who
+        // recorded it). The same holds for ANY record that applies and is not leave — a correction to
+        // a rest day, a spare day or an absence over contracted work as well as work — and the panel
+        // then names the left badge as the Christmas leave it is, not as the base roster.
         const fromChristmasLeave = christmasDue && !christmasLeave && shift !== 'AL';
         const rosteredShift = christmasDue ? (fromChristmasLeave ? 'AL' : getPatternShift(member, currentDate)) : baseShift;
         // Leave here is never counted, from the pattern or recorded (christmas-leave.js → isUncountedChristmasLeave).
@@ -645,7 +588,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         const isCutoff = isCutoffDate(currentDate);
 
         // ONE list, two renderings: the hover tooltip's comma sentence and the day panel's icon
-        // chips. They used to be built separately and could name different days.
+        // chips, so they cannot name different days.
         const markers = dayMarkers({ isToday, isBH, isXmas, isEaster, isPay, isCutoff });
         const extras  = markers.map(m => m.label).join(', ');
         const { badgeWord, timeShown } = dayCellParts(shift, member.permanentShift, isWorkedDay, rdwTime);
@@ -662,8 +605,8 @@ export function buildCalendarContainer(month, year, opts = {}) {
         dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
         // The year on its own, for the panel's "Leave dates" link — never parsed back out of the words.
         dayCell.dataset.detailYear  = String(currentDate.getFullYear());
-        // WHOSE DAY THIS IS, for the panel's name line (18 Nov 2026): the member this grid was drawn
-        // for, carried by the cell like every other fact the panel shows, so the two cannot disagree.
+        // WHOSE DAY THIS IS, for the panel's name line: the member this grid was drawn for, carried
+        // by the cell like every other fact the panel shows, so the two cannot disagree.
         dayCell.dataset.detailWho   = member.name;
         // The roster week this date falls in — see `weekContext`, which also owns the one case
         // that must stay silent (a fixed line has no rotating week to state).
@@ -671,9 +614,8 @@ export function buildCalendarContainer(month, year, opts = {}) {
         if (weekLabel) dayCell.dataset.detailWeek = weekLabel;
         dayCell.dataset.detailShift = ttShift;
         // The raw effective value, so the panel can lead with the day's OWN kind glyph from
-        // `shiftBadgeParts` (v22.70). Written on every day, changed or not: an unchanged day used
-        // to be the one state the panel rendered in monochrome, which made the colour look like a
-        // property of "something happened" rather than of the shift.
+        // `shiftBadgeParts`. Written on every day, changed or not, so the colour is a property of the
+        // shift, not of "something happened".
         dayCell.dataset.detailShiftValue = shift;
         // A member whose worked turns all wear one kind (`permanentShift`): the cell's badge says that
         // kind whatever the time, so the panel is told too, or its glyph and pair would name the time's.
@@ -699,8 +641,8 @@ export function buildCalendarContainer(month, year, opts = {}) {
             if (fromChristmasLeave) dayCell.dataset.detailFromChristmas = '1';
             // The new value in full words WITH its time, for the panel's spoken sentence. The base
             // side already states its time for a member whose turns all wear one kind (`alwaysTime`);
-            // the headline leaves it out by design, so "changed to Late shift" said nothing about a
-            // change that is only a time. The same words as `ttShift` for every other member.
+            // the headline leaves it out, so "changed to Late shift" said nothing about a change that
+            // is only a time. The same words as `ttShift` for every other member.
             dayCell.dataset.detailNowSaid = (christmasNotCounted ? shiftLabel : shiftWords(shift, member, otherDerivedRdw, true))
                 + (shift === 'RDW' && rdwTime ? ` ${rdwTime}` : '');
             // Christmas leave is nobody's change — it comes from the roster — so a suppressed
@@ -708,35 +650,29 @@ export function buildCalendarContainer(month, year, opts = {}) {
             const by = christmasLeave ? '' : changeProvenance(override?.source, override?.changedBy);
             if (by) dayCell.dataset.detailBy = by;
         } else if (_display === 'render' && !preStart) {
-            // NOTHING WAS CHANGED — AND WE ACTUALLY KNOW THAT (v22.89, external review).
+            // NOTHING WAS CHANGED — AND WE ACTUALLY KNOW THAT.
             //
-            // An unchanged day rendered nothing in the panel's change slot, so "no change is on
-            // record" and "nobody has looked yet" were the same blank to a member deliberately
-            // checking a date they were unsure about. The panel can answer that, but only where the
-            // answer is earned: `render` is the ONE display state backed by a settled server read.
+            // "No change is on record" and "nobody has looked yet" must not be the same blank. The
+            // answer is earned only on `render`, the ONE display state backed by a settled server read.
             // On a `stale` month — last-known-good data, which the grid still draws — the flag is
-            // withheld and the panel stays blank, because turning the absence of an override in a
-            // possibly-superseded cache into "As rostered" is precisely the claim
-            // calendar-data-state.js exists to stop. Silence is not the opposite claim; it is the
-            // absence of one.
+            // withheld and the panel stays blank: turning the absence of an override in a possibly-
+            // superseded cache into "As rostered" is precisely the claim calendar-data-state.js exists
+            // to stop. Silence is not the opposite claim; it is the absence of one.
             //
             // Decided HERE rather than in the panel because both halves are already in hand at this
             // line — the base-vs-effective comparison and the month's knowledge — and a second copy
             // of the knowledge rule in a view module is how the two would come to disagree.
             //
-            // `preStart` is the FOURTH way the claim can be unearned, and the only one that is not
-            // about knowledge (v22.93). Before a member's start date `getBaseShift` suppresses every
-            // shift to `RD`, so base and effective match and the day lands here — on a settled month,
-            // which is the one state allowed to speak. The panel then confirmed a rest day nobody was
-            // ever rostered for, on a month a new starter reaches by pressing Prev. "We do not know"
-            // and "there is nothing to know" are different silences; only the first was covered.
-            // The roster WEEK is deliberately still stated on such a day: the month header states it
-            // too, and `weekContext`'s whole design is that the two surfaces cannot disagree.
+            // `preStart` is the other way the claim can be unearned: before a start date `getBaseShift`
+            // suppresses every shift to `RD`, so base and effective match, and the panel would confirm
+            // a rest day nobody was ever rostered for. "We do not know" and "there is nothing to know"
+            // are different silences. The roster WEEK is deliberately still stated on such a day: the
+            // month header states it too, and `weekContext`'s design is that the two cannot disagree.
             dayCell.dataset.detailAsRostered = '1';
         }
-        // A January leave day that comes out of LAST year's allowance (v25.18, leave-year.js). Asked
-        // of the effective value as well as the record, so a suppressed or superseded override can
-        // never put the line under a day that is not leave.
+        // A January leave day that comes out of LAST year's allowance (leave-year.js). Asked of the
+        // effective value as well as the record, so a suppressed or superseded override can never put
+        // the line under a day that is not leave.
         const fromYear = shift === 'AL' ? carriedFrom(override, dateStr) : null;
         if (fromYear) dayCell.dataset.detailLeaveYear = String(fromYear);
         // Which Christmas day this leave is, for the panel's one-line explanation; and, on a Boxing

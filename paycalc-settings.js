@@ -33,11 +33,9 @@ import {
 } from './paycalc-pension.js';
 
 // `gradeForRole` — which pay grade a member's ROLE is, or null when this app has no confirmed
-// rates for it (v21.78). It lives in roster-data.js since v24.86, where the Calendar's Year to Date
-// notice can ask the same question without loading this module; re-exported so nothing here moves.
+// rates for it. It lives in roster-data.js (the Calendar asks it too); re-exported for this module's readers.
 export { gradeForRole };
-// The grade setting lives in paycalc-grade-setting.js; these are re-exported so its readers here — the
-// page, back pay, the HPP and year cards, the hint bar, the tests — did not move with it.
+// The grade setting lives in paycalc-grade-setting.js; re-exported for its readers here.
 export { getGradeSetting, gradeDaysFor, getContr, getLoggedMember, gradeToOffer, renderGradePrompt, isPeriodPriced, unpricedLineFor };
 
 /**
@@ -54,9 +52,8 @@ export function getEffectiveContr(p) {
   return factor === 1 ? base : Math.round(base * factor);
 }
 
-/** Returns the fraction of the period that the logged-in member was employed.
- *  Delegates to calcProRateFactor (paycalc-calc.js) — see that function for
- *  the formula invariant and why startDate must be midnight local time. */
+/** Returns the fraction of the period that the logged-in member was employed — calcProRateFactor
+ *  (paycalc-calc.js) holds the formula invariant. */
 /** @param {any} p */
 export function getProRateFactor(p) {
   if (!p) return 1;
@@ -81,12 +78,9 @@ function savePensionTimeline(timeline) {
 /**
  * Was this member OUT of the pension scheme ON THIS PAYSLIP (opted out / withdrawn from the RPS)?
  *
- * PERIOD-AWARE SINCE v21.78, and that is the whole point — see paycalc-pension.js. As a bare
- * boolean this made the pension default £0 for every payslip there has ever been, so a historical
- * payslip storing `null` (the round trip's self-heal, which is most of them) was rewritten
- * retroactively: reproduced at £160.78 → £0.00 on a 2025/26 payslip, £115.92 onto its take-home.
- *
- * No period in hand answers CONTRIBUTING, not "the latest state" — the answer that changes no
+ * PERIOD-AWARE, and that is the whole point (paycalc-pension.js): as a bare boolean it made the
+ * default £0 for every payslip ever, rewriting history (£160.78 → £0.00 on a 2025/26 payslip,
+ * £115.92 onto its take-home). No period in hand answers CONTRIBUTING — the answer that changes no
  * stored figure.
  *
  * @param {any} [pObj] @returns {boolean}
@@ -95,14 +89,10 @@ export function isPensionOptedOut(pObj) {
   return isOptedOutAt(getPensionTimeline(), pObj?.num ?? null);
 }
 
-/** Reflect the out-of-scheme choice in the amount field: an amount nobody pays is not editable,
- *  and a field that stays live while reading £0.00 invites the member to "fix" it and wonder why it
- *  will not hold. Disabled rather than hidden — the figure is still the answer to "what came off my
- *  pay?", and hiding it would make the deduction unexplained rather than explained as nil.
- *
- *  Takes the VIEWED period (v21.78): the lock follows the timeline, so a payslip from before she
- *  left the scheme stays editable and keeps its real figure. Locking it everywhere was the visible
- *  half of the retroactive bug.
+/** Reflect the out-of-scheme choice in the amount field: an amount nobody pays is not editable.
+ *  Disabled rather than hidden — the figure still answers "what came off my pay?", as nil.
+ *  Takes the VIEWED period: the lock follows the timeline, so a payslip from before the member left
+ *  the scheme stays editable and keeps its real figure.
  *  @param {any} [pObj] */
 export function applyPensionOptOutUI(pObj) {
   const out = isPensionOptedOut(pObj);
@@ -112,10 +102,8 @@ export function applyPensionOptOutUI(pObj) {
     if (out) amt.value = '0.00';
   }
   document.getElementById('pensionAmt')?.closest('.pfx')?.classList.toggle('is-disabled', out);
-  // A payslip worked as a CES starts at the CEA figure: every step in PENSION_STEPS was read off CEA
-  // payslips, and no CES payslip's pension line is on record (VAL-PAY-007). Kept rather than left
-  // blank — no figure would be further out — and SAID beside the box, which asks for the payslip's
-  // own. Not inside an opt-out spell, where the box is locked at £0.00 and there is nothing to check.
+  // A payslip worked as a CES starts at the CEA figure (no CES pension line is on record,
+  // VAL-PAY-007), and SAYS so beside the box — except inside an opt-out spell, locked at £0.00.
   const cesNote = document.getElementById('pensionCesNote');
   if (cesNote) cesNote.hidden = out || !pObj || !gradeDaysFor(pObj).some(x => x.grade === 'ces');
 }
@@ -123,14 +111,12 @@ export function applyPensionOptOutUI(pObj) {
 /**
  * Build (and set) the "not in the scheme from which payslip?" control.
  *
- * The same shape as the student-loan cutover select directly below it — one option per visible
- * payslip, grouped by tax year, date first — because it answers the same kind of question and a
- * member should not have to learn two idioms for "name the first payslip where this changed".
+ * The same shape as the student-loan cutover select below it (one option per visible payslip,
+ * grouped by tax year, date first): one idiom for "name the first payslip where this changed".
  *
  * WHAT IT IS SET TO MATTERS. Re-opening Settings shows the payslip already ON RECORD, not today's:
- * defaulting a populated control back to the current payslip invites an accidental correction that
- * silently moves months of pension. Only a member who has never recorded a change gets today's
- * payslip, and for her the control is the question, not an answer to re-confirm.
+ * defaulting back to the current payslip invites an accidental correction that silently moves
+ * months of pension. Only a member who has never recorded a change gets today's payslip.
  *
  * @param {import('./paycalc-pension.js').PensionChange[]} timeline
  */
@@ -140,36 +126,25 @@ export function buildPensionFromSelect(timeline) {
   if (!sel) return;
   sel.innerHTML = '';
   appendPayslipOptions(sel, visiblePeriods());
-  // WHAT THE SELECT IS SET TO IS WHAT `saveSettings` ACTS ON, so it carries both answers (v21.80):
-  // while the box is TICKED it names where the spell begins, and while it is UNTICKED it names the
-  // payslip the member is looking at — which is how the hint beneath it has told her to record a
-  // rejoin since v21.78 ("untick the box while viewing the first payslip that has a deduction
-  // again"). Setting it to the spell's own start on an untick, as the first cut did, made every
-  // untick erase the spell rather than end it.
+  // WHAT THE SELECT IS SET TO IS WHAT `saveSettings` ACTS ON: while TICKED it names where the spell
+  // begins; while UNTICKED, the payslip on screen — how the hint records a rejoin. Set to the spell's
+  // start on an untick, every untick erased the spell rather than ending it.
   //
-  // `currentPeriodNum()` READS THE PERIOD SELECT, which does not exist yet when loadSettings runs
-  // at boot — it returns 0 there. Falling through to today's payslip keeps the control meaningful
-  // on that first paint: set to a value no option carries, a select is not left on that value — it
-  // selects nothing at all (selectedIndex −1, value '').
+  // `currentPeriodNum()` READS THE PERIOD SELECT, which does not exist yet at boot (it returns 0), so
+  // fall through to today's payslip: a select set to a value no option carries selects nothing.
   const checked = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'))?.checked;
   const start   = checked ? optOutStartsAt(timeline) : null;
   offerRecordedPayslip(sel, start);
   sel.value = String(start ?? (currentPeriodNum() || todaysPeriodNum()));
-  // Shown only while she is out of the scheme: it asks one question ("not in the scheme from which
-  // payslip?") and that question has no answer once she is back in. A rejoin is dated by the
-  // payslip on screen, not by this control, so leaving it up afterwards would put a label that is
-  // no longer true in front of a value nothing reads.
+  // Shown only while out of the scheme: its question has no answer once back in (a rejoin is dated
+  // by the payslip on screen, not this control).
   field?.classList.toggle('hidden', !checked);
 }
 
 /**
  * This period's DEFAULT pension as the £ number the field would show: the period-aware scheme
  * default (PENSION_STEPS via getPensionDefault) × the joining-period pro-rate, rounded to 2dp.
- * The ONE source for a comparison/write that was hand-rolled at six sites (v18.46 — sweep item 9).
- * No period → the bare current default.
- *
- * Lives here rather than in the coordinator (v21.78): both its inputs are in this module, and it
- * is a pay RULE, which is what the coordinator ratchet asks to be moved out rather than capped.
+ * The ONE source for every comparison/write of it. No period → the bare current default.
  * @param {any} [p] @returns {number}
  */
 export function periodDefaultPension(p) {
@@ -180,28 +155,22 @@ export function periodDefaultPension(p) {
 
 /**
  * Wire the pension card's two controls — the "not in the scheme" tick and the payslip it starts
- * from (v21.78). Here rather than in the coordinator because everything they touch is here; the
- * coordinator injects only what it alone knows.
+ * from. Everything they touch is here; the coordinator injects only what it alone knows.
  *
  * ORDER MATTERS in the tick handler. The date control is BUILT before the save, so a first tick has
- * a payslip to date itself from (`saveSettings` reads that control, and an unbuilt one holds
- * nothing) — and, since v21.80, so that an UN-tick is dated to the payslip on screen rather than to
- * the spell's own start, which is what turned every rejoin into an erasure. (A second `saveSettings`
- * at the end, there to re-save a member-level pension default after the field was rebuilt — v21.77 —
- * went with that default, which nothing read: paycalc-3-15.)
+ * a payslip to date itself from (`saveSettings` reads that control), and an UN-tick is dated to the
+ * payslip on screen rather than the spell's own start, which turned every rejoin into an erasure.
  *
  * @param {{ autosave: () => void }} deps  the coordinator's persist-and-reprice — it owns what is saved
- *   (since Oct 2026, only the pension field, and only into a payslip that already has readable entries).
+ *   (only the pension field, and only into a payslip that already has readable entries).
  */
 export function wirePensionControls({ autosave }) {
   const _viewed = () => viewedPeriod();
   const _amt = () => /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
 
-  // THE PAYSLIP'S OWN FIGURE SURVIVES BOTH CONTROLS (paycalc-3-3). A payslip that stores a pension of
-  // its own keeps it: an UNLOCKED field shows it, as loadPeriodData would — never the scheme default,
-  // which is what replaced it when a member corrected the date while viewing an earlier payslip, or
-  // ticked by mistake and unticked — and a LOCKED one leaves it dormant behind the lock's £0.00, which
-  // every surface prices at £0 (as every other payslip in an opt-out spell already does).
+  // THE PAYSLIP'S OWN FIGURE SURVIVES BOTH CONTROLS (paycalc-3-3). An UNLOCKED field shows a payslip's
+  // stored pension, as loadPeriodData would — never the scheme default — and a LOCKED one leaves it
+  // dormant behind the lock's £0.00, which every surface prices at £0.
   const _own = (/** @type {any} */ p) => (p ? readSavedPeriod(p.num).data?.pension : null) ?? null;
   const _repaint = (/** @type {any} */ p) => {
     const amt = _amt();
@@ -209,9 +178,8 @@ export function wirePensionControls({ autosave }) {
     const own = _own(p);
     amt.value = own != null ? String(own) : periodDefaultPension(p).toFixed(2);
   };
-  // `autosave` persists the field and re-prices; the only re-price this module can reach. A locked
-  // field reads £0.00, and the round trip keeps the payslip's own figure behind it (`readFormData`'s
-  // `savedPension`, which the coordinator's saves pass); it is put back here too, so a figure lies
+  // `autosave` persists the field and re-prices. Behind a locked £0.00 the payslip's own figure is
+  // kept by the round trip (`readFormData`'s `savedPension`) and put back here too, so it lies
   // dormant rather than lost whatever save this module is handed.
   const _persist = () => {
     const p = _viewed();
@@ -226,19 +194,16 @@ export function wirePensionControls({ autosave }) {
     buildPensionFromSelect(getPensionTimeline());
     const p = _viewed();
     applyPensionOptOutUI(p);
-    // Un-ticking must take the lock's £0.00 away: it is no longer anybody's figure, and leaving it
-    // would persist as a real opt-out on the next save.
+    // Un-ticking must take the lock's £0.00 away, or the next save persists it as a real opt-out.
     _repaint(p);
     _persist();
   });
 
-  // Moving the boundary re-prices both sides of it, so the field, the lock and the estimate are
-  // all repainted — not merely recalculated. `saveSettings` MOVES the spell's start rather than
-  // recording a second change at the new payslip: re-picking a later one would otherwise be
-  // swallowed by the earlier change still standing in front of it, leaving the select reading one
-  // payslip and every figure using another until the next reload quietly put it back. The control is
-  // then rebuilt from the record, as the tick's is: a start moved at or before an earlier rejoin is
-  // refused (`withOptOutStartAt`), and the select must not go on naming it (paycalc-1-10).
+  // Moving the boundary re-prices both sides of it, so the field, the lock and the estimate are all
+  // repainted. `saveSettings` MOVES the spell's start rather than recording a second change (a later
+  // pick would be swallowed by the earlier change in front of it). The control is then rebuilt from
+  // the record: a start moved at or before an earlier rejoin is refused (`withOptOutStartAt`), and
+  // the select must not go on naming it (paycalc-1-10).
   document.getElementById('pensionOptOutFrom')?.addEventListener('change', () => {
     saveSettings();
     buildPensionFromSelect(getPensionTimeline());
@@ -263,19 +228,12 @@ function keepSavedPension(pNum, pension) {
 /** Full-period pension default for the current grade, period-aware.
  *  Pass a period object to get the correct rate for that payday (handles cut-overs).
  *
- *  THE OPT-OUT IS APPLIED HERE, and here only (v21.64). Four sites ask what a payslip's pension
- *  should be when the member has not typed one — the field default and calculate()'s fallback (via
- *  `periodDefaultPension`, above), the HPP non-premium estimate (paycalc-hpp.js) and the
- *  year summary (paycalc-year-summary.js) — and before this they all answered "the scheme rate",
- *  because being in the scheme was assumed rather than asked. A member who has withdrawn had no way
- *  to say so: her £0 held on the payslip she typed it into and reverted to £147.36 on every other,
- *  which understated her take-home by the whole contribution and mis-stated her tax and NI with it
- *  (the sacrifice comes off gross before both). Answering it in this one function is what makes the
- *  four agree; answering it in four would be four chances to drift.
+ *  THE OPT-OUT IS APPLIED HERE, and here only. Four sites ask what a payslip's pension is when the
+ *  member has not typed one — the field default and calculate()'s fallback (via
+ *  `periodDefaultPension`), the HPP non-premium estimate (paycalc-hpp.js) and the year summary
+ *  (paycalc-year-summary.js) — and answering it in one function is what makes the four agree.
  *
- *  It changes the DEFAULT, never a stored figure — and since v21.78 it changes it only from the
- *  payslip the member named onwards. Every caller but two already passes a period, which is what
- *  let one edit here fix the field, the calculation, the HPP estimate and the year summary at once.
+ *  It changes the DEFAULT, never a stored figure, and only from the payslip the member named onwards.
  */
 /** @param {any} [pObj] */
 export function getPensionDefault(pObj) {
@@ -292,9 +250,8 @@ export function getPensionDefault(pObj) {
 // legacy `rate`/`rates` key left on a device is never read.
 /**
  * The settled (post-award) hourly rate a GRADE is paid in a tax year (pure — no DOM): AWARD_RATES'
- * figure for the year, else the grade default. Since v17.87 the rate is FIXED BY GRADE and never
- * stored, which removes the whole stale-saved-rate failure class. The mid-year pre/post-rise step is
- * applied per period by getRateForPeriod.
+ * figure for the year, else the grade default. The rate is FIXED BY GRADE and never stored
+ * (invariant 8). The mid-year pre/post-rise step is applied per period by getRateForPeriod.
  * @param {string} grade - 'cea' | 'ces'
  * @param {any} ty
  * @returns {number}
@@ -325,8 +282,7 @@ export function settledRateFor(p, ty = taxYearForPeriod(p)) {
  * the grade of the payslip on screen: a member promoted after an award was paid is owed that award at
  * the grade they held while they earned it. The window is the payslips calcBackPay accrues — the
  * award year's, from its April one, before the payslip that carried the award, up to today. With no
- * such payslip yet, the payslip on screen decides; with nobody to ask, CEA, as the calculator always
- * has before it refuses (paycalc-settings.js → gradeDaysFor).
+ * such payslip yet, the payslip on screen decides; with nobody to ask, CEA (gradeDaysFor).
  *
  * A window that SPANS a change of grade is priced at the grade held at its end, and logged: no
  * member's dates produce one today, and paycalc-grade-wiring.test.mjs fails the commit that would.
@@ -337,8 +293,7 @@ export function settledRateFor(p, ty = taxYearForPeriod(p)) {
  */
 export function awardGrade(awardTy) {
   if (awardTy) {
-    // The window calcBackPay accrues (awardWindow), capped at today's payslip only — as it always
-    // has been here; the card also stops before the payslip the lump is paid in.
+    // The window calcBackPay accrues (awardWindow), capped at today's payslip.
     const parts = awardWindow(getPeriods(), awardTy, { capNum: todaysPeriodNum() })
       .flatMap(/** @param {any} p */ p => gradeDaysFor(p));
     const { grade, mixed } = windowGrade(parts);
@@ -353,15 +308,14 @@ export function awardGrade(awardTy) {
  * The hourly rate a payslip was PAID at, and whether that is the rate before its tax year's pay
  * award: a payslip paid before the award's mid-year date was paid the earlier rate (2025/26 payslips
  * before 24 Oct 2025 at £20.06, not the settled £20.74), every other one the year's settled rate.
- * ONE answer for the rate field, the Settings card's collapsed summary and calculate(), which used to
- * work it out separately — and a summary quoting the new rate over a payslip priced at the old one is
- * the contradiction a member reported ("why does July 3rd show the new rate at the top?").
+ * ONE answer for the rate field, the Settings card's collapsed summary and calculate(), so a summary
+ * can never quote the new rate over a payslip priced at the old one.
  *
  * A payslip worked under two grades is each grade's rate weighted by its days, UNROUNDED: 7 days
  * as a CEA and 21 as a CES in 2026/27 is £22.3225, so 140 contracted hours come to the £3,125.15
- * that 35 hours at £21.49 and 105 at £22.60 do (paycalc-grade.js). The field shows it to the penny; calculate() uses
- * this figure, never the field's rounding. A payslip with a day under a role that has no rates has
- * NO rate (null) — never CEA's in its place (invariant 13); the page shows `unpricedLineFor` instead.
+ * that 35 hours at £21.49 and 105 at £22.60 do (paycalc-grade.js). The field shows it to the penny;
+ * calculate() uses this figure, never the field's rounding. A payslip with a day under a role that
+ * has no rates has NO rate (null) — never CEA's in its place (invariant 13).
  * @param {any} ty - the period's tax year
  * @param {any} [p] - the period (omitted → the settled rate of a chosen grade, else CEA's)
  * @returns {{ rate: number|null, preAward: boolean }}
@@ -401,12 +355,11 @@ export function updateRateForPeriod(ty, p) {
   const parts    = p ? gradeDaysFor(p) : [];
   const field    = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
   field.value = rate == null ? '–' : rate.toFixed(2);
-  // The rate is FIXED BY GRADE (v17.87) — ALWAYS read-only; the member never types it. A pre-rise
-  // payslip shows that period's historic rate, a current/post-rise payslip the new rate.
+  // The rate is FIXED BY GRADE — ALWAYS read-only; the member never types it.
   field.readOnly = true;
-  // A payslip before the year's pay rise, for a grade whose rate BEFORE it is not on record (CES
-  // 2025/26). It is priced at the later rate — the only figure there is — and must never be labelled
-  // "current rate" as though that were what it paid (whole-app review, Oct 2026; invariant 1).
+  // A payslip before the year's pay rise, for a grade whose earlier rate is not on record (CES
+  // 2025/26): priced at the later rate, the only figure there is, and never labelled "current rate"
+  // as though that were what it paid (invariant 1).
   const from      = awardFromForYear(ty.label);
   const preUnknown = !preAward && !!p && !!from && p.payday < from
     && parts.some(x => !!x.grade && awardRatesFor(x.grade, ty.label)?.pre == null);
@@ -429,8 +382,7 @@ export function updateRateForPeriod(ty, p) {
   }
 }
 
-/** Load the stored Year to Date figures for this tax year into the Year to Date Figures card.
- *  Called from onPeriodChange() so values reset correctly when switching between tax years. */
+/** Load the stored Year to Date figures for this tax year into the Year to Date Figures card. */
 /** @param {any} ty */
 export function updateYtdForTaxYear(ty) {
   const payEl = /** @type {HTMLInputElement} */ (document.getElementById('ytdPay'));
@@ -453,48 +405,39 @@ export function saveSettings() {
   const curP    = periodByNum(pNum);
   const curTy   = taxYearForPeriod(curP);
   // Save the grade setting FIRST — every helper below that prices a payslip (periodRate,
-  // getPensionDefault) must read the NEW setting (v17.40 review fix). paycalc-grade-setting.js.
+  // getPensionDefault) must read the NEW setting. paycalc-grade-setting.js.
   saveGradeSetting(pNum);
-  // NB: the hourly rate is NO LONGER persisted (v17.87) — it is fixed by grade and derived by
-  // settledRate/getRateForPeriod, so there is nothing to save and no stale rate can form.
+  // The hourly rate is never persisted: it is derived by grade (invariant 8).
   lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
   lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
   lsSet(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');
-  // Loan-repaid cutover (v18.41): the p.num of the first payslip with no deduction, '' = still
-  // repaying. The select may not exist in old cached HTML — guard rather than throw. A select with
-  // NOTHING chosen states nothing, so it never overwrites the record ('' is "No — still deducted"
-  // only when that option is the one chosen) — paycalc-3-8.
+  // Loan-repaid cutover: the p.num of the first payslip with no deduction, '' = still repaying. The
+  // select may not exist in old cached HTML. A select with NOTHING chosen never overwrites the
+  // record ('' is "No — still deducted" only when that option is chosen) — paycalc-3-8.
   const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
   if (_slPaidOffEl && _slPaidOffEl.selectedIndex !== -1) lsSet(SK.slPaidOff, _slPaidOffEl.value);
   // Out of the scheme. getPensionDefault() reads this timeline, so every repaint after this save —
   // the lock, the field's default, the estimate — sees the state the member just chose.
   //
-  // A CHANGE DATED TO A PAYSLIP, not a global flag (v21.78): the `from` select carries the payslip
-  // to act on. With no select rendered — old cached HTML — that is the payslip being viewed, which
-  // is the reading the control defaults to anyway.
+  // A CHANGE DATED TO A PAYSLIP, not a global flag: the `from` select carries the payslip to act on
+  // (with no select rendered — old cached HTML — the payslip being viewed).
   //
-  // TICKED and UNTICKED are two different edits, not one boolean written twice (v21.80). Ticked
-  // MOVES the current spell's start, so re-picking a LATER payslip corrects it instead of being
-  // swallowed by the earlier change still standing in front of it. Unticked ENDS the spell at the
-  // payslip on screen — the rejoin. Both are idempotent, which they have to be: every keystroke in
-  // the pension field lands here, and a re-statement of the state already recorded must add
-  // nothing.
+  // TICKED and UNTICKED are two different edits (invariant 12). Ticked MOVES the current spell's
+  // start, so a LATER pick corrects it; unticked ENDS the spell at the payslip on screen — the
+  // rejoin. Both are idempotent, as every keystroke in the pension field lands here.
   const _optOut = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'));
   if (_optOut) {
     const _fromEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('pensionOptOutFrom'));
     const _fromNum = parseInt(_fromEl?.value ?? '', 10);
     const _tl = getPensionTimeline();
-    // A select that names no payslip leaves a spell already ON RECORD where it began: falling back
-    // to the payslip on screen MOVED it there, and gave every payslip in between its deduction back
-    // (paycalc-3-8). With no spell yet — a first tick — or for a rejoin, the payslip on screen is
-    // what the control means anyway.
+    // A select that names no payslip leaves a spell already ON RECORD where it began — falling back to
+    // the payslip on screen would MOVE it (paycalc-3-8). A first tick or a rejoin uses the payslip on screen.
     const _recorded = _optOut.checked ? optOutStartsAt(_tl) : null;
     const _from = Number.isFinite(_fromNum) ? _fromNum : (_recorded ?? currentPeriodNum());
     savePensionTimeline(_optOut.checked ? withOptOutStartAt(_tl, _from) : withRejoinAt(_tl, _from));
   }
   // No member-level pension is stored (paycalc-3-15): each payslip keeps its own figure through the
-  // form round trip, and a payslip with none takes its period default. The `SK.pension` this wrote on
-  // every keystroke was read only into a field loadPeriodData repaints in the same init.
+  // form round trip, and a payslip with none takes its period default.
   lsSet(ytdPayKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdPay')).value);
   lsSet(ytdTaxKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdTax')).value);
 }
@@ -517,35 +460,21 @@ export function confirmSettings(calculate) {
   if (existingRaw) {
     try {
       const d = JSON.parse(existingRaw);
-      // Blank field → null (loadPeriodData re-applies the period default), NOT 0. Coercing blank to
-      // 0 here persisted a permanent £0 pension for the period — the same overstatement the
-      // readFormData/calculate null convention closes. A typed "0" is a genuine opt-out and is kept.
-      // Out of the scheme → the payslip's pension is LEFT AS IT IS, never an explicit 0. Nothing
-      // saved means "use the period default", which for an opted-out member already IS 0 — and it
-      // keeps healing, so if she ever rejoins, the periods she never typed a figure into follow the
-      // scheme again instead of being frozen at a £0 nobody can see the reason for. A figure she DID
-      // type stays too, dormant behind the lock (readFormData says why): this wrote null over it, so
-      // correcting the opt-out date brought the payslip back at the scheme default, not her figure.
-      // `pensionToStore` — the autosave's own rule, not a second copy of it. A private
-      // `parseFloat(raw) || 0` here stored the period default as a number (freezing the payslip onto
-      // it, so the next pension step never reached it) and read a pasted "£151.86" as £0.
+      // Blank field → null (loadPeriodData re-applies the period default), NOT 0, which would persist
+      // a permanent £0 pension. A typed "0" is a genuine opt-out and is kept.
+      // Out of the scheme → the payslip's pension is LEFT AS IT IS, never an explicit 0: nothing saved
+      // already means 0 for an opted-out member, and keeps healing after a rejoin; a figure the member
+      // DID type stays dormant behind the lock (readFormData says why).
+      // `pensionToStore` — the autosave's own rule, not a second copy (a private `parseFloat(raw) || 0`
+      // froze the payslip onto the default and read a pasted "£151.86" as £0).
       const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value;
       if (!isPensionOptedOut(curP)) d.pension = pensionToStore(_pRaw, curP ? periodDefaultPension(curP) : null);
       lsSet(periodKey(pNum), JSON.stringify(d));
     } catch (err) {
-      // A corrupt saved period must not break Save — but it must not be reported as a success
-      // either (v22.45, external review). This catch existed to survive `JSON.parse` on damaged
-      // storage and swallowed it in silence; v22.44 added a warning and claimed it reached the
-      // Operations Error Log. **It does not**: `error-reporter.js` hooks `error` and
-      // `unhandledrejection`, and nothing in the app intercepts `console.warn`. So the warning was
-      // a developer aid described as a diagnostic trail, and the member still read "✓ Settings
-      // saved" over a period that had kept its old pension figure.
-      //
-      // The honest answer is a PARTIAL SUCCESS, which is what the rest of the app does with this
-      // shape — `readSavedPeriod` returns `{data, error}` so back-pay and HPP can SAY a period is
-      // corrupt rather than dropping it; the save receipt names the days it could not change. The
-      // settings themselves DID save, so this is not a failure; one consequence the member
-      // reasonably expected did not happen, so it is not a success either.
+      // A corrupt saved period must not break Save — nor be reported as a success. The warning below
+      // does NOT reach the Operations Error Log (`error-reporter.js` hooks `error` and
+      // `unhandledrejection`, not `console.warn`), so the member is told: a PARTIAL SUCCESS, as
+      // `readSavedPeriod`'s `{data, error}` lets back-pay and HPP say a period is corrupt.
       _pensionPatchFailed = true;
       console.warn('[paycalc] pension patch skipped — period ' + pNum + ' is unreadable:', /** @type {any} */ (err)?.message);
     }
@@ -554,19 +483,12 @@ export function confirmSettings(calculate) {
   lsSet(SK.setup, '1');
   document.getElementById('setupBanner')?.classList.add('hidden');
   document.getElementById('settingsNewYearNotice')?.classList.add('hidden');
-  // Update header hint. Period-aware like the coordinator's hint writer (review parity fix): on a
-  // pre-award payslip the field shows the pre-rise rate, so the hint must carry the same qualifier —
-  // otherwise a Save briefly implied the pre-rise figure was the year's settled rate.
-  // periodRate is the one answer for this payslip's rate and its pre-rise position — the rate field,
-  // calculate() and this hint all read it, so the three cannot disagree (a payslip that spans a
-  // change of grade is the blend, to the penny).
+  // Header hint: periodRate's answer, period-aware, as the rate field and calculate() read it.
   const hintEl = document.getElementById('settingsHint');
-  // No tax code here — the coordinator's summary writes the same line (one line at 390px; v17.95).
+  // No tax code here — one line at 390px.
   if (hintEl) setStatus(hintEl, settingsSummary(curTy, curP));
-  // Brief "saved" confirmation then collapse — UNLESS one consequence of the save could not be
-  // applied, in which case the line STAYS and the card stays open. A partial-success message that
-  // clears itself after 2.5 seconds and folds the card away is a message nobody reads, and this one
-  // asks the member to go and do something.
+  // Brief "saved" confirmation then collapse — UNLESS the pension patch failed: that line asks the
+  // member to act, so it STAYS and the card stays open.
   const fb = document.getElementById('settingsSaveFeedback');
   if (_pensionPatchFailed) {
     if (fb) setStatus(fb, '⚠ Settings saved, but this payslip\u2019s saved data is damaged and kept its old pension figure — clear and re-enter this period\u2019s hours.');
@@ -587,13 +509,10 @@ export function confirmSettings(calculate) {
 export function setSettingsCardOpen(open) {
   const toggle = document.getElementById('settingsToggle');
   const body   = document.getElementById('settingsBody');
-  // aria-expanded lives on the collapse CONTROL (the arrow), not the header — the header is no
-  // longer role="button" (v17.50), so aria-expanded on it is invalid ARIA. Mirror initCardCollapse.
+  // aria-expanded lives on the collapse CONTROL (the arrow), not the header, which is not a button.
   const ctrl = toggle?.querySelector('.card-toggle-arrow') || toggle;
-  // A shut body is out of the Tab order (paycalc.css → `.collapsible-body`), so the save's own
-  // close, 2.5s after "Save settings", would strand a keyboard member's focus on a control that is
-  // about to vanish. Hand it to the arrow that reopens the card — the disclosure pattern — without
-  // scrolling the page out from under them.
+  // A shut body is out of the Tab order (paycalc.css → `.collapsible-body`), so closing would strand
+  // a keyboard member's focus: hand it to the arrow that reopens the card, without scrolling.
   if (!open && body?.contains?.(document.activeElement)) /** @type {HTMLElement|null} */ (ctrl)?.focus?.({ preventScroll: true });
   if (toggle) toggle.classList.toggle('open', open);
   if (body)   body.classList.toggle('open', open);
@@ -608,22 +527,19 @@ const _settingsPrompted = new Set();
 let _settingsHintDefault = null;
 
 /**
- * Paint what the Settings card and the setup banner say for the payslip on screen — run by the
- * coordinator's onPeriodChange on every change of payslip. Out of paycalc-app.js on 25 Nov 2026; the
- * "checked" mark it reads is `settingsKey`'s, one per tax year, set by confirmSettings.
+ * Paint what the Settings card and the setup banner say for the payslip on screen — run by
+ * onPeriodChange on every change of payslip. The "checked" mark is `settingsKey`'s, one per tax
+ * year, set by confirmSettings.
  *
  * - A year the member has CHECKED: the setup banner goes, and the header hint is the rate THIS
  *   payslip was paid at (`settingsSummary` — "pre-rise" where it was), never the year's settled rate
  *   over a payslip priced at the old one.
- * - A year NOT yet checked: the hint goes back to the markup's own, read before the first write —
- *   written only once checked, it kept "✓ 2026/27 — £21.49/hr" over a 2025/26 payslip priced at
- *   £20.74 — and the setup banner says what is true. A RETURNING member (`SK.setup`) also gets the
- *   card opened, once per load per year, with the "New tax year" notice; a new member already sees it
- *   open (loadSettings). Never for a year that is over: it is not new, and its settings are the ones
- *   every payslip already uses.
- * - The "New tax year" notice names ONE year, so it goes when another is on screen: only Save hid it
- *   before, and a member who stepped to a year already checked read 2026/27's notice over 2025/26's
- *   settings — and Save then checked the wrong year (review, 21 Nov 2026).
+ * - A year NOT yet checked: the hint goes back to the markup's own (read before the first write), so
+ *   another year's "✓ … £/hr" never stays over it, and the setup banner says what is true. A
+ *   RETURNING member (`SK.setup`) also gets the card opened, once per load per year, with the "New
+ *   tax year" notice; a new member already sees it open (loadSettings). Never for a year that is over.
+ * - The "New tax year" notice names ONE year, so it goes when another is on screen, or Save would
+ *   check the wrong year.
  * @param {any} ty  the payslip's tax year
  * @param {any} p   the payslip on screen
  */
@@ -641,9 +557,9 @@ export function paintSettingsForYear(ty, p) {
     return;
   }
   hintEl.textContent = _settingsHintDefault;
-  // What is TRUE (whole-app review, 24 Nov 2026): the tax code and student loan are single settings
-  // used for every payslip; pension is kept per payslip (the hint beside it says so); the grade
-  // follows the roster by date unless the member chose one (paycalc-grade-setting.js). Only the "checked" mark is per tax year.
+  // What is TRUE: the tax code and student loan are single settings for every payslip; pension is
+  // kept per payslip; the grade follows the roster by date unless the member chose one
+  // (paycalc-grade-setting.js). Only the "checked" mark is per tax year.
   /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
     `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in <a href="#settingsCard" class="setup-settings-link">⚙️ Your Settings</a>, then select <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. Your tax code and student loan apply to every payslip, your pension is kept per payslip, and your grade follows the roster by date unless you choose one — you'll be asked to check them again when a new tax year starts.`;
   /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
@@ -661,24 +577,17 @@ export function paintSettingsForYear(ty, p) {
 }
 
 /**
- * WHERE THE SETTINGS CARD SITS, AND THE WAY TO IT (desktop audit, 7 Nov 2026). Wiring, both halves.
+ * WHERE THE SETTINGS CARD SITS, AND THE WAY TO IT.
  *
- * ITS PLACE. On a phone the card leads the work column, in the DOM, which is how a first-time
- * member meets it first. On a desktop the decided order is the period band, Hours, then Settings
- * (paycalc.md → Layout decisions), and that used to be CSS `order` alone — which moves the PAINT,
- * not the FOCUS: Tab ran through Your Settings' `?` and arrow at the foot of the page before it went
- * back up to the tax-year tabs (WCAG 2.4.3). So from 1024px the card itself moves after Hours, and
- * back in front of the period band below it, on the grid's own breakpoint. paycalc.css keeps the
- * `order` rules, which now agree with the DOM, so the paint before this runs is already the decided one.
+ * ITS PLACE. On a phone the card leads the work column, in the DOM. On a desktop the decided order
+ * is the period band, Hours, then Settings (paycalc.md → Layout decisions), and CSS `order` moves
+ * the PAINT, not the FOCUS (WCAG 2.4.3) — so from 1024px the card itself moves after Hours, and back
+ * in front of the period band below it. paycalc.css keeps the `order` rules, which agree with the DOM.
  *
- * THE WAY TO IT. The setup banner asks a member to check their grade and tax code in "⚙️ Your
- * Settings" — on a desktop ~1,450px below the banner, behind the whole Hours card. Those words are a
- * link (`#settingsCard`, written by paycalc-app.js), and it goes the road the banner's Restore link
- * does (paycalc-transfer-card.js): the deep link's open-and-keep-in-view, so a tap while the page is
- * still growing still lands — then focus on the grade, the first thing the banner asks about. The
- * fragment is a deep link in its own right too. `openCardNamedByHash` is INJECTED, as
- * `wirePensionControls` takes `autosave`: overlay.js touches `window` at import, and this module is
- * unit-tested in Node.
+ * THE WAY TO IT. The setup banner's "⚙️ Your Settings" is a link (`#settingsCard`), ~1,450px above
+ * the card on a desktop. It goes the road the banner's Restore link does (paycalc-transfer-card.js):
+ * the deep link's open-and-keep-in-view, then focus on the grade. `openCardNamedByHash` is INJECTED:
+ * overlay.js touches `window` at import, and this module is unit-tested in Node.
  * @param {{ openCardNamedByHash: (cardId: string, bodyId: string, toggleId: string) => boolean }} deps
  */
 export function wireSettingsCard({ openCardNamedByHash }) {
@@ -709,24 +618,20 @@ export function wireSettingsCard({ openCardNamedByHash }) {
 
 /** Load persisted settings into the form fields. */
 export function loadSettings() {
-  // Rate is set per-period in updateRateForPeriod() called from onPeriodChange —
-  // no need to set it here; the field will update when buildPeriodSelect fires.
+  // The rate is set per period by updateRateForPeriod() (onPeriodChange).
   const code    = lsGet(SK.code);
   let   sl      = lsGet(SK.sl);
   let   pgLoan  = lsGet(SK.pgLoan);
   const done    = lsGet(SK.setup);
   if (code)    /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value     = code.toUpperCase();
-  // Migration (v17.17): the Student Loan select used to carry 'postgrad' as a plan option; it is now a
-  // plan (None/1/2/4/5) PLUS a separate Postgraduate Loan flag, which can apply ALONGSIDE a plan. A saved
-  // 'postgrad' selection becomes plan 'none' + PGL on, re-persisted ONCE so it never re-migrates.
+  // Migration: a saved 'postgrad' plan becomes plan 'none' + the separate Postgraduate Loan flag,
+  // re-persisted ONCE so it never re-migrates.
   if (sl === 'postgrad') { sl = 'none'; pgLoan = '1'; lsSet(SK.sl, 'none'); lsSet(SK.pgLoan, '1'); }
   if (sl)      /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value = sl;
   /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked = pgLoan === '1';
-  // Loan-repaid cutover (v18.41). The coordinator builds the payslip options BEFORE calling
-  // loadSettings; a saved payslip that list no longer reaches is offered first, because the
-  // assignment below does NOT no-op on a value no option carries: it selects NOTHING (selectedIndex
-  // −1, value '' — measured in Chromium and WebKit), which calculate() reads as "still deducted", and
-  // which saveSettings therefore refuses to store over the record (paycalc-3-8).
+  // Loan-repaid cutover. A saved payslip the options no longer reach is offered first: assigning a
+  // value no option carries selects NOTHING (selectedIndex −1, value '' — Chromium and WebKit), which
+  // calculate() reads as "still deducted" (paycalc-3-8).
   const _slPaidOff   = lsGet(SK.slPaidOff);
   const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
   if (_slPaidOffEl && _slPaidOff) {
@@ -739,25 +644,20 @@ export function loadSettings() {
   loadGradeSetting();
   // ── PENSION STATUS: migrate the retired boolean, then paint the controls ──────────────────────
   //
-  // The v21.64 flag carried no date, so no migration can recover the real one. It becomes a change
-  // dated to the FIRST PAYSLIP OF 2026/27 — the feature shipped 23 Aug 2026 and was retired at
-  // v21.78, so anybody holding the flag set it in 2026/27 — and the property that makes that safe is
-  // directional: every payslip it moves, it moves from a wrongly-imposed £0 back to the scheme
-  // default. It can not impose a £0 on a payslip that did not already have one. Persisted at once
-  // so the result is stable and correctable in the control below, rather than recomputed on each
-  // load; the timeline key's EXISTENCE is what ends the migration, so an emptied one stays empty.
-  // The YEAR IS NAMED, NOT TODAY'S (paycalc-3-16): "the current tax year" was 2026/27 only until the
-  // 2027/28 rollover, after which a device first running this would have dated the opt-out from
-  // 2027/28 and put a deduction back on every 2026/27 payslip the member was out of the scheme for.
+  // The retired flag carried no date. It becomes a change dated to the FIRST PAYSLIP OF 2026/27 (the
+  // only year it can have been set in), which is safe in one direction: every payslip it moves goes
+  // from a wrongly-imposed £0 back to the scheme default, never the reverse. Persisted at once so it
+  // is correctable in the control below; the timeline key's EXISTENCE ends the migration, so an
+  // emptied one stays empty. The YEAR IS NAMED, NOT TODAY'S (paycalc-3-16), or a device first running
+  // this after a rollover would put a deduction back on every 2026/27 payslip out of the scheme.
   const _curP = periodByNum(todaysPeriodNum());
   if (lsGet(SK.pensionTimeline) === null && lsGet(SK.pensionOptOut) === '1') {
     const _firstOfYear = getPeriods().find(/** @param {any} x */ x => taxYearForPeriod(x)?.label === LEGACY_OPT_OUT_YEAR)?.num ?? null;
     savePensionTimeline(migrateLegacyOptOut(true, _firstOfYear));
   }
   const _tl = getPensionTimeline();
-  // The TICK states today's position (is she in the scheme now?); the SELECT states when the
-  // current spell began. Two different questions, and collapsing them is what the timeline exists
-  // to prevent — the tick alone cannot say which payslips it covers.
+  // The TICK states today's position (in the scheme now?); the SELECT states when the current spell
+  // began — two questions, which the timeline exists to keep apart.
   const _optOutEl = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionOptOutCheck'));
   if (_optOutEl) _optOutEl.checked = optOutStartsAt(_tl) !== null;
   buildPensionFromSelect(_tl);
@@ -770,20 +670,14 @@ export function loadSettings() {
   if (!done) {
     setSettingsCardOpen(true);
   } else {
-    // One-time legacy migration (was: run on EVERY load). Users who completed setup
-    // before per-tax-year confirmation tracking existed have SK.setup but no per-year
-    // flags — mark the tax years that exist NOW as confirmed so they aren't re-prompted
-    // for a year they already effectively set up.
+    // One-time legacy migration: a member set up before per-tax-year confirmation has SK.setup but no
+    // per-year flags — mark the tax years that exist NOW as confirmed.
     //
-    // Guarded so it runs ONCE per member: a tax year ADDED LATER must NOT be swept up
-    // here, so its "👋 New tax year" setup banner appears the first time the member opens
-    // a period in it. Pay rates change every April, so silently carrying the old year's
-    // rate into a new one risked a stale-rate calculation with no prompt to review it.
-    // (Re-running on every load was what defeated the banner the UI copy already promises.)
-    //
-    // And only for a member who IS legacy — `setup` with no per-year flag at all (paycalc-3-16).
-    // Save settings writes both, so everybody since then has one; stamping them too marked years
-    // they never set up as confirmed, a joiner's backup included.
+    // ONCE per member: a tax year ADDED LATER must NOT be swept up, so its "👋 New tax year" banner
+    // appears the first time the member opens it (rates change every April). And only for a member who
+    // IS legacy — `setup` with no per-year flag at all (paycalc-3-16), or years never set up are
+    // marked confirmed.
+
     const migratedKey = `${pcPrefix()}setup_years_migrated`;
     if (!lsGet(migratedKey)) {
       if (!CONFIG.TAX_YEARS.some(ty => lsGet(settingsKey(ty)))) {

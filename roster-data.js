@@ -4,18 +4,16 @@
 // ES module — import named exports into consuming files:
 //   import { CONFIG, APP_VERSION, teamMembers, weeklyRoster, ... } from './roster-data.js';
 //
-// APP_VERSION is the single authoritative version number; pages import it directly (CONFIG no
-// longer mirrors it — nothing read the copy). Browser HTTP cache is handled by Cache-Control: no-cache
-// headers in firebase.json — no ?v= query strings needed. Service worker cache is invalidated
-// automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
+// APP_VERSION is the single authoritative version number; pages import it directly. Browser HTTP
+// cache is handled by Cache-Control: no-cache (firebase.json) — no ?v= query strings. The service
+// worker cache is invalidated by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.97';
+export const APP_VERSION = '26.98';
 
 // ============================================
-// PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
-// line has run throws (the temporal dead zone), so one declared beside formatISO would break any call
-// reaching it while this module is still loading.
+// PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its line
+// has run throws (the temporal dead zone) while this module is still loading.
 // ============================================
 const _isoCache = new Map();
 const _isoCacheMax = 64;
@@ -42,79 +40,53 @@ export const CONFIG = {
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
-    // Names with access to the Links design workspace. The owner alone since 9 Nov 2026 ("hide the link designer page
-    // from everyone apart from me"): S. Silva and M. Robson came off, and keep nothing but what any member has. Their
-    // saved designs stay. Regenerate (`npm run generate:roster-members`) with any change here, and run Operations →
-    // Set up accounts after the deploy: the server's `linksDesigner` claim is what lets a design be SAVED.
+    // Names with access to the Links design workspace — the owner alone (owner, 9 Nov 2026: "hide the link designer
+    // page from everyone apart from me"). Regenerate (`npm run generate:roster-members`) with any change here, and run
+    // Operations → Set up accounts after the deploy: the server's `linksDesigner` claim is what lets a design be SAVED.
     LINKS_DESIGNERS:                  ['G. Miller'],
-    // Ordinary members invited into the restricted Overtime beta — they SUBMIT availability and
-    // review nothing. Reviewing is the `admin`/`manager` claim and stays separate on purpose: this
-    // list must never become a way to see colleagues' declarations. Add a name here AND run
-    // `npm run generate:roster-members` in the same commit — `selectParticipants` reads the
-    // generated server copy, never this one, so an un-regenerated list grants a page with no form
-    // on it. Empties out at full launch, when the audience becomes every eligible member.
-    // OVERTIME IS PAUSED (owner, Nov 2026: the manager who proposed it is away on a year's secondment).
-    // This is the whole switch. `false` takes the pill off every menu, the admin's included, turns
-    // overtime.html into a "paused" note, and — through the generated server copy, so run
+    // OVERTIME_BETA (below): ordinary members invited into the Overtime beta — they SUBMIT availability
+    // and review nothing. Reviewing is the `admin`/`manager` claim and stays separate on purpose: this
+    // list must never become a way to see colleagues' declarations. Add a name AND run
+    // `npm run generate:roster-members` in the same commit — `selectParticipants` reads the generated
+    // server copy, never this one.
+    // OVERTIME IS PAUSED (owner, Nov 2026). This is the whole switch. `false` takes the pill off every
+    // menu, turns overtime.html into a "paused" note, and — through the generated server copy, so run
     // `npm run generate:roster-members` in the same commit — leaves the five Overtime endpoints and
-    // the daily creator unexported, so they answer 404. The retention purge keeps running, so the weeks
-    // already made age out by themselves. The code and its tests stay live while it is off, which is
-    // what keeps it ready: OVERTIME_AVAILABILITY.md → "Paused" is the way back.
+    // the daily creator unexported (404). The retention purge keeps running. The code and its tests
+    // stay live while it is off: OVERTIME_AVAILABILITY.md → "Paused" is the way back.
     OVERTIME_ENABLED:                 false,
-    // Who besides the admin could open the New link page while it was a PREVIEW (newlink-config.js → PHASE): S. Silva, the RMT
-    // rep who leads the change (owner, 4 Nov 2026). Open since v25.60 to every colleague on a normal CEA contract and the
-    // managers (auth-policy.js → `newlinkAudience`); this list keeps her in whatever the audience becomes. Page access only — the
-    // page reads nothing from the server and shows only public files — so it needs no claim and no generated server copy.
-    // auth-policy.js → `canOpenNewlink` reads it.
+    // Who besides the page's audience (auth-policy.js → `newlinkAudience`) may open the New link page — the colleague who
+    // leads the change (owner, 4 Nov 2026), kept in whatever the audience becomes. Page access only (the page shows only
+    // public files), so no claim and no generated server copy. auth-policy.js → `canOpenNewlink` reads it.
     NEWLINK_PREVIEW:                  ['S. Silva'],
-    OVERTIME_BETA:                    /** @type {string[]} */ ([]),                           // CEA beta participants (none since 7 Oct 2026 — T. Bibi and J. Sumaili withdrawn, owner request) — availability only, no reviewer access
+    OVERTIME_BETA:                    /** @type {string[]} */ ([]),                           // CEA beta participants (none since 7 Oct 2026, owner request) — availability only, no reviewer access
     MANAGER_NAMES:                    ['D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers', 'W. Cummings'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management', 'Other Staff'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js), the admin member-selector optgroups (admin-app.js) AND the Calendar's name picker (calendar-member.js), so they can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
-    // AUTH_AND_SESSIONS.md → "The forced password overlay" — compel un-migrated members to set their own password at their
-    // NEXT SIGN-IN (password-force.js). This is the KILL SWITCH: set to `false` to stop compelling
-    // instantly, with no other change. Everything else the feature needs (the Settings card, the
-    // admin reset, `passwordStatus`) shipped at v18.63 and is unaffected by this flag.
+    // Compel un-migrated members to set their own password at their NEXT SIGN-IN (password-force.js;
+    // AUTH_AND_SESSIONS.md → "The forced password overlay"). This is the KILL SWITCH: `false` stops
+    // compelling instantly, with no other change; the Settings card, the admin reset and
+    // `passwordStatus` are unaffected.
     //
-    // Why compelling is safe to switch on: the overlay only appears right after a confirmed sign-in,
-    // only for a `named` identity, and only when `passwordStatus` says the member is still on the
-    // surname default — and the calendar is NOT behind it, so a member who can't get past it can
-    // still see their roster. It fails open both before showing (read failure / wrong identity) and
-    // after (rate-limit / network → a "Continue for now" escape). See password-force.js's header.
-    //
-    // No forced sign-out is needed to drive this: sessions cap at 60 days absolute, and an expired
-    // session forces a real typed login, so coverage completes itself inside 60 days and staggers by
-    // each member's own expiry rather than landing on everyone at once. That window is a
-    // CONSEQUENCE of `SESSION_MS`, not a policy here — it was 30 days until v20.47 doubled the
-    // session, which halves the rollout speed and is the accepted cost of the longer session. (The
-    // 7-day idle cutoff that used to shorten this for infrequent users was removed at v20.41 — it
-    // made the rollout FASTER for exactly the people it inconvenienced most, which was never its
-    // purpose.)
+    // Safe to switch on: the overlay only appears right after a confirmed `named` sign-in still on the
+    // surname default, the calendar is NOT behind it, and it fails open before showing and after (a
+    // "Continue for now" escape). See password-force.js's header. No forced sign-out drives it:
+    // sessions cap at 60 days (`SESSION_MS`), so coverage completes inside that window, staggered.
     FORCE_PASSWORD_SET:               true,
-    // The "ask the admin to reset my password" request queue (AUTH_AND_SESSIONS.md → "The reset-request queue" — Phase 1 of the request
-    // work). Kill switch for the LINK only: setting this to `false` hides it on the login overlay and
-    // nobody can file a new request. It does NOT disable the endpoint (that is a functions deploy) or
-    // hide the Operations card, so any requests already filed remain visible and actionable.
+    // The "ask the admin to reset my password" request queue (AUTH_AND_SESSIONS.md → "The
+    // reset-request queue"). Kill switch for the LINK only: `false` hides it on the login overlay.
+    // It does NOT disable the endpoint (a functions deploy) or hide the Operations card, so requests
+    // already filed remain actionable.
     PASSWORD_RESET_REQUESTS:          true,
-    // B3 claim-refresh sweep (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"). Bump this integer to force every
-    // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom
-    // claims (e.g. the B2 `manager` claim) immediately instead of waiting for the ~hourly
-    // auto-refresh. Gated per-device by localStorage `myb_claim_epoch`; a force-refresh is a no-op
-    // when the token is already current, so bumping is harmless. Do NOT bump CLAIM_EPOCH casually —
-    // each bump forces every device to re-refresh its ID token on next open; only bump when a new
-    // custom-claim change genuinely needs to reach every active session before a rule relies on it.
-    // Was DISABLED (0) alongside the B1 kill-switch (v14.72) while diagnosing the login freeze.
-    //   ARMED (2) at v15.33 to run the B3 pre-cutover token sweep: managers were re-provisioned
-    //   (Jul 2026), so this forces every active device to pick up its correct-tier claim on next
-    //   open. Set to 2 — NOT 1 — because 1 already shipped once (v14.71) so some devices recorded
-    //   `myb_claim_epoch=1`; only a value above every previously-shipped epoch re-sweeps them all.
-    //   The sweep has SETTLED and the B3 STRICT override-isolation rule shipped (v16.29): the
-    //   no-name/legacy escape is gone and overrides now require a matching `name`/admin/manager claim.
-    //   See AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)".
-    //   RAISED to 3 at v24.27, the release in which the rules and endpoints begin REQUIRING the
-    //   server-set `member` claim (stamped by Set up accounts at v24.24). The sweep runs on the next
-    //   open that CONFIRMS a named session — `ensureNamedSession`, or the Calendar's named grant — and
-    //   is fire-and-forget, so a read in that same instant may still carry the old token.
+    // Claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every device to
+    // refresh its Firebase ID token ONCE on next app open, picking up newly-set custom claims at once
+    // instead of the ~hourly auto-refresh. Gated per-device by localStorage `myb_claim_epoch`. Do NOT
+    // bump it casually — only when a custom-claim change must reach every active session before a rule
+    // relies on it. A new value must be ABOVE every previously-shipped epoch, or devices that recorded
+    // it are not re-swept. The sweep runs on the next open that CONFIRMS a named session
+    // (`ensureNamedSession`, or the Calendar's named grant) and is fire-and-forget, so a read in that
+    // same instant may still carry the old token. Last raised (to 3) when the rules began REQUIRING the
+    // server-set `member` claim.
     CLAIM_EPOCH:                      3,
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
 };
@@ -125,14 +97,8 @@ export const CONFIG = {
 //
 // The table itself lives in `roster-member-data.js` and is RE-EXPORTED from here, so every
 // consumer — the app, `scripts/generate-roster-members.mjs`, `public-data-classification.test.mjs`
-// — goes on importing `teamMembers` from `roster-data.js` exactly as before.
-//
-// Split out at v23.31 because this file's size guard was measuring the wrong thing. The roster's
-// people are the one part of it whose length tracks HEADCOUNT: the cap was last raised for a new
-// starter (v23.26), whose own note says the file "will cross again on a future starter, and that
-// is not drift". A guard that fails on hiring cannot also watch for complexity. The behaviour
-// around the table stays here; only the rows moved, exactly as `roster-cycle-data.js` holds the
-// week patterns that `getRosterForMember` reads.
+// — imports `teamMembers` from `roster-data.js`. Split out so this file's size guard does not grow
+// with HEADCOUNT; the behaviour around the table stays here.
 import { teamMembers } from './roster-member-data.js';
 export { teamMembers };
 
@@ -156,23 +122,16 @@ export function isWorkedShift(shift) {
 
 /**
  * The pay grade this app has CONFIRMED rates and contract terms for, given a member's role — or
- * null when it has none (v21.78).
- *
- * Written because the absence of a grade was indistinguishable from CEA. The calculator's grade was
- * '' for anybody the app never stored one for, and every consumer then fell back to `GRADES.cea`, so
- * a Dispatcher or a manager opening the calculator received a complete, plausible CEA estimate.
- * That is worse than an unsupported state: an unverified figure at least looks unverified, whereas
- * this one was somebody else's pay presented as theirs.
+ * null when it has none. Null is not CEA: falling back to `GRADES.cea` would hand a Dispatcher or a
+ * manager somebody else's pay presented as theirs.
  *
  * Dispatcher pay is not modelled because the rates and contractual terms are not on record — see
  * `.claude/rules/paycalc.md`. Do not invent them, and do not extend this map to a role until a real
  * payslip has confirmed it.
  *
- * LIVES HERE, NOT IN paycalc-settings.js, SINCE v24.86. The Calendar's Year to Date notice asks the
- * same question the Pay Calculator asks before it shows a figure — "would this page work for you?"
- * — and must answer it the SAME way, so a member it sends there is never met by the refusal card.
- * Importing the answer from the paycalc family would have loaded that whole module graph onto the
- * Calendar to read three lines. paycalc-settings.js re-exports it, so its consumers are unchanged.
+ * LIVES HERE, NOT IN paycalc-settings.js: the Calendar's Year to Date notice must answer the same
+ * question the Pay Calculator asks, without loading the paycalc module graph. paycalc-settings.js
+ * re-exports it.
  *
  * @param {string|undefined|null} role @returns {'cea'|'ces'|null}
  */
@@ -185,10 +144,8 @@ export function gradeForRole(role) {
 /**
  * Project a member's annual-leave total for ONE calendar year and return the over-entitlement
  * overage, or null when still within entitlement. SINGLE SOURCE for the over-cap warning shown by
- * both AL write paths — the Change-a-Shift week editor and the AL booking flow — which previously
- * computed this with subtly different data shapes and could drift. Its one caller is
- * `projectAlOverage` (admin-al-projection.js), which both paths use: the week editor's save through
- * admin-al-week-save.js, the booking flow through admin-al.js.
+ * both AL write paths — the Change-a-Shift week editor and the AL booking flow. Its one caller is
+ * `projectAlOverage` (admin-al-projection.js), which both paths use.
  *
  * That caller pre-filters Sundays (uncontracted) and each path's own exclusions into `existingALDates`:
  *  - the week editor excludes the dates this batch OVERWRITES or DELETES;
@@ -231,10 +188,8 @@ const DAY_KEYS    = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 /** HH:MM 24-hour validator (00:00–23:59) — single source for admin time-input validation. */
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-// DAY_NAMES and MONTH_ABB live in `date-format.js` and are re-exported here (v24.06) — they are
-// the app's date VOCABULARY, and they belong beside the composers that spell with them. Everything
-// that already reads them from this module keeps working; nothing needs to change import.
-// `MONTH_NAMES`, the FULL register, joined them on 22 Nov 2026, when `formatDayMonthYear` began to spell from it.
+// DAY_NAMES, MONTH_ABB and MONTH_NAMES live in `date-format.js`, beside the composers that spell with
+// them, and are re-exported here for everything that reads them from this module.
 export { DAY_NAMES, MONTH_ABB, MONTH_NAMES } from './date-format.js';
 export const TEAM_GRADES = ['CEA', 'CES', 'Dispatcher'];
 
@@ -301,9 +256,7 @@ const SPECIAL_BANK_HOLIDAYS = [
     // Add future one-off bank holidays here when announced by the government.
 ];
 
-// Calculate all UK bank holidays for a given year (England & Wales).
-// Delegates Easter to computeEaster() — no Computus code is duplicated here.
-// Returns an array of Date objects.
+// All UK bank holidays for a given year (England & Wales), as Dates. Easter comes from computeEaster().
 // Only supports years within CONFIG.MIN_YEAR–CONFIG.MAX_YEAR; returns [] outside that range.
 /** @param {any} year */
 function calculateBankHolidays(year) {
@@ -319,7 +272,6 @@ function calculateBankHolidays(year) {
     else if (newYear.getDay() === 6) holidays.push(new Date(year, 0, 3)); // Sat → Mon
     else                             holidays.push(newYear);
 
-    // Easter — delegated to computeEaster() to avoid duplicating the Computus algorithm
     const easter = computeEaster(year);
 
     // Good Friday (2 days before Easter Sunday)
@@ -351,9 +303,7 @@ function calculateBankHolidays(year) {
     // Sat 25: Christmas sub → Mon 27, Boxing Day (Sun 26) sub → Tue 28  ⇒ {27, 28}
     // Sun 25: Boxing Day is Mon 26 (a bank holiday in its own right, no sub),
     //         Christmas sub → Tue 27                                     ⇒ {26, 27}
-    //   (NOT {27,28} — lumping Sunday into the Saturday branch dropped the real Dec 26
-    //    BH and invented a spurious Dec 28. Latent until Dec 25 is a Sunday — first in
-    //    2033, past today's MAX_YEAR — but a live trap when the range extends.)
+    //   (NOT {27,28} — do not lump Sunday into the Saturday branch; first matters in 2033.)
     // Fri 25: Christmas stays Fri 25, Boxing Day (Sat 26) sub → Mon 28
     // Other weekday: Dec 25 + Dec 26, no substitutes needed
     const xmasDay = new Date(year, 11, 25).getDay();
@@ -401,10 +351,8 @@ function _getBhSet(year) {
 /** @param {any} year */
 function _getEasterSundaySet(year) {
     if (!_easterSundaySetCache.has(year)) {
-        // Take Easter Sunday straight from computeEaster() — the same Computus source
-        // getBankHolidays() uses. The old approach inferred it by finding a Mon bank
-        // holiday in Mar/Apr and subtracting a day, which would misread a future one-off
-        // Mon bank holiday in that window as Easter Monday and mark a false Easter Sunday.
+        // Straight from computeEaster(), never inferred from a Monday bank holiday — a one-off Monday
+        // holiday in Mar/Apr would then mark a false Easter Sunday.
         _easterSundaySetCache.set(year, new Set([formatISO(computeEaster(year))]));
     }
     return _easterSundaySetCache.get(year);
@@ -432,7 +380,7 @@ export function isEasterSunday(date) {
 // A year's list holds the paydays that FALL in it, each with its cut-off — and from payday 6 Jan 2034
 // that cut-off is in the year BEFORE (31 Dec 2033), where isCutoffDate and paydayForCutoff, which look
 // only in the date's own year, cannot see it. Beyond MAX_YEAR, so left alone and pinned by
-// roster-data.test.mjs, which fails the day MAX_YEAR reaches 2033 (review, 16 Nov 2026).
+// roster-data.test.mjs, which fails the day MAX_YEAR reaches 2033.
 const _paydayCache = new Map();
 const _paydaySetCache = new Map();
 const _cutoffSetCache = new Map();
@@ -531,12 +479,8 @@ export function isCutoffDate(date) {
 /** @param {any} date */
 export function getSpecialDayBadges(date) {
     const badges = [];
-    // WORDED EXACTLY AS `dayMarkers` WORDS THEM (calendar-renderer.js). These are the same five
-    // markers on two surfaces, and both pairs had drifted: the Calendar said "Bank holiday" and
-    // "Cut-off date" while this said "Bank Holiday" and "Cut-off Date" (both now "Pay cut-off", the
-    // key's words). Sentence case is right for a common noun and is what the member-facing surface
-    // already used. NOT the payslip's
-    // "Bank Holiday Rostered" — that is a line name and is exact.
+    // WORDED EXACTLY AS `dayMarkers` WORDS THEM (calendar-renderer.js): the same five markers on two
+    // surfaces, in sentence case. NOT the payslip's "Bank Holiday Rostered" — that is a line name.
     if (isBankHoliday(date))   badges.push({ icon: '⭐', title: 'Bank holiday' });
     if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Pay cut-off' });
     if (isPayday(date))        badges.push({ icon: '💷', title: 'Payday' });
@@ -552,18 +496,15 @@ export function getSpecialDayBadges(date) {
 /**
  * Validate all shift strings in every roster pattern object.
  * Valid values: 'RD', 'OFF', 'SPARE', a real 'HH:MM-HH:MM' whose ends differ, and — Monday to Saturday
- * only — a BARE Other-family flavour such as 'TRG' (v25.40: `fixedRoster[3]`, a starter's training weeks).
- * Not 'AL' or 'RDW': they happen TO a day, as overrides, and RDW in a pattern is shown and never paid
- * (whole-app review, 10 Nov 2026 — as were '24:00-08:00', drawn ❓, and '06:20-06:20', a 24-hour turn).
+ * only — a BARE Other-family flavour such as 'TRG' (`fixedRoster[3]`, a starter's training weeks).
+ * Not 'AL' or 'RDW': they happen TO a day, as overrides, and RDW in a pattern is shown and never paid.
  *
- * WHY ONLY BARE, AND NEVER ON A SUNDAY. The Other family was an OVERRIDE grammar until v25.40, and
- * two of its parts only work when an override carries them. A TIME rides in `resolveEffectiveShift`'s
- * `rdwTime` side channel, which only the override ladder fills — so a pattern's 'TRG 09:00-16:00'
- * would draw the badge with no time in the cell while the day panel printed one. An 'RDW' marker
- * is read by the pay engine only from an override, so a pattern's 'TRG RDW' would be shown as rest
- * day working and paid as nothing. And an Other day can never be a Sunday (OTHER_DAYS.md, Jul 2026).
- * A bare flavour on a weekday has none of those problems: it is drawn as the badge alone, which is
- * exactly what it means — a training day whose hours nobody has rostered.
+ * WHY ONLY BARE, AND NEVER ON A SUNDAY. A TIME rides in `resolveEffectiveShift`'s `rdwTime` side
+ * channel, which only the override ladder fills, so a pattern's 'TRG 09:00-16:00' would draw no time
+ * in the cell while the day panel printed one. An 'RDW' marker is read by the pay engine only from an
+ * override, so 'TRG RDW' would be shown as rest day working and paid as nothing. And an Other day can
+ * never be a Sunday (OTHER_DAYS.md). A bare weekday flavour is drawn as the badge alone — a training
+ * day whose hours nobody has rostered.
  *
  * Logs a console.error for every invalid entry so problems are caught at load time.
  * Called once automatically when the module loads (on localhost and with ?debug).
@@ -596,8 +537,6 @@ export function validateRosterPatterns(rosters = { weeklyRoster, bilingualRoster
         }
     }
 
-    // (v16.80: dropped the "all patterns valid ✓" success console.log — dev-time noise that
-    // shipped to every consumer of this validator; the returned error count carries the signal.)
     return errors;
 }
 
@@ -624,7 +563,7 @@ export function isChristmasRD(date) {
 }
 
 // Christmas LEAVE — who is on leave on these two days, never counted, and the Boxing Day day in lieu
-// — is built on top of this rule in christmas-leave.js (v25.37), which also says why it is not here.
+// — is built on top of this rule in christmas-leave.js, which also says why it is not here.
 
 /**
  * Returns true for shifts starting 04:00–10:59 (Early classification).
@@ -666,7 +605,7 @@ export function getShiftKind(timeStr, member) {
 }
 
 /** The words for each `getShiftKind` answer — one spelling for the Calendar's day panel and Team
- *  View's cell labels, which said "early shift" where the Calendar said "Early shift". */
+ *  View's cell labels. */
 export const SHIFT_KIND_LABELS = Object.freeze({ early: 'Early shift', late: 'Late shift', night: 'Night shift' });
 
 /**
@@ -695,15 +634,14 @@ export function getShiftClass(timeStr) {
 /**
  * A shift's BADGE, broken into its parts: the colour class, the emoji, and the word.
  *
- * `getShiftBadge` builds its HTML from this, and so does the calendar's day-detail panel — which
- * needs the same colour and emoji but constructs real elements with `textContent`, because writing
- * markup out of a `data-` attribute is the one shape of this that becomes an injection surface.
- * Two builders would eventually give the same shift two different colours on the same screen.
+ * `getShiftBadge` builds its HTML from this, and so does the calendar's day-detail panel, which
+ * constructs real elements with `textContent` (markup out of a `data-` attribute is an injection
+ * surface). Two builders would eventually give one shift two colours on one screen.
  *
  * @param {string} timeStr
  * @param {any} [member]  A member whose `permanentShift` forces the kind of every worked, timed shift,
- *   as `getShiftKind` and the Calendar's cells already honour it; the day panel passes it so it cannot
- *   call a day another kind than the cell it opened from. Omitted, the time decides, as before.
+ *   as `getShiftKind` honours it; the day panel passes it so it agrees with its cell. Omitted, the
+ *   time decides.
  * @returns {{cls: string, emoji: string, word: string, title?: string, timed?: boolean}}
  */
 export function shiftBadgeParts(timeStr, member) {
@@ -713,14 +651,12 @@ export function shiftBadgeParts(timeStr, member) {
         title: 'Rest Day Working — extra shift on your rostered day off' };
     if (timeStr === 'AL')    return { cls: 'badge-al',    emoji: '🏖️', word: 'AL' };
     if (timeStr === 'SICK')  return { cls: 'badge-sick',  emoji: '🪑', word: 'Absent' };
-    // Other family — 🏷️ + the SHORT flavour word (Train/Ind/Assess); the FULL word
-    // (Training/Induction/Assessment) is shown on tap via the day-detail label instead.
+    // Other family — 🏷️ + the SHORT flavour word; the FULL word is the day-detail label's.
     const _trg = parseOtherValue(timeStr);
     if (_trg) return { cls: 'badge-other', emoji: '🏷️', word: OTHER_FLAVOURS[_trg.flavour].badge };
     if (!SHIFT_TIME_REGEX.test(timeStr)) return { cls: 'badge-unknown', emoji: '❓', word: 'Unknown' };
     // `timed` = this badge's word is a CLASSIFICATION of a time, so a caller may trade the word
-    // for the time itself. Declared here rather than re-derived from the class by each consumer.
-    // The kind is `getShiftKind`'s, so a member's `permanentShift` wins here exactly as it does there.
+    // for the time itself. The kind is `getShiftKind`'s, so `permanentShift` wins here too.
     const kind = getShiftKind(timeStr, member);
     if (kind === 'night') return { cls: 'badge-night', emoji: '🦉', word: 'Night', timed: true };
     return kind === 'early'
@@ -729,31 +665,21 @@ export function shiftBadgeParts(timeStr, member) {
 }
 
 /**
- * Returns an HTML shift badge `<span>` for a shift value.
- * Icon and label are wrapped in separate child `<span>` elements so the
- * layout direction (stacked vs inline) is controlled purely by CSS on the
- * parent .shift-badge — no <br> in flex context needed.
+ * Returns an HTML shift badge `<span>` for a shift value. Icon and label are separate child
+ * `<span>`s so CSS on the parent .shift-badge decides stacked vs inline.
  * @param {string} timeStr  Shift value (e.g. "RD", "06:00-14:00")
  * @param {{showTime?: boolean, member?: any}} [opts]  `showTime` renders a WORKED shift's badge as the time
  *   (`☀️ 06:20-14:20`) rather than its classification (`☀️ Early`), keeping the word in the
- *   accessible name. Added v22.21 for Admin's Change-a-Shift week grid, where the badge was the
- *   only thing on the row and "EARLY" does not tell you what the person is rostered to work —
- *   which is precisely the question you are answering when you decide whether to change it.
- *   Non-worked values (Rest, AL, Spare, Absent, the Other family) ignore it: they have no time,
- *   and their word IS the information. `member` is handed to `shiftBadgeParts`, so a member's
- *   `permanentShift` names the kind here as it does on the Calendar.
+ *   accessible name — for Admin's Change-a-Shift week grid, where the badge is the only thing on the
+ *   row. Non-worked values ignore it: their word IS the information. `member` is handed to
+ *   `shiftBadgeParts`, so `permanentShift` names the kind here as it does on the Calendar.
  * @returns {string}  HTML string (safe — no user data interpolated)
  */
 export function getShiftBadge(timeStr, opts = /** @type {{showTime?: boolean, member?: any}} */ ({})) {
     const { cls, emoji, word, title, timed } = shiftBadgeParts(timeStr, opts.member);
-    // `showTime` puts the TIME in the badge instead of the word, and names the word in the
-    // accessible label so nothing is lost. Admin's week grid asks for it; the calendar does not,
-    // because a calendar cell prints the time beside the badge already and repeating it would eat
-    // the cell. Default false, so every existing caller renders byte-identically. Only a TIMED
-    // shift has a word to trade away — the fixed kinds ignore the option, exactly as before.
-    // `title` from shiftBadgeParts is the EXPLANATION — the day panel reads it and says it in
-    // words. It is no longer put on the badge as a tooltip (v23.50): an OS tooltip is a hover
-    // surface, and no phone has ever shown one.
+    // The calendar does not ask for `showTime`: its cell already prints the time beside the badge.
+    // `title` is the EXPLANATION the day panel says in words — never a tooltip on the badge: an OS
+    // tooltip is a hover surface, and no phone shows one.
     void title;
     const attr = (opts.showTime && timed) ? ` aria-label="${word} shift, ${timeStr.replace('-', ' to ')}"`
         : '';
@@ -771,7 +697,7 @@ export function getShiftBadge(timeStr, opts = /** @type {{showTime?: boolean, me
  * unchanged when there are no changes or none apply yet; otherwise returns a
  * shallow copy with the matching change's rosterType/currentWeek overlaid.
  * The change with the latest `from` (midnight, inclusive) ≤ date wins, whatever
- * the array's order (v16.19); the ascending sort is still the authoring rule,
+ * the array's order; the ascending sort is still the authoring rule,
  * checked by roster-data.test.mjs and validateTeamMembers (calendar-member.js).
  * A change's `currentWeek` is REFERENCE-ANCHORED, like the base one
  * (.claude/rules/roster-data.md). Only the roster moves: `role` does not.
@@ -782,10 +708,8 @@ export function getShiftBadge(timeStr, opts = /** @type {{showTime?: boolean, me
 export function resolveMemberRoster(member, date) {
     if (!member || !member.rosterChanges || !member.rosterChanges.length) return member;
     const dateMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    // Order-independent: pick the change with the LATEST `from` that is ≤ date, not the
-    // last-iterated match. The ascending-sort invariant is still documented, but relying on it
-    // meant an out-of-order array (easy to author wrong with 2+ entries) resolved to the wrong
-    // rosterType/currentWeek silently; this makes the result correct regardless of order (v16.19).
+    // Order-independent: the LATEST `from` that is ≤ date, not the last-iterated match, so an
+    // out-of-order array still resolves correctly.
     let eff = member;
     let bestFrom = null;
     for (const change of member.rosterChanges) {
@@ -872,12 +796,10 @@ export function getBaseShift(member, date) {
 /**
  * What the member's ROSTER PATTERN says for a date: `getBaseShift` WITHOUT the Christmas rule.
  *
- * Split out (v25.37) because Christmas leave needs the one fact `getBaseShift` deliberately hides —
- * whether the member was due at work on 25 or 26 December before the station closed. It is the
- * same lookup, not a copy of it: start-date suppression and any scheduled roster change apply
- * exactly as they do for every other date, and `getBaseShift` is now the Christmas rule on top of
- * this. **Use `getBaseShift` for everything else**; this answers "what was the pattern", which is a
- * question only the Christmas rules ask. A bank holiday on a pattern that rests on them is RD here.
+ * Christmas leave needs the one fact `getBaseShift` deliberately hides — whether the member was due
+ * at work on 25 or 26 December. It is the same lookup, not a copy: start-date suppression and roster
+ * changes apply as for every other date, and `getBaseShift` is the Christmas rule on top of this.
+ * **Use `getBaseShift` for everything else.** A bank holiday on a pattern that rests on them is RD here.
  * @param {any} member  teamMembers entry
  * @param {Date}   date
  * @returns {string}  Shift value e.g. "RD", "SPARE", "06:00-14:00"
@@ -933,9 +855,8 @@ export function parseSmartFloat(v) {
 }
 
 /** Shared numeric-input cleaning: smart hyphens/minus → '-', curly quotes normalised; £ signs, thousands
- *  commas and EVERY space stripped — parseFloat stops at the first comma or space, so "23,456.78" read as
- *  23, a phone's "3105. 40" as £3,105 and "3 105.40" as £3 (15 Nov 2026), each corrupting a Year to Date
- *  Tax Paid. `\s` also covers the no-break, narrow and thin spaces a paste brings. @param {any} v */
+ *  commas and EVERY space stripped — parseFloat stops at the first comma or space ("3 105.40" would read
+ *  as £3). `\s` also covers the no-break, narrow and thin spaces a paste brings. @param {any} v */
 function _cleanNumericString(v) {
     const s = String(v)
         .replace(/[‐-―−−]/g, '-')
@@ -944,10 +865,8 @@ function _cleanNumericString(v) {
         .replace(/\s+/g, '');
     // ONE comma, with only digits after it, is a thousands separator only where it sits like one: a
     // leading group of one to three digits not starting with 0, then exactly three ("1,234", "21,758").
-    // Anything else is a DECIMAL comma. A phone set to a decimal-comma region offers "," on the decimal
-    // keypad: stripping it turned "21758,94" into £2,175,894 (whole-app review, Oct 2026), and ",5" —
-    // the comma twin of ".5" — into 5 hours, and "7,5833" into 75,833 (10 Nov 2026). Dots before a
-    // decimal comma are then the thousands separators ("1.234,56").
+    // Anything else is a DECIMAL comma — a decimal-comma region's keypad offers "," ("21758,94", ",5").
+    // Dots before a decimal comma are then the thousands separators ("1.234,56").
     const one = /^(-?)([\d.]*),(\d+)$/.exec(s);
     if (one && !(one[3].length === 3 && /^[1-9]\d{0,2}$/.test(one[2]))) {
         return `${one[1]}${one[2].replace(/\./g, '')}.${one[3]}`;
@@ -957,12 +876,9 @@ function _cleanNumericString(v) {
 
 /**
  * parseSmartFloat, but DISTINGUISHES "unusable" from zero: empty/missing input OR a non-empty
- * value that cannot be parsed returns null instead of 0. parseSmartFloat's `|| 0` floor makes it
- * impossible for callers to tell floored garbage from a real £0 — which mattered badly for the
- * Year-to-Date fields: an unparseable remnant (a lone "." or "-" left mid-edit and autosaved)
- * coerced to £0 Taxable-Pay-to-date, silently flipping computeTax into cumulative mode and
- * collapsing Income Tax to £0.00 (take-home overstated by hundreds of pounds). Signed money
- * fields read THIS and treat null as "not provided".
+ * value that cannot be parsed returns null instead of 0. For the Year to Date fields an unparseable
+ * remnant (a lone "." mid-edit) read as £0 would flip computeTax into cumulative mode and collapse
+ * Income Tax to £0.00. Signed money fields read THIS and treat null as "not provided".
  * @param {string|null|undefined} v - Raw field value.
  * @returns {number|null}
  */
@@ -1032,10 +948,8 @@ export function isChilternWorkEmail(v) {
  * The LOCAL PART of a work email — what a member actually types when the field shows
  * `@chilternrailways.co.uk` beside it.
  *
- * It strips ONLY our own domain, and that restriction is the whole point. Stripping any
- * `@…` would turn `g.miller@gmail.com` into `g.miller`, which the save path would then
- * complete back into a Chiltern address the member never gave us — silently changing
- * somebody's address into a plausible wrong one. A foreign domain must stay visible so
+ * It strips ONLY our own domain: stripping any `@…` would let the save path complete a foreign
+ * address back into a plausible wrong Chiltern one. A foreign domain stays visible so
  * `isChilternWorkEmail` can refuse it and the member can see why.
  * @param {string} v  a full address, or a local part already
  * @returns {string}
@@ -1053,11 +967,9 @@ export function workEmailLocalPart(v) {
  * Idempotent on our own domain (so it is safe to call on a value autofill already
  * completed), and it never rewrites a foreign domain onto ours — same reason as above.
  *
- * NOR AN ADDRESS WHOSE `@` WAS DELETED (edit-sequence tests, 25 Nov 2026). Operations opens a saved
- * address whole, and deleting its `@` left `a.haredchilternrailways.co.uk`, which was completed into
- * `a.haredchilternrailways.co.uk@chilternrailways.co.uk`: a valid Chiltern address, so it saved. Text
- * that already ends in our domain is what is left of an address, not a local part, so it is returned as
- * it is, for `isValidEmail` to refuse.
+ * NOR AN ADDRESS WHOSE `@` WAS DELETED: text already ending in our domain (`x.ychilternrailways.co.uk`)
+ * is what is left of an address, not a local part, so it is returned as it is, for `isValidEmail` to
+ * refuse rather than completed into a valid-looking one.
  * @param {string} v  a local part, or a full address already
  * @returns {string}  '' when there is nothing to save
  */
@@ -1076,11 +988,9 @@ export function workEmailFrom(v) {
  * @param {Date} d
  * @returns {string}  e.g. "2026-03-18"
  */
-// Small FIFO cache on date.getTime() — formatISO is called per-cell during calendar render and in
-// tight loops by isBankHoliday/isPayday/isCutoffDate. Most invocations within a render share
-// the same Date instances, so a tiny cache hits often without ever growing memory. Full, it drops
-// the OLDEST entry it holds (a hit does not refresh one), which is all a render loop needs.
-// _isoCache declared near the top of the file to avoid TDZ during module load.
+// Small FIFO cache on date.getTime() — formatISO runs per-cell during render and in tight loops by
+// isBankHoliday/isPayday/isCutoffDate. Full, it drops the OLDEST entry (a hit does not refresh one).
+// _isoCache is declared near the top of the file to avoid TDZ during module load.
 export function formatISO(d) {
     const k = d.getTime();
     const cached = _isoCache.get(k);
@@ -1095,8 +1005,7 @@ export function formatISO(d) {
  * Parse a "YYYY-MM-DD" string to a Date at LOCAL NOON — the read-side inverse of formatISO().
  * The noon anchor (not midnight) avoids the DST/BST off-by-one where `new Date("YYYY-MM-DD")`
  * (parsed as UTC midnight) becomes the PREVIOUS day in timezones behind UTC. Always use this instead
- * of inlining `new Date(str + 'T12:00:00')` at a call site, so the noon convention can't be forgotten
- * (which is exactly how a one-day drift creeps in). Pairs with formatISO() (the write direction).
+ * of inlining `new Date(str + 'T12:00:00')`, so the noon convention can't be forgotten.
  * @param {string} dateStr  "YYYY-MM-DD"
  * @returns {Date}
  */
@@ -1123,13 +1032,9 @@ if (typeof location !== 'undefined' &&
     validateRosterPatterns();
 }
 
-// The real payslip actuals were moved OUT of this served
-// module at v14.68 → a hosting-excluded fixture (privacy; Track 2 / Option A), and out of the
-// repository entirely at v23.71 — the Pages mirror serves the repo root, so an ignore list could
-// not express the decision for both origins. It is now the gitignored
-// test-fixtures/payslip-actuals.local.js; see test-fixtures/payslip-actuals.example.js.
-// They are now a test-only fixture (excluded from Firebase Hosting). Do not re-add
-// real pay figures to any served file.
+// The real payslip actuals live OUT of the repository, in the gitignored
+// test-fixtures/payslip-actuals.local.js (see test-fixtures/payslip-actuals.example.js) — the Pages
+// mirror serves the repo root. Do not re-add real pay figures to any served file.
 /**
  * Returns non-hidden teamMembers for a login grade dropdown.
  * Centralises the member-filtering logic shared by all login overlays.
@@ -1139,12 +1044,10 @@ if (typeof location !== 'undefined' &&
 export function getMembersForGrade(grade) {
     if (!grade) return [];
     // ⚠️ Management deliberately does NOT filter on `hidden`: every ACTIVE manager row carries
-    // `hidden: true` as the standing convention (belt-and-braces with managerOnly to keep them out
-    // of the calendar member selector) — so `!m.hidden` here would empty the Management login group,
-    // locking every manager out AND letting "Disable accounts for leavers" disable every manager
-    // account (they'd vanish from `activeMembers` in functions/roster-members.json, which
-    // generate-roster-members.mjs builds from this function). A manager/clerk LEAVER is offboarded by removing
-    // their row from teamMembers (and from CONFIG.MANAGER_NAMES) — not by `hidden: true`.
+    // `hidden: true` — so `!m.hidden` here would empty the Management login group, locking every
+    // manager out AND letting "Disable accounts for leavers" disable every manager account (they'd
+    // vanish from `activeMembers`, which generate-roster-members.mjs builds from this). A manager/clerk
+    // LEAVER is offboarded by removing their row (and their CONFIG.MANAGER_NAMES entry) — not by `hidden`.
     if (grade === 'Management') return teamMembers.filter(m => m.managerOnly);
     // Other Staff carry `hidden: true` for the same reason as managers, and are chosen the same way: by their flag.
     if (grade === 'Other Staff') return teamMembers.filter(isOtherStaff);
@@ -1154,8 +1057,7 @@ export function getMembersForGrade(grade) {
 /**
  * Everybody who can sign in, grade by grade in `CONFIG.GRADE_ORDER`: the sign-in's own lists, joined. The ONE answer
  * to "who has a login" — the server's `activeMembers` (generate-roster-members.mjs) and Operations' account list both
- * read it, because each used to spell it out and Operations' spelling (`!hidden || managerOnly`) would have left every
- * hidden grade but Management off the list.
+ * read it; do not spell it out again.
  * @returns {typeof teamMembers}
  */
 export function signInMembers() {

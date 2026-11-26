@@ -5,14 +5,10 @@
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
  *
- * `links-app.js` owned two unrelated things: the workspace (grid, paint, generator, dialogs,
- * picker) and the rules for writing a design to a collection several people edit at once. The
- * second was spread across EIGHT functions and twenty-seven direct Firestore calls, each one
- * implementing its own variant of the same protocol.
- *
- * That is not a tidiness complaint. An external audit (Aug 2026) found two silent overwrites in
- * that code, in different functions, both the same shape — and fixing them where they lay did
- * nothing to stop a third being written the next time somebody added a write path:
+ * The rules for writing a design to a collection several people edit at once used to be spread
+ * across eight functions, each with its own variant of the protocol, and an external audit (Aug
+ * 2026) found two silent overwrites of the same shape — fixing them where they lay would not stop a
+ * third:
  *
  *   · RENAME read the current revision, decided its baseline was fresh, and then wrote. A
  *     co-editor's save landing in that gap survived the rename (a merge) but left our baseline
@@ -23,10 +19,9 @@
  *
  * ── THE RULES THIS MODULE OWNS, AND WHICH IT MAKES UNWRITABLE ───────────────────────────────────
  *
- * **1. A read that a write depends on happens INSIDE the write's transaction.** Not before it. The
- * pure helpers in `links-concurrency.js` were correct every time they were called; they were being
- * asked about a moment that had already passed. A transaction re-runs its callback when anything
- * lands underneath, so a decision made inside one is true at COMMIT.
+ * **1. A read that a write depends on happens INSIDE the write's transaction.** Not before it: a
+ * transaction re-runs its callback when anything lands underneath, so a decision made inside one is
+ * true at COMMIT.
  *
  * **2. There is no weaker fallback while online.** Offline is a different kind of thing, not a
  * lesser degree of online: transactions need the server, this app is deliberately offline-first,
@@ -44,24 +39,19 @@
  * reach FAILS them and they are queued; the create, a plain write, is given `SLOW_SAVE_MS` to be
  * answered and is called queued after that.
  *
- * **5. A transaction waits for this device's own queued writes first** (v25.96). A transaction
- * reads the SERVER, and rule 4's queued writes are not there yet. In the second after the signal
- * returned, an online save read the server's older copy and wrote over it, and the save this device
- * had queued offline then landed on top — older work over newer, with nothing on screen to say so.
- * A rename was undone the same way, and a design binned online came back, because a queued save
- * carries no `deletedAt`. So every transaction here starts only once this device has nothing of its
- * own on the way to the design it touches (`runTx`, through the injected `ownWritesSent` —
- * firebase-client.js → `whenOwnWritesSentFor`, whose reasoning is claim-retry.js → `ownWritesSentFor`):
- * the whole queue drained, or, when it has not in time, that design's own record clear of this
- * account's unsent writes (25 Nov 2026: another account's leftover write had held every transaction
- * here, as it held Admin's). A design of ours still on its way ends as a transaction that never
- * reached the server does, `unavailable`: a save, a rename and a delete then queue BEHIND what is
- * waiting, so the writes land in the order they were made; a restore, a purge and the automatic bin
- * fail, as they do offline.
+ * **5. A transaction waits for this device's own queued writes first.** A transaction reads the
+ * SERVER, and rule 4's queued writes are not there yet: an online save read the older copy, and the
+ * queued save then landed on top — older work over newer, silently (a rename undone, a binned design
+ * back). So every transaction starts only once this device has nothing of its own on the way to the
+ * design it touches (`runTx`, through the injected `ownWritesSent` — firebase-client.js →
+ * `whenOwnWritesSentFor`, whose reasoning is claim-retry.js → `ownWritesSentFor`): the whole queue
+ * drained, or that design's own record clear of this account's unsent writes (so another account's
+ * leftover write cannot hold every transaction). A design of ours still on its way ends as
+ * `unavailable`: a save, a rename and a delete then queue BEHIND what is waiting, so the writes land
+ * in the order they were made; a restore, a purge and the automatic bin fail, as they do offline.
  *
- * **6. A queued save says how it ENDED** (v26.03). `queued` is not `saved`: in a SECOND tab Firestore's
- * cache lives only in memory (the IndexedDB lease is the first tab's), so a write queued there dies
- * with the page, though the page had already said "Saved in this browser". So a queued create or save
+ * **6. A queued save says how it ENDED.** `queued` is not `saved`: in a SECOND tab Firestore's cache
+ * lives only in memory, so a write queued there dies with the page. So a queued create or save
  * carries `settled`, a promise that resolves `'acked'` when the server has the write, `'held'` when the
  * designer signed out with it still queued (the SDK keeps it for that account), and `'failed'` when the
  * server refused it. It never rejects. links-app.js keeps the designer's copy of the work until it
@@ -72,12 +62,11 @@
  *
  * No DOM, no dialogs, no confirm, no picker, no generator, no status text, and no decision about
  * what the user should SEE. A conflict comes back as `{ status: 'conflict', conflict }` and the
- * workspace decides whether to ask, overwrite or fork. That split is what lets this file be tested
- * against a fake Firestore, which is the only way the interleavings above can be exercised at all.
+ * workspace decides whether to ask, overwrite or fork — which lets this file be tested against a
+ * fake Firestore, the only way the interleavings above can be exercised.
  *
- * It is also deliberately NOT a generic repository or CRUD service. It understands design
- * revisions, soft deletion and conflict results, because those are Links concepts; a
- * `FirestoreRepository<T>` would be an abstraction over the wrong thing.
+ * Deliberately NOT a generic repository: design revisions, soft deletion and conflict results are
+ * Links concepts.
  *
  * Every Firebase handle is INJECTED (`createDesignStore`). `links-app.js` passes the real ones.
  */
@@ -115,8 +104,8 @@ const _offlineByDefault = () => typeof navigator !== 'undefined' && navigator.on
 /**
  * Answers from this page's OWN write machinery (claim-retry.js): the gate refusing a write while an
  * earlier one is unconfirmed, and an account that signed out mid-write. Neither is the absence of a
- * server, whatever the browser says. Read as offline, the gate's refusal took the queued path and the
- * page said "Saved in this browser" about a write that was never issued (whole-app fix, Nov 2026).
+ * server, whatever the browser says — read as offline, the page said "Saved in this browser" about a
+ * write never issued.
  */
 const NEVER_OFFLINE = new Set([UNCONFIRMED_CODE, SIGNED_OUT_CODE]);
 
@@ -150,12 +139,9 @@ export function createDesignStore(deps) {
     }
     /**
      * Every transaction this store runs (RULE 5): this device's own queued writes first, then the
-     * server. It names the ONE design the transaction reads and writes, so the wait can ask that
-     * record when the whole queue does not drain (25 Nov 2026, firebase-client.js →
-     * `whenOwnWritesSentFor`): another account's leftover write, which no design of ours carries, no
-     * longer turns every save, rename and delete into a queued one. A record of ours still on its way
-     * — or a queue that has not drained and a record that cannot be read — is answered as no server
-     * at all, so each caller takes the path it already has for being offline.
+     * server. It names the ONE design the transaction touches, so the wait can ask that record when
+     * the whole queue does not drain. A record of ours still on its way — or an undrained queue and
+     * an unreadable record — is answered as no server, so each caller takes its offline path.
      */
     const runTx = async (/** @type {any[]} */ refs, /** @type {(tx: any) => Promise<any>} */ fn) => {
         if (!(await ownWritesSent(refs))) {
@@ -164,11 +150,10 @@ export function createDesignStore(deps) {
         return runTransaction(db, fn);
     };
     /**
-     * WHAT THIS DEVICE HOLDS for one document — the offline consult before a queued write (whole-app
-     * fix, Nov 2026). `getDocFromCache` answers from the cache alone: a deletion the cache recorded
-     * comes back as not existing, and a document it never held REJECTS. Offline, plain `getDoc`
-     * rejects for BOTH (read in the SDK, and run against it with the network off), so a store given
-     * only `getDoc` cannot see a deletion its cache knows of, and queues as if nothing were cached.
+     * WHAT THIS DEVICE HOLDS for one document — the offline consult before a queued write.
+     * `getDocFromCache` answers from the cache alone: a deletion the cache recorded comes back as not
+     * existing, and a document it never held REJECTS. Offline, plain `getDoc` rejects for BOTH, so a
+     * store given only `getDoc` cannot see a deletion its cache knows of.
      */
     const cacheRead = deps.getDocFromCache ?? getDoc;
     const isOffline = (/** @type {any} */ err) => isOfflineFailure(err, offlineNow);
@@ -185,11 +170,9 @@ export function createDesignStore(deps) {
      * issued and the SDK owns the queue, so a later rejection (a rules refusal on sync) is logged, the
      * one place left to see it.
      *
-     * It REJECTS with any answer that comes in time, and that includes a refusal before anything was
-     * issued: the page's unconfirmed-write gate refuses inside `withClaimRetry`, so there is no write
-     * to queue. Started-not-awaited, that refusal was only logged and the store answered "queued" for
-     * nothing (whole-app fix, Nov 2026). The bound starts when the write is ISSUED, so it can never
-     * outrun a refusal.
+     * It REJECTS with any answer that comes in time, including a refusal before anything was issued
+     * (the page's unconfirmed-write gate refuses inside `withClaimRetry`, so there is nothing queued).
+     * The bound starts when the write is ISSUED, so it can never outrun a refusal.
      *
      * `onSettle` hears how the write ENDED, whenever that is (rule 6) — an hour later, on a page that
      * has long moved on: `'acked'`, `'held'` (signed out with it queued) or `'failed'`.
@@ -215,7 +198,7 @@ export function createDesignStore(deps) {
             if (timer === null) timer = setTimeout(() => answer(() => resolve('queued')), waitMs);
             return write();
         }).then(() => { tell('acked'); answer(() => resolve('acked')); }, (/** @type {any} */ err) => {
-            // Signed out while queued is NOT a failure: the SDK keeps it for that account (v24.37).
+            // Signed out while queued is NOT a failure: the SDK keeps it for that account.
             const held = err?.code === SIGNED_OUT_CODE;
             tell(held ? 'held' : 'failed');
             if (answer(() => reject(err))) return;
@@ -237,7 +220,7 @@ export function createDesignStore(deps) {
 
     /**
      * The revision a QUEUED write stamps. Not `known + 1`: that is precisely what a colleague's
-     * online save from the same revision commits, so the two collided and her next save matched ours
+     * online save from the same revision commits, so the two collided and their next save matched ours
      * and overwrote it unasked. Not absent either: a document with no revision restarts at 1 on its
      * next save, and a tab left open on an old revision 1 would then match. The clock in ms is far
      * above any counter a transaction produces, and still an int >= 1 as `firestore.rules` requires;
@@ -263,22 +246,19 @@ export function createDesignStore(deps) {
 
     /**
      * OUR OWN QUEUED RENAMES, per design: the revision each stamped, and the revision the cache held
-     * under it (whole-app review, Oct 2026). Offline, a save consults the CACHE, and the cache shows
-     * our queued rename on top of whatever was there — its revision, but the last saver's name. So a
-     * save after our own offline rename read as "S. Silva saved a different version". The cache is
-     * judged on the revision UNDER our rename instead; a colleague's save that reached this device
-     * first is still caught, because then that revision is not the one we hold.
+     * under it. Offline, the cache shows our queued rename on top — its revision, but the last saver's
+     * name — so a save after our own rename read as a colleague's version. The cache is judged on the
+     * revision UNDER our rename instead; a colleague's save that reached this device first is still
+     * caught, because then that revision is not the one we hold.
      *
-     * …AND ON WHO SAVED THE CONTENT UNDER IT, AND WHEN (48-hour review, Nov 2026). Our queued rename
-     * merges only name and revision, so if a colleague saved while we were offline, the synced
-     * document carries OUR revision over HER content, stamp and name — and the revision alone took it
-     * for our rename and queued an overwrite of her save unasked. A rename writes neither stamp nor
-     * name, so while both still match the ones we cached, the content is the one we held.
+     * …AND ON WHO SAVED THE CONTENT UNDER IT, AND WHEN. Our queued rename merges only name and
+     * revision, so a colleague's save while we were offline syncs as OUR revision over THEIR content,
+     * stamp and name. A rename writes neither stamp nor name, so while both still match the ones we
+     * cached, the content is the one we held.
      *
-     * …AND ONLINE, ONCE THE RENAME HAS SYNCED (whole-app fix, Nov 2026). The server then holds what
-     * the cache did, and the transactions read it raw, so the first ONLINE save after a queued rename
-     * met the same false conflict about S. Silva. Every save, forced save and rename now reads through
-     * it, and a colleague's save — under our rename or after it — is still caught by the same checks.
+     * …AND ONLINE, ONCE THE RENAME HAS SYNCED: the server then holds what the cache did, so every save,
+     * forced save and rename reads through it, and a colleague's save — under our rename or after it —
+     * is still caught by the same checks.
      * @type {Map<string, {rev: number, before: number|null, stamp: number|null, by: string|null}>}
      */
     const ownRenames = new Map();
@@ -309,9 +289,8 @@ export function createDesignStore(deps) {
          * @returns {Promise<{ id: string, updatedAt: any, queued?: boolean, settled?: Promise<Settled>, baseline: { loadedRevision: number|null, loadedUpdatedAt: number|null, baselineUnknown: boolean } }>}
          */
         async create(payload) {
-            // Revision 1, stamped here rather than discovered by reading back (v22.18). A create has
-            // nothing to race — the document did not exist — so this is the one place the number is
-            // certain without a transaction, and the baseline is exact from the first save onward.
+            // Revision 1, stamped here rather than read back: a create has nothing to race, so the
+            // number is certain without a transaction and the baseline exact from the first save.
             const body = { ...payload, revision: 1 };
             // An auto-id reference names the document BEFORE the write, so a create the server has not
             // answered still has an id to come back with — still revision 1, and still exact, because
@@ -319,13 +298,12 @@ export function createDesignStore(deps) {
             const ref = doc(designsCol);
             const end = settlement();   // rule 6: a queued create says how it ended
             const queued = () => ({ id: ref.id, updatedAt: null, queued: true, settled: end.settled, baseline: baselineAfterCommit(1) });
-            // OFFLINE, RULE 4 (Sep 2026 re-review): a create resolves only on the server's ack, so it held
-            // "Saving…" until the signal came back. Offline it is queued and returned at once.
+            // OFFLINE, RULE 4: a create resolves only on the server's ack, so offline it is queued and
+            // returned at once.
             if (offlineNow()) { await queueWrite(() => setDoc(ref, body), end.settle); return queued(); }
-            // ONLINE, BOUNDED (links-design-2, whole-app fix, Nov 2026). On a connection that is up but
-            // cannot reach Firestore the create was AWAITED with no bound, unlike the transactions, which
-            // the SDK fails there: "Creating…" until the signal came back, while the designer went on
-            // working. It waits as long as a slow save does, and unanswered comes back queued, with its id.
+            // ONLINE, BOUNDED (links-design-2): on a connection up but unable to reach Firestore, an
+            // unbounded create held "Creating…". It waits as long as a slow save does, and unanswered
+            // comes back queued, with its id.
             if (await sendWrite(() => setDoc(ref, body), SLOW_SAVE_MS, end.settle) === 'queued') return queued();
             return { id: ref.id, updatedAt: await readStamp(ref), baseline: baselineAfterCommit(1) };
         },
@@ -343,7 +321,7 @@ export function createDesignStore(deps) {
          * @param {boolean} [o.forcing]        this is the second attempt, after the user accepted
          *                                     an overwrite. `forceAgainstRevision` then names WHICH
          *                                     revision they approved replacing.
-         * @param {number|null} [o.loadedRevision]  the revision we hold — the exact identity (v22.18)
+         * @param {number|null} [o.loadedRevision]  the revision we hold — the exact identity
          * @param {number|null} [o.forceAgainstRevision]  the `updatedAt` millis the conflict dialog
          *                                     showed them, or null if it carried no timestamp
          * @param {number|null} [o.forceAgainstRev]  the REVISION that dialog showed them. Preferred
@@ -355,14 +333,12 @@ export function createDesignStore(deps) {
             forcing = false, forceAgainstRevision = null, forceAgainstRev = null }) {
             const ref = refFor(id);
             /** The revision this attempt actually COMMITTED — set inside the transaction, so the
-             *  baseline needs no read-back and has no window in it (v22.18). */
+             *  baseline needs no read-back and has no window in it. */
             let committed = 0;
             if (forcing) {
                 // ── WHAT THE USER ACTUALLY CONSENTED TO ─────────────────────────────────────
                 // "Replace THE VERSION I WAS SHOWN", not "replace whatever exists whenever I get
-                // round to pressing the button". Until v21.96 this was an unconditional `setDoc`,
-                // on the reasoning that the decision had been made — and the gap it ignored is the
-                // same human think-time the delete check below was added for:
+                // round to pressing the button" — an unconditional write ignores the think-time:
                 //
                 //     Alice loads R1. Bob saves R2. Alice saves; the dialog names Bob's R2.
                 //     Charlie saves R3 while Alice reads it. Alice presses Replace.
@@ -373,7 +349,7 @@ export function createDesignStore(deps) {
                 // is the same rule as the first attempt, with a different baseline — which is why
                 // this is a compare-and-set and not a second kind of write.
                 //
-                // A DELETE is a different consent again, and was never given (v21.92): `docPayload`
+                // A DELETE is a different consent again, and was never given: `docPayload`
                 // carries no `deletedAt`, so an unguarded force STRIPS the deletion and the design
                 // reappears in the picker with its deleter never told. A document that has gone
                 // ENTIRELY (purged from the bin while the dialog sat open) takes the same exit with
@@ -384,8 +360,7 @@ export function createDesignStore(deps) {
                 /** @type {{by: string, at: any, rev: number|null}|null} */
                 let movedOn = null;
                 /** Consent is per VERSION, and the revision names it exactly. Falls back to the
-                 *  timestamp for a design nobody has saved since v22.18, so an in-flight dialog
-                 *  opened before this release still resolves correctly (v22.18). @param {any} d */
+                 *  timestamp for a design with no revision. @param {any} d */
                 const movedOnOf = (d) => {
                     const liveRev = typeof d.revision === 'number' ? d.revision : null;
                     const liveRevision = d.updatedAt?.toMillis?.() ?? null;
@@ -396,10 +371,8 @@ export function createDesignStore(deps) {
                 };
                 try {
                     await withClaimRetry(() => runTx([ref], async (/** @type {any} */ tx) => {
-                        // A retried transaction must not keep the losing attempt's verdict — the same
-                        // reset `rename` makes below, for the same reason. Pinned by "a RETRIED forced
-                        // save decides afresh" in links-design-store.test.mjs, whose fake runs this
-                        // body twice (test audit, 7 Nov 2026; until then nothing could see it).
+                        // A retried transaction must not keep the losing attempt's verdict. Pinned by
+                        // "a RETRIED forced save decides afresh" in links-design-store.test.mjs.
                         deletedData = null; gone = false; movedOn = null;
                         const snap = await tx.get(ref);
                         if (!snap.exists()) { gone = true; return; }
@@ -411,11 +384,9 @@ export function createDesignStore(deps) {
                         tx.set(ref, { ...buildPayload(), revision: committed });
                     }));
                 } catch (err) {
-                    // OFFLINE, CONSENT IS CHECKED AGAINST THE CACHE — the same thing an ordinary
-                    // offline save consults (whole-app review, Oct 2026). The conflict being answered
-                    // usually CAME from the cache, and a transaction cannot run without a server, so
-                    // "Replace" failed every time it was offered offline. Rule 2 still holds: only an
-                    // offline failure gets here, and the write is queued, never awaited.
+                    // OFFLINE, CONSENT IS CHECKED AGAINST THE CACHE, as an ordinary offline save
+                    // consults it (a transaction cannot run without a server). Rule 2 still holds:
+                    // only an offline failure gets here, and the write is queued, never awaited.
                     if (!isOffline(err)) throw err;
                     try {
                         const cached = await cacheRead(ref);
@@ -435,14 +406,11 @@ export function createDesignStore(deps) {
                 const updatedAt = await readStamp(ref);
                 return { status: 'saved', updatedAt, baseline: baselineAfterCommit(committed) };
             }
-            // THE TRANSACTION IS TRIED FIRST EVEN WHEN THE BROWSER ALREADY SAYS OFFLINE, and that is
-            // deliberate (whole-app fix, Nov 2026). It costs six to ten seconds of "Saving…" on a device
-            // that really is offline — the SDK runs the body five times with back-off before giving up
-            // (measured against the real SDK with the network off) — where create and delete, with no
-            // read to serialise, ask `offlineNow()` first. But `navigator.onLine` is the browser's view,
-            // not Firestore's, and a device that reports itself offline while it can reach the server
-            // must still get the compare-and-set: a wrong "offline" may not buy the path rule 2 keeps for
-            // the absence of a server. `rename` tries first for the same reason.
+            // THE TRANSACTION IS TRIED FIRST EVEN WHEN THE BROWSER ALREADY SAYS OFFLINE, deliberately.
+            // It costs six to ten seconds of "Saving…" on a device that really is offline (the SDK's
+            // back-off), but `navigator.onLine` is the browser's view, not Firestore's, and a wrong
+            // "offline" may not buy the path rule 2 keeps for the absence of a server. (Create and
+            // delete, with no read to serialise, ask `offlineNow()` first.) `rename` tries first too.
             try {
                 await withClaimRetry(() => runTx([ref], async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
@@ -469,13 +437,10 @@ export function createDesignStore(deps) {
                 if (e?.message === 'concurrent-edit') return { status: 'conflict', conflict: e.conflict };
                 // RULE 2. Only the absence of a server may take the unserialised path.
                 if (!isOffline(e)) throw err;
-                // Offline still CONSULTS what we hold before writing. Firestore runs with
-                // persistentLocalCache, so this read is usually served from IndexedDB — it cannot
-                // prove anything about the server, but it can carry a deletion or a co-editor's
-                // save that reached this device before the connection went. Queueing a blind write
-                // over a design our own cache says was deleted would resurrect it on sync, which is
-                // the one outcome `deleted-elsewhere` exists to prevent. (Preserved from the path
-                // this replaced; dropping it was a regression I introduced and caught in review.)
+                // Offline still CONSULTS what we hold before writing (usually IndexedDB): it proves
+                // nothing about the server, but can carry a deletion or a co-editor's save that
+                // reached this device first. A blind write over a design our cache says was deleted
+                // would resurrect it on sync — what `deleted-elsewhere` exists to prevent.
                 try {
                     const cached = await cacheRead(ref);
                     // NOT EXISTING here is the read KNOWING it was removed for good: through
@@ -491,10 +456,8 @@ export function createDesignStore(deps) {
                         { loadedRevision, loadedUpdatedAt: baseline, baselineUnknown, currentUser });
                     if (c) return { status: 'conflict', conflict: c };
                 } catch { /* no cached state either — nothing to consult, proceed */ }
-                // A queued write may NOT increment from what we last knew: `known + 1` is exactly
-                // the number a colleague's online save from the same revision commits, so when ours
-                // landed the two matched and her next save overwrote ours with no prompt. See
-                // `queuedRevision`. Issued, not awaited — rule 4; how it ENDS comes later, as `settled` (rule 6).
+                // A queued write may NOT increment from what we last knew (`queuedRevision`). Issued,
+                // not awaited — rule 4; how it ENDS comes later, as `settled` (rule 6).
                 const end = settlement();
                 await queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }), end.settle);
                 // Nothing verified what the server held, so the baseline is UNKNOWN, never null.
@@ -509,8 +472,8 @@ export function createDesignStore(deps) {
          * @param {object} o
          * @param {string} o.id @param {string} o.name @param {string} o.by
          * @param {number|null} o.preBaseline
-         * @param {number|null} [o.preRevision] the revision we hold for that doc (v22.18) — exact,
-         *   where `preBaseline` is the pre-v22.18 fallback
+         * @param {number|null} [o.preRevision] the revision we hold for that doc — exact, where
+         *   `preBaseline` is the fallback for a design with no revision
          * @returns {Promise<{ baselineFresh: boolean, revision: number|null, updatedAt: any, queued: boolean }>}
          * @throws an error whose `code` is `'deleted-elsewhere'` when the design is no longer live, with
          *   `deletedData` (null when it was removed for good) — never a rename of the binned copy
@@ -525,21 +488,18 @@ export function createDesignStore(deps) {
                 await withClaimRetry(() => runTx([ref], async (/** @type {any} */ tx) => {
                     gone = null;
                     const snap = await tx.get(ref);
-                    // IS IT STILL A LIVE DESIGN? Asked here like every other transaction in this
-                    // store (whole-app fix, Nov 2026). Binned elsewhere, the merge renamed the binned
-                    // copy and signed it as ours while our picker showed it live; removed for good, it
-                    // wrote a skeleton the rules refuse, and the designer read "check your connection"
-                    // about a design no retry would bring back.
+                    // IS IT STILL A LIVE DESIGN? Asked like every other transaction here: binned
+                    // elsewhere, the merge renamed the binned copy; removed for good, it wrote a
+                    // skeleton the rules refuse, with "check your connection" about a lost design.
                     if (!snap.exists() || isDeleted(snap.data())) { gone = { deletedData: snap.exists() ? snap.data() : null }; return; }
                     // Reassigned on every attempt: a retried transaction must not keep the verdict
                     // of the attempt that lost. Asked of the document with our own queued rename seen
                     // through (`ownRenames`), and the counter moved from the one really there.
                     const seen = throughOwnRename(id, snap.data() || {});
                     const liveRev = typeof seen.revision === 'number' ? seen.revision : null;
-                    // The REVISION answers "is this still the document we loaded?" exactly; the
-                    // timestamp is the fallback for a design nobody has saved since v22.18. Same
-                    // rule as before — advance our baseline only when nothing moved underneath us —
-                    // asked with a value that cannot be raced.
+                    // The REVISION answers "is this still the document we loaded?" exactly (the
+                    // timestamp is the fallback): advance our baseline only when nothing moved
+                    // underneath us.
                     baselineFresh = (liveRev !== null || preRevision !== null)
                         ? liveRev === preRevision
                         : canAdvanceBaseline(seen.updatedAt?.toMillis?.() ?? null, preBaseline);
@@ -590,13 +550,10 @@ export function createDesignStore(deps) {
          * Soft-delete. A MERGE, never a replace: the patterns we hold may be a stale copy of a
          * co-designer's newer version, and deleting is not a reason to overwrite them.
          *
-         * IT ASKS WHAT IS THERE FIRST, inside the write (rule 1; whole-app fix, Nov 2026). It was a
-         * blind merge: on a design a colleague had already binned it wrote over who deleted it and
-         * when, and on one removed for good it wrote a nameless skeleton the rules refuse, so the
-         * designer read "check your connection" about a design that was already gone. Neither is a
-         * failure — a delete asks for a design that is not live, and that is what there is — so both
-         * come back as what was found (`already-deleted`, with `deletedData`; `gone`), with nothing
-         * written.
+         * IT ASKS WHAT IS THERE FIRST, inside the write (rule 1). A blind merge overwrote who deleted an
+         * already-binned design and when, or wrote a skeleton the rules refuse over one removed for
+         * good. Neither is a failure, so both come back as what was found (`already-deleted`, with
+         * `deletedData`; `gone`), with nothing written.
          * @param {string} id @param {string} by
          * @returns {Promise<{ queued: boolean, status: 'deleted'|'already-deleted'|'gone', deletedData?: any }>}
          */
@@ -613,9 +570,8 @@ export function createDesignStore(deps) {
                 await queueWrite(() => setDoc(ref, binIt(), { merge: true }));
                 return { queued: true, status: 'deleted' };
             };
-            // RULE 4, for the delete too (whole-app review, Oct 2026). Awaited offline, it held until
-            // the signal came back: nothing changed on screen, the designer kept editing, and the late
-            // landing then switched the page away and dropped those edits unasked. Queued, it shows now.
+            // RULE 4, for the delete too: awaited offline, the late landing switched the page away and
+            // dropped the edits made meanwhile. Queued, it shows now.
             if (offlineNow()) return consultThenQueue();
             /** @type {any} */ let found = null;
             try {
@@ -627,10 +583,8 @@ export function createDesignStore(deps) {
                     tx.set(ref, binIt(), { merge: true });
                 }));
             } catch (err) {
-                // A connection that is UP but cannot reach Firestore leaves the browser saying online.
-                // As a plain write the delete then had no answer at all until the signal came back; a
-                // transaction is FAILED there, after the SDK's retries, and the delete is queued like a
-                // save (whole-app fix, Nov 2026).
+                // A connection UP but unable to reach Firestore leaves the browser saying online; the
+                // transaction FAILS there, after the SDK's retries, and the delete is queued like a save.
                 if (!isOffline(err)) throw err;
                 return consultThenQueue();
             }
@@ -638,7 +592,7 @@ export function createDesignStore(deps) {
         },
 
         /**
-         * The AUTOMATIC move to the bin (v24.47 — designs drawn for the old link length). Unlike
+         * The AUTOMATIC move to the bin (designs drawn for the previous link length). Unlike
          * `softDelete`, nobody pressed anything: the decision was made from a list read earlier,
          * possibly from the offline cache, and a colleague may have restored or redrawn the design
          * since. So the rule is asked again INSIDE the transaction (this module's rule 1), and a
@@ -674,50 +628,29 @@ export function createDesignStore(deps) {
          */
         async restore(id, by) {
             const ref = refFor(id);
-            // A restore BUMPS the revision, in a transaction, and hands the number back (v22.18).
-            // It is a write everyone else sees, so leaving the counter alone would make the design
-            // reappear still wearing its pre-deletion revision — and the restorer's entry, which
-            // carries no revision, would then disagree with the server on the very next save and
-            // prompt "someone else saved this" about their own restore. Not destructive (the safe
-            // direction), and a false conflict is exactly what teaches people to click through the
-            // one prompt that protects them.
+            // A restore BUMPS the revision, in a transaction, and hands the number back: otherwise the
+            // restorer's next save prompts "someone else saved this" about their own restore — and a
+            // false conflict is exactly what teaches people to click through the one prompt that
+            // protects them.
             let committed = 0;
             /** @type {{name: any, patterns: any, window: any}|null} */
             let content = null;
             try {
                 await withClaimRetry(() => runTx([ref], async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
-                    // WHAT IS ACTUALLY THERE, asked inside the transaction — the same rule `purge`
-                    // already follows, and for the same reason: the row that was pressed came from
-                    // a bin loaded some time ago, and a colleague may have acted on it since.
-                    //
-                    // Without this the merge write RECREATES a hard-deleted design as a skeleton —
-                    // no name, no patterns. The Firestore rules refuse that shape, so production
-                    // never actually resurrects one; what the designer gets instead is "check your
-                    // connection and try again", about a design that is not coming back however
-                    // many times they retry. The rules make it a wording problem rather than a
-                    // data-integrity one, which is why this is a small fix and not an urgent one.
+                    // WHAT IS ACTUALLY THERE, asked inside the transaction, as `purge` does: the row
+                    // pressed came from a bin loaded earlier. Gone for good, the merge would write a
+                    // skeleton the rules refuse, reported as a connection problem.
                     if (!snap.exists()) throw new Error('design-gone');
-                    // AN ALREADY-LIVE DESIGN IS A TRUE NO-OP — no write at all (v22.32, external
-                    // review). Refusing it was written and removed, correctly: refusing invents a
-                    // failure out of a benign state. But the version that replaced it went on to
-                    // WRITE, and that is not a no-op either — it clears already-clear fields and
-                    // BUMPS THE REVISION, so an editor holding the immediately preceding revision
-                    // meets a conflict about a design whose content nobody changed.
-                    //
-                    // Which is the hazard the comment directly above this one names: a false
-                    // conflict is what teaches people to click through the one prompt that protects
-                    // them. Restoring something already restored asks for a state that is already
-                    // true, so the honest answer is to leave the document alone and say so.
+                    // AN ALREADY-LIVE DESIGN IS A TRUE NO-OP — no write at all. Refusing invents a
+                    // failure out of a benign state; writing BUMPS THE REVISION, so an editor holding
+                    // the preceding one meets a false conflict about unchanged content.
                     if (!snap.data()?.deletedAt) { committed = -1; return; }
                     committed = nextRevision(snap.data());
-                    // THE CONTENT COMES BACK WITH THE REVISION (whole-app review, Oct 2026). The
-                    // caller used to rebuild the design from its BIN ROW, read when the bin opened,
-                    // and stamp it with this revision. If a colleague saved, restored or re-binned
-                    // the design since, the server held their version while the restorer held their
-                    // own stale copy at the server's revision, so their next save matched, raised no
-                    // conflict, and wrote over the colleague's work. What this transaction read is
-                    // what the merge brought back, so it is the only copy entitled to that revision.
+                    // THE CONTENT COMES BACK WITH THE REVISION: rebuilt from its stale BIN ROW at the
+                    // server's revision, the restorer's next save wrote over a colleague's work with no
+                    // conflict. What this transaction read is the only copy entitled to that revision.
+
                     const { name, patterns, window } = snap.data() ?? {};
                     content = { name, patterns, window };
                     tx.set(ref, {

@@ -87,9 +87,8 @@ import { setDisclosure, toggleDisclosure, toggleHoursExtra, toggleHppNote, toggl
 
 /**
  * May the drawer's two document links read (nav-panel.js `canReadDocuments`)? Only while `name` is still
- * this device's session (review, 22 Nov 2026): Pay is the one `soft` page, and offline the document read
- * answers from the device's cache without asking a rule — so a session ended in another tab, or a page
- * wired for nobody, would still open what an earlier session left there.
+ * this device's session: Pay is the one `soft` page, and offline the read answers from the device's
+ * cache without asking a rule, so a session ended in another tab would still open what it left there.
  * @param {string|null|undefined} name the member the page was drawn for
  * @returns {() => boolean}
  */
@@ -97,10 +96,9 @@ const paycalcDocsGate = (name) => () => !!name && getSession()?.name === name;
 
 /**
  * Withhold the calculator from a role it has no confirmed rates for, and say why.
- * Rationale: `gradeForRole`'s JSDoc (roster-data.js). Two things an editor here needs — it WITHHOLDS rather than
- * captioning (the page's whole output is one confident £ figure, and a member told "this may not
- * apply" and handed one will use it), and it still wires the drawer, so it is a refusal with a way
- * out rather than a dead end.
+ * Rationale: `gradeForRole`'s JSDoc (roster-data.js). It WITHHOLDS rather than captioning (a member
+ * told "this may not apply" and handed a confident £ will use it), and it still wires the drawer, so
+ * it is a refusal with a way out.
  * @param {any} member the signed-in teamMembers entry
  */
 function _showUnsupportedRole(member) {
@@ -110,7 +108,7 @@ function _showUnsupportedRole(member) {
     document.body.classList.add('role-unsupported');
     document.getElementById('unsupportedGradeBanner')?.classList.remove('hidden');
     paintRoleCard(member);   // the words differ by who is reading — paycalc-role-card.js
-    // About and the header logo, as on every page — without them the drawer head and the logo did nothing here.
+    // About and the header logo, as on every page.
     const openAboutLightbox = initPaycalcAbout();
     initNavPanel({
         currentPage: 'paycalc',
@@ -126,37 +124,31 @@ function _showUnsupportedRole(member) {
 
 export function init() {
     registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Links: a signed-out view must still take an update
-    // Tear down a lingering privileged Firebase identity whose local session has expired, so a direct
-    // deep-link here can't keep an old credential live — BEFORE the session guard's early return, as
-    // the expired path is exactly where one lingers. Fire-and-forget and login-safe: a no-op on a
-    // valid session, and it stands down if a sign-in supersedes it.
+    // Tear down a lingering privileged Firebase identity whose local session has expired — BEFORE the
+    // session guard's early return, as the expired path is exactly where one lingers. Fire-and-forget
+    // and login-safe: a no-op on a valid session, and it stands down if a sign-in supersedes it.
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
-    // ── THE START-UP (page-start.js): the Back guard BEFORE any decision, so no early return can skip it — a page
-    // restored from the bfcache does not re-run init(), so after a sign-out (or another member signing in on
-    // another tab) Back could show the previous member's pay page, figures and all — then the decision, the
-    // in-place sign-in (init() runs again, once, with the just-saved session, and runMigrations() selects the
-    // right namespace for free — AUTH_AND_SESSIONS.md → "In-place sign-in") and the refusal.
+    // ── THE START-UP (page-start.js): the Back guard BEFORE any decision, so no early return can skip it
+    // (a bfcache restore does not re-run init(), so Back after a sign-out could show the previous member's
+    // figures) — then the decision, the in-place sign-in (init() runs again, once, and runMigrations()
+    // selects the right namespace — AUTH_AND_SESSIONS.md → "In-place sign-in") and the refusal.
     //
     // The decision is the page's OWN, not requirePage('paycalc') (AUTH_AND_SESSIONS.md → Architecture, Layer 2): the policy is
-    // `soft`, which by its tested invariant NEVER returns 'login', but the calculator needs a member identity to
-    // namespace its per-member storage (pcPrefix/SK), so a *local name* is a hard precondition, stricter than the
-    // policy. `soft` governs only the Firebase confirmation (_initErrorReporting below), which is why the
-    // start-up's session step is off (`establish: false`): this page owns its auth chain. "Simplifying" this into
-    // requirePage would render with no identity. getSession() (session.js) enforces the 60-day absolute expiry.
+    // `soft`, which NEVER returns 'login', but the calculator namespaces its per-member storage (pcPrefix/SK)
+    // by name, so a *local name* is a hard precondition. `soft` governs only the Firebase confirmation
+    // (_initErrorReporting below), hence `establish: false`: this page owns its auth chain. "Simplifying" this
+    // into requirePage would render with no identity. getSession() enforces the 60-day absolute expiry.
     //
-    // A ROLE WITH NO CONFIRMED RATES REFUSES RATHER THAN GUESSING: the grade lookup treats "no grade
-    // stored" as CEA at every consumer, so every Dispatcher and manager account was handed a polished
-    // estimate at somebody else's rate. Decided here, before every other init step, so nothing can render a
-    // figure first — and decided AGAIN for whoever signs in on this page's own card. Why: `gradeForRole`'s
-    // JSDoc (roster-data.js). It asks the role AT THE TIME (owner, 16 Nov 2026; pay-audience.js): a CES
-    // promoted into management keeps the CES payslips on this page, and each payslip under a role with no
+    // A ROLE WITH NO CONFIRMED RATES REFUSES RATHER THAN GUESSING (the grade lookup reads "no grade" as
+    // CEA everywhere). Decided here, before every other init step, so nothing can render a figure first —
+    // and AGAIN for whoever signs in on this page's own card. Why: `gradeForRole`'s JSDoc (roster-data.js).
+    // It asks the role AT THE TIME (owner, 16 Nov 2026; pay-audience.js): each payslip under a role with no
     // rates is refused on its own (calculate(), unpricedLineFor).
     //
-    // A SESSION NAME THE ROSTER DOES NOT HOLD REFUSES TOO: a leaver or a renamed
-    // member keeps a valid local session, `getLoggedMember()` returns null, and a null used to skip
-    // this check — so the calculator ran on CEA rates and `setPaycalcNamespace(undefined)` opened the
-    // bare `myb_pc_` namespace, i.e. the shared legacy keys of everyone on the device.
+    // A SESSION NAME THE ROSTER DOES NOT HOLD REFUSES TOO: a leaver or renamed member keeps a valid local
+    // session and `getLoggedMember()` returns null — run on, the calculator would price at CEA rates in the
+    // bare `myb_pc_` namespace, the shared legacy keys of everyone on the device.
     if (!startPage({ page: 'paycalc', label: 'Pay Calculator', about: PAYCALC_SIGN_IN_ABOUT, again: init, establish: false,
         decide: (session) => {
             if (!session?.name) return { decision: 'login', reason: 'no local member — the calculator keys every figure by name' };
@@ -167,7 +159,7 @@ export function init() {
         },
         refuse: (_decision, { member }) => {
             // No calculator follows, so nothing will read the sign-in timer: drop it, or the next page
-            // opened within two minutes would count this visit as its sign-in time (App Speed review).
+            // opened within two minutes would count this visit as its sign-in time.
             clearLoginStart();
             _showUnsupportedRole(getLoggedMember() ?? { name: member });
         } })) return;
@@ -177,8 +169,7 @@ export function init() {
     // the lump into that period's gross before tax/NI, and re-prices whenever it changes.
     onBackPayChange(() => calculate());
 
-    // The default period num selected on page load (first upcoming payday). Used by
-    // the ● today-period button to know when to show itself.
+    // The default period num selected on page load (first upcoming payday), for the ● today button.
     /** @type {number | null} */
     let _defaultPeriodNum = null;
 
@@ -197,9 +188,8 @@ export function init() {
     // (`_adjNegative` and the period pension default are injected into it); the wiring stays here
     // because it closes over calculate(), autosave() and the period state.
 
-    // If someone types "7.5" (or "7,5", or "7:30") into an hours field, split it into 7 hrs 30 mins
-    // automatically on blur rather than silently truncating to 7. The live preview
-    // (decPreview) has already shown the result, so the split is no surprise.
+    // "7.5" (or "7,5", or "7:30") in an hours field splits into 7 hrs 30 mins on blur rather than
+    // truncating to 7; the live preview (decPreview) has already shown it.
     /**
      * @param {string} hId
      * @param {string} mId
@@ -221,11 +211,9 @@ export function init() {
      * The Saturday contracted-hours cap. It does not re-price: every caller follows it at once with
      * `autosave()`, which ends in `calculate()`, so a run here priced the same screen twice.
      *
-     * CAPPED WHEN THE BOX IS LEFT, WARNED WHILE TYPING (edit-sequence tests, 25 Nov 2026). It capped on
-     * every keystroke, so an edit passing through a larger number on its way to the one meant — "32" to
-     * "36" by typing the 6 before deleting the 2 reads 362 for a moment — was rewritten to the cap, and
-     * the digits being edited were gone. Nothing is overpaid meanwhile: the pay maths caps Saturday hours
-     * itself (`capHours`, paycalc-calc.js), so the box only has to say so, and is rewritten once left.
+     * CAPPED WHEN THE BOX IS LEFT, WARNED WHILE TYPING: capping per keystroke rewrote an edit passing
+     * through a larger number ("32" to "36" reads 362 for a moment) to the cap. Nothing is overpaid
+     * meanwhile: the pay maths caps Saturday hours itself (`capHours`, paycalc-calc.js).
      * @param {string} hId
      * @param {string} mId
      * @param {string | null} warnId
@@ -283,10 +271,8 @@ export function init() {
       const ty = taxYearForPeriod(p);
       const startStr = fdShort(p.start);
       const cutLongStr = fdLong(p.cutoff);
-      // The payday is NOT repeated here: the select above already reads "Paid 31 July 2026 · P20", so
-      // the meta row carries what it does not — the shift window and the tax year — and the gold
-      // P-badge stays as the payslip cross-check. The window is LABELLED "Hours worked": a bare
-      // "26 Jul – 22 Aug 2026" left the reader to guess, and three hours rows each restated the cut-off.
+      // The payday is NOT repeated here (the select already reads "Paid 31 July 2026 · P20"): the meta
+      // row carries the shift window, LABELLED "Hours worked", and the tax year; the P-badge cross-checks.
       /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `Hours worked ${startStr} – ${cutLongStr}`;
       /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `Tax year ${ty.label}`;
       /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${payslipPeriodNum(p)}`;
@@ -297,15 +283,13 @@ export function init() {
       const boxing = hasBoxingDay(p);
       /** @type {HTMLElement} */ (document.getElementById('boxingBanner')).classList.toggle('visible', boxing);
       /** @type {HTMLElement} */ (document.getElementById('boxingRow')).classList.toggle('hidden', !boxing);
-      // No blanking of the hidden Boxing Day boxes here: loadPeriodData below writes every box from the
-      // payslip's own saved entries, and calculate() reads Boxing Day hours only where the payslip has one.
+      // No blanking of the hidden Boxing Day boxes: loadPeriodData writes every box from the payslip's
+      // saved entries, and calculate() reads Boxing Day hours only where the payslip has one.
 
-      // Update tax year tab active state
       updateTyTabs();
 
       // The tax-year chip on the back-pay, HPP and Year to Date headers says WHICH year each card is
-      // editing, even shut. The COMPACT form ("26/27"): the full "2026/27" wrapped the longest title
-      // onto two lines on a narrow phone, and the full year is on the tax-year tabs above.
+      // editing, even shut — COMPACT ("26/27"), as the full form wrapped the longest title on a phone.
       const _chipYear = /^\d{4}\/\d{2}$/.test(ty.label) ? ty.label.slice(2) : ty.label;   // drop the century
       for (const _cid of ['bpYearChip', 'hppYearChip', 'ytdYearChip']) {
         const _chip = document.getElementById(_cid);
@@ -320,15 +304,13 @@ export function init() {
       updateRateForPeriod(ty, p);
       updateYtdForTaxYear(ty);
 
-      // The Year to Date figures are stored per tax year WITH the payslip they were copied from; the
-      // cumulative method uses them only on the payslip straight after it (see calculate()).
+      // Year to Date figures are stored per tax year WITH the payslip they came from (see calculate()).
       refreshYtdSrc(ty);
 
       // This tax year's HPP amount source, restored BEFORE loadPeriodData() runs calculate() (calcHPP
       // reads the mode), so each year shows its own choice.
       restoreHppState(ty);
-      // Update the "for P__" label next to the pension field so users can see
-      // which period's pension they are viewing or editing.
+      // The pension field's "for the … payslip" label.
       const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
       if (pensionPeriodLbl) pensionPeriodLbl.textContent = `for the ${fdShort(p.payday)} payslip`;
 
@@ -336,39 +318,32 @@ export function init() {
       // tax year (paycalc-settings.js → paintSettingsForYear says what each shows, and when).
       paintSettingsForYear(ty, p);
 
-      // Show/hide bank holiday rows based on whether this period has any
       updateBhRows(p);
 
-      // The rate-unconfirmed notices show ONLY on TODAY'S payslip (owner): the award touches every
-      // payslip of the pending year, but warning on all 13 buried it, and today's is the one about to
-      // be paid at a possibly-stale rate. todaysPeriodNum(), NOT currentPeriodNum() — which, despite
-      // its name, is the SELECTED period, so comparing it with p.num is always true. Shown in Settings
-      // and on the result card, so it is seen with Settings shut.
+      // The rate-unconfirmed notices show ONLY on TODAY'S payslip (owner): warning on all 13 buried it.
+      // todaysPeriodNum(), NOT currentPeriodNum() — which is the SELECTED period, so comparing it with
+      // p.num is always true. Shown in Settings and on the result card, so it is seen with Settings shut.
       const _rateUnconfirmed = !!ty.rateUnconfirmed && p.num === todaysPeriodNum();
       const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
       if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', !_rateUnconfirmed);
       const _resultRateNotice = document.getElementById('resultRateNotice');
       if (_resultRateNotice) _resultRateNotice.classList.toggle('hidden', !_rateUnconfirmed);
 
-      // Read session now so we can set the correct initial fetch state
       const session2 = getSession();
 
-      // Reset override cache before rendering the hint — clears stale data from the
-      // previous period and sets the initial fetch state.
+      // Reset the override cache before rendering the hint, setting the initial fetch state.
       resetOverrides(session2?.name ? 'checking' : 'base-only');
 
-      // Collapse the day list on period change — reset before updateRosterHint so the
-      // subsequent Firestore refresh doesn't close it again if the user opens it.
+      // Collapse the day list — before updateRosterHint, so the later refresh doesn't re-close it.
       const _dayListEl    = document.getElementById('rosterDayList');
       const _daysToggleEl = document.getElementById('rosterDaysToggle');
       if (_dayListEl)    _dayListEl.style.display = 'none';
       if (_daysToggleEl) { _daysToggleEl.textContent = 'Show days ▼'; _daysToggleEl.setAttribute('aria-expanded', 'false'); }
 
-      // Update roster suggestion card and joiner notice for this period.
       updateRosterHint();
       updateJoinerNotice(p);
 
-      // Update Pay → Calendar link for this period
+      // Pay → Calendar link for this period
       const _rvl = /** @type {HTMLAnchorElement | null} */ (document.getElementById('rosterViewLink'));
       if (_rvl) _rvl.href = `./?date=${formatISO(p.start)}`;
 
@@ -384,9 +359,8 @@ export function init() {
       // Load saved data for this period (which also applies the pension opt-out lock before pricing)
       loadPeriodData(p.num);
 
-      // The back-pay card follows the viewed payslip's award year ALWAYS, not only while it is open,
-      // so the banner and the take-home reflect the payslip on screen (the lump still joins only its own
-      // payslip — takeHomeInputs); per-year keys keep each year's tick, rates and amount apart.
+      // The back-pay card follows the viewed payslip's award year ALWAYS, open or not, so the banner and
+      // take-home reflect the payslip on screen; per-year keys keep each year's tick, rates and amount apart.
       syncBackPayForViewedYear();
 
       stampPaycalcPrintLine();
@@ -438,9 +412,9 @@ export function init() {
     function loadPeriodData(pNum) {
       /** @type {any} */
       let d = emptyPeriodData();
-      // parseSavedPeriod tells CORRUPT from missing: saved entries that cannot be read must not pose
-      // as an empty form ("No entries saved"), or the member could type over them unknowing. The form
-      // still loads empty (nothing is deleted until they type), and updateSaveStatus says so.
+      // parseSavedPeriod tells CORRUPT from missing: unreadable entries must not pose as an empty form,
+      // or the member could type over them unknowing. The form loads empty (nothing is deleted until
+      // they type), and updateSaveStatus says so.
       const _parsed = parseSavedPeriod(lsGet(periodKey(pNum)));
       if (_parsed.data) d = _parsed.data;
       _periodLoadWasCorrupt = !!_parsed.error;   // gates the background fetch's auto-apply
@@ -451,23 +425,19 @@ export function init() {
       // keep the old rate) and the joining-period pro-rate.
       const _pObj = periodByNum(pNum);
       _paintDefaultPension(d.pension == null ? _pObj : null);
-      // The pension LOCK follows the viewed payslip — a member who left the scheme in August still
-      // contributes on her July one. AFTER the paint above (it may only override a value where the
-      // timeline says there was none) and BEFORE calculate() below: applied after it, a payslip
-      // holding a saved figure was priced WITH that deduction beside a field reading a locked £0.00.
+      // The pension LOCK follows the viewed payslip (a member who left the scheme in August still
+      // contributes on their July one). AFTER the paint above and BEFORE calculate(): applied after it,
+      // a payslip holding a saved figure was priced WITH that deduction beside a locked £0.00.
       if (_pObj) applyPensionOptOutUI(_pObj);
       updateAdjSign();
       // Open "more options" when this payslip has extras saved — through setDisclosure, so the
-      // button's aria-expanded and arrow stay in step with it (a class alone told a screen reader
-      // "collapsed" about an open panel).
+      // button's aria-expanded and arrow stay in step with it.
       const hasExtras = !!(d.slSkip || d.otherAdj);
       setDisclosure('hoursShowMore', 'hoursExtra', hasExtras, { arrowSel: '.show-more-arrow' });
       updateSaveStatus(pNum);
       calculate();
-      // Refresh the roster hint bar AFTER the new period's field values are written. onPeriodChange
-      // calls updateRosterHint() BEFORE loadPeriodData, so without this the hint would compare the new
-      // period's calendar suggestion against the PREVIOUS period's entered hours until a fetch resolved
-      // (and stay stale on a base-only member or a cancelled fetch). Display-only; always safe.
+      // Refresh the hint AFTER the new period's values are written: onPeriodChange's earlier call
+      // compared against the PREVIOUS period's hours. Display-only; always safe.
       updateRosterHint();
     }
 
@@ -509,9 +479,8 @@ export function init() {
       const pNum = currentPeriodNum();
       lsDel(periodKey(pNum));
       lsDel(snapKey(pNum));
-      // Mark the form as user-touched BEFORE blanking it: programmatic .value writes never fire the
-      // delegated 'input' listener, so an override fetch in flight at the confirm would otherwise
-      // resolve, see the flag unset, and refill + autosave the fields just cleared — undoing it.
+      // Mark the form as user-touched BEFORE blanking it: programmatic writes fire no 'input', so a
+      // fetch in flight would otherwise refill + autosave the fields just cleared.
       _hoursTouchedSinceFetch = true;
       clearRosterSuggestedAll();   // writeFormData expects the gold highlights cleared first
       writeFormData(emptyPeriodData());
@@ -521,8 +490,7 @@ export function init() {
       updateSaveStatus(pNum);
       runCalcBackPay();   // the lump accrues from SAVED hours, and these were just deleted — as autosave re-prices it
       calculate();
-      // Clearing blanks the fields programmatically — refresh the roster card so
-      // rows don't keep showing ✓ matched against now-empty fields.
+      // Refresh the roster card, so rows don't keep a ✓ against now-empty fields.
       updateRosterHint();
     }
 
@@ -567,15 +535,12 @@ export function init() {
       const thresholds = getThresholds(_ty.label);
 
       // The payslip's rate from the one source the rate field and the Settings hint also read
-      // (periodRate): its grades' rates weighted by their days, UNROUNDED. The field shows it to the
-      // penny, and pricing a payslip that spans a promotion at the field's rounding would leave the
-      // contracted pay pennies short of 35 hours at one rate plus 105 at the other (paycalc-grade.js).
-      // NO rate is a payslip worked under a role with no confirmed rates (the page admits by the role
-      // AT THE TIME): it gets no figure — never CEA's rate in its place (invariant 13).
+      // (periodRate): its grades' rates weighted by their days, UNROUNDED — the field's two decimals
+      // would leave a promotion-spanning payslip pennies short (paycalc-grade.js). NO rate is a payslip
+      // under a role with no confirmed rates: no figure, never CEA's rate in its place (invariant 13).
       const _rate = periodRate(_ty, _curP).rate;
       renderUnpricedPayslip(_rate == null ? unpricedLineFor(_curP) : '');
-      // No estimate here, so the Year to Date figures sharpen nothing: no source is passed, and the note
-      // and chip say nothing — never the last payslip's "in use" beside £– (18 Nov 2026).
+      // No estimate, so no Year to Date source is passed: never the last payslip's "in use" beside £–.
       if (_rate == null) { updateBadges(null); calcHPP(); renderYtdLine(null); updateYtdNote(_ty, _curP, 0, false, ''); return; }
       const rate = Math.max(0, _rate);
       updateBadges(rate);
@@ -603,13 +568,10 @@ export function init() {
       const { amount: _bpAmount, pNum: _bpPNum, isEstimate: _bpIsEstimate, included: _bpIncluded,
               fromPayslip: _bpFromPayslip } = bpState();
 
-      // The HPP card FIRST, because it is what stores the premiums read below: this year's whenever a
-      // payslip of the year is viewed, and last year's — the one a January payslip carries — the first
-      // time it is worked out (updatePriorHpp). Run after the read, the pass that stored it painted
-      // the January banner from nothing until something else recalculated. calcHPP takes no back-pay
-      // input (invariant 5): it prices every period of the year at the settled rate, which already
-      // holds the lump's variable part — feeding it in counted it twice. Nothing calculate() works out
-      // is an input to it.
+      // The HPP card FIRST: it stores the premiums read below (this year's, and last year's — the one a
+      // January payslip carries — via updatePriorHpp); run after the read, the January banner painted
+      // from nothing. calcHPP takes no back-pay input (invariant 5): the settled rate already holds the
+      // lump's variable part, so feeding it in counts it twice. Nothing calculate() works out feeds it.
       calcHPP();
 
       // The HPP that lands on THIS payslip: the tax year whose premium a January payslip carries
@@ -620,12 +582,10 @@ export function init() {
       const _hppRes = _hppTy
           ? resolveHppForPeriod(lsGet(hppActualKey(_hppTy)), lsGet(hppEstKey(_hppTy)))
           : { amount: 0, isEstimate: false, hasActual: false };
-      // The Year to Date card's January pointer ("enter the confirmed figure from it in the Holiday Pay
-      // Premium card") shows ONLY on that January payslip — on every other it read wrong (owner) — and
-      // only where that card's confirm box can take the figure: a member employed in the premium's year
-      // (updatePriorHpp hides the whole last-year section from a joiner) and a box that is open, which
-      // it is once the payslip may be in hand — from its cut-off, the rule paycalc-2-3 gives the box in
-      // paycalc-hpp.js — or while it holds a confirmed figure.
+      // The Year to Date card's January pointer shows ONLY on that January payslip (owner), and only
+      // where the HPP card's confirm box can take the figure: a member employed in the premium's year
+      // (updatePriorHpp hides the section from a joiner) and the box open — once the payslip may be in
+      // hand (paycalc-2-3, paycalc-hpp.js) or while it holds a confirmed figure.
       const _janHint = document.getElementById('ytdJanHppHint');
       if (_janHint) _janHint.hidden = !(_hppTy && isTaxYearVisible(_hppTy)
           && (_hppRes.hasActual || payslipMayBeInHand(_curP)));
@@ -640,10 +600,9 @@ export function init() {
       if (_netHintEl) _netHintEl.hidden =
         satHrs > 0 || bhHrs > 0 || bhOtHrs > 0 || oHrs > 0 || rHrs > 0 || sHrs > 0 || bHrs > 0 || peer > 0;
 
-      // Plan 5 is not repayable before 2026/27 — disable the option on a 2025/26 period so it can't be
-      // newly picked. thresholds.sl has no plan5 key for 2025/26 (paycalc-calc.js), so availability
-      // follows the data. A pre-existing plan5 selection is NOT reset (it stays valid for 2026/27
-      // periods): it computes £0 here and is explained in the row below, not silently reinterpreted.
+      // Plan 5 is not repayable before 2026/27: the option is disabled where thresholds.sl has no plan5
+      // key. A pre-existing plan5 selection is NOT reset (it stays valid for 2026/27): it computes £0
+      // here and the row below explains it.
       const _slSel    = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'));
       const _plan5Allowed = !!(/** @type {Record<string, any>} */ (thresholds.sl)).plan5;
       const _plan5Opt = /** @type {HTMLOptionElement|null} */ (_slSel.querySelector('option[value="plan5"]'));
@@ -665,10 +624,8 @@ export function init() {
       // The Year to Date figures and the payslip they came from (cumulative PAYE; W1/M1/X excluded).
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
 
-      // WHAT THIS PAYSLIP IS PRICED ON: the boxes, read (a blank or unreadable box is null, never 0),
-      // and the rules that decide from them — a lump only on its own payslip and only once ticked, a
-      // blank pension box as the payslip's default, the loans' stop, Year to Date figures only on the
-      // payslip straight after their source — all takeHomeInputs' (paycalc-calc.js), tested there.
+      // WHAT THIS PAYSLIP IS PRICED ON: the boxes, read (a blank or unreadable box is null, never 0);
+      // the rules that decide from them are takeHomeInputs' (paycalc-calc.js), tested there.
       const {
         bpThisPeriod: _bpThisPeriod, hppForPeriod: _hppForPeriod, grossWithBp, pension,
         slStopFrom: _slPaidOffFromP, slPaidOff, pricing,
@@ -686,9 +643,7 @@ export function init() {
       });
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
-      // The payslip is PRICED by the one pipeline the year so far also uses (pricePayslip): NI and the
-      // loans on the pay after pension, then the tax, then the take-home as the summary's rows show it,
-      // each to the penny (takeHomePay). Everything above decided its inputs; nothing below re-prices.
+      // PRICED by the one pipeline the year so far also uses (pricePayslip). Nothing below re-prices.
       const {
         sacGross, ni, slUnder, slPost, sl, afterPension: _shownAfterPension, net,
         tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown,
@@ -751,10 +706,9 @@ export function init() {
       }
 
       // ── THE HEADLINE FIGURE AND WHAT IT IS CALLED ──────────────────────────────
-      // paycalc-result-headline.js writes every target on BOTH paths — a confirmed payslip figure or
-      // this estimate — because a target one path forgets keeps the previous render, and one branch's
-      // number then sits under the other's label. `actual` is resolved HERE: the gate is about
-      // identity, which belongs with the session, not with the words.
+      // paycalc-result-headline.js writes every target on BOTH paths (a confirmed figure or this
+      // estimate), or one branch's number sits under the other's label. `actual` is resolved HERE: the
+      // gate is about identity, which belongs with the session.
       const _actualKey = formatISO(_curP.payday);
       const _actual    = isActualsDev(getLoggedMember())
         ? readPayslipActuals()[_actualKey] : null;
@@ -797,9 +751,8 @@ export function init() {
     }
 
     function toggleBpBreakdown() {
-      // Max-height from the actual rendered height so a long back-pay breakdown (many periods,
-      // large text/zoom) is never clipped by the fixed CSS `.bd-body.open` cap; cleared on close
-      // so the CSS collapse animates shut. (Arrow rotation is CSS — .bd-btn.open .bd-arrow.)
+      // Max-height from the rendered height, so a long breakdown is never clipped by the CSS
+      // `.bd-body.open` cap; cleared on close so the collapse animates shut.
       toggleDisclosure('bpBreakdownBtn', 'backPayRows', {
         onToggle: (open, body) => { body.style.maxHeight = open ? `${body.scrollHeight}px` : ''; },
       });
@@ -817,11 +770,10 @@ export function init() {
     runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
 
     // A FIRST VISIT (owner) gets the top privacy note and the setup banner's "Used the Pay Calculator
-    // before?" line — an empty calculator may be a MOVED one, as Safari and the Home Screen app keep
-    // separate copies. Nothing saved HERE = no settings (SK.setup) and no payslip for THIS member —
-    // what a key IS, classifyPayKey says — read after runMigrations() selects the namespace, so another
-    // member's data never counts; once per load, so nothing moves under a finger. A browser that will
-    // not SAVE (`lsAvailable`, ls.js) swaps "Saved automatically" for a warning.
+    // before?" line — an empty calculator may be a MOVED one (Safari and the Home Screen app keep
+    // separate copies). First = no settings (SK.setup) and no payslip for THIS member (classifyPayKey),
+    // read after runMigrations() selects the namespace; once per load, so nothing moves under a finger.
+    // A browser that will not SAVE (`lsAvailable`, ls.js) swaps "Saved automatically" for a warning.
     {
       const pre = pcPrefix(), hasPayData = !!lsGet(SK.setup)
         || lsKeys().some(k => k.startsWith(pre) && classifyPayKey(k.slice(pre.length)).kind === 'payslip');
@@ -830,17 +782,14 @@ export function init() {
     }
     document.body.classList.toggle('storage-blocked', !lsAvailable());
 
-    // Clamp the visible period range for a member who only started this tax year — they should
-    // not see earlier tax years ("from this year onwards"). Must run BEFORE the tabs + period
-    // select are built (both read the clamp). Secondment returns (noProRate) and long-serving
-    // staff are unaffected.
+    // Clamp the visible periods for a member who started this tax year. BEFORE the tabs + period
+    // select are built (both read the clamp). Secondment returns (noProRate) are unaffected.
     setEarliestVisiblePeriod(getLoggedMember());
 
-    // Tax-year quick-jump tabs — generated from TAX_YEARS so the April rollover only
-    // touches paycalc-calc.js (no hand-edited tab markup). Must run before
-    // buildPeriodSelect() + onPeriodChange(): updateTyTabs looks the tabs up by id.
-    // Tax years before a new starter's join year are skipped (their tab is never built);
-    // the id stays `tyTab${i}` at the ORIGINAL index so updateTyTabs/jumpToTaxYear still align.
+    // Tax-year tabs, generated from TAX_YEARS so the rollover only touches paycalc-calc.js. Before
+    // buildPeriodSelect() + onPeriodChange() (updateTyTabs looks them up by id). A year before a new
+    // starter's join year gets no tab; the id stays `tyTab${i}` at the ORIGINAL index so
+    // updateTyTabs/jumpToTaxYear still align.
     (function buildTyTabs() {
       const wrap = document.getElementById('tyTabs');
       if (!wrap) return;
@@ -859,21 +808,16 @@ export function init() {
 
     // The student-loan stop's payslips, after its static "No — still deducted". Built BEFORE
     // loadSettings so the saved choice restores. Headed "Tax year 2026/27" like every other payslip
-    // list — it read a bare "2026/27" until the owner asked for one wording (8 Nov 2026).
+    // list (owner, 8 Nov 2026).
     const _slPaidOffSel = document.getElementById('slPaidOffFrom');
     if (_slPaidOffSel) appendPayslipOptions(_slPaidOffSel, visiblePeriods());
 
     loadSettings();
-    // _defaultPeriodNum must be assigned BEFORE onPeriodChange() runs — the period
-    // button visibility check is `pNum === _defaultPeriodNum`. buildPeriodSelect()
-    // returns the default period number; we then call onPeriodChange() explicitly so
-    // the button is correctly hidden on the initial load (not shown as if off-default).
+    // _defaultPeriodNum BEFORE onPeriodChange(), whose ● button check is `pNum === _defaultPeriodNum`.
     _defaultPeriodNum = buildPeriodSelect();
     onPeriodChange();
-    // THE PAGE IS USABLE FROM HERE: onPeriodChange restored the viewed payslip's hours and ran
-    // calculate(), so the result card holds a real figure — what a member means by "ready", and the
-    // App Speed card's "usable" milestone. (It also synced the back-pay card to the opening payslip's
-    // award year, so no separate restore of it is needed at init.)
+    // THE PAGE IS USABLE FROM HERE: the result card holds a real figure — the App Speed card's
+    // "usable" milestone. (onPeriodChange also synced the back-pay card, so no restore is needed.)
     markPageReady();
 
     // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
@@ -888,26 +832,19 @@ export function init() {
       onPeriodChange();
     }, { releaseFocus: true });
 
-    // Result breakdown toggle
     /** @type {HTMLElement} */ (document.getElementById('bdBtn')).addEventListener('click', toggleBD);
-
-    // Roster day list toggle
     /** @type {HTMLElement} */ (document.getElementById('rosterDaysToggle')).addEventListener('click', toggleRosterDays);
 
-    // In-flight-edit tracking: any genuine user input inside the Hours card marks the period
-    // as "user is editing", so a late background override-fetch won't overwrite it (see
-    // onPeriodChange). Delegated + on 'input', so programmatic .value fills never trip it.
+    // In-flight-edit tracking: genuine input in the Hours card stops a late override-fetch overwriting
+    // it. On 'input', so programmatic .value fills never trip it.
     /** @type {HTMLElement|null} */ (document.getElementById('hoursCard'))?.addEventListener('input', () => { _hoursTouchedSinceFetch = true; });
 
-    // Hours inputs — Saturday (has validation warn)
-    // Warned as typed, capped when either box is left (onHhMm says why).
+    // Saturday: warned as typed, capped when either box is left (onHhMm says why).
     /** @type {HTMLElement} */ (document.getElementById('satH')).addEventListener('input', () => { onHhMm('satH','satM','satWarn', { cap: false }); autosave(); });
     /** @type {HTMLElement} */ (document.getElementById('satM')).addEventListener('input', () => { clampMins('satM'); onHhMm('satH','satM','satWarn', { cap: false }); autosave(); });
     for (const id of ['satH', 'satM']) {
-      // SAVED ON LEAVING ONLY WHEN THE CAP REWROTE THE BOXES (24-hour review, 25 Nov 2026). Everything typed is
-      // saved as it is typed (above); a save on every blur also saved the calendar's display-only gold figures
-      // when the box was merely tapped into and left — Next, a tab, the page hidden — so a payslip only LOOKED
-      // at read as entered (invariant 11: viewing never persists).
+      // SAVED ON LEAVING ONLY WHEN THE CAP REWROTE THE BOXES: typing saves as it goes, and a save on every
+      // blur also saved the display-only gold figures of a box merely tapped and left (invariant 11).
       /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('blur', () => { if (onHhMm('satH','satM','satWarn')) autosave(); });
     }
 
@@ -917,8 +854,7 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById(hId)).addEventListener('input', autosave);
       /** @type {HTMLElement} */ (document.getElementById(mId)).addEventListener('input', () => { clampMins(mId); autosave(); });
     }
-    // The payslip self-check figures persist with the period like every other field; autosave()
-    // recalculates, which re-renders the verdict.
+    // The payslip self-check figures persist with the period; autosave() re-renders the verdict.
     document.getElementById('actualNetInput')?.addEventListener('input', autosave);
     for (const _id of ['actualGrossInput', 'actualPensionInput', 'actualTaxInput', 'actualNiInput'])
       document.getElementById(_id)?.addEventListener('input', autosave);
@@ -931,9 +867,7 @@ export function init() {
       if (_w) _w.hidden = _open;
     });
 
-    // Decimal auto-correction — if someone types "7.5" into an hours field, split it
-    // into 7h 30m on blur instead of silently truncating to 7. A live "= 7h 30m"
-    // preview shows while typing so the on-blur split is never a silent surprise.
+    // Decimal auto-correction with its live "= 7h 30m" preview (autoDecimalHours).
     HM_PAIRS.forEach(({ hId: h, mId: m }) => {
       /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('input', () => decPreview(h));
       /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('blur', () => autoDecimalHours(h, m));
@@ -943,36 +877,31 @@ export function init() {
     wireIosTap(/** @type {HTMLElement} */ (document.getElementById('peerMinus')), () => stepPeer(-1), { releaseFocus: true });
     wireIosTap(/** @type {HTMLElement} */ (document.getElementById('peerPlus')),  () => stepPeer(1), { releaseFocus: true });
 
-    // Back-pay inputs. New fields: a manual edit just recalcs. Old fields + the "Pay rise %"
-    // shortcut: re-derive the New figures from Old × (1 + %) when a % is present, then recalc.
+    // Back-pay inputs. New fields recalc; Old fields + "Pay rise %" re-derive New = Old × (1 + %) first.
     ['newRateInput','newLondon'].forEach(/** @param {string} id */ id => {
       /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', runCalcBackPay);
     });
     ['oldRate','oldLondon','bpRisePct'].forEach(/** @param {string} id */ id => {
       /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', applyBpRisePct);
     });
-    // Amount-source toggle + manual amount: flipping the mode shows/hides the field group and
-    // recomputes; typing the manual figure recomputes.
+    // Amount-source toggle + manual amount.
     document.getElementsByName('bpMode').forEach(/** @param {any} r */ r =>
       r.addEventListener('change', () => { applyBpMode(); runCalcBackPay(); }));
     document.getElementById('bpManualAmt')?.addEventListener('input', runCalcBackPay);
 
-    // HPP amount-source toggle + manual inputs: flip the mode → show/hide the matching field group,
-    // persist the choice for the viewed tax year, and recompute (calculate() → calcHPP reads the mode
-    // and writes the resulting figure to hppEstKey, so the January take-home add is unchanged).
+    // HPP amount-source toggle + manual inputs: persist the choice for the viewed tax year and
+    // recompute (calculate() → calcHPP reads the mode and writes hppEstKey).
     const _saveHppForViewedYear = () => {
       const _hp = viewedPeriod();
       saveHppState(taxYearForPeriod(_hp));
     };
     document.getElementsByName('hppMode').forEach(/** @param {any} r */ r =>
       r.addEventListener('change', () => { applyHppMode(); _saveHppForViewedYear(); calculate(); }));
-    // 'ytd' mode has no input of its own — it reads the Year to Date card, and editing that card
-    // already re-runs calculate() (→ calcHPP), so the HPP auto-updates. Only 'exact' has an input.
+    // 'ytd' mode reads the Year to Date card, whose edits already re-run calculate(). Only 'exact' has an input.
     document.getElementById('hppExactAmt')?.addEventListener('input', () => { _saveHppForViewedYear(); calculate(); });
 
-    // Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +
-    // aria-expanded support. Passing the header id as the chevron id toggles .open
-    // on the header itself, which drives the .card-toggle-arrow rotation in CSS.
+    // Card collapse toggles (overlay.js). The header id as the chevron id toggles .open on the header,
+    // which drives the .card-toggle-arrow rotation in CSS.
     initCardCollapse('settingsToggle',    'settingsBody',    'settingsToggle');
     initCardCollapse('payslipCardToggle', 'payslipCardBody', 'payslipCardToggle');
     initCardCollapse('hppCardToggle',     'hppCardBody',     'hppCardToggle');
@@ -980,9 +909,7 @@ export function init() {
     initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
       /** @param {any} open */ open => {
         if (!open) return;
-        // prefillBackPay fills the rate boxes for the selected award year; applyBpRisePct then
-        // derives the New rate/London from any defaulted "Pay rise %" (unconfirmed award). Shared
-        // with onPeriodChange so a year switch while open re-prefills.
+        // Prefill the rate boxes for the selected award year, then derive New from any defaulted "Pay rise %".
         refreshBackPayCard();
       });
 
@@ -992,7 +919,6 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('bpIncludeTick')).addEventListener('change', runCalcBackPay);
     wireIosTap(/** @type {HTMLElement} */ (document.getElementById('saveSettingsBtn')), () => confirmSettings(calculate), { releaseFocus: true });
 
-    // Hours card — show more toggle
     /** @type {HTMLElement} */ (document.getElementById('hoursShowMore')).addEventListener('click', toggleHoursExtra);
 
     // The sticky take-home bar — the page's only keep-the-£-in-view; every guard in it answers a
@@ -1000,14 +926,11 @@ export function init() {
     initPaycalcStickyTotal();
 
     // Roster fill — "Fill blank fields" + the per-category "Fill →" buttons — through wireIosTap, not
-    // a bare click: with the soft keyboard up (the normal state on this form) iOS cancels the click as
-    // the keyboard drops, so "Replace with calendar values" did nothing — staff-reported, and the same
-    // failure as the ± sign button below.
+    // a bare click: with the soft keyboard up iOS cancels the click as the keyboard drops (staff-reported).
     const _fillBtn = document.getElementById('fillFromRosterBtn');
     if (_fillBtn) wireIosTap(_fillBtn, () => fillFromRoster(autosave));
 
-    // Per-category fill buttons are dynamically rendered inside #rosterRows — delegation on the
-    // container (which survives re-renders), through the same iOS tap guard.
+    // Per-category fill buttons: delegation on #rosterRows, which survives re-renders.
     const _rosterRows = document.getElementById('rosterRows');
     if (_rosterRows) wireIosTap(_rosterRows, e => {
       const catBtn = /** @type {Element} */ (e.target).closest('[data-cat]');
@@ -1024,13 +947,10 @@ export function init() {
       updateRosterHint();
     }, true);
 
-    // Settings inputs
-    // The Grade box and the payslip a chosen grade starts from are ONE setting, so they share one
-    // handler (paycalc-grade.js).
+    // Settings. The Grade box and the payslip a chosen grade starts from are ONE setting (paycalc-grade.js).
     const _onGradeChange = () => {
-      // Preserve a hand-entered pension: replace it only while it still holds the default it held
-      // BEFORE the change, so tapping the grade just to check it never wipes a figure copied off a
-      // payslip. Read before saveSettings(), which is what moves the setting.
+      // Preserve a hand-entered pension: replace it only while it still holds the pre-change default.
+      // Read before saveSettings(), which moves the setting.
       const _gP = viewedPeriod();
 
       const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
@@ -1041,10 +961,8 @@ export function init() {
       // The hourly rate is fixed by grade and read-only: reload the new grade's rate for this payslip.
       if (_gP) updateRateForPeriod(taxYearForPeriod(_gP), _gP);
       if (_pa && penUntouched) _pa.value = periodDefaultPension(_gP).toFixed(2);
-      // Recompute the back-pay card for the NEW grade: its saved blob holds the old grade's award
-      // rates, and without this the stale lump stayed in read-only boxes with no way to repair it.
-      // calcBackPay re-enforces AWARD_RATES (and saves the corrected figures); the card re-prices
-      // only if the lump changed, so the calculate() below stays for the pension and rate.
+      // Recompute the back-pay card for the NEW grade: its saved blob holds the old grade's award rates
+      // in read-only boxes. calcBackPay re-enforces AWARD_RATES; calculate() below covers pension and rate.
       runCalcBackPay();
       calculate();
     };
@@ -1054,8 +972,7 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('taxCode')).addEventListener('input',     () => { saveSettings(); calculate(); });
     document.getElementById('taxCode')?.addEventListener('blur', calculate);   // its warning waits for the box to be left
     /** @type {HTMLElement} */ (document.getElementById('studentLoan')).addEventListener('change', () => {
-      // Clear the "not deducted this period" skip only when NO loan is active (plan none AND no PGL) —
-      // a Postgraduate Loan on its own still uses the skip row.
+      // Clear the "not deducted this period" skip only when NO loan is active (plan none AND no PGL).
       const _pg = /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked;
       if (/** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value === 'none' && !_pg) {
         /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = false;
@@ -1065,8 +982,7 @@ export function init() {
     });
     // The student-loan stop is a SETTING: persist + recompute, so the payslip on screen follows it.
     document.getElementById('slPaidOffFrom')?.addEventListener('change', () => { saveSettings(); calculate(); });
-    // Postgraduate Loan flag — a SETTING (like the plan), repayable ALONGSIDE a plan. Reveal the
-    // "not deducted this period" row when either loan is active; the toggle is handled in calculate().
+    // Postgraduate Loan flag — a SETTING, repayable ALONGSIDE a plan.
     /** @type {HTMLElement} */ (document.getElementById('pgLoanCheck')).addEventListener('change', () => {
       const _slNone = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value === 'none';
       if (_slNone && !(/** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked)) {
@@ -1075,37 +991,32 @@ export function init() {
       saveSettings();
       persistSetting(['slSkip'])();
     });
-    // pensionAmt: the figure belongs to THIS payslip — autosave() stores it in the period's own blob
-    // (pensionToStore: one equal to the period default stores null, so the payslip keeps following
-    // PENSION_STEPS) and calls calculate() itself; saveSettings() keeps the member-level settings.
+    // pensionAmt belongs to THIS payslip — autosave() stores it in the period's blob (one equal to the
+    // default stores null, so the payslip keeps following PENSION_STEPS).
     /** @type {HTMLElement} */ (document.getElementById('pensionAmt')).addEventListener('input',  () => { saveSettings(); autosave(); });
-    // The pension card's two controls are wired by the module that owns the card's rules; the
-    // coordinator supplies only how to persist. Keeping the wiring beside `buildPensionFromSelect` /
-    // `applyPensionOptOutUI` is what stops the tick, the date and the field falling out of step.
+    // The pension card's two controls are wired beside the card's rules (paycalc-settings.js), so the
+    // tick, the date and the field cannot fall out of step; the coordinator supplies only how to persist.
     wirePensionControls({ autosave: persistSetting(['pension']) });
 
     // Per-period overrides — and the tick that says a payslip has no special-rate hours at all
     /** @type {HTMLElement} */ (document.getElementById('slSkipCheck')).addEventListener('change', autosave);
     document.getElementById('noSpecialCheck')?.addEventListener('change', autosave);
     /** @type {HTMLElement} */ (document.getElementById('otherAdj')).addEventListener('input', () => {
-      // If the user manually typed a negative number, honour it: set the sign flag
-      // and normalise the field to the absolute value so the ± button is authoritative.
+      // A typed negative sets the sign flag; the field keeps the absolute value (the ± button is authoritative).
       const _adjEl = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
       const raw = _adjEl.value;
       const v   = parseSmartFloat(raw);
       if (v < 0) {
         _adjNegative = true;
-        // Normalise to the bare absolute value (String, NOT toFixed) so multi-digit typing
-        // isn't corrupted: toFixed('-1')→'1.00' left the caret after '.00', so continuing to
-        // type "-150" built '1.0050' (saved −1.005). String(abs) → '1' → '15' → '150' (saved −150).
+        // String, NOT toFixed: toFixed('-1')→'1.00' left the caret after '.00', so typing "-150" built
+        // '1.0050'. String(abs) → '1' → '15' → '150'.
         _adjEl.value = String(Math.abs(v));
       }
       // Positive typed value: leave _adjNegative alone — the ± button is authoritative.
       updateAdjSign();
       autosave();
     });
-    // The ± sign, through wireIosTap (paycalc-inputs.js): tapped with the number field focused, iOS
-    // drops the keyboard first and cancels the click — this button is where that was first measured.
+    // The ± sign, through wireIosTap (paycalc-inputs.js): with the field focused, iOS cancels the click.
     wireIosTap(/** @type {HTMLElement} */ (document.getElementById('adjSignBtn')), () => {
       _adjNegative = !_adjNegative;
       const input = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
@@ -1126,8 +1037,7 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('priorHppActualInput')).addEventListener('change', () => {
       const curP = viewedPeriod();
       commitPriorHppActual(taxYearForPeriod(curP), /** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value);
-      // The January take-home, its banner, chips and the year block all read the stored figure.
-      calculate();
+      calculate();   // the January take-home, banner, chips and year block read the stored figure
     });
 
     // The two money banners' opt-in ticks and "view … card" links, and the HPP card's link to the
@@ -1138,47 +1048,34 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('hppToggleBtn')).addEventListener('click', toggleHppNote);
     /** @type {HTMLElement} */ (document.getElementById('disclaimerToggle')).addEventListener('click', toggleDisclaimer);
 
-    // ── LIGHTBOXES — About, Help, the two Pay notices, the data-ownership prompt, the developer's
-    // payslip import, and the decimal converter card: paycalc-lightboxes.js, whose header lists them
-    // (the Welcome lightbox was retired at v19.36). Returns the About open handle so the nav-panel
-    // drawer logo can open the same panel.
+    // ── LIGHTBOXES — paycalc-lightboxes.js, whose header lists them. Returns the About open handle for
+    // the drawer logo.
     const { openAboutLightbox, showPayNotice } = initPaycalcLightboxes();
 
-    // (The service worker is registered at the top of init(), before the sign-in gate. Never a second
-    // lifecycle here: two controllerchange listeners and two update() timers fired the reload twice.)
+    // (The service worker is registered at the top of init(). Never a second lifecycle here: two
+    // controllerchange listeners fired the reload twice.)
 
     // Establish the Firebase Auth session BEFORE starting error reporting: a valid 60-day local
-    // session can outlive the Firebase one, and clientErrors writes are then rejected by the rules
-    // and silently dropped — exactly when the report is wanted. The reporter starts whatever the
-    // outcome, so synchronous init errors are still captured locally.
-    // The settle promise is kept for the nav drawer's Circular/Newsletter read (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"):
-    // paycalc, the one `soft` page, owns its auth chain and has no `sessionReady`. It always RESOLVES
-    // (the .catch below swallows a failed sign-in), so the drawer read never hangs on an identity
-    // this page does not require.
+    // session can outlive the Firebase one, and clientErrors writes are then rejected and silently
+    // dropped. The reporter starts whatever the outcome.
+    // The settle promise is kept for the drawer's Circular/Newsletter read (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"): this
+    // `soft` page has no `sessionReady`. It always RESOLVES, so the drawer read never hangs.
     let _paycalcAuthSettled = Promise.resolve();
     (function _initErrorReporting() {
       const name = getSession()?.name;
       const afterAuth = () => {
         initErrorReporter(); recordUsage('paycalc', name ?? null); recordPageLatency('paycalc', name ?? null);
-        // Forced set-password overlay (AUTH_AND_SESSIONS.md → "The forced password overlay"). No `ready` barrier is passed: this
-        // callback ALREADY runs after ensureNamedSession has settled, so getAuthSnapshot() is the
-        // terminal identity — and on this one `soft` page a member can arrive locally signed in with a
-        // FAILED Firebase session, where the overlay's `named`-only gate stops a block they could
-        // never satisfy.
-        // The page's notices — the Year to Date one, then the Holiday Pay Premium one — queue BEHIND
-        // it, on the promise `initPasswordForce` returns for exactly that ("the next overlay that has
-        // to queue behind this one"), or one opens in front of a set-password block the member cannot
-        // dismiss. No branch on the result: if the overlay is up, `openNoticeIfClear` defers the
-        // notice to the next load. `.catch` because a failed password overlay must never cost the
-        // member their notice — it fails open by design.
+        // Forced set-password overlay (AUTH_AND_SESSIONS.md → "The forced password overlay"). No `ready` barrier: this runs after
+        // ensureNamedSession has settled, and on this `soft` page a member may arrive with a FAILED
+        // Firebase session, where the overlay's `named`-only gate stops a block they could never satisfy.
+        // The page's notices queue BEHIND it on the promise it returns, or one opens in front of a block
+        // the member cannot dismiss; if the overlay is up, `openNoticeIfClear` defers the notice. `.catch`:
+        // a failed overlay must never cost the member their notice — it fails open by design.
         initPasswordForce(name, {}).catch(() => {}).finally(() => showPayNotice());
       };
-      // SOFT enforcement (AUTH_AND_SESSIONS.md → Architecture, Layer 2): the calculator keeps its data on the device
-      // and writes no isolated data, so a degraded or anonymous session must NEVER block it — being
-      // `soft`, requirePage('paycalc') returns 'allow' or 'soft-allow', and 'soft-allow' (the
-      // member's own session unconfirmed) is only logged. Its one 'forbidden', an Other Staff login,
-      // never reaches here: payCalculatorPrices asks the same policy, and the role card is shown
-      // above. ensureNamedSession feeds the auth store.
+      // SOFT enforcement (AUTH_AND_SESSIONS.md → Architecture, Layer 2): the data is on the device and nothing isolated is
+      // written, so a degraded session must NEVER block it — 'soft-allow' is only logged. Its one
+      // 'forbidden', an Other Staff login, never reaches here (payCalculatorPrices asks the same policy).
       if (name) _paycalcAuthSettled = ensureNamedSession(name)
           .then(() => { if (requirePage(getAuthSnapshot(), 'paycalc').decision === 'soft-allow') console.warn('[Auth] paycalc running without a named session — error reporting may not record.'); })
           .catch(() => {/* reporter still starts below */})
@@ -1187,10 +1084,9 @@ export function init() {
     }());
 
     // ── THE PICKER SHEETS, THE BACKUP CARD AND THE LATE WIRING ─────────────────────
-    // Every dropdown here opens the app's own sheet rather than the OS one: the period picker is the
-    // page's primary control, and the rest join it so the calculator has ONE kind of dropdown. A
-    // title is also the control's accessible name, so it carries its field's visible label word for
-    // word (paycalc-copy-parity.test.mjs) — and the loan stop never says "paid off" (paycalc.md).
+    // Every dropdown opens the app's own sheet, so the calculator has ONE kind of dropdown. A title is
+    // also the control's accessible name, so it carries its field's visible label word for word
+    // (paycalc-copy-parity.test.mjs) — and the loan stop never says "paid off" (paycalc.md).
     initSelectSheets([
         { id: 'periodSelect',      title: 'Which pay period?', searchLabel: 'Search pay periods' },
         { id: 'gradeSelect',       title: 'Your grade' },
@@ -1210,9 +1106,7 @@ export function init() {
     // Pay data is localStorage-only and evictable until asked otherwise — see ls.js.
     requestPersistentStorage(pcPrefix());
     // The year card's fill control. After a bulk fill: reload the visible form ONLY if the fill wrote
-    // it — filled, or checked as having no special-rate hours (loadPeriodData re-reads storage and
-    // restores the gold suggested state, or the tick), then recalculate, which re-renders the year
-    // block, its receipt and the HPP the new hours feed.
+    // it (filled, or ticked as having no special-rate hours), then recalculate.
     initYearCard({
       afterFill: (r) => {
         if ([...r.filled, ...r.checked].some((/** @type {any} */ p) => p.num === currentPeriodNum())) loadPeriodData(currentPeriodNum());
@@ -1233,9 +1127,8 @@ export function init() {
       // every printable surface closes on".
       const printedNow = new Date();
       const now = printedStamp(printedNow, formatClock(printedNow));
-      // "Pay Calculator", never the old MYB name: the app is "Marylebone Roster" on screen, and a
-      // print header is where a stale name leaves the app on paper. The payday with its whole year,
-      // as the result card and the picker say it ("Paid 20 Nov 2026") — never "20 Nov 26" on paper.
+      // "Pay Calculator", never the old MYB name. The payday with its whole year, as the result card
+      // and the picker say it ("Paid 20 Nov 2026").
       const label = p ? `Paid ${fdLong(p.payday)} (P${payslipPeriodNum(p)}) · ${now}` : `Pay Calculator · ${now}`;
       hdr.setAttribute('data-print-line', label);
     }
@@ -1257,5 +1150,6 @@ export function init() {
         // restore it (and its figures) from the bfcache for whoever picks the shared device up next.
         onSignOut:   _paycalcMember ? () => signOutAndLeave({ to: './' }) : null,
     });
-    // (About's print button is about-lightbox.js's; a copy here once left the page scroll-locked.)
+    // (About's print button is about-lightbox.js's; a copy here left the page scroll-locked.)
+
 }

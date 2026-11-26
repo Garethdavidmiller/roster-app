@@ -14,17 +14,12 @@
  *    under their name.
  *
  *    Submit is NOT disabled while days are outstanding — it reads "N days still to answer", and
- *    pressing it refuses, says which day, and walks there. A disabled button explains nothing, and
- *    this one has something specific to say. (This paragraph claimed the opposite until v23.34,
- *    which is worse than saying nothing: `updateSubmitState` carries the real rule in a comment
- *    beside `disabled = false`, so an editor trusting the header would have "restored" a disabled
- *    button and undone the decision. The count and the press-time check must also agree about what
- *    "answered" means — they did not, at v21.92, and the rule now lives in `unfinishedDates`.)
+ *    pressing it refuses, says which day, and walks there. A disabled button explains nothing. The
+ *    count and the press-time check agree about what "answered" means through `unfinishedDates`.
  *
  * 2. **The client never refuses a submission near the deadline.** `submitDisposition` returns
  *    `check-with-server` for the first fifteen minutes past it, and this module SENDS. A page that
- *    greys the button out on its own clock has denied somebody who was in time and left them
- *    nothing to do about it.
+ *    greys the button out on its own clock has denied somebody who was in time.
  *
  * 3. **A timeout is not a failure — and nor is a lost connection on a submit.** `AbortController`
  *    stops us waiting; it does not stop the server writing. So a timeout or a `network` failure
@@ -51,28 +46,18 @@ import { withMode, withFullTwelve, withRelease } from './overtime-answer.js';
 /**
  * Button labels per mode. `before`/`after` get their boundary spliced in at render.
  *
- * ── ONE GRAMMAR: every green pill completes "Available …" (v20.84) ──────────────────────────────
- *
- * "Not available" stands apart — it is the charcoal answer, deliberately the odd one out — and the
- * rest are ellipses of one stem: All day · Before 07:00 · After 15:00 ·
- * Before & after duty · Custom times. The set used to mix three grammars ("Available all day" carried its
- * stem, "Up to 12 hours" elided it, "Custom times" named a control), which is what "the wording is
- * messy" looks like at pill scale. The recorded CHIP (`answerCopy`) keeps the full "Available all
- * day" form on purpose: chips stand alone on the reviewer's list, where the stem is the meaning —
- * a button sits inside a radiogroup already labelled "Availability on <day>".
+ * ONE GRAMMAR: every green pill completes "Available …" — All day · Before 07:00 · After 15:00 ·
+ * Before & after duty · Custom times; "Not available" is the charcoal odd one out. The recorded CHIP
+ * (`answerCopy`) keeps the full "Available all day" form on purpose: chips stand alone on the
+ * reviewer's list, where a button sits inside a radiogroup already labelled "Availability on <day>".
  * @type {Record<string, string>}
  */
 const MODE_LABELS = {
     unavailable:  'Not available',
     all_day:      'All day',
-    // Replaced at render from the day's roster — see `modeButton`. The stem here is the rest-day
-    // reading; a day with a duty on it gets the "in total" form instead.
-    //
-    // LEGACY since v21.24 — `modesFor` no longer offers this, so the only way to see it is to have
-    // SAVED it before the split, and `dayBlock` re-adds a stored mode to the list precisely so an
-    // answer already given keeps rendering as the answer it is. Willingness is now the `fullTwelve`
-    // tick beside a real window. Do not delete these two labels: without them a member who chose
-    // this in the beta would return to a day marked answered with an unlabelled control on it.
+    // Replaced at render from the day's roster — see `modeButton`; a day with a duty on it gets the
+    // "in total" form. LEGACY — `modesFor` no longer offers it, but `dayBlock` re-adds a SAVED mode.
+    // Do not delete these two labels: a saved answer would return with an unlabelled control.
     twelve_hours: 'For a full 12-hour turn',
     before:       'Before {until}',
     after:        'After {from}',
@@ -83,41 +68,21 @@ const MODE_LABELS = {
 /**
  * The 12-hour label for a day that ALREADY has a duty on it.
  *
- * The owner settled the rule in Aug 2026: the declaration means the member's whole day may run to
- * twelve hours, INCLUDING what is rostered — not twelve hours on top of it. On a rest day there is
- * nothing to include, so "a 12-hour turn" says it exactly; beside an 07:00–15:00 duty the same
- * phrase is ambiguous in an eight-hour way, and a roster clerk could reasonably plan 07:00–19:00
- * from one reading and 04:00–16:00 from another. "IN TOTAL" is therefore load-bearing and stays
- * through the v21.22 rewording (see MODE_LABELS.twelve_hours for why "for a full" replaced
- * "up to").
- *
- * Both forms complete the page's one grammar — every green pill finishes "Available …" (v20.84).
+ * Owner, Aug 2026: the member's whole day may run to twelve hours, INCLUDING what is rostered — not
+ * twelve hours on top. Beside a duty "a 12-hour turn" is ambiguous by eight hours, so "IN TOTAL" is
+ * load-bearing.
  */
 const TWELVE_ON_DUTY = 'For a full 12 hours in total';
 
 /**
  * The "all day" label for a day that ALREADY has a duty on it.
  *
- * ── AVAILABILITY IS ADDED TO A DUTY, NEVER SUBSTITUTED FOR ONE (owner, Aug 2026) ────────────────
+ * AVAILABILITY IS ADDED TO A DUTY, NEVER SUBSTITUTED FOR ONE (owner, Aug 2026): "All day" beside a
+ * duty could read as giving the duty up, a power no label should hand over by accident. So on a
+ * worked day the button names the duty it wraps around.
  *
- * "All day" beside an 07:00–15:00 duty had three readings and the app committed to none: available
- * AROUND that duty, willing to work a LONGER one, or willing to give the duty up for a different
- * one. Those are three different rosters, and the third is an operational power no label should
- * hand over by accident — a member answering "all day" to be helpful could lose the shift they had
- * planned their week around.
- *
- * The settled meaning is the first, and it matches the 12-hour ruling: what a member declares here
- * is time they can work IN ADDITION to what they are already rostered. So on a worked day the
- * button names the duty it wraps around, and on a rest day — where there is nothing to wrap
- * around — "All day" already says it exactly.
- *
- * Since v21.22 this label is reachable ONLY on an OVERNIGHT duty (and as the rendered form of a
- * saved all_day answer on a day that no longer offers it): on a normal worked day `modesFor` no
- * longer offers all_day at all, because it duplicated "Before & after duty" — see the fold note
- * in overtime-format.js. Overnight keeps it because before_after cannot be offered there.
- *
- * Completes the page's one grammar ("Available any time around my shift"), like every other green
- * pill.
+ * Reachable ONLY on an OVERNIGHT duty (and for a saved all_day answer): elsewhere `modesFor` offers
+ * "Before & after duty" instead (overtime-format.js).
  */
 const ALL_DAY_ON_DUTY = 'Any time around my shift';
 
@@ -162,34 +127,25 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     /**
      * The handle the coordinator holds on this form.
      *
-     * `isDirty` exists so that nothing DESTROYS a half-filled form without asking — a week switch, a
-     * back-to-list, a deadline resync. The answers live in this closure and nowhere else, so from
-     * outside there is no other way to know they are there.
+     * `isDirty` exists so that nothing DESTROYS a half-filled form without asking — the answers live
+     * in this closure and nowhere else.
      *
-     * `setPhase` exists so that the resync has an alternative to destroying it. A window moving
-     * INITIAL_OPEN → FINAL_OPEN is still fully submittable, so the only thing that has genuinely
-     * changed is what the head should SAY; rebuilding the form to update a sentence threw away
-     * everything the member had typed. See `wireDeadlineResync` in overtime-app.js.
+     * `setPhase` lets the resync update the head (INITIAL_OPEN → FINAL_OPEN is still submittable)
+     * without rebuilding the form and losing what was typed. See `wireDeadlineResync` in overtime-app.js.
      */
-    // `isSubmitting` (v24.61): a release's reload must not land while the send is in flight.
+    // `isSubmitting`: a release's reload must not land while the send is in flight.
     return { isDirty, setPhase, isSubmitting: () => submitting };
 
     // ── Render ──────────────────────────────────────────────────────────────────────────────────
 
-    // The page's furniture, with its reasons here rather than in the markup (where every paint
-    // shipped them to the member's phone — overtime-ui-17):
-    //   · THE ALL-WEEK SHORTCUT (v22.05) PRE-FILLS, never submits: answering "Not available" seven
-    //     times a week teaches the people the data most needs to stop answering, and the member
-    //     still sees seven days and presses Submit. No "copy last week": "after my duty" means
-    //     THAT week's duty. Its QUESTION is not part of the button (v23.27): one underlined string
-    //     ran off a phone, read as a link, and its ellipsis promised choices where a confirm follows.
-    //   · THE CAP NOTE states the ceiling every plan is held to, so the willingness tick below it
-    //     ("a full 12-hour day") means something exact. It sits against the rows it qualifies
-    //     (v23.83), and only on an open form: it says "whatever you answer below".
-    //   · THE SUBMIT BAR IS STICKY (v21.47): the form runs to about twelve phone screens, and the
-    //     bar is the live answer to "how much is left?" — and, pressed while incomplete, the way to
-    //     the first unanswered day. Its position lives in CSS; the member's view does not print
-    //     (overtime.css prints a notice in its place).
+    // The page's furniture, with its reasons here rather than in the markup:
+    //   · THE ALL-WEEK SHORTCUT PRE-FILLS, never submits: the member still sees seven days and
+    //     presses Submit. No "copy last week": "after my duty" means THAT week's duty. Its QUESTION
+    //     is not part of the button (one long underlined string read as a link).
+    //   · THE CAP NOTE states the ceiling every plan is held to, so the willingness tick means
+    //     something exact — only on an open form: it says "whatever you answer below".
+    //   · THE SUBMIT BAR IS STICKY: the live answer to "how much is left?" on a long form. Its
+    //     position lives in CSS; the member's view does not print (overtime.css prints a notice).
     //   · THE CLOSED NOTE says "recorded" only over a submission, never above seven unanswered days.
     function shell() {
         return `<div class="ot-form-head">${headInner()}</div>
@@ -215,9 +171,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     }
 
     /**
-     * The head's contents, separately from the shell — because two things now change it after the
-     * first render: a successful save (the receipt appears) and a phase move (the deadline lines
-     * turn past-tense). Both used to require rebuilding the whole form.
+     * The head's contents, separately from the shell — a successful save (the receipt) and a phase
+     * move (past-tense deadlines) both change it after the first render.
      */
     function headInner() {
         const receipt = receiptLine(win.submission);
@@ -234,22 +189,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     }
 
     /**
-     * The two deadlines, as NAMED VALUES rather than a stack of sentences (v23.83).
-     *
-     * Reported from a phone — "this section is not good at all. Where is the clarity" — and the
-     * screenshot is the argument: week title, date span, a phase sentence, two deadlines, a
-     * standing 12-hour rule, a question and a button, all in the same 12–14px grey, eight lines
-     * deep before the first day. The member's actual question is "by when must I answer", and its
-     * answer was bold in the middle of that, which makes the weight read as arbitrary.
-     *
-     * Each date gets a micro eyebrow label above it — the app's `.field-eyebrow` idiom, already
-     * used wherever a figure needs naming — so the hierarchy comes from STRUCTURE. The live one
-     * (`lead`) is the larger, darker value; its partner stays small beside it as context, which is
-     * the distinction v20.86 drew in weight alone and which weight alone could not carry.
-     *
-     * The phase sentence has no label because it is not a named value, and it now sits BELOW the
-     * dates rather than above them: it explains the deadline, so it reads as a caption to one
-     * instead of as a third fact competing with two.
+     * The two deadlines, as NAMED VALUES rather than a stack of sentences (owner): the member's
+     * question is "by when must I answer". Each date gets an eyebrow label (`.field-eyebrow` idiom),
+     * so the hierarchy comes from STRUCTURE; the live one (`lead`) is the larger, darker value. The
+     * phase sentence sits BELOW the dates, as a caption to them.
      *
      * @param {any} win the window being rendered
      * @returns {string}
@@ -257,8 +200,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     function deadlineBlock(win) {
         const lines = deadlineLines(win.phase, win.initialDeadlineAt, win.finalDeadlineAt, win.openedAt);
         const dates = lines.filter(l => l.label);
-        // Only prose that is a WARNING reaches the head (v23.84 — see phaseChip). The ordinary
-        // open state is the chip; its sentence would be a paragraph about the normal case.
+        // Only prose that is a WARNING reaches the head (see phaseChip); the ordinary state is the chip.
         const prose = lines.filter(l => !l.label && l.warn);
         return `
             <div class="ot-form-dates">
@@ -275,7 +217,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         if (headHost) headHost.innerHTML = headInner();
     }
 
-    /** What a failed roster read means here — and on a CLOSED form, nothing is left to enter (overtime-ui-16). */
+    /** What a failed roster read means here — and on a CLOSED form, nothing is left to enter. */
     function rosterWarning() {
         return 'Couldn\'t confirm your current MYB roster.'
             + (closed ? '' : ' You can still enter availability using custom times.');
@@ -311,18 +253,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             answers[date] = withMode(answers[date], mode, ctx.byDate[date]);
             paintDays();
             updateSubmitState();
-            // PUT THE KEYBOARD BACK ON THE OPTION THAT WAS JUST CHOSEN.
-            //
-            // `paintDays` replaces the whole seven-day list, so the button that was activated no
-            // longer exists and focus falls to `<body>`. A mouse never notices. A keyboard user
-            // answering with Enter or Space is thrown to the top of the document on EVERY day —
-            // seven times to fill one week, Tab-ing back in each time — and choosing "Custom times"
-            // is worse still, because the inputs it just revealed are then unreachable without
-            // traversing the page again.
-            //
-            // The arrow-key handler below has always restored focus; this path is the same
-            // re-render and needed the same line. Measured before the fix: `document.activeElement`
-            // was BODY after Enter, and a `.ot-mode` button after ArrowRight.
+            // PUT THE KEYBOARD BACK ON THE OPTION THAT WAS JUST CHOSEN: `paintDays` replaces the
+            // list, so focus would fall to `<body>` and throw a keyboard user to the top on every day.
             focusMode(date, mode);
         }));
         daysHost.querySelectorAll('[data-mode]').forEach(btn => btn.addEventListener('keydown', (/** @type {any} */ e) => {
@@ -346,11 +278,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // The shape rules (written only when true, deleted rather than set false, nothing on an
             // unavailable day) live in overtime-answer.js with the other two transitions.
             setAnswer(date, withFullTwelve(answers[date], /** @type {HTMLInputElement} */ (box).checked));
-            // REPAINT, like every other control here. Skipping it looks harmless — the checkbox is
-            // already in the state the member put it in — but the row's state tint is computed at
-            // paint time, so a tick that changed a SAVED answer would leave the row still reading
-            // green "recorded" while holding an unsaved edit. The tint is the form's whole account
-            // of what is and is not on the server, so it cannot go stale for one control.
+            // REPAINT, like every other control: the row's state tint is computed at paint time and
+            // is the form's whole account of what is on the server, so it cannot go stale.
             paintDays();
             focusFullTwelve(date);
             updateSubmitState();
@@ -365,12 +294,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         }));
         daysHost.querySelectorAll('[data-release]').forEach(box => box.addEventListener('change', () => {
             const date = String(box.getAttribute('data-release'));
-            // NO ANSWER REQUIRED, unlike the willingness tick above — this asks about CONTRACTED
-            // work, so it stands on its own. And it ANSWERS NOTHING: on a day with no availability
-            // answer the working copy holds `{ releaseRequested: true }` with no mode, which
-            // `dayUnfinished` still counts as unanswered. Until v23.87 it wrote `{ mode: 'unavailable' }`
-            // underneath — the one answer this feature must never invent — and the completeness check
-            // stopped asking for the Sunday. The rules are overtime-answer.js's; this is the wiring.
+            // NO ANSWER REQUIRED — this asks about CONTRACTED work. And it ANSWERS NOTHING: with no
+            // availability answer the copy holds `{ releaseRequested: true }` with no mode, which
+            // `dayUnfinished` still counts — never an invented `unavailable`. Rules: overtime-answer.js.
             setAnswer(date, withRelease(answers[date], /** @type {HTMLInputElement} */ (box).checked));
             paintDays();
             focusRelease(date);
@@ -378,9 +304,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         }));
         daysHost.querySelectorAll('.ot-custom-input').forEach(el => {
             const inp = /** @type {HTMLInputElement} */ (el);
-            // SHAPED AS IT IS TYPED (7 Nov 2026, iPhone audit), by the rule every text clock box
-            // shares (clock-input.js): the box is `inputmode="numeric"` and an iPhone's number pad has
-            // no colon, so "0600" used to stay "0600" until the box was left.
+            // SHAPED AS IT IS TYPED, by the rule every text clock box shares (clock-input.js): an
+            // iPhone's number pad has no colon.
             inp.addEventListener('beforeinput', () => noteClockBoxBefore(inp));   // clock-input.js rule 7
             inp.addEventListener('input', e => {
                 shapeClockBoxInPlace(inp, /** @type {InputEvent} */ (e));
@@ -399,20 +324,15 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         const which = String(inp.getAttribute('data-which'));
         const cur = answers[date];
         if (!cur || cur.mode !== 'custom') return;
-        // TEXT boxes, so the browser no longer guarantees `HH:MM` (customRow says why the
-        // control changed). `dayUnfinished` asks only whether the two times are present and
-        // differ — it cannot tell `9am` from a time — so anything that is not a REAL clock
-        // time is stored as empty and the day stays unfinished. `readClockBox` is the app's one
-        // reading of a box that is left, shared with every time box (clock-input.js); leaving it is
-        // what settles a three-digit "630" or "240" (`finaliseClockInput`).
+        // TEXT boxes, so nothing guarantees `HH:MM`; anything that is not a REAL clock time is stored
+        // as empty and the day stays unfinished. `readClockBox` is the app's one reading of a box
+        // that is left (clock-input.js); leaving it settles a three-digit "630" (`finaliseClockInput`).
         const read = readClockBox(inp);
         cur[which] = read.value;
         // Write the settled form back so `0600` and `6:00` become `06:00` in the box the
         // member is looking at, rather than being silently discarded.
         if (cur[which]) inp.value = read.value;
-        // `nextDay` is DERIVED from the two times, never asked. The server refuses a mismatch,
-        // so computing it here is not belt-and-braces — it is the only way a member can enter
-        // an overnight period at all.
+        // `nextDay` is DERIVED from the two times, never asked; the server refuses a mismatch.
         cur.nextDay = !!(cur.start && cur.end && cur.end < cur.start);
         paintCustomHint(date);
         retintDay(date);
@@ -420,10 +340,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     }
 
     /**
-     * Re-apply one day's state tint IN PLACE. Every other control here repaints, because the tint is
-     * computed at paint time — but a repaint rebuilds the very time box being typed in, so this one
-     * did nothing, and an edited saved range kept its green "recorded" tint while holding an unsaved
-     * change (whole-app review, Oct 2026). Same `dayState`, so the two cannot disagree.
+     * Re-apply one day's state tint IN PLACE — a repaint would rebuild the time box being typed in.
+     * Same `dayState` as a repaint, so the two cannot disagree.
      * @param {string} date
      */
     function retintDay(date) {
@@ -436,7 +354,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
 
     /**
      * Which of admin's row states this day is in — the SAME grammar the Change-a-Shift week
-     * teaches, so a member who knows one page can read the other (v20.83):
+     * teaches, so a member who knows one page can read the other:
      *
      *   (nothing)   unanswered — a plain surface row. Seven of these on first open is the normal
      *               state, not an error, so it carries no colour at all.
@@ -461,20 +379,15 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         const c = ctx.byDate[date] || null;
         const a = answers[date];
         // A SAVED answer always gets its button, even when the current roster would not offer that
-        // mode — a member who chose "After 15:00" and whose shift has since become a rest day would
-        // otherwise see a day marked answered with nothing selected on it, and no way to tell what
-        // they had said. Their declaration stands until they change it; the UI must show it.
+        // mode: the declaration stands until they change it, so the UI must show it.
         const modes = modesFor(c);
         if (a?.mode && !modes.includes(a.mode)) modes.push(a.mode);
         // A day is ANSWERED when it has a mode — not when it has an object. A Sunday-release request
-        // alone is `{ releaseRequested: true }` with no mode (overtime-answer.js, rule 1), and until
-        // v23.87 `!!a` would have tinted that row as answered while Submit still counted it.
+        // alone is `{ releaseRequested: true }` with no mode (overtime-answer.js, rule 1).
         const answered = !!a?.mode;
         const state = dayState(a, date);
-        // "Sun 30 Aug" splits into admin's two-part day label — the bold day, the lighter date —
-        // so the two week-of-days surfaces read identically. The roster badge takes a visually
-        // hidden "Rostered:" rather than an aria-label: a label on a plain span is unreliably
-        // announced, and the badge's own text needs only the word that says what it IS.
+        // Admin's two-part day label (bold day, lighter date). The roster badge takes a visually
+        // hidden "Rostered:" rather than an aria-label, which a plain span announces unreliably.
         const [dayName, ...dayDate] = shortDate(date).split(' ');
         return `
             <div class="ot-day${answered ? ' ot-day--answered' : ''}${state ? ` ot-day--${state}` : ''}" data-day="${esc(date)}">
@@ -497,8 +410,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     }
 
     /**
-     * An answer anchored to a shift that has since moved — said, and (overtime-ui-18) with the way to
-     * the shift as it is now. Re-pressing the chosen option keeps the saved answer (the v20.75 rule),
+     * An answer anchored to a shift that has since moved — said, with the way to the shift as it is
+     * now. Re-pressing the chosen option keeps the saved answer,
      * so the new time was reachable only by choosing something else first. Offered only where the
      * roster still has that boundary: none on a rest day, and no "after" on an overnight duty.
      * @param {string} date @param {any} a @param {any} c
@@ -520,23 +433,13 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     /**
      * ONE option in a radio group, not a toggle button.
      *
-     * These six are mutually exclusive, so `aria-pressed` was telling a screen-reader user the wrong
-     * thing about all of them at once — "not pressed" five times over, where the truth is "one of
-     * six, this one selected". A radio group also carries the roving tabindex below, so Tab moves
-     * PAST the group rather than through six controls on each of seven days.
+     * The options are mutually exclusive, so a radio group (not `aria-pressed`), with a roving
+     * tabindex so Tab moves PAST the group rather than through every option on every day.
      *
-     * ── A SELECTED OPTION IS LABELLED FROM THE ANSWER, NOT FROM THE ROSTER ──────────────────────
-     *
-     * The stored schema keeps CONCRETE clock boundaries precisely so a later roster change cannot
-     * silently re-point somebody's declaration (see `AVAILABILITY_MODES` in overtime-core.js). The
-     * button label was defeating that: it was always built from the CURRENT shift, so a member who
-     * answered "After 15:00" and whose shift was afterwards moved to 12:00–20:00 came back to a form
-     * showing "After 20:00", selected — while the reviewer's screen, reading the same record, said
-     * "Available after 15:00". Two people looking at one answer and seeing different times.
-     *
-     * So a selected option states what is SAVED. An unselected one states what pressing it would
-     * store, which is the current roster — those are genuinely different questions and the answer to
-     * each is now the one it asks.
+     * A SELECTED OPTION IS LABELLED FROM THE ANSWER, NOT FROM THE ROSTER: the schema keeps concrete
+     * clock boundaries (`AVAILABILITY_MODES`, overtime-core.js), so after a shift moves the member and
+     * the reviewer must both see the time that was SAVED. An unselected option states what pressing
+     * it would store — the current roster.
      * @param {string} date @param {string} mode @param {any} c @param {any} a @param {number} i
      */
     function modeButton(date, mode, c, a, i) {
@@ -545,50 +448,29 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         let label = MODE_LABELS[mode];
         if (mode === 'before') label = label.replace('{until}', (on ? a.until : c?.start) || '');
         if (mode === 'after')  label = label.replace('{from}',  (on ? a.from  : c?.end)   || '');
-        // The 12-hour label is roster-dependent for a different reason from the two above: those
-        // splice in a BOUNDARY, this one changes what the same declaration MEANS. With a duty
-        // already on the day, twelve hours is a total the duty counts towards; with none, it is the
-        // whole turn. Read off `c` and not off the answer even when selected, because unlike an
-        // anchored boundary nothing about this answer is stored from the roster — there is no
-        // earlier meaning to preserve, only the current day to describe.
+        // The 12-hour and all-day labels change what the declaration MEANS beside a duty, and are
+        // read off `c` even when selected: nothing in the answer was stored from the roster.
         if (mode === 'twelve_hours' && c?.hasTime) label = TWELVE_ON_DUTY;
         if (mode === 'all_day'      && c?.hasTime) label = ALL_DAY_ON_DUTY;
         // Exactly one control in the group is tabbable: the selected one, or the first when nothing
         // is selected yet — which is every day on a fresh form.
         const tabbable = on || (!a?.mode && i === 0);
-        // The tone is the app's type-pill idiom: outlined in its own colour when idle, filled when
-        // chosen. Two tones, because there are two answers — "not available" is the only one that
-        // offers nothing, and the other five differ only in WHEN.
+        // The app's type-pill idiom, two tones: "not available" offers nothing; the rest differ in WHEN.
         const tone = mode === 'unavailable' ? 'no' : 'yes';
         return `<button type="button" class="ot-mode ot-mode--${tone}" role="radio" data-date="${esc(date)}" data-mode="${esc(mode)}"
                         aria-checked="${on}" tabindex="${tabbable ? 0 : -1}">${esc(label)}</button>`;
     }
 
     /**
-     * The willingness tick — the SECOND question, and the whole point of the v21.24 split.
-     *
-     * ── IT APPEARS ONLY ONCE A DAY HAS AN AVAILABLE ANSWER ──────────────────────────────────────
-     *
-     * A tick floating beside seven unanswered days would be a question about nothing, and on a fresh
-     * form that is all seven of them. It is a REFINEMENT of an answer, so it waits for one — which
-     * also puts it in the right reading order: when, then how long.
-     *
-     * ── AND NEVER BESIDE "NOT AVAILABLE" ────────────────────────────────────────────────────────
-     *
-     * There is nothing for it to qualify, and the server refuses the pairing outright — so offering
-     * it would be a control that can only produce a refused submission.
-     *
-     * ── "UP TO", AND WHY THAT IS RIGHT HERE ─────────────────────────────────────────────────────
-     *
-     * As a mode competing with windows, "up to 12 hours" was the ambiguity that got the mode
-     * retired. As a tick beside a window it is exact: the member is granting PERMISSION for a long
-     * duty, not committing to a 12-hour turn. It reads as a sentence completing the answer above it.
+     * The willingness tick — the SECOND question. It appears ONLY once a day has an available answer
+     * (a refinement of one: when, then how long), and NEVER beside "Not available", which the server
+     * refuses. "Up to" is exact here: PERMISSION for a long duty, not a commitment to a 12-hour turn.
      * @param {string} date @param {any} c @param {any} a
      */
     function fullTwelveRow(date, c, a) {
         if (!a?.mode || a.mode === 'unavailable') return '';
         // A tick ALREADY GIVEN is shown wherever the day stops asking, as a saved mode keeps its
-        // button (dayBlock) — hidden, it could not be taken back and went out with every save (overtime-ui-6).
+        // button (dayBlock) — hidden, it could not be taken back and went out with every save.
         if (!offersFullTwelve(c) && a.fullTwelve !== true) return '';
         const on = a.fullTwelve === true;
         return `
@@ -599,7 +481,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     }
 
     /**
-     * ASK TO BE TAKEN OFF A ROSTERED SUNDAY (v23.81, owner). Why it exists and what it may never
+     * ASK TO BE TAKEN OFF A ROSTERED SUNDAY (owner). Why it exists and what it may never
      * claim: `overtime-sunday-release.js`. Unlike the willingness tick it needs no availability
      * answer first — a member unavailable all week is exactly who may need taking off a Sunday duty.
      *
@@ -611,10 +493,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      */
     function sundayReleaseRow(date, c, a) {
         // A request ALREADY MADE is shown, so it can be withdrawn, though the Sunday no longer offers
-        // one (now a rest day, or the roster unread) — as `fullTwelveRow` does (overtime-ui-6).
+        // one (now a rest day, or the roster unread) — as `fullTwelveRow` does.
         if (!offersSundayRelease(date, c) && a?.releaseRequested !== true) return '';
         const on = a?.releaseRequested === true;
-        // The note is the tick's DESCRIPTION, not a live region re-announced at every repaint (overtime-ui-13).
+        // The note is the tick's DESCRIPTION, not a live region re-announced at every repaint.
         return `
             <label class="ot-release">
                 <input type="checkbox" class="ot-release-box" data-release="${esc(date)}"${on ? ` checked aria-describedby="otReleaseSaid-${esc(date)}"` : ''}>
@@ -645,17 +527,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * The one thing a custom range must say out loud: it crosses midnight, and it still belongs to
      * THIS day.
      *
-     * ── A DAY'S ANSWER IS ABOUT A DUTY THAT STARTS THAT DAY (owner, Aug 2026) ───────────────────
-     *
-     * The app has always worked this way — answers are keyed by date, `nextDay` is derived from the
-     * times, and the roster itself anchors every night turn to the day it starts on — but nothing
-     * anywhere said so, which left an ordinary entry looking self-contradictory. Friday
-     * 22:00–02:00 alongside Saturday "Not available" is a perfectly coherent pair under this rule
-     * and an obvious mistake under the other one, and a member with no way to tell which they were
-     * being asked for would reasonably enter the small hours twice.
-     *
-     * So the hint names the ownership rather than merely the fact. "Ends the next day" was true and
-     * answered a question nobody was asking.
+     * A DAY'S ANSWER IS ABOUT A DUTY THAT STARTS THAT DAY (owner, Aug 2026;
+     * OVERTIME_AVAILABILITY.md), so the hint names the ownership, not merely the fact — or a member
+     * would enter the small hours twice.
      * @param {any} a
      */
     function customHint(a) {
@@ -695,15 +569,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     // ── Answers ─────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Put a transition's result back, deleting the day when nothing is left of it — `withRelease`
-     * returns `undefined` for an unticked request on an otherwise unanswered day, and a key holding
+     * Put a transition's result back, deleting the day when nothing is left of it — a key holding
      * `undefined` would still be a key to `Object.keys`, the submit payload and the dirty-guard.
-     *
-     * The transitions themselves — a mode press (with the v20.75 rule that re-pressing the selected
-     * mode keeps the saved answer verbatim, and the v21.24 rule that the willingness tick survives a
-     * change of window), the willingness tick and the Sunday-release request — live in
-     * overtime-answer.js, one module, tested against each other, because the form editing them in
-     * three places is how two of them came to forget the third (v23.87).
+     * The transitions themselves live in overtime-answer.js, tested against each other.
      * @param {string} date @param {any} next
      */
     function setAnswer(date, next) {
@@ -714,13 +582,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     /**
      * The dates still outstanding, in window order — the ONE traversal, and the one list.
      *
-     * The count and the day an error walks to used to be computed separately, and they disagreed
-     * (v21.92): `updateSubmitState` counted a day as answered whenever an answer OBJECT existed,
-     * while the press-time check also required a `custom` pair to be present and sane. So a day set
-     * to Custom with the times left blank made the button read "Submit availability", and pressing
-     * it refused with "Answer Tue 2 Sep before submitting" — the form telling the member two
-     * different things about the same day. The rule itself now lives in `overtime-format.js`, where
-     * it can be tested; this closure only supplies the answers and the dates.
+     * The count and the day an error walks to come from this one list, so they cannot disagree. The
+     * rule lives in `overtime-format.js`; this closure only supplies the answers and the dates.
      * @returns {string[]}
      */
     function unfinished() {
@@ -733,10 +596,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         submitBtn.textContent = missing
             ? `${missing} ${missing === 1 ? 'day' : 'days'} still to answer`
             : (baseRevision ? 'Save changes' : 'Submit availability');
-        // NOT disabled on incompleteness — a disabled button explains nothing, and this one has a
-        // specific thing to say. It refuses on press and points at the day. It IS disabled while a
-        // send is in flight (v24.38): every day control calls this, and re-arming Submit mid-send
-        // let a second press race the first into a revision conflict about the member's own save.
+        // NOT disabled on incompleteness — a disabled button explains nothing; it refuses on press
+        // and points at the day. It IS disabled while a send is in flight: a second press would race
+        // the first into a revision conflict about the member's own save.
         submitBtn.disabled = submitting;
     }
 
@@ -746,7 +608,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * only, so Submit (and the dirty-guard on leaving) still stand between this and the server.
      */
     async function onAllUnavailable() {
-        const sendWord = baseRevision ? 'Save changes' : 'Submit availability';   // the button's own words (Nov 2026)
+        const sendWord = baseRevision ? 'Save changes' : 'Submit availability';   // the button's own words
         const ok = await confirmDialog({
             title: 'Not available all week?',
             message: `This fills all seven days as \u201cNot available\u201d. Nothing is sent until you press ${sendWord}.`,
@@ -754,7 +616,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         });
         if (!ok) return;
         // A mode change on every day at once, through the same transition as a single press — so a
-        // staged Sunday-release request survives it (overtime-answer.js, rule 2). Until v23.87 it did not.
+        // staged Sunday-release request survives it (overtime-answer.js, rule 2).
         for (const d of dates) answers[d] = withMode(answers[d], 'unavailable', ctx.byDate[d]);
         paintDays();
         updateSubmitState();
@@ -786,9 +648,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         say(disposition === 'open' ? 'Saving…' : 'Deadline may have passed — checking with the server…', 'busy');
         submitBtn.disabled = true;
 
-        // A SNAPSHOT, sent and then recorded. The day controls stay live while "Saving…" shows, so
-        // recording `answers` after the await stored an edit the server never received as saved —
-        // green rows, isDirty false, and the old answer on the server.
+        // A SNAPSHOT, sent and then recorded: the day controls stay live while "Saving…" shows, so
+        // recording `answers` after the await would mark an unsent edit as saved.
         const sent = deepCopy(answers);
         const r = await OTD.submitOvertimeAvailability(win.weekEnding, sent, baseRevision);
 
@@ -796,15 +657,12 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             submitBtn.disabled = false;
             baseRevision = r.data.revision;
             pendingMutationId = null;
-            // Write the win we hold, too. `renderMine` re-renders the week LIST from these same
-            // window objects (the Back button, a tab switch) — and until v20.75 it re-read a
-            // submission fetched at page load, so a member who submitted another week and pressed
-            // Back was shown "Not submitted yet" about the form they had just watched succeed.
-            // The receipt's time moves with a real change and not with a no-op. `serverNow` is the
-            // instant the server decided the write — the one it now stamps `acceptedAt` with.
+            // Write the win we hold, too: `renderMine` re-renders the week LIST from these objects.
+            // The receipt's time moves with a real change, not a no-op; `serverNow` is the instant
+            // the server decided the write — the one it stamps `acceptedAt` with.
             const at = !r.data.noop && typeof r.data.serverNow === 'number' ? r.data.serverNow : null;
-            // The SERVER's phase at the moment it decided (overtime-ui-5): accepted at 12:03 on the
-            // first deadline's day, the head must stop saying "Answers due" — the page keeps no timer.
+            // The SERVER's phase at the moment it decided: accepted at 12:03 on the first deadline's
+            // day, the head must stop saying "Answers due" — the page keeps no timer.
             if (r.data.phase === 'INITIAL_OPEN' || r.data.phase === 'FINAL_OPEN') win.phase = r.data.phase;
             win.submission = {
                 ...(win.submission || {}),
@@ -814,27 +672,19 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                 ...(at && r.data.created ? { firstAcceptedAt: at } : {}),
             };
             say(r.data.noop ? 'Already saved — no changes to record.' : '✓ Availability submitted.', 'ok');
-            // Repaint: rows that showed the gold "ready" or cream "changing a saved answer" tints
-            // are now simply SAVED, and leaving the warning colours up over a recorded form would
-            // keep telling the member something is still to do.
+            // Repaint: the gold/cream tints are now simply SAVED.
             paintDays();
-            // The receipt lives in the head, so it needs its own repaint — `paintDays` only owns
-            // the seven rows. Without this a member's first-ever submission leaves the head with no
-            // receipt until they reload, which is the one moment they most want to see one.
+            // The receipt lives in the head, which `paintDays` does not own.
             paintHead();
             updateSubmitState();
             onSaved();
             return;
         }
 
-        // The button stays disabled THROUGH reconciliation: it re-reads state to decide whether
-        // the timed-out write landed, and a second submission racing that read is exactly the
-        // contradictory-double this feature is careful about everywhere else.
-        // A `network` failure is as unknown as a timeout for a WRITE (7 Nov 2026, iPhone audit): iOS
-        // suspends a page mid-request, and a 200 whose body was cut off reads as `network` too
-        // (overtime-data.js). Told "couldn't reach the server", the member retried and was shown
-        // their own save as "a newer version"; keeping the id lets that conflict say it was theirs.
-        // So is a 5xx the server did not name: a function out of time may have written (overtime-ui-10).
+        // The button stays disabled THROUGH reconciliation, or a second submission could race the
+        // re-read. A `network` failure is as unknown as a timeout for a WRITE (iOS suspends a page
+        // mid-request; a cut-off 200 reads as `network` — overtime-data.js), and so is a 5xx the
+        // server did not name. Keeping the id lets a later conflict say the save was theirs.
         if (writeOutcomeUnknown(r)) {
             pendingMutationId = r.mutationId;
             await reconcile();
@@ -845,20 +695,17 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         if (r.code === 'revision-conflict') { showConflict(r); return; }
         if (r.code === 'closed') { closeHere(); return; }
 
-        // A refusal that names a DAY gets copy that names the day, and the page walks there —
-        // the message and the scroll agreeing about where the problem is. Everything else gets
-        // words matched to what actually failed; see submitFailureCopy for why "check your
-        // connection" was the wrong sentence for most of these.
+        // A refusal that names a DAY gets copy that names the day, and the page walks there.
+        // Everything else gets words matched to what failed (submitFailureCopy).
         const failDate = typeof r.data?.date === 'string' ? r.data.date : null;
         say(submitFailureCopy(r.code, failDate ? shortDate(failDate) : null), 'warn');
         if (failDate) focusDay(failDate);
     }
 
     /**
-     * The server refused the send because the form has CLOSED (overtime-ui-5) — the page never decides
-     * that on its own clock (header rule 2), so this is where it learns. Left as it was, the form kept
-     * every control live, Submit enabled and the leave-guard armed over answers nothing will take. So
-     * it becomes the closed form where it stands: what the server HOLDS, read-only, and why.
+     * The server refused the send because the form has CLOSED — the page never decides that on its
+     * own clock (header rule 2), so this is where it learns. It becomes the closed form where it
+     * stands: what the server HOLDS, read-only, and why.
      */
     function closeHere() {
         closed = true;
@@ -880,9 +727,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     /**
      * A timed-out or cut-off submission may still have been written. Re-read and look for OUR mutation id.
      *
-     * Three outcomes, three messages, and the third one is the important one: when the network is
-     * still down there is no honest answer, so it says so instead of guessing. Guessing "failed"
-     * here invites a second submission that would then legitimately conflict.
+     * Each verdict its own message, and `unknown` matters most: with the network still down there is
+     * no honest answer, and guessing "failed" invites a second, conflicting submission.
      */
     async function reconcile() {
         say('Checking whether your form was saved…', 'busy');
@@ -892,9 +738,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             : null;
         const verdict = reconcileVerdict(state.ok, fresh?.submission, pendingMutationId, !!fresh);
         if (verdict === 'gone') {
-            // The week is no longer ours to answer — almost always a withdrawal that landed while
-            // the submission was in flight. Saying "it didn't reach the server" would be a claim we
-            // cannot support AND an instruction to re-answer a form that has gone.
+            // The week is no longer ours to answer — almost always a withdrawal mid-flight. "It
+            // didn't reach the server" would be unsupported, and send them to a form that has gone.
             pendingMutationId = null;
             say('This overtime week is no longer available to you, so we couldn\'t confirm the '
                 + 'submission. If you\'ve been taken off this week, nothing more is needed.', 'warn');
@@ -910,13 +755,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             pendingMutationId = null;
             win.submission = fresh.submission;   // the list rows read this — keep them truthful
             say('✓ Your earlier submission did save.', 'ok');
-            // Repaint for the same reason the success path does (v20.83) — and this path needs it
-            // MORE, because it is the one that tells somebody their form saved after they had every
-            // reason to think it had not. Without it the seven rows keep the cream "you are about
-            // to overwrite a saved answer" tint over the words "your submission did save", which is
-            // the page contradicting itself at the exact moment the member is looking for
-            // reassurance. `win.submission` was just replaced above, so `dayState` now resolves
-            // every row to `saved`.
+            // Repaint, as the success path does — or the cream tint would contradict "did save".
+            // `win.submission` was just replaced, so `dayState` resolves every row to `saved`.
             paintDays();
             paintHead();
             updateSubmitState();
@@ -941,9 +781,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
               + 'Review it before making further changes.'
             : `A newer version of this form is already saved${stored ? ` — ${stored}` : ''}. `
               + "We haven't overwritten it.", 'warn');
-        // Offer the authoritative state rather than merging. Seven days is small enough for a
-        // person to read, and an automatic merge of two declarations about somebody's own
-        // availability would produce a third that neither of them made.
+        // Offer the authoritative state rather than merging: an automatic merge of two declarations
+        // would produce a third that neither of them made.
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'ot-row-btn';

@@ -9,9 +9,8 @@
  * ── NO FIREBASE IMPORT, DELIBERATELY ────────────────────────────────────────────────────────────
  *
  * `firebase-client.js` statically imports the SDK from the gstatic CDN, so anything importing it is
- * unloadable in a Node test — the same constraint that produced `storage-utils.js`, `auth-identity.js`
- * and `client-errors.js`. This module writes one string into a host element, which is exactly the
- * part worth testing exhaustively, so the read lives next door and this stays reachable from
+ * unloadable in a Node test. This module writes one string into a host element — the part worth
+ * testing exhaustively — so the read lives next door and this stays reachable from
  * `overtime-manager.test.mjs` with a two-line fake DOM.
  *
  * ── BY DAY IS FIRST BECAUSE IT IS THE QUESTION ──────────────────────────────────────────────────
@@ -23,24 +22,20 @@
  *     Not available ·  an explicit answer
  *     No response   ·  no form at all — UNKNOWN, and not a decision
  *
- * The third is the one under constant pressure to be folded into the second, because they look
- * alike in a list and a shorter list is tidier. They are opposites: one person said no, the other
- * said nothing, and a clerk who cannot tell them apart cannot know who is worth a phone call.
+ * The third is under constant pressure to be folded into the second. They are opposites: one person
+ * said no, the other said nothing, and only the second is worth a phone call.
  *
  * ── TWO LENSES, AND ONLY ONE OF THEM CHANGES THE ARITHMETIC ─────────────────────────────────────
  *
  * DAY is a pure hide/show over rows already on the page: the counts do not move, because the count
  * for Tuesday is the count for Tuesday whichever day you are looking at.
  *
- * GRADE is not. A gap in the CEA line is not filled by an available CES, so "Tuesday has two"
- * answers nothing unless those two are the grade you are short of. A filter that dimmed the rows
- * and left the counts alone would be worse than no filter — it would put a number on screen that
- * looks like an answer to the question being asked and is an answer to a different one. So a grade
- * pick RE-RENDERS from the same data, and every figure on the surface follows it.
+ * GRADE is not: a gap in the CEA line is not filled by an available CES, so a filter that left the
+ * counts alone would put a misleading number on screen. A grade pick RE-RENDERS from the same data,
+ * and every figure follows it.
  *
- * That is also why the whole render is a pure function of `(data, state)` with no incremental DOM
- * work: repainting is cheap, and it makes "the counts agree with the rows" structural rather than
- * something two code paths have to keep remembering.
+ * So the whole render is a pure function of `(data, state)` with no incremental DOM work, which
+ * makes "the counts agree with the rows" structural.
  */
 
 import { setStatus } from './status-text.js';
@@ -64,18 +59,14 @@ import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was 
  *   day?: string, onDay?: (d: string) => void, onRefresh?: () => void,
  *   onAsk?: (memberName: string, ask: boolean) => void, refreshFailed?: boolean, printedAt?: number }} opts
  *   `grade` is the reviewer's standing choice, handed back in by the coordinator; `onGrade` is how
- *   it gets there. See below. `day`/`onDay` are the same pair for the DAY lens, but with a narrower
- *   lifetime: the coordinator hands the day back only across a SAME-WEEK re-render (a refresh must
- *   not throw away the lens the reviewer is looking through), and resets it on a week switch,
- *   because a day's values are this window's dates. `onRefresh`, when provided, renders a Refresh
- *   control beside the freshness line — the data here is a one-shot snapshot, and without it the
- *   only route to current answers was leaving the week and coming back; `refreshFailed` says a newer
- *   read of this snapshot did not arrive, so it is still the one drawn; `printedAt` is the corrected
- *   clock at THIS paint, for the sheet's "Printed …" line (never the snapshot's `now`, and never the
- *   device clock — `stampPrinted` moves it on as the sheet prints). `onAsk` is the only
- *   MUTATION this module can start: it hands the decision straight back out, because writing is
- *   the coordinator's job and this module is a pure render everywhere else — which is what makes
- *   it testable with a two-line fake DOM.
+ *   it gets there. `day`/`onDay` are the same pair for the DAY lens, handed back only across a
+ *   SAME-WEEK re-render (a day's values are this window's dates). `onRefresh`, when provided,
+ *   renders a Refresh control beside the freshness line (the data is a one-shot snapshot);
+ *   `refreshFailed` says a newer read did not arrive, so this snapshot is still the one drawn;
+ *   `printedAt` is the corrected clock at THIS paint, for the sheet's "Printed …" line (never the
+ *   snapshot's `now`, never the device clock — `stampPrinted` moves it on). `onAsk` is the only
+ *   MUTATION this module can start: it hands the decision straight back out, so the module stays a
+ *   pure render.
  * @returns {{ grade: string }} the grade the workspace opened on
  */
 export function renderWeekDetail(host, win, data,
@@ -84,25 +75,14 @@ export function renderWeekDetail(host, win, data,
     /**
      * The grade currently in view. `ALL` is not a grade — no participant can carry it as one.
      *
-     * ── IT SURVIVES A WEEK SWITCH, BECAUSE IT IS ABOUT THE REVIEWER, NOT THE WEEK ───────────────
-     *
-     * This used to reset to `ALL` on every render, and every week switch is a fresh render — so a
-     * clerk working the CEA line was returned to the whole team each time they moved between weeks,
-     * which is most of what this page is for. Exactly the defect fixed for the DAY lens at v20.75,
-     * one level up and still there.
-     *
-     * The DAY deliberately does not persist: its values are this window's dates, so carrying one
-     * into another week would filter to a date that week does not contain. Grade is a property of
-     * the person reading, and their job does not change when they look at a different Saturday.
-     *
-     * The choice is held by the coordinator rather than a module-level variable so it lives exactly
-     * as long as the page does — a `let` up here would be shared process state that no reload
+     * IT SURVIVES A WEEK SWITCH, BECAUSE IT IS ABOUT THE REVIEWER, NOT THE WEEK — a clerk working the
+     * CEA line stays on it. The DAY deliberately does not persist (its values are this window's dates).
+     * The choice is held by the coordinator rather than a module-level variable, which no reload
      * clears and no test can reset.
      */
-    // …but only a grade THIS week's frozen population holds. One carried from a week that had CES
-    // into a week that has none drew "0 of 0" with no strip to recover from, so it degrades to ALL
-    // here, as the day does below. `onGrade` is not called: the choice stays the reviewer's, and
-    // comes back on the next week that holds it.
+    // …but only a grade THIS week's frozen population holds — otherwise "0 of 0" with no strip to
+    // recover from, so it degrades to ALL. `onGrade` is not called: the choice comes back on the next
+    // week that holds it.
     let grade = (initialGrade === 'ALL'
         || gradesPresent((data.participants || []).filter(p => !isWithdrawn(p))).includes(initialGrade))
         ? initialGrade : 'ALL';
@@ -115,7 +95,7 @@ export function renderWeekDetail(host, win, data,
     let day = (initialDay === 'ALL' || dates.includes(initialDay)) ? initialDay : 'ALL';
     paint();
     // Which grade it OPENED on — not the one handed in, when that fell back above — so the card
-    // header's chip counts the people the card does (overtime-ui-8).
+    // header's chip counts the people the card does.
     return { grade };
 
     function paint() {
@@ -136,9 +116,8 @@ export function renderWeekDetail(host, win, data,
 }
 
 /**
- * Put the keyboard on the successor of a control a repaint replaced. Every press in the workspace
- * rebuilds it, and focus then fell to <body>: a keyboard user started again from the burger after
- * every chip (overtime-ui-12). Matched by value, not by selector, so no name or grade needs escaping.
+ * Put the keyboard on the successor of a control a repaint replaced — otherwise focus falls to
+ * <body>. Matched by value, not by selector, so no name or grade needs escaping.
  * @param {HTMLElement|null} host @param {string} attr @param {string} value
  * @returns {boolean} whether a successor was found
  */
@@ -154,10 +133,9 @@ export function refocus(host, attr, value) {
 export const focusLost = () => !document.activeElement || document.activeElement === document.body;
 
 /**
- * Restamp the sheet's "Printed …" line with the moment it prints (overtime-ui-7): drawn at paint, it
- * named the time the week was OPENED, so two printouts an hour apart carried one stamp — on the line
- * whose job is to put them in order. The page calls this on `beforeprint`; iOS sends none for AirPrint,
- * so there the line keeps its paint-time stamp, which is the best that engine allows.
+ * Restamp the sheet's "Printed …" line with the moment it prints, so two printouts can be put in
+ * order. The page calls this on `beforeprint`; iOS sends none for AirPrint, so there the line keeps
+ * its paint-time stamp.
  * @param {HTMLElement|null} host the workspace @param {number} nowMs the corrected clock
  */
 export function stampPrinted(host, nowMs) {
@@ -197,12 +175,8 @@ function wireRefresh(host, onRefresh) {
     if (typeof host?.querySelector !== 'function' || !onRefresh) return;
     const btn = /** @type {HTMLButtonElement|null} */ (host.querySelector('.ot-refresh-btn'));
     btn?.addEventListener('click', () => {
-        // SAY IT IS WORKING, and stop a second press starting a second read. The coordinator's
-        // generation guard makes a doubled press harmless, but harmless is not the same as
-        // sensible: a control that looks idle while it works invites the press that needs the
-        // guard. Nothing resets this — every path out of a read repaints the whole workspace and
-        // replaces this button, and the newest read always paints even when older ones are
-        // discarded, so there is no state in which a disabled button survives.
+        // SAY IT IS WORKING, and stop a second press starting a second read. Nothing resets this:
+        // every path out of a read repaints the workspace and replaces this button.
         btn.disabled = true;
         btn.textContent = 'Refreshing…';
         // The new button takes the keyboard back — unless the reader moved on while it read.
@@ -215,10 +189,9 @@ function wireRefresh(host, onRefresh) {
 /**
  * The grades present in THIS window's frozen population, in roster order.
  *
- * DERIVED, never a fixed list of the app's grades. A hardcoded set would offer a Dispatcher chip on
- * a week with no dispatchers in it — a control that filters to an empty page — and would silently
- * omit a grade added to the roster later. Participants arrive sorted by `rosterOrder`, so first
- * appearance is roster order, which is the order a reviewer already thinks in.
+ * DERIVED, never a fixed list: a hardcoded set would offer a chip that filters to an empty page and
+ * omit a grade added later. Participants arrive sorted by `rosterOrder`, so first appearance is
+ * roster order.
  * @param {any[]} participants
  */
 function gradesPresent(participants) {
@@ -238,19 +211,11 @@ function ofGrade(participants, grade) {
 /**
  * When this window's population was FROZEN — the earliest participant's creation instant.
  *
- * ── A DENOMINATOR THAT MOVES OVERNIGHT MUST SAY SO ──────────────────────────────────────────────
+ * A DENOMINATOR THAT MOVES OVERNIGHT MUST SAY SO: the nightly top-up can turn "1 of 1" into "1 of 2"
+ * with nothing on screen accounting for it. Everybody frozen at creation shares one batch's commit
+ * timestamp, so the earliest is the freeze instant. Derived rather than stored.
  *
- * The nightly job tops up every still-open window with anybody newly eligible, so "1 of 1 received"
- * on Monday can be "1 of 2 received · 1 no response" on Tuesday with nothing on screen accounting
- * for it. A reviewer cannot tell that apart from somebody who stopped answering — and one of those
- * is worth a phone call while the other is not.
- *
- * Everybody frozen at creation is written in ONE batch and shares a commit timestamp, so the
- * earliest is the freeze instant and anybody materially later was added afterwards. Derived rather
- * than stored: the window's own `createdAt` would be a second copy of the same fact, free to drift.
- *
- * Returns 0 when it cannot be established, which reads as "nobody was added late" — the quiet
- * direction, because a wrongly-marked row accuses the system of something it may not have done.
+ * Returns 0 when it cannot be established — "nobody was added late", the quiet direction.
  * @param {any[]} participants
  * @returns {number}
  */
@@ -260,9 +225,8 @@ function frozenAt(participants) {
 }
 
 /**
- * Tolerance on that comparison. One batch's writes share a commit time, but not to the millisecond
- * across a retry, and a marker that fires on batch jitter would appear on the whole population at
- * once — which is worse than never appearing, because it would train a reviewer to ignore it.
+ * Tolerance on that comparison: a marker firing on batch jitter would appear on the whole population
+ * at once and train a reviewer to ignore it.
  */
 const ADDED_LATER_TOLERANCE_MS = 60_000;
 
@@ -276,11 +240,8 @@ const ADDED_LATER_TOLERANCE_MS = 60_000;
  */
 function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false, refreshFailed = false, printedAt = now }) {
     const { submissions } = data;
-    // WITHDRAWN COMES OFF FIRST, before the grade filter and before anything is counted. A person
-    // who has left is not somebody the week is short of an answer from, and leaving them in the
-    // panels is how a reviewer ends up ringing them — which is the whole reason withdrawal exists.
-    // The grade chips are computed from the remaining population too, or a grade could survive in
-    // the strip with nobody under it.
+    // WITHDRAWN COMES OFF FIRST, before the grade filter and before anything is counted — and the
+    // grade chips are computed from the remaining population, or a chip could have nobody under it.
     const active = (data.participants || []).filter(p => !isWithdrawn(p));
     const withdrawn = (data.participants || []).filter(isWithdrawn);
     const grades = gradesPresent(active);
@@ -288,26 +249,19 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false, 
     const received = participants.filter(p => submissions.has(p.memberName)).length;
     const scope = gradeScopeLabel(grade);
 
-    // The reasons for this head live here, not in the markup, where every paint shipped them to the
-    // reviewer's browser (overtime-ui-17).
+    // The reasons for this head live here, not in the markup:
     //
-    // THE PRINT HEAD is paper only (the card header above names the week on screen — v20.62 — but it
-    // is chrome and does not print, and a sheet of names with no week on it can be acted on). It
-    // carries TWO times (v23.27): "as at" is how fresh the DATA is; "Printed" is when the PAPER was
-    // produced, which is what orders two printouts of one snapshot — so it carries the year (a
-    // printout goes in a folder) and is restamped as it prints (`stampPrinted`, on `beforeprint`;
-    // iOS fires none for AirPrint, so there it stays the moment the sheet was drawn). The grade lens
-    // IS carried onto paper, unlike the day lens, which makes the scope line mandatory: four CEAs with
-    // no scope line read as the whole team.
+    // THE PRINT HEAD is paper only (the card header is chrome and does not print). It carries TWO
+    // times: "as at" is how fresh the DATA is; "Printed" orders two printouts of one snapshot (with a
+    // year; restamped by `stampPrinted`). The grade lens IS carried onto paper, so the scope line is
+    // mandatory: four CEAs with no scope line read as the whole team.
     //
-    // THE FRESHNESS LINE, on screen too: everything here is a one-shot snapshot, and without "as at"
-    // the page reads as current for as long as it is open. It is the print head's own sentence, so
-    // screen and paper cannot disagree, and Refresh is the route to current answers.
+    // THE FRESHNESS LINE, on screen too: a one-shot snapshot would otherwise read as current. It is
+    // the print head's own sentence, so screen and paper cannot disagree.
     //
     // THE CURRENT NOTE's second sentence is a boundary, not a caution (owner, Aug 2026): what people
-    // offer is time AROUND their rostered duty, never an offer to change or give it up. "All day"
-    // beside an early shift had three readings, and the dangerous one costs a member the shift they
-    // planned their week around. Here, and not only in the help, because a tip is opt-in.
+    // offer is time AROUND their rostered duty, never an offer to change or give it up. Here, and not
+    // only in the help, because a tip is opt-in.
     return `
         <div class="ot-detail-head">
             <div class="ot-print-head" aria-hidden="true">
@@ -328,10 +282,8 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false, 
             ${refreshFailed ? `<div class="ot-reminder-line ot-reminder-line--warn" role="status">Couldn't refresh `
                 + `just now — still showing availability as at ${esc(deadlineLabel(now))}.</div>` : ''}
             ${(() => {
-                // The reminder audit (v22.05): whether the deadline-morning reminder actually went
-                // out, and what it reached (overtime-core-4), without reading Cloud Function logs.
-                // reminderLine owns the states, including the deliberate silence on CLOSED weeks
-                // (pre-feature windows must not wear a permanent false alarm).
+                // The reminder audit: whether the deadline-morning reminder went out, and what it
+                // reached. reminderLine owns the states, including the deliberate silence on CLOSED weeks.
                 // A week OPENED after its initial deadline never had a reminder morning, so the
                 // FINAL_OPEN "none recorded" warning would be a false alarm there.
                 const late = frozenAt(data.participants) >= win.initialDeadlineAt;
@@ -363,12 +315,8 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false, 
 /**
  * Filter the week to one grade.
  *
- * Rendered ONLY when the window holds more than one grade. A single-grade week would get a control
- * with one real option beside "All" — inert, and an inert control is worse than an absent one
- * because it invites a press that changes nothing.
- *
- * "Grade" rather than "role" is the app's own word for these values: it is what the login dropdown
- * groups by, and what every person row on this very page already prints beside the name.
+ * Rendered ONLY when the window holds more than one grade — an inert control is worse than an absent
+ * one. "Grade" rather than "role" is the app's own word for these values.
  * @param {string[]} grades @param {string} active
  */
 function gradeStrip(grades, active) {
@@ -397,10 +345,8 @@ function wireGrades(host, onPick) {
  * Wire the two participation controls. Same enhancement-over-complete-markup contract as the rest:
  * without a handler the buttons are simply inert, and the week still reads correctly.
  *
- * Nothing here re-renders. The write is asynchronous and can fail, so the page must not show the
- * person moving between panels before the server has agreed — that is the shape of an optimistic
- * update, and on this control it would tell a reviewer somebody had been taken out of the counts
- * when they had not.
+ * Nothing here re-renders: the write can fail, so the page must not show the person moving between
+ * panels before the server has agreed (no optimistic update).
  * @param {HTMLElement} host @param {((memberName: string, ask: boolean) => void) | undefined} onAsk
  */
 function wireAsk(host, onAsk) {
@@ -414,37 +360,21 @@ function wireAsk(host, onAsk) {
 /**
  * THE WHOLE WEEK IN ONE LINE, and a way to look at one day of it.
  *
- * ── WHY A LIST OF DAYS WAS NOT ENOUGH ───────────────────────────────────────────────────────────
- *
- * The by-day view answers "who can work Saturday?" correctly and, at full roster size, slowly: seven
- * day panels, three sections each, **308 name rows**. A clerk filling one shift on one day had to
- * scroll past six days they did not ask about, and — worse — could not see where the WEEK was
- * thin without reading all of it. The count that matters most ("Tuesday has two people") was
- * derivable from the page and stated nowhere on it.
- *
- * So the week opens with one row of seven days, each showing how many are available, and a day with
- * NOBODY says so in its own colour rather than by being an empty section further down. Tapping a day
- * shows only that day; "All week" brings them back. Nothing is hidden that was not already there —
- * this is a lens over the same rows, not a summary that could disagree with them.
+ * At full roster size the by-day view is hundreds of name rows, and where the WEEK is thin was stated
+ * nowhere. So the week opens with one row of seven days, each with how many are available; a day
+ * with NOBODY says so in its own colour. Tapping a day shows only that day. A lens over the same
+ * rows, not a summary that could disagree with them.
  * @param {string[]} dates @param {any[]} participants @param {Map<string, any>} submissions @param {string} activeDay
  */
 function glanceStrip(dates, participants, submissions, activeDay) {
     const chips = dates.map(date => {
         const n = participants.filter(p => {
             const sub = submissions.get(p.memberName);
-            // POSITIVE. `!isUnavailable(undefined)` is true, so the negation counted a member
-            // whose submission lacked this date as available — inventing a body for a shift.
+            // POSITIVE: `!isUnavailable(undefined)` is true, and would invent a body for a shift.
             return sub && isAvailableAnswer(sub.days?.[date]);
         }).length;
-        // ── ZERO IS A JUDGEMENT THE APP CAN MAKE; "ENOUGH" IS NOT (v20.87, external audit) ──────
-        //
-        // There used to be a third tone: 1–2 was amber, 3+ was plain. That put the app's opinion on
-        // a number it has no basis for. Four people all available only before 07:00 does not fill a
-        // 15:00–23:00 vacancy, and two available all day might fill two — the count alone cannot
-        // tell them apart, because only the reviewer knows which shift is short.
-        //
-        // Zero survives, because zero is the one figure that means the same thing whatever the
-        // vacancy: nobody offered anything, so this day cannot be solved from this page at all.
+        // ZERO IS A JUDGEMENT THE APP CAN MAKE; "ENOUGH" IS NOT — only the reviewer knows which shift
+        // is short. Zero means the same whatever the vacancy: nobody offered anything.
         const tone = n === 0 ? 'none' : 'some';
         return `<button type="button" class="ot-glance-day ot-glance-day--${tone}"
                         data-glance="${esc(date)}" aria-pressed="${date === activeDay}"
@@ -453,8 +383,7 @@ function glanceStrip(dates, participants, submissions, activeDay) {
                     <span class="ot-glance-count">${n}</span>
                 </button>`;
     }).join('');
-    // The note says what the numbers ARE: a bare row of counts invites the reading the tones no
-    // longer offer — that a bigger number is a solved day.
+    // The note says what the numbers ARE — a bigger number is not a solved day.
     return `
         <div class="ot-glance" role="group" aria-label="Staff with some availability, by day — choose a day to show only that day">
             <button type="button" class="ot-glance-day ot-glance-day--all" data-glance="ALL" aria-pressed="${activeDay === 'ALL'}">
@@ -471,13 +400,8 @@ function glanceStrip(dates, participants, submissions, activeDay) {
  * day panel visible, so a host without query methods (the two-line fake DOM the render tests use)
  * simply gets the unfiltered week. The guard is what keeps the render testable without a browser.
  *
- * ── STATE, NOT A HAND-TOGGLED DOM — SO A GRADE SWITCH KEEPS THE DAY ─────────────────────────────
- *
- * Until v20.75 this handler flipped `hidden` on the panels directly while the grade chips
- * re-rendered the whole surface — two mechanisms over one view, and the repaint silently reset the
- * day to "All week". A clerk looking at Saturday's CEAs who tapped CES was bounced back to the
- * full week with no sign of why. Both lenses now go through the same `(data, state) → markup`
- * render, which is the module's own stated model.
+ * STATE, NOT A HAND-TOGGLED DOM — SO A GRADE SWITCH KEEPS THE DAY: both lenses go through the same
+ * `(data, state) → markup` render.
  * @param {HTMLElement} host @param {(day: string) => void} onPick
  */
 function wireGlance(host, onPick) {
@@ -499,20 +423,13 @@ function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {
         const sub = submissions.get(p.memberName);
         if (!sub) { noResponse.push(personRow(p, null, null, ctx, null, meta)); continue; }
         const day = sub.days?.[date];
-        // THIS DATE's age, not the whole form's (v21.26). A member who answered the week a
-        // fortnight ago and edited only the Saturday this morning had every row reporting today —
-        // always in the fresher direction, which is the one that misleads a clerk arranging cover.
-        // The whole-form stamp remains the fallback: a revision read can fail while the head is
-        // perfectly readable, and no age at all is worse than a coarse one.
+        // THIS DATE's age, not the whole form's, which errs toward fresher. The whole-form stamp is
+        // the fallback when the revision read fails — no age at all is worse than a coarse one.
         const row = personRow(p, day, sub.history, ctx,
             sub.history?.initialRevision?.days?.[date], meta,
             sub.history?.dayChangedAt?.[date] ?? sub.updatedAt);
-        // THREE-VALUED, asked positively (v20.87). It used to be `isUnavailable(day) ? unavailable
-        // : available`, whose negation is TRUE for a missing day — so a submission that somehow
-        // lacked this date filed that person under Available, with no answer chip beside their
-        // name to contradict it. Now each section requires its own positive answer, and a day
-        // neither of them claims falls through to No response, which is what it is: they submitted
-        // a form, and it says nothing about this date.
+        // THREE-VALUED, asked positively: each section requires its own positive answer, and a day
+        // neither claims falls through to No response — the form says nothing about this date.
         if (isAvailableAnswer(day)) available.push(row);
         else if (isUnavailable(day)) unavailable.push(row);
         else noResponse.push(row);
@@ -551,32 +468,15 @@ function section(title, rows, tone) {
  * "Not available". Pass `null` for somebody who has not answered at all — that is a real state
  * (`none`), not a missing string.
  *
- * ── THE ROSTER BELONGS ON THIS ROW (v20.87, external audit) ─────────────────────────────────────
+ * THE ROSTER BELONGS ON THIS ROW: "Available after 15:00" is only actionable next to what that
+ * person is rostered to work. `answerAnchorStale` warns where the two disagree — the same predicate
+ * the member's form uses, so both ends of the record flag the same fact.
  *
- * "Available after 15:00" is only actionable next to what that person is rostered to work. The
- * member's own form knows the duty — it is what generated the option — and until now the app threw
- * that away at exactly the point somebody had to make a decision from it. It matters most in the
- * case the feature exists for: a member who answered "Rest day · available all day" and has SINCE
- * been given overtime is no use for sickness cover, and the reviewer's screen did not say so.
+ * AND WHAT CHANGED, NOT MERELY THAT SOMETHING DID: the before-and-after shows on the day it
+ * happened, from the initial revision; days that did not change say nothing.
  *
- * `answerAnchorStale` then warns where the two disagree — the same predicate the member's form
- * uses, so both ends of the record flag the same fact rather than one noticing and the other not.
- *
- * ── AND WHAT CHANGED, NOT MERELY THAT SOMETHING DID ─────────────────────────────────────────────
- *
- * `changedSinceInitial` was a flag repeated under a person's name on all seven days, saying only
- * that some day somewhere had moved. The initial revision is already downloaded — that is the point
- * of keeping immutable revisions — so the row can show the actual before-and-after on the day it
- * happened, which is what a clerk revisiting a decision needs. Days that did not change say
- * nothing, so the marker means something wherever it appears.
- *
- * ── AND HOW OLD THE STATEMENT IS ────────────────────────────────────────────────────────────────
- *
- * The row said who, what they are rostered and what they said — and nothing about WHEN they said
- * it. Mid-week sickness is the case that breaks on: an "available all day" written nineteen days
- * ago, before a roster the member has since seen and planned around, looked exactly as fresh as one
- * written this morning. The roster chip fixed half of that (what they are working now); this is the
- * other half (how old the statement is).
+ * AND HOW OLD THE STATEMENT IS: an answer from nineteen days ago may predate a roster the member has
+ * since planned around.
  *
  * @param {any} p @param {any} day @param {any} history
  * @param {any} ctx that member's roster for THIS date, or null when it could not be read
@@ -588,23 +488,18 @@ function section(title, rows, tone) {
  */
 function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, updatedAt = 0) {
     const flags = [];
-    // ADDED AFTER THIS WEEK OPENED. Not a judgement on the person — the opposite: it accounts for a
-    // denominator that grew overnight, so a reviewer does not read a fresh name in "No response" as
-    // somebody who has gone quiet.
+    // ADDED AFTER THIS WEEK OPENED — not a judgement on the person: it accounts for a denominator
+    // that grew overnight.
     if (meta.frozenAt && p.createdAt && p.createdAt > meta.frozenAt + ADDED_LATER_TOLERANCE_MS) {
         flags.push('Added after this week opened');
     }
     // Whole-submission facts first — these are about the FORM, not about this date.
     if (history?.lateInitial) flags.push('Submitted after initial deadline');
-    // Per-DAY, and only where this day genuinely moved. `sameAnswer` is structural for the same
-    // reason the member's form uses it: the two sides pass through different producers and a key
-    // reorder is not a change of mind.
+    // Per-DAY, and only where this day genuinely moved (`sameAnswer` is structural).
     else if (initialDay && day && !sameAnswer(initialDay, day)) {
         flags.push(`Changed after initial deadline · was ${answerCopy(initialDay)}`);
     }
-    // The roster moved out from under an answer that was anchored to it. Distinct from the above:
-    // there the MEMBER changed their mind, here the roster changed under a declaration they stand
-    // by — and a clerk acting on it needs to know which of the two happened.
+    // The roster moved under an answer anchored to it — distinct from the member changing their mind.
     if (answerAnchorStale(day, ctx)) flags.push('Roster changed since this answer');
     // Only where there IS an answer to date. A row in "No response" has nothing to be old.
     const age = day ? declaredAgo(updatedAt, meta.now || 0) : null;
@@ -615,12 +510,8 @@ function personRow(p, day, history, ctx = null, initialDay = null, meta = {}, up
             <span class="ot-person-name">${esc(p.memberName)}</span>
             ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
             ${meta.showRoster === false ? ''
-                // NOT the same as `ctx === null`, which means the roster read FAILED and prints
-                // "Roster unavailable". The Awaiting panel is not showing a duty at all — its rows
-                // span the whole week — and printing an unavailability notice there stated
-                // something untrue about data that was read perfectly well two panels up. Its own
-                // comment had said "no roster badge on this panel" since v20.87 while every row
-                // carried one.
+                // NOT the same as `ctx === null`, which means the roster read FAILED ("Roster
+                // unavailable"). The Awaiting panel shows no duty at all — its rows span the week.
                 : `<span class="ot-person-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(ctx)}</span>`}
             ${day ? `<span class="ot-answer ot-answer--${answerTone(day)}">${esc(answerCopy(day))}</span>` : ''}
             ${releaseRequestLine(day) ? `<span class="ot-release-flag">${esc(releaseRequestLine(day))}</span>` : ''}
@@ -638,18 +529,9 @@ function awaitingPanel(participants, submissions, meta = {}) {
         <div class="ot-day-panel">
             <div class="ot-day-panel-head">Awaiting a form</div>
             ${waiting.length
-                // NO roster badge on this panel, deliberately. Every other row is about ONE date and
-                // can carry that date's duty; this list spans the whole week, so a single badge
-                // would have to pick a day, and whichever it picked would be read as "what they are
-                // working" rather than "what they are working on the Tuesday". The by-day panels
-                // above already show these people, with the right roster on each.
-                //
-                // It no longer carries "Stop asking" (v21.20, external review). It was the ONLY
-                // place that did, and this panel by definition holds people who have NOT submitted
-                // — so somebody who answered and then left had no route to withdrawal at all, on a
-                // page whose endpoint has supported it since v20.95. That is the commoner case, not
-                // the rarer one: a leaver two weeks out has usually already filled the form in.
-                // The control moved to `askedPanel` below, which lists everyone.
+                // NO roster badge on this panel, deliberately: this list spans the whole week, so a
+                // badge would have to pick a day. "Stop asking" lives in `askedPanel`, which lists
+                // everyone — this panel holds only those who have NOT submitted.
                 ? waiting.map(p => personRow(p, null, null, null, null,
                     { ...meta, showRoster: false })).join('')
                 : '<div class="ot-section-empty">Everyone has responded</div>'}
@@ -657,42 +539,16 @@ function awaitingPanel(participants, submissions, meta = {}) {
 }
 
 /**
- * WHO IS BEING ASKED — the one home for participant management (v21.20, external review).
+ * WHO IS BEING ASKED — the one home for participant management, listing everyone, so somebody who
+ * answered and then left can still be withdrawn.
  *
- * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
+ * ONE PLACE, NOT SEVEN: a button on every person row would put a destructive control in the panels
+ * a reviewer scrolls fastest. So a single list, at the bottom, beside who has ALREADY been stood
+ * down, stating each person's position (answered / no form yet). If it ever needs collapsing,
+ * collapse it; do not move the control back onto rows.
  *
- * "Stop asking" used to live only on the Awaiting panel, which holds exactly the people who have
- * NOT submitted. So the case it was built for — somebody leaves, or moves into Management, two
- * weeks before a week they have already answered — had no route through the UI at all, while the
- * endpoint had supported it since v20.95. A capability the server has and the page cannot reach is
- * the same as not having it.
- *
- * ── ONE PLACE, NOT SEVEN ────────────────────────────────────────────────────────────────────────
- *
- * The obvious alternative is a button on every person row. That is seven buttons per person on a
- * page that already repeats each name once per day, for an action taken a handful of times a year —
- * and it would put a destructive control inside the panels a reviewer scrolls fastest. So this is a
- * single list, at the bottom, next to the panel showing who has ALREADY been stood down. The two
- * belong together: one is the population, the other is what has been taken out of it.
- *
- * It states each person's position (answered / no form yet) so the reviewer is not made to
- * cross-reference the panels above to know what withdrawing somebody would discard.
- *
- * ── AT FULL LAUNCH IT IS THE WHOLE ROSTER ───────────────────────────────────────────────────────
- *
- * Today the beta makes this a handful of rows. Open to everyone it becomes ~50, which sounds like a
- * lot until you notice the seven day panels above already carry each name once — this adds a
- * fourteenth of what is on the page, at the bottom, muted. If it ever does need collapsing, collapse
- * it; do not solve it by moving the control back onto rows, which is the bug this panel exists for.
- * ── A CLOSED WEEK IS A RECORD, SO IT LOSES ITS CONTROLS (v21.23, external review) ───────────────
- *
- * The server has always refused a withdrawal on a closed week — that week is the record the roster
- * was planned from — but the panel offered the button anyway, so the only way to learn the rule was
- * to press it and be told no. An interface should not offer what it already knows cannot succeed.
- *
- * The heading moves to the PAST TENSE with it. That is not decoration: "Who is being asked" over a
- * finished week is a false statement in the present tense, and it is the sentence a reviewer reads
- * when working out why nobody has responded.
+ * A CLOSED WEEK IS A RECORD, SO IT LOSES ITS CONTROLS (the server refuses them) and its heading moves
+ * to the PAST TENSE — "Who is being asked" over a finished week would be false.
  * @param {any[]} participants the ACTIVE population, already grade-filtered
  * @param {Map<string, any>} submissions
  * @param {boolean} [closed] the week's final deadline has passed
@@ -722,25 +578,14 @@ function askedPanel(participants, submissions, closed = false, putBack = 'until 
 /**
  * The people this week has stopped expecting an answer from.
  *
- * ── IT RENDERS ONLY WHEN THERE IS SOMEBODY IN IT, UNLIKE THE THREE DAY SECTIONS ─────────────────
+ * IT RENDERS ONLY WHEN THERE IS SOMEBODY IN IT, UNLIKE THE THREE DAY SECTIONS: an empty "No
+ * response" must draw its heading (hidden reads as a render failure), but a permanent empty panel
+ * here would be furniture a reviewer stops reading. Like `askedPanel`, it goes read-only and
+ * past-tense on a CLOSED week.
  *
- * That difference is deliberate and the reasoning is the opposite way round. An empty "No response"
- * must still draw its heading, because a hidden one makes "nobody outstanding" look exactly like a
- * section that failed to render. Here the absence carries no such ambiguity: nobody has been
- * withdrawn from almost every week, and a permanent empty panel on every screen would be furniture
- * — and furniture is what a reviewer stops reading. When it IS there, it is a statement that the
- * expected count on this page is smaller than the frozen population, which is a thing to notice.
- * Like `askedPanel`, it goes read-only and past-tense on a CLOSED week (v21.23) — the server refuses
- * a restore there, so offering "Ask again" was offering a button that could only fail.
- *
- * ── AND PER PERSON, SINCE v21.26 ────────────────────────────────────────────────────────────────
- *
- * Restoring is not the mirror of withdrawing: putting somebody back into a week whose initial
- * deadline has passed, when they were stood down BEFORE it, makes the app report them as having
- * submitted late to a deadline they were never asked about. So the button is per-row now — present
- * where `canRestoreNow` says the server would accept it, and replaced by a line saying why not
- * where it would not. The line matters: a button that silently disappears for one person and not
- * another reads as a rendering fault, and the reviewer's next move would be to reload.
+ * PER PERSON: restoring is not the mirror of withdrawing (`canRestoreParticipant`), so "Ask again"
+ * shows where `canRestoreNow` says the server would accept it, and a line says why not where it
+ * would not — a silently missing button reads as a rendering fault.
  * @param {any[]} withdrawn
  * @param {boolean} [closed] the week's final deadline has passed
  * @param {{ initialDeadlineAt?: number, finalDeadlineAt?: number, now?: number }} [win] milestones for the per-row rule

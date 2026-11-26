@@ -13,17 +13,10 @@
  * Edit here for: a new cell state, or a change to what is ticked by default.
  * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
- * ── WHY IT IS ITS OWN MODULE (v23.52) ──────────────────────────────────────────────────────────
+ * ── WHY IT IS ITS OWN MODULE ───────────────────────────────────────────────────────────────────
  *
- * `admin-roster-upload.js` reached its ratchet cap with no headroom at all, and this was the one
- * part of it that is a RULE rather than coordination: it touches no DOM, holds no state, and every
- * answer it gives is a decision that would be WRONG if it were wrong. Everything left in that file
- * reads the page, calls a Cloud Function, or paints — which is what a coordinator is for.
- *
- * It is also Firebase-free, so it loads in Node with no mocks. The existing suite still reaches it
- * through `admin-roster-upload.js`'s re-export (the same reason that file already re-exports the
- * three `roster-cell-rules.js` names): moving the assertions is a separate change, and a test block
- * relocated in the same commit as the code under it can lose a case with nothing to say so.
+ * It is the RULE part of the roster review: no DOM, no state, Firebase-free, so it loads in Node with
+ * no mocks. The existing suite still reaches it through `admin-roster-upload.js`'s re-export.
  *
  * ── THE FIVE THINGS AN EDIT CAN SILENTLY BREAK ─────────────────────────────────────────────────
  *
@@ -34,9 +27,8 @@
  *      every row of a read the breaker has refused — start `chosen: false`; CONFLICT and UNREADABLE
  *      start `null`. Only DIFF and REMOVE_IMPORT are pre-ticked, and never on Christmas Day or Boxing
  *      Day, which the app's Christmas leave decides (owner, 10 Nov 2026; `isChristmasClosureDate`).
- *   2. THE ALIGNMENT VERDICT IS TAKEN ONCE, HERE, because `chosen` is decided here. It used to be
- *      computed at render time, under a banner, while every change stayed ticked — reporting is
- *      not refusing (v22.16).
+ *   2. THE ALIGNMENT VERDICT IS TAKEN ONCE, HERE, because `chosen` is decided here — reporting a
+ *      drift under a banner while every change stays ticked is not refusing it.
  *   3. AN UNREADABLE CELL NEVER WRITES ITS SENTINEL, and every candidate reading offered as a pick
  *      goes through the same `normaliseCellValue` guards a parsed value does. Picking must not be
  *      a route to write something the parsed path would have refused — a Sunday AL, say.
@@ -74,7 +66,7 @@ export { RDW_PREFIX, isRdwEncoded, stripRdw, UNKNOWN_PREFIX, isUnknownEncoded, s
  *   GUARDED  — PDF said something the app's rules refuse to record on that day (leave or an
  *              absence on a base rest day or a rest Sunday; a training or meeting day on ANY
  *              Sunday, whatever is saved there — owner, 7 Nov 2026; anything but a rest day before
- *              the member's start date — 16 Nov 2026). Writes nothing unless a rest-day
+ *              the member's start date). Writes nothing unless a rest-day
  *              row is answered "swapped" (`guardedWrites`) — and it is shown and explained, because
  *              the app decided rather than agreed
  *   DIFF     — PDF differs from base roster, no manual override → propose change
@@ -89,8 +81,8 @@ export { RDW_PREFIX, isRdwEncoded, stripRdw, UNKNOWN_PREFIX, isUnknownEncoded, s
  */
 export function computeCellStates(parsedResult, existingOverrides) {
     const states = new Map();
-    // Candidate readings for cells the server's cross-check flagged (v19.32). Absent on an older
-    // function response — the rows then behave exactly as before (skip-only).
+    // Candidate readings for cells the server's cross-check flagged. Absent on an older function
+    // response — the rows are then skip-only.
     const choices = parsedResult.choices;
 
     // Build a quick lookup: "memberName|date" → best override doc.
@@ -103,19 +95,15 @@ export function computeCellStates(parsedResult, existingOverrides) {
             overrideMap.set(key, o);
         }
     }
-    // Every OTHER record of a day, beside the one the review shows (whole-app review, Oct 2026). A
-    // pre-v24.48 duplicate the winner outranks still outranks an import, so a write that replaced only
-    // the winner left it to resurface over the new roster: "Use new roster" did not take. And an older
-    // IMPORT copy — two devices importing one week, or a save pressed twice — resurfaced the same way
-    // the day the newer one was replaced or cleared (whole-app fix, Nov 2026). The save deletes them all.
+    // Every OTHER record of a day, beside the one the review shows — an older manual duplicate or an
+    // older import copy would resurface over the new roster once the winner was replaced. The save
+    // deletes them all.
     /** @param {string} key @returns {string[]} */
     const otherRecordIds = (key) => existingOverrides
         .filter(o => `${o.memberName}|${o.date}` === key && o.id !== overrideMap.get(key)?.id)
         .map(o => o.id);
 
-    // The alignment verdict is taken ONCE, here, because `chosen` is decided here — it used to be
-    // computed at render time under a banner while every change stayed ticked. Rules and reasoning:
-    // roster-alignment.js.
+    // The alignment verdict is taken ONCE, here (rule 2). Rules and reasoning: roster-alignment.js.
     const alignment = assessRosterAlignment(parsedResult);
 
     for (const entry of parsedResult.parsed) {
@@ -123,25 +111,19 @@ export function computeCellStates(parsedResult, existingOverrides) {
         const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
         if (!member) continue;
         const drift = alignment.byMember.get(entry.memberName) || null;
-        // A ROW NOBODY READ (decided default, whole-app fix, Nov 2026). When every Monday-to-Saturday
-        // cell is a question, the Sunday is one too: a blank Sunday reads as a rest day, so for the
-        // member printed on a second sheet who works most of the week elsewhere it was a pre-ticked
-        // "Update → Rest" over a rostered Sunday, or a ticked "Back to normal" over recorded Sunday work.
+        // A ROW NOBODY READ (a decided default): when every Monday-to-Saturday cell is a question, the
+        // Sunday is one too — a blank Sunday must not pre-tick a rest day over a rostered or worked one.
         const unread = (/** @type {any} */ v) => !v || v === 'RDW' || isUnknownEncoded(v);
         const weekdays = parsedResult.dates.filter((/** @type {string} */ d) => !isSunday(d));
         const rowUnread = weekdays.length > 0 && weekdays.every((/** @type {string} */ d) => unread(entry.shifts?.[d]));
 
         for (const date of parsedResult.dates) {
-            // A day the response does not carry is a QUESTION, not a rest day (whole-app fix, Nov
-            // 2026): 'RD' here was a pre-ticked rest day over a worked base day, against the blank-cell
-            // rule. Unreachable from today's server, which always sends all seven days.
+            // A day the response does not carry is a QUESTION, not a rest day (the blank-cell rule).
+            // Unreachable from today's server, which always sends all seven days.
             let parsedShift  = entry.shifts?.[date] || `${UNKNOWN_PREFIX}no value for this day in the read — check the PDF`;
-            // Bare 'RDW' = the AI omitted the shift time. The server passes it through so the
-            // review can flag it, but there is NO edit affordance and it previously classified
-            // as a default-ticked DIFF whose save produced {type:'rdw', value:'RDW'} — which
-            // firestore.rules rejects (rdw requires HH:MM-HH:MM), failing the WHOLE ≤200-row
-            // chunk as permission-denied with a misleading "session may have expired" error.
-            // Route it to the skip-only UNREADABLE row instead — never written (v16.23).
+            // Bare 'RDW' = the AI omitted the shift time. As a DIFF it would save
+            // {type:'rdw', value:'RDW'}, which firestore.rules rejects, failing the WHOLE chunk —
+            // so it is an UNREADABLE row instead, never written.
             if (parsedShift === 'RDW') parsedShift = 'UNKNOWN|RDW (no time on roster)';
             if (rowUnread && isSunday(date) && !isUnknownEncoded(parsedShift)) {
                 const read = /** @type {Record<string, string>} */ ({ RD: 'rest day', OFF: 'rest day', SICK: 'Absent' })[parsedShift]
@@ -151,19 +133,13 @@ export function computeCellStates(parsedResult, existingOverrides) {
             const baseShift    = getBaseShift(member, parseISODate(date));
             const key          = `${entry.memberName}|${date}`;
             const existing     = overrideMap.get(key);
-            // CHRISTMAS DAY AND BOXING DAY ARE THE APP'S CHRISTMAS LEAVE'S TO DECIDE (owner, 10 Nov 2026).
-            // The base makes both a rest day for everybody, so a pattern shift printed there was a
-            // pre-ticked DIFF — saved, it put the member at work and added the Boxing Day lieu day —
-            // and leave there asked the swapped-day question of a day nobody is rostered to work.
-            // Nothing is pre-ticked and nothing is asked; a manager can still tick a day on purpose.
+            // CHRISTMAS DAY AND BOXING DAY ARE THE APP'S CHRISTMAS LEAVE'S TO DECIDE (owner, 10 Nov 2026):
+            // nothing is pre-ticked and nothing is asked; a manager can still tick a day on purpose.
             const christmas    = isChristmasClosureDate(date);
 
-            // A DAY BEFORE THE MEMBER STARTED IS NOT THEIRS TO RECORD (review, 16 Nov 2026). The base
-            // reads it as a rest day (`getPatternShift`), so anything else the sheet printed there — a
-            // starter's row filled in early, a misread, an absence — was a pre-ticked DIFF or a question
-            // whose answer wrote over a day before they joined, which the allowance and the lieu counts
-            // then had to be taught to ignore. It is SHOWN, as a GUARDED row naming the reason, and
-            // writes nothing; a rest day with nothing saved there is nothing to say (MATCH, not drawn).
+            // A DAY BEFORE THE MEMBER STARTED IS NOT THEIRS TO RECORD. Anything the sheet printed there
+            // is SHOWN, as a GUARDED row naming the reason, and writes nothing; a rest day with nothing
+            // saved there is nothing to say (MATCH, not drawn).
             if (isBeforeMemberStart(member, parseISODate(date))) {
                 const nothingToSay = (parsedShift === 'RD' || parsedShift === 'OFF') && !existing;
                 states.set(key, {
@@ -182,20 +158,13 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // the sentinel: chosen stays null, and the save writes only what the admin answers in
             // place (`entered`) or a reading they pick (`options`) — rule 3.
             if (isUnknownEncoded(parsedShift)) {
-                // …EXCEPT when the server told us which two readings disagreed (v19.32). Then the row
-                // can offer them as a pick instead of being a dead end that sends the admin off to
-                // Change a Shift. Each candidate is put through the SAME normalisation an ordinary
-                // parsed value gets (Sunday AL/absence → RD, absence-or-AL on a base rest day → RD,
-                // the RDW| display marker) — picking must not be a way to write a value the guards
-                // would have rejected on the parsed path. `chosen` stays null = skip, so the DEFAULT
-                // is still "write nothing"; a pick is always a deliberate act.
+                // …EXCEPT when the server told us which two readings disagreed: then the row offers
+                // them as a pick. Each goes through the SAME normalisation as a parsed value (rule 3).
+                // `chosen` stays null = skip, so the DEFAULT is still "write nothing".
                 const cand = choices?.[key];
-                // A BARE 'RDW' IS NOT A READING ANYTHING CAN WRITE (whole-app review, Oct 2026). The
-                // parsed path has refused it since v16.23 (above), but as one of two readings it was
-                // offered, and picking it built {type:'rdw', value:'RDW'}, which firestore.rules
-                // refuses — failing the whole save batch with a misleading message. Beside a reading
-                // that carries a time, it is "rest day worked, at that time"; with no time anywhere,
-                // there is nothing to offer and it is dropped.
+                // A BARE 'RDW' IS NOT A READING ANYTHING CAN WRITE (firestore.rules refuses it, above).
+                // Beside a reading that carries a time it is "rest day worked, at that time"; with no
+                // time anywhere it is dropped.
                 const pairedTime = Array.isArray(cand)
                     ? cand.map(v => String(v).match(/\d{2}:\d{2}-\d{2}:\d{2}/)?.[0]).find(Boolean) ?? null
                     : null;
@@ -204,34 +173,27 @@ export function computeCellStates(parsedResult, existingOverrides) {
                           .filter(v => v != null)
                     : [];
                 const normalised = readings.map(v => normaliseCellValue(v, baseShift, date));
-                // LEAVE OR AN ABSENCE ON A BASE REST DAY IS NOT A "REST" BUTTON (whole-app fix, Nov 2026).
-                // The rest-day guard rewrites it to RD, so a pick offered it as plain "Rest", named the
-                // absence nowhere, and never asked the swapped-day question every other route asks. Such
-                // a cell offers no readings: the row shows both as the server wrote them ("Absent or
-                // 06:00-14:00?"), and the entry below asks the question if the answer is the absence.
+                // LEAVE OR AN ABSENCE ON A BASE REST DAY IS NOT A "REST" BUTTON: such a cell offers no
+                // readings; the row shows both as the server wrote them, and the entry below asks the
+                // swapped-day question if the answer is the absence.
                 const restGuarded = normalised.some(o => o.guarded === 'rest-day');
                 const opts = normalised
                     // A Sunday training or meeting day is not a reading anything may write (owner,
-                    // 7 Nov 2026) — offered, it would have been a "Rest" button over a Sunday.
+                    // 7 Nov 2026).
                     .filter(o => o.guarded !== 'sunday-other')
-                    // Nor is a spare day on 25 or 26 December (owner, 19 Nov 2026): offered, it was a
-                    // "Rest" button that would record over the member's Christmas leave.
+                    // Nor is a spare day on 25 or 26 December (owner, 19 Nov 2026), or an Other day there.
                     .filter(o => o.guarded !== 'christmas-spare' && o.guarded !== 'christmas-other')
-                    // A pair that would WRITE the same thing is not a question worth asking (AL vs RD
-                    // on a Sunday — both become RD). Compared on `display`, which is what the save
-                    // writes: `value` strips the RDW marker, so "RDW at 14:30" and a 14:30 shift — two
-                    // different writes, rest day worked against ordinary turn — used to collapse.
+                    // A pair that would WRITE the same thing is not a question worth asking. Compared
+                    // on `display`, which is what the save writes (`value` strips the RDW marker).
                     .filter((o, i, all) => all.findIndex(x => x.display === o.display) === i);
-                // …BUT TWO READINGS OF THE SAME HOURS ARE ONE ANSWER, so it is offered (7 Nov 2026
-                // review). A Sunday's "MEET 10:00-14:00" and "10:00-14:00" both write Sunday work at
-                // those hours, and collapsing them left a row with nothing to pick. A lone rest day is
-                // still not offered: written on a rostered Sunday it would take the shift away.
+                // …BUT TWO READINGS OF THE SAME HOURS ARE ONE ANSWER, so it is offered ("MEET
+                // 10:00-14:00" beside "10:00-14:00" on a Sunday). A lone rest day is not offered:
+                // written on a rostered Sunday it would take the shift away.
                 const offered = !restGuarded && (opts.length > 1 || (readings.length > 1 && opts.length === 1 && opts[0].value !== 'RD'));
                 states.set(key, {
                     state: 'UNREADABLE',
-                    // The DATE is carried on the state (v22.17). The in-place entry has to apply the
-                    // Sunday guard, and deriving the date by splitting the Map key at the call site
-                    // would be a second place that knows the key's shape.
+                    // The DATE is carried on the state, for the in-place entry's Sunday guard — never
+                    // re-derived from the Map key at the call site.
                     date, christmas,
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
@@ -239,17 +201,13 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     otherRecordIds: otherRecordIds(key),
                     manualType:  existing?.type  ?? null,
                     manualReplacedType: existing?.replacedType ?? null,
-                    manualLeaveYear: existing?.leaveYear ?? null,   // see replacedFromState (v25.18)
-                    // Whether a MANUAL entry is at stake (v19.37). Picking a reading writes with
-                    // replaceId, so it replaces whatever is stored — routine for a previous import,
-                    // but for a hand-recorded entry it is the one thing this table otherwise
-                    // guarantees never happens silently: a READABLE PDF value in the same situation
-                    // becomes a CONFLICT row that shows "Saved: X" and asks. The flagged row shows it
-                    // too, so the choice is made knowing what it costs.
+                    manualLeaveYear: existing?.leaveYear ?? null,   // see replacedFromState
+                    // Whether a MANUAL entry is at stake: a pick replaces whatever is stored, so the
+                    // row shows a hand-recorded entry, as a CONFLICT row would.
                     isManual:    existing ? (existing.source !== 'roster_import') : false,
                     chosen:      null,
                     options:     offered ? opts : null,
-                    /** What the admin typed in, once they have (v22.17). `chosen === 'entered'`
+                    /** What the admin typed in, once they have. `chosen === 'entered'`
                      *  selects it; until then it is a draft and writes nothing, exactly like an
                      *  unpicked reading. */
                     entered:     null,
@@ -257,9 +215,8 @@ export function computeCellStates(parsedResult, existingOverrides) {
                      *  Kept on the state rather than read back off the DOM so a re-render (a tick
                      *  elsewhere refreshes the whole list) cannot lose a half-typed shift. */
                     draft:       { type: null, from: '', to: '' },
-                    // The read's verdict, as every other state carries it (whole-app fix, Nov 2026):
-                    // without `rosterBlocked` here the collector's hard gate could not see an
-                    // answered unreadable cell on a refused read, and it was written.
+                    // The read's verdict, as every other state carries it — the collector's hard gate
+                    // must see an answered unreadable cell on a refused read.
                     drift,
                     rosterBlocked: alignment.blocked,
                 });
@@ -272,9 +229,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 : false;
 
             // Per-cell normalisation — the Sunday + base-rest-day guards, and the RDW| display
-            // marker. Extracted to normaliseCellValue (v19.32) so the review table's new "pick a
-            // reading" control puts a CHOSEN value through the identical guards; a second copy is
-            // how a picked Sunday AL would quietly become writable when the parsed path forbids it.
+            // marker — in normaliseCellValue, so a CHOSEN value goes through the identical guards (rule 3).
             const { value: normParsed, display: normDisplay, guarded: normGuarded } = normaliseCellValue(parsedShift, baseShift, date);
             let displayValue = normDisplay;
             let guarded = normGuarded;
@@ -283,37 +238,25 @@ export function computeCellStates(parsedResult, existingOverrides) {
             const isSun    = isSunday(date);   // still needed by the RDW-parity check below
 
             let state;
-            // RDW-ness of the existing override vs the incoming value must MATCH for a timed
-            // value to count as COVERED (v16.23): stored {type:'shift', 14:30-22:00} vs an
-            // incoming RDW|14:30-22:00 compared equal on the bare time and the shift→RDW
-            // reclassification (overtime pay) was silently dropped — and the reverse stuck as
-            // COVERED too. Sundays are EXCLUDED from the type check: a worked Sunday is stored
-            // as type rdw but arrives as a plain time (the save path promotes it), so requiring
-            // flag equality there would false-CONFLICT every Sunday on every re-upload.
+            // RDW-ness of the existing override vs the incoming value must MATCH for a timed value to
+            // count as COVERED (rule 4). Sundays are EXCLUDED: a worked Sunday is stored as rdw but
+            // arrives as a plain time, so requiring flag equality would false-CONFLICT every Sunday.
             const rdwMatches = isSun
                 || !/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(normParsed)
                 || ((existing?.type === 'rdw') === isRdwEncoded(parsedShift));
-            // …AND THE SAME HOLDS AGAINST THE BASE ROSTER (whole-app fix, Nov 2026). A base shift is
-            // never rest-day working, so a weekday marked RDW at the base's own hours (a swapped week
-            // whose moved rest day is worked on the usual turn) is a change: compared on the bare time
-            // it was a MATCH — not shown, not saved — and the RDW marker went in silence, from the
-            // Calendar and from the Pay Calculator's RDW suggestion. Sundays are exempt, as above.
+            // …AND THE SAME HOLDS AGAINST THE BASE ROSTER: a base shift is never rest-day working, so a
+            // weekday marked RDW at the base's own hours is a change. Sundays are exempt, as above.
             const matchesBase = normParsed === normBase && (isSun || !isRdwEncoded(parsedShift));
             // A spare week's 25 or 26 December is a REST DAY (owner, 19 Nov 2026), so a printed SPARE
-            // there over an EARLIER IMPORT is read as a printed rest day is: that import is stale, and
-            // the row offers to clear it (unticked, below). Over nothing or a hand-made record it stays
-            // GUARDED. Holding it GUARDED over an import too kept a draft's shift on Boxing Day with no
-            // control to remove it, stricter than the same sheet printing RD (review, 20 Nov 2026).
-            // …and an Other day printed on either is held the same way (`christmas-other`, review 21 Nov 2026).
+            // there over an EARLIER IMPORT is read as a printed rest day is: the row offers to clear the
+            // stale import (unticked, below). Over nothing or a hand-made record it stays GUARDED. An
+            // Other day printed on either is held the same way (`christmas-other`).
             const christmasSpareGuarded = (guarded === 'christmas-spare' || guarded === 'christmas-other') && (!existing || isManual);
             if (guarded === 'sunday-other' || christmasSpareGuarded) {
                 // A TRAINING OR MEETING DAY CANNOT BE ON A SUNDAY (owner, 7 Nov 2026), so a roster
-                // saying one is not a change to make: not over the base, not over a saved record, not
-                // over an earlier import. The rewritten RD used to be compared with the base, and on a
-                // ROSTERED Sunday it was a ticked DIFF that turned a worked day into rest.
-                // NOR CAN 25 OR 26 DECEMBER BE A SPARE DAY (owner, 19 Nov 2026), for the same reason:
-                // a "use new roster" there would record a rest day over a hand-recorded worked Boxing
-                // Day. (Over an earlier IMPORT it is a "Back to normal" row instead — above.)
+                // saying one is not a change to make — over the base, a saved record or an earlier
+                // import. NOR CAN 25 OR 26 DECEMBER BE A SPARE DAY (owner, 19 Nov 2026). (Over an
+                // earlier IMPORT that one is a "Back to normal" row instead — above.)
                 state = 'GUARDED';
             } else if (!existing || !isManual) {
                 // No override, or only a previous import.
@@ -322,31 +265,16 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 } else if (matchesBase) {
                     // PDF now matches the base roster.
                     //  • No override to clean up → genuinely nothing to do (MATCH)…
-                    //  • …UNLESS it only matches because a guard REWROTE it (v23.97). An AL or an
-                    //    absence on a base rest day, or anything on a Sunday, is normalised to RD
-                    //    before this comparison — so `RD === RD` and the cell was classified MATCH,
-                    //    a state whose own definition is "PDF matches base roster, nothing to do".
-                    //    The PDF said leave. The base says rest. Those do not match, and MATCH rows
-                    //    are not rendered at all, so the day vanished from the review entirely.
-                    //
-                    //    GUARDED writes nothing either — the overpay guard is right and is
-                    //    untouched — but it SAYS so. The app asks a manager whether a rest day was
-                    //    swapped when they book leave by hand (v23.75, "never defaulted"); it may
-                    //    not answer the identical question in silence just because the same fact
-                    //    arrived by PDF.
+                    //  • …UNLESS it only matches because a guard REWROTE it (an AL or absence on a base
+                    //    rest day, anything on a Sunday): MATCH rows are not rendered, so the day would
+                    //    vanish. GUARDED writes nothing either, but it SAYS so — the app may not answer
+                    //    the swapped-day question in silence just because the fact arrived by PDF.
                     //  • A stale previous import still exists (and can't equal the PDF, or it would
-                    //    be COVERED above) → REMOVE_IMPORT: delete the stale doc and write NOTHING.
-                    //    Writing a fresh base-matching override (the old DIFF behaviour) was
-                    //    redundant AND would MASK a later base-roster change (an override always
-                    //    beats the base), so a "matches base today" row silently kept the old value.
-                    //    REMOVE_IMPORT already renders a row, so it needs no guarded variant.
-                    //  • …EXCEPT A REST DAY THE ROSTER MARKS AS LEAVE OR ABSENCE (Oct 2026 production
-                    //    review). That previous import is not stale: it is the ANSWER to the swap
-                    //    question, written when an admin said "Swapped — record it". Classing it as
-                    //    REMOVE_IMPORT (ticked) deleted confirmed leave on the next upload of the
-                    //    very same PDF. The same import again → COVERED. A different import there
-                    //    (say, an old shift) → the question is asked again, and the answer replaces
-                    //    or removes it — never a default.
+                    //    be COVERED above) → REMOVE_IMPORT: delete the stale doc and write NOTHING
+                    //    (rule 5) — a fresh base-matching override would MASK a later base change.
+                    //  • …EXCEPT A REST DAY THE ROSTER MARKS AS LEAVE OR ABSENCE: that import is the
+                    //    ANSWER to the swap question ("Swapped — record it"), not stale. The same import
+                    //    again → COVERED; a different one → the question is asked again, never defaulted.
                     //  • On Christmas Day and Boxing Day nothing is asked, so a different import there
                     //    is a "Back to normal" row — unticked, as every row on those two days starts.
                     const leaveOnRest = guarded === 'rest-day' && (parsedShift === 'AL' || parsedShift === 'SICK');
@@ -360,17 +288,12 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     state = 'DIFF';
                 }
             } else {
-                // A HAND-RECORDED SWAP MAKES THE ROSTER'S LEAVE REAL (whole-app review, Oct 2026). The
-                // rest-day guard reads the BASE roster, but a manager who recorded a shift on a base rest
-                // day has said the member was contracted to work it — so leave or an absence the PDF
-                // marks there costs a day and must be shown as what the PDF said. Rewriting it to RD
-                // showed "New roster: Rest", hid the leave entirely, and "Use new roster" then deleted
-                // the swap and recorded a rest day. Written as the roster's own value, it carries the
-                // swap forward as `replacedType` (nextReplacedType at the save) and so displays.
-                // The day's BASE goes with the question (whole-app fix, Nov 2026): an Other day or a
-                // Spare turn on a base rest day is not contracted work (roster-core-5, owner: leave over
-                // one is free, like plain RDW), so it is not a swap, and the row is handled exactly as
-                // leave over an RDW is — the roster's leave shown as the rest day it costs nothing on.
+                // A HAND-RECORDED SWAP MAKES THE ROSTER'S LEAVE REAL: a shift recorded on a base rest
+                // day says the member was contracted to work it, so leave or an absence the PDF marks
+                // there is shown and written as the roster's own value, carrying the swap forward as
+                // `replacedType` (nextReplacedType at the save). The day's BASE goes with the question:
+                // an Other day or a Spare turn on a base rest day is not contracted work (owner: leave
+                // over one is free, like plain RDW), so it is not a swap.
                 const swappedIn = guarded === 'rest-day' && (parsedShift === 'AL' || parsedShift === 'SICK')
                     && isContractedWorkOverride(contractEvidence(existing), baseShift) === true;
                 if (swappedIn) { displayValue = parsedShift; guarded = null; }
@@ -379,13 +302,9 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 if (normRest(existing.value) === incoming && rdwMatches) {
                     state = 'COVERED';   // manual is already correct — nothing to do
                 } else if (!swappedIn && (existing.value === 'SICK' || existing.value === 'AL') && normBase === 'RD' && normParsed === 'RD') {
-                    // Absence OR annual leave on a base rest day AND the PDF also shows rest —
-                    // not a real conflict; leave the manual override untouched. AL joined SICK
-                    // here in lockstep with the restSafe AL→RD normalisation (v16.19): without
-                    // it, a manual AL on a base-rest weekday + a re-uploaded AL classified as
-                    // CONFLICT, and "Use new roster" then wrote correction/RD, DELETING the AL.
-                    // If the PDF instead shows a worked shift (an RDW on the rest day), fall
-                    // through to CONFLICT so the genuine shift isn't dropped.
+                    // Absence OR annual leave on a base rest day AND the PDF also shows rest — not a
+                    // real conflict; leave the manual override untouched (a CONFLICT's "Use new
+                    // roster" would delete the AL). A worked shift in the PDF falls through to CONFLICT.
                     state = 'COVERED';
                 } else {
                     state = 'CONFLICT';  // manual differs from PDF — flag it
@@ -404,17 +323,14 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 displayShift: displayValue,
                 baseShift,
                 manualValue: existing?.value ?? null,
-                // Carry the override TYPE so the review table can render the 💼 RDW badge for a
-                // saved rest-day-worked override: its stored value is the bare time ("14:30-22:00")
-                // — the RDW-ness lives in `type`, not the value — so shiftDisplay(value) alone
-                // showed an ordinary Early/Late badge and the admin couldn't tell RDW from a
-                // normal shift when resolving a CONFLICT (v16.19).
+                // Carry the override TYPE so the review table can render the 💼 RDW badge: a saved
+                // RDW's value is the bare time — the RDW-ness lives in `type`.
                 manualType:  existing?.type  ?? null,
                 manualReplacedType: existing?.replacedType ?? null,
-                manualLeaveYear: existing?.leaveYear ?? null,   // see replacedFromState (v25.18)
+                manualLeaveYear: existing?.leaveYear ?? null,   // see replacedFromState
                 manualId:    existing?.id    ?? null,
                 otherRecordIds: otherRecordIds(key),
-                // FAIL CLOSED ON A SUSPECT ROW (v22.16): a member whose week looks a day out — or
+                // FAIL CLOSED ON A SUSPECT ROW (rule 1): a member whose week looks a day out — or
                 // anyone at all once the breaker has tripped — starts UNTICKED, so the default
                 // action on a misread week stops being "save it". So does a Christmas day (above).
                 chosen:      (drift || alignment.blocked) ? false
@@ -437,19 +353,12 @@ export function computeCellStates(parsedResult, existingOverrides) {
 }
 
 /**
- * Why a GUARDED row recorded nothing, in the admin's own words (v23.97).
+ * Why a GUARDED row recorded nothing, in the admin's own words. Here, not in the coordinator, so it
+ * can be unit-tested in Node.
  *
- * HERE RATHER THAN IN THE COORDINATOR because `admin-roster-upload.js` imports Firebase from a
- * CDN URL, so Node cannot load it and nothing in it can be unit-tested. This is pure wording about
- * a review state, which is what this module is for.
- *
- * WORDING RULES THIS HAS TO OBEY, and each is a documented app convention rather than a preference:
- * the reader is told what the ROSTER said and what the app DID, in that order, because the surprise
- * is the second half; "Absent" is the staff-facing word and "sick" never appears (the reason for an
- * absence is not stored — GDPR); and it states the rest day as the REASON rather than as a verdict
- * on whether the member was right, because the app does not know. The one thing it must not do is
- * read like an error: nothing has gone wrong, a rule has been applied, and the row exists so the
- * admin can decide whether that rule fits this particular day.
+ * WORDING RULES: what the ROSTER said, then what the app DID; "Absent", never "sick" (GDPR); the
+ * rest day stated as the REASON, not a verdict; and never read like an error — a rule has been
+ * applied, and the row lets the admin decide whether it fits this day.
  *
  * @param {'sunday'|'sunday-other'|'rest-day'|'before-start'|'christmas-spare'|'christmas-other'|null} guard
  * @param {boolean} [asks] the row asks the swapped-day question
@@ -457,8 +366,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
  * @returns {string}
  */
 export function guardCopy(guard, asks = false, christmas = false) {
-    // The row's own tag already says "Not recorded", so this is the REASON alone (v24.41) — it used
-    // to end "— not recorded" too, and the row said it twice.
+    // The row's own tag already says "Not recorded", so this is the REASON alone.
     if (guard === 'sunday') {
         return 'Sundays aren\u2019t contracted, so nothing is recorded on them.';
     }
@@ -467,7 +375,7 @@ export function guardCopy(guard, asks = false, christmas = false) {
     if (guard === 'rest-day' && christmas) {
         return 'The app’s Christmas leave decides 25 and 26 December, so nothing is recorded.';
     }
-    // A day before the member's start date (16 Nov 2026): the reason, whatever the roster printed.
+    // A day before the member's start date: the reason, whatever the roster printed.
     if (guard === 'before-start') {
         return 'Before this member\u2019s start date, so nothing is recorded.';
     }
@@ -486,22 +394,19 @@ export function guardCopy(guard, asks = false, christmas = false) {
         return 'Training and meetings can\u2019t be on a Sunday, so nothing is recorded and the day stays as it is.';
     }
     // 'rest-day' (and any future guard, which should add its own line rather than inherit this one).
-    // v24.41 sent the admin to Change a Shift, which was wrong: there, an absence on a base rest day
-    // is HIDDEN unless the day is first recorded as a swapped-in shift, so it took two saves in order
-    // and a bare Absent vanished. The row now asks the question itself (v24.42, owner).
+    // Never point the admin at Change a Shift: there, a bare absence on a base rest day is HIDDEN.
+    // The row asks the question itself (owner).
     return asks
         ? 'A rest day on the base roster. Was it a swapped working day? Only then is it recorded.'
         : 'A rest day on the base roster, so nothing is recorded.';
 }
 
 /**
- * Does this GUARDED row ask "was this a swapped working day?" (v24.42, owner).
+ * Does this GUARDED row ask "was this a swapped working day?" (owner).
  *
- * The rest-day guard turns leave or an absence on a BASE rest day into nothing, so nobody is paid an
- * absence, or charged leave, for a day they were never due at work. That is right for a real rest
- * day and wrong for a SWAPPED week, where the published roster moved the member's working day onto
- * it — which only the person reading the roster knows. So it is ASKED, exactly as booking leave on a
- * rest day is (v23.75), and never defaulted: unanswered, or answered "rest day", writes nothing.
+ * The rest-day guard turns leave or an absence on a BASE rest day into nothing — right for a real
+ * rest day, wrong for a SWAPPED week, which only the person reading the roster knows. So it is ASKED,
+ * as booking leave on a rest day is, and never defaulted: unanswered, or "rest day", writes nothing.
  * Never on a Sunday (an absence can never be recorded there), never on a read the circuit
  * breaker has refused (nothing on it may be written), and never on Christmas Day or Boxing Day,
  * which the booking flows do not ask about either (al-swapped-days.js; owner, 10 Nov 2026).
@@ -525,7 +430,7 @@ export function guardedWriteValue(s) {
 
 /**
  * What a write over this row's saved record must carry forward from it — its type, what IT replaced,
- * and which year's allowance it came out of (v25.18) — or null when nothing is saved there. A write
+ * and which year's allowance it came out of — or null when nothing is saved there. A write
  * is delete-then-set, so these are the only surviving record of what the day said. ONE builder for
  * every save site: five copies of the object literal are how a field reaches four of them.
  * @param {any} s a cell state
@@ -538,8 +443,8 @@ export function replacedFromState(s) {
 }
 
 /**
- * What saving a GUARDED row writes (Oct 2026 review — pure so the save path is tested, not just the
- * question). "Swapped" records the roster's leave or absence, REPLACING any previous import on the
+ * What saving a GUARDED row writes (pure, so the save path is tested, not just the question).
+ * "Swapped" records the roster's leave or absence, REPLACING any previous import on the
  * day; "rest day" writes nothing, except that a previous import there is REMOVED — the PDF now says
  * this is not a working day. Unanswered writes nothing at all.
  * @param {any} s a cell state @param {string} memberName @param {string} date
@@ -547,8 +452,7 @@ export function replacedFromState(s) {
  */
 export function guardedWrites(s, memberName, date) {
     // ONE gate: the question's own (`swapQuestionApplies`), so a row can write only what it asked
-    // about, and never on a read the breaker refused. A second copy of its conditions stood here, and
-    // could be deleted with every test green — it protected nothing the gate did not already.
+    // about, and never on a read the breaker refused.
     if (!swapQuestionApplies(s)) return [];
     if (s.chosen === 'swapped') return [{ memberName, date, value: s.parsedShift, baseShift: s.baseShift, swapped: true,
         replaceId: s.manualId ?? undefined,
@@ -561,7 +465,7 @@ export function guardedWrites(s, memberName, date) {
 
 /**
  * Is this answer a rest day on a day the base roster already rests? Then it is no record at all —
- * the collector writes nothing new there, and the entry control says so (whole-app fix, Nov 2026).
+ * the collector writes nothing new there, and the entry control says so.
  * @param {any} value the value an answer would write @param {any} baseShift
  * @returns {boolean}
  */
@@ -570,9 +474,8 @@ export function restOverRest(value, baseShift) {
 }
 
 /**
- * Everything one Save of the roster review writes (test audit, 7 Nov 2026 — it was inline in the
- * coordinator's click handler, which imports Firebase from a CDN, so the only way to pin it was to
- * read its source). The coordinator hands it the cell-state map and saves what comes back.
+ * Everything one Save of the roster review writes — pure, so it is pinned by tests. The coordinator
+ * hands it the cell-state map and saves what comes back.
  *
  * Per state, and nothing else is written: a ticked DIFF, or a CONFLICT answered "Use new roster",
  * writes the value the row DISPLAYED (`displayShift`, Sunday/rest-day-normalised) — what the admin
@@ -583,14 +486,13 @@ export function restOverRest(value, baseShift) {
  * nothing new, only clearing what the day held (`restOverRest`). A GUARDED row writes what
  * `guardedWrites` says.
  *
- * THE HARD GATE (v22.16) comes first: a cell from a read the circuit breaker refused writes
+ * THE HARD GATE comes first: a cell from a read the circuit breaker refused writes
  * nothing, whatever `chosen` says. The tick handler already refuses to set `chosen` there, so from
  * today's UI this line is unreachable, and deleting it leaves the browser suite green; it is the one
  * that survives a future renderer, a "select all", or a Skip-all path that bypasses the tick.
  *
- * Every write also takes the day's OTHER records with it (`alsoDelete`, from `otherRecordIds`) — a
- * pre-v24.48 manual duplicate outranks an import, so leaving one hides the write, and an older import
- * copy comes back the day the newer one is replaced or cleared.
+ * Every write also takes the day's OTHER records with it (`alsoDelete`, from `otherRecordIds`) — an
+ * older manual duplicate outranks an import and would hide the write.
  * @param {Map<string, any>} cellStates `computeCellStates` output, keyed "memberName|date"
  * @returns {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, alsoDelete: string[], deleteOnly?: boolean, swapped?: boolean, replacedFrom?: any}>}
  */
@@ -609,9 +511,8 @@ export function collectRosterWrites(cellStates) {
             : (state.chosen === 'entered' && state.entered) ? state.entered
             : (typeof state.chosen === 'number' && state.options?.[state.chosen]) || null;
         if (answer && restOverRest(answer.display, state.baseShift)) {
-            // A REST DAY OVER A BASE REST DAY IS NO RECORD (whole-app fix, Nov 2026). Written, it was a
-            // redundant correction that would mask a later change to the base roster — what
-            // REMOVE_IMPORT exists to avoid — so what the day held before is cleared instead, if anything.
+            // A REST DAY OVER A BASE REST DAY IS NO RECORD: written, it would mask a later base change
+            // (rule 5), so what the day held before is cleared instead, if anything.
             if (state.manualId) toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
         } else if (answer) {
             // `swapped`: leave or an absence on a base rest day, answered "Swapped" in the entry control.
@@ -627,11 +528,8 @@ export function collectRosterWrites(cellStates) {
 }
 
 /**
- * What the review's summary and its Save button say (whole-app fix, Nov 2026).
- *
- * COUNTED FROM THE WRITES `collectRosterWrites` RETURNS, so the button cannot promise one number
- * while Save writes another. It was a second pass over the same state in the coordinator, kept in
- * step with the collector only by a browser test asserting what was written.
+ * What the review's summary and its Save button say — COUNTED FROM THE WRITES `collectRosterWrites`
+ * RETURNS, so the button cannot promise one number while Save writes another.
  *
  * `answeredWithNothing` is the entry control's `entryLeftAsRest`, PASSED IN rather than imported:
  * that module imports this one, and the state machine must not import the widget
@@ -657,9 +555,8 @@ export function reviewOutcome(cellStates, answeredWithNothing = () => false) {
         conflictsTotal: conflicts.length,
         conflictsSwitched: conflicts.filter(st => st.chosen === 'pdf').length,
         unreadable: all.filter(st => st.state === 'UNREADABLE' && !answered(st)).length,
-        // SAY WHAT IS BEING WITHHELD (v22.16 polish): a suspect member's rows are unticked, so they
-        // reach no count above, and the summary went silent about the one thing that had changed.
-        // Only rows STILL unticked: one the admin has checked and ticked is counted as a write.
+        // SAY WHAT IS BEING WITHHELD: a suspect member's unticked rows reach no count above. Only
+        // rows STILL unticked: one the admin has checked and ticked is counted as a write.
         heldBack: all.filter(st => st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT') && st.chosen === false).length,
         // A Christmas day withheld for its own reason (owner, 10 Nov 2026) — counted once, so a
         // drifted row is never both "held back" and "not selected".
@@ -710,18 +607,13 @@ const ROW_STATES = new Set(['DIFF', 'REMOVE_IMPORT', 'CONFLICT', 'UNREADABLE', '
 
 /**
  * One person's section of the review: which of their days get a row, what the badge counts, and
- * whether Skip all is offered. Moved out of admin-roster-upload.js's render loop (25 Nov 2026), with
- * its reasons:
+ * whether Skip all is offered.
  *
- * THE BADGE COUNTS CHANGES; A GUARDED ROW IS A NOTICE (v23.97). It is rendered in this person's list
- * so the day is not invisible, but nothing about it is pending — counting it would inflate "3" on a
- * week with two real changes and one day the app declined to record, and the admin would go looking
- * for a third thing to approve.
+ * THE BADGE COUNTS CHANGES; A GUARDED ROW IS A NOTICE: rendered so the day is not invisible, but
+ * nothing about it is pending, so it is not counted.
  *
- * SKIP ALL IS OFFERED WHEREVER A ROW CAN WRITE (v24.96, the 72-hour review): an answered rest-day
- * question writes too, and v24.90 — which made Skip all take that answer back — also removed the
- * button for a person whose rows are all guarded, so their answer could never return to "unanswered,
- * writes nothing". The badge still counts pending rows alone.
+ * SKIP ALL IS OFFERED WHEREVER A ROW CAN WRITE — an answered rest-day question writes too, so a
+ * person whose rows are all guarded keeps the way back to "unanswered, writes nothing".
  * @param {string} memberName
  * @param {string[]} dates the week's dates, in order
  * @param {Map<string, any>} cellStates keyed `member|date`
@@ -740,13 +632,11 @@ export function personSummary(memberName, dates, cellStates) {
 }
 
 /**
- * The inner HTML of a GUARDED review row (v24.41 layout; v24.42 question). Pure, so the markup the
- * admin answers is tested beside the rule it asks about.
+ * The inner HTML of a GUARDED review row. Pure, so the markup the admin answers is tested beside the
+ * rule it asks about.
  *
- * THE TAG RIDES IN THE DAY LINE, AND WHAT THE ROSTER SAID GETS A LINE OF ITS OWN (v24.90). It was a
- * three-column row — day · "Roster" + badge · tag — and on a phone with large text the badge was
- * wider than its column and drew over the tag, which read "IOT RECORDED" (owner's screenshot). This
- * is the "Your choice" card's shape: the day and its tag, then each labelled value on its own line.
+ * THE TAG RIDES IN THE DAY LINE, AND WHAT THE ROSTER SAID GETS A LINE OF ITS OWN (the "Your choice"
+ * card's shape) — a three-column row overlapped on a phone with large text.
  * @param {{ key: string, s: any, dayName: string, dateStr: string, badgeHtml: string,
  *           esc: (v: string) => string }} a
  * @returns {string}
@@ -754,10 +644,8 @@ export function personSummary(memberName, dates, cellStates) {
 export function guardedRowHtml({ key, s, dayName, dateStr, badgeHtml, esc }) {
     const asks = swapQuestionApplies(s);
     const recording = guardedWriteValue(s) !== null;
-    // WHAT IS SAVED NOW, AND WHAT THE ANSWER DOES TO IT (same-day bug check). Since an old import
-    // under a guarded day stopped being a ticked "Back to normal", this row was the only place it showed —
-    // and it did not: "Rest day — leave it" DELETES it (guardedWrites → deleteOnly) under a tag that
-    // still said "Not recorded", and leaving the row unanswered keeps it. The admin is now shown both.
+    // WHAT IS SAVED NOW, AND WHAT THE ANSWER DOES TO IT: "Rest day — leave it" DELETES an old import
+    // (guardedWrites → deleteOnly), and leaving the row unanswered keeps it — so both are shown.
     const held = s.manualId && s.manualValue != null ? String(s.manualValue) : null;
     const clearing = !recording && !!held && s.chosen === 'free';
     const btn = (/** @type {string} */ v, /** @type {boolean} */ on, /** @type {string} */ label) =>
@@ -778,14 +666,8 @@ export function guardedRowHtml({ key, s, dayName, dateStr, badgeHtml, esc }) {
 
 /**
  * The action tag's STYLE on an UNREADABLE row: `act-read` until the admin has answered it,
- * `act-choice` once they have (polish round 2, owner-approved).
- *
- * Both unreadable row shapes wear the same "Couldn't read" chip while nobody has answered — the
- * garbled cell with nothing to offer and the unclear cell offering two readings. The second used to
- * wear the decision style (`act-choice`) from the start, so two rows saying the identical words
- * looked like two different problems. The row becomes a decision the moment something WILL be
- * written: a picked reading, or a completed entry. PRESENTATION ONLY — it reads `chosen`, it never
- * decides it, and nothing here reaches the save.
+ * `act-choice` once something WILL be written (owner-approved). Both unreadable row shapes look alike
+ * while unanswered. PRESENTATION ONLY — it reads `chosen`, never decides it.
  *
  * @param {{ chosen?: any, entered?: any, options?: any[] }|null|undefined} s an UNREADABLE cell state
  * @returns {'act-read'|'act-choice'}
@@ -810,20 +692,13 @@ function rowText(v) {
 }
 
 /**
- * The admin's answers, carried onto the review redrawn after a refused Save (v25.94, the 13 Nov review).
+ * The admin's answers, carried onto the review redrawn after a refused Save.
  *
  * A refused Save (`saveRosterWrites`, roster-import-save.js) re-reads the week and recomputes every
- * row. Recomputed alone, every row went back to its DEFAULT: a row the admin had unticked came back
- * ticked, "Use new roster" went back to "Keep saved", a reading picked or a shift entered for an
- * unreadable cell was cleared, a swapped-day answer was cleared, and Skip all was undone. The message
- * named only the changed days, so a second Save wrote a row the admin had deliberately left out — a
- * misread, say — with nothing on screen to say it would.
- *
- * So a row keeps its answers when the fresh read gives it EXACTLY what the first read gave it — every
- * field `computeCellStates` set, compared whole — and only a row that changed starts again from its
- * default. That is the day the refusal named, or one whose records moved with it. Comparing the whole
- * row rather than its record id is the conservative choice: anything that could make an answer stale
- * (the state, the saved value, an older copy appearing, the read's verdict) resets it.
+ * row; recomputed alone, every row would go back to its DEFAULT, and a second Save would write a row
+ * the admin had deliberately left out. So a row keeps its answers when the fresh read gives it
+ * EXACTLY what the first read gave it — every field `computeCellStates` set, compared whole (the
+ * conservative choice) — and only a row that changed starts again from its default.
  *
  * SKIP ALL IS A PERSON'S, not a row's: the page draws it, and pressing it again is the one way that
  * also skips a row that changed under a skipped person. So it is handed back rather than carried: the

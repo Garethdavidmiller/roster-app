@@ -8,8 +8,8 @@
  *
  * Required across functions/ — index.js and the domain modules compose its parse decisions, and the
  * senders and account modules its name derivation (`nameToEmail`, `nameToPassword`); module.exports is
- * the list. The account rules, the reset-request queue's rules and the push transport guards left for
- * modules of their own on 25 Nov 2026 (the note above module.exports).
+ * the list. The account rules, the reset-request queue's rules and the push transport guards live in
+ * modules of their own (the note above module.exports).
  *
  * ** `.claude/rules/roster-import.md` IS THE CONTRACT FOR THIS PIPELINE — read it before changing
  * anything here.** It holds the day-drift defence and why its three "layers" are not three
@@ -19,17 +19,14 @@
 
 // ── WHAT THE MODEL WRITES FOR A PHYSICALLY EMPTY CELL ──────────────────────────────────────────
 //
-// One token, and the model's ONLY job with an empty cell is to report it. Until v22.25 the prompt
-// said "a blank cell = RD", so the row read arrived carrying a decision the model was not equipped
-// to make and the code below could not tell it from a printed RD. The day rule underneath was
-// correct and unreachable: five physically blank weekdays became five explicit Rest Days, and on
-// the duplicate-sheet case that proposes overwriting the shifts the primary roster just wrote.
+// One token, and the model's ONLY job with an empty cell is to report it — never to decide it means
+// RD, which the code below could not tell from a printed RD. What a blank MEANS is the day rule's.
 //
 // It is matched CASE-INSENSITIVELY, beside the EMPTY and lone dash a model also writes
 // (`BLANK_READINGS`, cell-day-rules.js): the row read and both scans ask that one list, so one model's
-// three reads cannot disagree about what an empty cell looks like (the row read did, until Nov 2026).
+// three reads cannot disagree about what an empty cell looks like.
 //
-// Required at the top since v25.38, because `normaliseShift` asks it about NA and NS.
+// Required at the top, because `normaliseShift` asks it about NA and NS.
 const {
     BLANK_CELL_TOKEN, BLANK_READINGS,
     isBlankReading, isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning,
@@ -42,8 +39,8 @@ const { fieldsOf } = require('./caught');
 /**
  * A clock time in what follows a cell's first range: "14:00", "14.00", "1400", "600". Two of them are a second range,
  * however they are joined — "/ 14:00-18:00", " 1400-1800", "RDW 14:00-18:00", "14:00 to 18:00", "14:00—18:00" — so the
- * test counts TIMES, never a separator (external review of v26.69: a list of separators met "to" and an em dash it had
- * not thought of, and returned the first range alone). A duty code's number ("CEA 10", "SUP 1") is too short to count.
+ * test counts TIMES, never a separator (a separator list misses "to" or an em dash and returns the first range alone).
+ * A duty code's number ("CEA 10", "SUP 1") is too short to count.
  */
 const CLOCK_TIME = /(?<!\d)(?:\d{1,2}[:.]\d{2}|\d{3,4})(?!\d)/g;
 
@@ -58,13 +55,13 @@ const CLOCK_TIME = /(?<!\d)(?:\d{1,2}[:.]\d{2}|\d{3,4})(?!\d)/g;
  *   "SP"          → "SPARE"
  *   "RDW"         → "RDW"  (sentinel — prompt instructs AI to include time)
  *   "RDW 14:30-22:00" → "RDW|14:30-22:00"
- *   "NA", "N/A", "NS" → "RD"  (not available — a rest day on every day, v25.38)
- *   "MTG", "MEET" → "MEET"; "10:00-14:00 MTG" → "MEET 10:00-14:00"  (a meeting keeps its times, v25.38)
+ *   "NA", "N/A", "NS" → "RD"  (not available — a rest day on every day)
+ *   "MTG", "MEET" → "MEET"; "10:00-14:00 MTG" → "MEET 10:00-14:00"  (a meeting keeps its times)
  *
  * @param {string} raw - Shift value from Claude AI
  * @param {{ quiet?: boolean }} [opts] - `quiet` classifies without logging, for a caller that only
- *   asks what a PRINTED cell says (`cellSaysRest`): there every worked cell's duty line logged a
- *   warning about a review row that never exists, burying the lines worth reading (import-server-8)
+ *   asks what a PRINTED cell says (`cellSaysRest`), where a warning would be about a review row that
+ *   never exists
  * @returns {string}   - Normalised shift value
  */
 function normaliseShift(raw, { quiet = false } = {}) {
@@ -74,59 +71,39 @@ function normaliseShift(raw, { quiet = false } = {}) {
 
     if (s.replace(/[./]/g, '') === 'SP') return 'SPARE';   // "SP" / "S.P." / "S/P"
 
-    // Valid 24-hour clock value: hours 00–23, minutes 00–59. The regexes below only
-    // constrain digit COUNT, so without this an OCR slip like "29:75-88:90" would
-    // normalise to a bogus shift time and pass review as a genuine shift. Out-of-range
-    // values fall through to the unrecognised path (the UNKNOWN review sentinel) so they
-    // don't silently become a real working shift.
+    // Valid 24-hour clock value: the regexes below only constrain digit COUNT, so without this
+    // "29:75-88:90" would pass as a genuine shift. Out-of-range values fall through to UNKNOWN.
     const validHHMM = (/** @type {string} */ h, /** @type {string} */ m) => +h >= 0 && +h <= 23 && +m >= 0 && +m <= 59;
 
-    // A WORKED RANGE NEEDS TWO DIFFERENT CLOCK TIMES (v20.39). Both times valid is not enough:
-    // every duration helper in this app reads `end <= start` as an OVERNIGHT WRAP, which is right
-    // for 22:00-06:00 and catastrophic for 08:00-08:00 — the wrap turns a zero-length range into a
-    // TWENTY-FOUR HOUR one, and it reaches pay. Manual entry has always refused equal times; this
-    // path did not, and nothing downstream re-checked, so an OCR slip or a mis-typed paper roster
-    // could be applied by an admin and later paid as a full day (and as OVERTIME on the RDW form).
-    //
-    // Equality only — `end < start` stays legal, because a genuine overnight shift is ordinary here.
-    // A failure falls through to the UNKNOWN sentinel rather than being corrected: nobody knows what
-    // the cell really said, so it belongs in human review with every other unreadable value.
+    // A WORKED RANGE NEEDS TWO DIFFERENT CLOCK TIMES: every duration helper reads `end <= start` as an
+    // OVERNIGHT WRAP, so 08:00-08:00 would become a TWENTY-FOUR HOUR shift and reach pay. Equality
+    // only — `end < start` stays legal (overnight shifts are ordinary). A failure goes to UNKNOWN for
+    // human review, never corrected.
     const workedRange = (/** @type {string} */ h1, /** @type {string} */ m1, /** @type {string} */ h2, /** @type {string} */ m2) =>
         validHHMM(h1, m1) && validHHMM(h2, m2)
         && !(+h1 === +h2 && +m1 === +m2);
 
-    // RDW with time, RDW on EITHER side: "RDW 14:30-22:00" / "RDW 1430-2200" AND the
-    // time-first paper-roster form "14:30-22:00 RDW" → "RDW|14:30-22:00". Matching only the
-    // RDW-first form silently dropped a time-first RDW to a plain worked shift (a pay-
-    // correctness bug — RDW is overtime), mirroring the one-sided gap the Other-family parser
-    // already avoids. The `s.includes('RDW')` guard keeps a bare time out of this branch.
-    // Hours may be 1 or 2 digits (OCR sometimes drops the leading zero, e.g. "6:30");
-    // pad to 2 so a single-digit hour isn't silently lost as a rest day.
+    // RDW with time, RDW on EITHER side: "RDW 14:30-22:00" / "RDW 1430-2200" AND the time-first
+    // "14:30-22:00 RDW" → "RDW|14:30-22:00" — a time-first RDW must not drop to a plain shift (RDW
+    // is overtime). The `s.includes('RDW')` guard keeps a bare time out of this branch. Hours may be
+    // 1 or 2 digits (OCR drops a leading zero); pad to 2.
     const rdwMatch = s.match(/^(?:RDW\s+)?(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})(?:\s+RDW)?$/);
     if (rdwMatch && s.includes('RDW') && workedRange(rdwMatch[1], rdwMatch[2], rdwMatch[3], rdwMatch[4])) {
         return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
     }
 
     // Strip dots/slashes so punctuated paper-roster forms ("A/L", "A.L.", "R.D.") map to the
-    // canonical code too — parity with the absence-code strip below (v16.83). By here the time
-    // and RDW regexes have already run, so `s` is a short code; the strip can't corrupt a time.
+    // canonical code too. By here the time regexes have run, so the strip can't corrupt a time.
     const _code = s.replace(/[./]/g, '');
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(_code)) return _code;
 
-    // SN = sick on a day the person was NOT booked to work (owner, Sep 2026). The paper roster
-    // distinguishes it from SC for exactly this reason, and the two are NOT synonyms: SC is
-    // sickness against a booked turn and is an absence; SN is sickness on a day off, so the day
-    // that gets recorded is the REST DAY it already was. Both were read as 'SICK' from v15.45 to
-    // v22.53 — harmless wherever the base roster also said rest, because the client's
-    // base-rest-day rule in `normaliseCellValue` rewrote it to RD anyway, and wrong precisely
-    // where it mattered: an SN against a base WORKED shift wrote Absent onto a day the roster
-    // office had marked as not booked. Kept as its own list so roster-prompt-parity still reads
-    // the code out of the source rather than a human keeping two tables in step.
+    // SN = sick on a day the person was NOT booked to work (owner, Sep 2026). NOT a synonym of SC
+    // (sickness against a booked turn, an absence): an SN day is the REST DAY it already was. Kept as
+    // its own list so roster-prompt-parity reads the code out of the source.
     if (['SN'].includes(_code)) return 'RD';
 
-    // NA and NS — NOT AVAILABLE — are REST DAYS, on every day (owner, 6 Nov 2026; v25.38): "NA and NS
-    // should be treated as rest days on the roster uploader". Until then they were decided by the day
-    // (an absence Mon–Sat, v24.22); the history is in cell-day-rules.js, whose recognisers read the
+    // NA and NS — NOT AVAILABLE — are REST DAYS, on every day (owner, 6 Nov 2026): "NA and NS
+    // should be treated as rest days on the roster uploader". cell-day-rules.js's recognisers read the
     // spellings (`N/A`, `N.A.`) for this and for the Sunday scan repair alike.
     if (isNotAvailable(s) || isNotAvailableSunday(s)) return 'RD';
 
@@ -134,21 +111,13 @@ function normaliseShift(raw, { quiet = false } = {}) {
     // day off on full pay); OD = paid absence, often used as a blanket Mon–Fri marking for
     // long-term sickness; SC = sick on a booked turn; ML = Maternity leave (a long paid-absence
     // block); CL = Compassionate leave (a paid absence). All become the app's Absent day ('SICK' —
-    // the reason is never stored, GDPR, which is also why the five collapse to ONE value rather
-    // than five, and why CL in particular must not reach a staff-facing surface as itself: a
-    // bereavement is the most sensitive thing on this list). The prompt
-    // already tells the AI to return SICK for these, but if it echoes the RAW code the server must
-    // still map it — otherwise a real absence surfaced as an UNREADABLE cell instead of Absent.
-    // Dots/slashes are stripped first so the punctuated paper-roster forms ("O.D.", "O/D", "H.A",
-    // "M.L", "C/L") map too.
+    // the reason is never stored, GDPR, which is why the five collapse to ONE value, and why CL must
+    // never reach a staff-facing surface as itself). If the AI echoes the RAW code instead of SICK,
+    // the server must still map it. Punctuated forms ("O.D.", "O/D", "C/L") map too.
     //
-    // ⚠️ A CODE MISSING FROM THIS LIST IS NOT A REST DAY — it falls through to the UNKNOWN sentinel
-    // and reaches the admin as an UNREADABLE review row, which is the safe failure and is how CL
-    // behaved before it was added. So if an absence is arriving as REST, this list is not the
-    // suspect: look at the base-rest-day guard in `normaliseCellValue` (roster-cell-rules.js),
-    // which rewrites a SICK to RD when the member's BASE roster already says rest. That guard is
-    // deliberate (v16.19) and is exactly what a blanket Mon–Fri marking meets on the rest days
-    // inside it.
+    // ⚠️ A CODE MISSING FROM THIS LIST IS NOT A REST DAY — it falls through to UNKNOWN (the safe
+    // failure). If an absence arrives as REST, look at the deliberate base-rest-day guard in
+    // `normaliseCellValue` (roster-cell-rules.js), which rewrites SICK to RD on a base rest day.
     //
     // Sunday and base-rest-day normalisation happen client-side in computeCellStates.
     if (['HA', 'OD', 'SC', 'ML', 'CL'].includes(_code)) return 'SICK';
@@ -160,9 +129,8 @@ function normaliseShift(raw, { quiet = false } = {}) {
     if (otherDay) return otherDay;
 
     if (s === 'RDW') {
-        // Bare 'RDW' means the AI omitted the required shift time. Return as-is so
-        // the review table displays it for manual correction — the admin can see the
-        // unusual value and fix it before approving the upload.
+        // Bare 'RDW' means the AI omitted the required shift time. Returned as-is so the review
+        // table shows it for manual correction.
         warn(`[parseRosterPDF] AI returned bare "RDW" with no time for "${raw}" — review table will flag it`);
         return s;
     }
@@ -174,37 +142,25 @@ function normaliseShift(raw, { quiet = false } = {}) {
         return `${match[1].padStart(2, '0')}:${match[2]}-${match[3].padStart(2, '0')}:${match[4]}`;
     }
 
-    // A value that STARTS with a valid time range but has trailing content — e.g. "06:00-12:00 GER"
-    // (a real worked shift annotated with a depot/notes code), which the anchored regex above rejects.
-    // Extract the leading time rather than defaulting to 'RD': if the member's base shift is also RD,
-    // an 'RD' here would classify as MATCH and silently drop a genuine worked shift from the roster.
-    // The extracted shift is still shown in the review table (surfaced as a DIFF when it differs from
-    // base). Genuinely unrecognised values (no valid leading time) fall through to UNKNOWN below.
-    // ACCEPTED TRADE-OFF: a hypothetical negating annotation ("06:00-12:00 CANCELLED") would also be
-    // extracted as the worked time — but the old RD-default silently lost genuinely WORKED annotated
-    // shifts, which is the error we have actually observed. If cancellation-style annotations ever
-    // appear in these PDFs, gate the extraction on the trailing text instead of removing it.
-    // NEVER WHEN THE CELL NAMES A MEETING (v25.38): one the reader above could not take whole
-    // ("06:00-12:00 MTG CEA 3") goes to review rather than lose its code here to a plain shift.
+    // A value that STARTS with a valid time range but has trailing content — "06:00-12:00 GER", a
+    // worked shift with a depot code. Extract the leading time rather than defaulting to 'RD', which
+    // over a base RD would MATCH and silently drop the shift. ACCEPTED TRADE-OFF: a negating
+    // annotation ("06:00-12:00 CANCELLED") would also be extracted; if such annotations ever appear,
+    // gate the extraction on the trailing text instead of removing it.
+    // NEVER WHEN THE CELL NAMES A MEETING: one the reader above could not take whole goes to review.
     const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
     if (lead && workedRange(lead[1], lead[2], lead[3], lead[4]) && !namesMeeting(s)) {
-        // …BUT NEVER WHEN THE REST IS A SECOND TIME RANGE (external review of v26.67). "06:00-10:00 / 14:00-18:00"
-        // came back as 06:00-10:00: four worked hours dropped, with nothing on the review to say they were there. An
-        // ordinary note ("GER") is still read past; two more clock times send the WHOLE cell to review, as it was printed.
-        // The app has no split shift to record it as, and needs none: a shift that looks complete and is not is the
-        // failure, and "check the PDF" is the answer (as for every cell nobody can read with certainty).
+        // …BUT NEVER WHEN THE REST IS A SECOND TIME RANGE ("06:00-10:00 / 14:00-18:00"): two more clock times send the
+        // WHOLE cell to review — a shift that looks complete and is not is the failure. The app has no split shift.
         if ((s.slice(lead[0].length).match(CLOCK_TIME) || []).length >= 2) {
             warn('[parseRosterPDF] Two time ranges in one cell — flagged UNKNOWN for review');
             return `UNKNOWN|two times in one cell (${s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40)}) — check the PDF`;
         }
         const time = `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
-        // Preserve an RDW marker carried in the trailing content: "06:00-12:00 RDW GER" is rest-day-
-        // worked OVERTIME with a depot annotation. The anchored rdwMatch above ($-terminated) rejects
-        // the trailing token, so without this the RDW was dropped and the day saved as a plain `shift`
-        // (normal pay) — the exact pay-loss rdwMatch guards, leaking through the annotated-time path (v16.19).
-        // The lines below name the TIME, never the cell (review, Nov 2026): the trailing text can be an
-        // absence written as a word, and beside the member a nearby line names, that is its reason.
-        if (/\bRDW\b/.test(s)) {   // word-boundaried so a stray substring (e.g. "…hARDWare…") can't force an RDW encode (v16.22)
+        // Preserve an RDW marker in the trailing content ("06:00-12:00 RDW GER" is OVERTIME), which
+        // the anchored rdwMatch rejects. The log lines name the TIME, never the cell: the trailing
+        // text can be an absence's reason.
+        if (/\bRDW\b/.test(s)) {   // word-boundaried so a stray substring (e.g. "…hARDWare…") can't force an RDW encode
             warn(`[parseRosterPDF] Extracted the leading RDW time ${time} from a cell with more text (the rest ignored) — review table will show it`);
             return `RDW|${time}`;
         }
@@ -212,34 +168,19 @@ function normaliseShift(raw, { quiet = false } = {}) {
         return time;
     }
 
-    // ⚠️ A BLANK CELL IS NOT A REST DAY, AND THIS LINE IS NOT WHERE THAT IS DECIDED (v22.32).
+    // ⚠️ A BLANK CELL IS NOT A REST DAY, AND THIS LINE IS NOT WHERE THAT IS DECIDED.
     //
-    // This comment used to say "a genuinely blank cell is a rest day", which stopped being the
-    // roster rule at v22.19 and is now actively dangerous: someone tidying the parser could read it
-    // and "simplify" the blank handling straight back into the defect it describes.
-    //
-    // What is actually true: `buildSafeEntries` intercepts physical blanks BEFORE this function
-    // sees them and applies the day-of-week semantics — a blank Sunday is a rest day (uncontracted,
-    // and the sheets leave it empty), a blank Mon–Sat is a cell NOBODY READ and becomes an
-    // UNREADABLE review row. Measured across 12 real documents: 111 of 207 rows have a blank
-    // Sunday; blank weekdays run at 3.9% overall and 15% on Dispatch.
-    //
-    // So this branch is a defensive fallback for a DIRECT caller only, and it must not be read as
-    // the general rule. Do not route physical blanks here; do not delete the guards in
-    // `buildSafeEntries` on the strength of this line.
+    // `buildSafeEntries` intercepts physical blanks BEFORE this function and applies the day rule —
+    // a blank Sunday is a rest day, a blank Mon–Sat a cell NOBODY READ (an UNREADABLE review row).
+    // This branch is a defensive fallback for a DIRECT caller only. Do not route physical blanks
+    // here; do not delete the guards in `buildSafeEntries` on the strength of this line.
     if (s === '') return 'RD';
 
-    // Non-empty but unrecognised (garbled OCR, unexpected text, out-of-range time). Do NOT
-    // default to 'RD': when the member's base shift is also RD, an RD here classifies as MATCH
-    // and the real (unreadable) shift is silently dropped from the review — never shown to the
-    // admin. Return a review-only sentinel instead, carrying the raw text for display. The client
-    // surfaces it as an UNREADABLE cell (skip-only, never written); the admin fixes the source PDF
-    // and re-uploads, or records the shift manually. Pipes are stripped so they can't break the
-    // "PREFIX|value" decoding; capped so a pathological value can't bloat the payload.
+    // Non-empty but unrecognised. Do NOT default to 'RD': over a base RD it would MATCH and the real
+    // shift would never be shown. A review-only sentinel instead, carrying the raw text (the UNREADABLE
+    // review state). Pipes are stripped so they can't break "PREFIX|value" decoding; capped in length.
     const cleaned = s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
-    // ONLY PIPES IS NOT A BLANK (external review of v26.67). A Monday cell holding `|` was answered 'RD' here — a rest
-    // day out of a mark nobody read, which on a member whose base is a rest day is a MATCH, unseen. Something was in
-    // the cell, so it goes to review like any other unreadable value, on any day.
+    // ONLY PIPES IS NOT A BLANK: something was in the cell, so it goes to review, on any day.
     if (cleaned === '') return 'UNKNOWN|only a line was read in this cell — check the PDF';
     // Its length, never its text (as above): the review row carries the text to the admin, who holds the PDF.
     warn(`[parseRosterPDF] Unrecognised shift value (${s.length} characters) — flagged UNKNOWN for review`);
@@ -281,20 +222,11 @@ function extractAIJson(text) {
         throw new SyntaxError('No JSON object found in AI response');
     }
     // Walk from each candidate '{', tracking brace depth while respecting string literals (and
-    // escapes), and stop at the matching close. Robust to prose containing braces before/after the
-    // object, or a stray '}' in trailing text (the old first-'{'-to-last-'}' slice broke on both) —
-    // AND to a BALANCED brace pair in the preamble (e.g. a "{curly}" placeholder): if the first
-    // balanced span isn't valid JSON we keep scanning for the next candidate object instead of
-    // throwing on it. (The real response is bare JSON — prompt says "return ONLY valid JSON" — so
-    // this is defence-in-depth for a chatty model.)
-    // A span that PARSES is not necessarily the payload. A chatty preamble can contain a perfectly
-    // VALID JSON literal — "blank cells are {} in this output" is the realistic one — and the scan
-    // used to stop at the first span that parsed, returning `{}` and discarding the real roster
-    // object that followed. parseRosterPDF then rejected it with "The AI returned an unexpected
-    // format" and the whole upload failed even though the AI had answered correctly (v18.84). So
+    // escapes), and stop at the matching close — robust to braces in prose and to a balanced but
+    // invalid span (keep scanning). Defence-in-depth for a chatty model.
+    // A span that PARSES is not necessarily the payload ("blank cells are {} in this output"), so
     // recognise the payload by its required shape, keep scanning past a parsed-but-unusable span,
-    // and fall back to the first parsed object only if nothing better turns up (a shape change must
-    // not start throwing where this used to return).
+    // and fall back to the first parsed object only if nothing better turns up.
     // The geometry-path prompt asks for `{ parsed }` ALONE, so a span with parsed[] is the payload
     // too — second-best to the full legacy shape, which the caller still requires on that path.
     const hasParsed = (/** @type {any} */ v) => !!v && typeof v === 'object' && !Array.isArray(v) && Array.isArray(v.parsed);
@@ -355,8 +287,7 @@ const HEADER_TO_INDEX = Object.assign(Object.create(null), {
  * Resolve a raw AI column header (e.g. "Sun", "TUESDAY", " thurs ") to a 0–6 day index (Sun=0),
  * or undefined if unrecognised. The 3-char fallback tolerates long/rare forms not in the alias map.
  * SINGLE source for the three parse layers that each resolve a header (mapColumnHeadersToDates,
- * buildSafeEntries, applyColumnScanCrossCheck) — they used to inline this two-line lookup, so a
- * change (a new alias, a different fallback) had to be made in all three or they'd drift.
+ * buildSafeEntries, applyColumnScanCrossCheck), so they cannot drift.
  * @param {unknown} header  a model-written header or day key: read through `String()`
  * @returns {number|undefined}
  */
@@ -400,9 +331,9 @@ function mapColumnHeadersToDates(columnHeaders, dates) {
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
- * The row that speaks for each member: the FIRST THAT SAYS ANYTHING (import-server-5). A real
- * Dispatch sheet prints an EMPTY placeholder above the same member's real row, and the grid matcher
- * already breaks that tie this way (`soleOccupied`, roster-geometry.js, v24.03): an empty row states
+ * The row that speaks for each member: the FIRST THAT SAYS ANYTHING. A real Dispatch sheet prints
+ * an EMPTY placeholder above the same member's real row, and the grid matcher already breaks that
+ * tie this way (`soleOccupied`, roster-geometry.js): an empty row states
  * nothing, so it stands only when no row for the name says anything. Two that do keep the first.
  * @param {any[]} parsedMembers  the model's rows
  * @returns {Map<string, any>}   trimmed memberName → the row that stands
@@ -423,7 +354,7 @@ function memberRows(parsedMembers) {
  *
  * The AI returns each member as an object with day-name keys.
  * A missing SUNDAY is filled with 'RD' — the one column whose blank is an answer. A missing
- * Mon–Sat day fails closed to the UNREADABLE sentinel (v22.19; the reasoning is inline below).
+ * Mon–Sat day fails closed to the UNREADABLE sentinel (the reasoning is inline below).
  * Shift values are normalised via normaliseShift().
  *
  * @param {any[]}    parsedMembers  - AI-returned member objects (memberName + day keys). The model's
@@ -437,63 +368,39 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
     const standing = memberRows(parsedMembers);
     for (const entry of parsedMembers) {
-        // Guard against a non-object array element (e.g. the AI returns `"parsed": [null]`):
-        // `entry.memberName` on null throws a TypeError, and this runs OUTSIDE the AI-call
-        // try/catch, so it would surface as an ungraceful 500 instead of the clean 502.
+        // Guard against a non-object element (`"parsed": [null]`): this runs OUTSIDE the AI-call
+        // try/catch, so a TypeError would surface as a 500 instead of the clean 502.
         if (!entry || typeof entry !== 'object') continue;
         if (typeof entry.memberName !== 'string' || !entry.memberName.trim()) continue;
-        // Skip a repeated member (e.g. a two-page roster that lists someone on both pages, or an AI
-        // hallucinated duplicate). Two rows for the same member would render duplicate review rows and,
-        // on save, write the same date/member override doc twice with nondeterministic last-write-wins.
-        // Which one stands is `memberRows`' rule: the first that says anything.
+        // Skip a repeated member: two rows would render duplicate review rows and write one override
+        // doc twice, last-write-wins. Which one stands is `memberRows`' rule.
         const memberKey = entry.memberName.trim();
         if (standing.get(memberKey) !== entry) {
             console.warn(`[parseRosterPDF] Duplicate member "${memberKey}" in AI output — kept the first row that says anything, skipped this one`);
             continue;
         }
 
-        // ── SUNDAY IS THE ONE COLUMN WHOSE BLANK IS AN ANSWER (v22.19) ──────────────────────────
+        // ── SUNDAY IS THE ONE COLUMN WHOSE BLANK IS AN ANSWER ───────────────────────────────────
         //
-        // Until now every absent day defaulted to RD, justified (v16.95) by "a blank roster cell
-        // means REST DAY" and by three "independent layers" catching anything dropped. Both halves
-        // were wrong, and three real rosters settled it.
+        // The row read, `sundayScan` and `columnScan` are ONE model reading ONE PDF in ONE call, so
+        // they are not independent layers. And the rosters do not blank a rest day: Mon–Sat unworked
+        // days are stated explicitly (RD, AL, SC, SN, OD, HA, ML, CL, NA). The measured Mon–Sat blanks
+        // were a person on a second roster who works only its Saturday — writing RD across their
+        // Mon–Fri would silently overwrite what their PRIMARY roster's import wrote. So Sunday keeps
+        // the RD default and Mon–Sat fails closed to the UNREADABLE sentinel (roster-import.md).
         //
-        // The layers are not independent — the row read, `sundayScan` and `columnScan` are three
-        // readings by ONE model of ONE PDF in ONE call, so they agree with each other exactly when
-        // the model has collapsed a cell. That leaves the default carrying the whole weight.
-        //
-        // And the rosters do not blank a rest day. Mon–Sat unworked days are stated explicitly —
-        // RD, AL, SC, SN, OD, HA, ML, CL, NA. Measured over 50 member rows and 350 cells: 24 blank
-        // SUNDAYS, and 5 blank Mon–Sat cells, all five belonging to ONE person who appears on a
-        // second roster and works only its Saturday. Even that case wants an admin, not a default:
-        // writing RD across their Mon–Fri would overwrite the shifts their PRIMARY roster's import
-        // had just written, silently.
-        //
-        // So Sunday keeps the RD default (it is the uncontracted column, and its blank is how the
-        // sheet says "not working"), and Mon–Sat fails closed to the ordinary UNREADABLE sentinel.
-        // The cost is bounded and visible; the thing it prevents is neither.
-        //
-        // **Sunday's exemption does NOT depend on the Sunday COLUMN existing**, and the first cut of
-        // this made it depend on exactly that. A Mon–Sat-only roster — a format `hasSundayColumn` in
-        // index.js exists to handle — would then have given EVERY member an unreadable Sunday, ~44
-        // review rows an admin must dismiss on every upload, for a day the sheet does not claim to
-        // cover. The two cases have the same honest answer: a blank Sunday cell and an absent Sunday
-        // column both mean "not rostered on Sunday", and neither is evidence of a misread.
-        // A missing weekday COLUMN is a different matter and correctly floods — a roster that does
-        // not show Tuesday is a broken read, not a format.
+        // **Sunday's exemption does NOT depend on the Sunday COLUMN existing**: on a Mon–Sat-only
+        // roster (`hasSundayColumn`, index.js) an absent Sunday column means "not rostered on Sunday"
+        // too. A missing weekday COLUMN correctly floods — that is a broken read, not a format.
         /** @type {Record<string, string>} */
         const shifts = {};
         for (let i = 0; i < dates.length; i++) {
             shifts[dates[i]] = blankCellMeaning(i, DAY_LABELS[i]);
         }
 
-        // Tolerant member-cell lookup (v16.84): the header→date map resolves a header
-        // case/abbrev-insensitively (lowercased first-3 chars), but reading the cell with the RAW
-        // header was stricter — if the AI keyed a member's days as "Sunday" while columnHeaders listed
-        // "Sun" (or any case drift between the two lists it generates), entry[header] read undefined
-        // → filled 'RD', silently dropping a real shift where the base was also RD. Index the entry's
-        // day keys the same tolerant way so the two lookups can't diverge. (Day abbrevs sun/mon/…/sat
-        // don't collide with member metadata keys like name/grade.)
+        // Tolerant member-cell lookup: index the entry's day keys the same case/abbrev-insensitive
+        // way the header map does, so "Sunday" keys beside a "Sun" header still read the cell.
+        // (Day abbrevs sun/mon/…/sat don't collide with member metadata keys like name/grade.)
         /** @type {Record<string, unknown>} */
         const entryByDay = {};
         for (const k of Object.keys(entry)) {
@@ -501,20 +408,13 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             if (!(kk in entryByDay)) entryByDay[kk] = entry[k];
         }
 
-        // TWO DIFFERENT FACTS, and the warning has to tell them apart (v22.30).
-        //
-        // Since v22.25 the prompt requires a key for EVERY column header, with "BLANK" as the
-        // value of an empty cell — "DO NOT DECIDE WHAT A BLANK CELL MEANS. Report that it was
-        // empty and stop there." So:
+        // TWO DIFFERENT FACTS, and the warning tells them apart. The prompt requires a key for EVERY
+        // column header, with "BLANK" for an empty cell, so:
         //   · reportedBlank — the model looked and said the cell was empty. Evidence.
-        //   · absentKey     — the model did not answer for this day at all. It disobeyed an
-        //                     explicit instruction, which is evidence of a READ FAILURE and not
-        //                     evidence that the member was off.
-        //
-        // They still take the same branch below, and on Sunday that branch writes RD. Whether an
-        // absent key should instead go to review is a live question — the answer needs a
-        // compliance rate, and until this split nobody could measure one: BOTH cases logged as
-        // "no cell read for [Sun]", including the case where the cell WAS read and reported empty.
+        //   · absentKey     — the model did not answer for this day: a READ FAILURE, not evidence
+        //                     the member was off.
+        // They take the same branch below; whether an absent key should go to review needs the
+        // compliance rate these separate log lines measure.
         /** @type {string[]} */
         const blankKeys = [];
         /** @type {string[]} */
@@ -527,26 +427,19 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
 
             const date  = dates[dayIndex];
             const raw   = entry[header] !== undefined ? entry[header] : entryByDay[key.slice(0, 3)];
-            // An explicit BLANK counts here, not just an absent key: since v22.25 the prompt asks
-            // the model to REPORT an empty cell rather than interpret it, so "the model said this
-            // was empty" and "the model never mentioned this day" are the same fact and must take
-            // the same branch. Before that they could not be told apart, and this rule was dead.
-            // So do EMPTY and a lone dash, which both scans already read as empty (import-server-1).
+            // An explicit BLANK, EMPTY or lone dash counts here, not just an absent key — the same
+            // branch, as both scans read them.
             const blank = isBlankReading(raw);
 
             if (blank) {
                 (raw === undefined || raw === null ? absentKeys : blankKeys).push(header);
-                // The same rule as the initialiser above, and it has to be here too: that one only
-                // covers a day whose HEADER the model never listed, and this one a header it listed
-                // with nothing in it. Both were 'RD' until v22.19, so the fix had to be made twice
-                // or it would have been made nowhere the model actually goes.
+                // The same rule as the initialiser above, and it must be here too: that covers a day
+                // whose HEADER was never listed, this one a header listed with nothing in it.
                 shifts[date] = blankCellMeaning(dayIndex, DAY_LABELS[dayIndex]);
                 continue;
             }
 
-            // NA and NS used to be answered HERE, by the day (v24.22: an absence Monday to Saturday,
-            // a rest day on Sunday). Since v25.38 they are rest days on every day, so the day no
-            // longer matters and `normaliseShift` answers them like any other code.
+            // NA and NS are rest days on every day, so `normaliseShift` answers them like any code.
             shifts[date] = normaliseShift(String(raw).trim());
         }
 
@@ -564,15 +457,14 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     return safeEntries;
 }
 
-// ── Sunday scan post-processing: functions/roster-sunday-repair.js (moved out at the v24.28 review) ──
+// ── Sunday scan post-processing: functions/roster-sunday-repair.js ──
 
 
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
 
 // Scan tokens that read as a rest day on ANY day: the row read's own words for an empty cell
 // (`BLANK_READINGS`) and the two printed rest codes. NA and NS are not listed: `normaliseShift`
-// reads both as the rest day (v25.38). Until then their meaning depended on the day, and this
-// function took the column's day index to ask.
+// reads both as the rest day.
 const BLANK_SCAN_TOKENS = new Set([...BLANK_READINGS, 'RD', 'OFF']);
 
 /**
@@ -594,9 +486,8 @@ function normaliseScanValue(raw) {
 
 /** Human form of a normalised shift for the "read two ways" message ("RDW|t" → "RDW t", capped). @param {unknown} v @returns {string} */
 function reviewLabel(v) {
-    // App-language label for a normalised shift, for the admin-facing "couldn't read" review message.
-    // Uses the app's STAFF-FACING terms — never the internal 'SICK' data value (wording rule: absence
-    // copy says "Absent", never "sick").
+    // App-language label, for the admin-facing review message: STAFF-FACING terms — "Absent", never
+    // the internal 'SICK' data value.
     const s = String(v);
     if (s === 'SICK')              return 'Absent';
     if (s === 'RD' || s === 'OFF') return 'Rest day';
@@ -608,12 +499,10 @@ function reviewLabel(v) {
 /**
  * Cross-check the row read against the column scan, cell by cell (modifies safeEntries in place).
  *
- * WHY: the ONLY way a one-day shift enters the pipeline is the AI's visual ROW read — a blank
- * cell anywhere in a row can be skipped, sliding every later value one day left (or, rarer,
- * misaligning right). sundayScan anchors only the Sunday cell, so a drift that starts mid-week,
- * any right-shift, and Monday-start rosters (no Sunday column) all sailed past it. The columnScan
- * is a SECOND, column-wise read of the whole table (the same kind of read sundayScan already
- * proved more reliable per column), giving a per-cell cross-check:
+ * WHY: the ONLY way a one-day shift enters the pipeline is the AI's visual ROW read — a skipped
+ * blank cell slides every later value one day. sundayScan anchors only the Sunday cell, so a
+ * mid-week drift, a right-shift and a Monday-start roster pass it. The columnScan is a SECOND,
+ * column-wise read of the whole table, giving a per-cell cross-check (roster-import.md, layer 2):
  *
  *   • Row and column reads AGREE on a cell → confident, keep it.
  *   • The whole disagreement realigns EXACTLY under a ±1-day shift of the row (and there are
@@ -626,16 +515,12 @@ function reviewLabel(v) {
  * Fail-open: no columnScan / missing column / missing member / unreadable scan value → no signal
  * for that cell → today's behaviour.
  *
- * ⚠️ ORDER IS LOAD-BEARING: this MUST run BEFORE applySundayScanCorrections. The model may lazily
- * COPY columnScan from its own row read (the prompt forbids it, nothing enforces it) — a copied
- * scan mirrors the RAW drifted row. Run first, a copied scan simply agrees with the row (harmless
- * no-op) and the validated Sunday corrections still land afterwards as the final authority. Run
- * AFTER them instead, a copied scan "disagrees" with the freshly-repaired row and the suffix-shift
- * realignment would provably REVERSE a correct Case-A repair back to the drifted week — silently.
- * (An honest scan is order-insensitive: its repairs leave Sunday agreeing with sundayScan, so the
- * Sunday pass no-ops.) A Case-A PARTIAL repair (Sat occupied) therefore keeps its residual-drift
- * limitation here — it leaves the Sunday claim for the geometry witness (roster-sunday-repair.js),
- * and the client's detectShiftedRow remains the catch when the witness cannot run.
+ * ⚠️ ORDER IS LOAD-BEARING: this MUST run BEFORE applySundayScanCorrections. The model may COPY
+ * columnScan from its own drifted row read: run first, a copied scan agrees with the row (a no-op)
+ * and the Sunday corrections land afterwards as the final authority; run AFTER them, a copied scan
+ * would REVERSE a correct Case-A repair back to the drifted week — silently. A Case-A PARTIAL repair
+ * leaves the Sunday claim for the geometry witness (roster-sunday-repair.js), and the client's
+ * detectShiftedRow remains the catch when the witness cannot run.
  *
  * @param {SafeEntry[]} safeEntries - modified in place ({ memberName, shifts: { date: value } })
  * @param {Record<string, any>|null|undefined} columnScan - { header: { memberName: rawCellValue } } from
@@ -644,23 +529,17 @@ function reviewLabel(v) {
  * @param {string[]} dates         - 7 ISO dates (Sun → Sat) from buildWeekDates()
  */
 function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates) {
-    // Coverage stats so the caller can tell the ADMIN when the fail-open path ran — the check
-    // failing open must not be invisible (v16.70). checked = members with a usable signal on ≥5
-    // days (the same bar the auto-repair uses).
-    // `choices` carries the two candidate values for every cell this flags as a two-way
-    // disagreement, keyed "memberName|date" (v19.32). The flag message already names both readings,
-    // but only as PROSE — so the review table could show the ambiguity and offer no way to resolve
-    // it, leaving the admin to record the day by hand in Change a Shift. The values are what the
-    // client needs to turn that into a pick; absent (an older function, or a non-two-way flag) it
-    // simply falls back to today's skip-only row.
+    // Coverage stats so the caller can tell the ADMIN when the fail-open path ran — failing open
+    // must not be invisible. checked = members with a usable signal on ≥5 days (the auto-repair's bar).
+    // `choices` carries the two candidate VALUES for every two-way disagreement, keyed
+    // "memberName|date", so the review table can offer them as a pick; absent, it falls back to a
+    // skip-only row.
     const stats = { checked: 0, total: safeEntries.length, choices: Object.create(null) };
     if (!columnScan || typeof columnScan !== 'object') return stats;
     if (!Array.isArray(columnHeaders) || dates.length < 7) return stats;
 
-    // The scan's columns are found by DAY, the way `buildSafeEntries` finds a row's cells (v16.84):
-    // its own spelling first, then whichever of the scan's keys names the same day. The model writes
-    // both lists itself, and a scan keyed "Sunday" beside headers "Sun" is the same column — read by
-    // the header's exact spelling, it gave no signal on any day, and this check never ran for the read.
+    // The scan's columns are found by DAY, the way `buildSafeEntries` finds a row's cells: its own
+    // spelling first, then whichever scan key names the same day ("Sunday" beside a "Sun" header).
     /** @type {Record<number, any>} */
     const scanByDay = Object.create(null);
     for (const key of Object.keys(columnScan)) {
@@ -686,14 +565,9 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
 
         // ── WHY THE COLUMN SCAN IS NOT A WITNESS TO BLANKNESS (tried and refused, 1 Sep 2026) ──
         //
-        // The v22.25 blank-cell contract asks the model to REPORT an empty cell rather than call it
-        // a rest day, and `buildSafeEntries` then applies the day rule. That leaves one gap: it
-        // works only while the model does as it is told, and this whole finding exists because
-        // "the AI complied" had been the safety mechanism for six versions.
-        //
-        // The obvious hardening is to ask the OTHER pass — if the column scan saw an empty weekday
-        // where the row read printed a rest day, flag it. It was built, and the fixtures in
-        // roster-parse-helpers.test.mjs refused it, which is the fixtures doing their job.
+        // The blank-cell contract works only while the model reports an empty cell as told. The
+        // obvious hardening — flag where the column scan saw an empty weekday and the row read a rest
+        // day — was built, and the fixtures in roster-parse-helpers.test.mjs refused it.
         //
         // The CES case is the proof: a single real row scans as
         //     ['blank', '06:00-14:00', 'OFF', 'blank', '07:00-15:00', '-', 'blank']
@@ -713,10 +587,8 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         if (signalDates.length >= 5) stats.checked++;
         if (signalDates.length === 0) continue;
 
-        // Comparison equality. The row read passes 'OFF' through verbatim (normaliseShift keeps it;
-        // the client treats OFF ≡ RD), but the scan normalises OFF → 'RD' via BLANK_SCAN_TOKENS — so
-        // compare with OFF folded to RD on the row side, or every ordinary CES/bilingual rest day
-        // would false-flag as a disagreement.
+        // Comparison equality: the scan normalises OFF → 'RD' while the row keeps 'OFF', so fold OFF
+        // to RD on the row side, or every CES/bilingual rest day would false-flag.
         const rowEq = (/** @type {string} */ v) => (v === 'OFF' ? 'RD' : v);
         const cellsAgree = (/** @type {string} */ rowV, /** @type {string} */ colV) => rowEq(rowV) === colV;
 
@@ -762,9 +634,8 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
                 else for (let i = k; i <= 5; i++) shifted[dates[i]] = entry.shifts[dates[i + 1]];
                 shifted[dates[vacated]] = colRead[dates[vacated]];
                 if (signalDates.every(d => cellsAgree(shifted[d], colRead[d]))) {
-                    // What is WRITTEN in the vacated slot is what an honest read of that cell gives
-                    // (import-server-4): a scan "blank" was already RD above, and Monday to Saturday a
-                    // blank is a question, never a rest day (v22.19) — as is a slot no scan read.
+                    // What is WRITTEN in the vacated slot is what an honest read of that cell gives:
+                    // Monday to Saturday a blank (or a slot no scan read) is a question, never a rest day.
                     const d = dates[vacated];
                     if (colRead[d] === undefined || scanBlank.has(d)) shifted[d] = blankCellMeaning(vacated, DAY_LABELS[vacated]);
                     for (let i = 0; i < 7; i++) entry.shifts[dates[i]] = shifted[dates[i]];
@@ -780,28 +651,19 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         for (const d of disagree) {
             const rowV = entry.shifts[d];
             const colV = colRead[d];
-            // REST ↔ ABSENCE: exactly one read is 'SICK' (a positive absence code — OD/HA/SC/ML/CL — was
-            // seen on that pass) and the other is a rest day. RECORD THE ABSENCE rather than flag
-            // UNREADABLE: dropping a real absence (writing RD) is the dangerous SILENT failure — the
-            // person then appears to be working — whereas a false absence is visible on the calendar
-            // and easily corrected. An absence code is not something the AI hallucinates on a truly
-            // blank cell, so a SICK from EITHER pass is real signal. Not applied to Sunday (dates[0],
-            // non-contracted — the client's Sunday layer would strip it anyway). This is the ONLY
-            // disagreement auto-resolved; every other kind still flags UNREADABLE. (OD/HA reliability.)
-            // Positioning note: this resolves the absence at its CURRENT column. applySundayScanCorrections
-            // runs AFTER this (index.js — it is the validated final authority) and may right/left-shift the
-            // whole row on a genuine Sunday-anchored drift; the SICK moves WITH the row, which is correct
-            // (a drifted row's absence was misread one day off and the shift realigns it). On an undetected
-            // drift the absence lands a day off — the same positional risk that applies to EVERY cell on
-            // that row (pre-existing), not new to this resolution, and review-gated (admin sees the DIFF).
+            // REST ↔ ABSENCE: exactly one read is 'SICK' (a positive OD/HA/SC/ML/CL code) and the other
+            // a rest day. RECORD THE ABSENCE: dropping a real absence is the dangerous SILENT failure
+            // (the person appears to be working); a false absence is visible and correctable, and an
+            // absence code is not hallucinated on a blank cell. Not on Sunday (dates[0]). The ONLY
+            // disagreement auto-resolved. The SICK moves with the row if applySundayScanCorrections
+            // (run after this) shifts it.
             const isRest = (/** @type {string} */ x) => x === 'RD' || x === 'OFF';
             if (d !== dates[0] && ((rowV === 'SICK' && isRest(colV)) || (isRest(rowV) && colV === 'SICK'))) {
                 console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row/column read disagreed Rest↔Absent — recorded as Absent (an absence code was read on one pass; never silently drop an absence)`);
                 entry.shifts[d] = 'SICK';
                 continue;
             }
-            // Otherwise flag for the admin (skip-only in review; never written). The message uses
-            // app-language labels (reviewLabel) — never the internal 'SICK' value.
+            // Otherwise flag for the admin, in app-language labels (reviewLabel).
             console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row read "${rowV}" ≠ column scan "${colV}" — flagged for review`);
             entry.shifts[d] = `UNKNOWN|${reviewLabel(rowV)} or ${reviewLabel(colV)}? (PDF unclear)`;
             // Both readings, as VALUES rather than the prose above, so the review table can offer
@@ -816,9 +678,8 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
 
 /**
  * Parse a strict YYYY-MM-DD calendar date. Returns the UTC-noon Date if the string is a real
- * calendar date, else null. Rejects bad formats AND JS-normalised impossible dates (2026-02-30 →
- * 2026-03-02) via a round-trip check — the format regex alone is not enough. Shared by both HTTP
- * handlers (ingestHuddle, parseRosterPDF) so date validation is identical.
+ * calendar date, else null — a round-trip check rejects JS-normalised impossible dates
+ * (2026-02-30). Shared by ingestHuddle and parseRosterPDF.
  * @param {string} str
  * @returns {Date|null}
  */
@@ -849,23 +710,17 @@ const PAY_CYCLE = require('./roster-members.json').payCycle;
  */
 function isPayCutoffDay(date) {
     // Anchor in UTC so the arithmetic is correct on any server timezone.
-    // Date.UTC and setUTCHours give the same result as their local counterparts on
-    // UTC Cloud Run — but are explicit and correct if TZ ever differs.
     const [anchorY, anchorM, anchorD] = String(PAY_CYCLE.firstPayday).split('-').map(Number);
     const FIRST_PAYDAY_MS = Date.UTC(anchorY, anchorM - 1, anchorD, 12, 0, 0); // the anchor payday, noon UTC
     const INTERVAL_DAYS   = PAY_CYCLE.intervalDays;
     const MS_PER_DAY      = 86_400_000;
-    // Rebuild the intended CALENDAR day at noon UTC from the input's local components. The caller
-    // builds `date` with the local-timezone `new Date(y, m, d)`, so mixing its raw getTime() with
-    // setUTCHours could land the +6-day candidate on the wrong UTC day on a non-UTC runtime and make
-    // the 28-day modulo miss (silently stopping cutoff reminders). This makes it TZ-independent.
+    // Rebuild the intended CALENDAR day at noon UTC from the input's local components (the caller
+    // builds `date` locally), so the cycle modulo cannot miss on a non-UTC runtime.
     const dayNoonUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
     // Cutoff is 6 days before payday (Saturday before a Friday)
     const candidate = dayNoonUtc + 6 * MS_PER_DAY;
     const diff = candidate - FIRST_PAYDAY_MS;
-    // Use abs so the 28-day cycle is detected in both directions from the anchor.
-    // The original `if (diff < 0) return false` guard incorrectly excluded Jan 10
-    // (6 days before the Jan 16 payday, one cycle before the Feb 13 anchor).
+    // Use abs so the cycle is detected in both directions from the anchor (before it too).
     return Math.round(Math.abs(diff) / MS_PER_DAY) % INTERVAL_DAYS === 0;
 }
 
@@ -925,17 +780,15 @@ function fileSignatureMatches(buf, fileType) {
     return false;
 }
 
-// ── Push notification design language — functions/push-notices.js (v26.04) ─────
-// The feature table and the one builder moved there whole when this file reached its cap. Both are
-// re-exported below, so every sender's import from here stands. See .claude/rules/notifications.md.
+// ── Push notification design language — functions/push-notices.js ─────
+// The feature table and the one builder live there, re-exported below so every sender's import from
+// here stands. See .claude/rules/notifications.md.
 const { NOTIFICATION_FEATURES, buildPushPayload } = require('./push-notices');
 
-// ── Moved out (25 Nov 2026), at 1,386 of this file's 1,400-line cap ─────────────────────────────────
-// The account rules (setupRosterAuth's claims, the orphan sweep, the provisioning audit, the sign-in
-// counts) → ./account-rules.js; the reset-request queue's throttle, coalescing window and words →
-// ./reset-request-rules.js; the push transport guards → ./push-guards.js. Their callers require them
-// there, and nothing is re-exported: account-rules.js needs nameToEmail from here, so its re-export
-// would be a require cycle, and the other two follow the same rule so no name has two homes.
+// ── Moved out ───────────────────────────────────────────────────────────────────────────────────────
+// The account rules → ./account-rules.js; the reset-request queue's rules → ./reset-request-rules.js;
+// the push transport guards → ./push-guards.js. Nothing is re-exported: account-rules.js needs
+// nameToEmail from here, so its re-export would be a require cycle, and no name has two homes.
 
 module.exports = {
     normaliseShift,

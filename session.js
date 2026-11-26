@@ -33,18 +33,14 @@ import { dispatchAuth } from './auth-state.js';
 // A DEFINITIVE credential rejection — a wrong password, or no such account — as opposed to a
 // transient/config failure (network, provider-disabled), is `isCredentialRejection` (auth-identity.js),
 // the SAME predicate the Settings reauth uses, so the two candidate ladders can't drift. On one the
-// sign-in resolves to 'none' + a re-sign-in prompt, NEVER an anonymous fallback (AUTH_AND_SESSIONS.md →
-// "A credential rejection never falls back" — once anyone has a custom password, an anonymous fallback would be silently denied every write
-// by the strict B3 rules, reproducing the v10.94 outage class).
+// sign-in resolves to 'none' + a re-sign-in prompt, NEVER an anonymous fallback (AUTH_AND_SESSIONS.md
+// → "A credential rejection never falls back"): the strict B3 rules would silently deny every write an anonymous session made.
 
 /**
- * Feed the auth STORE (AUTH_AND_SESSIONS.md → Architecture, the store). This is a pure side-effect, wrapped so
- * a store error can NEVER break the auth path; `sessionReady` and every existing flow are
- * untouched (session.js still owns the Firebase lifecycle). The store IS consumed, once per page:
- * every named page's `guardNamedSession` (page-session.js) and the Pay Calculator read it through
- * `getAuthSnapshot()` + `requirePage()` (auth-policy.js), and the forced password overlay reads its
- * status. The full single-owner auth shell (live subscriptions, `sessionReady` re-routed onto the
- * store) is still future work.
+ * Feed the auth STORE (AUTH_AND_SESSIONS.md → Architecture, the store). A pure side-effect, wrapped so a store error
+ * can NEVER break the auth path; session.js still owns the Firebase lifecycle. The store is read once
+ * per page: every named page's `guardNamedSession` (page-session.js) and the Pay Calculator, through
+ * `getAuthSnapshot()` + `requirePage()` (auth-policy.js), and the forced password overlay.
  * @param {{ type: string, member?: string|null, error?: string|null }} event
  */
 function _feedAuth(event) {
@@ -53,9 +49,8 @@ function _feedAuth(event) {
 
 /** Translate the resolved Firebase identity (the B0 signals) into a terminal store event — one of
  *  the three `terminalAuthEvent` returns: NAMED, TRANSIENT (nothing could be decided) or NONE (a
- *  refusal). The write pages never fall back to an anonymous session any more (the
- *  `ENFORCE_NAMED_SESSION` switch that could restore one was retired v24.34), so the store's
- *  `ANONYMOUS` and `FATAL` events have no producer here. */
+ *  refusal). The write pages never fall back to an anonymous session, so the store's `ANONYMOUS`
+ *  and `FATAL` events have no producer here. */
 function _syncAuthTerminal(/** @type {string} */ name) {
     const ev = terminalAuthEvent({ named: getFirebaseIdentity() === 'named', stalled: _authStartStalled, error: getFirebaseAuthError() ?? null });
     _feedAuth(ev.type === 'NAMED' ? { ...ev, member: name } : ev);
@@ -64,14 +59,12 @@ function _syncAuthTerminal(/** @type {string} */ name) {
 /**
  * The store event a resolved sign-in ends on. Pure, so the one rule in it can be pinned:
  *
- * A STALLED START-UP IS NOT A SIGN-OUT (v24.61, iOS audit B1). When Firebase Auth's own start-up
- * outruns `AUTH_READY_TIMEOUT_MS` — a hanging connection at the station, a captive portal, iOS
- * waking the app on a dead radio — nothing is known about the member either way. Until v24.61 that
- * fed `NONE`, the store read `signedOut`, the page policy said `login`, and `page-session.js`
- * cleared the 60-day local session and queued a Firebase sign-out before showing the overlay: a
- * slow network signed people out. `TRANSIENT` reads as `degraded` and the policy as `pending`, so
- * the page keeps the session, shows its sign-in WITHOUT clearing, and reloads into the identity if
- * it lands late — the Calendar's shape. A genuine refusal (wrong password, no account, a disabled
+ * A STALLED START-UP IS NOT A SIGN-OUT (iOS audit B1). When Firebase Auth's own start-up outruns
+ * `AUTH_READY_TIMEOUT_MS` — a hanging connection at the station, a captive portal, iOS waking the
+ * app on a dead radio — nothing is known about the member either way. As `NONE` it would clear the
+ * 60-day local session: a slow network would sign people out. `TRANSIENT` reads as `degraded` and the
+ * policy as `pending`, so the page keeps the session, shows its sign-in WITHOUT clearing, and reloads
+ * into the identity if it lands late. A genuine refusal (wrong password, no account, a disabled
  * login) is still `NONE`; a failure that could not reach an answer is `TRANSIENT` too (below).
  * @param {{ named: boolean, stalled: boolean, error: string|null }} r
  * @returns {{ type: 'NAMED' } | { type: 'TRANSIENT', error: string } | { type: 'NONE', error: string|null }}
@@ -79,11 +72,10 @@ function _syncAuthTerminal(/** @type {string} */ name) {
 export function terminalAuthEvent({ named, stalled, error }) {
     if (named)   return { type: 'NAMED' };
     if (stalled) return { type: 'TRANSIENT', error: error ?? 'auth/timeout' };
-    // NOR IS A FAILURE THAT NEVER REACHED AN ANSWER (whole-app review, Oct 2026). A network error, an
-    // unreachable reset check, Firebase's own internal error or a rate limit says nothing about the
-    // member either — and as `NONE` they cleared the 60-day session on every write page after three
-    // retries on a weak connection, against invariant 23's "destroys nothing". The same codes the
-    // retry treats as transient, so the two cannot disagree about what a blip is.
+    // NOR IS A FAILURE THAT NEVER REACHED AN ANSWER. A network error, an unreachable reset check,
+    // Firebase's own internal error or a rate limit says nothing about the member either; as `NONE`
+    // they would clear the 60-day session on a weak connection (AUTH_AND_SESSIONS.md 23: "destroys
+    // nothing"). The same codes the retry treats as transient, so the two cannot disagree.
     if (isTransientAuthError(error ?? undefined)) return { type: 'TRANSIENT', error: /** @type {string} */ (error) };
     return { type: 'NONE', error };
 }
@@ -92,15 +84,14 @@ export const AUTH_KEY    = 'myb_admin_session';
 export const SESSION_MS  = 60 * 24 * 60 * 60 * 1000; // 60 days — the ONE session lifetime
 export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 
-// 60 DAYS (owner, v20.47), and NO idle cutoff (removed v20.41). The absolute bound is not what
+// 60 DAYS (owner), and NO idle cutoff (AUTH_AND_SESSIONS.md 2). The absolute bound is not what
 // protects an account: every genuine revocation is immediate and independent of it — `clearSession`
 // (which signs Firebase out too), a disabled or deleted account, revoked credentials, the claim
 // sweeps. Two things READ this number: the forced password migration completes within it, and
-// Operations → Usage's "signed in within 30 days" no longer means every active person (the note
-// beside `_appendSignInSection`, operations-usage.js). The idle clock only ever signed out the
-// members who use the app least. (The retired staff PIN's viewer never had this record at all: it held
-// no `name`, and its persistence was session-only — viewer-shed.js.) Removed
-// rather than lengthened: a dormant policy gets "restored" by someone who assumes it was load-bearing.
+// Operations → Usage's "signed in within 30 days" (the note beside `_appendSignInSection`,
+// operations-usage.js). The idle clock only ever signed out the members who use the app least.
+// Removed rather than lengthened: a dormant policy gets "restored" by someone who assumes it was
+// load-bearing.
 
 /** @type {(value: any) => void} */
 let _sessionResolve;
@@ -131,14 +122,10 @@ export function resolveSession(result) { _sessionResolve(result); }
  * calendar-access.js) reads the restored user instead and never consults this.
  *
  *   'named'     — signed in as the member's own account (email === nameToEmail(name)).
- *   'none'      — no named session could be established. There is NO anonymous third value any
- *                 more: a nameless session satisfies `request.auth != null` and nothing else, and
- *                 the strict rules (B3, v16.29; the server-set `member` claim, v24.27) refuse every
- *                 write it could make. The switch that used to fall back to one
- *                 (`ENFORCE_NAMED_SESSION`) was retired at v24.34; the store prompts a re-login.
- *
- * B0 (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)") made this distinction observable + tested; B1/B2/B3 then made it
- * load-bearing (strict isolation + no-anon-fallback on write pages).
+ *   'none'      — no named session could be established. There is NO anonymous third value: a
+ *                 nameless session satisfies `request.auth != null` and nothing else, and the strict
+ *                 rules (B3; the server-set `member` claim) refuse every write it could make
+ *                 (AUTH_AND_SESSIONS.md 9). The store prompts a re-login.
  * @type {'named' | 'none'}
  */
 let _fbIdentity = 'none';
@@ -148,12 +135,11 @@ let _fbAuthError;
 
 /** How long a page waits for Firebase Auth to start before treating it as a (transient) failure. */
 const AUTH_READY_TIMEOUT_MS = 20000;
-/** Monotonic auth-attempt generation (stale-completion guard, AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)").
- *  `runNamedSignIn` time-boxes the auth promise but cannot CANCEL the underlying Firebase work, so a
- *  timed-out attempt can resolve LATE — after the user retried and a newer attempt already won. A
- *  superseded attempt (its captured gen ≠ this counter) must drop ALL its terminal writes so it can't
- *  clobber the shared `_fbIdentity`/auth-store to a stale value (which under B1 could cause a spurious
- *  re-login). Each `ensureNamedSession` bumps it; `ensureFirebaseSession` inherits or (direct call) bumps. */
+/** Monotonic auth-attempt generation (stale-completion guard). `runNamedSignIn` time-boxes the auth
+ *  promise but cannot CANCEL the underlying Firebase work, so a timed-out attempt can resolve LATE —
+ *  after a newer attempt already won. A superseded attempt (its captured gen ≠ this counter) must drop
+ *  ALL its terminal writes so it can't clobber the shared `_fbIdentity`/auth-store to a stale value.
+ *  Each `ensureNamedSession` bumps it; `ensureFirebaseSession` inherits or (direct call) bumps. */
 let _authGen = 0;
 /** The generation an explicit clearSession() took — see the late-landing check in ensureFirebaseSession. */
 let _clearedGen = -1;
@@ -203,39 +189,20 @@ export { AUTH_RESTORE_TIMEOUT_MS };
  * Resolve the first onAuthStateChanged emission (the IndexedDB session restore) once.
  * Exported so pages that must read `auth.currentUser` after the async restore (e.g.
  * admin-auth.js before calling setupRosterAuth) share ONE implementation instead of
- * hand-rolling their own — a past divergence let a cold-restore fix miss the copy.
- * Callers wanting the fast path use `auth.currentUser || await restoreFirstAuthUser()`.
+ * hand-rolling their own. Callers wanting the fast path use
+ * `auth.currentUser || await restoreFirstAuthUser()`.
  *
- * ── BOUNDED SINCE v20.52 (external review) ──────────────────────────────────────────────────────
- * This used to be an unbounded promise: if the first emission never arrived, every awaiting caller
- * waited for ever. Firebase emits promptly in normal operation, but this project has already met
- * enough real iOS/Firebase restoration oddities that the bound belongs in the SHARED primitive
- * rather than in whichever coordinator remembered to add one. The Calendar had bounded its own path
- * at v20.45; the protected pages' coordinators had not, and would each have needed their own copy of
- * the same idea.
+ * ── BOUNDED ──────────────────────────────────────────────────────────────────────────────────────
+ * The bound belongs in the SHARED primitive, not in whichever coordinator remembered to add one.
+ * **It resolves `null` on timeout rather than rejecting, deliberately.** Every call site (grep for
+ * `restoreFirstAuthUser`) already handles a null user as the ordinary "nobody is signed in" answer;
+ * rejecting would introduce an unhandled rejection where there is no catch, on a path that only fires
+ * when something is already wrong. The bound is generous: firing early on a merely-slow restore would
+ * tell a signed-in admin their session is missing. 8s is a hang, not a slow phone.
  *
- * **It resolves `null` on timeout rather than rejecting, and that is deliberate.** Every call site
- * (grep for `restoreFirstAuthUser`) already handles a null user — it is the ordinary "nobody is signed
- * in" answer: `admin-auth.js` raises "session not found, sign out and back in", `ensureFirebaseSession`
- * proceeds to sign in with the stored credentials, and the `.catch(() => null)` sites treat it as no
- * lingering identity. Rejecting would introduce an unhandled rejection where there is no catch and
- * change behaviour on a path that only fires when something is already wrong. Null is what every
- * caller is built for.
- *
- * The bound is generous for that reason: firing it early on a merely-slow restore would tell a
- * signed-in admin their session is missing. 8s is a hang, not a slow phone.
- *
- * ── AND IT NO LONGER OPENS ITS OWN SUBSCRIPTION (v21.29, external latency review) ────────────────
- *
- * It used to hand-roll a second `onAuthStateChanged` wait, which was harmless on its own and
- * compounding in aggregate — see `authBootstrap` in firebase-client.js for the three-listeners,
- * three-timeouts picture and the ~12.5s Calendar tail it produced. The boot now answers that
- * question once; this delegates to it and keeps its own bound as a ceiling on the shared wait.
- *
- * The returned value is GROUND TRUTH rather than the boot snapshot, which is a small correctness
- * gain as well as a latency one: a member who signed out after boot is now reported as signed out,
- * where the remembered emission would have resurrected them.
- *
+ * It opens no subscription of its own: it delegates to the one boot answer (`authBootstrap` in
+ * firebase-client.js), keeping its bound as a ceiling on the shared wait. The value is GROUND TRUTH,
+ * not the boot snapshot: a member who signed out after boot is reported as signed out.
  * @param {number} [timeoutMs] override, for tests
  * @returns {Promise<any>} the restored user, or null (no user, or the restore never answered)
  */
@@ -258,16 +225,12 @@ function _consumePrimedAuthUser() {
 
 /**
  * Pre-warm Firebase Auth restoration BEFORE the user submits the login form — call when the login
- * overlay mounts. It kicks off `authReady` (persistence setup) and the first `onAuthStateChanged`
- * emission (the IndexedDB session restore) in the background, so by the time the user finishes
- * typing their password `ensureFirebaseSession` skips straight to the sign-in network call instead
- * of first paying for that setup + restore. The restore overlaps the user's typing.
+ * overlay mounts. It starts `authReady` (persistence setup) and the first `onAuthStateChanged`
+ * emission in the background, so the restore overlaps the user's typing.
  *
- * Idempotent and best-effort: a failure here resolves to null, so `ensureFirebaseSession` simply
- * does the restore itself, exactly as before. It changes NO security and NO outcome — pure latency
- * overlap: the consume path resolves to null whenever nothing was primed, so behaviour is identical
- * whether or not `primeAuth()` ran. (One-shot per page: `_authPrimed` is not reset after consumption,
- * so only the first sign-in attempt on a page benefits from the pre-warm.)
+ * Idempotent and best-effort: a failure resolves to null, so `ensureFirebaseSession` simply does the
+ * restore itself. It changes NO security and NO outcome — pure latency overlap. (One-shot per page:
+ * `_authPrimed` is not reset after consumption, so only the first sign-in attempt benefits.)
  * @returns {void}
  */
 export function primeAuth() {
@@ -279,26 +242,23 @@ export function primeAuth() {
 }
 
 // The sign-in nobody typed — the device-local memory that a member's account does NOT accept the
-// surname default (v21.62), its six-hourly reset recheck, and the guard on a recheck nobody answered —
-// is decided in silent-sign-in.js (pure, with the reasoning). This module reads and writes the memory.
+// surname default, its six-hourly reset recheck, and the guard on a recheck nobody answered — is
+// decided in silent-sign-in.js (pure, with the reasoning). This module reads and writes the memory.
 
 /**
  * Guarantee a live Firebase Auth session for a logged-in member.
  *
  * Firestore Security Rules refuse every write that carries no claim — a member's own needs their
  * bound name (AUTH_AND_SESSIONS.md 4, 9, 19), which only their own signed-in account has.
- * The login click handler signs in to Firebase — but a returning user with a
- * valid 60-day localStorage session skips that handler, so on a normal app open
- * the Firebase Auth session was never (re-)established.
+ * A returning user with a valid 60-day localStorage session skips the login click handler, so
+ * without this the Firebase Auth session would never be (re-)established on a normal app open.
  *
  * Strategy:
  * 1. Restore persisted session from IndexedDB — free, no network.
  * 2. signInWithEmailAndPassword — the password candidates, in order.
  * 3. Otherwise 'none'. There is no account self-heal (accounts are provisioned server-side by
- *    Operations → Set up accounts) and no anonymous fallback: both only ever ran with the retired
- *    `ENFORCE_NAMED_SESSION` switch off (retired v24.34), and the strict rules refuse a session either would make.
- *    The error code from step 2 is exposed via getFirebaseAuthError() so it can be surfaced in
- *    diagnostic messages.
+ *    Operations → Set up accounts) and no anonymous fallback: the strict rules refuse a session
+ *    either would make. The error code from step 2 is exposed via getFirebaseAuthError().
  *
  * @param {string} name - Member display name (exact teamMembers match)
  * @param {number} [_gen] - Internal: the caller's auth-attempt generation (stale-completion guard).
@@ -327,16 +287,14 @@ export async function ensureFirebaseSession(name, _gen, password) {
         _fbAuthError = code;   // read via getFirebaseAuthError() (admin-auth.js, login-overlay.js, operations-app.js)
     };
 
-    // Reset for this attempt — but ONLY while it is still current. A SUPERSEDED retry (ensureNamedSession
-    // re-enters ensureFirebaseSession with its now-stale gen after a newer attempt already won) must NOT
-    // run this reset: commit/recordError below are gen-guarded, but an unguarded reset here would clobber
-    // the winner's `_fbIdentity` to 'none' and leave it stuck there (the store would read 'named' while
-    // the global reads 'none' — the exact disagreement the guard exists to prevent). Found in review.
+    // Reset for this attempt — but ONLY while it is still current. A SUPERSEDED retry must NOT run
+    // this reset: commit/recordError below are gen-guarded, but an unguarded reset would clobber the
+    // winner's `_fbIdentity` to 'none' and leave the store reading 'named' while the global reads 'none'.
     if (fresh()) { _fbIdentity = 'none'; _fbAuthError = undefined; }
-    // BOUNDED (v24.38). `authReady` waits on Firebase Auth's own start-up, which has no limit of its
-    // own; with the browser's storage wedged it never settled, and every protected page sat with
-    // sessionReady pending — no sign-in offered, no error. A timeout is TRANSIENT, so
-    // ensureNamedSession still retries it before the page falls back to its sign-in.
+    // BOUNDED. `authReady` waits on Firebase Auth's own start-up, which has no limit of its own; with
+    // the browser's storage wedged it never settled, and every protected page sat with sessionReady
+    // pending — no sign-in offered, no error. A timeout is TRANSIENT, so ensureNamedSession still
+    // retries it before the page falls back to its sign-in.
     /** @type {any} */ let _readyTimer;
     const _ready = await Promise.race([
         authReady.then(() => true),
@@ -345,18 +303,15 @@ export async function ensureFirebaseSession(name, _gen, password) {
     clearTimeout(_readyTimer);
     if (!_ready) { recordError('auth/timeout'); if (fresh()) _authStartStalled = true; return commit('none', false); }
     // A member is signing in, so the shared Calendar viewer (if this browser holds one) must go
-    // FIRST — see the function's own comment for why the order is the security property, not a
-    // tidiness one. This is the single choke point for the viewer→member transition: every member
-    // sign-in in the app reaches Firebase through here, so there is no second path that could set
-    // long-lived persistence with the viewer still current.
+    // FIRST — the order is the security property (viewer-shed.js). This is the single choke point for
+    // the viewer→member transition: every member sign-in reaches Firebase through here, so no second
+    // path could set long-lived persistence with the viewer still current.
     //
-    // `shedCalendarViewer` THROWS when it cannot confirm the viewer is gone (v20.35 — it used to
-    // warn and carry on, which migrated the shared viewer into long-lived persistence on exactly
-    // the path that must not). Convert that to a clean failed sign-in rather than letting it reject:
-    // every write page's coordinator hands this promise straight to `resolveSession()` with no catch,
-    // so a rejection here would reject `sessionReady` app-wide and surface as unhandled. Returning
-    // 'none' keeps the security property (persistence untouched, no viewer promoted) AND keeps the
-    // failure inside the sign-in flow, where the login overlay already reports it and offers a retry.
+    // `shedCalendarViewer` THROWS when it cannot confirm the viewer is gone. Convert that to a clean
+    // failed sign-in rather than letting it reject: every write page's coordinator hands this promise
+    // straight to `resolveSession()` with no catch, so a rejection would reject `sessionReady`
+    // app-wide. 'none' keeps the security property (persistence untouched, no viewer promoted) AND
+    // keeps the failure inside the sign-in flow, where the login overlay reports it and offers a retry.
     try {
         await shedCalendarViewer();
     } catch (err) {
@@ -366,34 +321,23 @@ export async function ensureFirebaseSession(name, _gen, password) {
         return commit('none', false);
     }
     // First auth state for this restore. Fast path: if auth.currentUser is ALREADY populated (a live
-    // session — e.g. the SECOND ensureFirebaseSession of an in-place sign-in, where the first call just
-    // established it), use it synchronously and skip the onAuthStateChanged wait entirely. It is null
-    // synchronously during a cold IndexedDB restore (the common first-load case), so otherwise we wait
-    // for the first emission. If the login overlay pre-warmed that via primeAuth() (fired when it
-    // mounted), consume the already-in-flight promise so the restore overlapped the user's typing — a
-    // pure latency win, no behaviour change. One-shot: a later call does a fresh restore; tests (which
-    // never prime, and whose mock currentUser is null) always take the await path.
-    // Priming overlaps the WAIT with the user's typing; the VALUE is always read fresh (v21.29).
-    // Consuming the primed promise FOR ITS RESULT was the one remaining place a stale identity could
-    // survive: it is created when the login overlay mounts and may be minutes old by the time a
-    // sign-in consumes it, so on a shared device a second member's sign-in could read the first
-    // member's restored user out of it. Harmless in the end — the email mismatch below signs them
-    // out and re-authenticates — but it is the same hazard `currentUserAfterBoot` was just made to
-    // avoid, and awaiting the primed promise purely for its TIMING keeps the whole latency win with
-    // none of it. `await null` is a no-op, so the un-primed path is unchanged.
+    // session — e.g. the SECOND ensureFirebaseSession of an in-place sign-in), use it synchronously.
+    // It is null during a cold IndexedDB restore, so otherwise we wait for the first emission.
+    // Priming overlaps the WAIT with the user's typing; the VALUE is always read fresh: the primed
+    // promise may be minutes old, so on a shared device a second member's sign-in could read the
+    // first member's restored user out of it. Awaiting it purely for its TIMING keeps the latency win
+    // with none of the hazard. `await null` is a no-op, so the un-primed path is unchanged.
     await _consumePrimedAuthUser();
     const existing = auth.currentUser || await restoreFirstAuthUser();
-    // Gen-guard EVERY shared-auth mutation from here down (like commit/recordError/the reset above):
-    // a SUPERSEDED attempt resuming after this long await — the sign-out below on the mismatch path,
-    // but equally the signInWithEmailAndPassword calls further down on the
-    // no-persisted-session (cold load) path — would otherwise replace the WINNING attempt's
-    // freshly-established session on the shared `auth`, leaving the store reading 'named' for the
-    // winner while auth.currentUser holds someone else (silent permission-denied writes). The
-    // matching-user fast path below stays safe for a stale gen: commit() no-ops the global write.
-    // NOT when a password was TYPED (Sep 2026 review): that is an explicit sign-in, and a restored
-    // session for the same member is no proof the typed password is right — taking this path
-    // renewed an expired 60-day session with ANY password during the boot window. So the typed
-    // password always goes to Firebase below, and this attempt answers only what Firebase answers.
+    // Gen-guard EVERY shared-auth mutation from here down: a SUPERSEDED attempt resuming after this
+    // long await — the sign-out on the mismatch path, or the signInWithEmailAndPassword calls on the
+    // cold-load path — would otherwise replace the WINNING attempt's session on the shared `auth`,
+    // leaving the store reading 'named' for the winner while auth.currentUser holds someone else
+    // (silent permission-denied writes). The matching-user fast path stays safe for a stale gen:
+    // commit() no-ops the global write.
+    // NOT when a password was TYPED: that is an explicit sign-in, and a restored session for the same
+    // member is no proof the typed password is right — this path would renew an expired 60-day session
+    // with ANY password during the boot window. So the typed password always goes to Firebase below.
     const sameMember = !!existing && !existing.isAnonymous && existing.email === nameToEmail(name);
     if (password == null && sameMember) return commit('named', true);
     if (!fresh()) return commit('none', false);
@@ -402,23 +346,19 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // Person A was active on a shared browser and Person B now selects their name),
     // must not be reused — sign out and re-authenticate under the correct identity.
     //
-    // THE SAME MEMBER'S RESTORED ACCOUNT IS NOT SIGNED OUT FIRST (review, Nov 2026). It used to be,
-    // so one mistyped password destroyed a sign-in that was working — and Firebase shares one account
-    // across a browser's tabs, so every other tab then saw nobody signed in, ran its relogin and
-    // cleared the shared 60-day session. The typed password is still SENT (above) and a wrong one
-    // still ends this attempt 'none'; Firebase leaves the current user as it was on a refusal and
-    // replaces it on a success, so the sign-out bought nothing but the damage. An EXPIRED local
-    // session loses nothing by it either: a failed attempt with no session held for this member
-    // clears (`runNamedSignIn` — its `keepsLocalSession` is false then), and `clearSession` signs the
-    // restored account out, so a wrong password still never renews it (AUTH_AND_SESSIONS 1); a session
-    // held for this member is still kept, now with its working identity still behind it.
+    // THE SAME MEMBER'S RESTORED ACCOUNT IS NOT SIGNED OUT FIRST. One mistyped password would destroy
+    // a working sign-in — and Firebase shares one account across a browser's tabs, so every other tab
+    // would run its relogin and clear the shared 60-day session. The typed password is still SENT
+    // (above) and a wrong one still ends this attempt 'none'; Firebase leaves the current user as it
+    // was on a refusal and replaces it on a success. A wrong password still never renews an expired
+    // local session (AUTH_AND_SESSIONS 1): a failed attempt with none held for this member clears
+    // (`runNamedSignIn`'s `keepsLocalSession`), and `clearSession` signs the restored account out.
     if (existing && !sameMember) {
         // A sign-out the browser cannot complete ENDS this attempt; it must never reject it
-        // (sessions-4, Nov 2026) — every write page hands this promise to resolveSession() with no
-        // catch, so a rejection left sessionReady rejected and no sign-in offered. Nothing is signed
-        // in past it, as with the viewer above. The code is TRANSIENT: a stored account the browser
-        // could not delete (the SDK's auth/internal-error) says nothing about the member, and the SDK
-        // has already dropped it from memory, so ensureNamedSession's retry finds nobody to sign out.
+        // (sessions-4) — every write page hands this promise to resolveSession() with no catch.
+        // Nothing is signed in past it. The code is TRANSIENT: a stored account the browser could not
+        // delete (the SDK's auth/internal-error) says nothing about the member, and the SDK has already
+        // dropped it from memory, so ensureNamedSession's retry finds nobody to sign out.
         try {
             await firebaseSignOut(auth);
         } catch (err) {
@@ -427,24 +367,19 @@ export async function ensureFirebaseSession(name, _gen, password) {
             recordError('auth/previous-user-shed-failed');
             return commit('none', false);
         }
-        // Re-check the generation AFTER the sign-out await (v16.69 review fix): an attempt
-        // superseded DURING firebaseSignOut would otherwise resume and run the sign-in calls
-        // below, replacing the WINNING attempt's freshly-established session on the shared
-        // `auth` — the store says 'named' for the winner while auth.currentUser holds someone
-        // else, so every strict-rules write is permission-denied until the next page load
-        // (writeWithClaimRetry cannot heal a wrong-identity token). Mirrors the fresh() check
-        // above; commit() already no-ops for a stale gen, but the auth mutation itself must
-        // not happen either.
+        // Re-check the generation AFTER the sign-out await: an attempt superseded DURING
+        // firebaseSignOut would otherwise run the sign-in calls below and replace the WINNING
+        // attempt's session on the shared `auth` — every strict-rules write is then permission-denied
+        // until the next page load (writeWithClaimRetry cannot heal a wrong-identity token).
         if (!fresh()) return commit('none', false);
     }
 
     const email = nameToEmail(name);
     // The ordered password candidates to try (AUTH_AND_SESSIONS.md → "The gated dual-attempt" and "Re-establishing on page load"). WITH a typed password
     // (login overlay): raw typed → derived surname (gated on the typed value normalising to the
-    // surname). WITHOUT one (page-load re-establishment): the derived surname only (auto-reauth of
-    // an un-migrated member; a migrated member fails cleanly here → 'none' → overlay re-shown).
-    // Implicit path: the surname only while this device has not seen it refused, or a reset recheck is
-    // due — and a recheck nobody answered is asked once per attempt (silent-sign-in.js has why).
+    // surname). WITHOUT one (page-load re-establishment): the derived surname only, while this device
+    // has not seen it refused, or a reset recheck is due — and a recheck nobody answered is asked once
+    // per attempt (silent-sign-in.js has why).
     const plan = password == null
         ? planSilentAttempt({ surname: surnamePassword(name), stored: lsGet(noDefaultKey(name)), now: Date.now(), unansweredThisAttempt: _recheckUnansweredGen === gen })
         : { candidates: credentialCandidatesFor(name, password), recheck: false, held: false };
@@ -455,13 +390,12 @@ export async function ensureFirebaseSession(name, _gen, password) {
 
     for (const candidate of candidates) {
         if (!fresh()) return commit('none', false);
-        // NOT A SESSION THE LAST RESET WAS AIMED AT (Oct 2026 production review; moved IN FRONT of
-        // the sign-in by the same-day bug check). A silent re-sign-in on a session older than the
-        // member's last admin reset is exactly the lost phone the reset was meant to sign out — and
-        // the reset just made the surname valid again. It is asked BEFORE signing in because the
-        // sign-in itself announces and stores the user: asked afterwards, the Calendar's late-identity
-        // watcher granted the phone first, and a reload mid-check came back through the stored user.
-        // A TYPED sign-in never reaches this (password != null).
+        // NOT A SESSION THE LAST RESET WAS AIMED AT (AUTH_AND_SESSIONS.md 23). A silent re-sign-in on
+        // a session older than the member's last admin reset is exactly the lost phone the reset was
+        // meant to sign out — and the reset just made the surname valid again. It is asked BEFORE
+        // signing in because the sign-in itself announces and stores the user: asked afterwards, the
+        // Calendar's late-identity watcher would grant the phone first. A TYPED sign-in never reaches
+        // this (password != null).
         //   · predates the reset → refuse, end the local session, make the holder type a password
         //   · could not be confirmed → do not sign in silently, but DESTROY NOTHING: it is treated
         //     like a sign-in that could not reach the server, which is what it nearly always is
@@ -474,13 +408,12 @@ export async function ensureFirebaseSession(name, _gen, password) {
             if (after?.note) lsSet(noDefaultKey(name), String(Date.now()));
             if (after?.stop) break;
             if (after?.unanswered) _recheckUnansweredGen = gen;
-            // THE PROBE IS A SIGN-IN, SO ITS REFUSAL IS ONE (review, Nov 2026). On a device with no flag
-            // yet this went on to the SDK sign-in with the same surname: two wrong-password requests a
-            // load from the station's one address, whose shared throttle is why the flag exists. Stop
-            // here as the recheck does, remember it, and record a refusal's code, so the attempt still
-            // ends NONE with a reason to read. 'credential' also covers no such account and a DISABLED
-            // one, which the probe cannot tell apart from a wrong password: both get the flag and the
-            // code `auth/invalid-credential` — on purpose (`isRestCredentialRejection` says why).
+            // THE PROBE IS A SIGN-IN, SO ITS REFUSAL IS ONE. Going on to the SDK sign-in with the same
+            // surname would send two wrong-password requests a load from the station's one address,
+            // whose shared throttle is why the flag exists. Stop, remember it, and record a refusal's
+            // code. 'credential' also covers no such account and a DISABLED one, which the probe cannot
+            // tell apart from a wrong password: both get the flag and the code `auth/invalid-credential`
+            // — on purpose (`isRestCredentialRejection` says why).
             if (resetAt === 'credential') {
                 lsSet(noDefaultKey(name), String(Date.now()));
                 lastError = 'auth/invalid-credential';
@@ -492,9 +425,8 @@ export async function ensureFirebaseSession(name, _gen, password) {
                 return commit('none', false);
             }
             if (sessionPredatesReset(_sessionCreatedMs(), resetAt)) {
-                // NAMED, as every other refusal here is (Nov 2026 review): without a code this read as a
-                // sign-in that ended for no reason, which getFirebaseAuthError() and Operations' banner
-                // could not tell from any other. Not transient — the session is gone, so nothing retries.
+                // NAMED, as every other refusal here is, so getFirebaseAuthError() and Operations'
+                // banner can tell it apart. Not transient — the session is gone, so nothing retries.
                 recordError('auth/session-predates-reset');
                 lsDel(AUTH_KEY);
                 lsDel(CALENDAR_SNAPSHOT);
@@ -507,16 +439,15 @@ export async function ensureFirebaseSession(name, _gen, password) {
         }
         try {
             await signInWithEmailAndPassword(auth, email, candidate);
-            // LANDED AFTER A SIGN-OUT (v24.38). The login overlay's bound (SIGN_IN_GIVE_UP_MS) gives up, calls
-            // clearSession(), and tells the member it failed — but the request it gave up on can
-            // still land, leaving Firebase signed in with no app session behind it on a shared
-            // device. Undo it only when a clearSession() is the LAST thing that happened: a newer
-            // sign-in attempt superseding this one owns the account and must be left alone.
-            // The same holds when the attempt that superseded this one is for a DIFFERENT member
-            // (v24.56, auth review): landing late, this sign-in replaced theirs on the shared `auth`,
-            // so their page would show them and write with this account's token. Signing it out
-            // hands their page the identity-loss sign-in instead. Unless their sign-in has already
-            // landed on top of this one — then the account is theirs, and is left alone.
+            // LANDED AFTER A SIGN-OUT. The login overlay's bound (SIGN_IN_GIVE_UP_MS) gives up, calls
+            // clearSession(), and tells the member it failed — but the request can still land, leaving
+            // Firebase signed in with no app session behind it on a shared device. Undo it only when a
+            // clearSession() is the LAST thing that happened: a newer sign-in attempt superseding this
+            // one owns the account and must be left alone.
+            // The same holds when the attempt that superseded this one is for a DIFFERENT member:
+            // landing late, this sign-in replaced theirs on the shared `auth`, so their page would
+            // write with this account's token. Signing it out hands their page the identity-loss
+            // sign-in instead — unless their sign-in has already landed on top, when it is theirs.
             const supersededByOther = _genName !== name
                 && !(auth.currentUser?.email && auth.currentUser.email.toLowerCase() !== email.toLowerCase());
             if (!fresh() && (_authGen === _clearedGen || supersededByOther)) {
@@ -545,12 +476,10 @@ export async function ensureFirebaseSession(name, _gen, password) {
     recordError(lastError);   // diagnostics (current attempt only)
 
     // No named session. Resolve to 'none' + a re-sign-in prompt — NEVER anonymous, whichever way it
-    // failed (AUTH_AND_SESSIONS.md → "A credential rejection never falls back"). Every candidate DEFINITIVELY rejected (a migrated member
-    // whose surname no longer works, a mistyped password, no account) and a NON-credential failure
-    // (network blip, auth/operation-not-allowed) end the same way: a nameless session would satisfy
-    // `request.auth != null` and nothing else, so the strict rules would silently deny every write
-    // it made. The two differ only in what the caller does next — `ensureNamedSession` retries a
-    // transient code and nothing else.
+    // failed (AUTH_AND_SESSIONS.md → "A credential rejection never falls back"): a nameless session would satisfy `request.auth != null` and
+    // nothing else, so the strict rules would silently deny every write it made. Definitive rejections
+    // and NON-credential failures differ only in what the caller does next — `ensureNamedSession`
+    // retries a transient code and nothing else.
     console.warn(nonCredentialStop
         ? '[Auth] Named session not established (non-credential failure). Error:'
         : '[Auth] Credential rejected (definitive). Error:', lastError);
@@ -562,15 +491,15 @@ export async function ensureFirebaseSession(name, _gen, password) {
  *  retried; it needs a human (re-login or admin break-glass). @type {Set<string>} */
 const _TRANSIENT_AUTH_CODES = new Set([
     'auth/network-request-failed', 'auth/timeout', 'auth/too-many-requests', 'auth/internal-error',
-    // The pre-sign-in reset check could not get an answer (v24.70). Transient, so a blip is retried
-    // exactly as a blip on the sign-in itself always was; and NAMED, so a probe that has stopped
-    // working in production shows in every place a sign-in error already surfaces.
+    // The pre-sign-in reset check could not get an answer: transient, so a blip is retried as a blip
+    // on the sign-in itself is; and NAMED, so a probe that has stopped working shows wherever a
+    // sign-in error surfaces.
     'auth/reset-check-unavailable',
     // The account restored here could not be signed out before a member's sign-in (sessions-4) — the
     // same storage failure the SDK itself reports as auth/internal-error, above; named for what happened.
     'auth/previous-user-shed-failed',
-    // …and so is its twin for the shared PIN viewer (sign-in check, 11 Nov 2026): it was missing, so a
-    // failed viewer sign-out ended NONE and cleared the member's 60-day session over a storage fault.
+    // …and its twin for the shared PIN viewer: without it a failed viewer sign-out ended NONE and
+    // cleared the member's 60-day session over a storage fault.
     'auth/viewer-shed-failed',
 ]);
 
@@ -578,8 +507,8 @@ const _TRANSIENT_AUTH_CODES = new Set([
 export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CODES.has(code); }
 
 /** Set when Firebase Auth's own START-UP outran AUTH_READY_TIMEOUT_MS. Every retry would wait on
- *  that same unsettled start-up again, so `ensureNamedSession` does not retry it (v24.56, auth
- *  review): two retries turned the 20s bound into ~61s before the page offered its sign-in. */
+ *  that same unsettled start-up again, so `ensureNamedSession` does not retry it: two retries
+ *  turned the 20s bound into ~61s before the page offered its sign-in. */
 let _authStartStalled = false;
 
 /** Transient, AND worth retrying a moment later. A rate limit is not (another request only adds to
@@ -595,8 +524,7 @@ function _worthRetrying() {
  * A failed named sign-in is retried a couple of times ONLY if the error looks transient (a network
  * blip), then this returns whether the named session is genuinely active. Persistent failures (no
  * account / wrong password) are not retried — the caller prompts a re-login or routes to admin
- * break-glass. (Until v24.34 a `CONFIG.ENFORCE_NAMED_SESSION` switch could turn all of this off and
- * accept an anonymous fallback; it was retired because the rules no longer accept that session.)
+ * break-glass.
  *
  * @param {string} name
  * @param {{ retries?: number, delayMs?: number, password?: string }} [opts] - `password` is the
@@ -622,14 +550,10 @@ export async function ensureNamedSession(name, { retries = 2, delayMs = 300, pas
     if (gen !== _authGen) {
         // Superseded by a newer attempt — MUST NOT publish terminal state (the newer attempt owns
         // `_fbIdentity`/the store). But do NOT report a SPURIOUS failure (B5): a direct
-        // `ensureFirebaseSession(name)` overlapping this login bumps `_authGen` at entry, superseding
-        // us even though our own sign-in genuinely succeeded. Report success only if BOTH this attempt
-        // reached a named session (`ok` ⟺ named) AND the LIVE Firebase user really is
-        // this member — read `auth.currentUser` (ground truth), never the shared `_fbIdentity` a newer
-        // attempt may have moved to a different identity. This publishes nothing, so it cannot clobber
-        // the winner; it only stops the overlay showing "sign-in failed" when we ARE signed in. A
-        // teardown that superseded us (clearSession / timeout → clearSession) also signs Firebase out,
-        // so `auth.currentUser` is null there and this correctly still returns false.
+        // `ensureFirebaseSession(name)` overlapping this login supersedes us even though our own
+        // sign-in succeeded. Report success only if BOTH this attempt reached a named session AND the
+        // LIVE Firebase user really is this member — ground truth, never the shared `_fbIdentity`. A
+        // teardown that superseded us (clearSession) also signs Firebase out, so this returns false.
         const u = auth.currentUser;
         return ok && !!u && !u.isAnonymous && u.email === nameToEmail(name);
     }
@@ -645,12 +569,9 @@ const CLAIM_EPOCH_KEY = 'myb_claim_epoch';
 /**
  * B3 claim-refresh sweep (AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)"). Force a one-time ID-token refresh per
  * device when `CONFIG.CLAIM_EPOCH` advances, so a session holding a token minted BEFORE a custom
- * claim existed (e.g. the B2 `manager` claim) picks it up immediately instead of waiting for the
- * ~hourly auto-refresh — the deterministic "every active token carries its correct-tier claim"
- * precondition the B3 strict rule needs. Best-effort and idempotent: gated by a localStorage epoch
- * flag (one refresh per device per bump), acts only on a live (named) session, and swallows any
- * error (a stale token self-heals on the normal refresh cycle). Fire-and-forget — never blocks page
- * load; the refreshed token is used by the NEXT request.
+ * claim existed picks it up immediately instead of waiting for the ~hourly auto-refresh. Best-effort
+ * and idempotent: one refresh per device per bump, only on a live (named) session, errors swallowed.
+ * Fire-and-forget — never blocks page load; the refreshed token is used by the NEXT request.
  * @param {number} epoch  CONFIG.CLAIM_EPOCH
  * @returns {Promise<void>}
  */
@@ -668,57 +589,41 @@ export async function refreshClaimsIfStale(epoch) {
 
 /**
  * Read and validate the current localStorage session. Returns null if missing, absolutely expired
- * (60 days) or version-stale.
- *
- * PURELY A READ since v20.41. It used to write back on every call, to refresh an idle clock that no
- * longer exists — a localStorage write on every page load of every page, whose only purpose was to
- * postpone an expiry we have now removed.
+ * (60 days) or version-stale. PURELY A READ (AUTH_AND_SESSIONS.md 2).
  *
  * ⚠️ Passive expiry only clears localStorage — it does NOT sign Firebase out.
- * getSession() runs synchronously at module eval on every page (incl. the
- * calendar), before the auth restore has settled. An async firebaseSignOut fired
- * here would race the Calendar's access decision (`decideAccess` reads the restored
- * user) and could drop a still-valid identity mid-decision. Firebase is signed
- * out only on an EXPLICIT clearSession() (user-initiated logout), by the
- * coordinated `reconcileExpiredIdentity()` below, and ensureFirebaseSession()
- * replaces a mismatched identity on the next login. (Until v24.34 this also
- * protected the Calendar's anonymous bootstrap, which no longer exists.)
+ * getSession() runs synchronously at module eval on every page (incl. the calendar), before the
+ * auth restore has settled. An async firebaseSignOut fired here would race the Calendar's access
+ * decision (`decideAccess` reads the restored user) and could drop a still-valid identity
+ * mid-decision. Firebase is signed out only on an EXPLICIT clearSession(), by the coordinated
+ * `reconcileExpiredIdentity()` below, and ensureFirebaseSession() replaces a mismatched identity on
+ * the next login.
  *
- * ⚠️ A lingering Firebase identity is NOT harmless post-B3/H2/B4: a named/admin/manager/designer
- * identity retains real extra access at the FIREBASE layer (read all staff emails, on-behalf override
- * writes, admin uploads, Links writes) even after the local app session expired. The exposure is a
- * shared device where someone reaches the persisted credential via devtools / a direct SDK call.
- * `reconcileExpiredIdentity()` (below) is the COORDINATED teardown — run AFTER the auth restore, not an
- * async signOut inside this synchronous getSession() (which would race the Calendar's access decision).
- * The calendar (the PWA start_url) calls it on virtually every launch, AND every protected page's
- * coordinator now calls it at init (review item 7; grep for the call rather than trusting a list here),
- * so a lingering expired identity is dropped even on a direct deep-link to a protected page — no longer
- * only on the next login or the next calendar open. (Finding #9)
+ * ⚠️ A lingering Firebase identity is NOT harmless: a named/admin/manager/designer identity retains
+ * real access at the FIREBASE layer (all staff emails, on-behalf override writes, admin uploads,
+ * Links writes) after the local app session expired, reachable on a shared device via devtools.
+ * `reconcileExpiredIdentity()` is the COORDINATED teardown, run AFTER the auth restore; the Calendar
+ * calls it on virtually every launch, and every protected page's coordinator at init (grep for the
+ * call rather than trusting a list here). (Finding #9)
  */
 export function getSession() {
     try {
         const raw = lsGet(AUTH_KEY);
         if (!raw) return null;
         const s = JSON.parse(raw);
-        // FAIL CLOSED ON AN UNREADABLE EXPIRY (v22.43). `Date.now() > undefined` is false, and so
-        // is every comparison against NaN — so a session missing its `expiry`, or carrying a
-        // non-numeric one, used to pass this check and then NEVER expire. The 60-day cap is the
-        // app's only automatic revocation (nothing else ends a session but an explicit sign-out or
-        // a disabled account), so the one shape that must not slip through is the one that
-        // disables it. `saveSession` always writes a good value; this is about storage that has
-        // been corrupted, truncated or hand-edited, and an unreadable session is treated as an
-        // expired one rather than an eternal one.
-        // The Calendar's own-roster copy goes with the session it belongs to (v24.59).
+        // FAIL CLOSED ON AN UNREADABLE EXPIRY. `Date.now() > undefined` is false, and so is every
+        // comparison against NaN — so a session missing its `expiry` would NEVER expire. The 60-day
+        // cap is the app's only automatic revocation, so storage that has been corrupted, truncated
+        // or hand-edited is treated as an expired session rather than an eternal one.
+        // The Calendar's own-roster copy goes with the session it belongs to.
         if (!Number.isFinite(s.expiry) || Date.now() > s.expiry) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
         if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
-        // …and so is one with no NAME (sign-in check, 11 Nov 2026): every caller derives the account
-        // from it, so `ensureNamedSession(undefined)` threw and the page offered no sign-in at all.
+        // …and so is one with no NAME: every caller derives the account from it, so
+        // `ensureNamedSession(undefined)` threw and the page offered no sign-in at all.
         if (typeof s.name !== 'string' || !s.name.trim()) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
-        // `expiry` is absolute and set once at sign-in, so nothing here extends it. A session that
-        // has run its 60 days ends on the next read wherever the member is — no separate clock, and
-        // no write. Sessions written before v20.41 still carry a `lastActivity` field; it is simply
-        // ignored, which is why no migration or SESSION_VER bump is needed (bumping it would sign
-        // every member out, the exact outcome this change exists to reduce).
+        // `expiry` is absolute and set once at sign-in, so nothing here extends it. Older sessions
+        // still carry a `lastActivity` field; it is simply ignored, which is why no SESSION_VER bump
+        // is needed (bumping it would sign every member out).
         return s;
     } catch { return null; }
 }
@@ -736,8 +641,7 @@ function _sessionCreatedMs() {
 
 
 /**
- * Persist a new session for the named user — 60-day absolute expiry, and nothing else. There is no
- * second clock to start (v20.41).
+ * Persist a new session for the named user — 60-day absolute expiry, and nothing else.
  * @param {string} name
  * @returns {boolean} true if the session actually persisted; false when storage is blocked
  *   (e.g. iOS Safari Private Browsing — lsSet swallows the SecurityError, so nothing is written).
@@ -750,9 +654,9 @@ export function saveSession(name) {
         name,
         ver:    SESSION_VER,
         expiry: now + SESSION_MS,
-        // When the session began — the server's record of this sign-in where it can be had, never a wrong
-        // device clock (`sessionStartMs`, audit A2) — compared with the server's `resetAt` before any silent
-        // re-sign-in (`sessionPredatesReset`). Older sessions derive it from `expiry`.
+        // When the session began — the server's record of this sign-in where it can be had, never a
+        // wrong device clock (`sessionStartMs`, audit A2) — compared with the server's `resetAt` before
+        // any silent re-sign-in (`sessionPredatesReset`). Older sessions derive it from `expiry`.
         createdAt: now,
     });
     lsSet(AUTH_KEY, payload);
@@ -771,7 +675,7 @@ export function clearSession() {
     _clearedGen = ++_authGen;
     lsDel(AUTH_KEY);
     // EVERY sign-out ends here, so this is where the Calendar's copy of the member's own roster is
-    // deleted (v24.59, calendar-snapshot.js). A shared device must not keep it past the session.
+    // deleted (calendar-snapshot.js). A shared device must not keep it past the session.
     lsDel(CALENDAR_SNAPSHOT);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
     _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut
@@ -781,53 +685,45 @@ export function clearSession() {
  * Sign out a Firebase identity that has OUTLIVED its local app session (Finding #9).
  *
  * getSession() clears only localStorage on passive expiry — the IndexedDB-persisted Firebase identity
- * survives, so a NAMED/admin/manager/designer session keeps its real Firestore privileges (read all
- * staff emails, on-behalf override writes, admin uploads, Links writes) after the app session expired.
- * This is the COORDINATED teardown the getSession() note prescribes: run it AFTER authReady — never an
- * async signOut inside the synchronous getSession(), which would race the page's own auth bootstrap.
- * If the restored user is NAMED but there is no valid local session, sign it out.
+ * survives with its real Firestore privileges. This is the COORDINATED teardown the getSession() note
+ * prescribes: run AFTER authReady — never an async signOut inside the synchronous getSession(). If the
+ * restored user is NAMED but there is no valid local session, sign it out.
  *
- * The calendar is the PWA `start_url`, so this runs on virtually every launch — the dominant path by
- * which an expired session's lingering privileges are dropped. Every protected page's coordinator
- * ALSO calls it at init (review item 7), so a direct deep-link to a protected page tears the identity
- * down immediately rather than waiting for the next login or calendar open. Reading `auth.currentUser` alone would miss a COLD restore (authReady only sets
- * persistence — the persisted user loads via the first onAuthStateChanged emission), so this resolves
- * that restore before deciding.
+ * The calendar is the PWA `start_url`, so this runs on virtually every launch; every protected page's
+ * coordinator ALSO calls it at init, so a direct deep-link tears the identity down immediately.
+ * Reading `auth.currentUser` alone would miss a COLD restore (authReady only sets persistence — the
+ * persisted user loads via the first onAuthStateChanged emission), so this resolves that restore
+ * before deciding.
  *
  * Login-safe: snapshots `_authGen` and stands down if a login/logout transition (both bump it) started
  * meanwhile, and re-checks getSession() so a just-completed login (which writes a fresh session) is
  * never torn down. Anonymous identities are left alone.
  *
- * THE RETIRED STAFF PIN IS TORN DOWN HERE TOO, ON EVERY PAGE (owner, 23 Nov 2026). Its shared viewer is
- * a non-anonymous Firebase identity with no local session — exactly the shape this function exists to
- * end — and no page asks to keep it any more (the `preserveCalendarViewer` flag the Calendar and Trains
- * passed went with the PIN). So a browser still holding one is signed out on its next Calendar or
- * Trains load, as on every other page, and the sign-in card says why (`noteStaffPinEnded`,
- * staff-pin-ended.js). The viewer branches below are transition plumbing, kept until the cleanup
- * release deletes the `calendar-viewer` account.
+ * THE RETIRED STAFF PIN IS TORN DOWN HERE TOO, ON EVERY PAGE (owner, 23 Nov 2026; AUTH_AND_SESSIONS.md
+ * 8). Its shared viewer is a non-anonymous Firebase identity with no local session — exactly the shape
+ * this function exists to end — so a browser still holding one is signed out on its next load, and the
+ * sign-in card says why (`noteStaffPinEnded`, staff-pin-ended.js). The viewer branches below are
+ * transition plumbing, kept until the cleanup release deletes the `calendar-viewer` account.
  * @returns {Promise<void>}
  */
 export async function reconcileExpiredIdentity() {
     const gen = _authGen;
     try { await authReady; } catch { return; }
-    // `authReady` only guarantees persistence is SET — on a COLD restore the IndexedDB-persisted user
-    // has not loaded yet, so reading auth.currentUser right here can be `null` and MISS a lingering
-    // identity entirely (it would then survive that whole page load). Resolve the first restore
-    // emission (or use the already-live user) so a lingering identity is reliably seen — the same
-    // `auth.currentUser || await restoreFirstAuthUser()` pattern ensureFirebaseSession uses. This is
-    // what lets reconcile run reliably from a protected page opened by a direct deep-link, not just
-    // the calendar (review item 7). Skip the restore wait if a newer login/logout already superseded us.
+    // `authReady` only guarantees persistence is SET — on a COLD restore the persisted user has not
+    // loaded yet, so auth.currentUser can be `null` here and MISS a lingering identity. Resolve the
+    // first restore emission (or use the already-live user), as ensureFirebaseSession does. Skip the
+    // restore wait if a newer login/logout already superseded us.
     const u = auth.currentUser || (gen === _authGen ? await restoreFirstAuthUser().catch(() => null) : null);
     if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
     if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
     // Release this device's push record FIRST, while the expired member is still the identity — the
-    // delete is theirs to make, and after the sign-out nobody can (whole-app review, Oct 2026). NOT for
-    // the staff PIN (audit C3): it owns no record, so the release dropped THIS BROWSER's subscription — a
-    // member's own phone, used with the PIN, came back with notifications off — and held the notice up.
+    // delete is theirs to make, and after the sign-out nobody can. NOT for the staff PIN (audit C3):
+    // it owns no record, so the release dropped THIS BROWSER's subscription — a member's own phone,
+    // used with the PIN, came back with notifications off.
     if (!isViewerUser(u)) await releasePushForEndingHold();
     else await letViewerWritesGo();   // the viewer's queued writes leave first (firebase-client.js says why)
-    // …or anybody else did, by a route that moves no generation (sign-in check, 11 Nov 2026 — the
-    // sign-out below signed out whoever was current, which could be somebody new).
+    // …or anybody else did, by a route that moves no generation (the sign-out below signs out
+    // whoever is current, which could be somebody new).
     if (gen !== _authGen || getSession() || auth.currentUser !== u) return;
     try {
         await firebaseSignOut(auth);
@@ -840,13 +736,12 @@ export async function reconcileExpiredIdentity() {
 
 /**
  * Release this device's push record for a member whose hold on it is ending WITHOUT a sign-out — an
- * expired session's lingering identity, or a session the last password reset refused (whole-app
- * review, Oct 2026). Only the drawer's Sign out and the PIN hand-over released it, so on a station PC
- * left on the staff PIN the departed member's targeted notices — a reset request naming a colleague,
- * for the admin — went on arriving there indefinitely; the documented remedy, the NEXT member's
- * takeover, never comes on a device nobody signs in to. Loaded on demand, so the session module does
- * not carry the Web Push code; `releaseDevicePush` bounds its own wait and never throws. Exported for the
- * two other ends of a hold (audit A1), page-session.js's and login-overlay.js's, which do not await it.
+ * expired session's lingering identity, or a session the last password reset refused. Without it, on
+ * a station PC left on the staff PIN the departed member's targeted notices — a reset request naming
+ * a colleague, for the admin — went on arriving there indefinitely: no next member ever comes to take
+ * it over. Loaded on demand, so the session module does not carry the Web Push code;
+ * `releaseDevicePush` bounds its own wait and never throws. Exported for the two other ends of a hold
+ * (audit A1), page-session.js's and login-overlay.js's, which do not await it.
  * @returns {Promise<void>}
  */
 export async function releasePushForEndingHold() {

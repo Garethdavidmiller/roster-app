@@ -2,16 +2,9 @@
 /**
  * admin-override-store.js — WHAT ADMIN HAS, HOW IT GETS IT, AND WHAT IT SAYS WHILE GETTING IT.
  *
- * ── WHY IT LEFT THE COORDINATOR (v21.38) ────────────────────────────────────────────────────────
- *
- * `admin-overrides.js` reached its size cap and this was the coherent thing inside it: the override
+ * It is the coherent DATA part split out of `admin-overrides.js` at its size cap: the override
  * cache, what the cache knows, the Firestore reads that fill it, and the states those reads put on
- * screen. Everything else in that file draws or edits a week; this is the only part that owns DATA.
- *
- * The split was forced by the ratchet rather than chosen, and that is the ratchet working — the file
- * was at its ceiling and the previous release's commit had already said the next substantive change
- * should split it rather than shave a comment off to fit.
- *
+ * screen. Everything else in that file draws or edits a week.
  * ── THE RENDERERS ARE INJECTED, AND THAT IS WHAT KEEPS IT ACYCLIC ───────────────────────────────
  *
  * A load finishes by repainting the table, the week grid and the AL/absence banners, all of which
@@ -69,31 +62,23 @@ export function initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits,
 // ── INITIAL-LOAD READINESS ────────────────────────────────────────────────────
 // Resolves once the FIRST loadOverrides() has SETTLED (success OR failure). Consumers await this so
 // they never act on an empty cold cache:
-//   • The two WRITE functions (executeSave, recordRangeOverrides) gate INTERNALLY — a save/booking
-//     fired before the initial read returns would build decisions from an empty `_allOverrides`:
-//     recordRangeOverrides' ovByDate would be {} → the existing roster_import doc for a date isn't
-//     deleted (duplicate overrides) and a not-yet-loaded worked Sunday could be erased by an RD
-//     correction; executeSave's post-write cache mutation could be clobbered by the in-flight initial
-//     snapshot resolving AFTERWARDS (the just-saved change vanishes from the list until reload).
-//     Both disable the Save button synchronously before their first await, so the internal gate can't
-//     open a double-tap window.
+//   • The two WRITE functions (executeSave, recordRangeOverrides) gate INTERNALLY: built from an empty
+//     `_allOverrides`, an existing roster_import doc isn't deleted (duplicate overrides), a not-yet-loaded
+//     worked Sunday could be erased by an RD correction, and the in-flight initial snapshot resolving
+//     AFTERWARDS could clobber the post-write cache mutation. Both disable the Save button synchronously
+//     before their first await, so the internal gate can't open a double-tap window.
 //   • The Change-a-Shift click handler (admin-app.js) gates too, for its PRE-write cache reads —
-//     validateShiftRules (the ±1-day rest-gap check via getEffectiveShift) and the AL
-//     over-entitlement check — which a cold cache would make wrong (a real <12h gap missed, or a valid
-//     save wrongly blocked). It disables Save BEFORE the await (the v16.23 "disable before the first
-//     await" invariant) so no double-tap window opens.
+//     validateShiftRules (the ±1-day rest-gap check) and the AL over-entitlement check. It disables
+//     Save BEFORE the await ("disable before the first await") so no double-tap window opens.
 //   • The RANGE cards (AL and Absence) gate at the click: until `hasOverrideAuthorityFor(member)` they
-//     refuse and say why (admin-range-booking.js, whole-app check, Nov 2026; admin-2-1), so their
-//     pre-save reads — the over-entitlement warning, the swap answers, the "left alone" receipt lines —
-//     are never built from a cold cache. They had been left ungated on two premises that stopped
-//     holding: that the cache is long warm by then (since v21.38 every member switch starts a fresh,
-//     staged load), and that a cold miss only SKIPS a warning (since v23.75 the swap answers too).
+//     refuse and say why (admin-range-booking.js; admin-2-1), so their pre-save reads — the
+//     over-entitlement warning, the swap answers, the "left alone" receipt lines — are never built from
+//     a cold cache (every member switch starts a fresh, staged load).
 // Resolving on FAILURE too is deliberate — if the first read errored Firestore is unreachable and the
 // write will fail its own commit anyway, better than hanging the Save button forever. loadOverrides()
 // is called unconditionally in the AUTHORISED admin-init branch (not the not-signed-in/login branch,
 // where sessionReady also never resolves and the login overlay covers the Save button), so a write
-// path can't pend on this indefinitely. (v16.85) Every read now waits for `sessionReady` first (see
-// `loadOverrides`), which that same branch resolves — and every write path awaits it anyway.
+// path can't pend on this indefinitely. Every read waits for `sessionReady` first (`loadOverrides`).
 /** @type {(v?: any) => void} */
 let _resolveOverridesReady = () => {};
 const _overridesReady = new Promise(res => { _resolveOverridesReady = res; });
@@ -101,28 +86,19 @@ const _overridesReady = new Promise(res => { _resolveOverridesReady = res; });
 /** @returns {Promise<void>} Resolves when the initial override load has settled (success or failure). */
 export function whenOverridesReady() { return _overridesReady; }
 
-// SUCCESS state, separate from the settled promise above (Finding #2, v16.97). `_overridesReady`
-// resolves on FAILURE too (so the Save button never hangs on an unreachable Firestore), but a failed
-// initial read leaves `_allOverrides` EMPTY — and the cache-reading write decisions (recordRangeOverrides'
-// ovByDate, the click handler's validateShiftRules + AL entitlement) would then silently build from
-// nothing: an existing roster_import doc wouldn't be deleted (duplicate overrides), a not-yet-loaded
-// worked Sunday could be erased by an RD correction, a real <12h rest gap missed. So those paths ALSO
-// check this flag and REFUSE to write on a never-successfully-loaded cache (with a clear "reload" message),
-// rather than corrupt data. Set true by a successful loadOverrides OR an explicit setAllOverrides; once
-// true it stays true (a later refresh failure leaves the last-good data intact — safe to keep writing).
+// SUCCESS state, separate from the settled promise above. `_overridesReady` resolves on FAILURE too,
+// but a failed initial read leaves `_allOverrides` EMPTY, and the cache-reading write decisions would
+// silently build from nothing (the failures listed above). So those paths ALSO check this and REFUSE to
+// write on a never-successfully-loaded cache (with a clear "reload" message). Set by a successful
+// loadOverrides OR an explicit setAllOverrides; a later refresh failure leaves the last-good data intact.
 //
-// ── IT IS A COVERAGE RECORD, NOT A FLAG (v21.38, external review) ───────────────────────────────
+// ── IT IS A COVERAGE RECORD, NOT A FLAG ─────────────────────────────────────────────────────────
 //
-// It was a boolean, and that was honest while the load fetched the entire collection: succeeding
-// meant knowing everything about everybody. The load is now staged — the SELECTED MEMBER on the
-// critical path, everyone else only when the All-staff view asks — so "the load succeeded" and "we
-// know about this member" became different questions, and answering the second with the first would
-// re-open every failure listed above on the one path least likely to be tested: a member selected
-// before their slice has arrived.
-//
-// The rules live in `admin-override-coverage.js`, pure and tested, because an empty slice and an
-// unfetched member are indistinguishable by looking at the data — which is exactly why the data is
-// never the thing asked.
+// The load is STAGED — the selected member on the critical path, everyone else only when the
+// All-staff view asks — so "the load succeeded" and "we know about this member" are different
+// questions; answering the second with the first re-opens every failure above for a member selected
+// before their slice has arrived. The rules live in `admin-override-coverage.js`, pure and tested,
+// because an empty slice and an unfetched member are indistinguishable by looking at the data.
 /** @type {import('./admin-override-coverage.js').Coverage} */
 let _coverage = emptyCoverage();
 
@@ -134,15 +110,10 @@ export function isOverrideCacheLoaded() { return _coverage.all || _coverage.memb
  *  built from the cache? The question every write gate asks. */
 export function hasOverrideAuthorityFor(member) { return hasAuthorityFor(_coverage, member); }
 
-// `hasAllStaffAuthority()` lived here too — a second export with a byte-identical body to
-// `coversAllStaff()` below (v21.41). Two names for one question is how a reader ends up believing
-// they mean different things: the comment in `admin-saved-changes.js` said this one "was written for
-// exactly this and, until now, called from nowhere", while the line beneath it called the other.
-// Both halves of that were true, which is the problem. One name, one answer.
+// One name, one question: `coversAllStaff()` below. Do not add a second export with the same body.
 
 // Saved-Changes list query cap. orderBy('date','desc') + this limit means the NEWEST 5000 overrides
-// load; beyond that the oldest aren't fetched. `_overridesTruncated` records a cap hit so renderTable
-// can tell the admin the list is partial rather than silently showing a subset (Finding #8, v16.99).
+// load. `_overridesTruncated` records a cap hit so renderTable can tell the admin the list is partial.
 export const OVERRIDES_QUERY_CAP = 5000;
 let _overridesTruncated = false;
 
@@ -154,7 +125,7 @@ export function getAllOverrides()    { return _allOverrides; }
  *
  * The one door for the post-write cache updates. They rearrange rows; they learn nothing — so
  * routing them through `setAllOverrides` (which asserts completeness) would make a save or a delete
- * silently grant authority over every member. That bug shipped once already in this release.
+ * silently grant authority over every member.
  * @param {(rows: any[]) => any[]} fn
  * @returns {void}
  */
@@ -172,12 +143,11 @@ export function isTruncated() { return _overridesTruncated; }
 /** @param {any[]} arr */
 export function setAllOverrides(arr) {
     _allOverrides = arr;
-    // A TEST SEAM: nothing in the app calls it — the delete paths drop rows through `removeFromCache`
-    // (v21.38). Setting the cache to a known state is itself a "ready" signal, which is what lets the
-    // write-path unit tests seed the cache this way and still pass the whenOverridesReady() gate. (v16.85)
-    // AN ASSERTION OF COMPLETENESS, so it grants FULL coverage (Finding #2). Use it only when the
-    // array genuinely is the whole cache — seeding a test, or replacing everything. To DROP rows,
-    // use `removeFromCache`: a delete learns nothing and must not widen what the cache claims.
+    // A TEST SEAM: nothing in the app calls it — the delete paths drop rows through `removeFromCache`.
+    // Setting the cache to a known state is itself a "ready" signal, so write-path unit tests can seed
+    // it and still pass the whenOverridesReady() gate.
+    // AN ASSERTION OF COMPLETENESS, so it grants FULL coverage. Use it only when the array genuinely
+    // is the whole cache. To DROP rows, use `removeFromCache`: a delete must not widen the claim.
     _coverage = withAll(_coverage);
     _resolveOverridesReady();
 }
@@ -186,9 +156,9 @@ export function setAllOverrides(arr) {
 const _isManualOn = (o, m, d) => o.memberName === m && o.date === d && (o.source || '') !== 'roster_import';
 
 /**
- * The documents a MANUAL write of this member's date replaces (v24.48): whatever won the day — an
- * import, say — and every manual record of it, a pre-v24.48 duplicate included; never the fixed id
- * the write itself lands on (`manualOverrideId`), which it overwrites rather than deletes.
+ * The documents a MANUAL write of this member's date replaces: whatever won the day — an import,
+ * say — and every manual record of it, an older duplicate included; never the fixed id the write
+ * itself lands on (`manualOverrideId`), which it overwrites rather than deletes.
  * @param {string} memberName @param {string} date @param {string|null|undefined} winnerId @returns {string[]}
  */
 export function idsReplacedBy(memberName, date, winnerId) {
@@ -199,10 +169,9 @@ export function idsReplacedBy(memberName, date, winnerId) {
 
 /**
  * Ids being DELETED, widened by the manual duplicates each one OUTRANKS — the copies that would
- * resurface the moment it went (v24.48). Only those: until v24.53 this took every manual record of
- * the day, so deleting the stale copy also deleted the one on screen, under a receipt that called it
- * "older". The rule is `withOutrankedManualCopies` (override-utils.js), asked of this cache — one rule,
- * which a booked period's ✕ asks too (`periodDelete`).
+ * resurface the moment it went. Only those: taking every manual record of the day would delete the
+ * one on screen too. The rule is `withOutrankedManualCopies` (override-utils.js), asked of this
+ * cache — one rule, which a booked period's ✕ asks too (`periodDelete`).
  * @param {Iterable<string>} ids @returns {Set<string>}
  */
 export function withManualDuplicates(ids) {
@@ -210,10 +179,9 @@ export function withManualDuplicates(ids) {
 }
 
 /**
- * What a delete of `picked` removes, as chunks of at most `size` ids that NEVER SPLIT A DAY (v25.89,
- * review): each picked row travels with the older copies it outranks (`withManualDuplicates`). A
- * delete that stops part way — a colleague's edit refusing a later chunk — must not take a row and
- * leave its older copy behind to resurface as the day's value, under a count that called it deleted.
+ * What a delete of `picked` removes, as chunks of at most `size` ids that NEVER SPLIT A DAY: each
+ * picked row travels with the older copies it outranks (`withManualDuplicates`). A delete that stops
+ * part way must not take a row and leave its older copy behind to resurface as the day's value.
  * @param {string[]} picked @param {number} size @returns {string[][]}
  */
 export function deleteChunks(picked, size) {
@@ -233,11 +201,9 @@ export function deleteChunks(picked, size) {
 /**
  * Drop deleted rows from the cache WITHOUT widening what the cache claims to know.
  *
- * The distinction `setAllOverrides` cannot make (v21.38). That one is an assertion of completeness —
- * "this array is the whole cache" — and it grants full coverage. A delete is the opposite operation:
- * it removes data and learns nothing. Routing a delete through the assertion made the cache claim it
- * held every member the moment anybody deleted a booking, so the next "All staff" view would have
- * rendered from one member's slice and called it everybody.
+ * `setAllOverrides` is an assertion of completeness and grants full coverage. A delete is the
+ * opposite: it removes data and learns nothing. Routed through the assertion, the next "All staff"
+ * view would render from one member's slice and call it everybody.
  * @param {Set<string>|string[]} ids Firestore document IDs that no longer exist
  * @returns {void}
  */
@@ -247,18 +213,13 @@ export function removeFromCache(ids) {
 }
 
 
-// ── ONE LOAD AT A TIME, BUT NEVER THE WRONG ONE (v21.38, hardened after review) ─────────────────
+// ── ONE LOAD AT A TIME, BUT NEVER THE WRONG ONE ─────────────────────────────────────────────────
 //
-// The first cut kept a single in-flight promise and returned it to any caller. That is right for a
-// RETRY of the same query — two snapshots resolving out of order would let the older win, the
-// eviction bug the Calendar had to fix in `_monthOwner` — and it was wrong the moment `opts` began
-// naming WHICH query. A second member selected during the first member's load got that load's
-// promise, so their slice was never fetched and never would be: the week grid sat on "Loading this
-// member's saved changes…" for ever with no error, while Saved Changes stated they had none.
-//
-// So the guard is keyed by the query. Same key → share the flight. DIFFERENT key → CHAIN behind it,
-// which both guarantees the query runs and keeps the writes ordered, so a collection read can never
-// land on top of a member read it started before.
+// The in-flight guard is keyed by the QUERY. Same key → share the flight (a retry of the same query;
+// two snapshots resolving out of order would let the older win). DIFFERENT key → CHAIN behind it:
+// a shared flight meant a second member selected during the first's load was never fetched, and the
+// week grid sat on "Loading…" for ever. Chaining guarantees the query runs and keeps the writes
+// ordered, so a collection read can never land on top of a member read it started before.
 /** @type {Promise<void>|null} */
 let _loadInFlight = null;
 /** @type {string|null} */
@@ -273,10 +234,9 @@ let _onlineRetry = null;
 let _onlineRetryEveryone = false;
 
 /**
- * A read that SUCCEEDED answers the retry waiting for the signal, when it read at least what that retry
- * would (external review of v26.79): the admin pressed Retry offline-then-online, it worked, and the
- * signal's return later read the same thing again, for nothing. A member read does not answer a
- * whole-collection retry; a whole-collection read answers either.
+ * A read that SUCCEEDED answers the retry waiting for the signal, when it read at least what that
+ * retry would — so the signal's return does not read the same thing again for nothing. A member read
+ * does not answer a whole-collection retry; a whole-collection read answers either.
  * @param {boolean} everyone  what the read that succeeded covered
  */
 function settleOnlineRetry(everyone) {
@@ -299,12 +259,10 @@ export function whenLoadSettled() { return _loadInFlight ?? Promise.resolve(); }
  * `everyone` defaults to whatever the cache already claims, so once an admin has opened All staff,
  * later resyncs keep the list whole rather than silently narrowing it under them.
  *
- * NO READ BEFORE THE SESSION (whole-app check, Nov 2026). The page calls this the moment it boots,
- * and on an iPhone that is often BEFORE it is signed in: Firebase can restore no user behind a valid
- * local session, so the page signs in silently (`ensureFirebaseSession`), and Firestore holds a read
- * only until Auth has STARTED, not until that sign-in lands. The read went out with no credential,
- * the rules refused it, and nothing read again — "Couldn't load" on a page whose session was fine.
- * After boot `sessionReady` has long resolved, so this costs a later read nothing.
+ * NO READ BEFORE THE SESSION. On an iPhone the page often boots BEFORE it is signed in: the page
+ * signs in silently (`ensureFirebaseSession`), and Firestore holds a read only until Auth has
+ * STARTED, not until that sign-in lands — so a read went out with no credential, was refused, and
+ * nothing read again. After boot `sessionReady` has long resolved, so this costs a later read nothing.
  * @param {{ everyone?: boolean, member?: string }} [opts]
  * @returns {Promise<void>}
  */
@@ -328,38 +286,31 @@ export async function loadOverrides(opts = {}) {
 const CACHED_READ = 'served-from-cache';
 
 /**
- * A read the SERVER did not answer is not a load (v24.48, external review).
+ * A read the SERVER did not answer is not a load.
  *
- * Firestore runs here with `persistentLocalCache`, so on a dead signal `getDocs` does not fail — it
- * resolves from this device's cache, which holds only what this device happened to read before, and
- * can be EMPTY. Granting coverage from that told Admin "this member has no saved changes" and let a
- * save go ahead on it: a booking it cannot see is a booking it does not delete, and a leave balance
- * worked out from a partial list is too generous by exactly the days it is missing.
- *
- * So it is a FAILED load, through the failure path every surface already handles — the week grid's
- * failed state, Retry, and the save refusal — and not cached rows shown as though complete. Nothing
- * in Admin can tell a whole cache from a partial one, which is the whole problem.
+ * With `persistentLocalCache`, `getDocs` on a dead signal does not fail — it resolves from this
+ * device's cache, which holds only what this device read before, and can be EMPTY. Granting coverage
+ * from that tells Admin "no saved changes" and lets a save go ahead: a booking it cannot see is one it
+ * does not delete, and a balance from a partial list is too generous. So it is a FAILED load, through
+ * the failure path every surface already handles (the failed state, Retry, the save refusal).
  * @param {any} snap
  */
 function refuseCachedRead(snap) {
     if (snap?.metadata?.fromCache) throw Object.assign(new Error('Overrides read was served from the offline cache'), { code: CACHED_READ });
 }
 
-// ── A DELETE MAY NOT DESTROY A NEWER EDIT (Oct 2026 production review; ONE transaction, v25.89) ───
-// Admin's cache is read once and never refreshes on its own, and since v24.48 a manual record has
-// ONE id per member and day. So a manager deleting a row they saw this morning deleted the document
-// a colleague had since rewritten under that same id — silently, with a receipt saying "Deleted AL
-// day". So every delete compares what it removes with what this page showed, and refuses on any
-// difference. A delete was the first write checked this way, because it cannot see what it removes;
-// since v25.90 an ordinary save is checked too whenever the server can be asked (`commitChecked`, below).
+// ── A DELETE MAY NOT DESTROY A NEWER EDIT ───────────────────────────────────────────────────────
+// Admin's cache is read once and never refreshes on its own, and a manual record has ONE id per
+// member and day. So a delete of a row seen this morning could silently destroy a colleague's
+// rewrite under that id. Every delete compares what it removes with what this page showed, and
+// refuses on any difference; an ordinary save is checked too whenever the server can be asked
+// (`commitChecked`, below).
 //
-// THE COMPARISON AND THE DELETE ARE ONE TRANSACTION (v25.89, external review, Nov 2026). They were a
-// re-read and then a separate batch, and a colleague's edit landing in the milliseconds between the
-// two was deleted anyway — reproduced. Inside a transaction Firestore re-runs the comparison whenever
-// a document it read changes before the commit, so the two can no longer be separated. And the
-// comparison is now the whole record (`sameOverrideRecord`), not three fields of it. The price is the
-// network: a transaction is never held on the device, so a delete needs a connection — as the
-// separate re-read already did.
+// THE COMPARISON AND THE DELETE ARE ONE TRANSACTION. As a re-read then a separate batch, a colleague's
+// edit landing between the two was deleted anyway — reproduced. Inside a transaction Firestore re-runs
+// the comparison whenever a document it read changes before the commit. The comparison is the whole
+// record (`sameOverrideRecord`). The price: a transaction is never held on the device, so a delete
+// needs a connection.
 
 /** What a delete refused because the day changed underneath it says. TRUE only of one transaction:
  *  a bulk delete that refuses after some of its chunks has its own words (admin-saved-changes.js). */
@@ -414,11 +365,10 @@ export const DELETE_REFUSED = 'overrides/delete-refused';
 
 /**
  * What a FAILED DELETE says, for every Admin surface that deletes (a Saved Changes row, Delete
- * selected, a Recorded-dates row's ✕) — one wording, so none can drift (25 Nov 2026).
+ * selected, a Recorded-dates row's ✕) — one wording, so none can drift.
  *
- * A DELETE NEVER SAYS "Couldn't save". The Recorded-dates delete fell through to the save path's
- * `saveFailureMessage` and told a manager who had just pressed ✕ that something could not be SAVED.
- * Each cause keeps its own branch, in the order nothing can confuse:
+ * A DELETE NEVER SAYS "Couldn't save" (a ✕ once fell through to the save path's message). Each cause
+ * keeps its own branch, in the order nothing can confuse:
  *   · REFUSED (`DELETE_REFUSED`) — the server held something the page did not show; nothing was
  *     deleted, and the refusal's own line names the days;
  *   · OFFLINE (`unavailable`) — never blamed on anything else (admin-2-10);
@@ -454,7 +404,7 @@ export function asShown(ids) {
 /**
  * Commit `write`'s writes in ONE transaction that first re-reads every document they delete or
  * overwrite, and REFUSES — writing nothing, `DELETE_REFUSED` with `line` — unless each is still what
- * this page holds for it (v25.89). `items` are those documents: a ROW as the page showed it (best —
+ * this page holds for it. `items` are those documents: a ROW as the page showed it (best —
  * `asShown`), or an id, looked up in the cache now. On the server each must be:
  *  - for a row: the same record (`sameOverrideRecord`), or gone — a document already deleted is no
  *    difference — unless its id is in `mustExist`, for a rewrite that depends on it being there;
@@ -464,7 +414,7 @@ export function asShown(ids) {
  * before the commit, Firestore runs the whole function again, so a colleague's edit landing after the
  * read meets the comparison on the re-run instead of slipping under it.
  *
- * ITS OWN WRITE IS NOT A COLLEAGUE'S (v25.89, review). Firestore also re-runs the function after a
+ * ITS OWN WRITE IS NOT A COLLEAGUE'S. Firestore also re-runs the function after a
  * commit whose ANSWER was lost (`unavailable`, `deadline-exceeded`), and the commit may have landed:
  * the re-run then reads this call's own write. A delete meets nothing there, which is no difference;
  * a REWRITE meets a record that is no longer the one the page showed, and would say "nothing was
@@ -473,19 +423,18 @@ export function asShown(ids) {
  * so. `attempt` counts the runs of this call, from 1: on the FIRST nothing of this call's can have
  * landed yet, which a caller may insist on (`commitChecked` → `lostAnswerOnly`).
  *
- * An id in `mustBeAbsent` (v25.90) must hold NOTHING on the server, whatever the cache holds under it
+ * An id in `mustBeAbsent` must hold NOTHING on the server, whatever the cache holds under it
  * now: the fixed id of a day whose row showed no record there, where a colleague's save of the same
  * day lands — and a read since can have put it in the cache, which would then expect it. A row given
  * for the same id still wins. `line` may be a function of the DATES that changed, to name them.
  *
- * THIS DEVICE'S OWN UNSENT SAVES GO FIRST (v25.95; a KNOWN_LIMITATIONS entry at v25.94). A save made
- * offline waits in the device's queue and shows as saved, but the transaction reads the SERVER. Just
- * after the signal returned, a delete of such a record found nothing, said "Deleted", and the queued
- * save then put the record back. So the transaction starts only once the queue has drained
- * (`whenOwnWritesSentFor`, claim-retry.js → `ownWritesSentFor`). A queue that has not drained in time
- * is passed over when none of the records this commit touches has a write of this account's still on
- * its way (24 Nov 2026: the SDK's wait can be held up by ANOTHER account's leftover write, which no
- * record of ours carries). Otherwise it ends as a transaction that never reached the server does,
+ * THIS DEVICE'S OWN UNSENT SAVES GO FIRST. A save made offline waits in the device's queue and shows
+ * as saved, but the transaction reads the SERVER: a delete of such a record found nothing, said
+ * "Deleted", and the queued save then put the record back. So the transaction starts only once the
+ * queue has drained (`whenOwnWritesSentFor`, claim-retry.js → `ownWritesSentFor`). A queue that has
+ * not drained in time is passed over when none of the records this commit touches has a write of this
+ * account's still on its way (the SDK's wait can be held up by ANOTHER account's leftover write, which
+ * no record of ours carries). Otherwise it ends as a transaction that never reached the server does,
  * `unavailable` — `commitChecked` then holds a save that only writes BEHIND the queue, and a removal
  * is refused, writing nothing.
  * @param {Iterable<string|{id: string}>} items
@@ -512,7 +461,7 @@ export async function commitIfUnchanged(items, write, { mustExist = [], mustBeAb
     /** @type {Map<string, any>} */
     let latest = new Map();
     let attempt = 0;
-    // Every record this commit reads or writes: the wait's fallback asks each of them (24 Nov 2026).
+    // Every record this commit reads or writes: the wait's fallback asks each of them.
     if (!(await whenOwnWritesSentFor([...expected.keys()].map(id => doc(db, COLLECTIONS.overrides, id))))) {
         throw Object.assign(new Error('this device still has saves it has not sent'), { code: 'unavailable', unsent: true });
     }
@@ -551,32 +500,29 @@ export async function deleteIfUnchanged(items) {
     });
 }
 
-// ── AN ORDINARY SAVE IS CHECKED TOO, WHENEVER THE SERVER CAN BE ASKED (v25.90) ────────────────────
-// Until v25.90 only a save that DELETED was checked, so when two managers saved one day the later
-// save stood and nobody told its author the day had changed under them ("Two editors on one day",
-// KNOWN_LIMITATIONS.md). Now every Admin save of a day — the week grid's and a leave or absence
-// range's — commits through `commitChecked`: ONLINE, in one transaction that refuses, writing
-// nothing, unless each day it writes still holds what this page showed; OFFLINE, as a batch held on
-// the device and sent when the signal returns, unchecked, as every save was before. Offline-first is
-// the older promise, and a device that cannot reach the server cannot ask it anything.
+// ── AN ORDINARY SAVE IS CHECKED TOO, WHENEVER THE SERVER CAN BE ASKED ───────────────────────────
+// Every Admin save of a day — the week grid's and a leave or absence range's — commits through
+// `commitChecked`: ONLINE, in one transaction that refuses, writing nothing, unless each day it writes
+// still holds what this page showed; OFFLINE, as a batch held on the device, unchecked. Offline-first
+// is the older promise, and a device that cannot reach the server cannot ask it anything. What remains
+// is KNOWN_LIMITATIONS.md → "Two editors on one day".
 //
 // What a day must still hold is what its caller SHOWED (`shownFor`): the record the day was drawn
 // from, still there and unchanged — and nothing at the day's fixed id (override-id.js), where a
 // colleague's save of the same day lands, unless that record is the one shown.
 //
 // "Online" is a guess until the server answers: `navigator.onLine` is true on a phone with full bars
-// and no data. So a transaction that ends without reaching the server — Firestore has tried five
-// times over about eight seconds by then — is taken as offline and the save is held instead. A last
-// attempt whose commit landed with its answer lost is then written again: the same records at the
-// same fixed ids, which changes nothing but their timestamp. The same is true when this device's
-// earlier saves have not reached the server in time (v25.95, `commitIfUnchanged`): the held batch
+// and no data. So a transaction that ends without reaching the server (Firestore has tried five times
+// over about eight seconds) is taken as offline and the save is held instead — rewriting the same
+// records at the same fixed ids if a last attempt landed with its answer lost. Likewise when this
+// device's earlier saves have not reached the server in time (`commitIfUnchanged`): the held batch
 // joins the queue behind them, so they land in the order they were made.
 
 /** How a transaction ends when it never reached the server. */
 const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);
 
 /**
- * Commit an ordinary save of days (v25.90): checked in ONE transaction when the server can be
+ * Commit an ordinary save of days: checked in ONE transaction when the server can be
  * reached, held on the device as a batch when it cannot. `write` adds the save to either — every
  * `set` a day's record at its fixed id, every `delete` a copy it replaces or a day it removes — and
  * is first run against a recorder, so the check knows each document the save touches from the save
@@ -586,7 +532,7 @@ const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);
  *           line: string|((dates: string[]) => string), holdOffline?: boolean, lostAnswerOnly?: boolean }} opts
  *        `shownFor`: the record the page showed for a day this save writes, or null; `removed`: the days
  *        it removes, as `commitIfUnchanged` takes them; `holdOffline: false` for a save that removes any —
- *        with no server such a save is refused, writing nothing, as a removal has been since v25.89; never
+ *        with no server such a save is refused, writing nothing, as a removal always is; never
  *        held unchecked; `lostAnswerOnly`: its own write is recognised on a RE-RUN only, so a record exactly
  *        like it found on the first attempt is somebody else's, and refused (the leave sheet's Save, whose
  *        admin may have booked the same day by hand since the check — al-leave-save.js). On any attempt a
@@ -632,15 +578,12 @@ export async function commitChecked(write, { shownFor, removed = [], line, holdO
     return { checked: false, done: false };
 }
 
-// ── MOVING A DAY BETWEEN ALLOWANCES REWRITES IT AS LEAVE, SO IT CHECKS FIRST (v25.18) ────────────
+// ── MOVING A DAY BETWEEN ALLOWANCES REWRITES IT AS LEAVE, SO IT CHECKS FIRST ───────────────────
 // The choice of which year's allowance a January leave day comes out of (leave-year.js) is saved as
-// a fresh annual-leave record for the day. On a page loaded this morning that would RESURRECT leave
-// cancelled on another device since, or write leave over a shift a manager has just given — a stale
-// page creating a day off nobody booked. So the save goes through `commitIfUnchanged`
-// (admin-leave-year-save.js): the record shown must still be there and unchanged, and the fixed
-// manual id it lands on must hold nothing this page has not loaded. One transaction since v25.89: it
-// was a re-read and then a separate batch, and a shift saved between the two was turned back into
-// leave (external review, Nov 2026).
+// a fresh annual-leave record. On a stale page that could RESURRECT leave cancelled elsewhere, or
+// write leave over a shift a manager has just given. So the save goes through `commitIfUnchanged`
+// (admin-leave-year-save.js) in one transaction: the record shown must still be there and unchanged,
+// and the fixed manual id it lands on must hold nothing this page has not loaded.
 
 /** What a refused choice says when the day has changed since the page loaded. */
 export const LEAVE_YEAR_CHANGED_LINE = 'This day has changed since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.';
@@ -655,7 +598,7 @@ async function _loadOverridesInner(opts) {
     // Nobody selected and not asking for everyone: there is no query to run, and pretending to have
     // loaded would grant authority over a member we never read.
     if (!everyone && !member) { _resolveOverridesReady(); return; }
-    // Shimmer skeleton (v16.73) — three placeholder rows shaped like the cards being fetched.
+    // Shimmer skeleton — three placeholder rows shaped like the cards being fetched.
     // role="status" + visually-hidden text keeps it announced for screen readers.
     if (tableBody) tableBody.innerHTML =
         '<div role="status"><span class="visually-hidden">Loading saved changes…</span></div>'
@@ -670,8 +613,8 @@ async function _loadOverridesInner(opts) {
             /** @type {any[]} */ const rows = [];
             snap.forEach(/** @param {any} d */ d => rows.push(overrideFromSnapshot(d)));   // this device's unsent save is its own copy
             // More than CAP means the OLDEST overrides beyond it aren't shown — surface that rather than
-            // silently showing a partial list (no-silent-caps). Trim the probe row so the list is exactly the
-            // CAP newest; editing recent dates is unaffected, only very old bookings are omitted. (Finding #8)
+            // silently showing a partial list (no-silent-caps). Trim the probe row so the list is exactly
+            // the CAP newest.
             _overridesTruncated = snap.size > OVERRIDES_QUERY_CAP;
             if (_overridesTruncated) {
                 rows.length = OVERRIDES_QUERY_CAP;   // drop the +1 probe row (already date-desc sorted)
@@ -681,8 +624,8 @@ async function _loadOverridesInner(opts) {
             _allOverrides = _overridesTruncated ? mergeCappedRead(_allOverrides, rows, _coverage.members) : rows;
             // A CAPPED read covers the LIST, never a write — see admin-override-coverage.js.
             _coverage = withAll(_coverage, { complete: !_overridesTruncated });
-            // So a member on screen whom only an earlier COMPLETE read covered has just lost cover, with no
-            // read of their own coming: their week sat on "Loading…" for ever. Queue one (whole-app check, Nov 2026).
+            // So a member on screen whom only an earlier COMPLETE read covered has just lost cover, with
+            // no read of their own coming (their week sat on "Loading…" for ever). Queue one.
             const onScreen = fieldMember?.value;
             if (onScreen && !hasAuthorityFor(_coverage, onScreen)) loadOverrides({ everyone: false, member: onScreen });
         } else {
@@ -699,47 +642,39 @@ async function _loadOverridesInner(opts) {
             _loadFailedFor.delete(member);
         }
         settleOnlineRetry(everyone);
-        // NEWEST FIRST, WHICHEVER READ FILLED IT (whole-app check, Nov 2026; admin-2-3). The member read has no
-        // `orderBy`, so the list came in document-id order — no date order at all — until a save sorted it.
+        // NEWEST FIRST, WHICHEVER READ FILLED IT (admin-2-3). The member read has no `orderBy`, so it
+        // comes in document-id order.
         _allOverrides.sort((a, b) => String(b.date).localeCompare(String(a.date)));
         _renderTable();
         const fieldDate = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
         // Do NOT re-render over staged edits: on a slow first load the admin can already have
-        // rendered the grid (from the empty cache) and selected pills — an unconditional
-        // renderWeekGrid() here rebuilt every row and silently discarded them, while
-        // userMadeChanges stayed true (blocking the week swipe + a phantom beforeunload warning).
-        // The cache is updated either way; edits re-sync on the next save/navigation (v16.69).
+        // selected pills, and an unconditional renderWeekGrid() here discarded them while
+        // userMadeChanges stayed true. The cache is updated either way; edits re-sync on the next
+        // save/navigation.
         if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) _renderWeekGrid();
         _onAfterLoad();
     } catch (err) {
         console.error('[Admin] Load failed:', err);
         if (!everyone && member) _loadFailedFor.add(member);
-        // The week grid is the DEFAULT focused card, so it is where the admin is looking — and it
-        // was saying "Loading…" over a load that had already stopped, with the only retry inside a
-        // card that ships collapsed. Repaint it into its own failed state (v21.38, review) — unless
-        // edits are staged: those rows belong to a member already loaded, and a failed refresh must
-        // not wipe them (review A10).
+        // The week grid is the DEFAULT focused card, so repaint it into its own failed state rather than
+        // leave "Loading…" over a load that has stopped — unless edits are staged: those rows belong to
+        // a member already loaded, and a failed refresh must not wipe them (review A10).
         if (!_hasStagedEdits()) _renderWeekGrid();
         if (tableBody) {
-            // RETRY, NOT RELOAD (v21.38, external review). The refusal to render a list we could not
-            // read is right and stays; throwing away the whole page to fix one failed query was not.
-            // A reload re-runs sign-in, the SW handshake and every other card on the page to recover
-            // from something that is usually one dropped request — and it discards any staged edits
-            // in the week grid, which is a worse outcome than the error it is recovering from.
+            // RETRY, NOT RELOAD. Refusing to render a list we could not read is right; a reload re-runs
+            // sign-in, the SW handshake and every card, and discards staged edits in the week grid.
             const offline = /** @type {any} */ (err)?.code === CACHED_READ;
             tableBody.innerHTML = `<div class="override-state">${offline
                 ? 'You\'re offline — saved changes can\'t be checked until you reconnect.'
                 : 'Couldn\'t load saved changes.'}<br><span class="reload-link" id="retryLoadLink" role="button" tabindex="0">↻ Retry</span></div>`;
             const retry = document.getElementById('retryLoadLink');
             // No captured member: after a member switch it would re-fetch the member the admin has
-            // already left. Re-resolve from the page at the moment Retry is pressed. But a failed
-            // MEMBER read retries as a member read: left to the default, a session that had made a
-            // capped "All staff" read re-read the capped collection, which never covers the member,
-            // so Retry redrew the same failure for ever (whole-app check, Nov 2026).
+            // already left, so re-resolve from the page when Retry is pressed. But a failed MEMBER read
+            // retries as a member read: a capped "All staff" read never covers the member, so Retry would
+            // redraw the same failure for ever.
             const again = () => { loadOverrides({ everyone }); };
-            // Back online, it tries again by itself — the offline case is the one with a known cure. ONE retry
-            // waits, the latest (whole-app review, 24 Nov 2026): each failed load offline used to add another, and
-            // the signal's return then fired them all.
+            // Back online, it tries again by itself. ONE retry waits, the latest: each failed load
+            // offline used to add another, and the signal's return fired them all.
             if (offline) {
                 if (_onlineRetry) window.removeEventListener('online', _onlineRetry);
                 _onlineRetry = () => { _onlineRetry = null; again(); };
