@@ -40,7 +40,7 @@ entitlement rules). The field reference and the warning in full are here, beside
 > grades and when each ended, and which people hold a BILINGUAL CONTRACT, which is a fact about
 > their terms rather than their rota. That the base roster is public is a deliberate classification
 > (owner, 4 Sep 2026 — shift patterns are on the station's own printed rosters); the reasoning is
-> `AUTH_PLAN.md` §2. **A field added there is
+> `AUTH_AND_SESSIONS.md` → "Public by decision". **A field added there is
 > published the moment it ships**, so anything a stranger should not read belongs in Firestore behind
 > a claim — as `staffContact` (the work email) already does. `public-data-classification.test.mjs`
 > fails on an unclassified field. State the exposure as KINDS of field, never as counts: a tally

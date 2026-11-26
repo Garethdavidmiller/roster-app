@@ -1,59 +1,67 @@
 // @lane hygiene
 /**
- * Track E doc parity — AUTH_PLAN.md is Track E's one home; SECURITY_RELEASE_PLAN.md holds its status.
+ * Security plan parity — SECURITY_RELEASE_PLAN.md holds the open work and its status, ONCE.
  * Run: node scripts/run-tests.mjs test/auth-plan-parity.test.mjs   (part of `npm run test:hygiene`)
  *
- * WHY THIS FILE EXISTS. Track E used to be written in two places — AUTH_PLAN.md for design,
- * SECURITY_RELEASE_PLAN.md for sequencing — and the two drifted in the way split ownership always
- * drifts, silently and only in the file nobody was editing that day:
+ * WHY THIS FILE EXISTS. The security plan used to be written in several places — Track E's design in
+ * AUTH_PLAN.md, its sequencing in SECURITY_RELEASE_PLAN.md, the credential work in a third and fourth
+ * document — and the copies drifted in the way split ownership always drifts, silently and only in
+ * the file nobody was editing that day:
  *
- *   - SECURITY_RELEASE_PLAN.md numbered a phase E2 TWICE and lost the offline-grace phase entirely,
- *     so a reader counting phases got a different plan depending on which file they opened (v19.08).
- *   - AUTH_PLAN.md's own status prose contradicted its phase headings about what had shipped (v19.08).
+ *   - one copy numbered a Track E phase E2 TWICE and lost the offline-grace phase entirely, so a
+ *     reader counting phases got a different plan depending on which file they opened (v19.08);
+ *   - a plan's own status prose contradicted its phase headings about what had shipped (v19.08).
  *
  * Neither is a typo: a security plan whose phase numbering disagrees with itself is one someone
  * follows halfway and stops, believing they are further along than they are. Track E's whole point is
  * that E1 is client preparation and the read rule is the first real boundary — an off-by-one there is
  * the exact misreading that ships a client gate and calls the data protected.
  *
- * On 25 Nov 2026 the second copy was removed: SECURITY_RELEASE_PLAN.md's Track E section is a pointer
- * to AUTH_PLAN.md, and the only Track E fact left in that file is its STATUS (the canonical table's
- * E row). So the checks are now: the phase list is whole in the one home; the pointer stays a pointer
- * (the commonest way a duplicate comes back is somebody "helpfully" summarising the phases again); and
- * the shipped versions in AUTH_PLAN's headings and prose agree with the status table.
+ * On 26 Nov 2026 the sign-in documents were folded into three: AUTH_AND_SESSIONS.md (the contract and
+ * the shipped design), SECURITY_RELEASE_PLAN.md (status, and the design of the work NOT yet built) and
+ * RECOVERY_RUNBOOK.md (the operational steps). So the checks are now: the Track E phase list is whole
+ * in its one home and agrees with the status table; the shipped design in AUTH_AND_SESSIONS.md does
+ * not grow a second phase list; the rollout line is the canonical one; C5's unadopted route is marked
+ * in BOTH places a reader meets it; the invariants for unbuilt work route to the plan; and the folded
+ * documents stay folded — a fifth copy of the subject is how the drift starts again.
  *
  * These are STRUCTURAL contracts, not a review of the plan's content. They say nothing about whether
  * the plan is any good.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
-const AUTH = readFileSync('docs/AUTH_PLAN.md', 'utf8');
-const SEC  = readFileSync('docs/SECURITY_RELEASE_PLAN.md', 'utf8');
-// The credential lifecycle programme is a SECTION of PASSWORD_DESIGN.md since 24 Nov 2026 (it was
-// CREDENTIAL_LIFECYCLE.md, now a pointer). Only that section is read: the rest of the file is the
-// passwords AS BUILT, which may say "shipped" freely.
-const PASSWORD_DESIGN = readFileSync('docs/PASSWORD_DESIGN.md', 'utf8');
-const LIFECYCLE_HEADING = '## The credential lifecycle — the C5/C6 programme';
-const CRED = (() => {
-    const start = PASSWORD_DESIGN.indexOf(LIFECYCLE_HEADING);
-    if (start < 0) return '';
-    const rest = PASSWORD_DESIGN.slice(start + LIFECYCLE_HEADING.length);
-    const end = rest.search(/^#{1,2} /m);
-    return end < 0 ? rest : rest.slice(0, end);
-})();
+const SEC = readFileSync('docs/SECURITY_RELEASE_PLAN.md', 'utf8');
+const CONTRACT = readFileSync('docs/AUTH_AND_SESSIONS.md', 'utf8');
 
 const EXPECTED_PHASES = ['E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6'];
 
 /**
- * Phase blocks in AUTH_PLAN.md are `### E<n> — <title>` headings.
+ * The text of one `## ` section of SECURITY_RELEASE_PLAN.md, from its heading to the next `## `.
+ * @param {string} heading the heading's text after `## `, matched as a prefix
+ * @returns {string} '' when the heading is missing
+ */
+function section(heading) {
+    const lines = SEC.split('\n');
+    const at = lines.findIndex(l => l.startsWith('## ' + heading));
+    if (at < 0) return '';
+    let end = lines.length;
+    for (let j = at + 1; j < lines.length; j++) if (/^## /.test(lines[j])) { end = j; break; }
+    return lines.slice(at + 1, end).join('\n');
+}
+
+const TRACK_E = section('Track E');
+const TRACK_C = section('Track C');
+
+/**
+ * Phase blocks are `### E<n> — <title>` headings.
  * The em-dash is load-bearing: it separates a phase DEFINITION from prose that merely opens with a
  * phase id (e.g. "### E6 is a sketch, not yet a plan — …", which is commentary, not a second E6).
  * @param {string} md
  * @returns {{id: string, block: string}[]}
  */
-function authPhases(md) {
+function phases(md) {
     const lines = md.split('\n');
     const starts = [];
     lines.forEach((line, i) => {
@@ -67,21 +75,19 @@ function authPhases(md) {
 }
 
 /**
- * The shipped version a phase block claims, if any: "✓ SHIPPED v<major>.<minor>".
+ * The shipped version a phase heading claims, if any: "✓ SHIPPED v<major>.<minor>".
  * @param {string} block
  * @returns {string|null}
  */
 function shippedVersion(block) {
-    const m = /✓\s*SHIPPED\s+v(\d+\.\d+)/i.exec(block);
+    const m = /✓\s*SHIPPED\s+v(\d+\.\d+)/i.exec(block.split('\n')[0]);
     return m ? m[1] : null;
 }
 
-/** @param {{id: string, block: string}[]} phases */
-const shippedMap = (phases) => new Map(
-    phases.filter(p => shippedVersion(p.block)).map(p => [p.id, shippedVersion(p.block)]),
+const PHASES = phases(SEC);
+const headingShipped = new Map(
+    PHASES.filter(p => shippedVersion(p.block)).map(p => [p.id, shippedVersion(p.block)]),
 );
-
-const AUTH_PHASES = authPhases(AUTH);
 
 /**
  * The canonical table's Track E row — the one place Track E's STATUS is written. Its "Current stage"
@@ -92,60 +98,39 @@ const tableShipped = new Map(
     [...(E_ROW.split('|')[2] ?? '').matchAll(/\bE(\d) ✓ v(\d+\.\d+)/g)].map(m => [`E${m[1]}`, m[2]]),
 );
 
-/**
- * SECURITY_RELEASE_PLAN.md's Track E section: from its `### Track E` heading to the next heading.
- * @returns {{heading: string, body: string}|null}
- */
-const SEC_TRACK_E = (() => {
-    const lines = SEC.split('\n');
-    const at = lines.findIndex(l => /^### Track E\b/.test(l));
-    if (at < 0) return null;
-    let end = lines.length;
-    for (let j = at + 1; j < lines.length; j++) if (/^#{1,3} |^---$/.test(lines[j])) { end = j; break; }
-    return { heading: lines[at], body: lines.slice(at + 1, end).join('\n') };
-})();
+describe('Track E — one phase list, in SECURITY_RELEASE_PLAN.md', () => {
+    test('the plan has the sections this test reads', () => {
+        assert.ok(TRACK_E.length > 0 && TRACK_C.length > 0,
+            'SECURITY_RELEASE_PLAN.md has lost its "## Track E" or "## Track C" section — every check ' +
+            'below would read an empty string and pass. Restore the heading or repoint this test.');
+    });
 
-/** The pointer's size cap. It is ~560 characters today; a paragraph of pointer fits well inside this,
- *  and a re-grown phase list (the old section was ~13,000) does not. */
-const POINTER_MAX_CHARS = 1000;
-
-describe('Track E — AUTH_PLAN.md is the one home', () => {
-    test('AUTH_PLAN.md declares E0–E6, each exactly once', () => {
-        const ids = AUTH_PHASES.map(p => p.id);
+    test('the plan declares E0–E6, each exactly once, all inside Track E', () => {
+        const ids = PHASES.map(p => p.id);
         const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
         assert.deepEqual(dupes, [],
-            `AUTH_PLAN.md declares a phase id more than once: ${[...new Set(dupes)].join(', ')}. ` +
+            `SECURITY_RELEASE_PLAN.md declares a phase id more than once: ${[...new Set(dupes)].join(', ')}. ` +
             'Two phases sharing a number is how the offline-grace phase went missing — renumber, ' +
             'do not add a suffix.');
-
         const missing = EXPECTED_PHASES.filter(id => !ids.includes(id));
         const extra   = ids.filter(id => !EXPECTED_PHASES.includes(id));
         assert.deepEqual({ missing, extra }, { missing: [], extra: [] },
-            `AUTH_PLAN.md's phase list is ${ids.join(', ')} — expected exactly ${EXPECTED_PHASES.join(', ')}. ` +
+            `the phase list is ${ids.join(', ')} — expected exactly ${EXPECTED_PHASES.join(', ')}. ` +
             'If Track E genuinely gained or lost a phase, update EXPECTED_PHASES here in the same commit.');
+        const outside = PHASES.filter(p => !TRACK_E.includes(p.block.split('\n')[0])).map(p => p.id);
+        assert.deepEqual(outside, [], `phases declared outside the Track E section: ${outside.join(', ')}`);
     });
 
-    test("SECURITY_RELEASE_PLAN.md's Track E section is a pointer to AUTH_PLAN.md, not a second copy", () => {
-        assert.ok(SEC_TRACK_E, 'SECURITY_RELEASE_PLAN.md has no "### Track E" section — the pointer is gone, ' +
-            'so a reader of the security plan no longer learns where Track E lives.');
-        const { heading, body } = SEC_TRACK_E;
-        assert.ok(body.includes('`AUTH_PLAN.md`'),
-            'The Track E section of SECURITY_RELEASE_PLAN.md no longer names `AUTH_PLAN.md`. It is a pointer; ' +
-            'a pointer that does not say where is a dead end.');
-        assert.ok(body.length <= POINTER_MAX_CHARS,
-            `The Track E section of SECURITY_RELEASE_PLAN.md is ${body.length} characters (cap ${POINTER_MAX_CHARS}). ` +
-            'It is growing back into a second copy of AUTH_PLAN.md — the two copies drifted before. Put ' +
-            'the content in AUTH_PLAN.md and leave the pointer a pointer.');
-        const status = [heading, ...body.split('\n')].filter(l => /✓|SHIPPED/i.test(l));
-        assert.deepEqual(status, [],
-            'The Track E pointer states a status. Status lives in the canonical table\'s E row, once.');
-    });
-
-    test('SECURITY_RELEASE_PLAN.md defines no Track E phase anywhere', () => {
-        const defs = SEC.split('\n').filter(l => /^- \*\*E\d\b/.test(l) || /^#{2,4} E\d — /.test(l));
+    test('AUTH_AND_SESSIONS.md carries the shipped design, never a second phase list', () => {
+        // The contract names phases in parentheses — "The two-phase load (E1)" — which routes a
+        // citation; a `### E<n> — ` heading there is a second DEFINITION, the v19.08 failure shape.
+        const defs = CONTRACT.split('\n').filter(l => /^#{2,4} E\d — /.test(l) || /^- \*\*E\d\b/.test(l));
         assert.deepEqual(defs, [],
-            'SECURITY_RELEASE_PLAN.md defines Track E phases again:\n  ' + defs.join('\n  ') +
-            '\nThe phases live in AUTH_PLAN.md only; this file carries their status in its table.');
+            'AUTH_AND_SESSIONS.md defines Track E phases:\n  ' + defs.join('\n  ') +
+            '\nThe phases live in SECURITY_RELEASE_PLAN.md; the contract holds what a SHIPPED phase left behind, ' +
+            'under a heading that names the phase in parentheses.');
+        const status = CONTRACT.split('\n').filter(l => /✓\s*SHIPPED|Current stage/.test(l));
+        assert.deepEqual(status, [], 'AUTH_AND_SESSIONS.md states a stage. Status lives in the canonical table, once.');
     });
 });
 
@@ -157,37 +142,31 @@ describe('Track E — the shipped versions agree with the status table', () => {
             'this parser) or the row lost its shipped phases. Every check below would compare against nothing.');
     });
 
-    test("AUTH_PLAN's phase headings agree with the canonical table about what has shipped", () => {
-        const a = shippedMap(AUTH_PHASES);
-        const ids = [...new Set([...a.keys(), ...tableShipped.keys()])].sort();
+    test('the phase headings agree with the canonical table about what has shipped', () => {
+        const ids = [...new Set([...headingShipped.keys(), ...tableShipped.keys()])].sort();
         const disagree = ids
-            .filter(id => a.get(id) !== tableShipped.get(id))
-            .map(id => `${id}: AUTH_PLAN heading says ${a.get(id) ? `v${a.get(id)}` : 'not shipped'}, ` +
+            .filter(id => headingShipped.get(id) !== tableShipped.get(id))
+            .map(id => `${id}: heading says ${headingShipped.get(id) ? `v${headingShipped.get(id)}` : 'not shipped'}, ` +
                        `the canonical table says ${tableShipped.get(id) ? `v${tableShipped.get(id)}` : 'not shipped'}`);
         assert.deepEqual(disagree, [],
-            'AUTH_PLAN.md and the canonical status table disagree about shipped status:\n  ' + disagree.join('\n  ') +
+            'The phase headings and the canonical status table disagree about shipped status:\n  ' + disagree.join('\n  ') +
             '\nWhen a phase ships, mark the table row "E<n> ✓ v<x.yy>" and the heading "✓ SHIPPED v<x.yy>" ' +
             'in the same commit — a plan that still calls a shipped phase future work is one someone re-does.');
     });
 
-    test("AUTH_PLAN's status prose agrees with its phase headings about what has shipped", () => {
-        const actual = shippedMap(AUTH_PHASES);
+    test("Track E's status prose agrees with its phase headings about what has shipped", () => {
         // The status paragraph states shipped phases as prose: "**E0 shipped v19.00**".
         const prose = new Map(
-            [...AUTH.matchAll(/\bE(\d)\*{0,2}\s+shipped\s+\*{0,2}\s*v(\d+\.\d+)/gi)]
-                .map(m => [`E${m[1]}`, m[2]]),
+            [...TRACK_E.matchAll(/\bE(\d)\*{0,2}\s+shipped\s+\*{0,2}\s*v(\d+\.\d+)/gi)].map(m => [`E${m[1]}`, m[2]]),
         );
-
-        const ids = [...new Set([...actual.keys(), ...prose.keys()])].sort();
+        const ids = [...new Set([...headingShipped.keys(), ...prose.keys()])].sort();
         const disagree = ids
-            .filter(id => actual.get(id) !== prose.get(id))
-            .map(id => `${id}: heading says ${actual.get(id) ? `v${actual.get(id)}` : 'not shipped'}, ` +
+            .filter(id => headingShipped.get(id) !== prose.get(id))
+            .map(id => `${id}: heading says ${headingShipped.get(id) ? `v${headingShipped.get(id)}` : 'not shipped'}, ` +
                        `status prose says ${prose.get(id) ? `v${prose.get(id)}` : 'nothing'}`);
-
         assert.deepEqual(disagree, [],
-            'AUTH_PLAN.md contradicts itself about what has shipped:\n  ' + disagree.join('\n  ') +
-            '\nThe summary at the top and the phase headings are read by different people; both must ' +
-            'say the same thing.');
+            'Track E contradicts itself about what has shipped:\n  ' + disagree.join('\n  ') +
+            '\nThe summary and the phase headings are read by different people; both must say the same thing.');
     });
 });
 
@@ -200,16 +179,16 @@ describe('Track E — the shipped versions agree with the status table', () => {
 const CANONICAL_SEQUENCE = 'E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5';
 
 describe('Track E — the canonical rollout sequence', () => {
-    test("AUTH_PLAN.md's Rollout discipline line states the canonical sequence verbatim", () => {
-        const line = AUTH.split('\n').find(l => l.startsWith('**Rollout discipline:**')) || '';
+    test('the "Rollout discipline" line states the canonical sequence verbatim', () => {
+        const line = SEC.split('\n').find(l => l.startsWith('**Rollout discipline:**')) || '';
         assert.ok(line.includes(CANONICAL_SEQUENCE),
-            `AUTH_PLAN.md's "**Rollout discipline:**" line does not contain "${CANONICAL_SEQUENCE}" ` +
+            `SECURITY_RELEASE_PLAN.md's "**Rollout discipline:**" line does not contain "${CANONICAL_SEQUENCE}" ` +
             `(it reads: ${JSON.stringify(line)}). A summary line is what gets followed under time ` +
             'pressure, and a stale one sends someone past the offline-grace phase or straight to ' +
             'named-only rules.');
     });
 
-    for (const [label, src] of [['docs/AUTH_PLAN.md', AUTH], ['docs/SECURITY_RELEASE_PLAN.md', SEC]]) {
+    for (const [label, src] of [['docs/SECURITY_RELEASE_PLAN.md', SEC], ['docs/AUTH_AND_SESSIONS.md', CONTRACT]]) {
         test(`${label}: every rollout-sequence line is the canonical one`, () => {
             // The v19.08 failure was a SECOND, stale sequence line, not a missing one.
             const stale = src.split('\n').filter(l => /\bE0 → E1\b/.test(l) && !l.includes(CANONICAL_SEQUENCE));
@@ -230,87 +209,86 @@ describe('Track E — the canonical rollout sequence', () => {
     }
 });
 
+// ── C5: A DECISION THAT HAS NOT BEEN TAKEN ─────────────────────────────────────────────────────
+//
+// "C5 — the open decision" sets out a second route to retiring the surname: once one-time recovery
+// codes exist, the remaining surname credentials could be replaced server-side, which answers the
+// CREDENTIAL question without touching the READ question that Track E owns. That is a materially
+// different plan from the one in the canonical status table, and the owner asked explicitly that it
+// not be adopted quietly.
+//
+// The failure mode is specific and it is not carelessness: a later session reads the section, finds
+// it persuasive, and starts *building* to it — updating the C row to match, or simply proceeding as
+// though the decision were made. Nothing would look wrong, and the only evidence that a decision had
+// been skipped would be the absence of a conversation nobody can grep for.
+//
+// So the not-adopted marking is pinned in BOTH places a reader meets it — the design section and the
+// status row. Adopting Route 2 then requires editing this test, which is the point: it turns a silent
+// drift into a deliberate act with a diff.
 
-// ── THE CREDENTIAL LIFECYCLE PROGRAMME (v22.38) ────────────────────────────────────────────────
-//
-// The credential lifecycle was a third document on the same subject, added for the reason the other
-// two exist separately: it owns ORDER, which neither of them did. Since 24 Nov 2026 it is
-// `PASSWORD_DESIGN.md` → "The credential lifecycle — the C5/C6 programme" (the old file's §N is that
-// section's LN, and the old file is a pointer). The same structural
-// discipline applies — and one of its sections needs more than discipline.
-//
-// **L7 records a decision that has NOT been taken.** It sets out a second route to retiring the
-// surname: once one-time recovery codes exist, the remaining surname credentials could be replaced
-// server-side, which answers the CREDENTIAL question without touching the READ question that Track
-// E owns. That is a materially different plan from the one in the canonical status table, and the
-// owner asked explicitly that it not be adopted quietly.
-//
-// The failure mode is specific and it is not carelessness: a later session reads L7, finds it
-// persuasive, and starts *building* to it — updating the C5 row to match, or simply proceeding as
-// though the decision were made. Nothing would look wrong. Both documents would be internally
-// consistent, and the only evidence that a decision had been skipped would be the absence of a
-// conversation nobody can grep for.
-//
-// So the not-adopted marking is pinned in BOTH files. Adopting Route 2 then requires editing this
-// test, which is the point: it turns a silent drift into a deliberate act with a diff.
-
-describe('the credential lifecycle programme', () => {
-    test('the lifecycle section exists where this test reads it', () => {
-        assert.ok(CRED.length > 0, `PASSWORD_DESIGN.md has no heading "${LIFECYCLE_HEADING}" — ` +
-            'every check below would read an empty string and pass. Restore the heading or repoint ' +
-            'LIFECYCLE_HEADING.');
-    });
-
-    test('L7 states, in the design, that neither route is adopted', () => {
-        assert.ok(/Neither is adopted\. The choice is the owner's/.test(CRED),
-            'PASSWORD_DESIGN.md L7 no longer says the C5 routes are unadopted. If the owner HAS ' +
-            'chosen a route, say so in SECURITY_RELEASE_PLAN.md\'s C5 row and update this test in the ' +
-            'same commit. If they have not, restore the marking — a section describing an alternative ' +
-            'plan without saying it is unchosen is one somebody builds.');
+describe('Track C — the open C5 decision and the unbuilt work', () => {
+    test('the C5 design section states that neither route is adopted', () => {
+        assert.ok(/### C5 — the open decision/.test(TRACK_C),
+            'Track C has lost its "### C5 — the open decision" section, which code and ROADMAP.md cite.');
+        assert.ok(/Neither is adopted\. The choice is the owner's/.test(TRACK_C),
+            'The C5 design no longer says its routes are unadopted. If the owner HAS chosen a route, say ' +
+            'so in the C row and update this test in the same commit. If they have not, restore the ' +
+            'marking — a section describing an alternative plan without saying it is unchosen is one somebody builds.');
     });
 
     test('and the canonical table says the same thing, where status actually lives', () => {
-        const c5Row = SEC.split('\n').find(l => l.includes('**C — passwords**')) || '';
-        assert.ok(/SECOND ROUTE is on the table and NOT adopted/.test(c5Row),
+        const cRow = SEC.split('\n').find(l => l.includes('**C — passwords**')) || '';
+        assert.ok(/SECOND ROUTE is on the table and NOT adopted/.test(cRow),
             'The C — passwords row no longer records that a second route to C5 exists and is ' +
-            'unadopted. STATUS lives in this table, so a reader who only opens the design doc must ' +
-            'not be the only one who learns there is a choice outstanding.');
+            'unadopted. A reader who only opens the table must not be the only one who misses the choice.');
     });
 
-    test('the design doc states no status of its own', () => {
-        // Same split-ownership rule the other two follow: one table owns stage. A design doc that
-        // starts marking things shipped is a second answer that can disagree with the first.
-        const claims = CRED.split('\n').filter(l => /✓ SHIPPED|Current stage/.test(l));
+    test("Track C's design states no stage of its own", () => {
+        // One table owns stage. A design section that starts marking things shipped is a second
+        // answer that can disagree with the first.
+        const claims = TRACK_C.split('\n').filter(l => /✓ SHIPPED|Current stage/.test(l));
         assert.deepEqual(claims, [],
-            'PASSWORD_DESIGN.md\'s credential lifecycle section has begun stating shipped status:\n  ' + claims.join('\n  ') +
-            '\nStatus belongs in SECURITY_RELEASE_PLAN.md\'s canonical table and nowhere else.');
+            "Track C's design has begun stating shipped status:\n  " + claims.join('\n  ') +
+            '\nStatus belongs in the canonical table and nowhere else.');
     });
 
-    test('every track the design doc names has a row in the canonical table', () => {
+    test('every track Track C designs has a row in the canonical table', () => {
         // A design for a track the status table has never heard of is work with no home — it is how
         // C2 nearly became two different deferred plans.
-        const named = [...new Set([...CRED.matchAll(/\b(C6|F)\b(?= —)/g)].map(m => m[1]))].sort();
-        assert.deepEqual(named, ['C6', 'F'], 'the design doc names tracks this test does not know about');
-        for (const id of named) {
+        const designed = [...TRACK_C.matchAll(/^### (C\d+|F) — /gm)].map(m => m[1]).sort();
+        assert.deepEqual(designed, ['C2', 'C5', 'C6', 'F'], 'Track C designs tracks this test does not know about');
+        for (const id of designed.filter(id => id !== 'C5')) {
             assert.ok(SEC.includes(`**${id} —`),
-                `SECURITY_RELEASE_PLAN.md has no canonical row for ${id}, which ` +
-                'PASSWORD_DESIGN.md\'s credential lifecycle designs. Add the row, or drop the design.');
+                `SECURITY_RELEASE_PLAN.md has no canonical row for ${id}, which Track C designs. Add the row, or drop the design.`);
         }
     });
 
-    test('the two invariants for unbuilt work point at the design, not at code', () => {
+    test('the two invariants for unbuilt work point at the plan, not at code', () => {
         // AUTH_AND_SESSIONS.md rows normally name the module that holds the reasoning. 15 and 16
         // describe things that do not exist yet, so they must route to the design instead — a row
         // pointing at a file that does not implement it is worse than one that says so.
-        const contract = readFileSync('docs/AUTH_AND_SESSIONS.md', 'utf8');
-        for (const n of [15, 16]) {
-            const row = contract.split('\n').find(l => l.startsWith(`| ${n} |`)) || '';
+        for (const [n, id] of [[15, 'C2'], [16, 'F']]) {
+            const row = CONTRACT.split('\n').find(l => l.startsWith(`| ${n} |`)) || '';
             assert.ok(row, `AUTH_AND_SESSIONS.md has no invariant ${n}`);
-            // A CONTENT matcher, not a path: docs sit together in docs/ and refer to each other by
-            // bare filename, so this must stay bare even though the file moved.
-            assert.ok(row.includes('PASSWORD_DESIGN.md') && /credential lifecycle/.test(row) && /not yet built/.test(row),
-                `invariant ${n} must route to PASSWORD_DESIGN.md's credential lifecycle section and say it is not yet built — ` +
+            // A CONTENT matcher, not a path: docs sit together in docs/ and refer to each other by bare filename.
+            assert.ok(row.includes(`SECURITY_RELEASE_PLAN.md\` → ${id}`) && /not yet built/.test(row),
+                `invariant ${n} must route to SECURITY_RELEASE_PLAN.md → ${id} and say it is not yet built — ` +
                 'when it IS built, repoint it at the module and drop the marker here.');
+            assert.ok(new RegExp(`^### ${id} — `, 'm').test(TRACK_C), `the plan has no "### ${id} — " design for invariant ${n} to route to`);
         }
     });
+});
+
+describe('the folded sign-in documents stay folded', () => {
+    // AUTH_PLAN.md, PASSWORD_DESIGN.md, AUTH_ARCHITECTURE.md and CREDENTIAL_LIFECYCLE.md were folded
+    // into the three documents above on 26 Nov 2026. A recreated one is a second copy of the subject,
+    // which is the drift this file exists to stop. Code and docs cite the new homes instead; the old
+    // words are in git.
+    for (const doc of ['AUTH_PLAN.md', 'PASSWORD_DESIGN.md', 'AUTH_ARCHITECTURE.md', 'CREDENTIAL_LIFECYCLE.md']) {
+        test(`docs/${doc} does not come back`, () => {
+            assert.ok(!existsSync(`docs/${doc}`),
+                `docs/${doc} exists again. Its content lives in AUTH_AND_SESSIONS.md (shipped design), ` +
+                'SECURITY_RELEASE_PLAN.md (open work) or RECOVERY_RUNBOOK.md (operations): add to those instead.');
+        });
+    }
 });

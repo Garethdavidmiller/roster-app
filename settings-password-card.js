@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * settings-password-card.js — the Settings page's Password card (PASSWORD_DESIGN.md — self-service
+ * settings-password-card.js — the Settings page's Password card (AUTH_AND_SESSIONS.md → "Chosen passwords" — self-service
  * chosen password + migration status).
  *
  * Moved out of `settings-app.js` on 25 Nov 2026, unchanged but for its inputs, when that coordinator

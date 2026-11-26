@@ -28,7 +28,7 @@
  *      reloads for nothing); then DECIDE AGAIN for whoever actually signed in — the card was opened
  *      for nobody, and a login the page is not for gets the refusal, never the page. A throw anywhere
  *      in it reloads, so the in-place path is never less robust than the reload one. Nothing in it is
- *      awaited (the login freeze, PASSWORD_DESIGN.md §3.6).
+ *      awaited (the login freeze, AUTH_AND_SESSIONS.md → "The login freeze").
  *   5. 'forbidden' → the card dismissed, the session step (only where the refusal is a page of its own
  *      for a signed-in member, `refusalKeepsSession`; otherwise `sessionReady` is settled `false`, a
  *      one-shot promise other modules may await), then the page's `refuse`.

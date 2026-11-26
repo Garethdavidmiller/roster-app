@@ -20,7 +20,7 @@ the cleanup falls back to it and the prune reclaims those as orphans.
 **Storage URL strategy:** `ingestHuddle` stores a permanent `firebaseStorageDownloadTokens` URL in
 `storageUrl`, never a signed URL — GCS caps v4 signed URLs at 7 days, far short of the 3-month Huddle
 retention. Members open the file through a 15-minute signed link from `getDocumentUrl` when one can be
-minted, with the stored URL as the fallback (AUTH_PLAN.md §5). The stored form:
+minted, with the stored URL as the fallback (AUTH_AND_SESSIONS.md → "The document files (E6)"). The stored form:
 ```
 https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD-{uploadId}.pdf?alt=media&token={uuid}
 ```
@@ -522,7 +522,7 @@ owner asked for one run when it was built (12 Nov 2026, DECISIONS.md); ARCHITECT
 whether it has been made.
 
 **When:** a document link has been shared somewhere it should not be — or on a schedule, if one is ever
-wanted (AUTH_PLAN.md §5).
+wanted (AUTH_AND_SESSIONS.md → "The document files (E6)").
 
 **How:**
 1. Operations → **Document links** → **Check the links**. This only counts: files in use; documents whose
@@ -580,7 +580,7 @@ repeating it** (Firebase's minimum — `"tuck"` → `"tucktu"`). The single sour
 `auth-identity.js`. `ensureFirebaseSession()` uses it to re-establish an un-migrated member's session on
 load. The client never CREATES a missing account: only Operations → Set up accounts provisions one.
 
-**Chosen passwords (PASSWORD_DESIGN.md — Track C).** A member can set their own in Settings → Password,
+**Chosen passwords (`AUTH_AND_SESSIONS.md` → "Chosen passwords").** A member can set their own in Settings → Password,
 after which the surname no longer works for them. Sign-in tries the typed value, and when it spells the
 member's surname it tries the surname default first (`credentialCandidatesFor` →
 `ensureFirebaseSession`). Migration state (`passwordSetAt` vs `resetAt`) lives in `passwordStatus`.
@@ -603,7 +603,7 @@ reset yet.
 ### Locked-out member → reset request queue
 
 The one flow that starts with **no identity at all**, so it runs through the only public unauthenticated
-endpoint rather than a client write. Design and accepted risks: `PASSWORD_DESIGN.md` §12–§14.
+endpoint rather than a client write. Design and accepted risks: `AUTH_AND_SESSIONS.md` → "The reset-request queue".
 
 1. **Member** taps "Can't get in?" on the login overlay (always there, under Sign in) →
    `requestPasswordReset` (`account-calls.js` — the one account call that sends **no** token) → the
@@ -618,7 +618,7 @@ endpoint rather than a client write. Design and accepted risks: `PASSWORD_DESIGN
    within five minutes rings once. The push is a courtesy — the Firestore row is the doorbell.
 4. **Admin** acts in Operations → Password Reset Requests (Reset, or Set up accounts where the row says
    *No account yet* or *Account disabled*), then clears the row (`clearResetRequest`). **A request proves
-   nothing about who sent it** — confirm with the member first (PASSWORD_DESIGN.md §13). No client, the
+   nothing about who sent it** — confirm with the member first (AUTH_AND_SESSIONS.md → "The reset-request queue"). No client, the
    admin included, can create or update a request; only the function writes.
 5. **The member is told, on their own devices.** `resetMemberPassword` sends
    `🔑 Password reset — set a new one` via `sendTargetedPush`, opening `settings.html` at the Password

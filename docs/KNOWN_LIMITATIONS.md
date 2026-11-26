@@ -314,7 +314,7 @@ The deployed exception and what closes it are `ARCHITECTURE.md` → EXC-007. Whi
   retries once (`sweepHuddleOrphans`), the other sweep has no such step, and only a Document links run
   switches an orphan's link off. **Planned home:** a scheduled Function.
 - **Microsoft reads the Word documents.** `officeViewerUrl` (`storage-utils.js`) hands the SIGNED URL to
-  Office Online, which fetches it server-side — kept by owner decision (AUTH_PLAN.md §5, 19 Sep 2026).
+  Office Online, which fetches it server-side — kept by owner decision (AUTH_AND_SESSIONS.md → "The document files (E6)", 19 Sep 2026).
 
 ### Real payslip figures stay in git HISTORY (owner decision, recorded not accepted)
 
@@ -326,7 +326,7 @@ public repository can read it, and GitHub has already served it.
 
 - **Decision:** scrubbing declined on cost (the same owner decision) — a `filter-repo` rewrite changes
   every SHA on `main`, breaks clones and every commit link in these documents, and cannot recall bytes
-  already served. The same reasoning as the base roster's public classification (AUTH_PLAN.md §2).
+  already served. The same reasoning as the base roster's public classification (AUTH_AND_SESSIONS.md → "Public by decision").
 - **What would close it:** making the repository private, which also retires the Pages mirror and so
   waits for the address migration (OPERATIONS_REFERENCE → "Which address staff are on").
 
@@ -350,7 +350,7 @@ needed.
 
 The workbook's per-person reconciliation log is the gitignored `docs/AL_WORKBOOK.local.md`, so it is no
 longer served; the committed `docs/AL_WORKBOOK.md` keeps the method and worked examples reading
-*"a member"*, plus a name-spelling map with no figures (public by `AUTH_PLAN.md` §2).
+*"a member"*, plus a name-spelling map with no figures (public by `AUTH_AND_SESSIONS.md` → "Public by decision").
 
 - **The log is still in git HISTORY**, as the payslip fixture is; rewriting history is the owner's call
   and has not been taken.
@@ -436,7 +436,7 @@ require the BOUND name (`memberName()` — a password sign-in at the name's own 
 form:** copied into a new rule it reopens the self-set display-name hole. Local UI checks are not
 security controls; the default password is still the surname, so this is hardening, not full
 remediation. Practical risk is low for a small known team. Status of record:
-`SECURITY_RELEASE_PLAN.md` → B2/B3.
+AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)".
 
 ### A signed-in session lasts 60 days regardless of use (owner decisions — accepted trade)
 

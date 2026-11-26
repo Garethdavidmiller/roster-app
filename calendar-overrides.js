@@ -455,7 +455,7 @@ export async function fetchOverridesForRange(startStr, endStr, ticket = issueRea
 
 /**
  * Paint from the LOCAL Firestore cache — no network. This is phase 1 of the calendar's two-phase
- * initial load (AUTH_PLAN.md → E1): it puts no sign-in round trip of its own in front of data the
+ * initial load (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"): it puts no sign-in round trip of its own in front of data the
  * device already holds — though it cannot beat the stored user's `accounts:lookup`, behind which
  * Firestore holds every operation (CALENDAR_DATA.md 10).
  *

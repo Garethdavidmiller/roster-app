@@ -58,7 +58,7 @@ export function normaliseSurname(fullName) {
  * Note: Firebase Auth's distinct error codes for auth/user-not-found vs auth/invalid-credential can
  * reveal whether an account exists for a given email, unless the project's email-enumeration
  * protection folds both into auth/invalid-credential — the case the sign-in copy is written for
- * (PASSWORD_DESIGN.md §3.5).
+ * (AUTH_AND_SESSIONS.md → "Sign-in error copy").
  *
  * @param {string} fullName - Display name exactly as stored in teamMembers
  * @returns {string} Firebase Auth email address
@@ -88,7 +88,7 @@ export function surnamePassword(fullName) {
 
 /**
  * The ordered Firebase Auth password candidates to try for a member who typed `typed` at the login
- * (or Settings reauth) field. PASSWORD_DESIGN.md §3.2. Two candidates at most:
+ * (or Settings reauth) field. AUTH_AND_SESSIONS.md → "The gated dual-attempt". Two candidates at most:
  *   · the RAW typed value (leading/trailing whitespace trimmed, otherwise untouched — a chosen
  *     password keeps its case / digits / symbols); and
  *   · the derived surname password — added ONLY when the typed value NORMALISES to the member's
@@ -122,7 +122,7 @@ export function credentialCandidatesFor(fullName, typed) {
 }
 
 /**
- * Whether a member has MIGRATED to their own chosen password (PASSWORD_DESIGN.md §6).
+ * Whether a member has MIGRATED to their own chosen password (AUTH_AND_SESSIONS.md → "Password migration status").
  *
  * Migrated ⇔ they have set a password (`passwordSetAt` present) AND it is at least as new as the
  * most recent admin reset (`resetAt`) — a later admin reset returns the account to the surname
@@ -141,13 +141,13 @@ export function isPasswordMigrated(status) {
     return setAt > 0 && setAt >= resetAt;
 }
 
-/** The minimum length of a chosen password (PASSWORD_DESIGN.md §4 — Firebase's own floor is 6). */
+/** The minimum length of a chosen password (AUTH_AND_SESSIONS.md → "Chosen passwords" — Firebase's own floor is 6). */
 export const MIN_PASSWORD_LENGTH = 8;
 
 /**
  * Validate a member's CHOSEN password. Returns a staff-facing error sentence, or `null` when valid.
  *
- * The SINGLE source for the rules in PASSWORD_DESIGN.md §4, shared by the Settings Password card and the
+ * The SINGLE source for the rules in AUTH_AND_SESSIONS.md → "Chosen passwords", shared by the Settings Password card and the
  * forced overlay (`password-force.js`, v18.92). It was inline in settings-app.js until the overlay
  * needed the same rules — and two copies of a validation rule is how the Other-day grammar drifted
  * (v18.91). If these two ever disagreed, a member could set a password through one surface that the
@@ -226,7 +226,7 @@ export function passwordChangeFailure(code, reauthed) {
  * email-enumeration-safe code; the others cover older SDK phrasings.
  *
  * Single source shared by the sign-in candidate ladder (session.js) AND the Settings reauth
- * (firebase-client.js `reauthenticateWithPassword`) so the two can't drift (PASSWORD_DESIGN.md §3.2).
+ * (firebase-client.js `reauthenticateWithPassword`) so the two can't drift (AUTH_AND_SESSIONS.md → "The gated dual-attempt").
  * Module-private: both ask through `isCredentialRejection`, and nothing ever imported the set itself.
  * @type {Set<string>}
  */

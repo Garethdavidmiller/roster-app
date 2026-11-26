@@ -371,7 +371,7 @@ export const getDocs = (/** @type {any} */ ref) => {
 //   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced
 //      set-password overlay FAILS OPEN when it can't read passwordStatus (password-force.js) — the
 //      property that keeps a mandatory overlay from becoming a lockout.
-// Phase 1 of the calendar's two-phase load (AUTH_PLAN.md -> E1) reads the LOCAL cache. For a QUERY the
+// Phase 1 of the calendar's two-phase load (AUTH_AND_SESSIONS.md -> "The two-phase load (E1)") reads the LOCAL cache. For a QUERY the
 // real SDK resolves with an EMPTY snapshot when nothing is cached (it is getDocFromCache, the
 // single-doc form, that rejects) — so an empty resolve is the accurate default here. Either shape is
 // safe: calendar-overrides.js treats empty and thrown identically. Seed via window.__E2E.cacheDocs.
@@ -827,7 +827,7 @@ export async function routeAppPage(page) {
     await page.route('**/roster-data.js', async route => {
         const res = await route.fetch();
         let body  = await res.text();
-        // DEFAULT OFF for the whole suite: the forced set-password overlay (PASSWORD_DESIGN Phase 2)
+        // DEFAULT OFF for the whole suite: the forced set-password overlay (AUTH_AND_SESSIONS.md → "The forced password overlay")
         // fires after any confirmed sign-in for a member the stubbed Firestore reports as
         // un-migrated — which, since `getDoc` resolves `exists: () => false`, is EVERY member. It
         // would therefore cover the page in every test that signs in through the overlay and break
@@ -858,7 +858,7 @@ export const test = base.extend({
 });
 
 /**
- * Turn the forced set-password overlay ON for one test (PASSWORD_DESIGN.md Phase 2). The suite-wide
+ * Turn the forced set-password overlay ON for one test (AUTH_AND_SESSIONS.md → "The forced password overlay"). The suite-wide
  * default is OFF — see the `page` fixture — because the stubbed Firestore reports every member as
  * un-migrated, so leaving it on would put the overlay over every sign-in test. Call BEFORE page.goto().
  * @param {import('@playwright/test').Page} page

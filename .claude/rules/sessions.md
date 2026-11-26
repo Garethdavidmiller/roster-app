@@ -28,7 +28,7 @@ paths:
 **The contract is `docs/AUTH_AND_SESSIONS.md`**: numbered invariants for session ↔ identity ↔ claim,
 the three ways they disagree, and a write whose account has gone. Link its numbers; never restate
 them. This file holds the area's working notes; the rules every session needs are in `CLAUDE.md` →
-"Firebase Auth".
+"Firebase Auth". The strict cutover's design is AUTH_AND_SESSIONS.md → "Write isolation (B0–B3)".
 
 ## One local session, every page
 

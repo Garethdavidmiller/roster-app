@@ -9,7 +9,7 @@
 // measuring the size of the station, and crossed on hiring rather than on complexity.
 //
 // ⚠️ WORLD-READABLE. This file is served from both origins with no session, no PIN and no token —
-// see the classification argument on `teamMembers` in CLAUDE.md and AUTH_PLAN.md §2. A field added
+// see the classification argument on `teamMembers` in CLAUDE.md and AUTH_AND_SESSIONS.md → "Public by decision". A field added
 // here is PUBLISHED the moment it ships; anything a stranger should not read belongs in Firestore
 // behind a claim. `public-data-classification.test.mjs` fails on an unclassified field.
 

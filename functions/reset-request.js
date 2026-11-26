@@ -11,7 +11,7 @@
  * BUILDS it and returns it beside the other four, so index.js and the deploy surface are untouched.
  *
  * ONE THING STAYED BEHIND, ON PURPOSE: the kill switch, `RESET_REQUESTS_ENABLED`. It is where the
- * break-glass instructions say it is (PASSWORD_DESIGN.md), and it is handed in here as `enabled`. An
+ * break-glass instructions say it is (AUTH_AND_SESSIONS.md → "The reset-request queue"), and it is handed in here as `enabled`. An
  * incident switch is the last thing to move without moving its instructions in the same breath. Only
  * `true` opens the door, so a builder that forgets to pass it closes it — the visible failure.
  *
@@ -55,7 +55,7 @@ function buildResetRequestEndpoint({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_
  * in, so they have no Firebase identity — and nothing in the app signs in anonymously (the Calendar
  * stopped at v20.12, and the last path that could was retired at v24.34). So a direct Firestore
  * write is impossible for exactly the person who needs this. The alternatives were to establish a new
- * anonymous session on the protected pages (an explicit anti-goal in SECURITY_RELEASE_PLAN.md, and new
+ * anonymous session on the protected pages (refused outright — AUTH_AND_SESSIONS.md 9 — and new
  * auth behaviour beside the login path — the area with this app's worst outage history) or to open a
  * client-writable collection. A server endpoint beats both: Firestore rules stay fully CLOSED to
  * clients (`allow write: if false` on resetRequests — only this function's Admin SDK writes), and every

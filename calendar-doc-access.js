@@ -32,7 +32,7 @@
  * The overrides gate is a boolean the fetch paths consult. This one has to START things: the Huddle
  * viewer's live subscription must attach when access arrives (a notification tap that landed on the
  * sign-in card must open the Huddle once the member signs in — the deep link has to SURVIVE the grant,
- * AUTH_PLAN.md §5), and a Circular tap made while locked must complete when the reader signs in.
+ * AUTH_AND_SESSIONS.md → "The document files (E6)"), and a Circular tap made while locked must complete when the reader signs in.
  * Neither can poll a flag; both are told.
  *
  * One import, of a module that has none: it still loads in Node, and the viewers can be handed a

@@ -729,7 +729,7 @@ describe('sync-chip state machine', () => {
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         // Let phase 1 (cache paint) + authReady settle so the SERVER fetch is actually in flight and
         // `resolveIt` is assigned — since v19.01 the authoritative read starts a few microtasks after
-        // init, not synchronously (AUTH_PLAN.md → E1 two-phase load).
+        // init, not synchronously (AUTH_AND_SESSIONS.md → "The two-phase load (E1)").
         await flushAsync();
         t.mock.timers.tick(800);
 
@@ -820,7 +820,7 @@ describe('retry', () => {
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         // Let phase 1 (cache paint) + authReady settle so the SERVER fetch is actually in flight and
         // `rejectOrig` is assigned — since v19.01 the authoritative read starts a few microtasks after
-        // init, not synchronously (AUTH_PLAN.md → E1 two-phase load).
+        // init, not synchronously (AUTH_AND_SESSIONS.md → "The two-phase load (E1)").
         await flushAsync();
         t.mock.timers.tick(800);
         t.mock.timers.tick(9200);
@@ -1241,7 +1241,7 @@ describe('visibilitychange', () => {
     });
 });
 
-// ── E1: the render path must never be gated on auth (AUTH_PLAN.md → E1) ───────
+// ── E1: the render path must never be gated on auth (AUTH_AND_SESSIONS.md → "The two-phase load (E1)") ───────
 //
 // THE INVARIANT THIS FILE EXISTS TO PIN. Track E will require a session to READ overrides. The
 // tempting implementation — await the auth promise, then fetch — puts a live signInAnonymously

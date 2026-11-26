@@ -120,7 +120,7 @@ function _orAfter(p, ms) {
  *   the member signs in — in place, or across the reload a sign-in still makes on a page granted
  *   before (calendar-access.js → `finishSignIn`), which carries it.
  *   Defaults to always-open. authReady — resolves once a Firebase session exists.
- *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
+ *   Awaited before the document read (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). Defaults to already-resolved.
  *   accessDecided — settles once the Calendar has decided access, granted or locked. This viewer
  *   is wired BEFORE that decision, so a cold deep link finds the gate shut only because nothing is
  *   decided yet; until this settles a shut gate reads "Loading…", not "sign in", which told

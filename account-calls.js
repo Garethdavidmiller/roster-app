@@ -105,7 +105,7 @@ export function buildAccountCalls({ auth }) {
         return r.json();
     }
 
-    /** The public `requestPasswordReset` endpoint (PASSWORD_DESIGN.md — the request queue). */
+    /** The public `requestPasswordReset` endpoint (AUTH_AND_SESSIONS.md → "The reset-request queue"). */
     const REQUEST_RESET_URL = functionUrl('requestPasswordReset');
 
     /**

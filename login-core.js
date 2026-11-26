@@ -36,7 +36,7 @@ export const SIGN_IN_GIVE_UP_MS = 30_000;
  * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
  * Firebase session, time-boxed, and commits the LOCAL session ONLY if auth genuinely resolves — so
  * a slow/hung auth can never leave a "half signed-in" state (the v14.72–75 login-freeze class; see
- * PASSWORD_DESIGN.md §3.6). Pure of DOM: the caller passes the already-name-bound session helpers, and
+ * AUTH_AND_SESSIONS.md → "The login freeze"). Pure of DOM: the caller passes the already-name-bound session helpers, and
  * applies the button/error effects from the result. A resolved-but-NOT-named result is a failure:
  * there is no anonymous session to accept (the `enforce` dep, fed by the `ENFORCE_NAMED_SESSION`
  * switch, was retired v24.34).
@@ -81,7 +81,7 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // still theirs. Somebody else's session on this device still goes — with their push record.
         if (!keepsLocalSession()) { releaseEndedHold(); clearSession(); }
         // `kind` lets the caller act on the CAUSE (only a genuine wrong-password drives the client
-        // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_DESIGN.md §3.5 +
+        // lockout; a network/rate-limit failure must not). Messages follow AUTH_AND_SESSIONS.md → "Sign-in error copy" +
         // the house wording rule (an account matter → "the admin").
         if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.', ...(threw ? {} : { late: attempt.then(Boolean) }) };
         const code = getAuthError();

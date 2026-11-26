@@ -20,7 +20,7 @@
  *      surname — the surname default first, then the typed value), so an un-migrated member typing
  *      their surname in any case re-authenticates at the first attempt. A transient failure — network,
  *      rate limit, provider outage, requires-recent-login — stops at once: retrying behind it duplicates
- *      traffic, worsens rate-limiting and ends on a misleading error (PASSWORD_DESIGN.md §3.2). The one
+ *      traffic, worsens rate-limiting and ends on a misleading error (AUTH_AND_SESSIONS.md → "The gated dual-attempt"). The one
  *      shared classifier (`isCredentialRejection`) keeps this ladder and the sign-in's in step.
  *   2. A CHANGED PASSWORD IS NEVER REPORTED AS UNCHANGED. `changeOwnPassword` resolves once the password
  *      HAS changed — the half a deadline belongs on (settings-ops-2): timed together, a slow commit read

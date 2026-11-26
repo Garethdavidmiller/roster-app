@@ -111,7 +111,7 @@ export function init() {
     /** @type {any} */ let closeAboutLightbox = null;
 
     initNavPanel({
-        authReady: sessionReady,   // the drawer's documents read once the session is in (AUTH_PLAN.md → E1)
+        authReady: sessionReady,   // the drawer's documents read once the session is in (AUTH_AND_SESSIONS.md → "The two-phase load (E1)")
         currentPage:     'links',
         memberName:      currentUser,
         ...navGatesFor(currentUser),   // the pill gates (auth-policy.js); the page gate above already required the designer role

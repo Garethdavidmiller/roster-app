@@ -303,7 +303,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** none
 
 ### The reset-request queue
-Not a module — the pieces a locked-out member's "ask the admin" request passes through, listed together because the design only makes sense whole: PASSWORD_DESIGN.md §12 (the queue) and §14 (the admin push).
+Not a module — the pieces a locked-out member's "ask the admin" request passes through, listed together because the design only makes sense whole: AUTH_AND_SESSIONS.md → "The reset-request queue".
 - `firebase-client.js` — `requestPasswordReset` (no auth token; its caller cannot sign in), `getResetRequests`, `clearResetRequest`.
 - `login-overlay.js` — the request button; `CONFIG.PASSWORD_RESET_REQUESTS` is its kill switch.
 - `operations-app.js` — the Password reset requests card and its `#reset-requests` deep link.

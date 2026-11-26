@@ -225,7 +225,7 @@ function _tabbableWideTables(root) {
 /**
  * @param {{ authReady?: Promise<any>, docAccess?: { has: () => boolean, onChange: (fn: (open: boolean) => void) => (() => void) } }} [deps]
  *   authReady — resolves once a Firebase session exists. Awaited before the snapshot listener
- *   attaches (AUTH_PLAN.md → E1). Defaults to already-resolved.
+ *   attaches (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). Defaults to already-resolved.
  *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). The subscription attaches only
  *   while it is open and is torn down when it shuts; a `#huddle` tap while shut shows a message
  *   rather than doing nothing, and is FINISHED when access arrives — a notification tap that landed
@@ -741,7 +741,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         // answer, so a tap in that window matched no branch of the hashchange handler and drew nothing.
         if (_huddleState !== 'ready') _huddleState = 'loading';
         if (_autoOpen && !_autoOpened) _armDeadline();   // a tap is already waiting on this answer
-        // Attach only once a session exists (AUTH_PLAN.md → E1). Attaching too early is worse than
+        // Attach only once a session exists (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). Attaching too early is worse than
         // attaching late: an onSnapshot that hits permission-denied is TERMINATED, not retried, and
         // today only recovers on the next visibilitychange — useless to someone who just tapped a
         // notification. The await is UNBOUNDED (it settles when Auth has initialised — past the

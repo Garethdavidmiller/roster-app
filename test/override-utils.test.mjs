@@ -223,7 +223,7 @@ describe('reconcileRangeIntoCache', () => {
         assert.equal(changed, true, 'the visible shift changed');
     });
 
-    // ── authoritative:false — the E1 cache-phase contract (AUTH_PLAN.md → E1) ──
+    // ── authoritative:false — the E1 cache-phase contract (AUTH_AND_SESSIONS.md → "The two-phase load (E1)") ──
     // A local-cache read returns a possibly-stale SUBSET, so it must merge but never evict. If it
     // evicted, it would be a second authoritative reconciler racing the server read on the same
     // range — the v18.76 Team View bug, where the staler snapshot wiped the grid to base roster.

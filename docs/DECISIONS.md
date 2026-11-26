@@ -534,7 +534,7 @@ shown that yet.
   first** — it is special-category data. Full restoration spec: `git show
   28b217d0:docs/ROADMAP_HISTORY.md` → "Removed features".
 - **Password security — the original five-stage plan is superseded** by the "C-lite" design in
-  `PASSWORD_DESIGN.md`, which did not wait on email verification. The original staged text is in git
+  `AUTH_AND_SESSIONS.md` → "Chosen passwords", which did not wait on email verification. The original staged text is in git
   (`git show 28b217d0:docs/ROADMAP_HISTORY.md` → "Password security — the original five-stage
   design"); do not plan from it.
 - **GDPR:** staff shift data is personal data. If the governance gate is answered "official", data
@@ -963,7 +963,7 @@ deploys keep their own suites (`test:rules`, `test:functions`) and do not run it
   with any raise argued beside its cap, and the Calendar's four steps above are what gradual looks
   like here.
 - **The three compromises stand as already recorded**: the surname default password and its forced
-  change (PASSWORD_DESIGN.md), the document files behind a bearer address with the stored one as the
+  change (AUTH_AND_SESSIONS.md → "The forced password overlay"), the document files behind a bearer address with the stored one as the
   fallback (KNOWN_LIMITATIONS.md → "The document FILES are protected by a bearer URL, not by auth"),
   and the second of two editors on one day not being warned (KNOWN_LIMITATIONS.md → "Two editors on
   one day"). The review listed them as still standing, not as new regressions. The third was closed
@@ -1476,7 +1476,7 @@ Every decision in it that still binds was checked against the live documents fir
 recorded elsewhere stay where they are (the avatar, cultural calendar and five-stage password lines
 above; the 60-day session, the leave figures in git history and the real-payslip fixture in
 KNOWN_LIMITATIONS.md; the Huddle not being printed in OPERATIONS_REFERENCE.md; the fast path in "The
-provisional paint"; the login freeze's lessons in PASSWORD_DESIGN.md §3.6). These had no other home:
+provisional paint"; the login freeze's lessons in AUTH_AND_SESSIONS.md → "The login freeze"). These had no other home:
 
 **Tried and held back — the UX experiments.** Each was prototyped, assessed or built, and reverted.
 

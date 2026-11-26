@@ -1,4 +1,4 @@
-// Throwaway experiment for AUTH_PLAN.md §4 — "prove it before anyone relies on it".
+// Throwaway experiment for AUTH_AND_SESSIONS.md → "The local cache does not ask the rules" — "prove it before anyone relies on it".
 //
 // The claim under test: Firestore security rules are evaluated SERVER-side, so the persistent
 // local cache serves reads without consulting them. Two consequences, opposite in sign:

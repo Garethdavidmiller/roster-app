@@ -425,7 +425,7 @@ const setupRosterAuth = onRequest(
 );
 
 /**
- * resetMemberPassword — admin break-glass (PASSWORD_DESIGN.md §5). Stamps `passwordStatus/{member}.
+ * resetMemberPassword — admin break-glass (AUTH_AND_SESSIONS.md → "The admin reset (break-glass)"). Stamps `passwordStatus/{member}.
  * resetAt` FIRST (Admin SDK, bypassing Firestore rules — no stamp, no reset: stampResetAt), then puts
  * ONE member's Firebase Auth password back to their surname default and signs them out on every
  * device (revokeRefreshTokens ends every session); at their next sign-in the forced overlay

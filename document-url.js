@@ -36,7 +36,7 @@
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { functionUrl } from './function-url.js';
 
-/** The endpoint (v24.16 server half). AUTH_PLAN.md §5. */
+/** The endpoint (v24.16 server half). AUTH_AND_SESSIONS.md → "The document files (E6)". */
 export const DOCUMENT_URL_ENDPOINT = functionUrl('getDocumentUrl');
 
 /**
