@@ -18,17 +18,14 @@ paths:
 ---
 # Staff-facing words that teach — the owner's standard
 
-Moved here from CLAUDE.md on 24 Nov 2026, word for word, to free room under its size cap: it binds every
-surface a colleague reads, so it loads with the files that carry those words (pages, `*-words.js`,
-`*-tips.js`, `*-render.js`, the notices). CLAUDE.md keeps the summary and the heading code cites
-("Plain English that TEACHES"); the short wording conventions ("the admin" vs "your manager", the
-canonical terms, the tone) stay there as one line each, because every session needs them. Their reasons,
-as CLAUDE.md carried them until 25 Nov 2026, are the last section of this file.
+It binds every surface a colleague reads, so it loads with the files that carry those words.
+CLAUDE.md keeps the summary ("Plain English that TEACHES") and the wording conventions as one line
+each; their reasons are the last section of this file.
 
 **Plain English that TEACHES — write for the colleague who has never heard the term** (owner, 3 Sep 2026).
 Many colleagues do not know what HPP is, how back pay works, or how to use a FIP card or coupon. The
 app's job is to let them use and discover these things without asking anyone — and without being
-overwhelmed. "For dummies" is the standard, not an insult. The rules, each learned the hard way:
+overwhelmed. "For dummies" is the standard, not an insult. The rules:
 - **Audience first.** Every staff-facing surface must work for someone who does not yet know the
   word. Expand a term on first sight within a surface (HPP → "Holiday Pay Premium"); never assume
   the abbreviation is understood because it is on the payslip.
@@ -73,8 +70,7 @@ signposting come first; search serves the member who already knows what they are
 answer a discovery gap with "it is findable".
 
 **Challenge both extremes.** *"This is too complicated, hide it"* and *"the information is technically
-present somewhere, so discovery is solved"* are the same failure from opposite ends, and this app has
-now produced one of each. Neither is good enough, because there is frequently **nobody to ask**: a
+present somewhere, so discovery is solved"* are the same failure from opposite ends. Neither is good enough, because there is frequently **nobody to ask**: a
 colleague on a late turn wondering about January's payslip has no manager, no colleague and no
 helpdesk at 22:00. The app is the source. See ROADMAP.md → "Plain-English education pass".
 
@@ -95,7 +91,7 @@ Applies to **all user-visible copy** (cards, hints, tips, lightboxes, error bann
 - **"Absent" / "record an absence"** — never "sick"/"sickness" in UI copy (the reason is never stored — GDPR). The internal data value `SICK` and ids are fine.
 - **"Year to Date"** — always spelled out, never bare "YTD". The two payslip figures are exactly **"Taxable Pay"** and **"Tax Paid"** (never "Gross Pay" for the YTD figure). See `.claude/rules/paycalc.md` → payslip line names.
 - **"Fill from calendar" / "From your calendar" / "Replace with calendar values"** — the paycalc pre-fill reads the *calendar* function, not the base roster; do not reword to "roster".
-- **"account recovery"** is the term for what a saved work email is FOR (owner decision; it replaced "self-service password reset (in a future update)", which was accurate and read like a product roadmap). It separates the two questions a member actually has. **Why you are giving us this:** "Save your Chiltern work email for account recovery." **What works today:** "Self-service recovery isn't available yet. For now, ask the admin if you forget your password." Never "coming soon". The future email route is SECURITY_RELEASE_PLAN.md track C2. A password *reset* exists **today** via the admin (Operations → Account status → Reset), and staff can set their own password (Settings → Password), so do NOT say a password reset is flatly "not available" — only the *email self-service* route is future. Present-day recovery copy is "To reset a password today, contact the admin."
+- **"account recovery"** is the term for what a saved work email is FOR (owner decision; "self-service password reset (in a future update)" read like a product roadmap). It separates the two questions a member actually has. **Why you are giving us this:** "Save your Chiltern work email for account recovery." **What works today:** "Self-service recovery isn't available yet. For now, ask the admin if you forget your password." Never "coming soon". The future email route is SECURITY_RELEASE_PLAN.md track C2. A password *reset* exists **today** via the admin (Operations → Account status → Reset), and staff can set their own password (Settings → Password), so do NOT say a password reset is flatly "not available" — only the *email self-service* route is future. Present-day recovery copy is "To reset a password today, contact the admin."
 - **App name "Marylebone Roster"** — the on-screen name everywhere (incl. bug-report `appLabel` as "Marylebone Roster — <Page>"). **Never "MYB" for the APP or one of its tools** — not "MYB Roster", not "MYB Pay Calculator", not "MYB member". As the app name it survives only in the iOS home-screen `apple-mobile-web-app-title` meta, the manifest's `short_name` (exempt by key in `app-name-parity.test.mjs`) and comments.
   **But MYB as the STATION CODE is correct and stays** — it is Marylebone's three-letter code, staff use it daily, and the guides carry "Chiltern Railways · MYB Station" and "MYB mornings" correctly. The test is what the letters NAME: the station, fine; the software, never. Enforced by `app-name-parity.test.mjs`.
 - **Documents:** "Daily Huddle" (proper noun), "Weekly Retail Circular", "Marylebone Newsletter".
