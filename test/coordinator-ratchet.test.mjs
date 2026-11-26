@@ -575,7 +575,8 @@ const CAPS = {
     // is putting Overtime into words is where that belongs. Twelve lines of room, no bank.
     // 1030 → 950 at the v24.28 review: measured 888, so the old ceiling had banked 142 lines of
     // headroom the file never needed — the loosening the v21.87 note above refuses.
-    'overtime-format.js':       950,   // ← 1070 until v23.69, when the CLOCK left for overtime-clock.js.
+    // 950 → 750 (26 Nov 2026): comments trimmed, the cap follows the file down.
+    'overtime-format.js':       750,   // ← 1070 until v23.69, when the CLOCK left for overtime-clock.js.
                                        //   The words are the seam if this needs raising again
     // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
     // above says must be argued rather than assumed. The growth is the same-week read guard from

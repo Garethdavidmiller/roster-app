@@ -4,18 +4,16 @@
  * are put into words, and the one piece of arithmetic the browser is allowed to do about time.
  *
  * No DOM and no Firebase, so every branch is reachable from a Node test. Everything it imports is
- * pure and Node-loadable: `roster-data.js` (`getShiftBadge` — the roster chip is drawn on BOTH sides
- * of the feature, and a second copy of that markup is how the override→display ladder drifted apart
- * before v16.48), `date-format.js`, `overtime-phase.js`, `overtime-sunday-release.js` and
+ * pure and Node-loadable: `roster-data.js` (`getShiftBadge` — one roster chip on BOTH sides of the
+ * feature), `date-format.js`, `overtime-phase.js`, `overtime-sunday-release.js` and
  * `overtime-clock.js`. The invariant this module keeps is Node-testability, not an
  * empty import list; do not add anything that breaks the former.
  *
  * ── THE CLIENT CLOCK IS PRESENTATIONAL, AND THAT IS THE WHOLE POINT OF `clockOffset` ────────────
  *
- * The server decides whether a submission is in time; nothing here can change that. But the page
- * still has to SAY whether a form is open, and it can only do that from the device clock — which
- * on a staff phone can be minutes out. So `getMyOvertimeState` returns `serverNow`, and this module
- * turns it into an offset that corrects every later reading.
+ * The server decides whether a submission is in time. The page still has to SAY whether a form is
+ * open, from a device clock that can be minutes out, so `getMyOvertimeState` returns `serverNow`
+ * and the offset corrects every later reading.
  *
  * Two rules that are easy to get wrong and expensive to get wrong:
  *
@@ -29,18 +27,17 @@
  *     least produces a true message.
  */
 
-// WHERE THE WEEK STANDS moved to overtime-phase.js at v23.84; re-exported so no importer had to
-// change, and `deadlineLabel` imported back for the words here that print a deadline.
+// WHERE THE WEEK STANDS lives in overtime-phase.js; re-exported here, and `deadlineLabel` imported
+// for the words here that print a deadline.
 import { deadlineLabel } from './overtime-phase.js';
 export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
 import { getShiftBadge, formatISO, isSunday } from './roster-data.js';
 import { releaseRequestLine } from './overtime-sunday-release.js';
 import { printedStamp, londonDate, londonClock, MONTH_ABB, MONTH_NAMES, DAY_NAMES_FULL } from './date-format.js';
 
-// THE CLOCK LEFT THIS MODULE at v23.69 — the six decisions a member's own clock may make about a
-// deadline, as against the words this module puts a deadline into. Re-exported here so every
-// consumer and both existing suites are untouched; the argument for the split, and the rule all six
-// obey (the client never refuses what the server would accept), are in overtime-clock.js's header.
+// THE CLOCK — the six decisions a member's own clock may make about a deadline — lives in
+// overtime-clock.js, re-exported here. The rule all six obey (the client never refuses what the
+// server would accept) is in its header.
 export {
     SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS, clockOffset, submitDisposition, shouldResyncClock,
     canRestoreNow,
@@ -49,9 +46,8 @@ export {
 /**
  * Has this day been ANSWERED, or merely started?
  *
- * A picked mode with nothing behind it is neither answered nor untouched: the member opened the
- * custom row, typed one time and stopped. Treating that as answered submits a half-declaration
- * about somebody's own life under their name, which is the same class of wrong as pre-filling.
+ * A picked mode with nothing behind it (a custom row with one time typed) is not answered:
+ * submitting it would put a half-declaration under somebody's name — the same wrong as pre-filling.
  *
  * `start === end` is unfinished rather than a 24-hour offer, for the reason `shiftSpanMinutes`
  * refuses the same pair below.
@@ -68,9 +64,7 @@ export function dayUnfinished(answer) {
  * Which of a window's dates are still unanswered, IN WINDOW ORDER.
  *
  * One list answers both questions the form asks — how many are outstanding, and which one an error
- * should walk to. Those were three separate traversals with three chances to disagree, and a count
- * that disagrees with the day it points at is a form telling a member to finish a day they have
- * already finished.
+ * should walk to — so the count can never disagree with the day it points at.
  *
  * @param {Record<string, any>} answers
  * @param {string[]} dates the window's dates, in order
@@ -85,16 +79,10 @@ export function unfinishedDates(answers, dates) {
  *
  * FOUR outcomes, and the last two are the point. `AbortController` stops us waiting; it does not
  * stop the server writing — so when the re-read itself fails there is no honest answer, and
- * reporting "it did not save" invites a second, contradictory submission that then legitimately
- * conflicts.
+ * reporting "it did not save" invites a second, contradictory submission.
  *
- * `gone` is the same mistake in a quieter disguise (v21.96, external review). A member can be
- * WITHDRAWN from a week — a leaver, or a correction — and the endpoint then stops returning that
- * window to them at all. If a manager does it in the seconds between a timed-out submission and its
- * re-read, the week vanishes, our mutation id is nowhere to be found, and the old rule announced
- * "that submission didn't reach the server". It did. Nothing is lost and the member is no longer
- * eligible, so the cost is only the words — but they are words that send somebody to re-answer a
- * form that is not there.
+ * `gone`: a member WITHDRAWN from the week between a timed-out submission and its re-read no longer
+ * sees the window, so our mutation id cannot be found — that is not "it didn't reach the server".
  *
  * `not-saved` therefore means what it says: **the week is still ours and our answer is not in it.**
  *
@@ -118,7 +106,7 @@ export function reconcileVerdict(stateOk, freshSubmission, pendingMutationId, wi
 /**
  * Did a WRITE end without saying whether it happened? A timeout, a cut-off answer, or an error the
  * server did not name (`http-5xx` — a function out of time answers so) may each have been written, so
- * only a re-read can tell (overtime-ui-10) — never "it failed". Every Overtime write asks this.
+ * only a re-read can tell — never "it failed". Every Overtime write asks this.
  * @param {{ ok: boolean, code?: string, status?: number }} r
  */
 export const writeOutcomeUnknown = (r) => !r.ok && (r.code === 'timeout' || r.code === 'network'
@@ -148,16 +136,8 @@ export function conflictIsOurs(pendingMutationId, lastMutationId) {
  * midnight, which is how the roster writes every dispatcher night turn. Returns null for anything
  * that is not a pair of HH:MM times, so an unknown day never pretends to have a length.
  *
- * ── EQUAL TIMES ARE NOT A 24-HOUR DUTY ──────────────────────────────────────────────────────────
- *
- * "08:00–08:00" used to come back as 1440, on the same branch that handles a night turn. Nothing
- * anywhere else in the app reads equal times that way: the member's own custom range refuses
- * `start === end` outright, and the server's `before_after` check treats a non-advancing pair as a
- * transposition. A value like that is malformed, not a round-the-clock shift.
- *
- * The consequence was small and in the wrong direction: 1440 is over the 12-hour gate, so the
- * willingness tick would be withheld on a garbage reading. `offersFullTwelve` needs a POSITIVE fact
- * to withhold, and null is not one — withholding costs the member; asking on a nonsense roster does not.
+ * EQUAL TIMES ARE NOT A 24-HOUR DUTY: "08:00–08:00" is malformed (the custom range refuses
+ * `start === end` too), so it is null — and `offersFullTwelve` needs a POSITIVE fact to withhold.
  * @param {string|null|undefined} start @param {string|null|undefined} end
  * @returns {number|null}
  */
@@ -175,10 +155,8 @@ export function shiftSpanMinutes(start, end) {
 /**
  * Are two stored day answers the same declaration?
  *
- * Structural and order-independent, because the two sides come from different producers — the
- * form's transitions (overtime-answer.js) and the server's canonicalised copy — whose key ORDER may
- * differ while the answer does not. A `JSON.stringify` comparison would call those different, and the form would
- * mark a day "changed" that the member has not touched.
+ * Structural and order-independent: the form's transitions (overtime-answer.js) and the server's
+ * canonicalised copy may differ in key ORDER while the answer does not.
  * @param {any} a @param {any} b
  */
 export function sameAnswer(a, b) {
@@ -245,62 +223,37 @@ export function weekDates(weekStart) {
 /**
  * When a printed sheet came out of the tray: "Tue 8 Sep 2026 · 14:07".
  *
- * Its own formatter rather than a `deadlineLabel` with a flag, because the two answer opposite
- * questions and the YEAR is the difference. A deadline is always within days of being read, so a
- * year on it is noise — that shape is argued above and should stay. A printout is a physical object
- * that outlives the screen: it goes in a folder, and next August a sheet stamped "Tue 8 Sep" cannot
- * be told from one printed a year earlier. That is the same failure the printed-at line was added
- * to prevent (two sheets of the same week, no way to order them), reached across years instead of
- * across hours.
- *
- * London wall-clock for the same reason `deadlineLabel` is: the sheet is a roster-office document.
+ * Its own formatter rather than a `deadlineLabel` with a flag: the YEAR is the difference. A
+ * deadline is read within days; a printout goes in a folder and must be told from last year's.
+ * London wall-clock, as `deadlineLabel`: the sheet is a roster-office document.
  * @param {number} ms
  */
 export function printedLabel(ms) {
     if (!ms) return '';
-    // `printedStamp` owns the WHOLE line including the word "Printed" (v24.06). The template used
-    // to supply that word, which meant the four other printable surfaces each supplied their own
-    // and could word it differently — and three of them did. One function, one line.
-    //
-    // London for both halves, via `londonClock` rather than `formatClock`: this sheet is a
-    // roster-office document, and it sits beside the deadline lines above it, which are London too.
+    // `printedStamp` owns the WHOLE line including the word "Printed", so every printable surface
+    // words it alike. London for both halves (`londonClock`, not `formatClock`), like the deadlines.
     return printedStamp(londonDate(ms), londonClock(ms));
 }
 
 /**
  * The line that makes a PRINTED availability sheet honest about its own age.
  *
- * "As at", not "printed at", and the difference is the whole point. What matters to somebody
- * ringing round from a sheet of paper is when the availability was READ — not when the paper came
- * out of the tray. A page left open for an hour and then printed would carry a timestamp an hour
- * newer than its own contents, which is the one direction this must not be wrong in.
- *
- * So it is stamped at render and never refreshed on `beforeprint`. (That event is also absent on
- * iOS Safari, so a refresh would be inconsistent as well as misleading.)
+ * "As at", not "printed at": what matters is when the availability was READ. A page left open for
+ * an hour and then printed must not claim to be an hour newer than its contents — so it is stamped
+ * at render and never refreshed on `beforeprint` (absent on iOS Safari anyway).
  * @param {number} nowMs corrected server time at the moment the workspace was rendered
  */
 export function asAtLine(nowMs) {
-    // No directional word. It said "the final deadline above" and the deadline prints on the NEXT
-    // line down — the kind of thing that is invisible while writing the sentence and obvious on the
-    // page. Positional references are a standing hazard here, because this line is authored for a
-    // layout it is never seen in.
+    // No directional word ("above"/"below"): this line is authored for a layout it is never seen in.
     return `Availability as at ${deadlineLabel(nowMs)} — it can change until the final deadline.`;
 }
 
 /**
  * How long ago a declaration was made, in the words a person would use.
  *
- * ── AN ANSWER'S AGE IS PART OF WHAT IT MEANS ────────────────────────────────────────────────────
- *
- * The reviewer's row showed WHO, WHAT they are rostered and WHAT they said, and nothing about WHEN
- * they said it. A mid-week absence is the case that breaks on: "a member · Available all day" could
- * have been written nineteen days ago, before a roster the member has since seen and planned
- * around, and the row looked exactly as fresh as one written this morning.
- *
- * Deliberately RELATIVE and coarse. An exact timestamp reads as precision about a thing whose value
- * is approximate — what a clerk needs is "recent" or "a while ago", and a date forces them to do
- * the subtraction. Days, because this feature's whole clock is days: nothing here turns on hours —
- * and London DATES, because "yesterday" is a date word: it names the day before, not 24 hours.
+ * AN ANSWER'S AGE IS PART OF WHAT IT MEANS: an answer from nineteen days ago may predate a roster
+ * the member has since planned around. Deliberately RELATIVE and coarse — a clerk needs "recent" or
+ * "a while ago" — in London DATES, because "yesterday" names the day before, not 24 hours.
  *
  * Returns null when there is nothing to date, so a caller renders nothing rather than "unknown".
  * @param {number|null|undefined} ms when the declaration was last changed
@@ -309,15 +262,11 @@ export function asAtLine(nowMs) {
  */
 export function declaredAgo(ms, nowMs) {
     if (!ms || !nowMs || ms > nowMs) return null;
-    // CALENDAR days in London, not elapsed 24-hour blocks (whole-app review, Nov 2026). Blocks put
-    // an answer from 23:30 read at 08:00 under "today" and one from two dates back under
-    // "yesterday" — wrong toward FRESHER every time, the costly direction. Both dates sit at local
-    // noon, so a device clock change shifts the gap by an hour and the rounding absorbs it.
+    // CALENDAR days in London, not elapsed 24-hour blocks, which err toward FRESHER — the costly
+    // direction. Both dates sit at local noon, so the rounding absorbs a clock change.
     const days = Math.round((londonDate(nowMs).getTime() - londonDate(ms).getTime()) / 86_400_000);
-    // Retention deletes a window ~13 weeks after its Saturday, so no REAL declaration can be much
-    // past 100 days old — an age beyond that is a corrupt or missing timestamp wearing a number
-    // ("20682 days ago", from an epoch-zero milli value, is what surfaced this in a render). The
-    // line qualifies an answer; better absent than absurd (v21.60).
+    // Retention deletes a window ~13 weeks after its Saturday, so an age past 120 days is a corrupt
+    // or missing timestamp. Better absent than absurd.
     if (days > 120) return null;
     if (days === 0) return 'today';
     if (days === 1) return 'yesterday';
@@ -327,13 +276,9 @@ export function declaredAgo(ms, nowMs) {
 /**
  * The standing receipt for a submitted form: "Submitted · updated Tue 18 Aug · 09:42".
  *
- * A member who reloads used to have only the green day rows to go on. Those are a correct signal
- * and a weak one — they say what each answer IS, not that the form was ever accepted, and the
- * confirmation that did say so (`✓ Availability submitted`) lives in a feedback line that does not
- * survive the reload. So the strongest evidence on screen was an inference from seven colours.
- *
- * Returns null when there is nothing to receipt, so the caller renders nothing rather than an empty
- * chrome — an unsubmitted form must not carry a hollow receipt.
+ * The day rows say what each answer IS, not that the form was accepted, and the `✓` feedback line
+ * does not survive a reload — so this receipt does. Null when there is nothing to receipt: an
+ * unsubmitted form must not carry a hollow receipt.
  * @param {any} submission the member's own submission head, or null
  * @returns {string|null}
  */
@@ -354,25 +299,15 @@ export function receiptLine(submission) {
  */
 export function rowStateCopy(state) {
     switch (state) {
-        // "Form open" rather than "Created": a reviewer cares that staff can answer, not that a
-        // document was written. And nothing here says WINDOW any more — that is our word for the
-        // record, never theirs. The page calls it a form everywhere a person can see.
+        // "Form open", never "window" — that is our word for the record, never theirs.
         case 'created':                    return { label: 'Form open',    tone: 'ok'   };
-        // A created week whose final deadline has gone. The horizon's FIRST row is always the
-        // current week, and its deadline is eleven days behind it — so before this existed, every
-        // reviewer was told "Form open" about a week that had closed and whose roster was already
-        // published. Neutral tone, not a warning: a closed week is the normal end state, and the
-        // availability is still worth reading as the record of what was planned from.
+        // A created week whose final deadline has gone. Neutral tone: a closed week is the normal end
+        // state, and still worth reading as the record of what was planned from.
         case 'created-closed':             return { label: 'Form closed',  tone: 'done' };
-        // The scheduler opens this overnight, so the row must not read as a demand. It said
-        // "Not created" beside a prominent Create button, which asks a manager to do a job the
-        // system now does — they would either do it redundantly or assume something was broken.
+        // The scheduler opens this overnight, so the row must not read as a demand.
         case 'not-created':                return { label: 'Opens automatically overnight', tone: 'warn' };
-        // The same week, after the overnight that did not come. A reassurance is only worth giving
-        // while it is true, and this one repeats itself daily for as long as the schedule is broken —
-        // so the row would keep promising the fix right up to the deadline it then missed. Naming
-        // the Create button is deliberate: the reviewer cannot restart a scheduled job, and the
-        // button beside this label works whether or not anyone ever diagnoses why the job stopped.
+        // After the overnight that did not come. Naming the Create button is deliberate: the reviewer
+        // cannot restart a scheduled job, and the button works whatever stopped it.
         case 'not-created-overdue':        return { label: 'Did not open overnight · create it here', tone: 'bad' };
         // Still opens automatically, but late enough to be worth a look: the first deadline has
         // gone, so anyone answering now misses the draft roster.
@@ -402,54 +337,21 @@ export function countsCopy(expected, received) {
 /**
  * Which availability modes a day may offer.
  *
- * MOVED here from overtime-roster.js at v20.75 — that module imports the Firebase SDK, so this
- * rule was unreachable from a Node test, and it turned out to be wrong in a way only a test pins:
+ * AN OVERNIGHT DUTY OFFERS NO "AFTER" AND NO "BEFORE & AFTER": its `end` is the NEXT morning, so
+ * "After" would store a boundary on the wrong day and "Before & after" an inverted pair the server
+ * refuses. "Before" stays (OVERTIME_AVAILABILITY.md → "Overnight duties").
  *
- * ── AN OVERNIGHT DUTY OFFERS NO "AFTER" AND NO "BEFORE & AFTER" ─────────────────────────────────
+ * The roster-derived shortcuts exist ONLY where an authoritative duty time is known; offering them
+ * otherwise would invent a boundary or take one from an unverified base roster.
  *
- * Dispatchers are the only grade rostered across midnight (22:00–07:00, 22:30–09:00 — and their
- * late turns ending past midnight, 15:30–00:30). On such a day `end` is the NEXT morning, and both
- * anchored offers built from it are wrong:
+ * THE 12-HOUR ANSWER IS NO LONGER A MODE (owner): willingness is the `fullTwelve` flag
+ * (`offersFullTwelve`). `answerCopy` still renders a saved `twelve_hours`, and the form still shows
+ * it when it is what somebody saved.
  *
- *   "After 07:00"          stores `from: 07:00` on THAT date — a morning the member is still on
- *                          duty from the night before-last's perspective, and hours they never
- *                          declared. The English reads as "after my shift"; the record is not.
- *   "Before & after duty"  stores `until: 22:00, from: 07:00` — which the server REFUSES
- *                          (`before-after-inverted`: until > from reads as a transposed pair). The
- *                          button was offered and every press ended in a failed submit.
- *
- * "Before 22:00" is still sound — the pre-duty gap that day is real — so it stays. The rest of the
- * day's freedom is expressible with Custom times, which the member types themselves.
- *
- * The roster-derived shortcuts exist ONLY where an authoritative duty time is known. Without one
- * there is no boundary to anchor to, and offering them anyway would either invent one or quietly
- * attach one from a base roster nobody has verified.
- *
- * ── THE 12-HOUR ANSWER IS NO LONGER A MODE (v21.24, owner) ──────────────────────────────────────
- *
- * `twelve_hours` (v20.83) answered HOW LONG in a control whose every other option answered WHEN,
- * so the two competed: on a rest day it duplicated `all_day`, and on a worked day it gave a
- * duration with no window, which a clerk cannot build a duty from. External review of v21.22
- * reported both, and the owner split the dimensions — the window stays here, and willingness
- * became the optional `fullTwelve` flag the form ticks alongside it.
- *
- * So this function no longer offers it. `offersFullTwelve` below carries what is left of the old
- * gate, because that gate was always about the DAY rather than the mode: a day whose effective
- * roster already reaches 720 minutes has nothing left to give, so there is nothing to ask.
- * `answerCopy` still renders the retired mode, and the form still shows it when it is what somebody
- * saved — an answer already given does not stop being the answer they gave.
- *
- * ── ONE BOTH-SIDES ANSWER PER DAY (v21.22, owner) ───────────────────────────────────────────────
- *
- * On a normal worked day, "Any time around my shift" (all_day) and "Before & after duty" said the
- * SAME thing to a roster clerk — free both sides of the duty — and the owner's review named the
- * pair as the confusion it was. The one that stays is `before_after`, because it stores the clock
- * times the member actually declared: a later roster change leaves their answer saying what they
- * said (flagged by `answerAnchorStale`), which is the schema's own philosophy, where all_day
- * silently re-points at whatever the shift becomes. all_day is KEPT everywhere before_after cannot
- * be offered — rest/spare days (nothing to anchor to), overnight duties (before_after is refused
- * by the server as inverted) and unknown rosters — so every day still has a both-sides answer,
- * and a SAVED all_day on a worked day still renders (the form re-adds a stored mode to the list).
+ * ONE BOTH-SIDES ANSWER PER DAY (owner): on a worked day `before_after` replaces `all_day`, because
+ * it stores the clock times actually declared (a later roster change is flagged by
+ * `answerAnchorStale`, never silently re-pointed). all_day is KEPT wherever before_after cannot be
+ * offered — rest/spare days, overnight duties, unknown rosters — and a SAVED all_day still renders.
  *
  * It stays a single-select because twelve hours is the ceiling every plan is held to, not something a
  * member grants — the form states it (the cap note); willingness for that longest day is the tick.
@@ -463,18 +365,12 @@ export function modesFor(ctx) {
 }
 
 /**
- * Whether this day should ASK the willingness question at all (v21.24).
+ * Whether this day should ASK the willingness question at all. A day whose EFFECTIVE roster already
+ * reaches 720 minutes has nothing left to give; every other day may be asked, a rest day included.
  *
- * Inherited whole from the old `twelve_hours` offer gate, because that gate was never about the
- * mode: a day whose EFFECTIVE roster already reaches 720 minutes — a 12-hour shift, or a 12-hour
- * RDW already agreed as extra — has nothing left to give, so the question has no answer worth
- * recording. Every other day may be asked, including a rest day, where "go long if it helps" means
- * a full 12-hour turn.
- *
- * It needs a POSITIVE fact to withhold: `rosteredMinutes` is null when the day's length could not
- * be read, and unknown is not "already rostered 12 hours", so the tick shows. Same direction every
- * unknown resolves on this page — withhold what would ANCHOR to an unverified roster (the
- * before/after shortcuts), keep what anchors to nothing (this, all-day, custom).
+ * It needs a POSITIVE fact to withhold: an unreadable length (null) is not "already rostered 12
+ * hours", so the tick shows — withhold what would ANCHOR to an unverified roster, keep what anchors
+ * to nothing.
  * @param {{rosteredMinutes?: number|null}|null} ctx
  */
 export function offersFullTwelve(ctx) {
@@ -484,13 +380,8 @@ export function offersFullTwelve(ctx) {
 /**
  * What a failed submit should SAY. Pure, so every branch is pinned by a test.
  *
- * Until v20.75 every code that was not timeout/conflict/closed got "Check your connection and try
- * again" — including the server's own validation refusals, where the connection is provably fine
- * (a refusal IS a response). Telling somebody to check their connection when the server has just
- * told us which DAY it refused is worse than unhelpful: they retry the same payload and fail the
- * same way, with the actual remedy — re-choose that day — never mentioned.
- *
- * `dayLabel` is the server's `date` field put into words; when present it names the remedy. The
+ * A server refusal IS a response, so connection advice there is a false lead. `dayLabel` is the
+ * server's `date` field put into words; when present it names the remedy — re-choose that day. The
  * caller pairs it with `focusDay`, so the message and the scroll agree about where the problem is.
  * @param {string} code
  * @param {string|null} dayLabel e.g. "Wed 2 Sep", or null when the refusal names no day
@@ -499,18 +390,17 @@ export function offersFullTwelve(ctx) {
 export function submitFailureCopy(code, dayLabel) {
     if (dayLabel) return `Your answer for ${dayLabel} couldn't be accepted — choose that day again and resubmit.`;
     switch (code) {
-        // Nothing left the phone: its sign-in could not be refreshed for want of a network
-        // (overtime-core-3). Never "reload" — that throws the unsent answers away. (`network` and a
-        // code-less 5xx never arrive here: the form reconciles them, `writeOutcomeUnknown`.)
+        // Nothing left the phone: its sign-in could not be refreshed for want of a network.
+        // Never "reload" — that throws the unsent answers away. (`network` and a code-less 5xx
+        // never arrive here: the form reconciles them, `writeOutcomeUnknown`.)
         case 'offline':    return 'Couldn\'t reach the server, so nothing was sent. Check your connection and try again — your answers are still here.';
         case 'no-session': return 'Your sign-in has expired. Reload the page and sign in again.';
         // Server-side refusals: the request ARRIVED, so connection advice would be a false lead.
         case 'write-failed': return 'The server couldn\'t save just now. Try again in a moment.';
-        // NOT a fault and NOT retryable, so it must not read like either (v21.20): somebody decided they are no longer
-        // asked this week, and "try again" would send them round a loop the server refuses every time.
+        // NOT a fault and NOT retryable: "try again" would loop on a refusal every time.
         case 'withdrawn':    return 'You\'re no longer being asked about this week. Speak to your manager if that\'s wrong.';
         case 'not-a-participant': return 'This week isn\'t open to you. Speak to your manager if that\'s wrong.';
-        case 'no-window':  return 'This week is no longer open, so nothing was saved.';   // gone: "try again" loops (24 Nov 2026)
+        case 'no-window':  return 'This week is no longer open, so nothing was saved.';   // gone: "try again" loops
         default:           return `Couldn't save. Try again in a moment — if it keeps happening, tell the admin (code: ${code}).`;
     }
 }
@@ -521,15 +411,10 @@ export function submitFailureCopy(code, dayLabel) {
  */
 export function answerCopy(day) {
     const base = answerWindowCopy(day);
-    // The willingness rides on the END of the window, never in place of it (v21.24). The reviewer's
-    // chip is their only sight of this answer, and the two halves say different things: the window
-    // is where a duty may sit, the suffix is how far it may run. A chip that showed only one of them
-    // would be the old `twelve_hours` problem again, in the one place it did the most damage.
-    //
-    // It attaches ONLY to a real availability window. The server refuses `fullTwelve` beside
-    // `unavailable`, so "Not available · would work up to 12 hours" describes a state that cannot
-    // exist — and a chip rendering an impossible state is worse than a clumsy phrase, because it
-    // makes a reviewer doubt the rest of the panel. Same for an answer we could not read at all.
+    // The willingness rides on the END of the window, never in place of it: the window is where a
+    // duty may sit, the suffix how far it may run. It attaches ONLY to a real availability window —
+    // the server refuses `fullTwelve` beside `unavailable`, and a chip drawing an impossible state
+    // makes a reviewer doubt the rest of the panel.
     const attaches = !!day && typeof day === 'object' && day.fullTwelve === true
         && WINDOW_MODES.has(day.mode);
     return attaches ? `${base} · would work up to 12 hours` : base;
@@ -544,25 +429,10 @@ function answerWindowCopy(day) {
     switch (day.mode) {
         case 'unavailable':  return 'Not available';
         case 'all_day':      return 'Available all day';
-        // "IN TOTAL" IS THE WHOLE MEANING (owner, Aug 2026). The declaration is that the member's
-        // duty that day may run to twelve hours including whatever is already rostered — not that
-        // they will work a twelve-hour turn on top of it. A reviewer reading "up to 12 hours" beside
-        // a 07:00–15:00 duty could plan either, and the two differ by eight hours of somebody's day.
-        // The chip has to carry the qualifier alone, because unlike the form's button it has no
-        // roster context beside it to disambiguate.
-        //
-        // ── "FOR A FULL", MATCHING THE BUTTON THE MEMBER PRESSED (v21.23, external review) ──────
-        //
-        // v21.22 reworded the member's button to "For a full 12-hour turn" / "For a full 12 hours in
-        // total" and left this chip saying "up to". Those are not the same statement — "up to" is
-        // the BROADER one, admitting any duration below the ceiling — so the member declared a
-        // willingness to work the maximum and the reviewer read a willingness to work some amount at
-        // most that. Both phrases were pinned by tests, which is how a product ambiguity stays green.
-        //
-        // The chip follows the BUTTON, never the other way round: the record has to state what the
-        // person was actually shown when they chose it. That is the same rule the anchored answers
-        // already follow, where a selected option reads its boundary off the stored answer rather
-        // than off a roster that has since moved.
+        // "IN TOTAL" IS THE WHOLE MEANING (owner, Aug 2026): twelve hours including whatever is
+        // already rostered, not a twelve-hour turn on top. "FOR A FULL", matching the button the
+        // member pressed: the chip follows the BUTTON, never the other way round — the record states
+        // what the person was shown when they chose it.
         case 'twelve_hours': return 'Available for a full 12 hours in total';
         case 'before':       return `Available before ${day.until}`;
         case 'after':        return `Available after ${day.from}`;
@@ -577,12 +447,10 @@ function answerWindowCopy(day) {
 /**
  * True when a frozen participant record has been withdrawn from its week.
  *
- * ⚠️ THE SAME RULE EXISTS SERVER-SIDE, in `functions/overtime-core.js` (`isWithdrawn`). It has to:
- * the endpoints count the withdrawn to keep `expected` honest, and the reviewer's browser reads the
- * participant documents DIRECTLY from Firestore — the same CommonJS/ESM boundary `normaliseSurname`
- * sits on. Both are one field test against `true` and neither may loosen to a truthiness check,
- * because the failure is silent and points the wrong way: a record that is not withdrawn read AS
- * withdrawn removes a person the reviewer is supposed to be chasing.
+ * ⚠️ THE SAME RULE EXISTS SERVER-SIDE, in `functions/overtime-core.js` (`isWithdrawn`): the reviewer's
+ * browser reads the participant documents DIRECTLY from Firestore. Both are one field test against
+ * `true` and neither may loosen to a truthiness check — a record wrongly read AS withdrawn removes a
+ * person the reviewer is supposed to be chasing.
  * @param {any} participant
  */
 export function isWithdrawn(participant) {
@@ -593,12 +461,10 @@ export function isWithdrawn(participant) {
 /**
  * "Stopped by H. Croft, Wed 12 Aug" — the caption that makes an exclusion visible.
  *
- * The by-WHOM half is not decoration. This is the one action on the page that removes a person from
- * a count, so a line reading only "not being asked" would be an unattributable change to somebody
- * else's record. Either half may be missing without the line becoming wrong — it simply says less.
- *
- * The words avoid "withdrawn" on purpose: that is the field name, and the reviewer's question is
- * whether this person is still being ASKED. `withdrawn` stays in the data and out of the copy.
+ * The by-WHOM half is not decoration: this is the one action that removes a person from a count, so
+ * it must be attributable. Either half may be missing — the line simply says less. The words avoid
+ * "withdrawn" on purpose: that is the field name; the reviewer's question is whether this person is
+ * still being ASKED.
  * @param {any} participant
  */
 export function withdrawnLine(participant) {
@@ -606,15 +472,14 @@ export function withdrawnLine(participant) {
     const by = typeof participant.withdrawnBy === 'string' && participant.withdrawnBy
         ? ` by ${participant.withdrawnBy}` : '';
     const when = participant.withdrawnAt
-        // LONDON's date, not UTC's (v24.23): `toISOString()` is UTC, so a stop between midnight and
-        // 1am in summer read as the previous day — on the one line that attributes a change.
+        // LONDON's date, not UTC's: a stop between midnight and 1am in summer is not the day before.
         ? `, ${shortDate(formatISO(londonDate(participant.withdrawnAt)))}` : '';
     return `Stopped${by}${when}`;
 }
 
 /**
  * Until when a Stop asking pressed NOW can be undone — the one promise the confirmation and the
- * panel note make (overtime-ui-2). Restoring is not the mirror of withdrawing: somebody stopped on or
+ * panel note make. Restoring is not the mirror of withdrawing: somebody stopped on or
  * before the first deadline can be put back only until it, anybody stopped after it while the week
  * is open (`canRestoreNow`; OVERTIME_AVAILABILITY.md). An unknown deadline under-promises.
  * @param {number} initialDeadlineAt @param {number} nowMs
@@ -637,33 +502,15 @@ export function isUnavailable(day) {
 /**
  * True when a stored answer offers SOMETHING — the positive question, asked positively.
  *
- * The reviewer's views used to ask `!isUnavailable(day)`, which is not the same predicate and
- * differs on exactly the input that matters: a MISSING day. `!isUnavailable(undefined)` is true, so
- * a member whose submission somehow lacked a date would have been counted and listed as available,
- * with no answer chip beside their name to say otherwise. The server normalises all seven days, so
- * this cannot fire today — but "cannot fire today" is the wrong safeguard for a list somebody rings
- * round from, and the failure direction is the bad one: it manufactures availability.
- *
- * So the answer must be a known mode that is not `unavailable`. Unknown is never positive.
- *
- * ── AND IT NOW ASKS THE KNOWN SET, WHICH IS WHAT THAT SENTENCE ALWAYS MEANT (v21.52) ────────────
- *
- * The rule above shipped as a comment. The code beneath it accepted ANY non-empty string, so a mode
- * this build cannot read — `WINDOW_MODES` gaining an entry in a later release, read by a browser
- * still serving a cached older one, which is the ordinary shape of a schema skew rather than an
- * exotic one — was counted available, filed under Available, and drawn in the available colour,
- * beside a chip reading "Not answered" because `answerWindowCopy` got it right. Three signals about
- * one day, and the two that a clerk acts on were the wrong ones.
- *
- * Found by rendering the reviewer's week and reading it, which is the only way it could be found:
- * no test asserted it, and the defect looks like a fully-populated panel.
+ * Never `!isUnavailable(day)`: that is true for a MISSING day, and would manufacture availability on
+ * a list somebody rings round from. The answer must be a KNOWN mode that is not `unavailable` — a
+ * mode this build cannot read (a newer release's, seen by a cached older client) is never positive.
  * @param {any} day
  */
 export function isAvailableAnswer(day) {
     if (!day || typeof day !== 'object' || typeof day.mode !== 'string') return false;
-    // WINDOW_MODES is every mode that describes a window a duty could sit in — which is exactly
-    // "known, and not `unavailable`". Consulting it rather than restating the test is what stops
-    // this drifting from the mode list again the next time one is added.
+    // WINDOW_MODES is exactly "known, and not `unavailable`"; consulting it stops this drifting from
+    // the mode list.
     return WINDOW_MODES.has(day.mode);
 }
 
@@ -672,12 +519,8 @@ export function isAvailableAnswer(day) {
  *
  * `getShiftBadge` is the app's one badge builder — the calendar, Team View, the admin week grid and
  * the roster-review table all render from it — so a Rest day here wears the identical 🏠 Rest chip
- * it wears on the calendar. Writing a second set of words for the same fact is how the
- * override→display ladder drifted, one surface at a time, before v16.48.
- *
- * Lived in `overtime-roster.js` until v20.87. It moved because the REVIEWER's rows now draw it too,
- * and that module imports the Firebase SDK — so importing it would have made `overtime-manager.js`
- * unloadable in Node, which is the one thing that module's header says it must stay.
+ * it wears on the calendar. It lives here, not in `overtime-roster.js` (Firebase), so
+ * `overtime-manager.js` stays loadable in Node.
  *
  * Returns HTML, and every value in it is app-derived (a shift constant, or a roster time already
  * matched against the shift-range pattern) — no member input reaches this string.
@@ -686,31 +529,20 @@ export function isAvailableAnswer(day) {
  */
 export function rosterBadge(ctx) {
     if (!ctx) return `<span class="ot-day-unknown">Roster unavailable</span>`;
-    // ADMIN'S BADGE, NOT THE CALENDAR'S (v23.85, owner: "notice the difference in how shift times
-    // are handled?"). This row was built to mirror admin's Change-a-Shift row, and then drew the
-    // Calendar's badge — the classification WORD in the pill ("☀️ EARLY") with the times floating
-    // beside it as plain text. Two objects for one fact, and the word is redundant when the time is
-    // right there. Admin puts the TIME in the pill (`showTime`), one object, and the options beside
-    // this badge are "Before 06:20 / After 14:20" — the time is the whole point of the row. Same
-    // option, same raw string admin passes, so the two pages cannot render one shift two ways (permanentShift too).
+    // ADMIN'S BADGE, NOT THE CALENDAR'S (owner): the TIME in the pill (`showTime`), as admin's
+    // Change-a-Shift row draws it — the options beside it ("Before 06:20 / After 14:20") are about the
+    // time. Same option and string admin passes, so one shift never renders two ways.
     return getShiftBadge(ctx.shift, { showTime: true, member: { permanentShift: ctx.permanentShift } });
 }
 
 /**
  * Has the roster moved out from under a saved answer that was anchored to it?
  *
- * Three of the six modes store a boundary taken from the member's duty times — "available after my
- * shift" is stored as `15:00`, never as a reference, so that a later roster change cannot silently
- * re-point what somebody declared. That is the right storage rule and it creates this question: the
- * declaration stands, but it may no longer describe the day the member was picturing.
+ * Three modes store a boundary taken from the duty times as a clock time (`15:00`), never a
+ * reference, so a later roster change cannot re-point a declaration. The form SAYS SO rather than
+ * re-anchoring — that would edit a declaration nobody re-made.
  *
- * The form answers it by SAYING SO rather than by changing anything. Re-anchoring the answer would
- * be the app editing a declaration nobody re-made; showing nothing would leave a member to notice a
- * two-digit difference between a badge and a button.
- *
- * **Unknown roster is not a changed roster.** `shift` is null when the context could not be read at
- * all, and this returns false there — accusing a member of a stale answer on the strength of a
- * failed Firestore query would be the same invention this feature refuses everywhere else.
+ * **Unknown roster is not a changed roster.** `shift` null (unreadable context) returns false.
  *
  * @param {any} day the stored answer
  * @param {{hasTime?: boolean, start?: string, end?: string}|null} shift the CURRENT roster context
@@ -724,9 +556,7 @@ export function answerAnchorStale(day, shift) {
         case 'before':       return !shift.hasTime || day.until !== shift.start;
         case 'after':        return !shift.hasTime || day.from  !== shift.end;
         case 'before_after': return !shift.hasTime || day.until !== shift.start || day.from !== shift.end;
-        // The other three carry nothing taken from the roster: unavailable and all_day have no
-        // boundary at all, and a custom range is the member's own times, which the roster never
-        // supplied and therefore cannot invalidate.
+        // The other three carry nothing taken from the roster, so it cannot invalidate them.
         default:             return false;
     }
 }
@@ -734,21 +564,16 @@ export function answerAnchorStale(day, shift) {
 /**
  * Which of the three badge tones an answer wears — the visual half of `answerCopy`.
  *
- * THREE, not two, and for the same reason the reviewer's day panel has three sections: a person who
- * said no and a person who said nothing are opposites, and a badge that painted them alike would
- * undo in colour what the sections are careful to separate in structure. `none` is deliberately the
- * odd one out visually (unfilled) rather than a third fill — an absent answer is not a quieter
- * answer.
+ * THREE, not two: a person who said no and a person who said nothing are opposites. `none` is
+ * unfilled rather than a third fill — an absent answer is not a quieter answer.
  * @param {any} day
  * @returns {'yes'|'no'|'none'}
  */
 export function answerTone(day) {
     if (!day || typeof day !== 'object' || !day.mode) return 'none';
     if (day.mode === 'unavailable') return 'no';
-    // An UNREADABLE answer is not a green one (v21.52). Same reasoning as `isAvailableAnswer`, and
-    // it has to be the same answer: the chip's colour and the section it sits in are read together,
-    // so a green chip inside "No response" would just move the contradiction rather than end it.
-    // `none` is the tone a day with no answer already wears, which is what this is.
+    // An UNREADABLE answer is not a green one — the same answer as `isAvailableAnswer`, since the
+    // chip's colour and its section are read together.
     return WINDOW_MODES.has(day.mode) ? 'yes' : 'none';
 }
 
@@ -756,11 +581,9 @@ export function answerTone(day) {
  * The three derived facts a Manager needs about how a submission MOVED — computed from the
  * immutable revisions, never from a stored flag.
  *
- * ⚠️ A DELIBERATE DUPLICATE of `deriveHistory` in `functions/overtime-core.js`. Cloud Functions are
- * CommonJS and cannot import a browser ES module, which is the same boundary `normaliseSurname` and
- * the payday cutoffs sit on. `overtime-parity.test.mjs` runs BOTH implementations over the same
- * cases and fails if they disagree — because a drift here is silent: the Manager view would simply
- * stop flagging a change, and a flag that is absent looks exactly like a change that never happened.
+ * ⚠️ A DELIBERATE DUPLICATE of `deriveHistory` in `functions/overtime-core.js` (CommonJS cannot import
+ * a browser ES module). `overtime-parity.test.mjs` runs BOTH over the same cases — a drift is silent,
+ * since an absent flag looks exactly like a change that never happened.
  *
  * A form that OPENED at or after the initial deadline has no initial boundary — see the server copy.
  *
@@ -789,31 +612,13 @@ export function deriveHistory(revisions, headDays, initialDeadlineAt, openedAt =
 }
 
 /**
- * When each individual DATE's answer last changed (v21.26, external review of v21.22).
- *
- * ── THE DEFECT ──────────────────────────────────────────────────────────────────────────────────
- *
- * A submission has ONE `updatedAt` for the whole form, and the reviewer's rows printed their age
- * from it. So a member who answered all seven days a fortnight ago and edited only the Saturday
- * this morning had every one of their days reported as declared today. The figure was not
- * approximate — it was the wrong day's timestamp on six rows, always in the direction of looking
- * FRESHER than it was, which is the direction that costs something: a clerk arranging short-notice
- * cover is weighing exactly how current an answer is.
- *
- * ── DERIVED, NOT STORED ─────────────────────────────────────────────────────────────────────────
- *
- * The revisions are append-only and already carry every answer at every point, so the per-day
- * instant is a fact about data we already hold. Storing it alongside would be a second copy of a
- * derivable truth, free to disagree with the history it summarises — the same reasoning that keeps
- * `initialRevision` and `lateInitial` derived.
+ * When each individual DATE's answer last changed — the form's one `updatedAt` would report every
+ * day as fresh when only one was edited. DERIVED, NOT STORED, by OVERTIME_AVAILABILITY.md invariant 8's reasoning.
  *
  * A day's answer "changes" when it first appears and whenever its stored shape differs from the
- * revision before it. Structural comparison, not identity: the two sides pass through different
- * producers and a reordered object is not a change of mind.
+ * revision before it — structurally: a reordered object is not a change of mind.
  *
- * Returns `{}` when there are no revisions — a read of the history can fail while the head is
- * perfectly readable, and the caller then falls back to the whole-form timestamp rather than
- * printing nothing.
+ * Returns `{}` when there are no revisions; the caller then falls back to the whole-form timestamp.
  * @param {any[]} sortedRevisions revisions in ascending `revision` order
  * @returns {Record<string, number>} date → epoch ms
  */
@@ -862,17 +667,13 @@ const RELEASE_LABEL = releaseRequestLine({ releaseRequested: true });
  * from, so the copy can never disagree with the screen.
  *
  * THE THREE SECTIONS ARE ALWAYS NAMED, EMPTY OR NOT. "No response" absent from a summary reads as
- * "nobody outstanding" — the exact merge the whole feature forbids (see the module's three-answer
- * rule). An empty section says "nobody", in words.
+ * "nobody outstanding" — the exact merge the whole feature forbids. An empty section says "nobody".
  *
- * A REQUEST TO COME OFF A SUNDAY IS A FOURTH LINE, NEVER FOLDED INTO THE ANSWER (whole-app review,
- * Oct 2026). The screen flags it beside the member's answer; the copy left it out, so the one
- * request on the page that is about CONTRACTED work vanished on the way to the conversation where it
- * is decided. Its own line, because it is a second thing said about the day (invariant 1). Named on
- * every Sunday — "nobody" in words, by the rule above — and on any other day only if somebody asked.
+ * A REQUEST TO COME OFF A SUNDAY IS A FOURTH LINE, NEVER FOLDED INTO THE ANSWER: it is about
+ * CONTRACTED work, a second thing said about the day (invariant 1). Named on every Sunday ("nobody"
+ * in words) and on any other day only if somebody asked.
  *
- * IT STATES ITS GRADE AND ITS AGE, AS THE SHEET DOES (overtime-ui-1). A CES-only copy with neither
- * pasted into an email as the whole team, answered as at no time: "No response: nobody".
+ * IT STATES ITS GRADE AND ITS AGE, AS THE SHEET DOES — a CES-only copy must not pass for the team.
  *
  * @param {{ weekEnding: string, dates: string[], participants: any[], submissions: Map<string, any>,
  *   day?: string, grade?: string, asAt?: number }} arg  `day` narrows to one date ('ALL' = week);
@@ -911,11 +712,11 @@ export function weekAvailabilitySummary({ weekEnding, dates, participants, submi
 }
 
 /**
- * The reminder-audit line (v22.05): did the deadline-morning reminder to non-responders go out, without
+ * The reminder-audit line: did the deadline-morning reminder to non-responders go out, without
  * reading Cloud Function logs? The scheduler (functions/overtime.js) stamps `reminderSentAt`.
  *
  * The stamp is CLAIMED before the send (two overlapping runs must not both send), so alone it says
- * only that a send was ATTEMPTED. What the send reached is recorded after it (overtime-core-4):
+ * only that a send was ATTEMPTED. What the send reached is recorded after it:
  * `outstanding` is how many had said nothing (leaving out anyone that run had just asked), and
  * `accepted` how many DEVICES took the push. Null = not recorded (every stamp from before Nov
  * 2026), which is unknown, never zero.
