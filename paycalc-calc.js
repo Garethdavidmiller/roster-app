@@ -5,8 +5,7 @@
 
 export const P_YR = 13; // 13 four-weekly pay periods per year
 
-// Pay-rate multipliers — used by computeGross and imported by paycalc-app.js, so a rate is never a
-// literal at a call site.
+// Pay-rate multipliers, so a rate is never a literal at a call site.
 export const RATE_125 = 1.25;
 export const RATE_150 = 1.50;
 export const RATE_300 = 3.00;
@@ -31,9 +30,8 @@ export const TAX_YEARS = [
 
 // ── Tax & NI thresholds by tax year ───────────────────────────────────────
 // All annual figures ÷ 13 to give 4-weekly amounts.
-// PA and bands frozen at 2025/26 levels until April 2031 (Autumn 2024 Budget froze to Apr 2028;
-// the Autumn 2025 Budget, 26 Nov 2025, extended the freeze a further 3 years). 2026/27 confirmed
-// unchanged (£12,570 / £50,270 / £125,140) vs GOV.UK employers 2026-27 tables — reviewed Jul 2026.
+// PA and bands frozen at 2025/26 levels until April 2031 (Autumn 2024 and Autumn 2025 Budgets).
+// 2026/27 confirmed unchanged (£12,570 / £50,270 / £125,140) vs GOV.UK employers 2026-27 tables.
 export const TAX_BY_YEAR = {
   '2025/26': { pa: 12570/P_YR, b: 50270/P_YR, h: 125140/P_YR, r20:0.20, r40:0.40, r45:0.45 },
   '2026/27': { pa: 12570/P_YR, b: 50270/P_YR, h: 125140/P_YR, r20:0.20, r40:0.40, r45:0.45 }, // confirmed frozen
@@ -51,7 +49,6 @@ export const NI_BY_YEAR = {
 export const SL_BY_YEAR = {
   '2025/26': {
     // Confirmed against GOV.UK "Repaying your student loan" / SL3 2025-26 tables (checked Jul 2026).
-    // These were previously the 2024/25 figures (24990/27295/31395) — thresholds rise each April.
     plan1:   { t: 26065/P_YR, r: 0.09 },
     plan2:   { t: 28470/P_YR, r: 0.09 },
     plan4:   { t: 32745/P_YR, r: 0.09 }, // Scotland
@@ -60,8 +57,7 @@ export const SL_BY_YEAR = {
     // 2025/26 period; the UI also disables Plan 5 for 2025/26 (see paycalc-app.js).
     postgrad:{ t: 21000/P_YR, r: 0.06 },
   },
-  // Confirmed against the final HMRC SL3 2026-27 deduction tables (reviewed Jul 2026) — all five
-  // thresholds match the published figures. Student-loan thresholds are uprated annually, so
+  // Confirmed against the final HMRC SL3 2026-27 deduction tables (Jul 2026). Uprated annually:
   // re-verify against the SL3 tables each April.
   '2026/27': {
     plan1:   { t: 26900/P_YR, r: 0.09 }, // confirmed vs SL3 2026-27
@@ -76,13 +72,12 @@ export const SL_BY_YEAR = {
 // PAYE threshold, exactly as HMRC's "Rates and thresholds for employers" tables print them — divided
 // by P_YR. PA still set by Westminster.
 //
-// THE ADVANCED TOP IS £125,140 OF TAXABLE PAY, NOT £125,140 − £12,570 (17 Nov 2026). The lower four
-// tops are the gov.scot INCOME thresholds less the personal allowance, which is what HMRC prints for
-// them too. The Advanced band is not: by £125,140 of income the allowance has been withdrawn, so
-// HMRC's table puts the 45% band at £62,431–£125,140 of TAXABLE pay and 48% above it, whatever the
-// code's allowance — the same reading the rUK branch of computeTax makes for its 45% band. Written in
-// income space (£112,570) it started the 48% rate a whole allowance early for an S0T or SK code:
-// computeTax(9000, 'S0T') on 2026/27 gave £3,397.80 where the table gives £3,387.58.
+// THE ADVANCED TOP IS £125,140 OF TAXABLE PAY, NOT £125,140 − £12,570. The lower four tops are the
+// gov.scot INCOME thresholds less the personal allowance, as HMRC prints them. By £125,140 of income
+// the allowance has been withdrawn, so HMRC's table puts 45% at £62,431–£125,140 of TAXABLE pay and
+// 48% above, whatever the code's allowance (as the rUK 45% band in computeTax). Written in income
+// space (£112,570) it started 48% a whole allowance early for S0T/SK: computeTax(9000, 'S0T') on
+// 2026/27 gave £3,397.80 where the table gives £3,387.58.
 export const SCOTTISH_TAX_BY_YEAR = {
   // GOV.UK, Rates and thresholds for employers 2025 to 2026 — Scottish PAYE bands of taxable pay.
   '2025/26': { pa: 12570/P_YR, bands: [
@@ -93,10 +88,9 @@ export const SCOTTISH_TAX_BY_YEAR = {
     { top:125140/P_YR, rate: 0.45 }, // Advanced     45%  £62,431–£125,140
     { top: Infinity,   rate: 0.48 }, // Top          48%  above £125,140
   ]},
-  // GOV.UK, Rates and thresholds for employers 2026 to 2027 (checked 17 Nov 2026), which agrees with
-  // the Scottish Budget 2026/27: all six rates and the band count unchanged, the Starter and Basic
-  // tops uprated (to £16,537 / £29,526 of income) and the rest held. Scottish bands are set annually
-  // by the Scottish Budget (NOT covered by the Westminster freeze) — re-verify every year.
+  // GOV.UK, Rates and thresholds for employers 2026 to 2027 (checked 17 Nov 2026), agreeing with the
+  // Scottish Budget 2026/27: Starter and Basic tops uprated (to £16,537 / £29,526 of income), the
+  // rest held. Set annually by the Scottish Budget (NOT the Westminster freeze) — re-verify every year.
   '2026/27': { pa: 12570/P_YR, bands: [
     { top:  3967/P_YR, rate: 0.19 }, // Starter      19%  £1–£3,967 of taxable pay
     { top: 16956/P_YR, rate: 0.20 }, // Basic        20%  £3,968–£16,956
@@ -107,15 +101,12 @@ export const SCOTTISH_TAX_BY_YEAR = {
   ]},
 };
 
-// Grade contractual data. `rate` is the CURRENT (2026/27) settled rate — the 3.6% RMT award
-// paid from the 28 Aug 2026 payslip. Per-YEAR settled rates come from AWARD_RATES (consulted by
-// settledRate), so an earlier year keeps its own rate; GRADES.rate is the grade default,
-// used for a year AWARD_RATES has no settled rate for, and the figure the help text quotes. The
-// grade select's options are plain "CEA"/"CES" in paycalc.html, so no rate is written into them.
-// The mid-year step (pre-28-Aug-2026 periods still on £20.74/£21.81) is applied by
-// getRateForPeriod via awardFromForYear.
-// `pension` is the CURRENT default; the per-era history lives in PENSION_STEPS below (the old
-// two-value pensionPre/pensionFrom pair was generalised to the table at v18.43 — review item 8).
+// Grade contractual data. `rate` is the CURRENT (2026/27) settled rate — the 3.6% RMT award paid
+// from the 28 Aug 2026 payslip. Per-YEAR settled rates come from AWARD_RATES (via settledRate), so
+// an earlier year keeps its own; GRADES.rate is the default for a year AWARD_RATES has no settled
+// rate for, and the figure the help text quotes. The mid-year step (pre-28-Aug-2026 periods still on
+// £20.74/£21.81) is applied by getRateForPeriod via awardFromForYear.
+// `pension` is the CURRENT default; the per-era history is PENSION_STEPS below.
 /** @type {Record<string, any>} */
 export const GRADES = {
   cea: { rate: 21.49, contr: 140, pension: 151.86 },
@@ -125,27 +116,21 @@ export const GRADES = {
 // ── Pension (Smart RPS CR Scheme) default per payslip era ──────────────────────
 // The pension contribution steps on specific PAYSLIPS — an RPS review, or a pay award (see below).
 // Newest first; each entry applies to paydays ON/AFTER its `from` (the final null-from entry is the
-// floor). Shared by both grades — the recorded values are payslip-confirmed for CEA; no CES
-// payslip history is on record, so a CES payslip takes this CEA table as a STAND-IN (VAL-PAY-007):
-// kept rather than left blank, because no figure would be further out, and said on screen beside
-// the pension box of every payslip worked as a CES (applyPensionOptOutUI, paycalc-settings.js).
-// (v18.43 — review item 8; the pension counterpart of getRateForPeriod/getLondonAllowanceForPeriod.)
+// floor). Shared by both grades — payslip-confirmed for CEA; with no CES payslip on record a CES
+// payslip takes this table as a STAND-IN (VAL-PAY-007): no figure would be further out, and the
+// screen says so beside every CES payslip's pension box (applyPensionOptOutUI, paycalc-settings.js).
 //
-// ⚠️ A PAY AWARD MOVES THIS TOO (v21.79). The contribution is a proportion of pensionable pay, so
-// it steps with a pay award as well as on an RPS review. That was not anticipated: the table was
-// written as "RPS reviews, SEPARATE from the pay award", and the app went on defaulting to the
-// pre-award figure after the 2026/27 award. Whenever a new award lands, read the "Smart RPS CR
-// Scheme" lines off the award payslip AND the one before it, and add the steps here —
-// MAINTENANCE_CALENDAR.md carries it as a checklist row. The same proportion is why a CES member's
-// contribution is probably a little HIGHER than these CEA figures (VAL-PAY-007): once a CES
-// payslip's line is read, CES gets steps of its own, and a payslip across a promotion is weighted by
-// its days, as `periodRate` weights the rate (getPensionDefault takes one grade until then).
+// ⚠️ A PAY AWARD MOVES THIS TOO. The contribution is a proportion of pensionable pay, so it steps
+// with an award as well as an RPS review (the app once kept the pre-award figure after the 2026/27
+// award). Whenever a new award lands, read the "Smart RPS CR Scheme" lines off the award payslip AND
+// the one before it, and add the steps here (MAINTENANCE_CALENDAR.md checklist row). The same
+// proportion is why CES is probably a little HIGHER than these CEA figures (VAL-PAY-007): once a CES
+// line is read, CES gets steps of its own, and a payslip across a promotion is weighted by its days,
+// as `periodRate` weights the rate (getPensionDefault takes one grade until then).
 //
-// THE STEP CAN BEGIN INSIDE A PAYSLIP (twelve payslips re-read 10 Nov 2026). The 2026/27 rise
-// reached the pension a month BEFORE the award payslip: the 31 Jul 2026 payslip prints TWO
-// "Smart RPS CR Scheme" lines, £113.90 (21 of its 28 days at the new £151.86) and £36.84 (7 days at
-// the old £147.36). The calculator holds one pension figure per payslip, so that payslip has a step
-// of its own, the two lines' TOTAL — the figure a member checks it against is their sum.
+// THE STEP CAN BEGIN INSIDE A PAYSLIP. The 31 Jul 2026 payslip prints TWO "Smart RPS CR Scheme"
+// lines, £113.90 (21 of its 28 days at the new £151.86) and £36.84 (7 days at the old £147.36). One
+// pension figure is held per payslip, so it has a step of its own: the two lines' TOTAL.
 //
 //  £151.86  from the 28 Aug 2026 payslip — payslip-confirmed (P24 as printed; the 3.6% award payslip)
 //  £150.74  on   the 31 Jul 2026 payslip — payslip-confirmed: £113.90 + £36.84, the split period (P20)
@@ -168,22 +153,17 @@ export const PENSION_STEPS = [
 
 // ── Annual pay-award rates by grade + tax year ─────────────────────────────
 // A pay rise happens once a year, backdated to 1 April (Chiltern's pay anniversary), and is
-// typically PAID mid-year as a lump sum once the award is agreed (2025/26 landed on the 24 Oct
-// 2025 payslip — see londonAllowFrom). This table is the authoritative record so the back-pay
-// card can compute ANY year's award, not just the pending one:
+// typically PAID mid-year as a lump sum once agreed (2025/26 landed on the 24 Oct 2025 payslip).
+// The authoritative record, so the back-pay card can compute ANY year's award:
 //   `rate` = the settled rate for that tax year (null while an award is still unconfirmed).
-//   `pre`  = the rate paid BEFORE that year's award was applied (i.e. the prior year's rate) —
-//            the OLD rate for that year's back-pay. null = not on record (falls back to manual).
+//   `pre`  = the rate paid BEFORE that year's award was applied (the prior year's rate) — the OLD
+//            rate for that year's back-pay. null = not on record (falls back to manual).
 // Payslip-confirmed values: CEA 2024/25 = £20.06 (reference payslip 09/05/2025, "Basic Pay @20.06").
 // Each April, when the new award is agreed: set that year's `rate`, and add the next year with
-// `pre` = this year's rate. Consumed by paycalc-backpay.js, and by getRateForPeriod for a period
-// paid before its year's award (the `pre` rate); otherwise a period gets its year's settled `rate`
-// (settledRate in paycalc-settings.js, which falls back to the GRADES default for a year with none).
-// `pre` = the rate paid BEFORE the year's award was applied (the prior year's rate). The DATE the
-// award was applied is NOT stored here — it is a property of the tax YEAR (rate + London step on
-// one payslip: 2025/26 = 24 Oct 2025) and lives once as `londonAllowFrom` on TAX_YEARS, read via
-// awardFromForYear() below. This keeps the award-application date a single source of truth (it used
-// to be written three times, a drift hazard). null `pre`/`rate` = not on record / not yet confirmed.
+// `pre` = this year's rate. Read by paycalc-backpay.js and getRateForPeriod (the `pre` rate before
+// the award); otherwise settledRate (paycalc-settings.js, falling back to the GRADES default).
+// The DATE the award was applied is NOT stored here: it is the tax YEAR's `londonAllowFrom` (rate +
+// London step on one payslip), read via awardFromForYear(), so it has a single source of truth.
 /** @type {Record<string, Record<string, { rate: number|null, pre: number|null }>>} */
 export const AWARD_RATES = {
   cea: {
@@ -237,12 +217,10 @@ export function isPreAwardPeriod(p, grade, tyLabel) {
 }
 
 /**
- * The hourly rate to use for a period, honouring a MID-YEAR pay-award step. A pay award is
- * backdated to 1 April but PAID from a mid-year date (2025/26: 24 Oct 2025) — so periods paid
- * BEFORE that date were actually paid at the prior year's rate. Returns the recorded pre-award
- * rate for those periods, else the settled rate. Mirrors getLondonAllowanceForPeriod. A grade/year
- * with no recorded `pre` (CES 2025/26 — its 2024/25 rate is not on record), or a year with no award
- * date (one whose award is still pending), always returns the settled rate.
+ * The hourly rate for a period, honouring a MID-YEAR pay-award step: an award is backdated to
+ * 1 April but PAID from a mid-year date, so periods paid before it were at the prior year's rate.
+ * Mirrors getLondonAllowanceForPeriod. A grade/year with no recorded `pre` (CES 2025/26), or a year
+ * whose award is still pending, always returns the settled rate.
  * @param {{ payday: Date }} p        - the period
  * @param {string} grade              - 'cea' | 'ces'
  * @param {string} tyLabel            - e.g. '2025/26'
@@ -259,13 +237,12 @@ export const HPP_FRACTION = 4 / 52;
 
 // ── Pure helpers ───────────────────────────────────────────────────────────
 
-// ── TO THE PENNY, WHERE EACH FIGURE IS WORKED OUT (whole-app review, Nov 2026) ─────────────────────
-// Nothing was rounded until it was displayed, so the summary's rows could differ by a penny from the
-// take-home under them (£3,178.66 − £442.20 − £176.85 shown, £2,559.60 below). Payroll rounds each
-// deduction by a statutory rule, so the engine now does too, and the take-home is the shown rows'
-// difference (`takeHomePay`). Each helper first takes the figure to the nearest billionth of a pound,
-// which removes binary noise (58 × 0.08 is 58.000000000000004) without touching a real fraction, and
-// floors with a millionth-of-a-penny margin for the noise the scaling itself adds.
+// ── TO THE PENNY, WHERE EACH FIGURE IS WORKED OUT ──────────────────────────────────────────────
+// Payroll rounds each deduction by a statutory rule, so the engine does too, and the take-home is
+// the shown rows' difference (`takeHomePay`) — rounding only at display let the rows differ by a
+// penny from the take-home under them. Each helper first takes the figure to the nearest billionth
+// of a pound (removing binary noise: 58 × 0.08 is 58.000000000000004) and floors with a
+// millionth-of-a-penny margin for the noise the scaling adds.
 const _clean = (/** @type {number} */ x) => Math.round(x * 1e9) / 1e9;
 /** Income tax, rounded DOWN to the penny — HMRC's PAYE tax-table routines: "to 4 decimal places of a
  *  pound without applying any correction to the final place, and then finally round down the result
@@ -285,10 +262,9 @@ const niPennies = x => {
 const shownPennies = x => Number(x.toFixed(2));
 
 /**
- * The summary's own arithmetic (whole-app review, Nov 2026): pay after the pension as its row shows
- * it, and the take-home as that row less the deductions shown under it — so the rows a member adds up
- * always come to the figure they are adding up to. Income tax and NI arrive in whole pennies (above),
- * a student loan in whole pounds; tax and NI are still worked out on the unrounded pay.
+ * The summary's own arithmetic: pay after the pension as its row shows it, and the take-home as that
+ * row less the deductions shown under it, so the rows always add up. Tax and NI arrive in whole
+ * pennies, a student loan in whole pounds; tax and NI are worked out on the unrounded pay.
  * @param {{ gross: number, pension: number, tax: number, ni: number, sl: number }} d
  * @returns {{ afterPension: number, net: number }}
  */
@@ -318,11 +294,8 @@ export function calcBandedTax(taxable, bands, scale = 1) {
 
 /**
  * Return the TAX_YEARS entry whose offset range contains the given period offset — or, outside the
- * table, the NEAREST year: the first before its range, the last after it (Nov 2026 debt pass). It
- * fell back to the first year either side, so a payslip past the table's end (the 2027/28 rollover
- * not yet done) read as 2025/26 — its rates, its award, its window. No payslip the page offers is
- * outside the table (the period grid is the table's own range), so this changes no figure today;
- * it stops a missed rollover reaching two years back.
+ * table, the NEAREST year (first before, last after), so a missed rollover never prices a payslip
+ * at a year two back.
  * @param {number} offset - Period number relative to P48 anchor.
  */
 export function getTaxYearForOffset(offset) {
@@ -332,10 +305,8 @@ export function getTaxYearForOffset(offset) {
 }
 
 /**
- * The TAX_YEARS entry for a period object, or the first entry when the period is null.
- * Single-sources the `p ? getTaxYearForOffset(p.num - 48) : TAX_YEARS[0]` idiom (the P48
- * anchor `- 48` and the null fallback) that recurred across the paycalc coordinator, HPP,
- * back-pay, and settings modules.
+ * The TAX_YEARS entry for a period object, or the first entry when the period is null — the one
+ * home of the P48 anchor `- 48` and the null fallback.
  * @param {{ num: number } | null | undefined} p
  * @returns {typeof TAX_YEARS[number]}
  */
@@ -359,8 +330,7 @@ export function periodInTaxYear(p, ty) {
 /**
  * Return threshold objects for a given tax year label.
  * Falls back to 2025/26 with a warning if year not found.
- * No London Allowance here (18 Nov 2026): nothing read it, and a year's one figure is wrong for a
- * payslip paid before that year's award — the allowance is per payslip, getLondonAllowanceForPeriod.
+ * No London Allowance here: it is per payslip (getLondonAllowanceForPeriod), not per year.
  * @param {string} yearLabel - e.g. '2025/26'
  * @returns {{ tax: any, scottishTax: any, ni: any, sl: any }}
  */
@@ -390,8 +360,7 @@ export function getLondonAllowanceForPeriod(p, ty) {
 
 /**
  * Return the pension contribution default for a grade and pay period — the first PENSION_STEPS
- * era whose `from` the payday has reached (v18.43: table walk, was a single pensionPre/pensionFrom
- * pair). The grade param is kept for signature stability; both grades currently share the table.
+ * era whose `from` the payday has reached. Both grades currently share the table.
  * @param {string} grade - 'cea' | 'ces'
  * @param {Date} payday  - Period payday
  * @returns {number} Full-period pension contribution £
@@ -413,13 +382,11 @@ export function getPensionForPeriod(grade, payday) {
  *     rounds .5 up), the same count in every timezone. That count is ONE MORE than the calendar
  *     days from the start date to the cut-off inclusive (20 April → 2 May is 13 calendar days and
  *     counts 14) — what the one payslip on record paid, a MONDAY start. Whether payroll counts the
- *     same way for a start on any other weekday is not on record (paycalc-3-7, on hold for a
- *     non-Monday joiner's payslip); the comment says what the code does, and changes nothing.
- *   - The difference is taken between WALL-CLOCK readings, not raw instants (`proRateDays`).
- *     A period containing the spring clock change is an hour short in real time, so a start date
- *     before the change measured X.458 days, rounded DOWN and lost the joiner a day (72-hour
- *     review). Reading both dates' local fields into UTC removes the hour without moving the
- *     half-day offset the rounding depends on.
+ *     same way for another weekday is not on record (paycalc-3-7).
+ *   - The difference is taken between WALL-CLOCK readings, not raw instants (`proRateDays`): a
+ *     period containing the spring clock change is an hour short, so a start before the change
+ *     measured X.458 days, rounded DOWN and lost the joiner a day. Reading local fields into UTC
+ *     removes the hour without moving the half-day offset.
  *
  * Example: a 20 April joiner (a Monday), startDate = new Date(2026, 3, 20) = April 20 midnight.
  *   raw = (May 2 noon − April 20 midnight) / msPerDay = 12.5
@@ -462,8 +429,7 @@ export function proRateDays(startDate, periodStart, periodCutoff) {
  * Cap Saturday and Bank-Holiday hours against contracted hours, the way the payslip does:
  * Saturday hours fill contracted first (satCapped); Bank-Holiday hours take the remaining normal
  * hours (bhCapped); nonBhNorm is what's left as plain contracted basic. SINGLE SOURCE of the cap
- * rule — shared by computeGross, _varPayForPeriod (HPP) and _accrueBackPayPeriod (back-pay) so a
- * payroll-rule change can't silently diverge across the three. Pure.
+ * rule — shared by computeGross, _varPayForPeriod (HPP) and _accrueBackPayPeriod (back-pay).
  * @param {{ effContr: number, satHrs?: number, bhHrs?: number }} i
  * @returns {{ satCapped: number, normHrs: number, bhCapped: number, nonBhNorm: number }}
  */
@@ -519,11 +485,11 @@ export function computeGross(i) {
 }
 
 /**
- * The payslip on screen's gross from its boxes: `calculate()`'s own lines (paycalc-app.js), moved here
- * unchanged so a test can call them (25 Nov 2026). A JOINER'S share of the payslip scales London and the
- * contracted hours (£276.16 × 14/28 on the real 8 May 2026 payslip); bank holiday and Boxing Day hours
- * count only in a payslip holding those days, as a save can restore figures into rows the page hides.
- * The page's lookups (side-effect-free reads) are passed in. @param {any} p @param {any} ty its TAX_YEARS row
+ * The payslip on screen's gross from its boxes (calculate()'s lines, here so a test can call them).
+ * A JOINER'S share scales London and the contracted hours (£276.16 × 14/28 on the real 8 May 2026
+ * payslip); bank holiday and Boxing Day hours count only in a payslip holding those days, as a save
+ * can restore figures into rows the page hides. The page's side-effect-free lookups are passed in.
+ * @param {any} p @param {any} ty its TAX_YEARS row
  * @param {{ rate: number, peerDays: number, otherAdj: number, hours: (hId: string, mId: string) => number,
  *   hasBankHoliday: (p: any) => boolean, hasBoxingDay: (p: any) => boolean, getProRateFactor: (p: any) => number,
  *   getEffectiveContr: (p: any) => number }} i
@@ -551,26 +517,24 @@ const WEEK_OR_MONTH_1 = '(?:W(?:EEK|K)?|M(?:ONTH|TH)?)1';
 const NON_CUMULATIVE_MARKER = new RegExp(`[/-]?\\(?(?:${WEEK_OR_MONTH_1}(?:[/-]?${WEEK_OR_MONTH_1})?|X)\\)?$`);
 
 /**
- * A tax code as this calculator reads it: the ONE reader (15 Nov 2026). computeTax prices with it,
- * and paycalc-periods.js asks it whether Year to Date figures can change a code at all, so the two
- * cannot disagree about one; each kept its own regex before, held together only by a test.
+ * A tax code as this calculator reads it: the ONE reader. computeTax prices with it, and
+ * paycalc-periods.js asks it whether Year to Date figures can change a code at all, so the two
+ * cannot disagree.
  *
  * A WEEK 1 / MONTH 1 code taxes each payslip on its own, as if it were the first of the year. HMRC
  * writes it W1, M1 or X after the code, but payslips also print Wk1, Mth1, "Week 1/Month 1", or a
- * slash ("1257L/M1"). Those read as ordinary codes before — and Wk1 or Mth1 as an UNRECOGNISED one,
- * priced on the standard allowance with the Year to Date figures still applied, the worse of both.
+ * slash ("1257L/M1") — all read as the marker.
  *  - Spaces go BEFORE the default, so a box holding only spaces is blank — 1257L — rather than an
- *    empty code the engine does not recognise (v24.89; it priced the same bar the cumulative +9).
+ *    empty code the engine does not recognise.
  *  - A Welsh C prefix is dropped: Welsh income-tax rates are England's, so CBR/CD0/CD1/CNT price as
- *    BR/D0/D1/NT, and C0T keeps no allowance. Without this they fell through to banded tax, and C0T
- *    kept the full allowance. (Numeric C-codes like C1257L were already read by resolvePA's prefix.)
+ *    BR/D0/D1/NT, and C0T keeps no allowance. (Numeric C-codes like C1257L are read by resolvePA.)
  * @param {unknown} taxCode  the Tax Code box's text
  * @returns {{ code: string, base: string, marker: string, nonCumulative: boolean, scottish: boolean,
  *   recognised: boolean }}
  *   code — upper case, spaces removed, 1257L when blank: what the member is told was used;
  *   base — the code without its marker or a Welsh C; marker — the week 1 / month 1 text, or '';
  *   recognised — a shape this engine prices on its own terms (an unknown one is priced on the
- *   DEFAULT allowance, so `code` is then what was typed, not what was priced — v24.89).
+ *   DEFAULT allowance, so `code` is then what was typed, not what was priced).
  */
 export function readTaxCode(taxCode) {
   const code = String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
@@ -586,9 +550,9 @@ export function readTaxCode(taxCode) {
 
 /**
  * How far the Year to Date Tax Paid may be above or below a normal working of the code before the
- * figures are judged not to come from it (owner, 15 Nov 2026; below too from 21 Nov). Real payslips worked out the normal way land
- * within 25p of this calculator's own cumulative figure (paycalc.md → "(code × 10) + 9"), so £2 is
- * rounding room, not a margin of opinion. computeTax says why it is there.
+ * figures are judged not to come from it (owner, 15 Nov 2026; below too from 21 Nov). Real payslips
+ * worked out the normal way land within 25p of this calculator's own cumulative figure (paycalc.md →
+ * "(code × 10) + 9"), so £2 is rounding room, not a margin of opinion. computeTax says why it is there.
  */
 const YTD_FIT_TOLERANCE = 2;
 
@@ -616,11 +580,9 @@ const YTD_FIT_TOLERANCE = 2;
  *   ytdMisfit — the Year to Date figures could not have come from this code worked out the normal
  *   way, so they were NOT used: `expected` is what the code would have taken by the payslip they came
  *   from, `paid` the Tax Paid given. null whenever they fit, or were not given.
- *   code — the code as this calculation READ it (upper case, no
- *   spaces, 1257L when the box was blank). recognised — whether it is a code this engine knows.
- *   An unrecognised one ("OT" with a letter O, "1182" with no letter) is priced on the DEFAULT
- *   allowance, a fallback as old as the engine — so `code` is what was typed, not what was priced,
- *   and the "Check against your payslip" line must say so rather than quote it as applied (v24.89).
+ *   code — the code as READ (upper case, no spaces, 1257L when blank). recognised — whether this
+ *   engine knows it. An unrecognised one ("OT" with a letter O, "1182" with no letter) is priced on
+ *   the DEFAULT allowance, so the "Check against your payslip" line must not quote it as applied.
  */
 export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null, otherDeductions = 0 } = {}) {
   const { code: rawCode, base: baseCode, nonCumulative: isNonCum, scottish: isScottish, recognised } = readTaxCode(taxCode);
@@ -632,8 +594,7 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     const km = baseCode.match(/^[SC]?K(\d+)$/);
     if (km) return -(parseInt(km[1]) * 10 / P_YR); // K code: negative allowance
     // L, M, N and T all encode the allowance the same way: (code number × 10). The suffix only says
-    // WHY (L standard, M marriage-allowance recipient, N transferor, T other adjustments) — it does
-    // not change the arithmetic. Matching only 'L' silently gave M/N/T codes the full £12,570 default.
+    // WHY (L standard, M marriage-allowance recipient, N transferor, T other adjustments).
     const nm = baseCode.match(/^[SC]?(\d+)[LMNT]$/);
     // HMRC's tax-free pay for a numeric code is (number × 10) + 9 — the code names a £10 band and
     // PAYE grants its TOP (1257L = £12,579). Applied on the CUMULATIVE path only, and that split is
@@ -650,13 +611,11 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     if (baseCode === 'NT') return 0;
     if (baseCode === 'BR' || baseCode === 'SBR') return amount * (isScottish ? SCOT.bands[1].rate : TAX.r20);
     // SD0 = Scottish INTERMEDIATE (21% = bands[2]); SD1 = Scottish HIGHER (42% = bands[3]).
-    // (rUK D0 = higher 40%, D1 = additional 45%.) These previously pointed at bands[3]/[5]
-    // (higher/top), over-taxing S-prefixed D0/D1 codes by a full band or two.
+    // (rUK D0 = higher 40%, D1 = additional 45%.)
     if (baseCode === 'D0' || baseCode === 'SD0') return amount * (isScottish ? SCOT.bands[2].rate : TAX.r40);
     if (baseCode === 'D1' || baseCode === 'SD1') return amount * (isScottish ? SCOT.bands[3].rate : TAX.r45);
     // SD2 = Scottish ADVANCED rate (bands[4], 45%); SD3 = Scottish TOP rate (bands[5], 48%) — flat-rate
-    // ALL income from this employment, Scottish only (there is no rUK D2/D3). Without these, an SD2/SD3
-    // code fell through to the normal banded Scottish calc WITH an allowance — a large under-taxation.
+    // ALL income from this employment, Scottish only (there is no rUK D2/D3).
     if (baseCode === 'SD2') return amount * SCOT.bands[4].rate;
     if (baseCode === 'SD3') return amount * SCOT.bands[5].rate;
     const pa = resolvePA(scale != null);
@@ -667,9 +626,8 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     if (isScottish) return calcBandedTax(taxable, SCOT.bands, scale || 1);
     // HMRC's Taxable Pay Tables band TAXABLE pay (post-allowance) at fixed thresholds, regardless of
     // the code's own allowance: 20% to £37,700, 40% to £125,140, 45% above. The basic-rate LIMIT is
-    // therefore a fixed £37,700 of taxable income (= TAX.b minus standard PA) — deriving it from the
-    // code's own PA was only correct for 1257L (the original 0T/K fix). The HIGHER-rate band has the
-    // same property (review parity fix): its taxable-pay TOP is £125,140, so its width is
+    // therefore a fixed £37,700 of taxable income (= TAX.b minus standard PA), not derived from the
+    // code's own PA. The HIGHER-rate band's taxable-pay TOP is £125,140, so its width is
     // 125,140 − 37,700 = £87,440 — NOT TAX.h − TAX.b (an income-space width that started the 45% rate
     // one PA-width early for 0T/K codes: computeTax(9000,'0T') gave £3,037.04 vs HMRC's £3,020.00).
     const basicBand = Math.max(0, (TAX.b - TAX.pa)) * (scale || 1);
@@ -684,13 +642,10 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   // Requiring both prevents ytdTax defaulting to 0 when only ytdPay is filled, which would
   // make Math.max(0, cumTaxDue - 0) massively overstate tax for the period.
   // HMRC "overriding limit" (Income Tax (PAYE) Regs, reg 23): the tax DEDUCTED in a pay period under
-  // a K CODE may never exceed 50% of the taxable payment for that period. It is a K-code rule — K codes
-  // add notional pay, so uncapped tax can exceed or even swallow the whole payment — and is applied
-  // only there (Oct 2026 review; it said "every code" before). No other code's rate reaches 50%, so
-  // that changed no figure: it stops the comment, and the cap, claiming a rule HMRC does not make.
-  // Any tax the cap defers is collected in later periods (the cumulative recalc picks it up
-  // from the actual YTD tax the user enters next period, so this caps the DISPLAY without corrupting
-  // the cumulative liability).
+  // a K CODE may never exceed 50% of the taxable payment for that period. A K-code rule only — K codes
+  // add notional pay, so uncapped tax can swallow the whole payment; no other code's rate reaches 50%.
+  // Tax the cap defers is collected later (the cumulative recalc picks it up from next period's Year
+  // to Date tax), so this caps the DISPLAY without corrupting the cumulative liability.
   const isKCode = /^[SC]?K\d+$/.test(baseCode);
   const overridingLimit = isKCode ? Math.max(0, sacGross) * 0.5 : Infinity;
   /** This payslip on its own: the estimate without Year to Date figures. */
@@ -702,19 +657,16 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // THE FIGURES MUST FIT THE CODE (owner, 15 Nov 2026). Worked out the normal way, a code takes
     // exactly what it is due on the year so far, so the Tax Paid on the payslip the figures came from
     // (period N − 1) is what this code takes on its Taxable Pay, to within pennies. Paid well beyond
-    // that, the figures did not come from this code worked out the normal way: a payroll taxing each
-    // payslip on its own (a week 1 / month 1 basis nothing on the payslip names), a code that has
-    // just changed, or a mistyped figure. The cumulative method then reported the difference as a
-    // REFUND and took no tax at all: a take-home a whole payslip's tax too high, on the screenshot that
-    // reported it. So such figures are not used, and the result says why.
-    // AND UNDER THE CODE TOO (owner, 21 Nov 2026). It was over only, on the reading that Tax Paid
-    // below the code is a code lowered mid-year, which cumulative PAYE collects. In practice it was
-    // far more often a code in Your Settings with LESS tax-free pay than the payslip's (often the
-    // 1257L default left in place), or figures filed one payslip early — and each charged the whole
-    // year's "shortfall" on the next payslip, unflagged (£609.60 where £415.80 was right). The cost,
-    // accepted: a code genuinely lowered since gets this payslip's tax on its own, and the line says
-    // payroll may take more. K codes are left out of this side: the 50% limit below legitimately
-    // leaves a K-code year's Tax Paid short, and payroll collects the rest later, as this method does.
+    // that, the figures did not come from this code the normal way (a week 1 / month 1 basis nothing
+    // on the payslip names, a code just changed, a mistyped figure), and the cumulative method would
+    // report the gap as a REFUND and take no tax at all. So such figures are not used, and the result
+    // says why.
+    // AND UNDER THE CODE TOO (owner, 21 Nov 2026). Tax Paid below the code was far more often a code
+    // in Your Settings with LESS tax-free pay than the payslip's (often the 1257L default), or figures
+    // filed one payslip early, than a code lowered mid-year — and each charged the whole year's
+    // "shortfall" on the next payslip (£609.60 where £415.80 was right). The cost, accepted: a code
+    // genuinely lowered gets this payslip's tax on its own, and the line says payroll may take more.
+    // K codes are left out of this side: the 50% limit legitimately leaves their Tax Paid short.
     // Period 1 has no payslip before it in the year, so there is nothing to compare.
     if (N > 1) {
       const expected = taxPennies(taxOnAmount(ytdPay, N - 1));
@@ -729,12 +681,10 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // refunded by real cumulative PAYE. The estimate keeps the deduction at £0 — netting a refund
     // into take-home would let one mistyped Year to Date figure invent money — but REPORTS the
     // over-collection so the result can say a refund may be due, rather than a silently wrong £0.
-    // …AND NEVER MORE THAN THE PAY LEAVES (same-day bug check). The 50% cap used to bound a mistyped
-    // Tax Paid figure for every code; now that it is K-code-only, a Tax Paid typed as 200 for 2000
-    // charged nearly the whole period. Real PAYE cannot deduct more than it pays, so neither can this —
-    // and the bound is what National Insurance and loans LEAVE of the pay (whole-app review, Nov
-    // 2026): bounded by the pay alone, a Tax Paid typed as 348 for 3,480 took all of it, NI came off
-    // on top, and the take-home read −£173.99. `payLimited` lets the result say the figures look wrong.
+    // …AND NEVER MORE THAN THE PAY LEAVES. Real PAYE cannot deduct more than it pays, so neither can
+    // this — and the bound is what NI and loans LEAVE of the pay: bounded by the pay alone, a Tax Paid
+    // typed as 348 for 3,480 took all of it, NI came off on top, and the take-home read −£173.99.
+    // `payLimited` lets the result say the figures look wrong.
     const due = Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit);
     const payLeft = Math.max(0, sacGross - otherDeductions);
     return { tax: taxPennies(Math.min(due, payLeft)), usingCumulative: true, payLimited: due > payLeft,
@@ -775,11 +725,10 @@ export function computeSL(sacGross, plan, slByYear, skip = false) {
   // the nearest PENNY) from earnings, apply the recovery rate to the FULL excess (pence included), then
   // round the resulting deduction DOWN to a whole pound. The DEDUCTION is the only figure rounded to £.
   //
-  // ⚠️ Do NOT re-add a whole-pound floor on the excess before the rate (the v17.04 "B1" attempt): it
-  // produced the WRONG figure on real payslips. Verified against the reference member's actual Plan 1 payslips —
-  // e.g. P2 gross £4382.88, threshold £2005.00, excess £2377.88 → floor(2377.88 × 0.09) = floor(214.009)
-  // = £214 (his real payslip), whereas flooring the excess first gave floor(2377 × 0.09) = £213. Locked
-  // by the PAYSLIP_ACTUALS.sl regression in paycalc.test.mjs.
+  // ⚠️ Do NOT re-add a whole-pound floor on the excess before the rate: it gives the WRONG figure on
+  // real Plan 1 payslips — P2 gross £4382.88, threshold £2005.00, excess £2377.88 → floor(2377.88 ×
+  // 0.09) = floor(214.009) = £214 (the real payslip), whereas flooring the excess first gave £213.
+  // Locked by the PAYSLIP_ACTUALS.sl regression in paycalc.test.mjs.
   const threshold = Math.floor(slPlan.t * 100) / 100;   // penny-floored periodic threshold
   return Math.floor(Math.max(0, sacGross - threshold) * slPlan.r);
 }
@@ -787,16 +736,16 @@ export function computeSL(sacGross, plan, slByYear, skip = false) {
 /**
  * Price ONE payslip from its gross: the pension off the top (salary sacrifice), then National
  * Insurance and the student loans on what is left, then income tax, then the take-home as the
- * summary rows show it. The ONE pricing pipeline (Nov 2026 debt pass): `calculate()` in
- * paycalc-app.js and `computeYearSoFar` in paycalc-year-summary.js each hand-rolled this sequence,
- * held together only by a third copy in a test, so a deduction rule changed in one could silently
- * leave the year so far disagreeing with the payslips it sums.
+ * summary rows show it. The ONE pricing pipeline — `calculate()` (paycalc-app.js) and
+ * `computeYearSoFar` (paycalc-year-summary.js) both call it, so the year so far cannot disagree with
+ * the payslips it sums.
  *
  * It decides NOTHING about its inputs: which gross (lumps folded in or not), which pension (the box,
  * the saved figure, the opt-out spell, the period default), whether the loans have stopped, and
  * whether the Year to Date figures may be used at all (the source + 1 anchoring) all belong to the
- * caller — for the payslip on screen, `takeHomeInputs` below. NI and the loans come BEFORE the tax because neither depends on it and the
- * cumulative tax is bounded by what they leave (`otherDeductions`, computeTax).
+ * caller — for the payslip on screen, `takeHomeInputs` below. NI and the loans come BEFORE the tax
+ * because neither depends on it and the cumulative tax is bounded by what they leave
+ * (`otherDeductions`, computeTax).
  *
  * @param {object} i
  * @param {number} i.gross        - the payslip's gross BEFORE the pension, any opt-in lumps included
@@ -828,14 +777,13 @@ export function pricePayslip({ gross, pension, taxCode, thresholds, plan, pgLoan
 
 /**
  * WHAT THE PAYSLIP ON SCREEN IS PRICED ON — the rules that turn what the page holds into
- * `pricePayslip`'s inputs. Out of `calculate()` (paycalc-app.js) on 25 Nov 2026, so each is held by
- * a test that CALLS it: they were lines inside a closure no test could reach, and the guards on them
- * read the coordinator's source text. Every one of them is quiet when it breaks — the £ stays plausible.
+ * `pricePayslip`'s inputs, kept out of `calculate()` so a test can CALL each. Every one of them is
+ * quiet when it breaks — the £ stays plausible.
  *
  * 1. BACK PAY joins only on the payslip it is paid in, and only once the member has ticked it in
  *    (opt-in, OFF by default — the card works the lump out and shows it either way). Without the
- *    payslip check the lump sat on EVERY payslip of the year while the banner, which has a gate of
- *    its own, showed on one (PAY-3).
+ *    payslip check the lump sat on EVERY payslip of the year (PAY-3).
+
  * 2. THE HOLIDAY PAY PREMIUM joins only once ticked, the same opt-in: until then the banner says it
  *    could land here, and it is NOT added. `premium.amount` is already the figure landing on THIS
  *    payslip (0 on any but its January one — paycalc-hpp-schedule.js decides which).

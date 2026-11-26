@@ -5,7 +5,7 @@
  * Owns: prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, the pure story strip
  *   (bpStoryHtml), and the card's state as the take-home reads it (bpState, and the wrappers that
  *   adopt calcBackPay's answer — runCalcBackPay, applyBpRisePct, refreshBackPayCard,
- *   syncBackPayForViewedYear; moved from paycalc-app.js, Nov 2026).
+ *   syncBackPayForViewedYear).
  * Does NOT own: the calculation engine (paycalc-app.js), settings (paycalc-settings.js), which
  *   figure goes in which box (paycalc-backpay-state.js), or the award arithmetic itself
  *   (paycalc-backpay-accrual.js — imported from there by everyone, the tests included).
@@ -36,10 +36,8 @@ import { setStatus } from './status-text.js';
  * (`ty.rateUnconfirmed`), as a percentage, KEYED BY THAT YEAR'S LABEL. It pre-fills the back-pay
  * card's "Pay rise %", so such a year opens with a live estimate.
  *
- * Keyed by year rather than one free-standing figure (paycalc-2-23): a single constant still held the
- * 2026/27 award's 3.6% after that award was paid, and would have re-armed for whichever year was next
- * flagged — offering last year's percentage as an accepted award. A flagged year with no entry opens
- * with the box blank and estimates nothing until a figure is typed: invariant 1.
+ * Keyed by year (paycalc-2-23), so a paid award's percentage cannot re-arm for whichever year is next
+ * flagged. A flagged year with no entry opens with the box blank and estimates nothing: invariant 1.
  *
  * EMPTY while no award is pending. When the NEXT award is announced, flag its tax year and add
  * `'<year>': <announced %>` here (docs/PAYCALC_REFERENCE.md → "When the NEXT award is announced").
@@ -47,10 +45,9 @@ import { setStatus } from './status-text.js';
  */
 const PENDING_AWARD_PCT = Object.freeze({});
 
-// The award tax year the card's rate/London/%/manual boxes were last prefilled for. The card follows
-// the VIEWED payslip's award year (v17.86), so this changes whenever the member navigates across a
-// tax-year boundary — the change clears the previous year's figures (and resets the opt-in tick) so
-// the new year prefills its own state; a year with a saved blob restores via restoreBpState instead.
+// The award tax year the card's boxes were last prefilled for. The card follows the VIEWED payslip's
+// award year, so crossing a tax-year boundary clears the previous year's figures and tick; a year with
+// a saved blob restores via restoreBpState instead.
 /** @type {string|null} */
 let _lastAwardYear = null;
 
@@ -61,11 +58,8 @@ let _lastAwardYear = null;
 let _bpGrade = null;
 
 // The award year whose saved card state restoreBpState found UNREADABLE (not merely absent) and
-// reset — the card meanwhile computes a correct default estimate (no-silent-caps; Finding #7,
-// v16.99). Its notice carries the warning on EVERY render until the member changes that year's card
-// (paycalc-2-10). It was one-shot, cleared by the render that showed it — and the coordinator renders
-// twice in one tick (prefill, then the "Pay rise %" pass), so the second wiped it before it could be
-// seen, inside a card that is closed by default besides. A typed lump and its tick vanished in silence.
+// reset (no-silent-caps; Finding #7). Its notice carries the warning on EVERY render until the member
+// changes that year's card (paycalc-2-10) — not one-shot, as the coordinator renders twice in one tick.
 /** @type {string|null} */
 let _bpCorruptYear = null;
 
@@ -81,16 +75,14 @@ function _surfaceCorruptReset(noticeEl, label) {
 
 /**
  * Period number the back-pay award is backdated FROM. Always the April period of the VIEWED
- * payslip's tax year — Chiltern's pay anniversary is always 1 April, so there is no user choice
- * (the old "Pay rise backdated from" selector was removed Jul 2026). The April period is
- * `48 + ty.first`. Used as the accrual window's lower bound and to derive the award tax year.
+ * payslip's tax year — Chiltern's pay anniversary is always 1 April, so there is no user choice (do
+ * not re-add a "backdated from" field). The April period is `48 + ty.first`: the accrual window's
+ * lower bound, and the award tax year.
  * @returns {number}
  */
 export function _backdatedFromPNum() {
-  // v17.86: derive the award from the VIEWED period (currentPeriodNum) again — the card follows the
-  // payslip on screen so each year's back pay is viewable/reconcilable (per-year viewing restored;
-  // the v16.91 pinning to todaysPeriodNum is replaced by per-YEAR saved state, so switching years no
-  // longer resets the include-tick — bpKey(ty) keeps each year's blob separate).
+  // The VIEWED period's award: the card follows the payslip on screen, and per-year saved state
+  // (bpKey(ty)) keeps each year's blob and tick separate.
   const awardTy = getTaxYearForOffset(currentPeriodNum() - 48);
   return 48 + awardTy.first;
 }
@@ -129,8 +121,7 @@ export function applyBpMode(mode = '') {
  */
 export function _bpAwardTaxYear(fromPNum) {
   const p = fromPNum ? periodByNum(fromPNum) : null;
-  // The `fromPNum` falsy fallback is dead in the card flows (callers pass _backdatedFromPNum(), never
-  // 0); kept as currentPeriodNum for the existing contract/test.
+  // The falsy `fromPNum` fallback is dead in the card flows; kept for the existing contract/test.
   return getTaxYearForOffset((p ? p.num : currentPeriodNum()) - 48);
 }
 
@@ -143,8 +134,7 @@ export function _bpAwardTaxYear(fromPNum) {
  */
 export function prefillBackPay() {
   _trackMemberEdits();
-  // The VIEWED period's award (per-year viewing, v17.86): the card follows the payslip on screen,
-  // with per-year saved state (bpKey(ty)) keeping each year's figures and tick independent.
+  // The VIEWED period's award, with per-year saved state (bpKey(ty)).
   const pNum = currentPeriodNum();
   const curP = periodByNum(pNum);
   const ty   = taxYearForPeriod(curP);
@@ -154,19 +144,15 @@ export function prefillBackPay() {
   const newLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
   const pctEl0      = /** @type {HTMLInputElement | null} */ (document.getElementById('bpRisePct'));
 
-  // If the award YEAR changed since the boxes were last filled, the old year's figures are
-  // meaningless — clear them so this year's real rates prefill in below (the fills are blank-guarded,
-  // so without this a stale 2026/27 estimate would persist under a 2025/26 label). Within a year the
-  // guard is a no-op, preserving any manual corrections. applyBpRisePct (below) then refills a
-  // cleared New from the % (pending) or leaves the prefilled New (settled).
+  // If the award YEAR changed since the boxes were last filled, clear them so this year's rates
+  // prefill below (the fills are blank-guarded, so a stale figure would persist under the new label).
+  // Within a year it is a no-op, preserving manual corrections.
   if (_lastAwardYear !== ty.label) {
     for (const el of [oldRateEl, newRateEl, oldLondonEl, newLondonEl, pctEl0]) if (el) el.value = '';
     const manualEl = document.getElementById('bpManualAmt');
     if (manualEl) /** @type {HTMLInputElement} */ (manualEl).value = '';
-    // Reset the OPT-IN tick too (review finding): the tick is a shared DOM checkbox, so without this
-    // a year with NO saved blob inherited the previously-viewed year's tick — a lump the member never
-    // opted into joined the new year's paid-in take-home. A year's own saved tick still restores via
-    // restoreBpState (which bypasses this prefill path entirely when a blob exists).
+    // Reset the OPT-IN tick too: it is one shared checkbox, so a year with NO saved blob would inherit
+    // the previous year's tick — a lump never opted into. A saved tick restores via restoreBpState.
     const _tick = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
     if (_tick) _tick.checked = false;
     applyBpMode(_defaultBpMode(ty));   // current award → compute; prior award → enter-from-payslip
@@ -176,11 +162,9 @@ export function prefillBackPay() {
   const modeRow = document.getElementById('bpModeRow');
   if (modeRow) modeRow.style.display = '';
 
-  // Rebuild the paid-in options for THIS award's window (its April onward — a payslip that predates
-  // the award can't carry its lump), preserving a still-valid selection. A selection from another
-  // award year is filtered out and falls through to the default below — without this, a 2026/27
-  // paid-in survived a switch to the 2025/26 award and pushed the historic lump into a live
-  // period's take-home (the wrong-period injection bug).
+  // Rebuild the paid-in options for THIS award's tax year, preserving a still-valid selection. A
+  // selection from another award year falls through to the default below, or a historic lump would
+  // land in a live period's take-home.
   const paidSel = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
   if (paidSel) {
     const keep = paidSel.value;
@@ -188,54 +172,39 @@ export function prefillBackPay() {
     if (keep) _setSelectPeriod(paidSel, +keep); // no-op if the kept period isn't in this award's window
   }
 
-  // NB: the "Pay rise %" field visibility and the rate-box read-only lock are applied in calcBackPay
-  // (which runs after BOTH prefill and restoreBpState), not here — otherwise a year switch that
-  // restores a saved blob would keep the previous year's lock/visibility state.
+  // NB: the "Pay rise %" visibility and the rate-box lock are applied in calcBackPay (after BOTH
+  // prefill and restoreBpState), or a restored year would keep the previous year's lock state.
 
-  // The award year is the VIEWED payslip's (`ty`, derived above from currentPeriodNum()), so the card
-  // computes the award of the year on screen. Its OLD rate = the rate paid before that year's award =
-  // the prior year's rate — held per grade/year in AWARD_RATES (payslip-confirmed), so it never
-  // depends on the mutable GRADES default. null = not on record (e.g. CES 2025/26) → the old-rate box
-  // stays blank for manual entry.
+  // OLD rate = the prior year's rate, from AWARD_RATES (payslip-confirmed), never the mutable GRADES
+  // default. null = not on record (e.g. CES 2025/26) → the old-rate box stays blank for manual entry.
   const _grade = awardGrade(ty);
   if (!_grade) return calcBackPay();   // no grade with rates in the award's months: it refuses, nothing to fill
   const award = awardRatesFor(_grade, ty.label);
   if (!oldRateEl.value && award && award.pre != null) oldRateEl.value = award.pre.toFixed(2);
 
   if (ty.rateUnconfirmed) {
-    // Accepted-but-unconfirmed award (e.g. the 2026/27 rise accepted by the RMT, awaiting payment): the OLD rate
-    // is the prior year's rate (prefilled above from AWARD_RATES, or the stored rate as a fallback
-    // for a grade with no recorded pre), and the NEW rate is not yet known — so leave NEW blank for
-    // the "Pay rise %" helper (defaulted below) or manual entry.
+    // Accepted-but-unconfirmed award: OLD is the prior year's rate (AWARD_RATES, else the settled rate
+    // as a fallback); NEW is not yet known, so it is left for the "Pay rise %" helper or manual entry.
     if (!oldRateEl.value)   oldRateEl.value   = settledRate(_grade, ty).toFixed(2);
     if (!oldLondonEl.value) oldLondonEl.value = ty.londonAllow.toFixed(2);
-    // Default the "Pay rise %" to THIS year's offered award, when one is on record, so the card opens
-    // with an estimate. applyBpRisePct() (below) then derives the New rate/London from it.
-    // Adjustable — and only for the unconfirmed award year (once real rates are known this branch
-    // isn't taken).
+    // Default the "Pay rise %" to THIS year's offered award, when on record, so the card opens with an
+    // estimate (applyBpRisePct derives New from it). Adjustable.
     const pctEl = /** @type {HTMLInputElement | null} */ (document.getElementById('bpRisePct'));
     const offered = PENDING_AWARD_PCT[ty.label];
     if (pctEl && !pctEl.value && offered != null) pctEl.value = String(offered);
   } else {
-    // Settled award (e.g. 2025/26): the NEW rate is on record too, so prefill it — a historic
-    // award opens fully populated (CEA 2025/26: old £20.06 → new £20.74). No "Pay rise %" default
-    // (the real figures are known), so applyBpRisePct is a no-op and won't touch these boxes.
+    // Settled award: the NEW rate is on record too, so a historic award opens fully populated (CEA
+    // 2025/26: old £20.06 → new £20.74). No "Pay rise %" default, so applyBpRisePct leaves these alone.
     if (!newRateEl.value && award && award.rate != null) newRateEl.value = award.rate.toFixed(2);
     if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
     if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
   }
-  // (The story strip at the top of the card — #bpAwardScope — is written by calcBackPay, not here:
-  // it includes the computed £, which only calcBackPay knows, and every prefill path ends in
-  // calcBackPay(). v18.39.)
+  // (The story strip — #bpAwardScope — is written by calcBackPay, which alone knows the £.)
   const _fromDate = awardFromForYear(ty.label);
-  // The award is always backdated to 1 April (Chiltern's pay anniversary) — computed
-  // internally by _backdatedFromPNum(); there is no "backdated from" selector to pre-set.
-  // Default the "paid in" period: a SETTLED award defaults to the payslip that actually carried
-  // the lump (the award-application date — 2025/26: 24 Oct 2025), so the lump lands where it
-  // really landed and that period's estimate matches the real payslip. A pending award defaults to
-  // TODAY'S payday (todaysPeriodNum) — the "next payday" the design intends, matching calcBackPay's
-  // todaysPeriodNum() accrual cap (v16.83 review fix). Adjustable either way; the paid-in period is
-  // itself excluded from the accrual (see calcBackPay's _capPNum).
+  // Default the "paid in" period: a SETTLED award defaults to the payslip that actually carried the
+  // lump (its award-application date), so that period's estimate matches the real payslip. A pending
+  // award defaults to TODAY'S payday (todaysPeriodNum), matching calcBackPay's accrual cap. The
+  // paid-in period is itself excluded from the accrual (calcBackPay's _capPNum).
   if (paidSel && !paidSel.value) {
     const _target = _fromDate
       ? (paidInPeriodNum(getPeriods(), _fromDate) ?? pNum)
@@ -248,17 +217,12 @@ export function prefillBackPay() {
 
 // ── PERSISTENCE ───────────────────────────────────────────────────────────────
 // The card's figures autosave per member (bpKey(ty) — myb_pc_<slug>_bp_state_<year>) like every other
-// paycalc input, so the lump a member set up survives a reload. Previously the card's state was
-// ephemeral: the paid-in period's take-home silently LOST the lump on reload until the card was
-// reopened — the same period showed different take-home before and after a refresh.
+// paycalc input, so the lump a member set up survives a reload.
 //
-// …but ONLY ONCE THE MEMBER HAS CHANGED IT (paycalc-2-6). Until then the card holds nothing but what
-// the app derives on every visit — the default estimate, the rates on record, the paid-in payslip —
-// and saving that on every recompute meant merely OPENING the page wrote back-pay state. A device on
-// which nobody had entered anything then reported "Back pay · Tax year 2026/27" as its member's own
-// data: in the transfer card's list, in the red "Replace your pay data?" dialog, in Settings and in
-// the storage-persistence request. A year that already has a saved blob keeps being saved, because
-// healing it and a deliberate clear both depend on that.
+// …but ONLY ONCE THE MEMBER HAS CHANGED IT (paycalc-2-6): until then the card holds only what the app
+// derives on every visit, and saving that meant merely OPENING the page wrote back-pay state — which
+// then counted as the member's own data in the transfer card, the "Replace your pay data?" dialog and
+// Settings. A year that already has a saved blob keeps being saved (healing and a deliberate clear).
 
 /** Award years whose card the MEMBER has changed in this page view. @type {Set<string>} */
 const _bpTouched = new Set();
@@ -287,17 +251,14 @@ function _trackMemberEdits() {
 /** Persist the card's raw inputs + the award year they belong to. Called from calcBackPay. */
 function _saveBpState() {
   try {
-    // Per-tax-year blob (v17.86): keyed by the VIEWED award year (bpKey(ty)), so each year's rates,
-    // mode, manual amount, paid-in and include-tick persist independently — switching years can't
-    // overwrite another year's state. This is what lets the card safely follow the viewed payslip
-    // again (the reason v16.91 had to pin it to one award).
+    // Per-tax-year blob, keyed by the VIEWED award year (bpKey(ty)): switching years can't overwrite
+    // another year's state.
     const awardTy = _bpAwardTaxYear(_backdatedFromPNum());
     // Nothing of the member's yet, and nothing saved before: nothing to keep (see above).
     if (!_bpTouched.has(awardTy.label) && lsGet(bpKey(awardTy)) == null) return;
     const v = /** @param {string} id */ (id) => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
-    // The six text fields come from BP_FIELDS (paycalc-backpay-state.js) rather than being listed
-    // here — save, clear and restore each used to carry their own hand-written copy of that list,
-    // which is how a field could be saved and restored but never cleared (see the module header).
+    // The text fields come from BP_FIELDS (paycalc-backpay-state.js), one list for save, clear and
+    // restore (see its header).
     lsSet(bpKey(awardTy), JSON.stringify({
       year: awardTy.label, grade: awardGrade(awardTy), mode: _bpMode(),
       ...readBpFields(v),
@@ -320,9 +281,7 @@ function _saveBpState() {
  */
 export function restoreBpState() {
   _trackMemberEdits();
-  // Restore the VIEWED award year's own blob (bpKey(ty)). Per-year keys mean there is no cross-year
-  // contamination to guard against — the old s.year mismatch discard is gone (each year has its own
-  // key). Returns true when a blob was applied — even an all-blank one (a deliberate clear must stick).
+  // The VIEWED award year's own blob (bpKey(ty)): per-year keys leave no cross-year state to discard.
   const awardTy = _bpAwardTaxYear(_backdatedFromPNum());
   /** @type {any} */ let s;
   try {
@@ -338,13 +297,9 @@ export function restoreBpState() {
     s = null;
   }
   if (!s) return false;
-  // ONE pass over BP_FIELDS that blanks and applies together (v19.93). A field the blob doesn't
-  // carry must end up EMPTY, not keep the previously-viewed year's value — without that, a year
-  // switch left the old year's figures in any box the new year's blob (or the calcBackPay
-  // enforcement) doesn't overwrite, e.g. the no-recorded-figure CES 2025/26 old-rate box silently
-  // inheriting the 2026/27 rate. It used to be a clear loop followed by six `set` calls: two
-  // hand-written lists that had to agree, which is the failure above waiting to recur.
-  // `bpFieldWrites` returns an entry for EVERY field, so there is nothing left to keep in step.
+  // ONE pass over BP_FIELDS that blanks and applies together: a field the blob doesn't carry must end
+  // up EMPTY, not keep the previously-viewed year's value (e.g. CES 2025/26's unrecorded old rate
+  // inheriting 2026/27's). `bpFieldWrites` returns an entry for EVERY field.
   for (const { id, value } of bpFieldWrites(s)) {
     const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
     if (_el) _el.value = value;
@@ -362,21 +317,16 @@ export function restoreBpState() {
   }
   _bpGrade = _grade;
   const paidSel = document.getElementById('backPayPeriod');
-  // Rebuild the paid-in list for THIS award's year before applying the saved selection — the select
-  // otherwise still holds the previously-viewed year's periods, so _setSelectPeriod would no-op and
-  // the paid-in would stick on the wrong year (v17.86 per-year switch).
+  // Rebuild the paid-in list for THIS award's year before applying the saved selection, or
+  // _setSelectPeriod would no-op against the previous year's periods.
   if (paidSel) buildBackPayPeriodSelect(48 + awardTy.first, 48 + awardTy.last);
   if (paidSel && s.paidIn) _setSelectPeriod(paidSel, +s.paidIn);
-  // Safety net (review finding): a decided award hides the selector, so if the saved paid-in is
-  // missing or no longer valid for this year's window, fall back to the award payslip — otherwise
-  // bpPNum would be 0 and the lump would silently drop to £0 with no way to fix it.
+  // Safety net: a decided award hides the selector, so a missing or invalid saved paid-in falls back
+  // to the award payslip — otherwise bpPNum is 0 and the lump silently drops to £0 with no way to fix it.
   if (paidSel && !(/** @type {HTMLSelectElement} */ (paidSel)).value) {
     const _from = awardFromForYear(awardTy.label);
-    // The ladder lives in resolvePaidInPeriod (v19.93). Note this is a small BEHAVIOUR CHANGE and a
-    // deliberate one: the inline version read `_from ? (paidInPeriodNum(...) ?? 0) : todaysPeriodNum()`,
-    // so a decided award whose payday falls beyond the generated period list produced 0 — and 0 is
-    // exactly the state this safety net exists to prevent, since a decided award hides the selector
-    // and leaves no control to correct it with. It now falls through to today's period.
+    // The ladder is resolvePaidInPeriod: a decided award whose payday falls beyond the period list
+    // falls through to today's period, never 0 (the state this safety net exists to prevent).
     const _tgt = resolvePaidInPeriod({
       awardDecided:  !!_from,
       derivedPNum:   _from ? paidInPeriodNum(getPeriods(), _from) : null,
@@ -406,11 +356,9 @@ export function raiseByPercent(oldVal, pct) {
 }
 
 /**
- * The plain-English STORY for the top of the back-pay card (v18.39 — "lead with the story, not the
- * controls"): one or two sentences stating the award's shape (which award, paid from which payslip,
- * backdated to which 1 April) and this member's figure. Rendered into #bpAwardScope by calcBackPay
- * on every recompute, so the £ tracks the inputs live; the rate boxes/toggles below become the
- * mechanics, not the message.
+ * The plain-English STORY for the top of the back-pay card ("lead with the story, not the
+ * controls"): the award's shape (which award, paid from which payslip, backdated to which 1 April)
+ * and this member's figure. Rendered into #bpAwardScope by calcBackPay on every recompute.
  *
  * PURE — returns an HTML string. Every input is app-internal (tax-year labels, paydays, computed
  * amounts); no user-entered text passes through, so no escaping is needed.
@@ -454,10 +402,9 @@ export function bpStoryHtml(o) {
 // ── BACK PAY CALCULATOR ───────────────────────────────────────────────────────
 
 /**
- * Reset the per-period breakdown to fully closed. Needed whenever the rows are cleared/replaced
- * while the panel may be open: toggleBpBreakdown drives the panel with an INLINE max-height, which
- * outranks the CSS `.bd-body { max-height:0 }` collapse — without this reset the emptied panel
- * stayed visually expanded, the button needed two taps, and aria-expanded lied to screen readers.
+ * Reset the per-period breakdown to fully closed whenever the rows are cleared/replaced: the panel's
+ * INLINE max-height (toggleBpBreakdown) outranks the CSS collapse, so an emptied panel stayed open
+ * with aria-expanded wrong.
  * @param {HTMLElement} rowsEl @param {HTMLElement} breakdownBtn
  */
 function _resetBreakdown(rowsEl, breakdownBtn) {
@@ -483,29 +430,21 @@ export function calcBackPay() {
   const breakdownBtn = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
 
   const fromPNum  = _backdatedFromPNum();
-  // Derived ONCE and reused (estimate banner, tax-year fence, award-from cap) —
-  // previously the same tax year was re-derived three times in this function.
+  // Derived ONCE and reused (estimate banner, tax-year fence, award-from cap).
   const awardTy   = _bpAwardTaxYear(fromPNum);
-  // A DECIDED award (its payment date is on record — awardFromForYear) lands on a KNOWN payslip, so
-  // the "which payslip?" selector is hidden and set automatically (v17.87 — owner: "that should be
-  // automatic"). The notice below still names the payslip. Only an undecided future award shows the
-  // selector. `_periodDisplay` = 'block' when the selector should show, else 'none'.
+  // A DECIDED award (payment date on record — awardFromForYear) lands on a KNOWN payslip, so the
+  // "which payslip?" selector is hidden and set automatically (owner: "that should be automatic").
+  // Only an undecided future award shows the selector.
   const _awardFromDate = awardFromForYear(awardTy?.label);
   const _awardDecided  = !!_awardFromDate;
   const _periodDisplay = _awardDecided ? 'none' : 'block';
-  // Compute-mode rate boxes, applied HERE (runs after both prefill AND restoreBpState, so a year
-  // switch can't leave the previous year's state). For a SETTLED award each box locks ONLY when its
-  // authoritative figure is ON RECORD (AWARD_RATES / TAX_YEARS) — and locking also WRITES that figure
-  // into the box, so a stale restored/typed value can never be frozen in (review F2). A box with no
-  // recorded figure (e.g. the CES 2025/26 old rate) stays PERMANENTLY editable — the lock decision
-  // never looks at the box's contents, so typing into it can't trigger a mid-typing lock (review F1:
-  // the earlier value!=='' test locked the box on the first keystroke's recompute and persisted the
-  // fragment). Runs BEFORE the input reads below so this pass computes with the enforced figures.
-  // The which-figures-are-on-record decision is resolveAuthoritativeRates (paycalc-backpay-state.js,
-  // v19.93). Two properties it carries that this loop depends on: the decision never reads the box's
-  // CONTENTS (review F1 — an earlier version locked on non-empty, so a recompute mid-typing froze
-  // the fragment), and a locked box is WRITTEN with the recorded figure (review F2 — otherwise a
-  // stale restored value sits behind a padlock and reads as confirmed).
+  // Compute-mode rate boxes, applied HERE (after both prefill AND restoreBpState). Each box locks ONLY
+  // when its figure is ON RECORD (AWARD_RATES / TAX_YEARS) — resolveAuthoritativeRates
+  // (paycalc-backpay-state.js) decides — and two properties this loop depends on: the decision never
+  // reads the box's CONTENTS (review F1 — locking on non-empty froze a fragment mid-typing), and a
+  // locked box is WRITTEN with the recorded figure (review F2 — a stale value behind a padlock reads
+  // as confirmed). A box with no recorded figure (CES 2025/26 old rate) stays PERMANENTLY editable.
+  // Runs BEFORE the input reads below, so this pass computes with the enforced figures.
   const _grade = awardGrade(awardTy);
   // The award's months worked under a role with no rates (pay-audience.js admits by the role AT THE
   // TIME): no lump — awardRatesFor would hand back CEA's, a guess (invariant 13).
@@ -537,10 +476,9 @@ export function calcBackPay() {
   const _pctField = document.getElementById('bpRisePctField');
   if (_pctField) _pctField.style.display = awardTy?.rateUnconfirmed ? '' : 'none';
 
-  // Fully-confirmed award → every box locked: collapse the two input-shaped Old→New rows into ONE
-  // compact read-only line (v18.48 — the owner's screenshot review: ~300px of boxes nobody can
-  // edit, restating figures the hero also carried). The hero basis then shows the period count
-  // only, so the rates are stated ONCE. Any figure NOT on record keeps the editable rows.
+  // Fully-confirmed award → every box locked: the two Old→New rows collapse into ONE read-only line
+  // (owner's screenshot review), and the hero basis shows the period count only, so the rates are
+  // stated ONCE. Any figure NOT on record keeps the editable rows.
   const _allLocked = allRatesOnRecord(_auth);
   for (const _fid of ['bpRateField', 'bpLondonField']) {
     const _f = document.getElementById(_fid);
@@ -559,15 +497,12 @@ export function calcBackPay() {
   const oldLondon = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldLondon')).value);
   const newLondon = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('newLondon')).value);
   const bpSel     = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
-  // A DECIDED award's paid-in payslip is deterministic (the award-application payslip) and its
-  // selector is HIDDEN, so DERIVE it here rather than trust a persisted value. Without this, a
-  // paid-in saved before an award-date MOVE (the 3.6% award deferred 31 Jul → 28 Aug) stays pinned to
-  // the old payslip — the include banner ("green box") shows on the wrong, now-invisible payslip with
-  // no control to fix it. restoreBpState restores that stale value, so overriding it here is the
-  // single choke point; _saveBpState (below) then heals the persisted blob. (v18.12)
+  // A DECIDED award's paid-in payslip is deterministic and its selector HIDDEN, so DERIVE it here
+  // rather than trust a persisted value — one saved before an award-date MOVE (31 Jul → 28 Aug) stayed
+  // pinned to the old payslip with no control to fix it. The single choke point; _saveBpState heals
+  // the blob.
   if (bpSel && _awardDecided) {
-    // Rule 1 of the ladder — a decided award DERIVES and never trusts what was saved. See
-    // resolvePaidInPeriod (v19.93); `savedPNum` is deliberately not passed.
+    // Rule 1 of the ladder (resolvePaidInPeriod) — `savedPNum` is deliberately not passed.
     const _tgt = resolvePaidInPeriod({
       awardDecided: true,
       derivedPNum:  paidInPeriodNum(getPeriods(), awardFromForYear(awardTy.label)),
@@ -584,12 +519,9 @@ export function calcBackPay() {
   // ticked. The card still computes and shows the lump either way; the coordinator gates the gross.
   const bpIncluded = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked);
 
-  // "Enter the amount from your payslip" needs the paid-in payslip in the member's HAND (v18.48):
-  // before then there is no printed figure to copy, so the option is disabled. In hand from its
-  // CUT-OFF, not its payday — payslips are issued before they pay, and `payslipMayBeInHand` is the
-  // app's one rule for that (paycalc-2-3). A restored manual selection for a payslip not yet in
-  // hand falls back to compute (applyBpMode also fixes the field-group visibility, and
-  // _saveBpState below heals the persisted mode).
+  // "Enter the amount from your payslip" needs the paid-in payslip in the member's HAND — from its
+  // CUT-OFF (`payslipMayBeInHand`, paycalc-2-3) — or the option is disabled. A restored manual
+  // selection for a payslip not yet in hand falls back to compute.
   const _payslipExists = !!(bpP && payslipMayBeInHand(bpP));
   const _manualRadio   = /** @type {HTMLInputElement|null} */ (document.getElementById('bpModeManual'));
   if (_manualRadio) {
@@ -597,16 +529,14 @@ export function calcBackPay() {
     const _opt = _manualRadio.closest('.bp-mode-opt');
     if (_opt) {
       _opt.classList.toggle('bp-mode-opt--disabled', !_payslipExists);
-      // The reason is SAID in the row (v23.50), not tucked into a title — a tooltip is a hover
-      // surface and the member deciding this is on a phone.
+      // The reason is SAID in the row, not a title tooltip (hover-only is wrong on a phone).
       const why = document.getElementById('bpModeManualWhy');
       if (why) why.hidden = _payslipExists;
     }
     if (!_payslipExists && _bpMode() === 'manual') applyBpMode('compute');
   }
 
-  // The story strip at the top of the card — award shape + this member's figure, ahead of the
-  // controls (v18.39). Written on EVERY exit path below so it can never show a stale £.
+  // The story strip — written on EVERY exit path below so it can never show a stale £.
   const _storyEl = /** @type {HTMLElement|null} */ (document.getElementById('bpAwardScope'));
   const _story = /** @param {'computed'|'manual'|'manual-empty'|'no-figures'|'needs-rate'|'empty-window'|'joined-after'} state
                      @param {number} [amount] */ (state, amount = 0) => {
@@ -623,14 +553,12 @@ export function calcBackPay() {
   const labelEl    = document.getElementById('backPayTotalLabel');
   const periodWrap = document.getElementById('backPayPeriodWrap');
 
-  // Estimate banner — visible whenever the award's tax-year rates are still unconfirmed (accepted
-  // by the RMT but not yet confirmed on payslips). Set before the early return so it shows the moment the
-  // card opens, even before any figures are entered.
+  // Estimate banner — while the award's rates are unconfirmed; before the early returns, so it shows
+  // before any figures are entered.
   const estimateNote = document.getElementById('bpEstimateNote');
   if (estimateNote) estimateNote.style.display = awardTy?.rateUnconfirmed ? 'block' : 'none';
 
-  // Inverted Old/New pair (likely swapped boxes, or a typo) — without this hint the card just
-  // shows nothing, with no clue why.
+  // Inverted Old/New pair (swapped boxes, or a typo) — otherwise the card shows nothing, with no clue why.
   const orderWarn = document.getElementById('bpOrderWarn');
   if (orderWarn) {
     const rateSwapped   = oldRate   > 0 && newRate   > 0 && newRate   <= oldRate;
@@ -639,9 +567,8 @@ export function calcBackPay() {
   }
 
   // ── MANUAL MODE (enter-the-amount-from-your-payslip) ─────────────────────────
-  // The default for a PRIOR, already-paid award: the member types the actual lump printed on their
-  // payslip, so no rate×hours accrual runs (and it needs none of that year's old hours). Still uses
-  // the paid-in period + opt-in tick, so it lands on the right payslip's take-home when ticked.
+  // The default for a PRIOR, already-paid award: the member types the lump printed on their payslip,
+  // so no accrual runs. Still uses the paid-in period + opt-in tick.
   if (_bpMode() === 'manual') {
     if (estimateNote) estimateNote.style.display = 'none';
     if (orderWarn)    orderWarn.style.display    = 'none';
@@ -665,8 +592,7 @@ export function calcBackPay() {
     if (periodWrap) periodWrap.style.display = _periodDisplay;
     noticeEl.style.display = 'block';
     if (bpP) {
-      // The story strip + hero already name the payslip (date-first + P-number) — the notice
-      // carries only the tax fact, not a third restatement (v18.48, owner's screenshot review).
+      // The story strip + hero already name the payslip — the notice carries only the tax fact.
       noticeEl.innerHTML = bpP.payday < new Date()
         ? 'ℹ️ The lump sum was taxed in full on that payslip.'
         : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
@@ -690,10 +616,9 @@ export function calcBackPay() {
     return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
   }
 
-  // An hourly rate is MISSING: a box with no figure on record that nobody has typed — the CES 2025/26
-  // award's old rate. The London Allowance arrears alone are a sliver of a lump (£56.10 there), and
-  // they were presented as "Yours is roughly" and offered for a take-home. No total, and the card
-  // says what it needs (paycalc-2-5; invariant 1). A swapped pair is not this: #bpOrderWarn says so.
+  // An hourly rate is MISSING (CES 2025/26's unrecorded old rate, untyped): the London arrears alone
+  // are a sliver (£56.10 there) and must not pose as "Yours is roughly". No total; the card says what
+  // it needs (paycalc-2-5; invariant 1). A swapped pair is #bpOrderWarn's.
   if (!(oldRate > 0) || !(newRate > 0)) {
     _story('needs-rate');
     rowsEl.innerHTML = '';
@@ -709,13 +634,9 @@ export function calcBackPay() {
   const rateDiff   = hasRate   ? newRate   - oldRate   : 0;
   const londonDiff = hasLondon ? newLondon - oldLondon : 0;
   const periods    = getPeriods();
-  // Back-pay applies within a single tax-year anniversary — awardTy (derived above from the
-  // April "backdated from" period) fences the accrual so a "paid in" period in a subsequent
-  // year cannot pull in that later year's periods.
-  // The date THIS award was applied/paid (mid-year lump). For a SETTLED award, periods paid on/after
-  // it were already paid at the new rate and owe NO arrears — so the accrual must stop there, matching
-  // the main calculator's mid-year rate step (getRateForPeriod). null for the pending award (not yet
-  // paid) → no such cap, the whole window from April accrues.
+  // The date THIS award was paid. For a SETTLED award, periods paid on/after it were already at the new
+  // rate and owe NO arrears, matching getRateForPeriod's mid-year step. null for a pending award → the
+  // whole window from April accrues.
   const _awardFrom = _awardFromDate;
   let rows          = '';
   let grandTotal    = 0;
@@ -723,48 +644,39 @@ export function calcBackPay() {
   let pCount        = 0;
 
   // Upper cap for accrual = up to but NOT INCLUDING the "paid in" period, AND no later than TODAY.
-  // Excluding the paid-in month: in the period the lump sum lands you are already paid at the NEW
-  // rate, so that month is current pay, not back pay (confirmed by Gareth Jul 2026). Capping at
-  // today's period (todaysPeriodNum — NOT the SELECTED period) stops a future paid-in or a future
-  // period the user has merely navigated to from adding contracted rate-diff for weeks not yet worked.
+  // Excluding the paid-in month: that month is already paid at the NEW rate, so it is current pay,
+  // not back pay (confirmed by Gareth Jul 2026). Capping at today's period (NOT the SELECTED one)
+  // stops a future period from adding rate-diff for weeks not yet worked.
   const _capPNum = Math.min(bpPNum ? bpPNum - 1 : Infinity, todaysPeriodNum());
   // 1 April of the award year — the date the rise is backdated TO, and the lower edge of the very
   // first period's accrual. Resolved once: it is the same for every period in the loop.
   const _backdateDate = _awardBackdateDate(awardTy);
   const _skipped = /** @type {string[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
-  // Window payslips with NO saved hours (v18.42 — review item 2): they still accrue the contracted
-  // rate-diff (a normal week is owed the rise regardless), but any PREMIUM arrears they carried are
-  // missing — so they're NAMED in the notice instead of the count being silently optimistic.
+  // Window payslips with NO saved hours still accrue the contracted rate-diff, but their PREMIUM
+  // arrears are missing — so they're NAMED in the notice rather than the total silently optimistic.
   const _basicOnly = /** @type {Date[]} */ ([]);
   // The window's payslips, and those the member was employed for: none of them means they joined
   // after the period the award covers, which is its own state, not "nothing … yet" (paycalc-2-17).
   let _inWindow = 0, _employedInWindow = 0;
-  // The window (awardWindow, the one definition): the award tax year's payslips from its first
-  // (fromPNum, _backdatedFromPNum) — never a following year's, so a "paid in" period there cannot
-  // apply 2025/26's rate diff to 2026/27 work — none paid on or after the award date (they owe no
-  // arrears; without this a historic award viewed at a late period double-counts), up to the cap.
-  // A cap of 0 has always meant none here (`_capPNum &&`), hence `|| Infinity`.
+  // The window (awardWindow, the one definition): the award tax year's payslips from its first —
+  // never a following year's — none paid on or after the award date (they owe no arrears), up to the
+  // cap. A cap of 0 means none here, hence `|| Infinity`.
   awardWindow(periods, awardTy, { capNum: _capPNum || Infinity, awardFrom: _awardFrom }).forEach(/** @param {any} p */ p => {
     try {
       _inWindow++;
       if (getProRateFactor(p) > 0) _employedInWindow++;
       const parsed = readSavedPeriod(p.num);
-      // Include EVERY period in the award window — even one never opened in the app. A normal
-      // contracted week is owed the rise whether worked or paid at contracted rate on leave/sick
-      // (confirmed by Gareth), so an unvisited period defaults to empty data → contracted-only
-      // (no variable). _decodeHours returns zeros for `{}`, so ratePay reduces to exactly the
-      // contracted component + London diff — bounded by the window's fences above.
+      // Include EVERY period in the window, even one never opened: a contracted week is owed the rise
+      // whether worked or on leave (confirmed by Gareth), so an unvisited period accrues the contracted
+      // component + London diff only (_decodeHours returns zeros for `{}`).
       if (parsed.error) { _skipped.push(fdShort(p.payday)); console.warn('[PayCalc] Back-pay corrupt period', p.num); return; }
       const d = parsed.data || {};
-      // Only NAME an empty period in the "no hours saved" notice when it's actually the member's —
-      // getProRateFactor is 0 for a period ENTIRELY before a mid-year joiner's start (v18.54), and
-      // such a period already contributes £0 (effContr 0) so it's never counted in the total either.
-      // Without this guard a joiner was told "fill in 10 Apr, 8 May…" for payslips before they joined.
-      // (Returns 1 for noProRate returns / no-startDate members, so long-servers are unaffected.)
+      // Only NAME an empty period when it is the member's: getProRateFactor is 0 for a period ENTIRELY
+      // before a joiner's start (which contributes £0 anyway), so a joiner is never asked to fill
+      // payslips from before they joined.
       if ((!parsed.data || isDataEmpty(d)) && getProRateFactor(p) !== 0) _basicOnly.push(p.payday);
-      // All the money arithmetic lives in the PURE _accrueBackPayPeriod (unit-tested) — this loop
-      // only maps storage/settings to numbers. Pro-rating uses the exact factor (not the
-      // integer-rounded effContr divided back) to avoid rounding error; hour caps mirror calculate().
+      // The money arithmetic is the PURE _accrueBackPayPeriod (unit-tested); this loop only maps
+      // storage to numbers. Pro-rating uses the exact factor, not the rounded effContr divided back.
       const { backPay, varPay } = _accrueBackPayPeriod({
         effContr:      getEffectiveContr(p),
         proRateFactor: getProRateFactor(p),
@@ -781,9 +693,7 @@ export function calcBackPay() {
       });
 
       if (backPay > 0) {
-        // Accumulate the PENNY-ROUNDED row value into the total so the displayed rows always
-        // sum to the displayed total (each row prints fmt(backPay) = 2dp; summing the unrounded
-        // values could leave the total 1p off the rows on a figure staff cross-check by hand).
+        // Accumulate the PENNY-ROUNDED row value, so the displayed rows always sum to the total.
         const bpRow    = Math.round(backPay * 100) / 100;
         grandTotal    += bpRow;
         grandVarTotal += varPay;
@@ -794,8 +704,7 @@ export function calcBackPay() {
         </div>`;
       }
     } catch (e) {
-      // A corrupted saved period must not abort the whole lump — but dropping its arrears
-      // silently would under-state money, so record it (surfaced below) as well as tracing it.
+      // A corrupted period must not abort the lump, nor be dropped silently: record it (surfaced below).
       _skipped.push(fdShort(p.payday));
       console.warn('[PayCalc] Back-pay skipped period', p.num, e);
     }
@@ -810,8 +719,7 @@ export function calcBackPay() {
         ? `💷 Lump sum · Paid ${fdShort(bpP.payday)}`
         : '💷 Lump sum on one payslip';
     }
-    // When the compact "On record" line above the hero already states the rates (_allLocked), the
-    // basis carries the period count only — otherwise the rates appear twice 100px apart (v18.48).
+    // When the "On record" line already states the rates (_allLocked), the basis carries the count only.
     if (_allLocked) {
       totalBasEl.textContent = `${pCount} period${pCount > 1 ? 's' : ''} backdated at the rates on record`;
     } else {
@@ -825,9 +733,8 @@ export function calcBackPay() {
 
     noticeEl.style.display = 'block';
     if (bpP) {
-      // The story strip + hero already name the payslip (date-first + P-number) — the notice
-      // carries only the tax fact, not a third restatement (v18.48, owner's screenshot review).
-      // Past tense for a payday already gone ("will appear" for a nine-months-ago payslip reads wrong).
+      // The story strip + hero already name the payslip — the notice carries only the tax fact, in
+      // the past tense for a payday already gone.
       noticeEl.innerHTML = bpP.payday < new Date()
         ? 'ℹ️ The lump sum was taxed in full on that payslip.'
         : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
@@ -835,20 +742,16 @@ export function calcBackPay() {
       setStatus(noticeEl, '⚠️ This lump sum is taxed in the period it is paid. Choose the payslip above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.');
     }
     if (_basicOnly.length) {
-      // ITS OWN PARAGRAPH (v21.70). This used to be appended after a leading space onto the tax
-      // warning, making one ~65-word block out of two unrelated facts: how the lump is TAXED
-      // (nothing you can act on) and which payslips are MISSING HOURS (something you can, and the
-      // only actionable sentence on the card). Run together, the second was read as a tail of the
-      // first. Two blocks, action last — and the plural agreement is per clause, not per sentence,
-      // so a single missing payslip does not read as a list of one.
+      // ITS OWN PARAGRAPH: how the lump is TAXED and which payslips are MISSING HOURS (the only
+      // actionable sentence on the card) are unrelated facts, so two blocks, action last. The plural
+      // agreement is per clause, so a single missing payslip does not read as a list of one.
       const _many = _basicOnly.length > 1;
       noticeEl.innerHTML += `<span class="bp-notice-sep">No hours are saved for ${fdList(_basicOnly)} — ${_many ? 'those payslips were' : 'that payslip was'} counted at the basic-rate arrears only, so any overtime or weekend arrears ${_many ? 'they' : 'it'} carried are missing. Fill ${_many ? 'them' : 'it'} in on the calculator for the full figure.</span>`;
     }
 
     rowsEl.innerHTML = rows;
     breakdownBtn.style.display = 'flex';
-    // If the panel is open, re-fit its inline max-height to the fresh rows (they may be
-    // taller/shorter than the content the height was measured against).
+    // If the panel is open, re-fit its inline max-height to the fresh rows.
     if (rowsEl.classList.contains('open')) rowsEl.style.maxHeight = `${rowsEl.scrollHeight}px`;
   } else {
     // A member who started after the whole window owes nothing and is owed nothing: say THAT, and
@@ -857,11 +760,8 @@ export function calcBackPay() {
     _story(_joinedAfter ? 'joined-after' : 'empty-window');
     totalEl.style.display = 'none';
     if (periodWrap) periodWrap.style.display = 'none';
-    // Explain the empty state in the (visible) notice element. The old message lived inside the
-    // collapsed breakdown panel — max-height:0 with its toggle hidden — so it was never actually
-    // visible; and its text ("Enter hours for each period first") was stale anyway, since unvisited
-    // periods now accrue contracted arrears. This state means the award window itself is empty
-    // (e.g. the paid-in payslip is at/before April).
+    // Explain the empty state in the visible notice element: the award window itself is empty (e.g.
+    // the paid-in payslip is at/before April).
     noticeEl.style.display = 'block';
     setStatus(noticeEl, _joinedAfter
       ? 'ℹ️ You started after the period this award covers, so there is nothing to backdate for you.'
@@ -870,10 +770,8 @@ export function calcBackPay() {
     _resetBreakdown(rowsEl, breakdownBtn);
   }
 
-  // A corrupt saved period was excluded, so the lump above may be too low — say so rather than
-  // quietly under-stating money (the app's no-silent-caps principle). Only trips on malformed
-  // localStorage (old migration, manual import, storage damage); noticeEl is already visible in
-  // both branches above, so append to it.
+  // A corrupt saved period was excluded, so the lump above may be too low — say so (no-silent-caps).
+  // noticeEl is already visible in both branches above, so append to it.
   if (_skipped.length) {
     noticeEl.style.display = 'block';
     noticeEl.innerHTML += `<span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''} (${_skipped.join(', ')}), so this total may be too low. Open ${_skipped.length > 1 ? 'those payslips' : 'that payslip'} on the calculator to re-save, then check again.</span>`;
@@ -892,7 +790,8 @@ export function calcBackPay() {
            bpIsEstimate: !!awardTy?.rateUnconfirmed, bpIncluded };
 }
 
-// ── THE CARD'S STATE, AS THE TAKE-HOME READS IT (moved from paycalc-app.js, Nov 2026) ─────────
+// ── THE CARD'S STATE, AS THE TAKE-HOME READS IT ──────────────────────────────────────────────
+
 
 /** What calculate() prices from this card — set only by `_applyBpState`. bpVarAmount is not tracked:
  *  nothing consumes it since HPP stopped taking back pay, and any change to it moves the amount too. */
