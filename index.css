@@ -400,7 +400,7 @@
         /* The iOS second line: what to actually tap. Muted, because it is the method and the line
            above is the offer. `display: block` is what makes it a line of its own, which is exactly
            the trap page-visibility-parity.test.mjs guards — hence the companion `[hidden]` rule. */
-        .top-prompt-steps { display: block; margin-top: 2px; color: rgba(255, 255, 255, 0.68); }
+        .top-prompt-steps { display: block; margin-top: 2px; color: var(--on-navy-muted); }
         .top-prompt-steps[hidden] { display: none; }
         .top-prompt-steps strong { color: rgba(255, 255, 255, 0.92); font-weight: 600; }
         .top-prompt-action {
@@ -418,11 +418,20 @@
         }
         .top-prompt-dismiss {
             background: none; border: none; padding: 8px 10px; font-family: inherit;
-            font-size: var(--type-large); color: rgba(255, 255, 255, 0.65); cursor: pointer;
+            font-size: var(--type-large); color: var(--on-navy-muted); cursor: pointer;
             touch-action: manipulation; flex-shrink: 0; line-height: 1;
             min-height: 44px; align-self: center;
         }
-        .top-prompt-dismiss:focus-visible {
+        /* The notification strip's "Not now" (owner, 26 Nov 2026): a WORD, not a ✕, because it retires the
+           offer for good and a ✕ reads as "hide this for now". `.notice-later`'s quiet text button, on the
+           strip's muted ink, with the ✕'s 44px target and gold ring. */
+        .top-prompt-later {
+            background: none; border: none; padding: 8px 6px; font-family: inherit;
+            font-size: var(--type-small); font-weight: 600; color: var(--on-navy-muted); cursor: pointer;
+            touch-action: manipulation; flex-shrink: 0; white-space: nowrap;
+            min-height: 44px; align-self: center;
+        }
+        .top-prompt-dismiss:focus-visible, .top-prompt-later:focus-visible {
             outline: var(--focus-outline-gold);
             outline-offset: 2px;
         }

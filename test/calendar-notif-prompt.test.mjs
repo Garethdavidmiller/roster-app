@@ -27,10 +27,13 @@ let renewals = 0;
 /** What `enableNotifications` answers — notif.js's own states. @type {string} */
 let enableResult = 'on';
 let enables = 0;
+/** Served from the GitHub Pages mirror. */
+let mirror = false;
 /** @type {Record<string, string>} */
 let store = {};
 mock.module('../notif.js', { namedExports: {
     notifSupported: () => true,
+    onPagesMirror: () => mirror,
     getNotifState: () => { renewals++; return Promise.resolve('on'); },
     enableNotifications: () => { enables++; return Promise.resolve(enableResult); },
 } });
@@ -48,7 +51,12 @@ function btn(init = {}) {
     return { on, style: { display: '' }, hidden: false, textContent: '', ...init,
              addEventListener: (/** @type {string} */ t, /** @type {Function} */ f) => { on[t] = f; } };
 }
-globalThis.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => els[id] ?? null });
+/** @type {Record<string, Function[]>} */
+let docListeners = {};
+globalThis.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => els[id] ?? null,
+    addEventListener: (/** @type {string} */ t, /** @type {Function} */ f) => { (docListeners[t] ??= []).push(f); } });
+/** What notif.js tells the page after a toggle elsewhere. @param {string} state */
+const notifChanged = (state) => { for (const f of docListeners['myb:notif-changed'] ?? []) f({ type: 'myb:notif-changed', detail: { state } }); };
 /** What the system's permission prompt answers. */
 let permissionAnswer = 'denied';
 globalThis.Notification = /** @type {any} */ ({ permission: 'default', requestPermission: async () => permissionAnswer });
@@ -79,7 +87,7 @@ const FAILED_LINE = (/<span id="notifPromptFailedLine">([\s\S]*?)<\/span><\/span
 const freshEls = () => ({ notifPrompt: btn(), notifPromptEnable: btn(), notifPromptDismiss: btn(),
     notifPromptOffer: btn(), notifPromptFailed: btn({ hidden: true }),
     notifPromptFailedLine: btn({ textContent: FAILED_LINE }), ariaAnnouncer: btn(),
-    notifPromptOfferDocs: btn(), notifPromptOfferPay: btn({ hidden: true }) });
+    notifPromptOfferPay: btn({ hidden: true }) });
 
 beforeEach(() => {
     renewals = 0;
@@ -87,6 +95,8 @@ beforeEach(() => {
     enableResult = 'on';
     permissionAnswer = 'denied';
     store = {};
+    mirror = false;
+    docListeners = {};
     els = freshEls();
     /** @type {any} */ (globalThis.Notification).permission = 'default';
     session = null;
@@ -116,7 +126,6 @@ describe('the offer names the pay reminder only to a member it is sent to', () =
             await settle();
             assert.equal(els.notifPrompt.style.display, 'flex', 'premise: the strip is shown');
             assert.equal(els.notifPromptOfferPay.hidden, !gets, `${role}: the pay reminder ${gets ? 'was left out' : 'was promised'}`);
-            assert.equal(els.notifPromptOfferDocs.hidden, gets, 'and exactly one ending shows');
         });
     }
 
@@ -159,10 +168,10 @@ describe('the offer names the pay reminder only to a member it is sent to', () =
         assert.deepEqual(wrong, [], 'the strip and the server disagree about who is sent the pay reminder');
     });
 
-    test('in the markup: the ending without the pay reminder shows until the module says otherwise', () => {
+    test('in the markup: the offer names the documents, and its pay ending starts hidden', () => {
         const offer = /<span class="top-prompt-text" id="notifPromptOffer">([\s\S]*?)<\/span>\s*\n/.exec(HTML)?.[1] ?? '';
-        assert.match(offer, /<span id="notifPromptOfferDocs"> and other documents<\/span>/);
-        assert.match(offer, /<span id="notifPromptOfferPay" hidden>, documents and pay reminders<\/span>/);
+        assert.match(offer, /Get a notification for each new Daily Huddle, Circular and Newsletter<span id="notifPromptOfferPay" hidden>, and the pay reminder<\/span>/);
+        assert.doesNotMatch(HTML, /notifPromptOfferDocs/, 'the "and other documents" ending is gone');
     });
 });
 
@@ -255,11 +264,16 @@ describe('Enable is answered, not just acted on (cal-docs-5, whole-app review 10
             'the answer was recorded before the subscription was saved — a failed one could not come back');
     });
 
-    test('granted and switched on: the strip stays gone, and nothing is announced', async () => {
+    test('granted and switched on: the strip stays gone, and the announcer says they are on', async () => {
         enableResult = 'on';
         await tapEnable();
         assert.equal(els.notifPrompt.style.display, 'none');
         assert.equal(els.notifPromptFailed.hidden, true);
+        assert.equal(els.ariaAnnouncer.textContent, 'Notifications are on.', 'the strip left the screen and nothing was said');
+    });
+    test('a dismissed system prompt is not announced as on', async () => {
+        enableResult = 'off-default';
+        await tapEnable();
         assert.equal(els.ariaAnnouncer.textContent, '');
     });
 
@@ -282,14 +296,40 @@ describe('Enable is answered, not just acted on (cal-docs-5, whole-app review 10
         // was one until 22 Nov 2026; css-shared lead, whole-app review 10 Nov 2026).
         assert.match(HTML, /<span class="top-prompt-text" id="notifPromptFailed" hidden>/,
             'the failure line is in the markup, hidden until it is needed');
-        assert.match(FAILED_LINE, /☰ → Settings/);
-        const routes = [...HTML.matchAll(/☰ →/g)].map(m => m.index ?? 0);
+        // "☰ then ⚙️ Settings" since 26 Nov 2026 — the wording the notices use (owner); a route written with
+        // ordinary spaces needs .nav-path, and one held by &nbsp; (the notices') is unbreakable already.
+        assert.match(FAILED_LINE, /☰ then ⚙️ Settings/);
+        const routes = [...HTML.matchAll(/☰(?: →| then)/g)].map(m => m.index ?? 0);
         // The Team View tip's "☰ → Daily Huddle" went with the duplicated About tips (lightbox review, 22 Nov
-        // 2026): the strip's own route is the one left, and any route added later is held to the same rule.
-        assert.ok(routes.length >= 1, 'the strip\'s route, at least');
+        // 2026): the strip's two routes (its offer and its failure line) are the ones left, and any route
+        // added later is held to the same rule.
+        assert.ok(routes.length >= 2, 'the strip\'s two routes, at least');
         for (const at of routes) {
             assert.match(HTML.slice(Math.max(0, at - 40), at), /class="nav-path">$/,
                 `a route told without .nav-path: …${HTML.slice(at - 30, at + 25)}…`);
         }
+    });
+});
+
+// ── TURNED ON ELSEWHERE, AND NOT OFFERED ON THE MIRROR (owner, 26 Nov 2026) ─────────────────────────────
+describe('the strip follows the rest of the page, and the address it is on', () => {
+    test('turned on by the drawer\'s bell in the same visit: the strip goes', async () => {
+        initNotifPrompt({ authReady: Promise.resolve(), getAccessType: () => 'named' });
+        await settle();
+        assert.equal(els.notifPrompt.style.display, 'flex', 'premise: the strip is shown');
+        notifChanged('off-default');
+        assert.equal(els.notifPrompt.style.display, 'flex', 'an off answer elsewhere leaves the offer standing');
+        notifChanged('on');
+        assert.equal(els.notifPrompt.style.display, 'none');
+    });
+    test('on the Pages mirror the strip is not offered — and a granted device still renews', async () => {
+        mirror = true;
+        initNotifPrompt({ authReady: Promise.resolve(), getAccessType: () => 'named' });
+        await settle();
+        assert.equal(els.notifPrompt.style.display, '', 'Turn on offered at the address that is closing');
+        /** @type {any} */ (globalThis.Notification).permission = 'granted';
+        initNotifPrompt({ authReady: Promise.resolve(), getAccessType: () => 'named' });
+        await settle();
+        assert.equal(renewals, 1, 'a subscription already made there is kept up');
     });
 });

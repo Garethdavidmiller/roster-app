@@ -39,39 +39,36 @@
  * The coordinator wires this BEFORE install-prompt.js, which hides this strip when it shows its
  * own — one ask at a time, install first. That precedence is install-prompt.js's to argue.
  */
-import { notifSupported, getNotifState, enableNotifications } from './notif.js';
+import { notifSupported, getNotifState, enableNotifications, onPagesMirror } from './notif.js';
 import { lsGet, lsSet } from './ls.js';
 import { installNoticeHasTheVisit } from './install-prompt.js';
 import { NOTIF_PROMPT_DONE } from './storage-keys.js';
 import { getSession } from './session.js';
-import { teamMembers, gradeForRole } from './roster-data.js';
-
-/**
- * Is the four-weekly pay reminder sent to this member? Asked AS THE SERVER ASKS IT (18 Nov 2026): the
- * reminder goes to the names on the server roster's `cea` and `ces` lists (functions/pay-reminder.js),
- * which hold each visible row, not a manager's login, whose RECORDED `role` has a pay grade
- * (`gradeForRole`, the same answer the server's grade keys are spelt from). Not the grade held TODAY
- * (`roleOn`, which the Pay Calculator rightly asks): a CES whose move into management is released was
- * promised reminders until the move's first day, and a hidden leaver for good — neither is sent one.
- * @param {any} member  teamMembers entry, or null
- * @returns {boolean}
- */
-function sentPayReminder(member) {
-    return !!member && !member.hidden && !member.managerOnly && !!gradeForRole(member.role);
-}
+import { teamMembers } from './roster-data.js';
+import { sentPayReminder } from './pay-audience.js';
 
 /**
  * Say what the strip will bring THIS member: the pay reminder goes to CEA and CES only
- * (`sentPayReminder`), and the offer promised it to everybody (whole-app check, 17 Nov 2026). Both
- * endings are index.html's; this shows one. Asked when the strip is shown, because a member signing in
- * at the front door has no session before then.
+ * (`sentPayReminder`, pay-audience.js — the server's own rule, which Settings asks too), and the offer
+ * promised it to everybody (whole-app check, 17 Nov 2026). Its ending is index.html's; this shows it or
+ * not. Asked when the strip is shown, because a member signing in at the front door has no session before then.
  */
 function sayWhatItBrings() {
     const pay = sentPayReminder(teamMembers.find(m => m.name === getSession()?.name) ?? null);
     const withPay = document.getElementById('notifPromptOfferPay');
-    const documentsOnly = document.getElementById('notifPromptOfferDocs');
     if (withPay) withPay.hidden = !pay;
-    if (documentsOnly) documentsOnly.hidden = pay;
+}
+
+/**
+ * Say something through the Calendar's polite announcer: cleared first, so the same words are spoken
+ * again (announceMonthChange's pattern).
+ * @param {string} words
+ */
+function announce(words) {
+    const announcer = document.getElementById('ariaAnnouncer');
+    if (!announcer) return;
+    announcer.textContent = '';
+    requestAnimationFrame(() => { announcer.textContent = words; });
 }
 
 /**
@@ -104,6 +101,11 @@ export function initNotifPrompt({ authReady, getAccessType }) {
 
     if (Notification.permission === 'denied') return;
     if (lsGet(NOTIF_PROMPT_DONE)) return;
+    // NOT ON THE PAGES MIRROR (owner, 26 Nov 2026). A subscription made there belongs to an address that
+    // will close; the move notice sends the member to the main address, where this strip asks instead
+    // (another origin, with its own storage, so nothing is flagged here). The renewal above still runs
+    // on the mirror: a device already subscribed there keeps working until the member turns it off.
+    if (onPagesMirror()) return;
 
     const prompt     = document.getElementById('notifPrompt');
     const enableBtn  = document.getElementById('notifPromptEnable');
@@ -122,6 +124,12 @@ export function initNotifPrompt({ authReady, getAccessType }) {
         _prompt.style.display = 'flex';
     });
     function hide() { _prompt.style.display = 'none'; }
+    // TURNED ON ELSEWHERE IN THIS VISIT (owner, 26 Nov 2026) — the drawer's bell: the strip still offered
+    // Turn on for something already on. notif.js announces every toggle; only an 'on' retires the strip
+    // here (notif.js has already set the done flag, once the subscription was saved).
+    document.addEventListener?.('myb:notif-changed', (e) => {
+        if (/** @type {CustomEvent} */ (e).detail?.state === 'on') hide();
+    });
 
     /**
      * GRANTED, BUT NOT SWITCHED ON (whole-app review, 10 Nov 2026). The system said yes and the
@@ -144,11 +152,8 @@ export function initNotifPrompt({ authReady, getAccessType }) {
         if (offer) offer.hidden = true;
         failed.hidden = false;
         _prompt.style.display = 'flex';
-        const announcer = document.getElementById('ariaAnnouncer');
-        if (!announcer) return;
-        // Cleared first, so a second failure is spoken again (announceMonthChange's pattern).
-        announcer.textContent = '';
-        requestAnimationFrame(() => { announcer.textContent = (line.textContent || '').trim(); });
+        // Cleared first, so a second failure is spoken again.
+        announce((line.textContent || '').trim());
     }
 
     enableBtn.addEventListener('click', async () => {
@@ -172,7 +177,11 @@ export function initNotifPrompt({ authReady, getAccessType }) {
             await authReady;
             // Permission already granted → straight to subscribe. Its answer is READ: 'off-lapsed'
             // is a subscription that failed, and the strip says so rather than vanishing.
-            if (await enableNotifications() === 'off-lapsed') showFailed();
+            // And 'on' is SAID (owner, 26 Nov 2026): the strip leaves the screen as the system asks, so a
+            // screen reader heard nothing come of the tap.
+            const answer = await enableNotifications();
+            if (answer === 'off-lapsed') showFailed();
+            else if (answer === 'on') announce('Notifications are on.');
         } catch (err) {
             console.warn('[Notifications] Enable failed:', /** @type {any} */ (err).message);
         }

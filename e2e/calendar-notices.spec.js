@@ -286,7 +286,7 @@ test.describe('install notice — on an iPhone', () => {
         await expect(strip).toBeVisible({ timeout: 15_000 });
         const steps = page.locator('#installPromptSteps');
         await expect(steps).toBeVisible();
-        await expect(steps).toHaveText('Tap Share, then Add to Home Screen (iOS 26 or later: Share is under •••)');
+        await expect(steps).toHaveText('Tap Share, then Add to Home Screen (iOS 26 or later: Share is under •••) — on an iPhone it’s also what lets notifications work.');
         await expect(page.locator('#installPromptAction'), 'WebKit has no install event, so there is nothing to press').toBeHidden();
         const fit = await page.evaluate(() => {
             const s = /** @type {HTMLElement} */ (document.getElementById('installPrompt')).getBoundingClientRect();
