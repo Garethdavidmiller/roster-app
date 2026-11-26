@@ -74,7 +74,8 @@ export function seedSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 16 Nov – 12 Dec 2026 (v26.21): left out until the 72-hour review (v24.96)
-        localStorage.setItem('myb_notice_newlink_2026_done', '1');   // the New link notice, 9 Nov – 5 Dec 2026 (v25.61)
+        localStorage.setItem('myb_notice_newlink_vote_2026_done', '1');   // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
+        localStorage.setItem('myb_notice_move_to_main_2026_done', '1');   // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
         localStorage.setItem('myb_pc_hpp_notice_2526_shown', '1');   // the Pay page's premium notice, 16 Nov 2026 – 8 Jan 2027 (v26.22)
         // The Links first-visit panel ("How Links works") joined them at the 1.63 upgrade, for the
@@ -104,7 +105,7 @@ export function seedSession(page, name = 'G. Miller') {
  */
 export function clearNoticeFlags(page, keys = ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done',
                                                'myb_notice_install_app_2026_done', 'myb_notice_timetable_soon_2026_done',
-                                               'myb_notice_newlink_2026_done']) {
+                                               'myb_notice_newlink_vote_2026_done', 'myb_notice_move_to_main_2026_done']) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 
@@ -149,7 +150,8 @@ export function seedMember(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 16 Nov – 12 Dec 2026 (v26.21): left out until the 72-hour review (v24.96)
-        localStorage.setItem('myb_notice_newlink_2026_done', '1');   // the New link notice, 9 Nov – 5 Dec 2026 (v25.61)
+        localStorage.setItem('myb_notice_newlink_vote_2026_done', '1');   // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
+        localStorage.setItem('myb_notice_move_to_main_2026_done', '1');   // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
     }, name);
 }
 
@@ -349,7 +351,8 @@ export function seedMemberSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 16 Nov – 12 Dec 2026 (v26.21): left out until the 72-hour review (v24.96)
-        localStorage.setItem('myb_notice_newlink_2026_done', '1');   // the New link notice, 9 Nov – 5 Dec 2026 (v25.61)
+        localStorage.setItem('myb_notice_newlink_vote_2026_done', '1');   // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
+        localStorage.setItem('myb_notice_move_to_main_2026_done', '1');   // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);
 }
@@ -382,7 +385,7 @@ export function seedCalendarMember(page, name = 'G. Miller') {
             sessionStorage.setItem('__e2e_member_flags_seeded', '1');
         } catch (_) { /* private mode: seed every load, as seedSession does */ }
         for (const k of ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done', 'myb_notice_install_app_2026_done',
-                         'myb_notice_timetable_soon_2026_done', 'myb_notice_newlink_2026_done', 'myb_pc_ytd_notice_2_shown',
+                         'myb_notice_timetable_soon_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_pc_ytd_notice_2_shown',
                          'myb_pc_hpp_notice_2526_shown', 'myb_links_welcome_seen']) localStorage.setItem(k, '1');
     }, name);
 }

@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for Marylebone Roster
 
-*Last updated: November 2026 — v26.80 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.90 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -1073,7 +1073,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `initNotifPrompt`
 
 ### `install-prompt.js`
-- **Exports:** `installRoute` · `promptInstall` · `yieldToInstallNotice` · `releaseInstallNoticeYield` · `retireInstallStrip` · `installNoticeHasTheVisit` · `initInstallPrompt`
+- **Exports:** `onPagesMirror` · `installRoute` · `promptInstall` · `yieldToInstallNotice` · `releaseInstallNoticeYield` · `retireInstallStrip` · `installNoticeHasTheVisit` · `initInstallPrompt`
 
 ### `text-scale.js`
 - **Exports:** `LARGE_FROM` · `COMPACT_FROM` · `LARGE_VALUE` · `COMPACT_VALUE` · `tierFor` · `measureTextScale` · `applyTextScale`

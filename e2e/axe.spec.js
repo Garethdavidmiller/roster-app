@@ -1201,14 +1201,14 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
 
     test('the New link notice open (calendar) — the New link badge on the glass (v25.61)', async ({ page }) => {
         // The teal New link badge under white type, a pairing no other notice carries (5.19:1 on paper — css-tokens.md;
-        // this is where it is measured on the glass). Members the page admits, 9 November to 5 December, and on a phone
+        // this is where it is measured on the glass). Members the page admits, 26 November to 5 December, and on a phone
         // only after the install notice: the seeders mark that one answered, so clearing this flag alone is the setup,
         // on every project.
-        await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+        await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
         await seedSession(page, 'G. Miller');
         await seedMemberSession(page, 'G. Miller');
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_newlink_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_newlink_vote_2026_done']);
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
         await expect(page.locator('#newlinkNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });

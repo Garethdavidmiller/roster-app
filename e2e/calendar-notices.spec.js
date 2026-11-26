@@ -317,7 +317,7 @@ test('install notice: never on a desktop — and not flagged there, so the membe
 // sign-in reaches the gate, that the link really lands them ON the New link page (which turns away
 // anybody the notice should not have told), and that on a real phone the order holds across reloads.
 // Who it is for, every name on the roster, and the dates are pinned there.
-const NEWLINK_NOTICE_DAY = new Date('2026-11-10T09:00:00Z');   // the day after its posting; offered to 5 Dec
+const NEWLINK_NOTICE_DAY = new Date('2026-11-27T09:00:00Z');   // the day after the vote notice's posting; offered to 5 Dec
 /** Somebody on the roster who fits — found, not named, so a leaver cannot break a test (newlink.spec.js's rule),
  *  and never on a role list, which would reach the page by that list instead. @param {string} what
  *  @param {(m: any) => boolean} fits @returns {string} */
@@ -330,22 +330,22 @@ function rosterSomeone(what, fits) {
 const NEWLINK_COLLEAGUE = rosterSomeone('CEA on a normal contract', m => m.role === 'CEA' && !m.bilingualContract);
 const NOT_NEWLINK       = rosterSomeone('CEA on a bilingual contract', m => m.role === 'CEA' && m.bilingualContract);
 
-test('New link notice: a colleague the page is for is told, and its link takes them onto the page (v25.61)', async ({ page }) => {
+test('New link notice: a colleague the page is for is told, and its link takes them onto the page (v25.61; the vote notice, v26.90)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
     await seedSession(page, NEWLINK_COLLEAGUE);
     await seedMemberSession(page, NEWLINK_COLLEAGUE);
-    await clearNoticeFlags(page, ['myb_notice_newlink_2026_done']);   // after the seeders: last write wins
+    await clearNoticeFlags(page, ['myb_notice_newlink_vote_2026_done']);   // after the seeders: last write wins
     await page.goto('/');
     const notice = page.locator('#newlinkNoticeLb');
     await expect(notice, 'on a desk there is no install notice to wait for, and on a phone the seeders answered it')
         .toHaveClass(/\bopen\b/, { timeout: 15_000 });
-    await expect(page.locator('#newlinkNoticeContent .lightbox-app-name')).toHaveText('See the three proposals for the new link');
+    await expect(page.locator('#newlinkNoticeContent .lightbox-app-name')).toHaveText('Voting on the new link starts soon');
     // The flag is read AS THE LINK IS PRESSED, not on the page it opens: the init scripts run again on that navigation,
     // and the one that re-enabled this notice for the test clears the flag — in whichever order they happen to run.
     // A document listener bubbles after the link's own, and sessionStorage survives the navigation untouched.
     await page.evaluate(() => document.addEventListener('click', () => {
-        sessionStorage.setItem('__newlinkDoneAtClick', localStorage.getItem('myb_notice_newlink_2026_done') ?? 'unset');
+        sessionStorage.setItem('__newlinkDoneAtClick', localStorage.getItem('myb_notice_newlink_vote_2026_done') ?? 'unset');
     }));
     await page.locator('#newlinkNoticeGo').click();
     await expect(page).toHaveURL(/\/newlink\.html$/);
@@ -353,7 +353,7 @@ test('New link notice: a colleague the page is for is told, and its link takes t
         .toBeVisible({ timeout: 15_000 });
     expect(await page.evaluate(() => sessionStorage.getItem('__newlinkDoneAtClick')), 'the link marks it done as it is pressed').toBe('1');
     const filed = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_app_notices') || '[]')
-        .filter((/** @type {any} */ n) => n.id === 'newlink-2026').map((/** @type {any} */ n) => n.section));
+        .filter((/** @type {any} */ n) => n.id === 'newlink-vote-2026').map((/** @type {any} */ n) => n.section));
     expect(filed, 'archived on open, under its own section').toEqual(['New link']);
     expect(errors).toHaveLength(0);
 });
@@ -374,7 +374,7 @@ test('New link notice: one Back from the page its link opened returns to the Cal
     await page.addInitScript(() => {
         if (location.pathname !== '/' || sessionStorage.getItem('__e2e_newlink_offered')) return;
         sessionStorage.setItem('__e2e_newlink_offered', '1');
-        localStorage.removeItem('myb_notice_newlink_2026_done');
+        localStorage.removeItem('myb_notice_newlink_vote_2026_done');
     });
     await page.goto('/railcard-guide.html');                   // where the member came from
     await page.goto('/');
@@ -395,19 +395,20 @@ test('New link notice: never for a colleague the page turns away — and not fla
     await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
     await seedSession(page, NOT_NEWLINK);
     await seedMemberSession(page, NOT_NEWLINK);
-    await clearNoticeFlags(page, ['myb_notice_newlink_2026_done']);
+    await clearNoticeFlags(page, ['myb_notice_newlink_vote_2026_done']);
     await page.goto('/');
     await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
     await page.waitForTimeout(2500);                          // past the 1,500ms defer
     await expect(page.locator('#newlinkNoticeLb')).not.toHaveClass(/\bopen\b/);
-    expect(await page.evaluate(() => localStorage.getItem('myb_notice_newlink_2026_done')), 'refused, so left unflagged').toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_newlink_vote_2026_done')), 'refused, so left unflagged').toBeNull();
     expect(errors).toHaveLength(0);
 });
 
 test('on a phone, the New link notice comes the load after the install notice — never both at once (v25.61)', async ({ page }, info) => {
     // The owner's "third in sequence", on a real page across real reloads. The session is seeded WITHOUT the
-    // seeders' notice flags, as in the test above this block: here the flags are the subject. By 10 November the
-    // October notices have ended and flag themselves; the install notice is still running.
+    // seeders' notice flags, as in the test above this block: here the flags are the subject. By 27 November the
+    // October notices have ended and flag themselves; the install notice is still running. The timetable notice runs
+    // then too, and comes after these two (its own test, below) — answered here, so this one is about the pair.
     test.skip(!isTouchProject(info), 'the install notice is offered only on a touch screen');
     test.setTimeout(90_000);
     const errors = collectFatalErrors(page);
@@ -422,7 +423,8 @@ test('on a phone, the New link notice comes the load after the install notice �
         // below must survive the reload that follows it (helpers.js → seedCalendarMember).
         if (!sessionStorage.getItem('__e2e_flags_cleared')) {
             sessionStorage.setItem('__e2e_flags_cleared', '1');
-            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
+            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done']) localStorage.removeItem(k);
+            localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
@@ -446,7 +448,7 @@ test('on a phone, the New link notice comes the load after the install notice �
 // What calendar-notices.test.mjs cannot see: the order holding on a real page across real reloads, each flag surviving a
 // reload exactly as a dismissal leaves it. Who waits for what, and every date, are pinned there. Both sessions are seeded
 // WITHOUT the seeders' notice flags, as in the order tests above: here the flags are the subject.
-const TIMETABLE_NOTICE_DAY = new Date('2026-11-17T09:00:00Z');   // the day after its posting; offered to 12 December
+const TIMETABLE_NOTICE_DAY = new Date('2026-11-27T09:00:00Z');   // after the New link vote notice's posting (26 Nov), which it follows; offered to 12 December
 const TIMETABLE_FINAL_WEEK = new Date('2026-12-07T09:00:00Z');   // inside its final week, from Sunday 6 December
 
 /** Sign the New link colleague in on this device and open the Calendar, with no notice answered yet. */
@@ -462,7 +464,7 @@ async function colleagueWithNoNoticesAnswered(page, day) {
         // below must survive the reload that follows it (helpers.js → seedCalendarMember).
         if (!sessionStorage.getItem('__e2e_flags_cleared')) {
             sessionStorage.setItem('__e2e_flags_cleared', '1');
-            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
+            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
@@ -484,8 +486,8 @@ async function answerInOrder(page, order) {
 }
 
 test('from 16 November the timetable notice comes after the install and New link notices — one a load (v26.21)', async ({ page }, info) => {
-    // By the 17th the October notices have ended and flag themselves. The install notice is offered on a touch screen
-    // only, so a desk starts at the New link notice.
+    // By the 27th the October notices have ended and flag themselves, and the New link vote notice (from the 26th) is
+    // running. The install notice is offered on a touch screen only, so a desk starts at the New link notice.
     test.setTimeout(90_000);
     const errors = collectFatalErrors(page);
     await colleagueWithNoNoticesAnswered(page, TIMETABLE_NOTICE_DAY);

@@ -219,9 +219,11 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
             const span = (/** @type {number} */ a, /** @type {number} */ b) => (a === b ? `${a}` : `${a}–${b}`);
             // A MONTH THAT WRAPS THE CYCLE (17 Nov 2026): one that starts in week 19 of 20 ends in week
             // 3, and "CEA Weeks 19–3" reads as a range run backwards — a third of member-months over a
-            // winter. It is the end of one cycle and the start of the next, so it says both.
+            // winter. It is the end of one cycle and the start of the next, so it says both. A THIN space after
+            // the comma (owner, 26 Nov 2026): this is the note's longest form, and on the owner's phone
+            // "November 2026" and "CEA Weeks 19–20, 1–3" missed one line by a pixel, so the note dropped below.
             weekDisplay = firstWeekNum > lastWeekNum && cycleWeeks >= firstWeekNum
-                ? `${pluralPrefix} ${span(firstWeekNum, cycleWeeks)}, ${span(1, lastWeekNum)}`
+                ? `${pluralPrefix} ${span(firstWeekNum, cycleWeeks)},\u2009${span(1, lastWeekNum)}`
                 : `${pluralPrefix} ${span(firstWeekNum, lastWeekNum)}`;
         }
     }

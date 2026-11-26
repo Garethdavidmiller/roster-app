@@ -194,11 +194,12 @@ test('the timetable date here is the Trains page\'s own — one date, two copies
 });
 
 
-test('once a design is chosen, the Calendar no longer tells anyone "Nothing is decided yet" (the 22 Nov 2026 review)', () => {
+test('once a design is chosen, the Calendar no longer tells anyone the choice is still to come (the 22 Nov 2026 review)', () => {
     // The notice's words are fixed text the Calendar cannot work out for itself — it may not import this file
-    // (newlink-boundary.test.mjs) — so the one line that decides the page is held to them here.
+    // (newlink-boundary.test.mjs) — so the one line that decides the page is held to them here. The first notice said
+    // "Nothing is decided yet"; the vote notice that replaced it (26 Nov 2026) says the choice "will be decided by a vote".
     const notice = readFileSync(new URL('./calendar-notices.js', REPO_ROOT_URL), 'utf8') + readFileSync(new URL('./index.html', REPO_ROOT_URL), 'utf8');
-    const says = /Nothing is decided yet/.test(notice);
+    const says = /Nothing is decided yet|will be decided by a vote/.test(notice);
     if (CHOSEN === null) assert.ok(says, 'premise: while nothing is chosen the notice says so — if it has been retired, this test can go with it');
-    else assert.ok(!says, `CHOSEN is ${CHOSEN}, but the Calendar's New link notice still says "Nothing is decided yet": reword or retire it (/new-notice)`);
+    else assert.ok(!says, `CHOSEN is ${CHOSEN}, but the Calendar's New link notice still says the choice is to come: reword or retire it (/new-notice)`);
 });
