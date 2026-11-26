@@ -92,3 +92,63 @@ test('the summary is the header\'s first sentence, without the "name — " it st
     const long = `/** long.js — ${'word '.repeat(80)}*/`;
     assert.ok(headerSummary(long, 'long.js').length <= 221 && headerSummary(long, 'long.js').endsWith('…'));
 });
+
+// ── The placements the first version got wrong (26 Nov 2026 review) ─────────────────────────────
+
+const FOLDERED = [
+    '# File index', '', '```', 'roster-app/',
+    '├── deploy.js           ← a module',
+    '├── experiments/',
+    '│   ├── probe.html ← an experiment',
+    '├── tide.js             ← another module',
+    '├── test/',
+    '│   ├── tide.test.mjs ← a test',
+    '├── one-a.js / one-b.js ← two modules on one row',
+    '└── functions/',
+    '    ├── index.js       ← the composition root',
+    '    └── last.js        ← the row that closes the folder',
+    '```', '',
+].join('\n');
+const FOLDERED_HEADERS = {
+    'export-csv.js': '/** export-csv.js — writes a CSV. */\n',
+    'tz.js': '/** tz.js — the time zone helper. */\n',
+    'functions/later.js': '/** functions/later.js — runs later. */\n',
+};
+/** @param {string[]} root @param {string[]} fns @param {Set<string>} [onDisk] */
+const folderedDisk = (root, fns, onDisk) => ({
+    rootModules: root, functionsModules: fns,
+    read: (/** @type {string} */ p) => FOLDERED_HEADERS[/** @type {keyof typeof FOLDERED_HEADERS} */ (p)] ?? (() => { throw new Error(`unexpected read of ${p}`); })(),
+    exists: (/** @type {string} */ p) => (onDisk ?? new Set(['deploy.js', 'tide.js', 'one-a.js', 'one-b.js', 'functions/index.js', 'functions/last.js'])).has(p),
+});
+
+test('a new row never lands between a folder and its children, nor after a closing └──', () => {
+    const { text } = planIndex(FOLDERED, folderedDisk(['deploy.js', 'tide.js', 'one-a.js', 'one-b.js', 'export-csv.js', 'tz.js'], ['index.js', 'last.js', 'later.js']));
+    const lines = text.split('\n');
+    const at = (/** @type {string} */ s) => lines.findIndex(l => l.includes(s));
+    // Each new root row follows a MODULE row — never a folder or one of its children.
+    for (const name of ['export-csv.js', 'tz.js']) {
+        const before = lines[at(`├── ${name}`) - 1];
+        assert.match(before, /^├── [\w.-]+\.m?js\b/, `${name} landed under a folder: after "${before}"`);
+    }
+    assert.ok(at('tz.js ←') < at('├── test/'), 'tz.js went inside test/');
+    assert.ok(at('later.js') < at('└── last.js'), 'a functions/ row went after the └── that closes the folder');
+    assert.match(lines[at('later.js')], /^ {4}├── later\.js/);
+});
+
+test('a module named second on a shared row has a row — it is never given a duplicate', () => {
+    const { added } = planIndex(FOLDERED, folderedDisk(['deploy.js', 'tide.js', 'one-a.js', 'one-b.js'], ['index.js', 'last.js']));
+    assert.deepEqual(added, []);
+});
+
+test('removing the row that closed a branch passes the └── to the row above it', () => {
+    const onDisk = new Set(['deploy.js', 'tide.js', 'one-a.js', 'one-b.js', 'functions/index.js']);
+    const { text, removed } = planIndex(FOLDERED, folderedDisk(['deploy.js', 'tide.js', 'one-a.js', 'one-b.js'], ['index.js'], onDisk));
+    assert.deepEqual(removed, ['functions/last.js']);
+    assert.ok(text.includes('    └── index.js       ← the composition root'), 'the folder no longer ends in └──');
+});
+
+test('the summary does not stop at "e.g." and skips a directive comment', () => {
+    assert.equal(headerSummary('/** x.js — reads a list, e.g. the roster, and sorts it. More. */\n', 'x.js'),
+        'reads a list, e.g. the roster, and sorts it.');
+    assert.equal(headerSummary('/* eslint-disable no-console */\n/** y.js — prints a report. */\n', 'y.js'), 'prints a report.');
+});

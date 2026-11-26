@@ -275,12 +275,15 @@ export function appModules(read) {
  * @param {Reader} read @returns {string[]}
  */
 export function appFiles(read) {
-    const files = new Set(appModules(read));
+    const pages = APP_PAGES.map(p => p.file);
+    const sheets = new Set();
     for (const page of APP_PAGES) {
-        files.add(page.file);
-        for (const m of read(page.file).matchAll(/<link rel="stylesheet" href="(?:\.\/)?([^"]+\.css)"/g)) files.add(m[1]);
+        for (const m of read(page.file).matchAll(/<link rel="stylesheet" href="(?:\.\/)?([^"]+\.css)"/g)) sheets.add(m[1]);
     }
-    return [...files].sort();
+    // Pages first, then their stylesheets, then the modules: the warm-up precaches in this order, so a
+    // warm-up cut short (the worker stopped, the app closed) has every page and its look before any module.
+    const modules = appModules(read).filter(f => !pages.includes(f) && !sheets.has(f)).sort();
+    return [...new Set([...pages, ...[...sheets].sort(), ...modules])];
 }
 
 const SW_FILES_BEGIN = '// GENERATED app files: npm run generate:copies writes every line down to the END marker, from each '

@@ -31,6 +31,7 @@
  * this command when one is missing. Importing this module writes nothing; only running it as a script does.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -58,7 +59,8 @@ const MAX_SUMMARY = 220;
 export function headerSummary(src, file) {
     const lines = src.split('\n');
     let i = 0;
-    while (i < lines.length && (/^\s*$/.test(lines[i]) || /^\s*\/\/\s*@ts-/.test(lines[i]) || /^\s*['"]use strict['"];?\s*$/.test(lines[i]))) i++;
+    while (i < lines.length && (/^\s*$/.test(lines[i]) || /^\s*\/\/\s*@ts-/.test(lines[i]) || /^\s*['"]use strict['"];?\s*$/.test(lines[i])
+        || /^\s*\/[*/]\s*(?:eslint|global)\b.*?(?:\*\/)?\s*$/.test(lines[i]))) i++;   // a directive, not a description
     const text = [];
     if (/^\s*\/\*/.test(lines[i] ?? '')) {
         for (; i < lines.length; i++) {
@@ -78,16 +80,21 @@ export function headerSummary(src, file) {
     if (!s) throw new Error(`${file} has no header comment to describe it — write one (what it is, what it owns), then run this again`);
     const dash = s.indexOf(' — ');
     if (dash >= 0 && dash < 80 && s.slice(0, dash).includes(file.replace(/^.*\//, '').replace(/\.m?js$/, ''))) s = s.slice(dash + 3);
-    const stop = s.search(/\.\s/);
+    const stop = s.search(/(?<!\b(?:e\.g|i\.e|etc))\.\s/);   // "e.g. " and "i.e. " do not end a sentence
     if (stop > 8) s = s.slice(0, stop + 1);   // never at an "e.g." in the first few words
     if (s.length > MAX_SUMMARY) s = s.slice(0, s.lastIndexOf(' ', MAX_SUMMARY - 1)) + '…';
     return s;
 }
 
-/** The first file a tree row names, and where the row sits. @param {string} line */
+/**
+ * The first file a tree row names, every file it names before its `←` (`a.js / b.js` is one row for two),
+ * and where the row sits. @param {string} line
+ */
 function rowOf(line) {
     const m = /^((?:[│ ] {3})*)([├└])── (\S+)/.exec(line);
-    return m ? { indent: m[1], branch: m[2], name: m[3] } : null;
+    if (!m) return null;
+    const head = line.slice(m[0].length - m[3].length).split(' ← ')[0];
+    return { indent: m[1], branch: m[2], name: m[3], names: head.split(/\s*\/\s+|\s+\/\s*|\s+/).filter(Boolean) };
 }
 
 /** Shared leading characters of two names. @param {string} a @param {string} b */
@@ -108,15 +115,16 @@ export function planIndex(index, { rootModules, functionsModules, read, exists }
     if (fnAt < 0) throw new Error(`${INDEX}: the tree has no \`functions/\` folder row`);
     const fnEnd = (() => { let k = fnAt + 1; while (k < close && /^ {4}/.test(lines[k])) k++; return k; })();
 
-    /** @type {Array<{ at: number, section: 'root'|'functions', name: string }>} */
+    /** @type {Array<{ at: number, section: 'root'|'functions', name: string, names: string[], branch: string }>} */
     const rows = [];
     for (let k = open + 1; k < close; k++) {
         const r = rowOf(lines[k]);
         if (!r) continue;
-        if (r.indent === '' && k !== fnAt) rows.push({ at: k, section: 'root', name: r.name });
-        else if (k > fnAt && k < fnEnd && r.indent === '    ') rows.push({ at: k, section: 'functions', name: r.name });
+        const row = { at: k, name: r.name, names: r.names, branch: r.branch };
+        if (r.indent === '' && k !== fnAt) rows.push({ ...row, section: 'root' });
+        else if (k > fnAt && k < fnEnd && r.indent === '    ') rows.push({ ...row, section: 'functions' });
     }
-    const has = (/** @type {string} */ section, /** @type {string} */ name) => rows.some(r => r.section === section && r.name === name);
+    const has = (/** @type {string} */ section, /** @type {string} */ name) => rows.some(r => r.section === section && r.names.includes(name));
     const isModuleName = (/** @type {string} */ n) => /^[\w.-]+\.m?js$/.test(n);
 
     // GONE means not on disk — never merely "not a module the index must row": a runner config or a
@@ -126,17 +134,32 @@ export function planIndex(index, { rootModules, functionsModules, read, exists }
     const after = new Map();
     const added = [];
     for (const [section, names, indent] of /** @type {const} */ ([['root', rootModules, ''], ['functions', functionsModules, '    ']])) {
-        const own = rows.filter(r => r.section === section && !removed.includes(r));
+        // Only a MODULE row is a neighbour: after a folder row (`test/`, `docs/`) the new row would sit between
+        // the folder and its children and read as one of them.
+        const own = rows.filter(r => r.section === section && !removed.includes(r) && isModuleName(r.name));
         for (const name of names.filter(n => !has(section, n)).sort()) {
             const path = section === 'root' ? name : `functions/${name}`;
             const summary = headerSummary(read(path), path);
             const best = own.reduce((b, r) => (common(r.name, name) >= common(b.name, name) ? r : b), own[0]);
-            const at = best ? best.at : (section === 'root' ? open : fnAt);
+            // Never after a `└──`, which closes its branch: the new `├──` row goes just before it instead.
+            const at = best ? (best.branch === '└' ? best.at - 1 : best.at) : (section === 'root' ? open : fnAt);
             after.set(at, [...(after.get(at) ?? []), `${indent}├── ${name} ← ${summary}`]);
             added.push(path);
         }
     }
     const gone = new Set(removed.map(r => r.at));
+    // Taking out the row that closed a branch passes the `└──` to the nearest surviving row above it at the
+    // same depth, so the tree still ends where it ends.
+    for (const r of removed.filter(x => x.branch === '└')) {
+        const depth = rowOf(lines[r.at])?.indent ?? '';
+        for (let k = r.at - 1; k > open; k--) {
+            const above = rowOf(lines[k]);
+            if (!above || gone.has(k) || above.indent !== depth) continue;
+            if (after.has(k)) break;   // a row is being added beneath it, and that row closes nothing
+            lines[k] = lines[k].slice(0, depth.length) + '└' + lines[k].slice(depth.length + 1);
+            break;
+        }
+    }
     const out = [];
     for (let k = 0; k < lines.length; k++) {
         if (!gone.has(k)) out.push(lines[k]);
@@ -145,11 +168,24 @@ export function planIndex(index, { rootModules, functionsModules, read, exists }
     return { text: out.join('\n'), added, removed: removed.map(r => (r.section === 'root' ? r.name : `functions/${r.name}`)) };
 }
 
+/**
+ * The files git tracks in one folder, or every file there when git cannot say (a tree with no `.git`):
+ * a scratch module nobody committed must not be given a row. @param {string} root @param {string} dir
+ */
+function filesIn(root, dir) {
+    try {
+        const out = execFileSync('git', ['ls-files', '--', dir ? `${dir}/` : '.'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+        return out.split('\n').filter(Boolean).map(p => (dir ? p.slice(dir.length + 1) : p)).filter(p => !p.includes('/'));
+    } catch {
+        return existsSync(join(root, dir)) ? readdirSync(join(root, dir)) : [];
+    }
+}
+
 /** The repository as it is on disk. @param {string} root */
 export function diskOf(root) {
     return {
-        rootModules: readdirSync(root).filter(isRootModule),
-        functionsModules: existsSync(join(root, 'functions')) ? readdirSync(join(root, 'functions')).filter(isFunctionsModule) : [],
+        rootModules: filesIn(root, '').filter(isRootModule),
+        functionsModules: filesIn(root, 'functions').filter(isFunctionsModule),
         read: (/** @type {string} */ p) => readFileSync(join(root, p), 'utf8'),
         exists: (/** @type {string} */ p) => existsSync(join(root, p)),
     };
