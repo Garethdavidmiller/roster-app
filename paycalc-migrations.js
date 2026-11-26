@@ -12,8 +12,8 @@
 
 import { TAX_YEARS, calcProRateFactor } from './paycalc-calc.js';
 import { teamMembers } from './roster-data.js';
-import { lsGet, lsSet, lsDel, lsKeys, lsMove, lsSetVerified, lsDelVerified } from './ls.js';
-import { classifyPayKey } from './paycalc-inventory.js';
+import { lsGet, lsSet, lsDel, lsMove, lsSetVerified, lsDelVerified, lsGetChecked, lsKeysChecked } from './ls.js';
+import { classifyPayKey, isSavedPeriodShape } from './paycalc-inventory.js';
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
 // Keys use the myb_pc_ prefix (previously cea_ — migrated in _migrateCeaKeys below).
@@ -176,16 +176,20 @@ export function periodKey(pNum)   { return `${pcPrefix()}p${pNum}`; }
  * path is unit-testable and the back-pay / HPP loops share one decoder instead of each doing an ad-hoc
  * `lsGet` + `JSON.parse` (which they handled inconsistently — reset / skip / warn / silent). Contract:
  *   • null/empty raw → `{ data: null, error: false }` (a period that was never saved — not an error)
- *   • valid JSON     → `{ data, error: false }`
- *   • malformed JSON → `{ data: null, error: true }` — the caller SURFACES it, so a corrupt period is
- *     never dropped silently from a pay estimate (the no-silent-caps principle).
+ *   • a period object → `{ data, error: false }`
+ *   • malformed JSON, or JSON of the wrong SHAPE (`[]`, `"text"`, `null`, a number — anything
+ *     `isSavedPeriodShape` refuses) → `{ data: null, error: true }` — the caller SURFACES it, so a
+ *     damaged period is never dropped silently from a pay estimate, nor shown as an empty payslip (the
+ *     no-silent-caps principle). Nothing here rewrites or deletes it: the stored value is left as it is.
  * @param {string|null|undefined} raw
  * @returns {{ data: any, error: boolean }}
  */
 export function parseSavedPeriod(raw) {
     if (!raw) return { data: null, error: false };
-    try { return { data: JSON.parse(raw), error: false }; }
-    catch { return { data: null, error: true }; }
+    /** @type {unknown} */
+    let data;
+    try { data = JSON.parse(raw); } catch { return { data: null, error: true }; }
+    return isSavedPeriodShape(data) ? { data, error: false } : { data: null, error: true };
 }
 
 /** Read + decode a saved period by number (composes lsGet + parseSavedPeriod). @param {number} pNum @returns {{ data:any, error:boolean }} */
@@ -253,15 +257,17 @@ export function readPayslipActuals() {
     catch { return {}; }
 }
 
-/** Persist a payslip-actuals map (ISO-payday → { gross, tax, ni, sl, net, varPay })
- *  for the active member. @param {Record<string, any>} map @returns {number} count stored */
+/** Persist a payslip-actuals map (ISO-payday → { gross, tax, ni, sl, net, varPay }) for the active
+ *  member. The answer is the READ-BACK, never the caller's own count: the import said "Imported …"
+ *  and reloaded over a write `lsSet` had silently dropped, and the pasted text went with the page.
+ *  @param {Record<string, any>} map @returns {boolean} true only when stored and read back identical */
 export function writePayslipActuals(map) {
-    lsSet(payslipActualsKey(), JSON.stringify(map || {}));
-    return Object.keys(map || {}).length;
+    return lsSetVerified(payslipActualsKey(), JSON.stringify(map || {}));
 }
 
-/** Delete the active member's device-local payslip actuals. */
-export function clearPayslipActuals() { lsDel(payslipActualsKey()); }
+/** Delete the active member's device-local payslip actuals.
+ *  @returns {boolean} true only when a read afterwards finds nothing (lsDelVerified) */
+export function clearPayslipActuals() { return lsDelVerified(payslipActualsKey()); }
 
 /** Device-level `myb_pc_*` keys that must NOT be moved into a member namespace:
  *  one-time migration guards and per-device "seen" flags. Everything else under
@@ -275,6 +281,7 @@ const _ACTIVE_DEVICE_KEYS = [
     'myb_pc_ytd_notice_2_shown',
     'myb_pc_hpp_notice_2526_shown',   // the Holiday Pay Premium notice, 16 Nov 2026 – 8 Jan 2027 (v26.22)
     'myb_pc_ns_migrated',
+    'myb_pc_ns_claim',                // who answered "mine" while their copy is unfinished (NS_CLAIM_KEY)
 ];
 
 /** Device keys the app NO LONGER WRITES — but which still sit in localStorage on every device that
@@ -326,9 +333,10 @@ const _FLAG_DONE = '1';
  * Record a migration as finished: '1', or the list of source keys that would not be removed.
  * @param {string} flagKey
  * @param {string[]} leftovers source keys whose value is safely elsewhere but which are still present
+ * @returns {boolean} true when the flag reads back — the namespace claim is cleared only then
  */
 function _settleFlag(flagKey, leftovers) {
-    lsSet(flagKey, leftovers.length ? JSON.stringify(leftovers) : _FLAG_DONE);
+    return lsSetVerified(flagKey, leftovers.length ? JSON.stringify(leftovers) : _FLAG_DONE);
 }
 
 /**
@@ -357,7 +365,11 @@ function _tidyLeftovers(flagKey, mayRemove) {
 // listed one is always safe to remove — its value reached myb_pc_ on the load that listed it.
 /** @param {{ getPeriods: Function }} deps */
 function _migrateCeaKeys({ getPeriods }) {
-    if (lsGet('myb_pc_cea_migrated')) { _tidyLeftovers('myb_pc_cea_migrated', k => k.startsWith('cea_')); return; }
+    // A flag that cannot be READ is not an absent flag: re-running the copy would put back a value
+    // the member has since deleted (see the end of this function). Unreadable: nothing this load.
+    const done = lsGetChecked('myb_pc_cea_migrated');
+    if (!done.ok) return;
+    if (done.value) { _tidyLeftovers('myb_pc_cea_migrated', k => k.startsWith('cea_')); return; }
 
     // Every failed copy is counted, and the completion flag is withheld if there were any (v21.86).
     // The old form was `lsSet(newKey, val); lsDel(oldKey);` — and `lsSet` swallows a storage error
@@ -369,11 +381,18 @@ function _migrateCeaKeys({ getPeriods }) {
     /** @type {string[]} */
     const _leftovers = [];
     const migrate = (/** @type {string} */ oldKey, /** @type {string} */ newKey) => {
-        const val = lsGet(oldKey);
+        // CHECKED READS: "could not read" is never "absent". A source skipped as absent let the flag
+        // close over a value never moved; a destination read as empty let an older value overwrite
+        // it. Either counts as a failed copy — nothing is touched, and the flag waits.
+        const src = lsGetChecked(oldKey);
+        if (!src.ok) { _failed++; return; }
+        const val = src.value;
         if (val === null) return;                                  // nothing here to move
+        const dst = lsGetChecked(newKey);
+        if (!dst.ok) { _failed++; return; }
         // Destination already holds a value (an older copy): never written over. Only the source is
         // removed, and one that will not go is a leftover, not a failure.
-        if (lsGet(newKey) !== null) { if (!lsDelVerified(oldKey)) _leftovers.push(oldKey); return; }
+        if (dst.value !== null) { if (!lsDelVerified(oldKey)) _leftovers.push(oldKey); return; }
         if (lsMove(oldKey, newKey, val)) return;
         // lsMove keeps BOTH sides when it cannot finish; which half failed decides what happens next.
         if (lsGet(newKey) === val) _leftovers.push(oldKey);       // copy landed; the source would not go
@@ -426,6 +445,26 @@ function _migrateCeaKeys({ getPeriods }) {
 // listed in the flag and removed quietly on a later load (_tidyLeftovers); it is never offered to
 // anyone again, because on a shared device the next person asked would be offered the data the first
 // one had already claimed.
+//
+// THE CLAIM COMES FIRST. A "mine" whose copy fails part-way used to leave only the withheld flag, and
+// a withheld flag reads exactly like a question nobody has answered: the next member to sign in was
+// asked, and their "mine" copied the first member's tax code and loan setting into their own
+// namespace (invariant 3). So "mine" now records WHO answered, and the keys they claimed, in
+// NS_CLAIM_KEY before it changes anything — verified by read-back, or nothing is changed and the
+// question stays open. While a claim stands nobody is asked, `resolveLegacyMigration` moves nothing
+// for anybody else, and the claimant's own later loads finish the copy without asking again (they
+// already answered). It is cleared only once myb_pc_ns_migrated reads back. A claimant who never
+// returns leaves the legacy data where it is, unoffered: the safe direction for somebody else's pay.
+//
+// "COULD NOT READ" IS NEVER "ABSENT". Every read here that decides a write, a delete or a flag is a
+// checked one (lsGetChecked / lsKeysChecked): one failed read used to delete the only copy, write an
+// older value over a newer one, or close the question over data never enumerated. On any uncertainty
+// both values are left untouched and nothing advances.
+
+/** Device key: the pending "mine" — `{ by: <slug>, keys: [<legacy keys still to finish>] }`. */
+const NS_CLAIM_KEY = 'myb_pc_ns_claim';
+/** Device key: the ownership question is answered (`_settleFlag` — '1', or leftovers to tidy). */
+const NS_DONE_KEY = 'myb_pc_ns_migrated';
 
 /** True for a genuinely-unnamespaced legacy paycalc key — a `myb_pc_` key with NO member-slug
  *  segment that is not a device key. Another member's namespaced data (owner = their slug) is
@@ -435,86 +474,170 @@ function _isLegacyPayKey(k) {
     return k.startsWith('myb_pc_') && !DEVICE_KEYS.has(k) && keyOwnerSlug(k) === null;
 }
 
-/** True when the device holds genuinely-unnamespaced legacy paycalc data (_isLegacyPayKey). */
+/** True when the device holds genuinely-unnamespaced legacy paycalc data (_isLegacyPayKey). An
+ *  enumeration that fails answers false: nobody is asked about data nothing could list. */
 function _hasUnnamespacedPaycalcData() {
-    return lsKeys().some(_isLegacyPayKey);
+    return lsKeysChecked().keys.some(_isLegacyPayKey);
 }
 
-/** Move only genuinely-unnamespaced legacy keys into memberName's namespace. Keys owned by
- *  ANY member (this one or another) are left untouched. Used by the 'mine' choice.
+/**
+ * Where the ownership question stands, read with checked reads. `ok` false means storage would not
+ * say — every caller then changes nothing and asks nobody.
+ * @returns {{ ok: boolean, done: boolean, claim: { by: string, keys: string[] } | null }}
+ *   `done` the question is closed; `claim` an outstanding "mine" (a record that will not parse is a
+ *   claim by nobody: it blocks every member and resumes for none, the safe reading of somebody's data)
+ */
+function _ownershipState() {
+    const done = lsGetChecked(NS_DONE_KEY);
+    if (!done.ok) return { ok: false, done: false, claim: null };
+    if (done.value) return { ok: true, done: true, claim: null };
+    const raw = lsGetChecked(NS_CLAIM_KEY);
+    if (!raw.ok) return { ok: false, done: false, claim: null };
+    if (raw.value === null) return { ok: true, done: false, claim: null };
+    /** @type {any} */
+    let c = null;
+    try { c = JSON.parse(raw.value); } catch { /* unparseable — a claim by nobody, below */ }
+    const valid = c && typeof c.by === 'string' && Array.isArray(c.keys);
+    return { ok: true, done: false,
+        claim: valid ? { by: c.by, keys: c.keys.filter((/** @type {unknown} */ k) => typeof k === 'string') } : { by: '', keys: [] } };
+}
+
+/** Move the listed legacy keys into the namespace of member slug `seg`. Keys owned by ANY member
+ *  (this one or another), and device keys, are left untouched. Used by the 'mine' choice and by its
+ *  resumption on the claimant's later loads, so it is idempotent: a key already moved is skipped,
+ *  and a populated destination is never written over.
  *
  *  The delete was UNCONDITIONAL until v21.86 — `if (val !== null && …) lsSet(…); lsDel(k);` — so a
  *  write `lsSet` had silently dropped still cost the source key. An external audit reproduced it
  *  with a tax code: `myb_pc_code` gone, the member-namespaced replacement absent, the prompt
- *  suppressed for good. Now a key that cannot be moved is LEFT WHERE IT IS, and the caller is told,
- *  so the prompt returns next time rather than the data disappearing.
+ *  suppressed for good. Now a key that cannot be moved is LEFT WHERE IT IS, and the caller is told.
  *
  *  A COPY THAT LANDED is not a failure, even when its source would not go (review of v26.95): the
  *  value is in this member's namespace, so `ok` stays true and the source is returned as a leftover
- *  for the caller to list. Counting it as a failure withheld the flag, and the NEXT member to sign in
- *  on the phone was asked about — and could copy into their own namespace — data already claimed.
- *  @param {string|undefined} memberName
- *  @returns {{ ok: boolean, leftovers: string[] }} `ok` true only if every legacy value reached the
- *    namespace; `leftovers` the legacy sources still present beside a copy that did */
-function _moveLegacyToNamespace(memberName) {
-    const seg = memberSlug(memberName);
+ *  for the caller to list.
+ *
+ *  A READ THAT FAILED is not an absence. An unreadable source is not a source to skip (it may be the
+ *  only copy), and an unreadable destination is not an empty one (it may hold the member's newer
+ *  value): either leaves both sides alone and counts as unfinished.
+ *  @param {string} seg the claimant's member slug
+ *  @param {string[]} keys the legacy keys to move
+ *  @returns {{ ok: boolean, leftovers: string[], remaining: string[] }} `ok` true only if every
+ *    value reached the namespace; `leftovers` the sources still present beside a copy that did;
+ *    `remaining` every listed source that may still be present (the claim's new list) */
+function _moveLegacyToNamespace(seg, keys) {
     /** @type {string[]} */
     const leftovers = [];
-    if (!seg) return { ok: false, leftovers };
+    /** @type {string[]} */
+    const remaining = [];
     const nsPrefix = `myb_pc_${seg}_`;
     let ok = true;
-    lsKeys().forEach(k => {                       // lsKeys() is a copy — safe to mutate in loop
+    const unfinished = (/** @type {string} */ k) => { ok = false; remaining.push(k); };
+    keys.forEach(k => {
         if (!_isLegacyPayKey(k)) return;          // a device key, or a member's — never move it
         const newKey = nsPrefix + k.slice('myb_pc_'.length);
-        const val = lsGet(k);
-        if (val === null) { lsDel(k); return; }               // empty — nothing to lose
-        if (lsGet(newKey) !== null) { if (!lsDelVerified(k)) leftovers.push(k); return; }   // populated: only the source goes
+        const src = lsGetChecked(k);
+        if (!src.ok) { unfinished(k); return; }
+        const val = src.value;
+        if (val === null) return;                              // gone already — nothing to move
+        const dst = lsGetChecked(newKey);
+        if (!dst.ok) { unfinished(k); return; }
+        if (dst.value !== null) {                              // populated: only the source goes
+            if (!lsDelVerified(k)) { leftovers.push(k); remaining.push(k); }
+            return;
+        }
         if (lsMove(k, newKey, val)) return;
-        if (lsGet(newKey) === val) leftovers.push(k);         // copy landed; the source would not go
-        else ok = false;                                      // copy did not land — BOTH sides kept
+        const after = lsGetChecked(newKey);
+        if (after.ok && after.value === val) { leftovers.push(k); remaining.push(k); }   // copy landed; the source would not go
+        else unfinished(k);                                    // copy did not land — BOTH sides kept
     });
-    return { ok, leftovers };
+    return { ok, leftovers, remaining };
 }
 
-/** Delete only genuinely-unnamespaced legacy keys. Every member's namespaced data (the
- *  current member AND any other member on a shared device) is preserved. 'fresh' choice.
- *  @returns {string[]} the legacy keys that would not be removed, for the flag to list */
-function _clearLegacyData() {
-    return lsKeys().filter(k => _isLegacyPayKey(k) && !lsDelVerified(k));
+/**
+ * Carry an outstanding claim forward: move what is left, then close the question, or keep the claim
+ * with the keys still to finish. Never asks anybody and never touches a key the claim does not list.
+ * @param {{ by: string, keys: string[] }} claim
+ */
+function _continueClaim(claim) {
+    if (!claim.by) return;                        // a claim by nobody — nothing to resume
+    const { ok, leftovers, remaining } = _moveLegacyToNamespace(claim.by, claim.keys);
+    if (ok) {
+        // The claim goes only once the closed question READS BACK: a flag that did not land beside a
+        // claim that had gone would reopen the question for the next member — the hole this closes.
+        if (_settleFlag(NS_DONE_KEY, leftovers)) lsDelVerified(NS_CLAIM_KEY);
+        return;
+    }
+    // A shorter list is written when one is due; if that write fails the longer one stands, which
+    // only means a later load re-checks a key already finished — every step above is idempotent.
+    if (remaining.length !== claim.keys.length) lsSetVerified(NS_CLAIM_KEY, JSON.stringify({ by: claim.by, keys: remaining }));
+    console.warn('[paycalc] namespace migration deferred — some values could not be stored; nothing was deleted');
 }
 
 /** True when a logged-in member should be asked whether the device's shared paycalc
- *  data is theirs: shared data exists and ownership hasn't been resolved yet.
+ *  data is theirs: shared data exists and ownership hasn't been resolved yet — nor CLAIMED, by
+ *  anybody (a claimant's unfinished copy resumes without asking; nobody else is ever asked about
+ *  it). Storage that will not say where the question stands asks nobody.
  *  @param {string|undefined} memberName @returns {boolean} */
 export function hasPendingLegacyMigration(memberName) {
-    if (lsGet('myb_pc_ns_migrated')) return false;
     if (!memberSlug(memberName)) return false;
+    const state = _ownershipState();
+    if (!state.ok || state.done || state.claim) return false;
     return _hasUnnamespacedPaycalcData();
 }
 
-/** Resolve the shared-data ownership prompt. 'mine' moves the data into memberName's
- *  namespace; 'fresh' discards it. Either way the namespace is (re)activated and the
- *  one-shot guard is set so the prompt never reappears. Once it is set, a further call only
- *  activates the namespace — it moves and deletes nothing.
+/** Resolve the shared-data ownership prompt. 'mine' records the claim, then moves the data into
+ *  memberName's namespace; 'fresh' discards it. Either way the namespace is (re)activated and the
+ *  one-shot guard is set once the work is done so the prompt never reappears. Once it is set — or
+ *  while ANOTHER member's claim stands — a further call only activates the namespace: it moves and
+ *  deletes nothing. The claimant's own further call only carries their claim forward.
  *  @param {string|undefined} memberName @param {'mine'|'fresh'} choice */
 export function resolveLegacyMigration(memberName, choice) {
     if (choice !== 'mine' && choice !== 'fresh') return;   // unknown choice — leave undecided
+    const seg = memberSlug(memberName);
+    setPaycalcNamespace(memberName);
     // ANSWERED ONCE, FOR THE DEVICE. A prompt left open in a stale tab, or any caller that did not ask
     // hasPendingLegacyMigration first, must not move legacy data a member has already claimed — the
     // sources a landed copy left behind are still under their legacy names — into a second namespace.
-    if (lsGet('myb_pc_ns_migrated')) { setPaycalcNamespace(memberName); return; }
-    const { ok: moved, leftovers } = choice === 'mine'
-        ? _moveLegacyToNamespace(memberName)
-        : { ok: true, leftovers: _clearLegacyData() };   // 'fresh'
-    setPaycalcNamespace(memberName);
-    // The one-shot guard is withheld when a COPY failed, so the member is asked again on a device
-    // where storage was momentarily unwritable — rather than the question being closed for ever
-    // over data that never arrived. 'fresh' always sets it: a delete that fails leaves the data
-    // there, which is the safe direction, and re-asking would be the annoyance without the risk.
-    // A source that would not go never withholds it: the flag lists it, and runMigrations removes
-    // it on a later load without asking anybody (_tidyLeftovers).
-    if (moved) _settleFlag('myb_pc_ns_migrated', leftovers);
-    else console.warn('[paycalc] namespace migration deferred — some values could not be stored; nothing was deleted');
+    const state = _ownershipState();
+    if (!state.ok || state.done) return;
+    if (state.claim) {                            // the first answer stands, whatever this one says
+        if (seg && state.claim.by === seg) _continueClaim(state.claim);
+        return;
+    }
+    // The keys the answer is ABOUT, enumerated with a check: a list that could not be read is not
+    // an empty one, and closing the question over it would leave unseen data claimed by nobody.
+    const listed = lsKeysChecked();
+    if (!listed.ok) return;
+    const keys = listed.keys.filter(_isLegacyPayKey);
+    if (choice === 'fresh') {
+        // 'fresh' sets the guard even when a delete fails: that leaves the data there, the safe
+        // direction, and the flag lists it for a later load to remove without asking (_tidyLeftovers).
+        _settleFlag(NS_DONE_KEY, keys.filter(k => !lsDelVerified(k)));
+        return;
+    }
+    if (!seg) return;                             // nobody to claim it for
+    // THE CLAIM BEFORE ANY CHANGE, verified. If it will not hold, nothing is moved and the question
+    // stays open: a copy begun without it is the half-claim the next member could take. A claim that
+    // landed under a read-back that failed is removed again where storage allows.
+    if (!lsSetVerified(NS_CLAIM_KEY, JSON.stringify({ by: seg, keys }))) {
+        lsDelVerified(NS_CLAIM_KEY);
+        console.warn('[paycalc] namespace migration not started — the claim could not be recorded; nothing was changed');
+        return;
+    }
+    _continueClaim({ by: seg, keys });
+}
+
+/**
+ * On the claimant's own load, carry an outstanding "mine" forward without asking again. A claim
+ * left beside a question that has since been closed is tidied away; anybody else's load leaves it.
+ * @param {string|undefined} memberName the member signed in on this load
+ */
+function _resumeLegacyClaim(memberName) {
+    const state = _ownershipState();
+    if (!state.ok) return;
+    if (state.done) { if (lsGetChecked(NS_CLAIM_KEY).value !== null) lsDelVerified(NS_CLAIM_KEY); return; }
+    const seg = memberSlug(memberName);
+    if (state.claim && seg && state.claim.by === seg) _continueClaim(state.claim);
 }
 
 // ── ALL DATA MIGRATIONS ───────────────────────────────────────────────────────
@@ -525,6 +648,22 @@ export function resolveLegacyMigration(memberName, choice) {
  *  calculator held when those keys were written. Named by its LABEL, never TAX_YEARS[0], so adding
  *  or retiring a year can never move where legacy figures land (Nov 2026 debt pass). */
 const LEGACY_TAX_YEAR = Object.freeze({ label: '2025/26' });
+
+/**
+ * Re-home one legacy value under its per-year key: written only where the destination holds nothing,
+ * and the source removed only once the destination holds a value. The destination is read CHECKED —
+ * an unreadable one read as empty let an older legacy figure overwrite the member's newer one — and
+ * on a failed read both keys are left as they are, for a later load. The caller has already read the
+ * source the same way.
+ * @param {string} srcKey the legacy key
+ * @param {string} dstKey the per-year key
+ * @param {string} value what to write when the destination is empty
+ */
+function _rehomeLegacyValue(srcKey, dstKey, value) {
+    const dst = lsGetChecked(dstKey);
+    if (!dst.ok) return;
+    if (dst.value !== null || lsSetVerified(dstKey, value)) lsDel(srcKey);
+}
 
 /**
  * Passed in rather than imported: two of them live in modules that import this one (getPensionDefault
@@ -539,28 +678,23 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     // and every backup carried.)
 
     // Migration: legacy global YTD values (myb_pc_ytd_pay / ytd_tax) to per-year keys
-    const legacyYtdPay = lsGet(SK.ytdPay);
-    const legacyYtdTax = lsGet(SK.ytdTax);
-    if (legacyYtdPay != null || legacyYtdTax != null) {
+    // Checked reads throughout (see _rehomeLegacyValue): a source that could not be read is left for
+    // a later load, never taken for absent — there is no flag here, so waiting costs nothing.
+    const legacyYtdPay = lsGetChecked(SK.ytdPay);
+    const legacyYtdTax = lsGetChecked(SK.ytdTax);
+    if (legacyYtdPay.ok && legacyYtdTax.ok && (legacyYtdPay.value != null || legacyYtdTax.value != null)) {
         const firstTy = LEGACY_TAX_YEAR;
         // Each half deletes only its OWN source, and only once the destination reads back (v21.86).
         // These are the two figures that sharpen a member's tax estimate for the whole year; losing
         // them to a swallowed storage error is silent and only noticed as a wrong take-home.
-        const _ytdPayOk = lsGet(ytdPayKey(firstTy)) !== null
-            || lsSetVerified(ytdPayKey(firstTy), legacyYtdPay || '');
-        const _ytdTaxOk = lsGet(ytdTaxKey(firstTy)) !== null
-            || lsSetVerified(ytdTaxKey(firstTy), legacyYtdTax || '');
-        if (_ytdPayOk) lsDel(SK.ytdPay);
-        if (_ytdTaxOk) lsDel(SK.ytdTax);
+        _rehomeLegacyValue(SK.ytdPay, ytdPayKey(firstTy), legacyYtdPay.value || '');
+        _rehomeLegacyValue(SK.ytdTax, ytdTaxKey(firstTy), legacyYtdTax.value || '');
     }
 
     // Migration: legacy global hppActual (cea_hpp_actual) to per-year key
-    const legacyHppActual = lsGet('cea_hpp_actual');
-    if (legacyHppActual) {
-        const firstTy = LEGACY_TAX_YEAR;
-        if (lsGet(hppActualKey(firstTy)) !== null || lsSetVerified(hppActualKey(firstTy), legacyHppActual)) {
-            lsDel('cea_hpp_actual');
-        }
+    const legacyHppActual = lsGetChecked('cea_hpp_actual');
+    if (legacyHppActual.ok && legacyHppActual.value) {
+        _rehomeLegacyValue('cea_hpp_actual', hppActualKey(LEGACY_TAX_YEAR), legacyHppActual.value);
     }
 
     // Migration (v8.88): two-part pension localStorage cleanup.
@@ -577,7 +711,8 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
     //   value (£77.39) is also stale. All three are fingerprint values that cannot
     //   plausibly be intentional custom entries.
-    if (!lsGet('myb_pc_pension_v882_migrated')) {
+    const _v882Marker = lsGetChecked('myb_pc_pension_v882_migrated');
+    if (_v882Marker.ok && !_v882Marker.value) {
         const _pensionCutover = new Date(2026, 4, 8);
         const _member = getLoggedMember();
         const _joiningP = _member?.startDate
@@ -597,7 +732,11 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
         // fingerprint match on a specific stale value, so re-running finds nothing left to do.
         let _v882Complete = true;
         getPeriods().forEach((/** @type {any} */ p) => {
-            const raw = lsGet(periodKey(p.num));
+            // CHECKED: a period that could not be read is not a period never saved. Taking it for
+            // absent stamped the marker over a figure the patch never saw.
+            const read = lsGetChecked(periodKey(p.num));
+            if (!read.ok) { _v882Complete = false; return; }
+            const raw = read.value;
             if (!raw) return;
             try {
                 const d = JSON.parse(raw);
@@ -636,6 +775,9 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     // removed here, never offered or copied again — whoever is signed in (_tidyLeftovers).
     _tidyLeftovers('myb_pc_ns_migrated', _isLegacyPayKey);
     const _nsMember = getLoggedMember();
+    // A "mine" whose copy did not finish is carried forward here — on the claimant's load only, and
+    // without asking them again (they answered). On anybody else's load it is left alone.
+    _resumeLegacyClaim(_nsMember?.name);
     setPaycalcNamespace(_nsMember?.name);
 
     // Migration (v17.86): the single back-pay blob (myb_pc_<slug>_bp_state — one pinned award) →
@@ -651,8 +793,9 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
             if (_yr) {
                 const _yk = `${pcPrefix()}bp_state_${_yr.replace('/', '_')}`;
                 // Re-homed only once the year key holds it. The blob can carry a hand-entered rate
-                // and an in-flight include-tick, i.e. money the member typed in themselves.
-                if (lsGet(_yk) !== null || lsSetVerified(_yk, _oldBp)) lsDel(`${pcPrefix()}bp_state`);
+                // and an in-flight include-tick, i.e. money the member typed in themselves. The year
+                // key is read checked: one that could not be read is never written over.
+                _rehomeLegacyValue(`${pcPrefix()}bp_state`, _yk, _oldBp);
             } else {
                 lsDel(`${pcPrefix()}bp_state`);   // no year label — nowhere to re-home it to
             }

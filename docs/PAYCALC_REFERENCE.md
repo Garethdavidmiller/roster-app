@@ -715,6 +715,16 @@ fresh → discard / ✕ → decide later); `resolveLegacyMigration()` applies th
 `myb_pc_ns_migrated`) stay unnamespaced — see `DEVICE_KEYS`. Never build a paycalc key without
 `pcPrefix()`/`SK`.
 
+**A "mine" is CLAIMED before anything moves.** `resolveLegacyMigration` writes `myb_pc_ns_claim`
+(who answered, which keys) and reads it back before copying; if it will not hold, nothing changes and
+the question stays open. While a claim stands nobody is asked and nobody else's answer moves anything;
+the claimant's own later loads finish the copy without asking, and the claim goes only once
+`myb_pc_ns_migrated` reads back. Every migration read that decides a write, a delete or a flag is a
+CHECKED one (`lsGetChecked` / `lsKeysChecked`, `ls.js`): "could not read" is never "absent", and on
+any doubt both values stay and nothing advances. A saved payslip period must be an object
+(`isSavedPeriodShape`, `paycalc-inventory.js`) — any other JSON is DAMAGED on the screen and in the
+backup's preflight, never empty, and is never rewritten for it.
+
 ## Payslip identity — dates first, and a month's payslip
 
 **Date-first payslip identity (owner: "staff don't remember period numbers, they remember

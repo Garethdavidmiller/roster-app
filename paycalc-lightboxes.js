@@ -335,13 +335,23 @@ export function initPaycalcLightboxes() {
         /^\d{4}-\d{2}-\d{2}$/.test(k) && parsed[k] && typeof parsed[k] === 'object' &&
         _num.every(f => typeof parsed[k][f] === 'number' && isFinite(parsed[k][f])));
       if (!ok) { setActualsStatus('Each key must be a YYYY-MM-DD date with numeric gross, tax, ni and net.'); return; }
-      const n = writePayslipActuals(parsed);
+      // Success is what storage READS BACK, never the count pasted in: a write the browser refused
+      // used to say "Imported" and reload, taking the pasted text with the page. On a failure the
+      // page stays, the text stays in its box, and the status line says so.
+      if (!writePayslipActuals(parsed)) {
+        setActualsStatus('These figures could not be saved on this device. Your text is still in the box, so you can try again.');
+        return;
+      }
+      const n = keys.length;
       setActualsStatus(`Imported ${n} period${n !== 1 ? 's' : ''}. Reloading…`);
       window.location.reload();
     });
 
     document.getElementById('actualsClear')?.addEventListener('click', () => {
-      clearPayslipActuals();
+      if (!clearPayslipActuals()) {
+        setActualsStatus('The stored figures could not be removed from this device. Please try again.');
+        return;
+      }
       setActualsStatus('Cleared. Reloading…');
       window.location.reload();
     });
