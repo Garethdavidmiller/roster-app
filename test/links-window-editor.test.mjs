@@ -22,7 +22,8 @@ function fakeEl() {
     /** @type {Record<string, Array<(e: any) => void>>} */
     const on = {};
     return {
-        value: '', hidden: false, textContent: '',
+        value: '', hidden: false, textContent: '', selectionStart: 0, selectionEnd: 0,
+        setSelectionRange(/** @type {number} */ a, /** @type {number} */ b) { this.selectionStart = a; this.selectionEnd = b; },
         addEventListener(/** @type {string} */ type, /** @type {(e: any) => void} */ fn) { (on[type] ??= []).push(fn); },
         fire(/** @type {string} */ type, /** @type {any} */ e = {}) { for (const fn of on[type] ?? []) fn(e); },
     };
@@ -107,6 +108,60 @@ describe('a refusal (rule 2)', () => {
         typeAndLeave('winMonSatEnd', '22:00');
         assert.equal(els.winStatus.textContent, '');
         assert.equal(given.length, 1);
+    });
+});
+
+/**
+ * One change as a browser makes it: `beforeinput` with the box as it was and the selection the change replaces, then
+ * the new value and `input` (clock-input.js rule 7 reads both). @param {string} id @param {number} from @param {number} to
+ * @param {string} text  what replaces the selection ('' deletes) @param {string} inputType
+ */
+function change(id, from, to, text, inputType) {
+    const el = els[id];
+    el.selectionStart = from; el.selectionEnd = to;
+    el.fire('beforeinput');
+    el.value = el.value.slice(0, from) + text + el.value.slice(to);
+    el.selectionStart = el.selectionEnd = from + text.length;
+    el.fire('input', { inputType, data: text || null });
+}
+/** Select everything in the box and type `digits` one key at a time. @param {string} id @param {string} digits */
+function retype(id, digits) {
+    change(id, 0, els[id].value.length, '', 'deleteContentBackward');
+    for (const c of digits) change(id, els[id].value.length, els[id].value.length, c, 'insertText');
+}
+const leave = (/** @type {string} */ id) => { els[id].fire('change'); els[id].fire('blur'); };
+
+// ── A real edit, through the clock box's own listeners (external review of v26.87) ───────────────────
+describe('an edit that leaves an unfinished time (rule 4)', () => {
+    beforeEach(() => { design = { patterns: {}, window: { monSat: { start: '16:30', end: '22:30' }, sun: { ...DEFAULT_WINDOW.sun } } }; paint(); });
+
+    test('Delete at the front of 16:30 is refused by name — never read as a 06:30 start', () => {
+        change('winMonSatStart', 0, 1, '', 'deleteContentForward');
+        assert.equal(els.winMonSatStart.value, '6:30', 'clock-input.js leaves an edit as it is');
+        leave('winMonSatStart');
+        assert.deepEqual(given, [], 'the window grew from six hours to sixteen without a word');
+        assert.equal(design.window.monSat.start, '16:30', 'the working design is unchanged');
+        assert.equal(els.winMonSatStart.value, '16:30', 'the stored time is put back');
+        assert.match(els.winStatus.textContent, /“6:30” is not a whole time/);
+    });
+
+    test('a short time typed afresh is still taken: select all, 630, leave — 06:30', () => {
+        retype('winMonSatStart', '630');
+        leave('winMonSatStart');
+        assert.deepEqual(given.at(-1)?.monSat, { start: '06:30', end: '22:30' });
+        assert.equal(els.winStatus.textContent, '');
+    });
+});
+
+describe('an unchanged time typed as a shortcut (rule 5)', () => {
+    test('130 over a stored 01:30 shows 01:30 when left, and marks nothing dirty', () => {
+        design = { patterns: {}, window: { monSat: { start: '01:30', end: '22:30' }, sun: { ...DEFAULT_WINDOW.sun } } };
+        paint();
+        retype('winMonSatStart', '130');
+        assert.equal(els.winMonSatStart.value, '13:0', 'as typed, before the box is left');
+        leave('winMonSatStart');
+        assert.equal(els.winMonSatStart.value, '01:30', 'the box kept showing 13:0');
+        assert.deepEqual(given, [], 'an unchanged window is not an edit');
     });
 });
 

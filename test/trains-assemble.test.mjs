@@ -120,6 +120,34 @@ describe('assemble.py keeps one copy of a train only when the copies agree', { s
         assert.equal(r.out.trains[0].at, undefined, 'where a row came from is the build\'s, not the page\'s');
     });
 
+    test('across the books, a call only the Met book prints is kept — the row is the union, in time order', () => {
+        // External review of v26.87: the main-line copy alone was kept, so High Wycombe was dropped and the build ended cleanly.
+        const met = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830'), cell('AYS', '0900')]);
+        const main = column(1, 1, [cell('MYB', '0800'), cell('AYS', '0900')]);
+        const r = assemble([met], [main]);
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(r.out.trains.length, 1);
+        assert.deepEqual(r.out.trains[0].calls, ['HWY', 'AYS'], 'a call printed in one book was lost');
+        assert.deepEqual(r.out.trains[0].stops, [['HWY', '0830'], ['AYS', '0900']]);
+        assert.equal(r.out.trains[0].src, 'main');
+    });
+
+    test('and coming in to London, the union keeps travel order', () => {
+        const met = { ...column(1, 1, [cell('AYS', '0700'), cell('HWY', '0730'), cell('MYB', '0800')]), dir: 'ret', rows: ['AYS', 'HWY', 'MYB'] };
+        const main = { ...column(1, 1, [cell('AYS', '0700'), cell('HDM', '0715'), cell('MYB', '0800')]), dir: 'ret', rows: ['AYS', 'HDM', 'MYB'] };
+        const r = assemble([met], [main]);
+        assert.equal(r.status, 0, r.stderr);
+        assert.deepEqual(r.out.trains[0].calls, ['AYS', 'HDM', 'HWY']);
+    });
+
+    test('two calls at one minute, one from each book, stop the build — the times cannot settle their order', () => {
+        const met = column(1, 1, [cell('MYB', '0800'), cell('HWY', '0830'), cell('AYS', '0900')]);
+        const main = column(1, 1, [cell('MYB', '0800'), cell('HDM', '0830'), cell('AYS', '0900')]);
+        const r = assemble([met], [main]);
+        assert.notEqual(r.status, 0, 'two stations at one minute were put in an order nobody printed');
+        assert.match(r.stderr, /cannot be put in one order of calls — met book, page 1, column 1, and main book, page 1, column 1/);
+    });
+
     test('across the books, copies whose times disagree stop the build', () => {
         const main = column(1, 1, [cell('MYB', '0800'), cell('HDM', '0845'), cell('AYS', '0910')]);
         const r = assemble([viaHdm(1)], [main]);

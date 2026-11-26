@@ -153,7 +153,10 @@ describe('windowEditRefusal — the reason that applies, not always the order', 
     });
     test('a usable row is not refused — an unpadded hour included', () => {
         assert.equal(windowEditRefusal('06:20', '23:55'), null);
-        assert.equal(windowEditRefusal('6:20', '23:55'), null);
+        for (const partial of ['6:20', '22:3', '223', ':30']) {
+            // What clock-input.js leaves after an EDIT; a new time is always settled whole (external review of v26.87).
+            assert.match(String(windowEditRefusal(partial, '23:55')), new RegExp(`“${partial}” is not a whole time`), partial);
+        }
     });
 });
 

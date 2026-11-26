@@ -99,14 +99,26 @@ export function isValidWindowRow(row) {
  * Why a typed row cannot be the window, in the editor's words — or null when it can (17 Nov 2026). Every refusal
  * said "A finish must be after its start", so "2500", shaped to 25:00 as it is typed and no time of day, was blamed
  * on its order, and an emptied box on the same. Not a time, missing and out of order are three answers, asked in
- * that order. Takes what is in the boxes once `finaliseClockInput` has settled it.
+ * that order. Takes what is in the boxes once `settleClockBox` has settled them.
+ *
+ * **The editor takes only a WHOLE time, "HH:MM"** (external review of v26.87). A new time is always settled whole —
+ * "630" and "6:30" typed afresh leave the box as 06:30 — so a box still reading "6:30" or "22:3" after it is left is
+ * an EDIT of a time it held, which clock-input.js leaves as it is rather than guess (its rule 1). Read as a time,
+ * Delete at the front of 16:30 became a 06:30 start, and the window grew by ten hours without a word. Such a box is
+ * refused here, by name. `windowMinutes` stays lenient, because a stored "6:20" is the data's, not a guess: this is
+ * the edit's boundary, not the data's.
  * @param {string} start @param {string} end
  * @returns {string|null}
  */
 export function windowEditRefusal(start, end) {
     const typed = [String(start ?? '').trim(), String(end ?? '').trim()];
-    const notATime = typed.find(t => t && !canonicaliseWindowTime(t));
-    if (notATime) return `“${notATime}” is not a time of day — a time runs from 00:00 to 23:59. That change wasn’t applied.`;
+    for (const t of typed) {
+        if (!t) continue;
+        const whole = /^\d{2}:\d{2}$/.test(t);
+        if (whole && canonicaliseWindowTime(t)) continue;
+        if (!whole && /^\d{0,2}:?\d{0,2}$/.test(t)) return `“${t}” is not a whole time — type all four digits, for example 06:20. That change wasn’t applied.`;
+        return `“${t}” is not a time of day — a time runs from 00:00 to 23:59. That change wasn’t applied.`;
+    }
     if (!typed[0] || !typed[1]) return 'A start and a finish are both needed — that change wasn’t applied.';
     return isValidWindowRow({ start: canonicaliseWindowTime(typed[0]), end: canonicaliseWindowTime(typed[1]) }) ? null
         : 'A finish must be after its start — that change wasn’t applied.';
