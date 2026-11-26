@@ -370,7 +370,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             parseFeedback.textContent = '';
 
             // Fetch existing overrides for this week from Firestore so we can detect conflicts
-            parseFeedback.textContent = 'Checking your existing saved changes…';
+            parseFeedback.textContent = 'Checking the changes already saved…';
             const existingOverrides = await fetchOverridesForWeek(_parsedResult.dates);
             _shown = new Map(existingOverrides.map((/** @type {any} */ o) => [o.id, o]));
             parseFeedback.textContent = '';
