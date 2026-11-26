@@ -62,8 +62,39 @@ export function lsMove(fromKey, toKey, value) {
     const v = value === undefined ? lsGet(fromKey) : value;
     if (v === null) return false;                 // nothing to move
     if (!lsSetVerified(toKey, v)) return false;   // destination not safe — keep the source
-    lsDel(fromKey);
-    return true;
+    // A MOVE IS FINISHED ONLY WHEN THE SOURCE IS GONE (external audit of v26.92). A refused removal
+    // left both keys and still answered true, so a migration recorded itself complete with the old
+    // key still there. Both copies are safe, so nothing is lost: the caller is told, and a later run,
+    // finding the destination already filled, only removes the source — it never writes over it.
+    return lsDelVerified(fromKey);
+}
+
+/**
+ * Remove a key and confirm it is gone. True only when a read afterwards finds nothing.
+ * @param {string} k
+ * @returns {boolean}
+ */
+export function lsDelVerified(k) {
+    try {
+        localStorage.removeItem(k);
+        return localStorage.getItem(k) === null;
+    } catch (e) { _warnOnce(e); return false; }
+}
+
+/**
+ * Read a key and say whether the read itself worked — `lsGet` answers null both for "nothing there"
+ * and for "storage would not answer", and a rollback cannot tell those apart.
+ * @param {string} k
+ * @returns {{ ok: boolean, value: string|null }}
+ */
+function _readChecked(k) {
+    try { return { ok: true, value: localStorage.getItem(k) }; }
+    catch (e) { _warnOnce(e); return { ok: false, value: null }; }
+}
+
+/** Put a key back to what it held before a write: removed if it held nothing. @param {string} k @param {string|null} before */
+function _restore(k, before) {
+    if (before === null) lsDelVerified(k); else lsSetVerified(k, before);
 }
 
 /**
@@ -89,9 +120,17 @@ export function lsMove(fromKey, toKey, value) {
  * @returns {boolean} true only when BOTH keys were written and read back
  */
 export function lsSetBothVerified(keyA, valueA, keyB, valueB) {
-    const beforeA = lsGet(keyA);                    // null when the key held nothing
-    const beforeB = lsGet(keyB);
-    if (!lsSetVerified(keyA, valueA)) return false;
+    // A COPY TO PUT BACK, OR NO WRITE AT ALL (external audit of v26.92): a key whose old value could
+    // not be read has nothing trustworthy to restore it to, so nothing is written.
+    const a = _readChecked(keyA);
+    const b = _readChecked(keyB);
+    if (!a.ok || !b.ok) return false;
+    const beforeA = a.value;                        // null when the key held nothing
+    const beforeB = b.value;
+    // A did not VERIFY — which, as for B below, is not the same as A did not LAND. Until v26.95 this
+    // returned without putting A back, so an A that landed under a read-back that failed stayed
+    // changed beside the old B. Restoring a key that never changed is the cheap direction to be wrong.
+    if (!lsSetVerified(keyA, valueA)) { _restore(keyA, beforeA); return false; }
     if (lsSetVerified(keyB, valueB)) return true;
     // B did not VERIFY, which is not the same as B did not LAND. `lsSetVerified` writes and then
     // reads back, and a write that succeeded under a read that failed is indistinguishable from a
@@ -99,8 +138,8 @@ export function lsSetBothVerified(keyA, valueA, keyB, valueB) {
     // function exists to prevent — the OTHER half of it: old A beside new B. So both keys are put
     // back. Restoring a key that never changed is a no-op, which is the cheap direction to be
     // wrong in. (v22.26, external review.)
-    if (beforeA === null) lsDel(keyA); else lsSetVerified(keyA, beforeA);
-    if (beforeB === null) lsDel(keyB); else lsSetVerified(keyB, beforeB);
+    _restore(keyA, beforeA);
+    _restore(keyB, beforeB);
     return false;
 }
 

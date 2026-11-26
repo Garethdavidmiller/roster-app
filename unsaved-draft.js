@@ -253,6 +253,14 @@ export function createDraftSlot({ page, by, now = Date.now, usable = () => true 
         /** @param {Record<string, any>} scope @param {Record<string, any>} data */
         keep(scope, data) {
             if (!by) return;
+            // AN UNUSABLE COPY NEVER REPLACES A USABLE ONE (external audit of v26.92). `usable` was asked
+            // only on READING, so keeping an empty week deleted the last week that could be put back —
+            // the next read found the empty one, judged it unusable and dropped it. A page that means to
+            // throw its draft away calls `forget`; keeping something that could never be restored is not
+            // that, so it writes nothing and the slot keeps what it had.
+            let restorable = false;
+            try { restorable = !!usable(data); } catch { /* a test that cannot read it has its answer */ }
+            if (!restorable) return;
             lsSet(key, encodeDraft({ page, by, scope, data, savedAt: now(), life }));
             waiting = false;   // what is stored now is this page's own work
         },

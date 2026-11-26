@@ -12,7 +12,7 @@
 
 import { TAX_YEARS, calcProRateFactor } from './paycalc-calc.js';
 import { teamMembers } from './roster-data.js';
-import { lsGet, lsSet, lsDel, lsKeys, lsMove, lsSetVerified } from './ls.js';
+import { lsGet, lsSet, lsDel, lsKeys, lsMove, lsSetVerified, lsDelVerified } from './ls.js';
 import { classifyPayKey } from './paycalc-inventory.js';
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
@@ -321,7 +321,10 @@ function _migrateCeaKeys({ getPeriods }) {
     const migrate = (/** @type {string} */ oldKey, /** @type {string} */ newKey) => {
         const val = lsGet(oldKey);
         if (val === null) return;                                  // nothing here to move
-        if (lsGet(newKey) !== null) { lsDel(oldKey); return; }     // destination already holds a value
+        // Destination already holds a value: a retry of a move whose source would not go (lsMove). Only the
+        // source is removed — never written over the destination — and a source that still will not go is
+        // counted, so the completion flag waits for a load where it does.
+        if (lsGet(newKey) !== null) { if (!lsDelVerified(oldKey)) _failed++; return; }
         if (!lsMove(oldKey, newKey, val)) _failed++;               // keeps BOTH sides on failure
     };
 
@@ -396,7 +399,7 @@ function _moveLegacyToNamespace(memberName) {
         const newKey = nsPrefix + k.slice('myb_pc_'.length);
         const val = lsGet(k);
         if (val === null) { lsDel(k); return; }               // empty — nothing to lose
-        if (lsGet(newKey) !== null) { lsDel(k); return; }     // destination already populated
+        if (lsGet(newKey) !== null) { if (!lsDelVerified(k)) ok = false; return; }   // populated: only the source goes
         if (!lsMove(k, newKey, val)) ok = false;              // keeps BOTH sides on failure
     });
     return ok;

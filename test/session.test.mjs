@@ -1161,6 +1161,15 @@ describe('silent-sign-in.js — what the sign-in nobody typed may try', () => {
         assert.equal(plan(String(NOW - 6 * HOUR - 1)).recheck, true, 'not asked once six hours had passed');
     });
 
+    test('a flag that is not a past time is DUE — never a flag that waits for ever (external audit of v26.92)', () => {
+        // Text that is not a time read as 0 and never came due; a time in the future (a clock that ran ahead
+        // when it was written) waited until six hours past it. Both kept a device from ever asking about a reset.
+        for (const odd of ['yes', 'NaN', '-5', 'Infinity', String(NOW + 1), String(NOW + 30 * 86_400_000)]) {
+            assert.deepEqual(plan(odd), { candidates: ['miller'], recheck: true, held: false }, `"${odd}" is due now`);
+        }
+        assert.deepEqual(plan(String(NOW)), { candidates: [], recheck: false, held: false }, 'a flag written this moment still waits its six hours');
+    });
+
     test('a recheck this attempt already asked, unanswered, is held — but only a recheck', () => {
         assert.deepEqual(plan('1', true), { candidates: [], recheck: true, held: true });
         assert.deepEqual(plan(null, true), { candidates: ['miller'], recheck: false, held: false }, 'nothing remembered is not a recheck');

@@ -312,6 +312,59 @@ describe('lsSetBothVerified — two keys or neither', () => {
             persistImpl: () => Promise.resolve(true) });
         assert.equal(mod.lsSetBothVerified('a', '1', 'b', '2'), false, 'iOS private mode, not a crash');
     });
+    // ── A LANDED, ITS READ-BACK THREW (external audit of v26.92) ───────────────────────────────
+    // The same two worlds as B's, on the FIRST key: until v26.95 a failed verification of A returned
+    // at once, with no rollback, so a write that had landed stayed — new A beside old B, reported as
+    // failed. The audit's exact sequence: the first setItem succeeds, its verification getItem throws,
+    // then storage behaves again.
+    /** Throws on the Nth read of `key`, faithful otherwise. */
+    function throwsNthRead(initial, key, n) {
+        const inner = fakeStorage(initial);
+        let reads = 0;
+        return { ...inner, get length() { return inner.length; }, key: inner.key, setItem: inner.setItem,
+            removeItem: inner.removeItem, _map: inner._map,
+            getItem(k) {
+                if (k === key && ++reads === n) throw new Error('read failed');
+                return inner.getItem(k);
+            } };
+    }
+
+    test('A lands but its read-back THROWS → A is put back, and B is never written', async () => {
+        // Reads of 'a': 1 = the snapshot, 2 = the verification (throws), 3 = the rollback's own check.
+        const store = throwsNthRead({ a: 'old-a', b: 'old-b' }, 'a', 2);
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), false);
+        assert.equal(store._map().a, 'old-a', 'the period must not keep figures the caller was told did not save');
+        assert.equal(store._map().b, 'old-b', 'and its snapshot is untouched');
+    });
+
+    test('an old value that cannot be READ means nothing is written — there would be nothing to restore', async () => {
+        const store = throwsNthRead({ a: 'old-a', b: 'old-b' }, 'b', 1);   // the snapshot of B throws
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsSetBothVerified('a', 'new-a', 'b', 'new-b'), false);
+        assert.deepEqual(store._map(), { a: 'old-a', b: 'old-b' }, 'neither key touched');
+    });
+});
+
+// ── A MOVE IS FINISHED ONLY WHEN THE SOURCE IS GONE (external audit of v26.92) ──────────────────
+// `lsMove` reported true when the destination verified, whether or not the source would go, so a
+// migration recorded itself complete with both copies still there. Nothing was lost — the cost is a
+// false "done" — so the answer is false and a later run finishes the job.
+describe('lsMove — the source is confirmed gone, or the move is not finished', () => {
+    test('a removal storage refuses leaves both copies and answers false', async () => {
+        const store = fakeStorage({ old: 'v' });
+        store.removeItem = () => {};                       // a removal that silently does nothing
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsMove('old', 'new', 'v'), false);
+        assert.deepEqual(store._map(), { old: 'v', new: 'v' }, 'both kept: the data is safe either way');
+    });
+
+    test('a removal that works answers true and leaves only the destination', async () => {
+        const store = fakeStorage({ old: 'v' });
+        const { mod } = await load({ store, persistImpl: () => Promise.resolve(true) });
+        assert.equal(mod.lsMove('old', 'new', 'v'), true);
+        assert.deepEqual(store._map(), { new: 'v' });
+    });
 });
 
 // ── WILL THIS BROWSER SAVE AT ALL? (the iPhone audit, 7 Nov 2026) ───────────────────────────────

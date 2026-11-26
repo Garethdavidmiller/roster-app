@@ -47,7 +47,7 @@ mock.module('../ls.js', {
     namedExports: {
         lsGet: k => _ls.has(k) ? _ls.get(k) : null,
         lsSet: (k, v) => { _ls.set(k, String(v)); },
-        lsDel: k => { _ls.delete(k); }, lsKeys: () => [..._ls.keys()],
+        lsDel: k => { _ls.delete(k); }, lsDelVerified: (/** @type {string} */ k) => { _ls.delete(k); return true; }, lsKeys: () => [..._ls.keys()],
         // Real semantics, not an always-succeeds stub: the Map cannot fail, so these mirror
         // what ls.js does when storage works.
         lsSetVerified: (k, v) => { _ls.set(k, String(v)); return true; },

@@ -78,7 +78,13 @@ export const RESET_RECHECK_MS = 6 * 3_600_000;
  *   this attempt (session.js records `auth/reset-check-unavailable`, so it ends TRANSIENT)
  */
 export function planSilentAttempt({ surname, stored, now, unansweredThisAttempt }) {
-    const flaggedAt = Number(stored) || 0;
+    // A FLAG IS A FLAG, WHATEVER TIME IT CARRIES (external audit of v26.92). A marker that is not a time
+    // read as 0, so it never came due, and one dated in the FUTURE (a clock that ran ahead when it was
+    // written) waited until six hours past that future moment. Either way the device kept no session it
+    // could check and never asked about a reset. A marker that cannot be a past time is DUE, read as
+    // long ago — as '1' from before v25.77 always was — and a recheck that is answered writes a real time.
+    const at = Number(stored);
+    const flaggedAt = !stored ? 0 : (Number.isFinite(at) && at > 0 && at <= now ? at : 1);
     const recheck = flaggedAt > 0 && now - flaggedAt > RESET_RECHECK_MS;
     if (recheck && unansweredThisAttempt) return { candidates: [], recheck, held: true };
     // Empty candidates fall through to session.js's definitive-rejection branch, exactly as a
