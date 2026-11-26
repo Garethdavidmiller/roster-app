@@ -345,6 +345,11 @@ describe('settingFieldsWrite — a setting change carries only its own fields', 
     test('saved entries that cannot be read are never written over', () => {
         assert.equal(settingFieldsWrite('{not json', formNow, ['slSkip']), null);
         assert.equal(settingFieldsWrite('null', formNow, ['slSkip']), null);
+        // Valid JSON of the wrong shape is damaged too (isSavedPeriodShape) — a list was spread into
+        // a fresh record and written over the period.
+        for (const raw of ['[]', '[1,2]', '"text"', '42']) {
+            assert.equal(settingFieldsWrite(raw, formNow, ['slSkip']), null, `a period holding ${raw} was rewritten`);
+        }
     });
 });
 

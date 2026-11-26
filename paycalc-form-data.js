@@ -38,6 +38,7 @@
 import { hmPair, numVal } from './paycalc-inputs.js';
 import { parseSmartFloatOrNull } from './roster-data.js';
 import { minutesFieldText, HM_PAIRS } from './paycalc-format.js';
+import { isSavedPeriodShape } from './paycalc-inventory.js';
 
 // isDataEmpty — whether a saved payslip counts as entered — reads this schema's fields and lives in
 // paycalc-format.js, the zero-import pure home beside HM_PAIRS; import it from there.
@@ -186,7 +187,9 @@ export function settingFieldsWrite(raw, formNow, fields) {
     if (!raw) return null;
     let saved;
     try { saved = JSON.parse(raw); } catch { return null; }
-    if (!saved || typeof saved !== 'object') return null;
+    // The SHARED shape check (paycalc-inventory.js): a list passed `typeof === 'object'` here and was
+    // spread into a fresh record, so a damaged period was rewritten on a mere setting change.
+    if (!isSavedPeriodShape(saved)) return null;
     const next = { ...saved };
     for (const f of fields) next[f] = formNow[f];
     return JSON.stringify(next);
