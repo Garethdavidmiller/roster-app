@@ -203,6 +203,24 @@ test('paycalc: "Entries saved" appears only for a write that read back, and the 
     await expect(page.locator('#satM')).toHaveValue('15');
 });
 
+// A SETTING carried into the payslip (the pension controls, the student loan) said "Entries saved" over a
+// write the device had refused, so a reload lost it (24-hour check, 27 Nov 2026).
+test('paycalc: a setting the payslip could not keep says "Not saved", never "Entries saved"', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0, pension: 50 });
+    await expect(page.locator('#saveStatus')).toHaveText(/Entries saved/);
+    await page.evaluate((k) => {
+        const real = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+            if (key === k) throw new DOMException('quota', 'QuotaExceededError');
+            return real.call(this, key, value);
+        };
+    }, KEY);
+    await page.locator('#pensionOptOutCheck').check();
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    await expect(page.locator('#saveStatus')).not.toHaveClass(/\bsaved\b/);
+});
+
 test('paycalc: one tab saving as it always has — no question, saved as typed', async ({ page }) => {
     await page.clock.setFixedTime(DAY);
     await openOctober(page, null);

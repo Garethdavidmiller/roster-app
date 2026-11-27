@@ -2085,15 +2085,17 @@ describe('renewInstalledSession — the wiring', () => {
         } });
     const settle = () => new Promise(r => setTimeout(r, 0));
 
-    test('through the real launch path: the installed app\'s restored identity renews the session, a tab\'s does not', async () => {
-        for (const installed of [true, false]) {
+    test('through the real launch path: the installed app\'s restored identity renews the session, a tab\'s does not, nor a computer\'s', async () => {
+        for (const [installed, touch, renews] of [[true, true, true], [false, true, false], [true, false, false]]) {
             const { sess } = seed(50);
-            /** @type {any} */ (globalThis).matchMedia = (/** @type {string} */ q) => ({ matches: installed && q.includes('display-mode: standalone') });
+            /** @type {any} */ (globalThis).matchMedia = (/** @type {string} */ q) => ({
+                matches: (installed && q.includes('display-mode: standalone')) || (touch && q.includes('pointer: coarse')) });
             auth.currentUser = /** @type {any} */ (restored(5));
             await reconcileExpiredIdentity();
             await settle();
             const after = JSON.parse(store.get(AUTH_KEY));
-            assert.equal(after.expiry > sess.expiry, installed, installed ? 'the installed app was not renewed' : 'a browser tab was renewed');
+            assert.equal(after.expiry > sess.expiry, renews,
+                renews ? 'the installed app was not renewed' : installed ? 'an app installed on a computer was renewed' : 'a browser tab was renewed');
             assert.equal(_signOutCalled, false, 'a live session is never signed out here');
         }
     });

@@ -985,6 +985,26 @@ describe('a notification tap taking the page away holds every update reload', ()
         } finally { h.restore(); }
     });
 
+    test('a tap going to THIS document (#huddle on the Calendar) holds nothing — nothing unloads', async () => {
+        for (const [url, held] of [['https://myb-roster.web.app/#huddle', false], ['https://myb-roster.web.app/paycalc.html', true], [undefined, true]]) {
+            const h = makeHarness({ hasRegistration: true, controlled: true });
+            const prev = globalThis.location;
+            globalThis.location = /** @type {any} */ ({ origin: 'https://myb-roster.web.app', href: 'https://myb-roster.web.app/',
+                pathname: '/', search: '', hash: '', reload: prev?.reload });
+            try {
+                registerServiceWorker();
+                await h.flush();
+                const replies = /** @type {any[]} */ ([]);
+                const port = { postMessage: (/** @type {any} */ m) => replies.push(m) };
+                (h.swListeners.message || []).forEach((/** @type {Function} */ fn) => fn({ data: { type: 'myb-busy?', url }, ports: [port] }));
+                assert.deepEqual(replies, [{ busy: false }]);
+                h.fireControllerChange();
+                assert.equal(h.state.reloads, held ? 0 : 1,
+                    held ? `a tap to ${url ?? 'an unnamed page'} must hold the update reload` : 'a same-document tap held the update reload');
+            } finally { globalThis.location = prev; h.restore(); }
+        }
+    });
+
     test('a busy page is not leaving — its answer holds nothing', async () => {
         const h = makeHarness({ hasRegistration: true, controlled: true });
         try {

@@ -859,6 +859,21 @@ describe('a "mine" that does not finish stays the claimant\'s', () => {
         assert.deepEqual(bKeys(ls), [], "A's figures reached B's namespace after all");
     });
 
+    test('a legacy key made AFTER the answer (the Year to Date re-home) joins the claim, never left behind', () => {
+        const ls = makeFaultStorage({ ...FLAGS, myb_pc_code: 'A-code' });
+        global.localStorage = ls;
+        load(A);
+        ls.ctl.set = k => k === `${nsOf(A)}code`;              // the copy fails: the claim stands
+        resolveLegacyMigration(A.name, 'mine');
+        assert.deepEqual(JSON.parse(/** @type {string} */ (ls.getItem('myb_pc_ns_claim'))).keys, ['myb_pc_code'], 'premise: the claim lists one key');
+        ls.ctl.set = () => false;
+        ls.setItem('myb_pc_ytd_pay_2025_26', '12345');          // what a later load's re-home writes, unnamespaced
+        load(A);
+        assert.equal(ls.getItem(`${nsOf(A)}ytd_pay_2025_26`), '12345', "the re-homed figure did not reach A's namespace");
+        assert.equal(ls.getItem('myb_pc_ytd_pay_2025_26'), null, 'and it was left unnamespaced');
+        assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');
+    });
+
     test('the claim outlives a closing flag that did not land, so B is still never asked', () => {
         const ls = makeFaultStorage({ ...FLAGS, myb_pc_code: 'A-code' });
         global.localStorage = ls;

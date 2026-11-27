@@ -560,6 +560,14 @@ function _moveLegacyToNamespace(seg, keys) {
  */
 function _continueClaim(claim) {
     if (!claim.by) return;                        // a claim by nobody — nothing to resume
+    // The keys listed when the member answered, AND any legacy key the load's earlier steps have made
+    // since (the Year to Date re-home writes `…_2025_26` beside a source the list named). Listed once,
+    // such a key was left unnamespaced once the claim closed, offered to nobody (24-hour check,
+    // 27 Nov 2026). Only the claimant's data can be unnamespaced while a claim stands: nobody else is
+    // asked, and every other member writes under their own prefix.
+    const now = lsKeysChecked();
+    const keys = now.ok ? [...new Set([...claim.keys, ...now.keys.filter(_isLegacyPayKey)])] : claim.keys;
+    claim = { ...claim, keys };
     const { ok, leftovers, remaining } = _moveLegacyToNamespace(claim.by, claim.keys);
     if (ok) {
         // The claim goes only once the closed question READS BACK: a flag that did not land beside a
