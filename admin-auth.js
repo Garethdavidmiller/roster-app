@@ -88,23 +88,21 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
     // permissions corrected. 'unstamped' is the server's word for no permissions at all; an older server sent 'claims'
     // for it, so during a deploy that one still reads as wrong permissions.
     //
-    // AND TWO IT REFUSES (review D3, Nov 2026). An account at a member's address that is the shared staff PIN account
-    // ('viewer-linked'), or whose permissions name another member ('other-member'), read "wrong permissions — Press Set
-    // up accounts below", and pressing it only reported the refusal. Each now says what Set up accounts says when it
-    // refuses it, and the press is offered only when some gap on the line is one it mends.
+    // AND ONE IT REFUSES (review D3, Nov 2026). An account at a member's address whose permissions name another
+    // member ('other-member') read "wrong permissions — Press Set up accounts below", and pressing it only reported
+    // the refusal. It now says what Set up accounts says when it refuses it, and the press is offered only when some
+    // gap on the line is one it mends. (The second refusal, 'viewer-linked', went with the staff PIN's account.)
     const WHY_TEXT = /** @type {Record<string, string>} */ ({
         'no-account':    'no account',
         'claims':        'wrong permissions',
         'unstamped':     'no permissions',
         'disabled':      'account disabled',
-        'viewer-linked': 'linked to the staff PIN account',
         'other-member':  'account claimed for another member',
     });
     /** The reasons Set up accounts answers by resetting the account to the surname default and signing it out. */
     const RESET_BY_SETUP = new Set(['unstamped', 'disabled']);
     /** The reasons Set up accounts REFUSES, each with its remedy — the server's own (functions/auth-endpoints.js). */
     const REFUSED_BY_SETUP = /** @type {Record<string, (names: string) => string>} */ ({
-        'viewer-linked': (names) => `${names}: the address is linked to the shared staff PIN account, which Set up accounts will not take over. With the staff PIN retired nothing in the app clears it: delete the staff PIN account in the Firebase console (the retirement’s last step), then press Set up accounts.`,
         'other-member':  (names) => `${names}: the account at that address is claimed for another member, so Set up accounts will not adopt it. Check it in the Firebase console.`,
     });
 

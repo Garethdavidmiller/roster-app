@@ -1482,42 +1482,6 @@ describe('setupRosterAuth and the admin reset refuse an account whose claims nam
     });
 });
 
-// ── THE SHARED PIN ACCOUNT IS NEVER A MEMBER (Sep 2026 review) ─────────────────────────────────
-// Any PIN holder can link an email/password to the shared `calendar-viewer` account. Linking a
-// not-yet-provisioned member's DERIVED email made this endpoint's email-already-exists path find
-// the viewer, see a claim (so no take-back), and stamp the member's claims onto the account every
-// PIN session signs in to. The PIN is retired and its endpoint deleted (Nov 2026), but the account
-// stays until the owner deletes it, and a session left open on it can still link an email — so the
-// refusal stays, and now names the remedy that is left: deleting the account.
-describe('setupRosterAuth never adopts the shared Calendar PIN account', () => {
-    const viewerAtMemberEmail = () => ({ uid: 'calendar-viewer', email: emailFor(MEMBER), disabled: false,
-        customClaims: { calendarViewer: true } });
-
-    test('it is reported by name, and nothing is stamped, reset or revoked on it', async () => {
-        const { eps, authOps } = build({ existingUsers: [viewerAtMemberEmail()] });
-        const out = await call(eps.setupRosterAuth, asAdmin({}));
-        assert.equal(out.code, 200);
-        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (`) && /retired staff PIN account/.test(f)), out.body.failed.join(' | '));
-        assert.deepEqual(authOps.filter((o) => o.uid === 'calendar-viewer'), [], 'the viewer account was touched');
-        assert.ok(!out.body.skipped.includes(MEMBER) && !out.body.reclaimed.includes(MEMBER));
-    });
-
-    test('resetMemberPassword refuses it too — no password, no revocation, no notice (v24.38)', async () => {
-        const { eps, authOps } = build({ existingUsers: [viewerAtMemberEmail()] });
-        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
-        assert.equal(out.code, 409);
-        assert.match(out.body.error, /retired staff PIN account/);
-        assert.deepEqual(authOps.filter((o) => o.uid === 'calendar-viewer'), [], 'the viewer account was touched');
-    });
-
-    test('recognised by its claim as well as its uid', async () => {
-        const acct = { ...viewerAtMemberEmail(), uid: 'some-other-uid' };
-        const { eps, authOps } = build({ existingUsers: [acct] });
-        await call(eps.setupRosterAuth, asAdmin({}));
-        assert.deepEqual(authOps.filter((o) => o.uid === 'some-other-uid'), []);
-    });
-});
-
 // A just-created account whose first stamp fails is claimless — and the NEXT run's take-back reads
 // "no claim" as an outsider's account: password reset to the surname, every session revoked. So a
 // failed stamp on an account this run created is retried once, straight away (Sep 2026 review).
@@ -1813,7 +1777,6 @@ describe('setupRosterAuth disables only the leavers the admin previewed', () => 
 // `disabled` — and every broadcast reached it again, because the sweep's filter skips a disabled
 // account and no later run looked. Every confirmed run now releases those records too.
 describe('setupRosterAuth releases the push records of leavers already disabled', () => {
-    const { CALENDAR_VIEWER_UID } = require('./functions/retired-viewer-account.js');
     const gone = { uid: 'uid_gone', email: 'x.gone@myb-roster.local', displayName: 'X. Gone', disabled: true,
         customClaims: { name: 'X. Gone', member: 'X. Gone' } };
     const confirmed = () => asAdmin({ removeOrphans: true, confirmOrphanRemoval: true });
@@ -1834,15 +1797,11 @@ describe('setupRosterAuth releases the push records of leavers already disabled'
         assert.deepEqual(released, [gone.uid, gone.uid]);
     });
 
-    test('never the shared Calendar PIN account, by uid or by claim — and never a current member', async () => {
-        const viewer = { uid: CALENDAR_VIEWER_UID, email: 'nobody.here@myb-roster.local', disabled: true };
-        const viewerByClaim = { uid: 'some-uid', email: 'nobody.else@myb-roster.local', disabled: true, customClaims: { calendarViewer: true } };
+    test('never a current member', async () => {
         const member = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: MEMBER, disabled: true,
             customClaims: { name: MEMBER, member: MEMBER } };
-        const { eps, released } = build({ existingUsers: [viewer, viewerByClaim, member] });
+        const { eps, released } = build({ existingUsers: [member] });
         await call(eps.setupRosterAuth, confirmed());
-        assert.ok(!released.includes(viewer.uid) && !released.includes(viewerByClaim.uid),
-            'the PIN account\'s records went — every PIN device on the station stops being told');
         assert.deepEqual(released, [uidFor(MEMBER)],
             'fixture check: the member\'s own release is the re-enable\'s, not the sweep\'s');
     });

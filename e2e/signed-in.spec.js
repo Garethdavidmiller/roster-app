@@ -18,12 +18,8 @@
  *                         on their own phone, sees it.
  *   5. no signal        — a change saved offline says it is waiting, then reaches the database when
  *                         the signal returns: the real SDK's queue, which a stub cannot have.
- *   6. a leftover PIN   — a browser still holding a staff-PIN session (its custom token minted with
- *                         the server's own package, as `unlockCalendarViewer` minted it until the
- *                         PIN's server release deleted it) opens the Calendar again: the real teardown
- *                         signs it out of the SDK, the card says the PIN has been retired, and the
- *                         member signs in as themselves and reads their own record. The PIN was retired
- *                         on 23 Nov 2026; until then this journey unlocked the Calendar with it.
+ *   6. (retired)        — a leftover staff-PIN session's teardown, removed with the account in the
+ *                         PIN's cleanup release (27 Nov 2026). The number is kept so the others keep theirs.
  *   7. signing out      — Back loads the page again with nobody signed in: not in the app, and not
  *                         in the SDK's own stored sign-in, which a stub does not have.
  *   8. back online      — a delete made while a save from before the signal returned is still in
@@ -91,7 +87,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect, expectNothingLeftForGoogle, wireToEmulators, SDK_VERSION } from './signed-in-fixtures.js';
 import { resetDatabase, readCollection, seedDocument, EMULATOR, PROJECT } from './signed-in-env.mjs';
-import { resetPasswords, disableAccount, leftoverPinToken } from './signed-in-setup.mjs';
+import { resetPasswords, disableAccount } from './signed-in-setup.mjs';
 import { signInThroughOverlay, sheetAction, clickDialogConfirm, activeDesignName, pastDoubleTap } from './helpers.js';
 import { teamMembers, getBaseShift, isBankHoliday, CONFIG } from '../roster-data.js';
 import { manualOverrideId } from '../override-id.js';
@@ -122,14 +118,6 @@ const AUTH_KEY = readFileSync(new URL('../session.js', import.meta.url), 'utf8')
  */
 const NOTICE_KEYS = [...readFileSync(new URL('../calendar-notices.js', import.meta.url), 'utf8')
     .matchAll(/\bDONE_KEY\s*=\s*'([^']+)'/g)].map((m) => m[1]);
-/**
- * What the sign-in card says when arriving signed out a leftover staff-PIN session, read from staff-pin-ended.js
- * where it is declared (it moved there from login-overlay.js when paused Overtime began saying it too). The wording itself is pinned by e2e/calendar-access.spec.js; here it is only the sign
- * that the real exchange reached the same end.
- */
-const PIN_ENDED_NOTICE = (readFileSync(new URL('../staff-pin-ended.js', import.meta.url), 'utf8')
-    .match(/\bSTAFF_PIN_ENDED_NOTICE\s*=\s*'((?:\\.|[^'\\])*)'/)?.[1] ?? '').replace(/\\(.)/g, '$1');
-
 /** @param {import('@playwright/test').Page} page */
 function quietNotices(page) {
     return page.addInitScript((keys) => {
@@ -684,48 +672,6 @@ test('Links, back online: a rename waits for the save this device has not sent y
     expectNothingLeftForGoogle(page);
 });
 
-test('a leftover staff-PIN session: the real teardown signs it out of the SDK, the card says the PIN has been retired, and the member signs in as themselves', async ({ page }) => {
-    const token = await leftoverPinToken();
-    const day = workingDay(MEMBER);
-    await seedDocument(`overrides/${manualOverrideId(MEMBER, day)}`, {
-        memberName: MEMBER, date: day, type: 'annual_leave', value: 'AL', note: '', source: 'manual', changedBy: MEMBER,
-    });
-
-    // A browser that used the PIN before it was retired: the shared viewer, signed in the way the old
-    // card did — session-only persistence, then the custom token. The exchange that minted the token is
-    // deleted (the PIN's server release), so the lane mints it as the exchange did; the client no longer
-    // has a way to sign in with one, so the test does.
-    await page.goto(`/?date=${day}`);
-    await expect(page.locator('#calendarLock #loginCard'), 'the front door, before any PIN session').toBeVisible();
-    const claims = await page.evaluate(async ({ customToken, version }) => {
-        const { auth } = await import('/firebase-client.js');
-        // The SDK folder the page itself loads (the fixture's SDK_VERSION), never a written-down number.
-        const sdk = await import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`);
-        await sdk.setPersistence(auth, sdk.browserSessionPersistence);
-        const cred = await sdk.signInWithCustomToken(auth, customToken);
-        return (await cred.user.getIdTokenResult()).claims;
-    }, { customToken: token, version: SDK_VERSION });
-    expect(claims.calendarViewer, 'premise: the browser holds a real staff-PIN session').toBe(true);
-    expect(await sdkHolds(page), 'premise: the SDK holds it').toBe('(no email)');
-
-    // Opened again: the teardown signs it out, and the card says why. Nothing is granted on the way.
-    await page.reload();
-    expect(PIN_ENDED_NOTICE, 'staff-pin-ended.js no longer declares STAFF_PIN_ENDED_NOTICE as one quoted string — update PIN_ENDED_NOTICE').not.toBe('');
-    await expect(page.locator('#loginNotice'), 'the sign-in card says the PIN has been retired').toHaveText(PIN_ENDED_NOTICE);
-    await expect.poll(() => sdkHolds(page), { message: 'the staff-PIN session survived the Calendar' }).toBeNull();
-    await expect(page.locator('#calendarDisplay')).toBeHidden();
-    await expect(page.locator('#calLockPin')).toHaveCount(0);
-
-    // The way in is the member's own: their record, read through the rules under their own name.
-    await signInFirstTime(page, MEMBER);
-    await expect(liveGrid(page)).toBeVisible();
-    // The day's month: the address's `?date=` was spent on the first load, and the day may be next month's.
-    await page.goto(`/?date=${day}`);
-    await expect(liveGrid(page)).toBeVisible();
-    await expect(page.locator(`.calendar-day[data-detail-day="${dayLabel(day)}"]`), 'the member reads their own record').toHaveAttribute('data-detail-shift-value', 'AL');
-    expect(await sdkHolds(page)).toBe(nameToEmail(MEMBER));
-    expectNothingLeftForGoogle(page);
-});
 test('signing out: Back loads the page again with nobody signed in, in the app or in the SDK', async ({ page }) => {
     // The shared device: signed in on Admin, on to the Calendar, signed out THERE — then Back. Here
     // Back loads Admin again (the header says why it is never the back/forward cache in this lane).

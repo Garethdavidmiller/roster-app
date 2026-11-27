@@ -11,18 +11,13 @@
  *
  * ── THE STAFF PIN IS RETIRED (owner, 23 Nov 2026) ─────────────────────────────────────────────────
  *
- * Only a member's own sign-in opens the Calendar now. What is left of the shared viewer here is
- * TRANSITION plumbing, kept until the cleanup release deletes the `calendar-viewer` account: its uid
- * and claim, and `isViewerUser`, so a device still holding a viewer session is RECOGNISED — refused a
- * grant here, and signed out by `reconcileExpiredIdentity` (session.js) or before a member's sign-in
- * (`shedCalendarViewer`, viewer-shed.js). Nothing in this file grants a viewer any more, and no
- * client file asks for, shapes or compares a PIN.
+ * Only a member's own sign-in opens the Calendar now. The shared viewer's account was deleted and
+ * the last of its transition code went in the cleanup release (27 Nov 2026), so no client file asks
+ * for, shapes, compares or recognises a PIN.
  *
  * ── THE TWO RULES THAT MUST SURVIVE AN EDIT ─────────────────────────────────────────────────────
  *
- * 1. **`decideAccess` grants a NAMED member and nobody else.** A leftover viewer session is not a
- *    member: it carries no `name` claim, and it has no email — so rule 1's email check alone would
- *    let it through beside a held local session, which is why rule 1 still refuses it by uid.
+ * 1. **`decideAccess` grants a NAMED member and nobody else.**
  *
  * 2. **`none` is the answer whenever anything is missing.** There is no partial state and there
  *    must never be one: a Calendar that renders the base roster without overrides shows somebody
@@ -32,33 +27,6 @@
  */
 
 import { nameToEmail } from './auth-identity.js';
-
-/** The dedicated Firebase Auth UID for the RETIRED shared staff Calendar viewer (kept until the cleanup
- *  release, so a leftover session is recognised and signed out). Not a member, not an email
- *  account — deliberately created with NO email so the roster's leaver sweep (`computeOrphanLabels`
- *  filters on `@myb-roster.local`) and the sign-in stats allowlist can never see it as staff. */
-export const CALENDAR_VIEWER_UID = 'calendar-viewer';
-
-/** The one custom claim the viewer carries. Named as a CAPABILITY, not a role, because that is what
- *  it is — `firestore.rules` reads it to allow override READS and nothing else. */
-export const CALENDAR_VIEWER_CLAIM = 'calendarViewer';
-
-/**
- * Is this Firebase user the (retired) shared Calendar viewer? Kept until the cleanup release.
- *
- * Checks the UID, and requires the user to be non-anonymous. An anonymous user can never hold this
- * uid, so the second half is belt-and-braces. Every caller now uses it to RECOGNISE a leftover viewer
- * session: to refuse it a grant (`decideAccess`), to sign it out without touching this browser's push
- * record (`reconcileExpiredIdentity`), and to shed it before a member's sign-in (viewer-shed.js).
- *
- * @param {{ uid?: string, isAnonymous?: boolean }|null|undefined} user
- * @returns {boolean}
- */
-export function isViewerUser(user) {
-    if (!user || typeof user !== 'object') return false;
-    if (user.isAnonymous) return false;
-    return user.uid === CALENDAR_VIEWER_UID;
-}
 
 /**
  * May a one-time notice OPEN, given the access this browser holds? (v21.81)
@@ -148,14 +116,11 @@ export function decideAccess({ session, firebaseUser }) {
     //   · a Firebase user who is somebody ELSE (v24.38). On a shared browser another tab can sign a
     //     different member in; the page would then show the session's name while that person's
     //     token did the reads. An account carrying an email must carry THIS member's.
-    //   · the retired staff PIN's viewer (kept until the cleanup release). It has no email, so the
-    //     check above would pass it beside a held session; it is refused by uid instead.
-    if (named && u && !u.isAnonymous && !isViewerUser(u)
+    if (named && u && !u.isAnonymous
         && (!u.email || u.email === nameToEmail(String(session?.name).trim()))) return 'named';
 
-    // Rule 2: everything else — a leftover staff-PIN viewer (retired 23 Nov 2026: the gate's teardown
-    // signs it out, `reconcileExpiredIdentity`, and the sign-in card says why), and an anonymous
-    // identity, which used to be the Calendar's whole auth model and now grants nothing.
+    // Rule 2: everything else — an anonymous identity included, which used to be the Calendar's whole
+    // auth model and now grants nothing.
     return 'none';
 }
 

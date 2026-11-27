@@ -105,29 +105,3 @@ export async function disableAccount(name) {
     await getAuth().updateUser(user.uid, { disabled: true });
 }
 
-/**
- * A custom token for the retired staff PIN's shared account — the session a browser that used the PIN
- * may still hold until the owner deletes the account. Until the PIN's server release (Nov 2026) the
- * lane minted it through the real `unlockCalendarViewer`; that endpoint is gone, so this does what it
- * did, with the server's own package against the Auth emulator: the account (no email, no password),
- * its one claim, and a custom token carrying the claim. The uid is the server's own record of it
- * (functions/retired-viewer-account.js), and the Auth emulator accepts the unsigned token the Admin SDK
- * mints for it. Delete with the cleanup release, with the journey that uses it.
- * @returns {Promise<string>}
- */
-export async function leftoverPinToken() {
-    process.env.FIREBASE_AUTH_EMULATOR_HOST = EMULATOR.auth;
-    const require = createRequire(new URL('../functions/package.json', import.meta.url));
-    const { initializeApp, getApps } = require('firebase-admin/app');
-    const { getAuth } = require('firebase-admin/auth');
-    const { CALENDAR_VIEWER_UID } = require('./retired-viewer-account.js');
-    if (!getApps().length) initializeApp({ projectId: PROJECT });
-    const claims = { calendarViewer: true };
-    try {
-        await getAuth().createUser({ uid: CALENDAR_VIEWER_UID, disabled: false });
-    } catch (/** @type {any} */ err) {
-        if (err.code !== 'auth/uid-already-exists') throw err;
-    }
-    await getAuth().setCustomUserClaims(CALENDAR_VIEWER_UID, claims);
-    return getAuth().createCustomToken(CALENDAR_VIEWER_UID, claims);
-}

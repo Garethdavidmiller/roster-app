@@ -465,7 +465,8 @@ async function colleagueWithNoNoticesAnswered(page, day) {
         // below must survive the reload that follows it (helpers.js → seedCalendarMember).
         if (!sessionStorage.getItem('__e2e_flags_cleared')) {
             sessionStorage.setItem('__e2e_flags_cleared', '1');
-            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
+            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_timetable_soon_2026_done',
+                             'myb_notice_team_view_2026_done']) localStorage.removeItem(k);
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');

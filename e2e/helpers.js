@@ -396,26 +396,6 @@ export function seedCalendarMember(page, name = 'G. Miller') {
 }
 
 /**
- * Put a LEFTOVER staff-PIN session in this tab, as a browser that used the PIN before it was retired
- * (owner, 23 Nov 2026) still holds one: the shared `calendar-viewer` identity, and no member session.
- *
- * It grants nothing. Every page's teardown (session.js → `reconcileExpiredIdentity`) signs it out on
- * arrival, and the sign-in card says the PIN has been retired (staff-pin-ended.js) — which is what a
- * spec seeding this is there to see. ONCE PER TAB, as the real one: the stub keeps it in
- * sessionStorage, the teardown's sign-out removes it, and a reload must not bring it back, or every
- * load would be a first one and "signed out for good" could not be asserted.
- */
-export function seedLegacyViewerSession(page) {
-    return page.addInitScript(() => {
-        try {
-            if (sessionStorage.getItem('__e2e_viewer_seeded')) return;
-            sessionStorage.setItem('__e2e_viewer_seeded', '1');
-            sessionStorage.setItem('__e2e_viewer', '1');
-        } catch (_) { /* private mode */ }
-    });
-}
-
-/**
  * Record what each new live region matching `selector` said at the FIRST FRAME after it was put on
  * the page — read back with `firstFrameText(page, selector)`, one entry per region, in order.
  *

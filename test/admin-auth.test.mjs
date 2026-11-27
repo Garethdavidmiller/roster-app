@@ -300,34 +300,38 @@ describe('the members Set up accounts will reset are named, before it is pressed
     });
 });
 
-// ── TWO REASONS SET UP ACCOUNTS REFUSES (review D3, Nov 2026) ───────────────────────────────────
-// The shared PIN account at a member's address, and an account whose permissions name another member,
-// came back as "wrong permissions" with "Press Set up accounts below." — and the press only reported
-// the refusal. Each now says what the button says when it refuses it.
-describe('the gaps Set up accounts cannot mend say so, with their own remedy', () => {
+// ── THE REASON SET UP ACCOUNTS REFUSES (review D3, Nov 2026) ────────────────────────────────────
+// An account whose permissions name another member came back as "wrong permissions" with "Press Set
+// up accounts below." — and the press only reported the refusal. It now says what the button says when
+// it refuses it. (The second refusal, the shared PIN account at a member's address, went with that
+// account in the staff PIN's cleanup release, 27 Nov 2026.)
+describe('the gap Set up accounts cannot mend says so, with its own remedy', () => {
     /** @param {any} gaps */
     const remedies = (gaps) => gaps.find((/** @type {any} */ e) => e.className === 'auth-gap-line').children
         .filter((/** @type {any} */ c) => typeof c !== 'string' && c.className === 'auth-gap-fix').map((/** @type {any} */ c) => c.textContent);
 
-    test('each is named in words, and its remedy is the refusal\'s — the press is not offered for them alone', async () => {
+    test('it is named in words, and its remedy is the refusal\'s — the press is not offered for it alone', async () => {
         const { gaps, reported } = await wire({ setUp: [
-            { name: 'B. Toth', why: 'viewer-linked' }, { name: 'S. Silva', why: 'other-member' }, { name: 'A. Hared', why: 'other-member' },
+            { name: 'S. Silva', why: 'other-member' }, { name: 'A. Hared', why: 'other-member' },
         ], leavers: [] });
-        assert.match(gaps.textContent, /B\. Toth \(linked to the staff PIN account\)/);
         assert.match(gaps.textContent, /S\. Silva \(account claimed for another member\)/);
         assert.doesNotMatch(gaps.textContent, /wrong permissions/);
         assert.deepEqual(remedies(gaps), [
-            'B. Toth: the address is linked to the shared staff PIN account, which Set up accounts will not take over. With the staff PIN retired nothing in the app clears it: delete the staff PIN account in the Firebase console (the retirement’s last step), then press Set up accounts.',
             'S. Silva and A. Hared: the account at that address is claimed for another member, so Set up accounts will not adopt it. Check it in the Firebase console.',
         ]);
-        assert.deepEqual(reported, [{ setUp: 3, leavers: 0 }], 'still counted: each is a member who cannot sign in properly');
+        assert.deepEqual(reported, [{ setUp: 2, leavers: 0 }], 'still counted: each is a member who cannot sign in properly');
     });
 
     test('beside a gap the press DOES mend, the press is offered first', async () => {
-        const { gaps } = await wire({ setUp: [{ name: 'B. Toth', why: 'no-account' }, { name: 'S. Silva', why: 'viewer-linked' }], leavers: [] });
+        const { gaps } = await wire({ setUp: [{ name: 'B. Toth', why: 'no-account' }, { name: 'S. Silva', why: 'other-member' }], leavers: [] });
         const r = remedies(gaps);
         assert.equal(r[0], 'Press Set up accounts below.');
-        assert.match(r[1], /^S\. Silva: the address is linked to the shared staff PIN account/);
+        assert.match(r[1], /^S\. Silva: the account at that address is claimed for another member/);
+    });
+
+    test('a reason no server sends any more reads as itself, never as the PIN account (27 Nov 2026)', async () => {
+        const { gaps } = await wire({ setUp: [{ name: 'B. Toth', why: 'viewer-linked' }], leavers: [] });
+        assert.doesNotMatch(gaps.textContent, /staff PIN/);
     });
 });
 

@@ -9,8 +9,7 @@
  * summarising the wrong direction for Coming back, leaves every unit test green.
  */
 import { test, expect } from './fixtures.js';
-import { STAFF_PIN_ENDED_NOTICE } from '../staff-pin-ended.js';
-import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, seedLegacyViewerSession, scaleText, pickFirstMemberAndPassword } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, scaleText, pickFirstMemberAndPassword } from './helpers.js';
 import { TIMETABLES, STATIONS } from '../trains-data.js';
 import { busiestStations, matchStations } from '../trains-stations.js';
 
@@ -1339,7 +1338,7 @@ test('no view of the page runs off a phone\'s screen with larger text', async ({
 // ── THE WHOLE-APP FIX (Nov 2026) ─────────────────────────────────────────────────────────────────────
 // What only the page can show: that the coordinator hands each rule the right timetable, the right phase
 // and the right names. The rules themselves are trains-stations.test.mjs's and trains-change.test.mjs's.
-test.describe('trains — the page turns as a whole, and a station computer is told the staff PIN has gone', () => {
+test.describe('trains — the page turns as a whole', () => {
     // From 13 December only the tab and the card's title turned: the section, its ? and its chevron, and the
     // ? panel's own title, went on saying "What’s changing" to a screen reader and under the tab.
     test('every name the changes view goes by turns with it at the change', async ({ page }) => {
@@ -1475,46 +1474,6 @@ test.describe('trains — the page turns as a whole, and a station computer is t
         await page.locator('#tipsLightboxClose').click();
         await page.clock.runFor(60_000);
         await expect(page.locator('#trFestive'), 'and the page\'s own Christmas line went with them').toBeHidden();
-    });
-
-    // THE STAFF PIN WAS RETIRED (owner, 23 Nov 2026). Until then it opened this page (v24.84), and a
-    // station computer arriving locked was sent to the Calendar's PIN box by a line on this card. Now
-    // only a member's own sign-in opens Trains: a browser still holding a PIN session is signed out on
-    // arrival — the plain teardown, awaited before the card (trains-app.js) — and the card says why.
-    const holdsViewer = (/** @type {import('@playwright/test').Page} */ page) =>
-        page.evaluate(() => sessionStorage.getItem('__e2e_viewer'));
-
-    test('a leftover staff-PIN session is signed out on arrival: the sign-in card says the PIN has been retired, and offers nothing of it', async ({ page }) => {
-        const errors = collectFatalErrors(page);
-        await seedLegacyViewerSession(page);
-        await page.goto('/trains.html');
-        await expect(page.locator('#loginOverlay')).toBeVisible();
-        await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE);
-        await expect.poll(() => holdsViewer(page), { message: 'the leftover PIN session survived the page' }).toBeNull();
-        // Nothing of the PIN on the card: no line about it, no link to its box, no box.
-        const about = page.locator('#loginAbout');
-        await expect(about).toContainText('Chiltern’s trains from Marylebone');
-        await expect(about).not.toContainText('PIN');
-        await expect(page.locator('#loginOverlay a[href*="staff-pin"]')).toHaveCount(0);
-        await expect(page.locator('#calLockPin, input[inputmode="numeric"]')).toHaveCount(0);
-        await expect(page.locator('#loginOverlay a.login-back')).toHaveAttribute('href', './');
-        expect(errors, errors.join('\n')).toEqual([]);
-    });
-
-    test('a leftover PIN session that restores late is still signed out, and the card then says why', async ({ page }) => {
-        // Until the PIN was retired, Trains honoured a PIN session that restored after its check (sign-in
-        // check, 11 Nov 2026). Now the same late restore must be TORN DOWN: 7.5s is past the decision
-        // budget, so the card is already up, and inside the teardown's own 8s restore wait, which runs on
-        // behind it; the card hears the retired-PIN line when the sign-out lands.
-        test.setTimeout(60_000);
-        await seedLegacyViewerSession(page);
-        await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 7500 }); });
-        await page.goto('/trains.html');
-        await expect(page.locator('#loginOverlay')).toBeVisible({ timeout: 15_000 });
-        await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE, { timeout: 15_000 });
-        await expect.poll(() => holdsViewer(page)).toBeNull();
-        await page.waitForTimeout(1000);   // a late grant would have taken the card down by now
-        await expect(page.locator('#loginOverlay')).toBeVisible();
     });
 
     // THE TEARDOWN IS BOUNDED (72-hour check, 24 Nov 2026). While Trains asked `holdsStaffPin` it raced the

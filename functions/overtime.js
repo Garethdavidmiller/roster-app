@@ -98,9 +98,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             return sendTargetedPush(payload, uids, tag);
         }
         : async (_payload, _uids, tag) => { console.warn(`${tag} push not configured — nothing sent`); return 0; });
-    // Only the member's own enabled account, carrying their `member` claim (`isMembersOwnAccount`):
-    // the shared account the retired staff PIN used is still refused, as `uidForMember` (pay-reminder.js)
-    // refuses it — its devices were the station's PCs. The check stays while that account can exist.
+    // Only the member's own enabled account, carrying their `member` claim (`isMembersOwnAccount`), as
+    // `uidForMember` (pay-reminder.js) asks: an account at the address without that claim is not theirs.
     /** @type {UidForName} */
     const uidForName = (notify && notify.uidForName) || (async (name) => {
         try {

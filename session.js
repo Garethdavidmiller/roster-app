@@ -4,25 +4,14 @@
  * importer pulls varies; grep the import rather than trusting a list here.
  *
  * Owns: session constants, localStorage session read/write/clear, the Firebase Auth sign-in
- *   lifecycle (ensureNamedSession → ensureFirebaseSession), and the expired-identity teardown —
- *   which also signs out a leftover session of the retired staff PIN (kept until the cleanup release).
+ *   lifecycle (ensureNamedSession → ensureFirebaseSession), and the expired-identity teardown.
  * Does NOT own: the sign-in UI (login-overlay.js), what a page does when its session fails
  *   (page-session.js), page access (auth-policy.js), Firestore writes, or how an account's email
  *   and surname default are derived (auth-identity.js — its header carries the lock-out warning).
  * Edit here for: session expiry, Firebase Auth strategy.
  */
 
-import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, probeResetAtMs, letViewerWritesGo } from './firebase-client.js';
-// PURE, and imported rather than re-derived: `isViewerUser` RECOGNISES a leftover session of the
-// retired staff PIN, which the teardown signs out without releasing this browser's push record, so a
-// second local copy of that predicate is a second place the two could part. calendar-access-core.js
-// imports only the pure auth-identity.js, so this adds no cycle (asserted by import-graph.test.mjs).
-import { isViewerUser } from './calendar-access-core.js';
-import { noteStaffPinEnded } from './staff-pin-ended.js';
-// The viewer → member hand-over's one ordering (sign the viewer out, THEN re-arm the member chain) is
-// viewer-shed.js's, re-exported so its callers and tests keep importing it from here.
-import { shedCalendarViewer } from './viewer-shed.js';
-export { shedCalendarViewer };
+import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, probeResetAtMs } from './firebase-client.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
 import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal, sessionStartMs, renewedExpiry, AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -304,24 +293,6 @@ export async function ensureFirebaseSession(name, _gen, password) {
     ]);
     clearTimeout(_readyTimer);
     if (!_ready) { recordError('auth/timeout'); if (fresh()) _authStartStalled = true; return commit('none', false); }
-    // A member is signing in, so the shared Calendar viewer (if this browser holds one) must go
-    // FIRST — the order is the security property (viewer-shed.js). This is the single choke point for
-    // the viewer→member transition: every member sign-in reaches Firebase through here, so no second
-    // path could set long-lived persistence with the viewer still current.
-    //
-    // `shedCalendarViewer` THROWS when it cannot confirm the viewer is gone. Convert that to a clean
-    // failed sign-in rather than letting it reject: every write page's coordinator hands this promise
-    // straight to `resolveSession()` with no catch, so a rejection would reject `sessionReady`
-    // app-wide. 'none' keeps the security property (persistence untouched, no viewer promoted) AND
-    // keeps the failure inside the sign-in flow, where the login overlay reports it and offers a retry.
-    try {
-        await shedCalendarViewer();
-    } catch (err) {
-        console.warn('[Auth] could not shed the Calendar viewer — sign-in abandoned:',
-            /** @type {any} */ (err)?.message);
-        recordError('auth/viewer-shed-failed');
-        return commit('none', false);
-    }
     // First auth state for this restore. Fast path: if auth.currentUser is ALREADY populated (a live
     // session — e.g. the SECOND ensureFirebaseSession of an in-place sign-in), use it synchronously.
     // It is null during a cold IndexedDB restore, so otherwise we wait for the first emission.
@@ -500,9 +471,6 @@ const _TRANSIENT_AUTH_CODES = new Set([
     // The account restored here could not be signed out before a member's sign-in (sessions-4) — the
     // same storage failure the SDK itself reports as auth/internal-error, above; named for what happened.
     'auth/previous-user-shed-failed',
-    // …and its twin for the shared PIN viewer: without it a failed viewer sign-out ended NONE and
-    // cleared the member's 60-day session over a storage fault.
-    'auth/viewer-shed-failed',
 ]);
 
 /** @param {string|undefined} code @returns {boolean} */
@@ -702,12 +670,6 @@ export function clearSession() {
  * Login-safe: snapshots `_authGen` and stands down if a login/logout transition (both bump it) started
  * meanwhile, and re-checks getSession() so a just-completed login (which writes a fresh session) is
  * never torn down. Anonymous identities are left alone.
- *
- * THE RETIRED STAFF PIN IS TORN DOWN HERE TOO, ON EVERY PAGE (owner, 23 Nov 2026; AUTH_AND_SESSIONS.md
- * 8). Its shared viewer is a non-anonymous Firebase identity with no local session — exactly the shape
- * this function exists to end — so a browser still holding one is signed out on its next load, and the
- * sign-in card says why (`noteStaffPinEnded`, staff-pin-ended.js). The viewer branches below are
- * transition plumbing, kept until the cleanup release deletes the `calendar-viewer` account.
  * @returns {Promise<void>}
  */
 export async function reconcileExpiredIdentity() {
@@ -725,18 +687,14 @@ export async function reconcileExpiredIdentity() {
     // member's own account restored (silent-sign-in.js → "The installed app stays signed in").
     if (live) { void renewWhenServerVouches(live, u); return; }
     // Release this device's push record FIRST, while the expired member is still the identity — the
-    // delete is theirs to make, and after the sign-out nobody can. NOT for the staff PIN (audit C3):
-    // it owns no record, so the release dropped THIS BROWSER's subscription — a member's own phone,
-    // used with the PIN, came back with notifications off.
-    if (!isViewerUser(u)) await releasePushForEndingHold();
-    else await letViewerWritesGo();   // the viewer's queued writes leave first (firebase-client.js says why)
+    // delete is theirs to make, and after the sign-out nobody can.
+    await releasePushForEndingHold();
     // …or anybody else did, by a route that moves no generation (the sign-out below signs out
     // whoever is current, which could be somebody new).
     if (gen !== _authGen || getSession() || auth.currentUser !== u) return;
     try {
         await firebaseSignOut(auth);
         console.warn('[Auth] Signed out a Firebase identity whose local session had expired (Finding #9).');
-        if (isViewerUser(u)) noteStaffPinEnded();   // so the sign-in card can say why — only once the sign-out has landed (staff-pin-ended.js)
     } catch (err) {
         console.warn('[Auth] expired-identity signOut failed:', /** @type {any} */ (err)?.message);
     }
@@ -798,7 +756,7 @@ export function renewInstalledSession(session, user, { installed = installedApp(
 /**
  * Release this device's push record for a member whose hold on it is ending WITHOUT a sign-out — an
  * expired session's lingering identity, or a session the last password reset refused. Without it, on
- * a station PC left on the staff PIN the departed member's targeted notices — a reset request naming
+ * a station PC the departed member's targeted notices — a reset request naming
  * a colleague, for the admin — went on arriving there indefinitely: no next member ever comes to take
  * it over. Loaded on demand, so the session module does not carry the Web Push code;
  * `releaseDevicePush` bounds its own wait and never throws. Exported for the two other ends of a hold
