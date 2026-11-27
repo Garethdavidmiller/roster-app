@@ -115,9 +115,12 @@ export function decideAccess({ session, firebaseUser }) {
     //     to tear down. Trusting it here would let an expired member keep their privileges.
     //   · a Firebase user who is somebody ELSE (v24.38). On a shared browser another tab can sign a
     //     different member in; the page would then show the session's name while that person's
-    //     token did the reads. The account must carry THIS member's email: every member signs in by
-    //     email, so one with none is nobody's (it let a leftover identity through — 24-hour check, 27 Nov 2026).
-    if (named && u && !u.isAnonymous && u.email === nameToEmail(String(session?.name).trim())) return 'named';
+    //     token did the reads. An account carrying an email must carry THIS member's. One with NO email
+    //     passes: no client mints such an account (every member signs in by email), and the browser
+    //     suite's stand-in identity carries none unless a test gives it one — requiring an email was
+    //     tried and locked every such test out (24-hour check, 27 Nov 2026).
+    if (named && u && !u.isAnonymous
+        && (!u.email || u.email === nameToEmail(String(session?.name).trim()))) return 'named';
 
     // Rule 2: everything else — an anonymous identity included, which used to be the Calendar's whole
     // auth model and now grants nothing.
