@@ -91,6 +91,8 @@ const CAPS = {
     'docs/links-26/HISTORY.md':               685_000,
     'docs/links-26/README.md':                 30_000,
     'docs/links-26/RULES.md':                  12_000,
+    'docs/links-bilingual/README.md':          4_000,
+    'docs/links-bilingual/RULES.md':           6_000,
     'docs/LINKS_REFERENCE.md':              106_000,
     'docs/MAINTENANCE_CALENDAR.md':          24_000,
     'docs/OPERATIONS_REFERENCE.md':         106_000,

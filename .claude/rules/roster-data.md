@@ -107,3 +107,8 @@ would stay published, in the file and its history, after the person is back.
 
 **A fixed pattern is SHARED, so editing one member's hours there edits everyone on that line.** Never
 write a cycle's length down: it is the constant's, and the Links seed reads the same constants.
+
+**The bilingual link (owner, 27 Nov 2026):** the bilingual contract is being phased out and no new ones are
+added; bilingual cover is not needed at all times. Its duties start at 07:00 or later and finish before the
+close, except Saturday's 14:25–23:55 and Sunday's 15:25–23:25. Drafts for a shorter link, with their rules
+and tooling: `docs/links-bilingual/`.
