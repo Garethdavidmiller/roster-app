@@ -73,10 +73,8 @@ const NOTIFICATION_FEATURES = {
     // log since the last notice. The words are functions/error-log-notice.js's, never composed at the
     // call; the sender is functions/error-log-notify.js.
     errorLog:   { emoji: '🐛', tag: 'error-log' },
-    // Targeted, ONCE (v26.91; owner, 26 Nov 2026): the New link page's own audience is told to look at the three
-    // proposals before the vote. 🔁 is the New link nav pill. A fixed headline, like the timetable's: it only ever
-    // says one thing. Sent by sendNewlinkVoteReminder (newlink-reminder.js, scheduled from index.js), guarded to the one date.
-    newlink:    { emoji: '🔁', tag: 'newlink', defaultHeadline: 'New link — vote coming soon', hashPath: '/newlink.html' },
+    // (`newlink`, 🔁 'newlink' — the one New link push before the vote, 26 Nov 2026 — went with its sender once it
+    // had been sent, 27 Nov 2026. The New link page stays a page a notification may open: service-worker.js.)
     // (`pinLockout`, 🔢 'pin-lockout' — the retired staff PIN's station-wide block, told to the admin —
     // went with the PIN's endpoint in its server release, Nov 2026.)
 };

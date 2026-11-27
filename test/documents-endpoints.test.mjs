@@ -1204,112 +1204,6 @@ describe('sendTimetableReminder — one broadcast, on the evening before the tim
     });
 });
 
-describe('sendNewlinkVoteReminderNotification — the New link page\'s own audience, once, at 18:00 on 26 November 2026 (v26.91)', () => {
-    // Owner, 26 Nov 2026: "a notification letting people know to check out new links before voting starts". Organised by
-    // what a wrong answer costs: sent to somebody the page turns away (a bilingual-contract CEA, a Dispatcher, an Other
-    // Staff login), it invites them to a door that is shut; sent as a broadcast, it reaches all of them; sent on another
-    // evening, it is a stale nudge from a function nobody remembered to delete.
-    const newlinkPath = require.resolve('./functions/newlink-reminder.js');
-    function buildNewlink(/** @type {Record<string, any>} */ rosterMembers = ROSTER) {
-        const b = build();                       // the push and account fakes, and a fresh pay-reminder.js
-        delete require.cache[newlinkPath];       // …which this module takes its account lookup from
-        const mod = require('./functions/newlink-reminder.js');
-        /** @type {{year: number, month: number, day: number}} */
-        let now = { year: 2026, month: 10, day: 26 };
-        const fn = mod.buildNewlinkVoteReminderNotification({ REGION: 'europe-west2', VAPID_PRIVATE_KEY: { value: () => 'vapid-private' },
-            VAPID_PUBLIC_KEY: 'vapid-public', STAFF_SITE_URL: 'https://myb-roster.web.app', rosterMembers, nowInLondon: () => now });
-        return { ...b, mod, fn, setNow: (/** @type {any} */ n) => { now = n; } };
-    }
-
-    test('26 November 2026 sends to EXACTLY the people the New link page lets in — targeted, never a broadcast', async () => {
-        const { canOpenNewlink } = await import('../auth-policy.js');
-        const b = buildNewlink();
-        await b.fn.run({});
-        assert.equal(b.sends.length, 0, 'a broadcast would reach everyone the page turns away');
-        assert.equal(b.targeted.length, 1);
-        const expected = ROSTER.activeMembers.filter((/** @type {string} */ n) => canOpenNewlink(n)).map((/** @type {string} */ n) => `uid:${n}`).sort();
-        const away = ROSTER.activeMembers.filter((/** @type {string} */ n) => !canOpenNewlink(n));
-        assert.ok(expected.length > 0 && away.length > 0, 'premise: the roster has people on both sides of the door');
-        assert.deepEqual([...b.targeted[0].uids].sort(), expected, 'the page\'s own question, asked of the generated roster');
-        const { payload, tag } = b.targeted[0];
-        assert.equal(tag, '[newlinkVote]');
-        assert.equal(payload.tag, 'newlink');
-        assert.equal(payload.title, '🔁 New link — vote coming soon');
-        assert.equal(payload.body, b.mod.NEWLINK_VOTE_REMINDER_BODY, 'the words were clipped: the body is over the 80-character budget');
-        assert.doesNotMatch(payload.title + payload.body, /!/, 'calm tone — no exclamation marks');
-        assert.ok(payload.url.endsWith('/newlink.html'), payload.url);
-    });
-
-    test('another evening, and 26 November of another year, send nothing', async () => {
-        const b = buildNewlink();
-        for (const n of [{ year: 2026, month: 10, day: 25 }, { year: 2026, month: 10, day: 27 }, { year: 2027, month: 10, day: 26 }]) {
-            b.setNow(n);
-            await b.fn.run({});
-        }
-        assert.equal(b.targeted.length + b.sends.length, 0);
-    });
-
-    // ── ONCE (external review of v26.92) ──────────────────────────────────────────────────────────
-    // A scheduled run can arrive twice, and the service worker's `renotify` makes a second notice with
-    // the same tag ring again. The date guard cannot tell; the claim can.
-    const RECORD = 'oneOffPushes/newlink-vote-2026';
-
-    test('a second run on the evening sends NOTHING — the first claimed it', async () => {
-        const b = buildNewlink();
-        await b.fn.run({});
-        await b.fn.run({});
-        assert.equal(b.targeted.length, 1, 'one send, whatever the schedule does');
-        const rec = b.store.get(RECORD);
-        assert.equal(rec.outcome, 'sent');
-        assert.ok(rec.accepted > 0 && rec.resolved === rec.accepted && rec.addressed >= rec.resolved, JSON.stringify(rec));
-        assert.ok(rec.claimedAt && rec.finishedAt, 'when it was claimed, and when the send finished, both kept');
-    });
-
-    test('two OVERLAPPING runs send once', async () => {
-        const b = buildNewlink();
-        await Promise.all([b.fn.run({}), b.fn.run({})]);
-        assert.equal(b.targeted.length, 1);
-    });
-
-    test('a run that cannot claim sends nothing, and says so by failing', async () => {
-        const b = buildNewlink();
-        b.failTransaction(new Error('unavailable'));
-        await assert.rejects(b.fn.run({}), /unavailable/);
-        assert.equal(b.targeted.length + b.sends.length, 0, 'a missed nudge, never a doubled one');
-    });
-
-    test('a send that reached no device is recorded as that — never as "sent"', async () => {
-        const b = buildNewlink({ activeMembers: ROSTER.activeMembers });   // no audience list: nobody addressed
-        await b.fn.run({});
-        assert.equal(b.store.get(RECORD).outcome, 'reached no device');
-        assert.equal(b.store.get(RECORD).accepted, 0);
-    });
-
-    test('another evening claims nothing', async () => {
-        const b = buildNewlink();
-        b.setNow({ year: 2026, month: 10, day: 25 });
-        await b.fn.run({});
-        assert.equal(b.store.has(RECORD), false, 'a claim on the wrong evening would block the right one');
-    });
-
-    test('a roster with no list sends to nobody — never "everyone"', async () => {
-        const b = buildNewlink();
-        await b.mod.sendNewlinkVoteReminder({ roster: { activeMembers: ROSTER.activeMembers }, vapidPrivate: null, vapidPublic: '', STAFF_SITE_URL: 'https://myb-roster.web.app' });
-        assert.equal(b.sends.length, 0);
-        assert.deepEqual(b.targeted.map(t => t.uids), [[]], 'addressed to no uids, which sendTargetedPush sends to nobody');
-    });
-});
-
-// ── push-copy: EVERY notification's words, from its real sender or builder (26 Nov 2026) ───────
-//
-// The OS draws a notification, so a title clipped to "…", a body over two lines, a straight
-// apostrophe or an exclamation mark is visible nowhere but on a lock screen. One table holds every
-// kind the app sends to the rules in .claude/rules/notifications.md, each built the way it ships:
-// the document-domain senders RUN (ingestHuddle, the create triggers, the two schedules, the New link
-// schedule) against the recording transport above; the rest go through the pure builder their sender
-// calls (`buildResetRequestNotice`, `noticeWords`, `askedNotice`/`reminderNotice`) and
-// `PASSWORD_RESET_BODY`, then through `buildPushPayload` with the sender's own url — at the worst
-// case each can reach: the longest roster name with 98 others waiting, a September payday, a flood.
 describe('push-copy — every notification the app sends fits the design language', () => {
     // The REAL transport's TTL table, loaded apart from the stub build() puts in its place.
     delete require.cache[pushPath];
@@ -1346,13 +1240,6 @@ describe('push-copy — every notification the app sends fits the design languag
         await tt.eps.sendTimetableReminder.run({});
         out.push({ kind: 'timetable', payload: tt.sends[0].payload });
 
-        const nl = build();
-        delete require.cache[require.resolve('./functions/newlink-reminder.js')];
-        const { buildNewlinkVoteReminderNotification } = require('./functions/newlink-reminder.js');
-        await buildNewlinkVoteReminderNotification({ REGION: 'europe-west2', VAPID_PRIVATE_KEY: { value: () => 'v' },
-            VAPID_PUBLIC_KEY: 'v', STAFF_SITE_URL: SITE, rosterMembers: ROSTER, nowInLondon: () => ({ year: 2026, month: 10, day: 26 }) }).run({});
-        out.push({ kind: 'newlink', payload: nl.targeted[0].payload });
-
         out.push({ kind: 'password-reset', payload: buildPushPayload({ feature: 'passwordReset', body: PASSWORD_RESET_BODY, baseUrl: SITE }) });
         for (const pending of [1, 2, 99]) {
             out.push({ kind: `reset-request (${pending} waiting)`, payload: buildPushPayload({ feature: 'resetRequest',
@@ -1386,7 +1273,11 @@ describe('push-copy — every notification the app sends fits the design languag
 
     test('title ≤ 40 and body ≤ 80, never clipped; no "!", no emoji in the body, no straight apostrophe; a tag with its own TTL', async () => {
         const all = await everyNotification();
-        assert.equal(new Set(all.map(n => n.payload.tag)).size, 10, 'premise: every one of the ten notifying features is in the table');
+        // Every feature the builder knows is in the table — read from the builder, so a feature added or retired
+        // there (the New link push went on 27 Nov 2026) cannot leave a hand-kept count behind.
+        const { NOTIFICATION_FEATURES } = require('./functions/push-notices.js');
+        const known = new Set(Object.values(NOTIFICATION_FEATURES).map((/** @type {any} */ f) => f.tag));
+        assert.deepEqual([...new Set(all.map(n => n.payload.tag))].sort(), [...known].sort(), 'every notifying feature is in the table, and nothing else');
         for (const { kind, payload: { title, body, tag } } of all) {
             assert.ok(title.length <= 40, `${kind}: title "${title}" is ${title.length} characters`);
             assert.ok(body.length <= 80, `${kind}: body "${body}" is ${body.length} characters`);

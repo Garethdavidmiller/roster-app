@@ -40,9 +40,6 @@ const DEPLOY_SURFACE = [
     'onNewsletterCreated',
     'sendPayReminderNotification',
     'sendTimetableReminder',
-    // v26.91 — the one New link push before the vote (owner, 26 Nov 2026), date-guarded to 26 Nov 2026. SCHEDULED, so
-    // nothing calls it; remove it, with ./newlink-reminder.js, once that evening has passed.
-    'sendNewlinkVoteReminderNotification',
     // v26.04 — the admin's Error Log notification, every fifteen minutes. SCHEDULED, so nothing calls it:
     // lost in a refactor, the admin would simply stop being told, which reads exactly like a quiet log.
     'sendErrorLogNotification',

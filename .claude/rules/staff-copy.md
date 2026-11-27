@@ -10,7 +10,6 @@ paths:
   - "functions/push-notices.js"
   - "functions/documents.js"
   - "functions/pay-reminder.js"
-  - "functions/newlink-reminder.js"
   - "functions/overtime-core.js"
   - "functions/reset-request-rules.js"
   - "functions/error-log-notice.js"
