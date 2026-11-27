@@ -1,6 +1,6 @@
 # Marylebone Roster — Product Roadmap
 
-*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.20 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -101,11 +101,15 @@ the link follows, and today's link carries on until then; 8 Nov 2026: the day is
 normal CEA contract; those on a CEA bilingual contract keep their own links (owner, 8 Nov 2026). It is 26 weeks with five cover weeks
 (`docs/links-26/RULES.md`), and the shortlist is three — **Balanced V6**, **Level Crossing** and **Middle Ground**, A to
 Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks side by side) — built into the link designer read-only (`link-designer-proposals.js`) and drawn
-in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to everyone on the normal CEA
-contract and the managers — **open since v25.60** (owner, 9 Nov 2026).
+in the pack (`docs/links-26/`). The New CEA Link page (`newlink.html`, renamed from "New link" at v27.15) presents them
+evenly to everyone on the normal CEA contract and the managers — **open since v25.60** (owner, 9 Nov 2026). The **Links
+Selector** (`links-selector.html`, v27.18) draws one of them as the Calendar's months from a chosen start line — the
+admin's beta until `CONFIG.LINKS_SELECTOR_OPEN`, then the same audience. The Link Designer is paused (v27.13).
 
 **What remains is decisions, not code:**
 
+- **Opening the Links Selector** once the admin is happy with it (`OPERATIONS_REFERENCE.md` → Opening the Links
+  Selector to colleagues), and setting its start day with the link's (`STARTS`, provisionally 17 January 2027).
 - **The choice.** None is chosen (`CHOSEN` is null in `newlink-config.js`): S. Silva's decision, as the
   one leading the change, then the area manager's review.
 - **The management review meeting** is not scheduled. The plan's backwards dates, counted from the

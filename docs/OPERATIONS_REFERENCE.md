@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.20 · Updated every 0.10 version*
 
 How the app is run day to day: the steps and facts an operator or an editor needs. Referenced from
 `CLAUDE.md`. What changed at which version is in git, not here.
@@ -768,7 +768,7 @@ stands down. The root `.nojekyll` file is what the branch build needs, so it sta
 For somebody who needs the roster but has none of their own and no manager rights (owner, 23 Nov 2026).
 They sign in under their own name and see everyone's roster read-only, Trains, and the Huddle, Circular
 and Newsletter, plus their own Settings (password, notifications). No Admin, Pay Calculator, Overtime,
-Link Designer or New link: the drawer hides those pills, and Admin and the Pay Calculator each show a card saying
+Link Designer, New CEA Link or Links Selector: the drawer hides those pills, and Admin and the Pay Calculator each show a card saying
 why if reached another way (owner, 24 Nov 2026).
 
 1. **One row** in `teamMembers` (`roster-member-data.js`), in the shape at the foot of the array:
@@ -878,7 +878,7 @@ when the change can be released.
 before keep the old line whenever the release lands. Their grade is `role`, the grade NOW, and from the
 release these treat them as the new grade on every date, past ones included: the roster import's name
 lists (`npm run generate:roster-members`); where they are listed (the Calendar's member list, Team Week's
-grade tabs, the sign-in grade step); and the New link page.
+grade tabs, the sign-in grade step); and the New CEA Link page.
 
 **Record the old grade with its last day**, as `roleHistory: [{ role: 'CEA', until: new Date(2026, 10, 21) }]`
 — the day BEFORE the change, midnight local, inclusive — and set `role` to the new grade. `roleOn(member,
@@ -1421,6 +1421,16 @@ instead.
    is in the `ROTATING` set of `roster-data.test.mjs`'s "no two rows hold one rotating line" test; then
    the suite must pass. No `npm run generate:roster-members`: the server copy carries no `rosterChanges`
    and no pattern.
+
+### Opening the Links Selector to colleagues
+
+The Links Selector (`links-selector.html`) is the admin's beta. To open it, set `LINKS_SELECTOR_OPEN: true` in
+`CONFIG` (`roster-data.js`), bump and release: the page and its 🗓️ drawer pill then admit exactly whom the New CEA Link
+page admits (`selectorRoles`, `auth-policy.js`), and the refusal card's words change to match. Update the
+`nav-gates.test.mjs` line that asserts the switch is off in the same commit. Nothing server-side moves: the page reads no
+Firestore of its own. When the new link's start day is agreed, set it in `links-selector-core.js` → `STARTS` and
+`newlink-config.js` → `STARTS` together; when the link is brought into the roster (above), the page stays a preview of
+the PROPOSALS, so retire it or point it at the chosen design then.
 
 ### Keep only the shortlist (Link Designer)
 

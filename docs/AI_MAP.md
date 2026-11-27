@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for Marylebone Roster
 
-*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -533,7 +533,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `links-selector-app.js` / `links-selector-boot.js` / `links-selector-core.js` / `links-selector-render.js`
 - **Exports of `links-selector-app.js`:** `STORE_KEY` · `init`
 - **Exports of `links-selector-boot.js`:** none
-- **Exports of `links-selector-core.js`:** `STARTS` · `FIRST_MONTH` · `LAST_MONTH` · `startDate` · `lineOn` · `dayOn` · `proposalsAtoZ` · `isCoverLine` · `lineOptions` · `monthLines` · `inRange` · `openingMonth` · `initialChoice` · `choiceQuery`
+- **Exports of `links-selector-core.js`:** `STARTS` · `FIRST_MONTH` · `LAST_MONTH` · `startDate` · `lineOn` · `dayOn` · `proposalsAtoZ` · `isCoverLine` · `lineOptions` · `monthLines` · `shiftTypesInMonth` · `hasBlankDays` · `inRange` · `openingMonth` · `initialChoice` · `choiceQuery`
 - **Exports of `links-selector-render.js`:** `buildSelectorMonth`
 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`
