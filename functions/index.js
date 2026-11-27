@@ -151,11 +151,6 @@ Object.assign(exports, buildDocumentEndpoints({
     MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS,
     ADMIN_FUNCTION_ORIGINS, rosterMembers,
 }));
-// The one New link push before the vote (owner, 26 Nov 2026; ./newlink-reminder.js), sent at 18:00 on its one date.
-exports.sendNewlinkVoteReminderNotification = require('./newlink-reminder').buildNewlinkVoteReminderNotification({
-    REGION, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, rosterMembers,
-    nowInLondon: () => { const [year, month, day] = londonIsoDate(Date.now()).split('-').map(Number); return { year, month: month - 1, day }; },
-});
 
 
 // ============================================================================

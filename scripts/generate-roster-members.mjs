@@ -22,7 +22,6 @@
  * Importing this module writes nothing; only running it as a script does.
  */
 import { teamMembers, CONFIG, signInMembers } from '../roster-data.js';
-import { canOpenNewlink } from '../auth-policy.js';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -104,10 +103,6 @@ export function buildRosterMembers() {
             firstPayday:  isoDate(CONFIG.FIRST_PAYDAY),
             intervalDays: CONFIG.PAYDAY_INTERVAL_DAYS,
         },
-        // Who the New link page lets in, for its one push (functions/newlink-reminder.js, owner, 26 Nov 2026): the
-        // page's OWN question, `canOpenNewlink`, asked of everyone who can sign in — never a second rule on the server.
-        // Not under `roles`, like `overtimeBeta`: it grants nothing.
-        newlinkAudience: signInMembers().filter(m => canOpenNewlink(m.name)).map(m => m.name),
     };
 }
 

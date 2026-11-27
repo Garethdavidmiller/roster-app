@@ -777,7 +777,6 @@ roster-app/
 └── functions/
     ├── index.js                  ← the COMPOSITION ROOT of the Cloud Functions: shared infrastructure, `parseRosterPDF`, and re-exports of the domain endpoints. **The exports ARE the deploy surface** (the deploy runs `--force`, so a dropped export is a deleted function); `functions-surface.test.mjs` pins them
     ├── documents.js               ← the DOCUMENT-AND-NOTIFICATION domain: the Huddle ingest, `getDocumentUrl`, `rotateDocumentLinks`, the create triggers and the schedules; a factory, so index.js keeps the shared literals
-    ├── newlink-reminder.js        ← the one-off New link push before the vote: the New link page's audience only, targeted, failing closed; its 18:00 schedule, date-guarded to 26 Nov 2026, wired in index.js
     ├── pay-reminder.js            ← WHO the pay reminder reaches (CEA and CES members), as a targeted send that fails closed; documents.js decides WHEN
     ├── error-log-notify.js        ← the admin's Error Log notification, SENT to the admin's own devices only. Tested by error-log-notify.test.mjs
     ├── error-log-notice.js        ← the RULES of that notification, no I/O; the words are counts only. Tested by error-log-notice.test.mjs

@@ -266,9 +266,10 @@ outcome     'claimed' (the send has not finished, or its run died) · 'sent' · 
 addressed   names on the audience list; resolved — accounts found for them; accepted — devices that took it
 finishedAt  when the send finished, beside the counts
 ```
-**Server-only: `allow read, write: if false`**, the admin included. The only writer is the scheduled function
-(`functions/newlink-reminder.js`) via the Admin SDK. Holds no name — counts and two timestamps. To send again on
-purpose, delete the document and fire the function by hand. It can be deleted once its function is retired.
+**Server-only: `allow read, write: if false`**, the admin included. Its one writer, the New link push
+(`functions/newlink-reminder.js`), was removed on 27 Nov 2026 once it had sent, so nothing writes it now; its one
+document, `newlink-vote-2026`, is that send's record. Holds no name — counts and two timestamps. Delete it in the
+Firebase console when it is no longer wanted; the rule stays for the next one-off push.
 
 **alUploads** (the annual leave uploader's log) — one document per Save on Operations → Annual leave sheet
 ```

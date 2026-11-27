@@ -1309,23 +1309,15 @@ it, an Other Staff login included.
 - **What the books print that a list of stops cannot** (pick-up-only and set-down-only stops, early
   arrivals, buses, weekday variants): the tooling README → "What each step knows".
 
-### The one-off New link push, before the vote
+### The one-off New link push, before the vote — sent, and removed
 
-**Thursday 26 November 2026, 18:00 London** — `sendNewlinkVoteReminderNotification`
-(`functions/newlink-reminder.js`, wired in `index.js`) sends ONE targeted push, "🔁 New link — vote coming
-soon", to the people the New link page lets in (`newlinkAudience` in `roster-members.json`, from
-`canOpenNewlink`), landing on the New link page (owner, 26 Nov 2026). A daily 18:00 schedule with a
-one-date guard.
-
-- **Did it go?** Its log says "New link reminder — N of M member(s) resolved, N subscription(s)
-  accepted"; it reached somebody only when the last N is above 0.
-- **It sends once even if the schedule runs twice:** it claims `oneOffPushes/newlink-vote-2026` first and
-  records the outcome there (`sent`, `reached no device`, `failed`; `claimed` alone means the run died
-  mid-send). A second run logs "Already claimed". To send again on purpose, delete that document and fire
-  the function by hand.
-- **Afterwards** it is harmless; in a later release remove the function, its line in `index.js` and in
-  `functions-surface.test.mjs`, `newlinkAudience` if nothing else reads it, and the `oneOffPushes`
-  document.
+**Sent at 18:00 on Thursday 26 November 2026** to the people the New link page lets in ("🔁 New link — vote coming
+soon"), and removed in the next release once it had gone (27 Nov 2026): the function, its push type, its tag's
+time-to-live and the server's `newlinkAudience` list. The Functions deploy deleted the function (`--force`). What it
+reached is in its send record, `oneOffPushes/newlink-vote-2026` (DATA_MODEL.md), which the console can delete when
+it is no longer wanted. The New link page stays a page a notification may open (`SAFE_NOTIFICATION_PAGES`), so a tap
+on that notification still lands there. The way it was built — targeted, date-guarded, claimed once — is in git
+history for the next one-off push.
 
 ### The one-off timetable push, and the Calendar's timetable notice
 
