@@ -27,7 +27,7 @@ import {
   payslipGross, pricePayslip, takeHomeInputs,
 } from './paycalc-calc.js';
 import { resetOverrides } from './paycalc-roster-suggestions.js';
-import { lsGet, lsDel, lsKeys, lsAvailable, lsSetVerified, lsDelVerified, requestPersistentStorage } from './ls.js';
+import { lsGet, lsDel, lsKeys, lsAvailable, lsSetVerified, lsDelVerified, lsGetChecked, requestPersistentStorage } from './ls.js';
 import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -70,7 +70,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes, initPaycalcAbout } from './paycalc-lightboxes.js';
-import { fdShort, fdLong, fmt, minutesFieldText, isDataEmpty } from './paycalc-format.js';
+import { fdShort, fdLong, fmt, minutesFieldText, isDataEmpty, hasSavedComparison } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } from './paycalc-form-data.js';
@@ -393,10 +393,16 @@ export function init() {
     let _asking = false;   // a merge question is open: no save until it is answered
     /** The "not saved" line on show, or null. updateSaveStatus keeps it until a save lands. @type {string|null} */
     let _notSavedText = null;
+    /** What that line is about: the form's figures, or only a setting carried into the payslip. A setting's
+     *  later success clears its own line, never one about the form's figures. @type {'form'|'setting'} */
+    let _notSavedFrom = 'form';
     const NOT_SAVED = '⚠ Not saved — try again';
     const NOT_SAVED_ASK = '⚠ Not saved — this payslip was also changed in another tab';
     /** @param {number} pNum @param {string} text */
-    const _notSaved = (pNum, text) => { _notSavedText = text; updateSaveStatus(pNum); };
+    const _notSaved = (pNum, text, from = /** @type {'form'|'setting'} */ ('form')) => {
+      if (!(_notSavedText && _notSavedFrom === 'form' && from === 'setting')) _notSavedFrom = from;   // a form line outranks a setting's
+      _notSavedText = text; updateSaveStatus(pNum);
+    };
     /** The boxes showing the calendar's suggestion rather than a typed figure. */
     const _goldFields = () => new Set([...document.querySelectorAll('.roster-suggested')].map(el => el.id));
 
@@ -427,7 +433,12 @@ export function init() {
     /** Save the form on screen into payslip `pNum`, merged with any other tab's save. @param {number} pNum */
     function _savePeriod(pNum) {
       if (_asking) return;
-      const diskRaw = lsGet(periodKey(pNum));
+      // A CHECKED read: storage that would not answer reads null too, which the merge took for "nothing
+      // saved" and wrote the whole form over another tab's figures (review of v27.14). Not read, not saved:
+      // the typed figures stay on screen and the next edit tries again.
+      const disk = lsGetChecked(periodKey(pNum));
+      if (!disk.ok) { _notSaved(pNum, NOT_SAVED); return; }
+      const diskRaw = disk.value;
       const plan = planPeriodSave({ base: _base, diskRaw, form: _readForm(pNum), suggested: _goldFields() });
       if (plan.kind === 'write') { _commit(pNum, plan.data, plan.fromDisk); return; }
       // Nothing readable where entries were: storage that will not answer reads null too — no question then.
@@ -438,7 +449,9 @@ export function init() {
       confirmDialog({ ...periodSaveQuestion(plan), dismissResult: null }).then((keepMine) => {
         _asking = false;
         if (keepMine === null || currentPeriodNum() !== pNum) return;
-        if (lsGet(periodKey(pNum)) !== diskRaw) { autosave(); return; }   // changed again while asking: ask afresh
+        const again = lsGetChecked(periodKey(pNum));
+        if (!again.ok) { _notSaved(pNum, NOT_SAVED); return; }           // cannot tell whether it changed: write nothing
+        if (again.value !== diskRaw) { autosave(); return; }            // changed again while asking: ask afresh
         if (plan.kind === 'conflict') {
           _commit(pNum, keepMine ? plan.mine : plan.theirs,
             keepMine ? plan.fromDisk : [...plan.fromDisk, ...plan.conflicts.map(c => c.unit.id)]);
@@ -462,7 +475,9 @@ export function init() {
     window.addEventListener('storage', (e) => {
       const pNum = currentPeriodNum();
       if (_asking || (e.key !== null && e.key !== periodKey(pNum))) return;
-      const diskRaw = lsGet(periodKey(pNum));
+      const disk = lsGetChecked(periodKey(pNum));
+      if (!disk.ok) return;                 // unread is not "cleared": the next save reads again
+      const diskRaw = disk.value;
       if (diskRaw === _base.raw) return;
       const form = _readForm(pNum), suggested = _goldFields();
       const plan = planPeriodSave({ base: _base, diskRaw, form, suggested });
@@ -480,7 +495,10 @@ export function init() {
     const persistSetting = (fields) => () => { const pNum = currentPeriodNum(), p = periodByNum(pNum);
       const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative,
         periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }), fields);
-      if (w) { if (lsSetVerified(periodKey(pNum), w)) updateSaveStatus(pNum); else _notSaved(pNum, NOT_SAVED); }   // never "saved" over a write the device did not keep
+      if (w) {   // never "saved" over a write the device did not keep; a kept one ends only a setting's own line
+        if (!lsSetVerified(periodKey(pNum), w)) _notSaved(pNum, NOT_SAVED, 'setting');
+        else { if (_notSavedText && _notSavedFrom === 'setting') _notSavedText = null; updateSaveStatus(pNum); }
+      }
       calculate(); };
 
     /** Paint payslip `p`'s own default pension into the field; no payslip, no paint. @param {any} p */
@@ -543,7 +561,7 @@ export function init() {
         if (d) {
           const _pObj = periodByNum(pNum);
           const _hasCustomPension = d.pension != null && Math.abs(d.pension - periodDefaultPension(_pObj)) > 0.005;
-          if (!isDataEmpty(d) || _hasCustomPension) {
+          if (!isDataEmpty(d) || _hasCustomPension || hasSavedComparison(d)) {
             setStatus(el, '✓ Entries saved for this payslip');
             el.className   = 'save-status saved';
             return;
@@ -566,10 +584,18 @@ export function init() {
       const pNum = currentPeriodNum();
       // A CLEAR IS CHECKED, as a save is: a delete storage refused left the boxes empty over the stored
       // figures, which came back on reload. Then the form shows what is still stored, and says so.
+      // A false answer means "not confirmed", not "not deleted": a delete that landed under a read-back that
+      // failed was reported as still there (review of v27.14). So read again: gone is a clear, still there
+      // says so, and a read that fails says the clear could not be checked.
       if (!lsDelVerified(periodKey(pNum))) {
-        loadPeriodData(pNum);
-        _notSaved(pNum, "⚠ Couldn't clear this payslip — its saved entries are still there. Try again");
-        return;
+        const after = lsGetChecked(periodKey(pNum));
+        if (!after.ok || after.value !== null) {
+          loadPeriodData(pNum);
+          _notSaved(pNum, after.ok
+            ? "⚠ Couldn't clear this payslip — its saved entries are still there. Try again"
+            : "⚠ Couldn't check this payslip was cleared — reload to see what is saved");
+          return;
+        }
       }
       _base = { raw: null };
       _notSavedText = null;

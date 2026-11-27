@@ -5,7 +5,7 @@
  * linking to the SAME page at the main address. Nothing on a phone (which has the move notice) and
  * nothing at the main address.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, freshBrowser } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 import { seedMemberSession, isTouchProject, asMirror } from './helpers.js';
 
@@ -63,7 +63,7 @@ test.describe('a desktop at the Pages mirror', () => {
         await expect(page.locator('#payTransferBody')).toBeVisible();
     });
 
-    test('both surfaces pass the accessibility scan: the strip on a page, the line on a sign-in card', async ({ page }) => {
+    test('both surfaces pass the accessibility scan: the strip on a page, the line on a sign-in card', async ({ page, browser }, info) => {
         // axe's contrast and naming rules on the two surfaces alone (each page's own scan is axe.spec.js's).
         const check = async (/** @type {import('@playwright/test').Page} */ p, /** @type {string} */ sel) => {
             const { violations } = await new AxeBuilder({ page: p }).include(sel).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
@@ -74,15 +74,15 @@ test.describe('a desktop at the Pages mirror', () => {
         await page.goto('/paycalc.html');
         await expect(page.locator('#mirrorMoveBanner')).toBeVisible();
         await check(page, '#mirrorMoveBanner');
-        const signedOut = await page.context().newPage();
-        await asMirror(signedOut);
-        await signedOut.addInitScript(() => {
-            localStorage.removeItem('myb_admin_session');
-            window.__E2E = Object.assign(window.__E2E || {}, { authUser: false });
-        });
-        await signedOut.goto('/settings.html');
-        await expect(signedOut.locator('.login-mirror')).toBeVisible();
-        await check(signedOut, '.login-mirror');
+        // A FRESH browser, not a second tab: the tabs share the signed-in identity, which one cleared key
+        // does not end, so a second tab could open Settings still signed in.
+        const { context: fresh, page: signedOut } = await freshBrowser(browser, info);
+        try {
+            await asMirror(signedOut);
+            await signedOut.goto('/settings.html');
+            await expect(signedOut.locator('.login-mirror')).toBeVisible();
+            await check(signedOut, '.login-mirror');
+        } finally { await fresh.close(); }
     });
 
     test('every other page\'s strip says nothing about pay', async ({ page }) => {

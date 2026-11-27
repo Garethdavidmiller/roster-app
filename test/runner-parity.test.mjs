@@ -154,3 +154,24 @@ describe('no lane can be quietly focused', () => {
         assert.deepEqual(overrides, [], `these configs override the base's forbidOnly: ${overrides.join(', ')}`);
     });
 });
+
+// ── A SECOND TAB OF THE APP IS OPENED THROUGH `appTab` (review of v27.14, 27 Nov 2026) ──────────────
+// The `page` fixture puts the suite's routes (the Firebase stand-in above all) on the test's own page, and
+// a bare `newPage()` has none: that tab loads the real SDK, which needs the network. Two Pay tests passed
+// on CI, which has the network, and failed wherever it had not. `appTab`/`freshBrowser` (e2e/fixtures.js)
+// carry the routes. The pages that need no app — a blank page that decodes a screenshot, the real site,
+// the emulator lane with its own wiring — are named here, each with why.
+test('every spec opens a second tab of the app through appTab or freshBrowser, never a bare newPage()', () => {
+    const MAY_USE_NEW_PAGE = {
+        'calendar-day-detail.spec.js': 'a blank page that decodes a screenshot',
+        'trains.spec.js': 'a blank page that decodes a screenshot',
+        'live.spec.js': 'the real site, on purpose',
+        'signed-in.spec.js': 'the emulator lane, wired by wireToEmulators',
+    };
+    const bare = readdirSync(join(ROOT, 'e2e')).filter(f => f.endsWith('.spec.js') && !(f in MAY_USE_NEW_PAGE))
+        .filter(f => /\.newPage\(\)/.test(readFileSync(join(ROOT, 'e2e', f), 'utf8')));
+    assert.deepEqual(bare, [], `these specs open a tab with no routes — use appTab(context) or freshBrowser(browser, info): ${bare.join(', ')}`);
+    for (const f of Object.keys(MAY_USE_NEW_PAGE)) {
+        assert.match(readFileSync(join(ROOT, 'e2e', f), 'utf8'), /\.newPage\(\)/, `${f} no longer opens a bare tab — take it off the list`);
+    }
+});
