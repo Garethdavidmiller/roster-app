@@ -20,7 +20,7 @@ import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getD
 import { initNavPanel } from './nav-panel.js';
 import { archiveNotice } from './notice-archive.js';
 import { getSession, sessionReady, reconcileExpiredIdentity } from './session.js';
-import { navGatesFor } from './auth-policy.js';
+import { navGatesFor, linkDesignerEnabled } from './auth-policy.js';
 import { startPage } from './page-start.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { MAX_DESIGN_NAME, checkDesignName, proposeCopyName } from './link-designer-design-naming.js';
@@ -73,6 +73,35 @@ import {
 // without the unsaved-changes question.
 let _isDirty = () => false;
 
+/** The start-up's answer while the Link Designer is switched off for everyone (`CONFIG.LINK_DESIGNER_ENABLED`). A
+ *  refusal, signed in or not, told apart from a non-designer's by identity. @type {import('./auth-policy.js').AuthDecision} */
+const PAUSED = Object.freeze({ decision: 'forbidden', reason: 'The Link Designer is paused for everyone' });
+
+/**
+ * The paused page: the drawer, so a visitor can leave, and one card saying the workspace is paused. Nothing is read:
+ * every saved design stays as it was, for when the switch is turned back on.
+ */
+function renderPaused() {
+    const member = getSession()?.name ?? null;
+    initNavPanel({ authReady: sessionReady, currentPage: 'links', memberName: member, ...navGatesFor(member),
+        onSignOut: () => signOutAndLeave({ to: './' }) });
+    wireHeaderLogo(() => { window.location.href = './'; });
+    const main = document.querySelector('main');
+    if (main) {
+        main.innerHTML = `
+    <div class="card" id="linksPausedCard">
+        <div class="card-header"><h2><span aria-hidden="true">⏸️</span> The Link Designer is paused</h2></div>
+        <div class="card-body">
+            <p>The Link Designer isn’t in use at the moment. Every saved design is kept, and nothing has been deleted.</p>
+            <a href="./" class="role-card-back">← Back to roster</a>
+        </div>
+    </div>`;
+    }
+    document.body.dataset.linksPaused = '';
+    document.body.classList.add('auth-ready');
+    markPageReady();
+}
+
 export function init() {
     // Before the access gate: a signed-out visit returns below and would otherwise never update the SW.
     registerServiceWorker({
@@ -97,8 +126,11 @@ export function init() {
     // session, the in-place sign-in — after which this init() runs again, once, and is decided afresh — and, for a
     // designer, their OWN named session re-established (or every write fails) and guarded, the set-password step and
     // the error reporter. A signed-in non-designer goes to Admin.
+    // PAUSED (owner, 27 Nov 2026; CONFIG.LINK_DESIGNER_ENABLED) is decided FIRST, Overtime's way, so everyone gets the
+    // same answer, signed in or not, the admin included: a "paused" note and the drawer, no sign-in and nothing read.
     if (!startPage({ page: 'links', label: 'Link Designer', again: init,
-        refuse: () => window.location.replace('./admin.html') })) return;
+        decide: (_session, byPolicy) => (linkDesignerEnabled() ? byPolicy() : PAUSED),
+        refuse: (decision) => (decision === PAUSED ? renderPaused() : window.location.replace('./admin.html')) })) return;
     const currentSession  = getSession();
     const currentUser     = currentSession?.name ?? null;
     const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);

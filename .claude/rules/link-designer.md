@@ -21,6 +21,10 @@ December 2026 roster change and makes the final call (`DECISIONS.md` → The new
 on the page, and nothing written here, may suggest that the owner or the admin decides which link
 is used.
 
+**PAUSED (owner, 27 Nov 2026), not deleted:** `CONFIG.LINK_DESIGNER_ENABLED` is `false`, so no menu offers the page and
+`link-designer.html` is a "paused" note for everyone; the tests switch it back on and keep it working.
+`docs/LINK_DESIGNER_REFERENCE.md` → Paused says what is off and how to bring it back.
+
 **The `paths:` list above uses GLOBS, and must stay that way.** A list of filenames stops covering
 the modules added after it, and nothing says so.
 

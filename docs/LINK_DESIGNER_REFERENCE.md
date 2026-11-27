@@ -8,6 +8,24 @@ first. `DECISIONS.md` → The new CEA link holds what the December 2026 plan set
 something shipped wrong once; the module header beside the code says how, and this file points there
 rather than copying it.
 
+## Paused (owner, 27 Nov 2026)
+
+The Link Designer has done its job for now: the shortlist is drawn and the New link page shows it. So it is paused, the
+way Overtime is (`OVERTIME_AVAILABILITY.md` → Paused), and not deleted: a feature taken out of an app moving this fast
+rarely goes back in cleanly, and left in with its tests running, every change to what it shares has to keep it working.
+
+**The switch is `CONFIG.LINK_DESIGNER_ENABLED` in `roster-data.js`, now `false`.** With it off:
+
+| Where | What happens |
+|---|---|
+| Every menu | No 📐 Link Designer pill, for anyone, the admin included: `navGatesFor` (`auth-policy.js`) gives `isLinksDesigner` only while `linkDesignerEnabled()` is true |
+| `link-designer.html` | A calm "paused" note, to everyone, signed in or out, with the drawer so a visitor can leave. No sign-in is offered and nothing is read. `links.html` redirects there, so an old bookmark lands on the same note |
+| Data | Untouched. Every saved design, target set and bin entry stays in Firestore; the rules still admit a designer, so nothing is lost while it waits |
+| Tests | All of them still run. The suite switches it back ON in the shared `roster-data.js` route (`e2e/fixtures.js`); the signed-in lane, which serves the real file, uses the `__E2E.linkDesignerEnabled` seam. The paused page has two tests of its own (`pauseLinkDesigner`), and `nav-gates.test.mjs` checks the menu against the page rules with the switch both ways |
+
+**To bring it back:** set `LINK_DESIGNER_ENABLED: true` in `roster-data.js`, bump and release. Nothing else: the page
+has no Cloud Functions, so there is no generated server copy to regenerate.
+
 ## The module set
 
 The workspace is one coordinator over the pure or extracted modules below. Everything except

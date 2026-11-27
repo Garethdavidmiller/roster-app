@@ -4,7 +4,7 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect, withLinksDesigners, routeAppPage } from './fixtures.js';
+import { test, expect, withLinksDesigners, routeAppPage, pauseLinkDesigner } from './fixtures.js';
 import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, isTouchProject, waitForReadsToLand } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the length as a literal — and `links: the
@@ -6014,3 +6014,33 @@ test('links: every target count in the generator table asks for the digit pad', 
         expect(c.max).toMatch(/^\d+$/);
     }
 });
+
+// ── PAUSED (owner, 27 Nov 2026; CONFIG.LINK_DESIGNER_ENABLED) ──
+// The suite drives the Link Designer switched ON (fixtures.js), so the real page stays tested; these two see it as staff
+// do. Overtime's pause is the model: the same answer for everyone, the admin included, signed in or not, and nothing read.
+test('paused: a designer arriving at the Link Designer is told it is paused, and nothing of the workspace is drawn', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await pauseLinkDesigner(page);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/link-designer.html');
+    const card = page.locator('#linksPausedCard');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('The Link Designer is paused');
+    await expect(card).toContainText('nothing has been deleted');
+    await expect(page.locator('#linksGridCard'), 'the workspace is replaced, not drawn beneath the note').toHaveCount(0);
+    await expect(page.locator('#loginOverlay')).toBeHidden();
+    await expect(page.locator('#navMenuBtn'), 'the drawer stays, so a visitor can leave').toBeVisible();
+    await expect(card.locator('a[href="./"]')).toBeVisible();
+    expect(errors).toEqual([]);
+});
+
+test('paused: signed out, the page says so and asks nobody to sign in, and the old address lands there too', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await pauseLinkDesigner(page);
+    await page.goto('/links.html');
+    await expect(page).toHaveURL(/link-designer\.html/);
+    await expect(page.locator('#linksPausedCard')).toBeVisible();
+    await expect(page.locator('#loginOverlay')).toBeHidden();
+    expect(errors).toEqual([]);
+});
+

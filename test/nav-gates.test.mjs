@@ -7,7 +7,7 @@
  *
  * The behaviour, through the REAL functions: `navGatesFor` (auth-policy.js, which every page spreads
  * into `initNavPanel`), `visiblePills` over the real `NAV_PAGES` (nav-destinations.js), against
- * `requirePage` (auth-policy.js) and Overtime's pause switch. The two ways they can disagree are not
+ * `requirePage` (auth-policy.js) and the two pause switches, Overtime's and the Link Designer's. The two ways they can disagree are not
  * equally visible:
  *
  *   pill shown, page refuses   → the member taps and is turned away. Annoying, and obvious.
@@ -25,7 +25,7 @@
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { NAV_PAGES, PILL_GATES, visiblePills } from '../nav-destinations.js';
-import { navGatesFor, requirePage, overtimeEnabled, PAGE_POLICIES } from '../auth-policy.js';
+import { navGatesFor, requirePage, overtimeEnabled, linkDesignerEnabled, PAGE_POLICIES } from '../auth-policy.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 
 const g = /** @type {any} */ (globalThis);
@@ -47,9 +47,10 @@ function withOtherStaff(/** @type {string} */ name) {
 
 /** The pills the drawer draws for this member, by id. */
 const drawn = (/** @type {string|null} */ member) => visiblePills(NAV_PAGES, navGatesFor(member), 'calendar').map(p => p.id);
-/** The pages with a pill this member may open, as the page itself decides: its policy, and Overtime's pause. */
+/** The pages with a pill this member may open, as the page itself decides: its policy, and the two pauses. */
 const admitted = (/** @type {string} */ member) => PILL_IDS.filter(id =>
-    requirePage({ status: 'named', member }, id).decision === 'allow' && (id !== 'overtime' || overtimeEnabled()));
+    requirePage({ status: 'named', member }, id).decision === 'allow'
+    && (id !== 'overtime' || overtimeEnabled()) && (id !== 'links' || linkDesignerEnabled()));
 
 /** Give `member` a place on a CONFIG list for one test; `afterEach` takes it back. */
 function withRole(/** @type {'LINKS_DESIGNERS'|'OVERTIME_BETA'|'NEWLINK_PREVIEW'} */ list, /** @type {string} */ member) {
@@ -69,15 +70,16 @@ function someone(/** @type {string} */ what, /** @type {(m: any) => boolean} */ 
 const everyone = () => [...new Set([...teamMembers.map(m => m.name), ...CONFIG.ADMIN_NAMES, ...(CONFIG.MANAGER_NAMES || [])])];
 
 for (const paused of [true, false]) {
-    describe(`the pills drawn are the pages the policy admits — Overtime ${paused ? 'PAUSED' : 'switched on'}`, () => {
-        // The browser suites' own seam (auth-policy.js → `overtimeEnabled`): both states of the switch, so the
-        // Overtime gate is checked while it is paused AND as it will be when it returns.
-        const seam = () => { g.__E2E = { overtimeEnabled: !paused }; };
+    describe(`the pills drawn are the pages the policy admits — Overtime and the Link Designer ${paused ? 'PAUSED' : 'switched on'}`, () => {
+        // The browser suites' own seams (auth-policy.js → `overtimeEnabled`, `linkDesignerEnabled`): both states of each
+        // switch, so each gate is checked while it is paused AND as it will be when it returns.
+        const seam = () => { g.__E2E = { overtimeEnabled: !paused, linkDesignerEnabled: !paused }; };
         afterEach(() => { restores.splice(0).forEach(fn => fn()); delete g.__E2E; });
 
         test('the premises: the gate set, the switch, and a role the policy gates', () => {
             seam();
             assert.equal(overtimeEnabled(), !paused);
+            assert.equal(linkDesignerEnabled(), !paused);
             assert.ok(GATED.length >= 4, `expected the four gated pills, read ${GATED}`);
             for (const id of GATED) assert.ok(PAGE_POLICIES[id]?.role?.length, `${id}'s pill is gated, so its page policy must name a role`);
             assert.deepEqual(NOT_FOR_OTHER_STAFF, ['admin', 'paycalc'], 'an Other Staff login loses exactly Admin and Pay');
@@ -123,7 +125,8 @@ for (const paused of [true, false]) {
             }
             // …and the roles really do move the pills, so the equalities above are not all one answer.
             assert.ok(drawn(admin).includes('operations') && !drawn(manager).includes('operations'), 'Operations is the admin\'s alone');
-            assert.ok(drawn(designer).includes('links') && !drawn(plain).includes('links'), 'Link Designer is the designers\'');
+            assert.equal(drawn(designer).includes('links'), !paused, 'a link designer sees the Link Designer exactly while it is on');
+            assert.ok(!drawn(plain).includes('links'), 'never a member who is not a designer');
             assert.equal(drawn(beta).includes('overtime'), !paused, 'an Overtime beta participant sees Overtime exactly while it is on');
             assert.equal(drawn(manager).includes('overtime'), !paused, 'and so does a reviewer');
             assert.equal(drawn(plain).includes('overtime'), false, 'never a member with neither');

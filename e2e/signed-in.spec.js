@@ -631,6 +631,9 @@ test('Link Designer, back online: a rename waits for the save this device has no
     /** The design as the database holds it, read past the rules. */
     const stored = async () => (await readCollection('linkDesigns')).find((d) => d.name === NAME || d.name === RENAMED);
     await page.addInitScript(() => { try { localStorage.setItem('myb_links_welcome_seen', '1'); } catch { /* private mode */ } });
+    // Switched on through the seam: the Link Designer is paused for staff (auth-policy.js `linkDesignerEnabled`), and this
+    // lane serves the real roster-data.js, so the fixture's switch does not reach it.
+    await page.addInitScript(() => { const w = /** @type {any} */ (window); w.__E2E = { ...(w.__E2E || {}), linkDesignerEnabled: true }; });
     await page.goto('/link-designer.html');
     await signInFirstTime(page, DESIGNER);
 

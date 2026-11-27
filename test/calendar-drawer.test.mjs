@@ -75,10 +75,11 @@ describe('calendarDrawerOptions — the drawer a session gets', () => {
         assert.deepEqual(used, ['signOut']);
     });
 
-    test('the admin gets the admin and Link Designer pills', () => {
+    test('the admin gets the admin and Link Designer pills (the latter only while the Link Designer is on)', () => {
         const o = drawer.calendarDrawerOptions({ name: ADMIN }, hooks().deps);
         assert.equal(o?.isAdmin, true);
-        assert.equal(o?.isLinksDesigner, CONFIG.LINKS_DESIGNERS.includes(ADMIN));
+        assert.equal(o?.isLinksDesigner, CONFIG.LINKS_DESIGNERS.includes(ADMIN) && CONFIG.LINK_DESIGNER_ENABLED === true,
+            'paused (CONFIG.LINK_DESIGNER_ENABLED), the pill leaves even a designer\'s menu');
     });
 
     test('the hooks pass through unchanged — they do not depend on who is signed in', () => {
