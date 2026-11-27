@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '27.02';
+const APP_VERSION = '27.03';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -253,6 +253,8 @@ const APP_FILES = [
     'login-core.js',
     'login-overlay.js',
     'ls.js',
+    'mirror-move-words.js',
+    'mirror-move.js',
     'nav-bell.js',
     'nav-destinations.js',
     'nav-drawer-lightboxes.js',

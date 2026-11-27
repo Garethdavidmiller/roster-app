@@ -943,3 +943,21 @@ export function tooWide(page) {
 export async function pastDoubleTap(page) {
     await page.waitForTimeout(TWO_TAP_MIN_MS + 100);
 }
+
+/**
+ * Serve the app as if from the GitHub Pages mirror: the page's one test for it (`onPagesMirror`,
+ * notif.js) is rewritten to true, LOUD if that test moves. settings-app.js's own copies are rewritten
+ * too while they last.
+ * @param {import('@playwright/test').Page} page
+ */
+export async function asMirror(page) {
+    for (const [file, required] of /** @type {const} */ ([['notif.js', true], ['settings-app.js', false]])) {
+        await page.route(`**/${file}`, async route => {
+            const res = await route.fetch();
+            const src = await res.text();
+            const host = '/github\\.io$/i.test(window.location.hostname)';
+            if (required && !src.includes(host)) throw new Error(`${file}: the mirror test moved — update asMirror`);
+            await route.fulfill({ response: res, contentType: 'text/javascript', body: src.replaceAll(host, 'true') });
+        });
+    }
+}

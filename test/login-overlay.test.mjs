@@ -101,6 +101,7 @@ mock.module('../firebase-client.js', { namedExports: {
 // A RECORDER: a failure that clears ANOTHER member's session releases this device's push record (audit A1).
 let releases = 0;
 mock.module('../notif.js', { namedExports: { releaseDevicePush: async () => { releases++; } } });
+mock.module('../mirror-move.js', { namedExports: { mirrorCardLine: () => null } });
 const store = new Map();
 mock.module('../ls.js', { namedExports: {
     lsGet: (/** @type {string} */ k) => store.get(k) ?? null,
