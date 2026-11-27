@@ -15,6 +15,7 @@
 import { isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { whenHistorySettled } from './overlay.js';
 import { recordLatestNewsletter } from './newsletter-recency.js';
+import { recordDocDate } from './doc-dates.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
 
@@ -106,6 +107,7 @@ export function createLatestDocOpener({ panel, isPanelOpen, closePanel, _closePa
             // The issue just read is the latest the ☰ menu should offer (newsletter-recency.js): kept, as
             // the Calendar's own check and its viewer keep it (review, 22 Nov 2026).
             if (docId === 'newsletter') recordLatestNewsletter(data?.date ?? null);
+            if (docId === 'circular') recordDocDate('circular', data?.date ?? null);   // the row's date (doc-dates.js)
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {

@@ -27,6 +27,36 @@
  */
 
 import { isChristmasClosureDate } from './christmas-leave.js';
+import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+
+/**
+ * A day's shift in the words the receipt and the preview say it in: "Rest day", "Annual leave",
+ * "06:20–14:20", "RDW 09:00–17:00", "Training 09:00–17:00". The value is what the Calendar draws
+ * (`resolveDayShift`), so "before" and "after" are both the day as a member would see it.
+ * @param {string} shift @returns {string}
+ */
+export function dayWords(shift) {
+    const dash = (/** @type {string} */ t) => t.replace(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/, '$1–$2');
+    if (shift === 'RD' || shift === 'OFF') return 'Rest day';
+    if (shift === 'AL') return 'Annual leave';
+    if (shift === 'SICK') return 'Absent';
+    if (shift === 'SPARE') return 'Spare';
+    if (shift === 'RDW') return 'RDW';
+    const other = parseOtherValue(shift);
+    if (other) return [OTHER_FLAVOURS[other.flavour]?.full ?? other.flavour, other.rdw ? 'RDW' : '', other.time ? dash(other.time) : ''].filter(Boolean).join(' ');
+    const rdw = /^RDW (\d{2}:\d{2}-\d{2}:\d{2})$/.exec(shift);
+    if (rdw) return `RDW ${dash(rdw[1])}`;
+    return dash(shift);
+}
+
+/**
+ * What a change does to one day, before → after: "06:20–14:20 → 14:30–22:30" (owner, 27 Nov 2026:
+ * show the consequence beside Save, and say it the same way in the receipt).
+ * @param {string} before @param {string} after @returns {string}
+ */
+export function changeWords(before, after) {
+    return `${dayWords(before)} → ${dayWords(after)}`;
+}
 
 /**
  * Build the receipt for one save.
@@ -45,6 +75,8 @@ import { isChristmasClosureDate } from './christmas-leave.js';
  *   leave on a rest day the admin answered "rest day — free" (v23.88). Named in the lines, never
  *   counted as a change: nothing was written, and a save that quietly dropped a row would be the
  *   silent decision the swapped-day question exists to end.
+ * @param {Map<string, string>} [args.changes] date → the day's before → after (`changeWords`), as the
+ *   preview beside Save said it; a day with none is described by `describe`
  * @param {string[]} [args.keptLeave] the SUBSET of `skipped` that still holds a leave record after
  *   the save (v23.93). Nothing was written for these either — but the Calendar will go on showing
  *   leave on them, so they may not be reported with the same words as a day that is genuinely
@@ -53,12 +85,12 @@ import { isChristmasClosureDate } from './christmas-leave.js';
  *   in date order. `lines` is empty only when nothing changed, which callers already guard against.
  */
 export function buildSaveReceipt({ toSave, removed, memberName, formatDate, describe, skipped = [],
-                                   keptLeave = [] }) {
+                                   keptLeave = [], changes = new Map() }) {
     /** @type {Array<{ date: string, text: string }>} */
     const rows = [];
 
     toSave.forEach(e => {
-        rows.push({ date: e.date, text: `${formatDate(e.date)} — ${describe(e)}` });
+        rows.push({ date: e.date, text: `${formatDate(e.date)} — ${changes.get(e.date) ?? describe(e)}` });
     });
     removed.forEach(r => {
         // "Removed" rather than the value it used to hold: what matters is that the day is back to

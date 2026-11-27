@@ -18,8 +18,9 @@
 import { enhanceSelect } from './select-sheet.js';
 import { CONFIG, MONTH_NAMES, computeEaster, resolveMemberRoster } from './roster-data.js';
 import { formatClock, printedStamp } from './date-format.js';
-import { authReady, getLatestNewsletter } from './firebase-client.js';
+import { authReady, getLatestNewsletter, getLatestCircular } from './firebase-client.js';
 import { checkLatestNewsletter } from './newsletter-recency.js';
+import { checkLatestCircular } from './doc-dates.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce, passwordStepMayBeDue } from './password-force.js';
@@ -927,6 +928,8 @@ wireCalendarDrawer({
 // HERE, once a load, as the documents open, through the gate a tap passes. Every page's drawer then
 // reads the answer this device keeps; a locked Calendar asks nothing.
 checkLatestNewsletter({ ready: calendarAuthReady, canRead: hasDocumentAccess, fetchLatest: getLatestNewsletter });
+// …and the Circular's date for its row (doc-dates.js), the same way; the Huddle's comes from its own listener.
+checkLatestCircular({ ready: calendarAuthReady, canRead: hasDocumentAccess, fetchLatest: getLatestCircular });
 
 // ── Start the Calendar, or ask for a sign-in ─────────────────────────────────────────────────────
 // The LAST thing the module does, deliberately: every shell subsystem above is wired first, so a

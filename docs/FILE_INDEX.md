@@ -54,6 +54,8 @@ roster-app/
 ├── nav-bell.js             ← the drawer footer's notification bell; the push logic is notif.js's. See also nav-bell.test.mjs.
 ├── nav-guide-fold.js       ← the drawer's Reference fold and the guide search's lazy load. See also nav-guide-fold.test.mjs, guide-index-parity.test.mjs.
 ├── nav-destinations.js     ← the drawer's destinations and pill gates as DATA; imports nothing
+├── admin-day-change.js     ← Change a Shift's before → after for each staged day, beside Save and in the receipt. See also admin-saves.spec.js.
+├── doc-dates.js            ← the ☰ menu's date beside the Daily Huddle, Circular and Newsletter (what the Calendar last heard). See also doc-dates.test.mjs.
 ├── newsletter-recency.js   ← whether the ☰ menu offers the Marylebone Newsletter (latest issue under six weeks old). See also calendar-documents.spec.js, operations.spec.js.
 ├── notice-archive.js       ← the App Notices archive's rules and its never-throwing read. See also notice-archive.test.mjs.
 ├── guide-search.js         ← the PURE rules of cross-guide search, including the one tokeniser shared with the index generator. Tested by guide-search.test.mjs
@@ -430,6 +432,7 @@ roster-app/
 │   ├── payday-cutoff-parity.test.mjs ← the server's cut-off rule reads the GENERATED cycle and agrees with roster-data.js's paydays. Part of test:hygiene
 │   ├── import-graph.test.mjs   ← circular imports across all root ES modules
 │   ├── slow-save.test.mjs ← the slow-save watcher; the wording never says saved. Part of test:hygiene
+│   ├── admin-day-change.test.mjs ← a staged day's before → after, and the change that leaves a day as it was. Part of test:hygiene
 │   ├── admin-save-receipt.test.mjs ← a receipt that leaves something out or lists days out of order. Part of test:hygiene
 │   ├── christmas-leave.test.mjs ← the Christmas rules against the real roster, and that only al-entitlement.js may call `getALEntitlement`. Part of test:hygiene
 │   ├── al-leave-file.test.mjs ← a leave file refused for each way it can be wrong, and the seal. Invented people only. Part of test:hygiene
@@ -466,6 +469,7 @@ roster-app/
 │   ├── admin-auth.test.mjs ← the provisioning audit as the card runs it: never a false all-clear
 │   ├── admin-overrides.test.mjs ← Change a Shift's helpers and the two Sunday rules in `recordRangeOverrides` (--experimental-test-module-mocks)
 │   ├── admin-roster-upload.test.mjs ← the parsed-value → override type mapping and the stale-claim batch retry (--experimental-test-module-mocks)
+│   ├── doc-dates.test.mjs ← the ☰ menu's document dates: the Huddle's "for", another year's date, a date never heard, the Circular check
 │   ├── newsletter-recency.test.mjs ← the Newsletter's six-week rule, the device's answer and the Calendar's check
 │   ├── nav-panel.test.mjs      ← the drawer: guards, sign-out order, its lightboxes, Back, the document open (--experimental-test-module-mocks)
 │   ├── nav-bell.test.mjs      ← the drawer's notification bell under racing answers

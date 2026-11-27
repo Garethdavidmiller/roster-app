@@ -22,6 +22,7 @@ import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-saved-changes.js';
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
          resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays, NOT_ON_ROSTER_LINE } from './admin-week-editor.js';
+import { stagedDayChanges } from './admin-day-change.js';
 export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
          renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays,
          NOT_ON_ROSTER_LINE };
@@ -150,6 +151,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // AS ITS ROW SHOWED IT: a load under staged edits refreshes the cache, not the grid, so the cache's
     // copy can be a colleague's newer record — and comparing with that would delete it.
     const drawn = drawnRecords(document.getElementById('weekGrid')), shownDays = drawnDays(document.getElementById('weekGrid'));
+    // Each day's before → after, read off the rows before the save redraws them: the receipt says what the
+    // preview beside Save said (owner, 27 Nov 2026).
+    const changes = stagedDayChanges(document.getElementById('weekGrid'), toSave);
     const removedRows = toDelete.map(id => drawn.get(id) ?? getAllOverrides().find(o => o.id === id) ?? null);
     const total       = toSave.length + toDelete.length;
 
@@ -242,7 +246,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         // A RECEIPT, NOT A COUNT: a manager's question is "did I change the days I meant to?", and a
         // bulk apply on the wrong days produces a perfectly plausible count.
         const receipt = buildSaveReceipt({
-            toSave, removed: removedRows, memberName: memberName ?? '', skipped, keptLeave,
+            toSave, removed: removedRows, memberName: memberName ?? '', skipped, keptLeave, changes,
             formatDate: formatDisplay,
             // An Other day's value is raw grammar (`TRG RDW 09:00-17:00`): name it by its full word instead.
             describe: e => {

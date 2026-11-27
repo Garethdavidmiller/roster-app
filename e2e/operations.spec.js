@@ -2864,7 +2864,7 @@ test('operations: the review table Skip button is not the success colour', async
 // serves queries from the shared array — both of its queries see the same rows, so an exact
 // on-screen error count is the stub's artefact, not the app's: assert presence, not arithmetic).
 
-test('operations: a clean page has NO attention strip — absence is the all-clear', async ({ page }) => {
+test('operations: a clean page says, in one quiet line, that nothing needs attention', async ({ page }) => {
     // EVERY CARD THAT FEEDS THE STRIP HAS ANSWERED BEFORE ITS ABSENCE IS READ (test audit, 7 Nov
     // 2026). This asserted "hidden" as soon as the Account status card was on screen — which is
     // before any of the strip's three sources has loaded, so it passed against a page whose cards
@@ -2884,7 +2884,9 @@ test('operations: a clean page has NO attention strip — absence is the all-cle
     await expect(page.locator('#resetRequestsContent'), 'the reset requests answered').toContainText('No outstanding requests');
     await expect(page.locator('#errorLogContent'), 'the error log answered').toContainText('No errors recorded');
     await expect(page.locator('#authSetupGaps'), 'the account audit answered').toContainText('Everyone on the roster has a login');
-    await expect(page.locator('#attentionStrip')).toBeHidden();
+    // Every item answered with nothing to do: ONE quiet line says so, and nothing to tap (owner, 27 Nov 2026).
+    await expect(page.locator('#attentionStrip')).toHaveText('✓ Nothing needs your attention');
+    await expect(page.locator('#attentionStrip a')).toHaveCount(0);
 });
 
 test('operations: outstanding resets and errors surface in the strip, and an item opens its card', async ({ page }) => {
@@ -4198,7 +4200,7 @@ test('operations: a fully provisioned roster says so, and still adds no strip it
     }));
     await page.goto('/operations.html');
     await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
-    await expect(page.locator('#attentionStrip')).toBeHidden();
+    await expect(page.locator('#attentionStrip a'), 'no item to tap').toHaveCount(0);
 });
 
 // A RE-AUDIT THAT CANNOT ANSWER TAKES ITS COUNT OFF THE STRIP (whole-app check, 10 Nov 2026;

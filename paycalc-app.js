@@ -396,11 +396,17 @@ export function init() {
     /** What that line is about: the form's figures, or only a setting carried into the payslip. A setting's
      *  later success clears its own line, never one about the form's figures. @type {'form'|'setting'} */
     let _notSavedFrom = 'form';
+    /** What the Retry button beside that line runs again, or null where there is nothing to retry (a clear
+     *  that could not be checked says to reload; a question is open). @type {(() => void) | null} */
+    let _retry = null;
+    /** End the "not saved" line and its Retry. */
+    const _savedAgain = () => { _notSavedText = null; _retry = null; };
     const NOT_SAVED = '⚠ Not saved — try again';
     const NOT_SAVED_ASK = '⚠ Not saved — this payslip was also changed in another tab';
     /** @param {number} pNum @param {string} text */
-    const _notSaved = (pNum, text, from = /** @type {'form'|'setting'} */ ('form')) => {
-      if (!(_notSavedText && _notSavedFrom === 'form' && from === 'setting')) _notSavedFrom = from;   // a form line outranks a setting's
+    const _notSaved = (pNum, text, from = /** @type {'form'|'setting'} */ ('form'), retry = /** @type {(() => void) | null} */ (null)) => {
+      const outranked = _notSavedText && _notSavedFrom === 'form' && from === 'setting';   // a form line outranks a setting's
+      if (!outranked) { _notSavedFrom = from; _retry = retry; }
       _notSavedText = text; updateSaveStatus(pNum);
     };
     /** The boxes showing the calendar's suggestion rather than a typed figure. */
@@ -421,9 +427,9 @@ export function init() {
      *  @param {string[]} fromDisk @returns {boolean} */
     function _commit(pNum, data, fromDisk) {
       const json = JSON.stringify(data);
-      if (!lsSetVerified(periodKey(pNum), json)) { _notSaved(pNum, NOT_SAVED); return false; }   // the typed work stays on screen; the next edit retries
+      if (!lsSetVerified(periodKey(pNum), json)) { _notSaved(pNum, NOT_SAVED, 'form', autosave); return false; }   // the typed work stays on screen; Retry, or the next edit, tries again
       _base = { raw: json };
-      _notSavedText = null;
+      _savedAgain();
       _applyFromDisk(data, fromDisk);
       recordCalendarFigures(pNum);   // the snapshot describes what was just saved: gold pairs at their saved values (paycalc-3-1)
       updateSaveStatus(pNum);
@@ -437,12 +443,12 @@ export function init() {
       // saved" and wrote the whole form over another tab's figures (review of v27.14). Not read, not saved:
       // the typed figures stay on screen and the next edit tries again.
       const disk = lsGetChecked(periodKey(pNum));
-      if (!disk.ok) { _notSaved(pNum, NOT_SAVED); return; }
+      if (!disk.ok) { _notSaved(pNum, NOT_SAVED, 'form', autosave); return; }
       const diskRaw = disk.value;
       const plan = planPeriodSave({ base: _base, diskRaw, form: _readForm(pNum), suggested: _goldFields() });
       if (plan.kind === 'write') { _commit(pNum, plan.data, plan.fromDisk); return; }
       // Nothing readable where entries were: storage that will not answer reads null too — no question then.
-      if (plan.kind === 'cleared' && !lsAvailable()) { _notSaved(pNum, NOT_SAVED); return; }
+      if (plan.kind === 'cleared' && !lsAvailable()) { _notSaved(pNum, NOT_SAVED, 'form', autosave); return; }
       _notSaved(pNum, NOT_SAVED_ASK);
       _asking = true;
       // A dismissal (Escape, the backdrop, Back) is "not now": nothing is written, and the next edit asks again.
@@ -450,7 +456,7 @@ export function init() {
         _asking = false;
         if (keepMine === null || currentPeriodNum() !== pNum) return;
         const again = lsGetChecked(periodKey(pNum));
-        if (!again.ok) { _notSaved(pNum, NOT_SAVED); return; }           // cannot tell whether it changed: write nothing
+        if (!again.ok) { _notSaved(pNum, NOT_SAVED, 'form', autosave); return; }           // cannot tell whether it changed: write nothing
         if (again.value !== diskRaw) { autosave(); return; }            // changed again while asking: ask afresh
         if (plan.kind === 'conflict') {
           _commit(pNum, keepMine ? plan.mine : plan.theirs,
@@ -492,12 +498,12 @@ export function init() {
     });
     /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
      *  (`autosave` would save the calendar's suggestion too — see `settingFieldsWrite`). @param {string[]} fields */
-    const persistSetting = (fields) => () => { const pNum = currentPeriodNum(), p = periodByNum(pNum);
+    const persistSetting = (fields) => function persist() { const pNum = currentPeriodNum(), p = periodByNum(pNum);
       const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative,
         periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }), fields);
       if (w) {   // never "saved" over a write the device did not keep; a kept one ends only a setting's own line
-        if (!lsSetVerified(periodKey(pNum), w)) _notSaved(pNum, NOT_SAVED, 'setting');
-        else { if (_notSavedText && _notSavedFrom === 'setting') _notSavedText = null; updateSaveStatus(pNum); }
+        if (!lsSetVerified(periodKey(pNum), w)) _notSaved(pNum, NOT_SAVED, 'setting', persist);
+        else { if (_notSavedText && _notSavedFrom === 'setting') _savedAgain(); updateSaveStatus(pNum); }
       }
       calculate(); };
 
@@ -518,7 +524,7 @@ export function init() {
       const _parsed = parseSavedPeriod(_raw);
       if (_parsed.data) d = _parsed.data;
       _base = { raw: _raw };   // the version this form is now in step with — what a save merges against
-      _notSavedText = null;
+      _savedAgain();
       _periodLoadWasCorrupt = !!_parsed.error;   // gates the background fetch's auto-apply
       clearRosterSuggestedAll();   // writeFormData expects the gold highlights cleared first
       _adjNegative = writeFormData(d).adjNegative;
@@ -548,6 +554,8 @@ export function init() {
       const el  = /** @type {HTMLElement} */ (document.getElementById('saveStatus'));
       // What is on screen did not reach storage: say so, never "saved" for the figures storage still
       // holds — until a save is read back, or the payslip is loaded again.
+      const retryBtn = document.getElementById('saveRetryBtn');
+      if (retryBtn) retryBtn.hidden = !(_notSavedText && _retry);
       if (_notSavedText) { setStatus(el, _notSavedText); el.className = 'save-status failed'; return; }
       const raw = lsGet(periodKey(pNum));
       if (raw) {
@@ -561,8 +569,15 @@ export function init() {
         if (d) {
           const _pObj = periodByNum(pNum);
           const _hasCustomPension = d.pension != null && Math.abs(d.pension - periodDefaultPension(_pObj)) > 0.005;
-          if (!isDataEmpty(d) || _hasCustomPension || hasSavedComparison(d)) {
+          if (!isDataEmpty(d) || _hasCustomPension) {
             setStatus(el, '✓ Entries saved for this payslip');
+            el.className   = 'save-status saved';
+            return;
+          }
+          // Only figures typed from the real payslip: saved, and said so — and what they are, since they
+          // compare the estimate with the payslip and do not change it.
+          if (hasSavedComparison(d)) {
+            setStatus(el, d.actualNet != null ? '✓ Take-home comparison saved' : '✓ Payslip comparison saved');
             el.className   = 'save-status saved';
             return;
           }
@@ -575,6 +590,9 @@ export function init() {
     // The two-tap "Clear all entries" (paycalc-clear-confirm.js holds its rules): the second tap runs
     // clearPeriod. Disarmed on a change of payslip (onPeriodChange) and when the tab is hidden, below.
     const _clearConfirm = createClearConfirm(document.getElementById('clearBtn'), clearPeriod);
+    // Retry beside a "not saved" line runs the write that failed again — the last edit, the setting, or the
+    // clear — so a member whose last figure was refused is not left to type something just to try again.
+    document.getElementById('saveRetryBtn')?.addEventListener('click', () => _retry?.());
     // On hide: disarm "Select again to confirm" (iOS fires a suspended timer at once on resume — an accidental wipe), and let
     // go of the field in hand, so a figure that commits only on `change` (prior-year HPP) is kept if the page never returns.
     document.addEventListener('visibilitychange', () => { if (document.hidden) { _clearConfirm.reset(); commitFocusedField(); } });
@@ -591,14 +609,13 @@ export function init() {
         const after = lsGetChecked(periodKey(pNum));
         if (!after.ok || after.value !== null) {
           loadPeriodData(pNum);
-          _notSaved(pNum, after.ok
-            ? "⚠ Couldn't clear this payslip — its saved entries are still there. Try again"
-            : "⚠ Couldn't check this payslip was cleared — reload to see what is saved");
+          if (after.ok) _notSaved(pNum, "⚠ Couldn't clear this payslip — its saved entries are still there. Try again", 'form', clearPeriod);
+          else _notSaved(pNum, "⚠ Couldn't check this payslip was cleared — reload to see what is saved");
           return;
         }
       }
       _base = { raw: null };
-      _notSavedText = null;
+      _savedAgain();
       lsDel(snapKey(pNum));
       // Mark the form as user-touched BEFORE blanking it: programmatic writes fire no 'input', so a
       // fetch in flight would otherwise refill + autosave the fields just cleared.

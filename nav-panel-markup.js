@@ -17,7 +17,18 @@
 import { notifSupported } from './notif.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { newsletterInMenu } from './newsletter-recency.js';
+import { docDateLabel } from './doc-dates.js';
 import { NAV_PAGES, NAV_INFORMATION, NAV_GUIDES, visiblePills } from './nav-destinations.js';
+
+/**
+ * A document row's label with the latest issue's date under it (doc-dates.js), so a member can tell before
+ * opening it whether it is the one they have read. The date is refreshed each time the drawer opens
+ * (nav-panel.js, as it opens); an unknown date leaves the line empty, and `:empty` hides it.
+ * @param {string} label @param {'huddle'|'circular'|'newsletter'} kind
+ */
+function docRowLabel(label, kind) {
+    return `<span class="nav-doc-text">${label}<span class="nav-doc-date" data-doc-date="${kind}">${docDateLabel(kind)}</span></span>`;
+}
 
 /** Build and inject the overlay + drawer HTML into document.body (nav-panel.js calls it once per `initNavPanel`).
  * @param {any} currentPage
@@ -39,8 +50,9 @@ export function injectNavPanel(currentPage, memberName, onSignOut, gates) {
     const infoLinks = `
         <ul class="nav-panel-links">
             ${NAV_INFORMATION.map(link => {
-                if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
-                if (link.newsletter)  return `<li${newsletterInMenu() ? '' : ' hidden'}><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
+                if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${docRowLabel(link.label, 'circular')}</button></li>`;
+                if (link.newsletter)  return `<li${newsletterInMenu() ? '' : ' hidden'}><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${docRowLabel(link.label, 'newsletter')}</button></li>`;
+                if (link.url?.endsWith('#huddle')) return `<li><a href="${link.url}" class="nav-panel-link"><span aria-hidden="true">${link.icon}</span> ${docRowLabel(link.label, 'huddle')}</a></li>`;
                 return `<li><a href="${link.url}" class="nav-panel-link"><span aria-hidden="true">${link.icon}</span> ${link.label}</a></li>`;
             }).join('')}
         </ul>`;

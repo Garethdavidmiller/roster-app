@@ -186,3 +186,26 @@ describe('Christmas Day and Boxing Day are named as themselves (v25.37)', () => 
         assert.deepEqual(receipt(['2025-12-25']).lines, ['[2025-12-25] — rest day, no leave recorded']);
     });
 });
+
+// ── BEFORE → AFTER, IN THE WORDS THE PREVIEW AND THE RECEIPT SHARE (owner, 27 Nov 2026) ───────────────
+test('dayWords and changeWords say a day the way a member reads it', async () => {
+    const { dayWords, changeWords } = await import('../admin-save-receipt.js');
+    assert.equal(dayWords('06:20-14:20'), '06:20–14:20');
+    assert.equal(dayWords('RD'), 'Rest day');
+    assert.equal(dayWords('OFF'), 'Rest day');
+    assert.equal(dayWords('AL'), 'Annual leave');
+    assert.equal(dayWords('SICK'), 'Absent', 'never "sick" in staff copy');
+    assert.equal(dayWords('RDW 09:00-17:00'), 'RDW 09:00–17:00');
+    assert.equal(dayWords('TRG 09:00-17:00'), 'Training 09:00–17:00');
+    assert.equal(changeWords('06:20-14:20', '14:30-22:30'), '06:20–14:20 → 14:30–22:30');
+});
+
+test('the receipt says a day\'s before → after where the preview had one, and its own words elsewhere', () => {
+    const r = buildSaveReceipt({
+        toSave: [{ date: '2026-12-01', type: 'shift', value: '14:30-22:30' }, { date: '2026-12-02', type: 'annual_leave', value: 'AL' }],
+        removed: [], memberName: 'G. Miller', formatDate: fmt, describe: describeEntry,
+        changes: new Map([['2026-12-01', '06:20–14:20 → 14:30–22:30']]),
+    });
+    assert.equal(r.lines[0], `${fmt('2026-12-01')} — 06:20–14:20 → 14:30–22:30`);
+    assert.equal(r.lines[1], `${fmt('2026-12-02')} — ${describeEntry({ type: 'annual_leave', value: 'AL' })}`);
+});

@@ -10,7 +10,7 @@
 import { test, expect } from './fixtures.js';
 import { seedSession, clickInView, seedMemberSession, waitForReadsToLand, pastDoubleTap } from './helpers.js';
 import { isRestShift } from '../override-utils.js';
-import { getBaseShift, CONFIG } from '../roster-data.js';
+import { getBaseShift, CONFIG, teamMembers } from '../roster-data.js';
 import { fmtPeriodDate } from '../admin-period-dates.js';
 import {
     inventedCea, serveInventedMember, openAdminOnDecember, openAdminOnThisWeek, LEAVE_LIST_DAY,
@@ -76,6 +76,38 @@ test('admin: saving reports the DAYS it changed, not just how many', async ({ pa
     const headline = await feedback.textContent();
     const stated = Number((headline || '').match(/(\d+) changes? saved/)?.[1]);
     expect(await lines.count(), 'the headline must agree with its own receipt').toBe(stated);
+});
+
+// THE CONSEQUENCE BESIDE SAVE, AND THE SAME WORDS AFTER IT (owner, 27 Nov 2026): a staged day says what it
+// is now and what it becomes, and the receipt repeats it.
+test('admin: a staged day says before → after beside Save, and the receipt says the same', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';       // Monday, a worked day (the test above)
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    const name = await page.locator('#fieldMember').inputValue();
+    const base = getBaseShift(/** @type {any} */ (teamMembers.find(m => m.name === name)), new Date(2027, 0, 11));
+    expect(base, 'premise: Monday is a worked shift').toMatch(/^\d{2}:\d{2}-\d{2}:\d{2}$/);
+    const words = `${base.replace('-', '–')} → Annual leave`;
+
+    const monday = page.locator('.day-row[data-date="2027-01-11"]');
+    await monday.locator('.day-cb').click();                          // a day's type buttons show once it is ticked
+    await monday.locator('.type-pill-btn[data-type="annual_leave"]').click();
+    const preview = page.locator('#gridPreview');
+    await expect(preview).toContainText('You\'re about to change 1 day');
+    await expect(preview.locator('.grid-preview-days li')).toHaveText(new RegExp(`11 Jan.*: ${words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+
+    await page.locator('#saveBtn').click();
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('1 change saved for', { timeout: 10000 });
+    const receipt = feedback.locator('.save-receipt');
+    await receipt.locator('summary').click();
+    await expect(receipt.locator('li')).toHaveText(new RegExp(`11 Jan.* — ${words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
 });
 
 test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {
