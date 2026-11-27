@@ -62,6 +62,7 @@ import { initCalendarTooltip, initCalendarKeyboard, initCalendarShortcuts } from
 
 import { setStatus } from './status-text.js';
 import { signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
+import { showMirrorBanner } from './mirror-move.js';
 // ── THE CALENDAR ACCESS BOOTSTRAP ───────────────────────────────────────────────────────────────
 //
 // There is NO anonymous sign-in here, and it must not come back "so telemetry keeps working".
@@ -911,6 +912,8 @@ calendarAuthReady.finally(() => {
 // Back after a sign-out elsewhere must not put a member's roster on screen for whoever picks the
 // device up next (page-session.js — every protected page installs the same guard).
 reloadIfRestoredForSomeoneElse();
+// A desktop at the Pages mirror is told where the app lives now (mirror-move.js); nothing anywhere else.
+showMirrorBanner();
 // The menu, built for the session saved NOW — which pills, whose name, Sign out.
 // calendar-drawer.js decides it, and can build it again after a sign-in that does not reload.
 wireCalendarDrawer({

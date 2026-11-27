@@ -55,6 +55,10 @@
             flex-direction: column;
         }
 
+        /* The Pages mirror's strip (mirror-move.js) is one more block in the Calendar's stack: it spans the
+           page as the header does, and takes the header's gap below it at every size (the two lists below). */
+        #mirrorMoveBanner { margin: 0 0 8px; max-width: none; }
+
         .header {
             --hdr-pad-x: 20px;   /* the title's cap reads it: every breakpoint sets the two together */
             padding: 16px var(--hdr-pad-x);
@@ -860,7 +864,7 @@
             }
 
             /* Container gap replaces individual margin-bottoms */
-            .header, .controls, .calendar-container { margin-bottom: 0; }
+            .header, #mirrorMoveBanner, .controls, .calendar-container { margin-bottom: 0; }
             .header, .controls, .legend { flex-shrink: 0; }
 
             /* Controls: one compact row */
@@ -1199,7 +1203,7 @@
 
             /* Tighten the gaps between the three white cards — saves ~18px of
                navy background showing between header / controls / calendar. */
-            .header, .controls, .calendar-container { margin-bottom: 10px; }
+            .header, #mirrorMoveBanner, .controls, .calendar-container { margin-bottom: 10px; }
 
             /* Narrower calendar side padding gives each cell ~3px more width. */
             .calendar-container { padding: 8px 10px; }

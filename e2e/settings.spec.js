@@ -5,7 +5,7 @@
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
 import { test, expect, forcePasswordSet, withOtherStaff } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay, isTouchProject, asMirror } from './helpers.js';
 import { teamMembers, CONFIG } from '../roster-data.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
@@ -169,17 +169,7 @@ for (const [label, payKeys, payStep] of [['with pay figures, the first step carr
 // page tests for (`github.io`); this serves the page as if it were there, LOUD if that test moves.
 // notif.js's `onPagesMirror` is the app's one copy of the test and MUST be found. settings-app.js still
 // carries copies of its own; they are rewritten too while they last, and may go (to `onPagesMirror`).
-async function asMirror(page) {
-    for (const [file, required] of /** @type {const} */ ([['notif.js', true], ['settings-app.js', false]])) {
-        await page.route(`**/${file}`, async route => {
-            const res = await route.fetch();
-            const src = await res.text();
-            const host = '/github\\.io$/i.test(window.location.hostname)';
-            if (required && !src.includes(host)) throw new Error(`${file}: the mirror test moved — update asMirror`);
-            await route.fulfill({ response: res, contentType: 'text/javascript', body: src.replaceAll(host, 'true') });
-        });
-    }
-}
+// `asMirror` is in helpers.js, shared with mirror-move.spec.js.
 
 test('settings: an iPhone on the Pages mirror is sent to the main address to install, not told it is all set', async ({ page }) => {
     await asMirror(page);
