@@ -389,7 +389,8 @@ export function seedCalendarMember(page, name = 'G. Miller') {
             sessionStorage.setItem('__e2e_member_flags_seeded', '1');
         } catch (_) { /* private mode: seed every load, as seedSession does */ }
         for (const k of ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done', 'myb_notice_install_app_2026_done',
-                         'myb_notice_timetable_soon_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_pc_ytd_notice_2_shown',
+                         'myb_notice_timetable_soon_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_move_to_main_2026_done',
+                         'myb_notice_team_view_2026_done', 'myb_pc_ytd_notice_2_shown',
                          'myb_pc_hpp_notice_2526_shown', 'myb_links_welcome_seen']) localStorage.setItem(k, '1');
     }, name);
 }
