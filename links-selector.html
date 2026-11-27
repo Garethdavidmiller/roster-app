@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<!-- Marylebone Roster — Links Selector: a shortlisted proposal for the new CEA link, drawn as the Calendar draws a month -->
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+    <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. GENERATED: edit the header in firebase.json and run npm run generate:copies, never this line. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com/firebasejs/ https://cdn.jsdelivr.net/npm/mammoth@1.13.0/; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="only light">
+    <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
+         firebase.json, and is the ONLY noindex signal the GitHub Pages mirror gets (it cannot serve
+         headers). Rationale in robots.txt; enforced by sw-asset-check.test.mjs. -->
+    <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#001e3c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="MYB Roster">
+  <title>Links Selector — Marylebone Roster</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="./icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="./icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="./icon-120.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <link rel="preload" href="./fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
+  <!-- The Firebase SDK, fetched from the moment the HTML is parsed — see overtime.html for why. -->
+  <!-- GENERATED module preloads: npm run generate:copies writes every line down to the END marker, from firebase-client.js and this page's imports. Never edit them by hand. -->
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js" crossorigin>
+  <!-- END GENERATED module preloads -->
+  <link rel="stylesheet" href="./shared.css">
+  <!-- The Calendar's own stylesheet, so the month is drawn in the Calendar's cells (links-selector-render.js), then this
+       page's few rules on top. -->
+  <link rel="stylesheet" href="./index.css">
+  <link rel="stylesheet" href="./links-selector.css">
+</head>
+<body spellcheck="false">
+
+<!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
+
+<div id="ariaAnnouncer" aria-live="polite" aria-atomic="true" class="visually-hidden"></div>
+
+<!-- Tips lightbox: the drawer's "Words used in the app" (glossary.js) -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+    <div id="tipsLightboxContent" class="lb-content">
+        <div class="tips-lb-top">
+            <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="tips-lb-title" id="tipsLbTitle"></div>
+        </div>
+        <div id="tipsLbBody"></div>
+    </div>
+</div>
+
+<!-- Icon lightbox -->
+<div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About Marylebone Roster" aria-modal="true">
+    <div id="iconLightboxContent" class="lb-content">
+        <button id="iconLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <img src="icon-192.png" id="lightboxAppIcon" alt="Chiltern Railways app icon">
+        <div class="lightbox-app-name">Marylebone Roster</div>
+        <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
+        <div id="lightboxUpdateStatus" class="lightbox-status"></div>
+        <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">📆</span> Links Selector</div>
+        <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> Calendar</a>
+        <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
+    </div>
+</div>
+
+<!-- The day panel: the Calendar's, with what a proposal day has — its date, its line, the proposal, the shift and the
+     day's markers. Nothing is recorded against a proposal, so there is no "changed from", no "As rostered" and no leave
+     or pay button. The ids are the Calendar's, so index.css draws it as the Calendar draws its own. -->
+<div id="dayDetailLightbox" class="lb-overlay" role="dialog" aria-label="Day details" aria-modal="true">
+    <div id="dayDetailContent" class="lb-content">
+        <button id="dayDetailClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="day-detail-head">
+            <div class="day-detail-date" id="dayDetailDate"></div>
+            <div class="day-detail-week" id="dayDetailWeek" hidden></div>
+            <div class="day-detail-who" id="dayDetailWho" hidden></div>
+        </div>
+        <div class="day-detail-shift" id="dayDetailShift">
+            <span class="dds-glyph" id="dayDetailShiftGlyph" aria-hidden="true" hidden></span>
+            <span class="dds-words" id="dayDetailShiftWords"></span>
+            <span class="dds-time" id="dayDetailShiftTime" hidden></span>
+        </div>
+        <div class="day-detail-leaveyear" id="dayDetailChristmas" hidden></div>
+        <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
+        <p class="selector-day-note">A proposal, not your roster.</p>
+    </div>
+</div>
+
+<div class="container">
+    <!-- The sub-pages' header (shared.css): the burger, the logo back to the Calendar, and the page's badge, which fits
+         beside the name down to 320px. Everything under it is the Calendar's. -->
+    <header class="app-header">
+        <button type="button" class="btn-burger" id="navMenuBtn"
+                aria-label="Open navigation menu" aria-expanded="false">☰</button>
+        <div class="app-header-brand">
+            <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
+            <h1>Marylebone Roster</h1>
+        </div>
+        <span class="badge-page" id="selectorBadge"><span class="badge-glyph" aria-hidden="true">📆</span> Links Selector</span>
+    </header>
+
+    <!-- The Calendar's controls, with the two choices where its name picker and quick actions are: which proposal, and the
+         line you would start on. Both selects are enhanced into the app's sheets (select-sheet.js), as the name picker is. -->
+    <nav class="controls" id="selectorControls" aria-label="Links Selector">
+        <div class="controls-row" id="navRow">
+            <div class="control-group">
+                <button type="button" id="prevMonth" aria-label="Prev month">← Prev</button>
+            </div>
+            <div class="control-group control-group--stacked">
+                <label for="selectorProposal" class="visually-hidden">Proposal</label>
+                <select id="selectorProposal"></select>
+            </div>
+            <div class="control-group">
+                <button type="button" id="nextMonth" aria-label="Next month">Next →</button>
+            </div>
+        </div>
+        <div class="controls-row">
+            <div class="control-group control-group--stacked">
+                <label for="selectorLine" class="visually-hidden">The line you start on</label>
+                <select id="selectorLine"></select>
+            </div>
+            <div class="control-group">
+                <button type="button" id="selectorStartBtn" aria-label="Start: the first month of the new link"><span aria-hidden="true">🚩</span> Start</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- WHAT THIS IS, above every month and never swiped away: a proposal on dates is the one thing on this page that
+         could be read as somebody's real roster (links-selector-core.js). -->
+    <p class="selector-note" id="selectorNote"></p>
+
+    <main id="calendarDisplay" aria-label="A proposed roster, month by month"></main>
+
+    <!-- The Calendar's key, with only what a proposal can show: no Rest Day Working, absence or Other day is ever drawn. -->
+    <div class="legend" id="calendarLegend" role="group" aria-label="Colour legend">
+        <div class="legend-row">
+            <div class="legend-item"><div class="legend-color rest"></div><span class="legend-text">Rest</span></div>
+            <div class="legend-item"><div class="legend-color early"></div><span class="legend-text">Early</span></div>
+            <div class="legend-item"><div class="legend-color late"></div><span class="legend-text">Late</span></div>
+            <div class="legend-item"><div class="legend-color spare"></div><span class="legend-text">Spare</span></div>
+            <div class="legend-item"><div class="legend-color today"></div><span class="legend-text">Today</span></div>
+        </div>
+        <div class="legend-row">
+            <div class="legend-item"><div class="legend-color al"></div><span class="legend-text">Annual Leave (Christmas)</span></div>
+            <div class="legend-item"><span class="legend-text"><span aria-hidden="true">⭐</span> Bank Holiday</span></div>
+            <div class="legend-item"><span class="legend-text"><span aria-hidden="true">✂️</span> Pay cut-off</span></div>
+            <div class="legend-item"><span class="legend-text"><span aria-hidden="true">💷</span> Payday</span></div>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="./links-selector-boot.js"></script>
+</body>
+</html>

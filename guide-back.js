@@ -58,6 +58,7 @@
         'overtime.html':   { href: './overtime.html',   label: 'Back to Overtime' },
         'trains.html':     { href: './trains.html',     label: 'Back to Trains' },
         'newlink.html':    { href: './newlink.html',    label: 'Back to New CEA Link' },
+        'links-selector.html': { href: './links-selector.html', label: 'Back to Links Selector' },
     };
 
     var back = document.querySelector('.btn-back');

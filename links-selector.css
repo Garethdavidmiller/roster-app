@@ -1,0 +1,60 @@
+/*
+ * links-selector.css — the Links Selector's own rules (links-selector.html), on top of shared.css and index.css.
+ *
+ * The page is the Calendar's: index.css draws its header, controls, grid, cells, key and day panel, so a proposal's day
+ * looks exactly like a day on the Calendar. These are the only things the Calendar has no rule for.
+ */
+
+/* The page's colour (shared.css → "Page identity"): its drawer pill's sky blue, worn by the header and About badges and by
+   a picker's chosen row. */
+:root {
+    --page-accent:      var(--blue-sky);
+    --page-accent-ink:  white;
+    --page-accent-text: color-mix(in oklch, var(--blue-sky) 70%, black);
+}
+
+/* The month name is the Calendar's, without the chevron that there opens its month picker: this page has none. */
+.month-year::after { content: none; }
+.month-year { cursor: default; }
+@media (hover: hover) { .month-year:hover { background: none; } }
+
+/* The sub-pages' header sits in the Calendar's column, with the Calendar's gap below it. */
+.container > .app-header { margin-bottom: 8px; }
+
+/* WHAT THIS IS, between the controls and the month: a quiet line, never a banner that competes with the grid. */
+.selector-note {
+    margin: 0 0 12px;
+    padding: 8px 14px;
+    border-radius: var(--radius-lg);
+    background: color-mix(in oklch, var(--blue-sky) 14%, white);
+    color: var(--primary-blue);
+    font-size: var(--type-label);
+    line-height: 1.45;
+    text-align: center;
+    text-wrap: balance;
+}
+
+/* A day before the new link starts: the date alone, on the filler days' quiet ground — inert, so no lift and no hand. */
+.calendar-day.selector-blank {
+    background: var(--bg-faint);
+    cursor: default;
+}
+.calendar-day.selector-blank .day-number { color: var(--text-light); }
+@media (hover: hover) and (pointer: fine) {
+    .calendar-day.selector-blank:hover { transform: none; box-shadow: none; }
+}
+
+/* The day panel's last line: the same reminder as the note above the month, for a panel that covers it. On the panel's
+   dark glass, in the week line's own white (index.css → .day-detail-week: 4.5:1 over a light page under the glass). */
+.selector-day-note {
+    margin: 0;
+    width: 100%;
+    text-align: center;
+    font-size: var(--type-label);
+    color: rgba(255, 255, 255, 0.65);
+}
+
+@media print {
+    .selector-note { background: none; padding: 0 0 6px; }
+    .calendar-day.selector-blank { background: none; }
+}

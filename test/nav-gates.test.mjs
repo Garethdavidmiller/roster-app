@@ -131,13 +131,17 @@ for (const paused of [true, false]) {
             assert.equal(drawn(manager).includes('overtime'), !paused, 'and so does a reviewer');
             assert.equal(drawn(plain).includes('overtime'), false, 'never a member with neither');
             assert.ok(!drawn(plain).includes('newlink'), 'a Dispatcher is not the new link\'s audience');
+            // The Links Selector is a beta for the admin (CONFIG.LINKS_SELECTOR_OPEN false): nobody else has its pill yet.
+            assert.equal(CONFIG.LINKS_SELECTOR_OPEN, false, 'the Links Selector has opened — this line and the two below move with it');
+            assert.ok(drawn(admin).includes('selector'), 'the admin has the Links Selector during its beta');
+            for (const member of [manager, designer, beta, plain]) assert.ok(!drawn(member).includes('selector'), `${member} has the Links Selector before it opens`);
         });
 
         test('nobody signed in: every ungated pill drawn, every gated one hidden', () => {
             seam();
             assert.deepEqual(drawn(null), PILL_IDS.filter(id => !GATED.includes(id)),
                 'a signed-out drawer shows Admin, Pay and Settings on purpose (each asks for a sign-in), and no role-gated page');
-            assert.deepEqual(navGatesFor(null), { isAdmin: false, isLinksDesigner: false, canOpenOvertime: false, canOpenNewlink: false, isNotOtherStaff: true });
+            assert.deepEqual(navGatesFor(null), { isAdmin: false, isLinksDesigner: false, canOpenOvertime: false, canOpenNewlink: false, canOpenSelector: false, isNotOtherStaff: true });
             assert.deepEqual(navGatesFor(undefined), navGatesFor(null));
         });
     });

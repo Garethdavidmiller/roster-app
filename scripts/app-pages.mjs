@@ -47,6 +47,8 @@
  * @property {boolean} cards       built from `.card` blocks (the calendar is a grid, not cards)
  * @property {string} authBarrier  what its coordinator waits on before any write — see
  *                                 page-contract-parity's "each after-auth writer runs INSIDE its page's auth barrier"
+ * @property {string[]} [alsoCss]  another page's stylesheet this page ALSO loads, by decision: the Links Selector draws the
+ *                                 Calendar's grid, so it loads index.css (page-css-parity accepts its classes there)
  * @property {boolean} preloads    the page preloads its WHOLE local module graph, not only the Firebase SDK.
  *                                 `npm run generate:copies` writes the list (scripts/generate-copies.mjs →
  *                                 modulePreloads). Only the deepest graphs carry one — a page-load decision,
@@ -88,6 +90,10 @@ export const APP_PAGES = Object.freeze([
     // The new link (the December link until v25.10): the three shortlisted proposals, for the colleagues who will work the new link. An admin
     // preview from v25.06; open to the normal CEA contract and the managers since v25.60 (newlink-config.js → PHASE).
     app('newlink.html', 'newlink'),
+    // The Links Selector (owner, 27 Nov 2026): a proposal drawn as the Calendar draws a month. Not built from cards — it is
+    // the Calendar's grid, so it loads index.css as well as its own sheet (`alsoCss`). An admin beta until
+    // CONFIG.LINKS_SELECTOR_OPEN.
+    app('links-selector.html', 'selector', { coordinator: 'links-selector-app.js', boot: 'links-selector-boot.js', cards: false, alsoCss: ['index.css'] }),
 ]);
 
 /** The printable guides — no shared.css, no drawer, no auth, no analytics id. In the drawer's order,

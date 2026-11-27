@@ -50,7 +50,18 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   openDayDetail: ((cell: Element) => void) | null,
  *   onRetryMonth?: (year: number, month: number) => void,
  *   announceMonthChange?: () => void,
+ *   months?: {
+ *     buildPanel: (delta: number) => HTMLElement,
+ *     canNavigate: (direction: 'prev'|'next') => boolean,
+ *     title: () => string,
+ *     settled: () => void,
+ *   },
  * }} deps
+ *   months — ANOTHER PAGE'S MONTHS, for a page that draws a calendar of its own (the Links Selector, owner 27 Nov
+ *   2026: "exactly like the main calendar with swiping"). Omitted — as the Calendar omits it — every one of the four is
+ *   the Calendar's own, below, unchanged: its display month, its year bounds, its tab title, and its saved month and
+ *   month read once a swipe settles. Given, the gesture is the same code and nothing of the Calendar's is touched — no
+ *   display month moved, no month read started, no "last month viewed" overwritten.
  *   announceMonthChange — says the new month in #ariaAnnouncer, as Prev, Next, Today, the keys and
  *   the month picker do (18 Nov 2026): the gesture people use most changed the month in silence.
  *   renderCalendar — the repaint for a month read that lands after the swipe. It must repaint
@@ -62,7 +73,7 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   it becomes the live view, so a panel built without the callback would leave the committed month
  *   showing a failure with nothing to press.
  */
-export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, openDayDetail, onRetryMonth, announceMonthChange }) {
+export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, openDayDetail, onRetryMonth, announceMonthChange, months }) {
     const calendarDisplay = document.getElementById('calendarDisplay');
     if (!calendarDisplay) return;
 
@@ -92,7 +103,8 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
 
     // Returns true if swiping in the given direction would actually change the month.
     // At the year boundaries, swiping toward the blocked side should always snap back.
-    function canNavigate(/** @type {string} */ direction) {
+    function canNavigate(/** @type {'prev'|'next'} */ direction) {
+        if (months) return months.canNavigate(direction);
         if (direction === 'prev') return !(getDisplayYear() === CONFIG.MIN_YEAR && getDisplayMonth() === 0);
         if (direction === 'next') return !(getDisplayYear() === CONFIG.MAX_YEAR && getDisplayMonth() === 11);
         return true;
@@ -101,6 +113,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     // Build a panel for an adjacent month using explicit month/year params —
     // no global state mutation, no risk of corruption if an exception is thrown.
     function buildAdjacentPanel(/** @type {number} */ monthDelta) {
+        if (months) return months.buildPanel(monthDelta);
         // Shared rollover + boundary clamp (calendar-state.js) — same arithmetic as changeDisplay.
         const { month: m, year: y } = addMonths(getDisplayMonth(), getDisplayYear(), monthDelta);
         // The same two rules renderCalendar applies while the first 3-month read is running
@@ -299,7 +312,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
             }
 
             changeMonth(direction === 'left' ? 1 : -1);
-            document.title = `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()} — Marylebone Roster`;
+            document.title = months ? months.title() : `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()} — Marylebone Roster`;
             updateLegend();
             updateNavButtonState?.();   // refresh Prev/Next disabled state at year boundaries after a swipe
             announceMonthChange?.();
@@ -335,6 +348,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
                 // Always persist — ensureOverridesCached is a no-op for pre-cached
                 // months and won't call renderCalendar (which is where persist
                 // normally happens), so we must persist unconditionally here.
+                if (months) { months.settled(); return; }
                 persistViewedMonth();
                 // No member or mode guard here: the read is every member's, so whatever is on screen
                 // when it lands is waiting on it. The dep routes the repaint to the live surface.

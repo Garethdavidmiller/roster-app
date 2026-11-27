@@ -1252,7 +1252,7 @@ service cloud.firestore {
       // NAV_GUIDES entry — firestore-contract-parity.test.mjs checks it both ways, so a guide added
       // without an id here fails rather than counting nothing.
       function pvCountIds() {
-        return ['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links', 'overtime', 'trains', 'newlink',
+        return ['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links', 'overtime', 'trains', 'newlink', 'selector',
                 'huddle', 'circular', 'newsletter',
                 'guide-staff', 'guide-paycalc', 'guide-railcard', 'guide-fip', 'guide-rangers'];
       }
@@ -1293,6 +1293,7 @@ service cloud.firestore {
            (!('overtime'   in request.resource.data.counts) || request.resource.data.counts.overtime   is int) &&
            (!('trains'     in request.resource.data.counts) || request.resource.data.counts.trains     is int) &&
            (!('newlink'    in request.resource.data.counts) || request.resource.data.counts.newlink    is int) &&
+           (!('selector'   in request.resource.data.counts) || request.resource.data.counts.selector   is int) &&
            (!('huddle'     in request.resource.data.counts) || request.resource.data.counts.huddle     is int) &&
            (!('circular'   in request.resource.data.counts) || request.resource.data.counts.circular   is int) &&
            (!('newsletter' in request.resource.data.counts) || request.resource.data.counts.newsletter is int) &&
