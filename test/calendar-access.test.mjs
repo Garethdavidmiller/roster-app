@@ -9,11 +9,10 @@
  * function. Everything asserts on ORDER as much as on outcome.
  *
  * THE STAFF PIN IS RETIRED FROM THE CLIENT (owner, 23 Nov 2026). Its unlock exchange, its card, its
- * Lock and its late grant went, and their tests with them. What replaced them here: a browser still
- * holding a viewer session is NOT granted, and the boot asks the teardown with no argument, so the
- * viewer is signed out (`reconcileExpiredIdentity`, session.js — whose own tests prove the sign-out and
- * the one line the card then says); and the front door has no alternative, and a fallback that is not
- * a PIN card when its form cannot load.
+ * Lock and its late grant went, and their tests with them; the tests of a leftover PIN session's
+ * teardown went in the cleanup release (27 Nov 2026), with the account. What stays: the boot asks the
+ * teardown with no argument, the front door has no alternative, and a fallback that is not a PIN card
+ * when its form cannot load.
  *
  * The fake DOM is deliberately minimal: this file tests the module's decisions, not its markup. The
  * card's appearance and behaviour under a real browser are e2e's job (`e2e/calendar-access.spec.js`, whose PIN
@@ -36,8 +35,6 @@ let formLoadFails = false;
 
 const auth = { get currentUser() { return currentUser; } };
 
-/** Runs inside `letViewerWritesGo`, so a test can change the identity mid-wait. @type {null | (() => any)} */
-let duringViewerWrites = null;
 mock.module('../firebase-client.js', {
     namedExports: {
         auth,
@@ -413,17 +410,17 @@ describe('initCalendarAccess', () => {
         assert.equal(document.getElementById('calendarLock'), null, 'a card was built for a member');
     });
 
-    // THE TEARDOWN (owner, 23 Nov 2026). A browser still holding a staff-PIN viewer session is not
-    // granted, and the boot asks `reconcileExpiredIdentity` with NO argument — its default signs the
-    // viewer out, and the sign-in card says why (session.test.mjs and login-overlay.test.mjs prove those).
-    test('a restored VIEWER session is NOT granted, and the boot asks the teardown to keep nothing', async () => {
-        currentUser = { uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) };
+    // THE TEARDOWN. A restored identity with no local session is not granted, and the boot asks
+    // `reconcileExpiredIdentity` with NO argument — until the staff PIN was retired (23 Nov 2026) the
+    // Calendar passed `preserveCalendarViewer` here, and nothing may be kept any more.
+    test('a restored identity with NO local session is NOT granted, and the boot asks the teardown to keep nothing', async () => {
+        currentUser = { uid: 'member-1', isAnonymous: false };
         let started = 0;
         const type = await initCalendarAccess({ onGranted: () => { started++; } });
-        assert.equal(type, 'none', 'the retired staff PIN opened the Calendar');
+        assert.equal(type, 'none', 'an identity without a session opened the Calendar');
         assert.equal(started, 0);
         assert.deepEqual(ops.filter(o => o.startsWith('reconcile:')), ['reconcile:{}'],
-            'the boot asked the teardown to keep something — a leftover PIN session would survive it');
+            'the boot asked the teardown to keep something');
         await waitFor(() => loginMounts.length === 1, 'the sign-in card');
         assert.equal(loginMounts[0].host, lastPanel(), 'the front door is not the inline sign-in card');
     });
@@ -701,85 +698,30 @@ describe('initCalendarAccess', () => {
         assert.equal(_panelIsDown(), true, 'the card survived the grant');
     });
 
-    test('a late ANONYMOUS or VIEWER emission does NOT grant named access', async () => {
+    test('a late emission of SOMEBODY ELSE\'s account under a held session does not grant it (cleanup release, 27 Nov 2026)', async () => {
+        // The late twin of decideAccess's "somebody ELSE" rule. Its only test used the retired PIN's
+        // viewer, which went with the account; a colleague signed in from another tab is the real case.
+        const { nameToEmail } = await import('../auth-identity.js');
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
+        sessionValue = { name: 'G. Miller' };
+        emitAuth({ uid: 'uid-silva', isAnonymous: false, email: nameToEmail('S. Silva') });
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(getAccessType(), 'none', 'a colleague\'s late account was granted under G. Miller\'s session');
+        emitAuth({ uid: 'uid-miller', isAnonymous: false, email: nameToEmail('G. Miller') });
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(getAccessType(), 'named', 'guard the guard: the member\'s own late account is granted');
+    });
+
+    test('a late ANONYMOUS emission does NOT grant named access', async () => {
         // The watcher re-runs the whole decision rather than trusting that any user will do. An
-        // anonymous identity is precisely what v20.12 stopped honouring, and granting `named` to the
-        // shared viewer would put a capability where the app expects a person.
+        // anonymous identity is precisely what v20.12 stopped honouring.
         const type = await initCalendarAccess({ onGranted: () => {} });
         assert.equal(type, 'none');
         sessionValue = { name: 'G. Miller' };
         emitAuth({ uid: 'anon', isAnonymous: true });
-        assert.equal(getAccessType(), 'none');
-        emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) });
         await new Promise(r => setTimeout(r, 0));
-        assert.equal(getAccessType(), 'none', 'a late PIN session was granted over a held member session');
+        assert.equal(getAccessType(), 'none');
     });
-
-    test('a PIN session restored AT START-UP under a member\'s held session gets the member their own way in (audit F1)', async () => {
-        // The start-up twin of the late case above, which the boot used to miss: a member's identity
-        // did not restore, the tab ALSO held a PIN session, and `decideAccess` ranked the PIN first —
-        // the member read the station's Calendar, and a later loss showed them the PIN card. Now the
-        // boot answers `none`, and the member's own silent sign-in runs before any card goes up.
-        const viewerUser = () => ({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) });
-        for (const succeeds of [false, true]) {
-            handleAccessLost(); await drainTurns();
-            ops = []; authSubs.clear(); loginMounts = [];
-            sessionValue = { name: 'G. Miller' };
-            currentUser = viewerUser();                   // restored at boot, inside the decision
-            silentReauthSucceeds = succeeds;
-            const type = await initCalendarAccess({ onGranted: () => {} });
-            await drainTurns();
-            assert.ok(ops.includes('ensureNamedSession:G. Miller'), 'the member\'s own silent sign-in never ran');
-            if (succeeds) {
-                assert.equal(type, 'named', 'the member\'s own sign-in did not win');
-            } else {
-                assert.equal(type, 'none', 'the staff PIN was granted over a member\'s held session');
-                assert.equal(getAccessType(), 'none');
-                assert.ok(lastPanelHtml().includes('calLockWho'), 'the member\'s own card did not follow');
-            }
-        }
-    });
-
-    test('a late PIN session does not overtake a member\'s silent sign-in (sign-in check, 11 Nov 2026)', async () => {
-        // The reproduced sequence: a member's session is held, their silent sign-in is still out, and
-        // the browser's old PIN session restores meanwhile. Granting it ended, when the sign-in failed,
-        // at the PIN card ("Calendar access has expired. Enter the staff PIN") in front of a member —
-        // and when it succeeded, with the member signed in to a VIEWER's Calendar until a reload.
-        const viewerUser = { uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) };
-        for (const succeeds of [false, true]) {
-            handleAccessLost(); await drainTurns();
-            ops = []; authSubs.clear(); currentUser = null; loginMounts = [];
-            sessionValue = { name: 'G. Miller' };
-            silentReauthSucceeds = succeeds;
-            /** @type {() => void} */ let release = () => {};
-            silentGate = new Promise(r => { release = r; });
-            const decided = initCalendarAccess({ onGranted: () => {} });
-            await drainTurns();
-            emitAuth(viewerUser);                          // the old PIN session restores, late
-            await drainTurns();
-            assert.equal(getAccessType(), 'none', `the PIN session was granted under the member (silent sign-in ${succeeds ? 'succeeding' : 'failing'})`);
-            release();
-            await decided; await drainTurns();
-            if (succeeds) assert.equal(getAccessType(), 'named', 'the member\'s own sign-in did not win');
-            else {
-                assert.equal(getAccessType(), 'none');
-                assert.ok(lastPanelHtml().includes('calLockWho'), 'the member\'s own card did not follow');
-            }
-            silentGate = null;
-        }
-    });
-
-    // cal-data-10 is reversed (owner, 23 Nov 2026): a staff-PIN session that restores after the decision
-    // was granted as the viewer; now it opens nothing, as one restored in time does not.
-    test('a leftover STAFF-PIN session that restores late is not granted', async () => {
-        let started = 0;
-        assert.equal(await initCalendarAccess({ onGranted: () => { started++; } }), 'none');
-        emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) });
-        await drainTurns();
-        assert.equal(getAccessType(), 'none', 'a late PIN session opened the Calendar');
-        assert.equal(started, 0);
-    });
-
 
     test('a late emission with NO local session changes nothing', async () => {
         // A Firebase identity with no session is what `reconcileExpiredIdentity` exists to tear down.

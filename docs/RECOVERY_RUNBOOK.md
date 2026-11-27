@@ -330,7 +330,7 @@ Each document is a Firestore doc (`circulars/{date}` etc.) **plus** a Storage fi
    ```
 3. Check function logs to confirm recovery: **Console → Functions → Logs**, or
    `firebase functions:log`.
-4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, and the retired `CALENDAR_VIEWER_PIN` — bound by no function, until the owner destroys it) live in
+4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`; the retired `CALENDAR_VIEWER_PIN` was destroyed on 26 Nov 2026) live in
    Firebase Secret Manager — a deploy doesn't wipe them; a broken function is almost always code, not secrets.
 
 ### F. A Firestore / Storage Rules deploy locked people out (or opened access)
@@ -603,10 +603,11 @@ after step 1 means the condition was mistyped; re-run step 1 with the line exact
 
 **Retired 23 Nov 2026 (owner).** The Calendar and Trains open only to somebody signed in by name; the
 shared PIN opens nothing in the app. It comes out in three releases — client, server, cleanup —
-recorded in DECISIONS.md → "The staff PIN retired". What staff are told, how somebody without a login
-gets one, and **the manual steps after the server release** (delete the `calendar-viewer` account,
-destroy `CALENDAR_VIEWER_PIN`, purge `viewerAttempts`, consider switching off Anonymous sign-in, KEEP
-the token-creator grant): OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
+recorded in DECISIONS.md → "The staff PIN retired". All three have shipped: the owner's manual steps
+after the server release (the `calendar-viewer` account deleted, `CALENDAR_VIEWER_PIN` destroyed,
+`viewerAttempts` purged — 26 Nov 2026) and then the cleanup release (27 Nov 2026), which removed the
+last transition code. KEEP the token-creator grant. What staff are told, and how somebody without a
+login gets one: OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
 
 **The server release has shipped: the PIN opens nothing, at the endpoint or anywhere else.**
 `unlockCalendarViewer` is deleted (the Functions deploy runs `--force`, which deletes a function the

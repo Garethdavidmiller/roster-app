@@ -24,7 +24,6 @@
 
 const { nameToEmail } = require('./roster-parse-helpers');
 const { claimedByAnotherMember } = require('./member-identity');
-const { isViewerAccount } = require('./retired-viewer-account');
 const { jsonBodyOf } = require('./request-helpers');
 
 // ── setupRosterAuth — pure decision helpers (B4) ───────────────────────────────
@@ -158,9 +157,8 @@ function summariseSignIns(users, nowMs, allowedEmails) {
 
 /**
  * Which Firebase Auth accounts are leaver ORPHANS: a `@myb-roster.local` account not in the active
- * set, not disabled, and never the retired staff PIN's shared account (a leftover PIN session can
- * link an email to it, and deleting it is the owner's step — ./retired-viewer-account.js). Pure; the
- * handler previews or disables+revokes them.
+ * set, and not disabled. Pure; the handler previews or disables+revokes them. (Until the staff PIN's
+ * cleanup release, 27 Nov 2026, it also skipped the PIN's shared account; the owner deleted it.)
  * @template {{ uid?: string, email?: string, displayName?: string, disabled?: boolean }} User
  * @param {User[]} users  a real UserRecord always has a uid, and the answer keeps that
  * @param {Set<string>} activeEmails  emails of currently-provisioned members (never disabled)
@@ -169,7 +167,7 @@ function summariseSignIns(users, nowMs, allowedEmails) {
 function computeOrphanLabels(users, activeEmails) {
     const out = [];
     for (const user of users || []) {
-        if (user && user.email && !isViewerAccount(user) &&
+        if (user && user.email &&
             user.email.endsWith('@myb-roster.local') &&
             !activeEmails.has(user.email) &&
             !user.disabled) {
@@ -202,10 +200,10 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  * accounts — so they are one group, and a leaver still enabled, needing a confirmed action, is its
  * own. Within it `unstamped` (NO claim at all) is told apart from `claims`, because that press TAKES
  * such an account BACK (`mustReclaim`: surname default, signed out, other ways in removed) — not a fix.
- * And two the press REFUSES (review D3, Nov 2026), so they are not `claims` either, whose remedy is the
- * press: `viewer-linked` — the retired staff PIN's shared account holds the address (`isViewerAccount`) — and
- * `other-member` — the account's claims name somebody else (`claimedByAnotherMember`). Asked in the
- * button's own order, so the audit names the reason Set up accounts will give.
+ * And one the press REFUSES (review D3, Nov 2026), so it is not `claims` either, whose remedy is the
+ * press: `other-member` — the account's claims name somebody else (`claimedByAnotherMember`). Asked in
+ * the button's own order, so the audit names the reason Set up accounts will give. (`viewer-linked`, the
+ * retired staff PIN's shared account holding the address, went with that account in the cleanup release.)
  *
  * IT REFUSES RATHER THAN CRIES WOLF. If not one `@myb-roster.local` account is visible, the
  * account list did not arrive — an empty page from a transient failure, a wrong project — and
@@ -226,7 +224,7 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  *        every Firebase Auth user (all pages of listUsers)
  * @param {{ processMembers: string[], adminSet: Set<string>, managerSet: Set<string>, designerSet: Set<string> }} cfg
  *        the SERVER-owned roster, exactly as setupRosterAuth resolves it
- * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'viewer-linked'|'other-member'|'disabled'|'unstamped'|'claims' }>, leavers: string[] }}
+ * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'other-member'|'disabled'|'unstamped'|'claims' }>, leavers: string[] }}
  */
 function summariseAccountGaps(users, { processMembers, adminSet, managerSet, designerSet }) {
     const list = Array.isArray(users) ? users : [];
@@ -241,7 +239,7 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
     // "we cannot see the roster's accounts" situation and must not report the whole roster as missing either.
     if (byEmail.size === 0) return { refused: 'no-accounts-visible', setUp: [], leavers: [] };
 
-    /** @type {Array<{name: string, why: 'no-account'|'viewer-linked'|'other-member'|'disabled'|'unstamped'|'claims'}>} */
+    /** @type {Array<{name: string, why: 'no-account'|'other-member'|'disabled'|'unstamped'|'claims'}>} */
     const setUp = [];
     /** @type {Set<string>} */
     const activeEmails = new Set();
@@ -250,7 +248,6 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
         activeEmails.add(email);
         const user = byEmail.get(email);
         if (!user)         { setUp.push({ name, why: 'no-account' }); continue; }
-        if (isViewerAccount(user)) { setUp.push({ name, why: 'viewer-linked' }); continue; }
         if (claimedByAnotherMember(user)) { setUp.push({ name, why: 'other-member' }); continue; }
         const actual = user.customClaims || {};   // no claim at all is `mustReclaim`'s test, asked in the button's order
         if (!Object.keys(actual).length) { setUp.push({ name, why: 'unstamped' }); continue; }

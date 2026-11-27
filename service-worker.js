@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '27.03';
+const APP_VERSION = '27.05';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -376,7 +376,6 @@ const APP_FILES = [
     'silent-sign-in.js',
     'slow-save.js',
     'splash-watchdog.js',
-    'staff-pin-ended.js',
     'status-text.js',
     'storage-keys.js',
     'storage-utils.js',
@@ -401,7 +400,6 @@ const APP_FILES = [
     'upload-commit.js',
     'usage-reporter.js',
     'usage-stats.js',
-    'viewer-shed.js',
 ];
 // END GENERATED app files
 // The "managed" same-origin app files: HTML pages, JS modules, and CSS — all served from this

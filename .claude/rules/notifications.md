@@ -146,9 +146,9 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
   (`reconcileExpiredIdentity`), a session the last password reset refuses, a write page whose identity
   is lost mid-visit (`relogin`, `page-session.js`), a failed typed sign-in that clears ANOTHER member's
   held session (`login-overlay.js`) — releases the record before the session is cleared, through
-  `releasePushForEndingHold` (`session.js`, which says why). **Never for a leftover staff-PIN
-  session**: the viewer owns no record, and releasing as it dropped the browser's own subscription, so
-  a member who had used the PIN on their own phone found notifications off.
+  `releasePushForEndingHold` (`session.js`, which says why). (Until the staff PIN's cleanup release,
+  27 Nov 2026, a leftover PIN session was the one exception: it owned no record, so releasing as it
+  dropped the browser's own subscription. The account is deleted, and the exception went with it.)
 - **A leaver.** `fanOutPush` consults no owner, so the confirmed leaver sweep in `setupRosterAuth`
   deletes the records the disabled account owns (`releasePushForOwner`, `functions/push.js`) — **and
   every confirmed sweep does it again for the leavers disabled on EARLIER runs** (`disabledLeaverUids`;

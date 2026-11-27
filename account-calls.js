@@ -90,7 +90,7 @@ export function buildAccountCalls({ auth }) {
      * (A `pinLockout` field — the retired staff PIN's station-wide block — rode on this answer until
      * the PIN's server release, Nov 2026. Nothing reads it any more.)
      *
-     * @returns {Promise<{ refused?: string, setUp: {name: string, why: 'no-account'|'viewer-linked'|'other-member'|'disabled'|'claims'|'unstamped'}[], leavers: string[] }>}
+     * @returns {Promise<{ refused?: string, setUp: {name: string, why: 'no-account'|'other-member'|'disabled'|'claims'|'unstamped'}[], leavers: string[] }>}
      */
     async function getAccountSetupGaps() {
         const user = auth.currentUser;

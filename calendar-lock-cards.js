@@ -18,9 +18,7 @@
  * ── THE STAFF PIN IS RETIRED (owner, 23 Nov 2026) ──────────────────────────────────────────────
  *
  * The PIN card, "Use the staff PIN instead" and the member card's "Sign out and use the staff PIN"
- * are gone with the PIN: a member's own sign-in is the only way in. A device whose leftover PIN
- * session the gate's teardown has just signed out sees ONE line about it on the sign-in card
- * (login-overlay.js → `sayStaffPinEnded`, staff-pin-ended.js), and nothing here offers a PIN box.
+ * are gone with the PIN: a member's own sign-in is the only way in, and nothing here offers a PIN box.
  *
  * ── THE THREE THINGS AN EDIT CAN SILENTLY BREAK ────────────────────────────────────────────────
  *

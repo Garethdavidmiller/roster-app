@@ -18,7 +18,6 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 const require = createRequire(REPO_ROOT_URL);
 const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids, sweepAgainstPreview } =
     require('./functions/account-lifecycle.js');
-const { CALENDAR_VIEWER_UID } = require('./functions/retired-viewer-account.js');
 const { computeOrphanLabels } = require('./functions/account-rules.js');
 
 // ── A PASSWORD WRITE THAT THROWS (audit E1) ─────────────────────────────────────────────────────
@@ -147,13 +146,11 @@ describe('disabledLeaverUids — the leavers the sweep has already disabled', ()
         assert.deepEqual(disabledLeaverUids(users, active), []);
     });
 
-    test('never a current member, another domain, an account with no email, or the shared PIN account', () => {
+    test('never a current member, another domain, or an account with no email', () => {
         const users = [
             { uid: 'm', email: 'a.member@myb-roster.local', disabled: true },
             { uid: 'g', email: 'someone@gmail.com', disabled: true },
             { uid: 'n', disabled: true },
-            { uid: CALENDAR_VIEWER_UID, email: 'linked@myb-roster.local', disabled: true },
-            { uid: 'v', email: 'linked2@myb-roster.local', disabled: true, customClaims: { calendarViewer: true } },
             { email: 'no.uid@myb-roster.local', disabled: true },
         ];
         assert.deepEqual(disabledLeaverUids(users, active), []);
@@ -163,7 +160,7 @@ describe('disabledLeaverUids — the leavers the sweep has already disabled', ()
         const users = [
             { uid: 'a', email: 'x.gone@myb-roster.local', disabled: true },
             { uid: 'b', email: 'a.member@myb-roster.local', disabled: true },
-            { uid: CALENDAR_VIEWER_UID, email: 'z@myb-roster.local', disabled: true },
+            { uid: 'z', email: 'z@myb-roster.local', disabled: true },
             { uid: 'c', email: 'q@example.com', disabled: true },
         ];
         const sweepWouldTake = computeOrphanLabels(users.map((u) => ({ ...u, disabled: false })), active).map((o) => o.uid);

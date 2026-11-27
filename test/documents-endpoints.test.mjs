@@ -1112,8 +1112,9 @@ describe('the pay reminder reaches CEA and CES phones only — never a Dispatche
     test('a roster email linked to the shared PIN account is refused — the PIN PCs are not that member', async () => {
         // A PIN holder can link a roster email to the shared account before Set up accounts reaches
         // that member. The lookup then answers with the VIEWER's uid, and every station PC on the PIN
-        // would get a reminder meant for one person. Set up accounts and the admin reset refuse the
-        // same account (isViewerAccount); so does this.
+        // would get a reminder meant for one person. Since the PIN's cleanup release (27 Nov 2026) no rule
+        // names that account: it is refused as every account without this member's `member` claim is
+        // (`isMembersOwnAccount`), which is the guard this test now holds.
         const linked = ROSTER.ces[0];
         const w = buildDeviceWorld({ lookup: (email) => (email === nameToEmail(linked).toLowerCase()
             ? { uid: 'calendar-viewer', email, customClaims: { calendarViewer: true } }

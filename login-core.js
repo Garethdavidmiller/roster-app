@@ -53,15 +53,13 @@ export const SIGN_IN_GIVE_UP_MS = 30_000;
  *   the SAME member — a failed attempt then leaves it alone (v24.56; see the failure branch)
  * @param {() => void} [deps.releaseEndedHold]  runs just before a failure clears the session, and
  *   releases this device's push record when the session is ANOTHER member's (audit A1) — not awaited
- * @param {() => void} [deps.forgetStaffPinEnded]  on success: a leftover staff-PIN session's sign-out is no
- *   longer this page's news (staff-pin-ended.js — transition plumbing, until the cleanup release)
  * @param {number} [deps.timeoutMs]  when the app ends the attempt (`SIGN_IN_GIVE_UP_MS`)
  * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage', late?: Promise<boolean> }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not). A 'timeout' carries
  *   `late`: the attempt itself, which may still answer — true only for a named session that answer made.
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = SIGN_IN_GIVE_UP_MS }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, timeoutMs = SIGN_IN_GIVE_UP_MS }) {
     let named = false, authResolved = true, threw = false;
     const attempt = Promise.resolve().then(ensureNamedSession).catch(() => { threw = true; return false; });
     try {
@@ -115,8 +113,6 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         clearSession();
         return { ok: false, kind: 'storage', error: 'This browser is blocking storage, which the app needs to keep you signed in. Allow cookies and website data for this site — on an iPhone, turn off Block All Cookies in Safari’s settings — then sign in again.' };
     }
-    // A member is signed in here now: a later card on this page must not say the PIN was retired (audit B2/C2).
-    forgetStaffPinEnded();
     return { ok: true };
 }
 

@@ -5,7 +5,7 @@
  *
  * WHY THESE CASES AND NOT A MATRIX. `decideAccess` has two inputs and three outputs, so a full
  * matrix is nine trivially-passing assertions that would all still pass if the function returned
- * `named` for a viewer. The cases below are chosen the other way round: each one is a state the
+ * `named` for the wrong identity. The cases below are chosen the other way round: each one is a state the
  * SHIPPED app can genuinely be in, and each has a specific wrong answer that would ship a bug.
  *
  * The two that matter most are the halves of the `named` rule, because each rejects a real
@@ -19,36 +19,13 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    CALENDAR_VIEWER_UID, CALENDAR_VIEWER_CLAIM,
-    isViewerUser, decideAccess, noticeAudienceAllows,
+    decideAccess, noticeAudienceAllows,
     personalActionsAllowed,
 } from '../calendar-access-core.js';
 
 const member  = { uid: 'abc123', isAnonymous: false };
 const anon    = { uid: 'anon-1', isAnonymous: true };
-const viewer  = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
 const session = { name: 'G. Miller' };
-
-describe('isViewerUser — recognising a leftover session of the retired staff PIN', () => {
-    test('recognises the dedicated viewer uid', () => {
-        assert.equal(isViewerUser(viewer), true);
-    });
-
-    test('an ANONYMOUS user carrying the viewer uid is not the viewer', () => {
-        // Belt-and-braces: an anonymous sign-in can never be given this uid. The predicate now decides
-        // how a leftover identity is torn down (without releasing this browser's push record) and that
-        // `decideAccess` refuses it by uid, so a yes for an unverified identity is still wrong.
-        assert.equal(isViewerUser({ uid: CALENDAR_VIEWER_UID, isAnonymous: true }), false);
-    });
-
-    test('says no to a member, an anonymous session, null and rubbish', () => {
-        assert.equal(isViewerUser(member), false);
-        assert.equal(isViewerUser(anon), false);
-        assert.equal(isViewerUser(null), false);
-        assert.equal(isViewerUser(undefined), false);
-        assert.equal(isViewerUser(/** @type {any} */ ('calendar-viewer')), false);
-    });
-});
 
 describe('decideAccess', () => {
     test('a Firebase user who is somebody ELSE is not this session\'s member (v24.38)', async () => {
@@ -60,15 +37,6 @@ describe('decideAccess', () => {
     });
 
     test('a member with a live session and a restored identity → named', () => {
-        assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
-    });
-
-    test('a member\'s held session over a leftover viewer token is `none` — their own card (audit F1)', () => {
-        // NOT `named`: the session says who SHOULD be here, the token is who the reads would run as
-        // (AUTH_AND_SESSIONS 17), and the viewer has no email, so only the uid refusal in rule 1 stops
-        // it. Their own card goes up, and their sign-in sheds the viewer (viewer-shed.js).
-        assert.equal(decideAccess({ session, firebaseUser: viewer }), 'none',
-            'a member\'s held session over the shared viewer\'s token must not be granted');
         assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
     });
 
@@ -85,15 +53,9 @@ describe('decideAccess', () => {
         assert.equal(decideAccess({ session: null, firebaseUser: member }), 'none');
     });
 
-    test('a restored viewer with no session → none: the staff PIN is retired (owner, 23 Nov 2026)', () => {
-        // It was `viewer` until the PIN was retired. Now a leftover viewer session opens nothing, even
-        // before the boot's teardown (`reconcileExpiredIdentity`) has signed it out.
-        assert.equal(decideAccess({ session: null, firebaseUser: viewer }), 'none');
-    });
-
     test('no input can produce any answer but `named` or `none`', () => {
         const sessions = [null, session, { name: '' }];
-        const users = [null, member, anon, viewer, { uid: 'x', isAnonymous: false, email: 'someone@example.invalid' }];
+        const users = [null, member, anon, { uid: 'x', isAnonymous: false, email: 'someone@example.invalid' }];
         for (const s of sessions) for (const u of users) {
             assert.ok(['named', 'none'].includes(decideAccess({ session: s, firebaseUser: u })),
                 `${JSON.stringify(s)} / ${JSON.stringify(u)}`);
@@ -119,27 +81,12 @@ describe('decideAccess', () => {
 });
 
 describe('the constants are the contract', () => {
-    test('the viewer uid and claim are exactly what the server recognises', () => {
-        // These two strings appear in functions/retired-viewer-account.js, on the other side of a
-        // boundary this repo cannot cross without a build step (firestore.rules read the claim too,
-        // until the staff PIN's server release).
-        // calendar-viewer-parity.test.mjs is what actually pins them together; this states them.
-        assert.equal(CALENDAR_VIEWER_UID, 'calendar-viewer');
-        assert.equal(CALENDAR_VIEWER_CLAIM, 'calendarViewer');
-    });
-
     test('no PIN helper is left in the client (the staff PIN is retired, 23 Nov 2026)', async () => {
         const core = await import('../calendar-access-core.js');
-        for (const gone of ['PIN_LENGTH', 'PIN_FIRST_HASH', 'normalisePin', 'isCompletePin', 'classifyUnlockFailure', 'attemptBackoffMs']) {
+        // The second half went in the cleanup release (27 Nov 2026), with the account.
+        for (const gone of ['PIN_LENGTH', 'PIN_FIRST_HASH', 'normalisePin', 'isCompletePin', 'classifyUnlockFailure', 'attemptBackoffMs',
+            'isViewerUser', 'CALENDAR_VIEWER_UID', 'CALENDAR_VIEWER_CLAIM']) {
             assert.equal(gone in core, false, `${gone} came back`);
-        }
-    });
-
-    test('the claim is NOT one of the member claims', () => {
-        // A capability, not a role. If this ever equalled one of these, the viewer would satisfy a
-        // member rule by construction and every other test here would still pass.
-        for (const role of ['name', 'admin', 'manager', 'linksDesigner']) {
-            assert.notEqual(CALENDAR_VIEWER_CLAIM, role);
         }
     });
 });

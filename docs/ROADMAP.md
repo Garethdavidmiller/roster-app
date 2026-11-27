@@ -162,7 +162,7 @@ failure. What the PDF path still cannot see: `KNOWN_LIMITATIONS.md` → Roster d
 shipped, including the wiring defects found on the way: git.
 
 ### Track E — the authentication decision
-**Status:** Planned — the cleanup release of the staff PIN's retirement (owner, 23 Nov 2026; the client release shipped at v26.60, the server release at v26.65); E3 as designed is still an owner decision · **Owner:** Gareth · **Design and status of record:** `SECURITY_RELEASE_PLAN.md` → Track E and its row
+**Status:** Conditional — E3 as designed is an owner decision. The staff PIN's retirement is complete (owner, 23 Nov 2026; the client release shipped at v26.60, the server release at v26.65, the cleanup release on 27 Nov 2026) · **Owner:** Gareth · **Design and status of record:** `SECURITY_RELEASE_PLAN.md` → Track E and its row
 
 **The staff PIN is retired** (owner, 23 Nov 2026): everyone signs in under their own name, and
 somebody with no roster of their own gets an Other Staff login. It comes out in three releases —

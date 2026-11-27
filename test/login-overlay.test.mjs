@@ -92,8 +92,6 @@ mock.module('../firebase-client.js', { namedExports: {
         if (signOutCode !== 'ok') throw Object.assign(new Error(signOutCode), { code: signOutCode });
         fakeAuth.currentUser = null;
     },
-    restoreMemberPersistence:   async () => 'indexeddb',
-    letViewerWritesGo:          async () => false,
     probeResetAtMs:             async () => 0,
     // password-force.js's, which the card imports for `withTimeout`; nothing here opens that overlay.
     getPasswordStatus:          async () => null,
@@ -140,10 +138,6 @@ test('login-core.js\'s three rules are what login-overlay.js exports', async () 
     assert.equal(isAboutLinkAllowed, core.isAboutLinkAllowed);
     assert.equal(resetRequestFailureLine, core.resetRequestFailureLine);
 });
-const { CALENDAR_VIEWER_UID } = await import('../calendar-access-core.js');
-// The REAL teardown and the same staff-pin-ended.js instance the card listens to (audit B2/C2, below).
-const { reconcileExpiredIdentity } = await import('../session.js');
-const { onStaffPinEnded } = await import('../staff-pin-ended.js');
 
 /** Build a deps object with call-recording session helpers and sensible defaults. */
 function makeDeps(over = {}) {
@@ -308,8 +302,7 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
 // with only the SDK faked. Until then every failure that was neither a connection problem nor a rate
 // limit came back as a wrong password: the card said "Password not recognised", counted it towards
 // the 30-second lockout and, from the second, pushed the reset link — for a site missing from the
-// API key's allowed referrers, a disabled account, or a Calendar viewer that could not be signed out,
-// none of which a reset can fix. The browser suite checks what the card then DOES with each kind.
+// API key's allowed referrers or a disabled account, neither of which a reset can fix. The browser suite checks what the card then DOES with each kind.
 describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sessions-2)', () => {
     beforeEach(() => { signInCode = 'ok'; signOutCode = 'ok'; fakeAuth.currentUser = null; store.clear(); });
     const attempt = () => runNamedSignIn(signInDeps('G. Miller', 'a-password-of-my-own-7'));
@@ -347,13 +340,6 @@ describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sess
         assert.doesNotMatch(line, /password/i, 'it must not send the member to fix their password');
         assert.doesNotMatch(line, /connection/i, 'nor to fix their signal');
         assert.match(line, /ask the admin/, 'an app or account matter → the admin (house wording rule)');
-    });
-
-    test('a Calendar viewer that cannot be signed out abandons the sign-in — and that is not a wrong password either', async () => {
-        fakeAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
-        signOutCode = 'auth/internal-error';
-        const r = await attempt();
-        assert.equal(r.kind, 'other');
     });
 
     test('a rate limit and a dropped connection keep their own kinds on the real path', async () => {
@@ -404,25 +390,6 @@ describe('signInDeps → runNamedSignIn: the real sign-in path, classified (sess
         const r = await attempt();
         assert.deepEqual(r, { ok: true });
         assert.equal(JSON.parse(store.get('myb_admin_session')).name, 'G. Miller');
-    });
-
-    // THE PIN'S END IS STICKY FOR THE PAGE — UNTIL A MEMBER SIGNS IN THERE (audit B2/C2). Kept for
-    // good, the card a member met after signing in here in place and later losing their identity said
-    // again that the PIN had ended, and pointed a member at the shared code.
-    test('a sign-in that works makes the PIN\'s end old news: a LATER card on this page is not told', async () => {
-        fakeAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
-        await reconcileExpiredIdentity();                      // this page ends the PIN, the real way
-        assert.equal(fakeAuth.currentUser, null, 'premise: the teardown signed the PIN out');
-        let first = 0;
-        const stopFirst = onStaffPinEnded(() => { first++; });
-        await Promise.resolve();
-        assert.equal(first, 1, 'premise: the card up now is told');
-        stopFirst();
-        assert.deepEqual(await attempt(), { ok: true });      // a member signs in on that card, in place
-        let later = 0;
-        onStaffPinEnded(() => { later++; });                  // …and is later shown a card again
-        await Promise.resolve(); await Promise.resolve();
-        assert.equal(later, 0, 'a later card on the same page told a signed-in member the PIN had ended');
     });
 
     // The session the card saves begins when the SERVER says this sign-in happened (audit A2): a phone
@@ -631,30 +598,15 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         }
     });
 
-    // ── THE RETIRED STAFF PIN, SAID ONCE ON THE CALENDAR'S OWN CARD (owner, 23 Nov 2026) ─────────────────
-    // A browser still holding a PIN session is signed out by the Calendar's teardown, and its INLINE sign-in
-    // card — the front door — says why in one line. Until the retirement only the modal card on another page
-    // listened, because the Calendar kept the PIN. Driven by the REAL teardown, as the modal case is above.
-    test('the Calendar\'s inline card says the staff PIN is retired, once the teardown has signed one out', async () => {
-        const { STAFF_PIN_ENDED_NOTICE, forgetStaffPinEnded } = await import('../staff-pin-ended.js');
-        forgetStaffPinEnded();
-        try {
-            const card = mount('', () => {}, 'Calendar');
-            assert.ok(card.html().includes('id="loginNotice"'), 'the inline card has no notice line for the words to go in');
-            assert.ok(!card.html().includes('loginAlternative'), 'the front door offers another way in');
-            fakeAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
-            await reconcileExpiredIdentity();                       // the Calendar's boot ends the leftover PIN session
-            assert.equal(fakeAuth.currentUser, null, 'premise: the teardown signed the PIN out');
-            await turns();
-            mock.timers.tick(0);                                    // the words wait for the card to be drawn (speakAfterMount)
-            assert.equal(card.notice.textContent, STAFF_PIN_ENDED_NOTICE, 'the card did not say the PIN is retired');
-            assert.match(STAFF_PIN_ENDED_NOTICE, /^The staff PIN has been retired\. Sign in with your own name — if you don’t have an account yet, ask the admin\.$/);
-            // …and a card on a device that never held the PIN says nothing of it.
-            forgetStaffPinEnded();
-            const plain = mount('', () => {}, 'Calendar');
-            await turns(); mock.timers.tick(0);
-            assert.equal(plain.notice.textContent, '', 'a card told somebody who never used the PIN that it is retired');
-        } finally { forgetStaffPinEnded(); }
+    // ── THE CALENDAR'S OWN CARD: a notice line, and no second way in ───────────────────────────────────
+    // The line about the retired staff PIN that used to fill it went in the PIN's cleanup release (27 Nov
+    // 2026); the line itself stays, for the callers that pass a notice, and a card with none says nothing.
+    test('the Calendar\'s inline card has its notice line, empty, and offers no other way in', async () => {
+        const card = mount('', () => {}, 'Calendar');
+        assert.ok(card.html().includes('id="loginNotice"'), 'the inline card has no notice line');
+        assert.ok(!card.html().includes('loginAlternative'), 'the front door offers another way in');
+        await turns(); mock.timers.tick(0);
+        assert.equal(card.notice.textContent, '', 'a card with no notice said something');
     });
 
     // ── A SLOW ANSWER IS NOT A FAILURE (external review, 23 Nov 2026) ─────────────────────────────────

@@ -129,16 +129,13 @@ export const auth = initializeAuth(app, {
  * that case: it deletes all of a tab's storage together, these fallbacks included (KNOWN_LIMITATIONS
  * → "One interaction to expect on iOS").
  *
- * A function so the member paths call it through `restoreMemberPersistence`, never by repeating the
- * three-step ladder, and the fallback order cannot drift between call sites. (The retired staff PIN's
- * session-only viewer mode is why it exists; its boot branch below is kept until the cleanup release.)
+ * A function so the boot path calls it rather than repeating the three-step ladder.
  * @returns {Promise<'indexeddb'|'local'|'session'>} the mode that took; rejects if none did
  */
 function _setMemberPersistence() {
     // THE RESULT IS OBSERVABLE, AND TOTAL FAILURE IS NOT SUCCESS (audit §25). Resolves with the mode
-    // that took; rejects if none did, so a security-sensitive caller (the viewer↔member transitions,
-    // which reason about which mode the identity is in) can fail closed. An ordinary member login can
-    // tolerate an in-memory session; boot catches the rejection (`authBootstrap`).
+    // that took; rejects if none did. A member login can tolerate an in-memory session, so boot catches
+    // the rejection (`authBootstrap`).
     return setPersistence(auth, indexedDBLocalPersistence).then(() => /** @type {const} */ ('indexeddb'))
         .catch(() => setPersistence(auth, browserLocalPersistence).then(() => /** @type {const} */ ('local')))
         .catch(() => setPersistence(auth, browserSessionPersistence).then(() => /** @type {const} */ ('session')))
@@ -148,11 +145,6 @@ function _setMemberPersistence() {
         });
 }
 
-// PURE, and imported for the same reason session.js imports it: "is this identity the shared
-// Calendar viewer?" must have ONE answer — a second local copy of that predicate would be a second
-// place a bypass could be introduced. calendar-access-core.js imports only the pure auth-identity.js
-// — no cycle (import-graph.test.mjs).
-import { isViewerUser } from './calendar-access-core.js';
 // The one restore bound (8s), shared with session.js and login-core.js — silent-sign-in.js says why it lives there.
 import { AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
 
@@ -193,22 +185,14 @@ function _firstAuthUserAtBoot() {
 // BOOT MUST NOT INHERIT THE STRICTER POLICY. `_setMemberPersistence` rejects when no mode could be
 // established, but this promise is awaited at boot by every page, mostly without a catch, so
 // propagating here would turn a rare storage failure into an unhandled rejection and a blank app. An
-// in-memory session still works for the current tab. Security-sensitive callers use
-// `restoreMemberPersistence()` and get the rejection.
+// in-memory session still works for the current tab.
 //
-// ── THE RESTORED USER IS READ FIRST, AND THE CALENDAR VIEWER KEEPS SESSION PERSISTENCE ──────────
+// ── THE RESTORED USER IS READ FIRST ─────────────────────────────────────────────────────────────
 //
-// `setPersistence` MIGRATES the current user between stores (SDK: AuthImpl.setPersistence →
-// getCurrentUser → removeCurrentUser → setCurrentUser under the new persistence). Applied
-// unconditionally, it lifted a shared Calendar viewer OUT of sessionStorage and INTO IndexedDB, where
-// it survived the browser closing — measured in a real Chromium against the Auth emulator
-// (experiments/viewer-persistence-proof/). CALENDAR_DATA.md 12.
-//
-// So the boot waits for the restore FIRST — which costs nothing, because setPersistence already
-// queues behind the SDK's initialisation and that initialisation IS the restore — and only then
-// chooses: the viewer re-asserts session-only persistence (migrating it back OUT of IndexedDB where
-// it had leaked); everyone else gets the member chain. Member sign-ins that REPLACE a viewer run
-// through `shedCalendarViewer`, which signs the viewer out before calling `restoreMemberPersistence()`.
+// The boot waits for the restore before setting persistence — which costs nothing, because
+// setPersistence already queues behind the SDK's initialisation and that initialisation IS the
+// restore. (Until the staff PIN's cleanup release, 27 Nov 2026, the order also let a restored PIN
+// viewer keep session-only persistence: `setPersistence` MIGRATES the current user between stores.)
 //
 // ── ONE BOOT AUTHORITY ───────────────────────────────────────────────────────────────────────────
 //
@@ -221,12 +205,8 @@ function _firstAuthUserAtBoot() {
 export const authBootstrap = (async () => {
     let user = await _firstAuthUserAtBoot();
     // A TIMED-OUT emission is not "nobody signed in": setPersistence below waits for the restore
-    // anyway, then MIGRATES whoever it restored — a viewer included (invariant 12; measured).
+    // anyway, then migrates whoever it restored, so the answer is read once that has happened.
     if (!user) { try { await auth.authStateReady(); } catch { /* nobody restored */ } user = auth.currentUser; }
-    if (isViewerUser(user)) {
-        try { await setPersistence(auth, browserSessionPersistence); return { user, persistence: /** @type {const} */ ('session') }; }
-        catch { return { user, persistence: /** @type {const} */ ('none') }; }
-    }
     return { user, persistence: await _setMemberPersistence() };
 })().catch(() => ({ user: null, persistence: /** @type {const} */ ('none') }));
 
@@ -266,19 +246,6 @@ export async function currentUserAfterBoot(timeoutMs = AUTH_RESTORE_TIMEOUT_MS) 
     finally { clearTimeout(timer); }
     return auth.currentUser || null;
 }
-
-/**
- * Re-arm the long-lived MEMBER persistence chain.
- *
- * Called by `session.js` immediately AFTER shedding a Calendar viewer and BEFORE signing a member
- * in. The order is the whole point: `setPersistence` migrates the CURRENT user into the new
- * persistence, so doing this while the viewer is still signed in would move the shared viewer
- * session into IndexedDB — where it would survive the browser closing, which is exactly the
- * property that made unlocking a shared office PC safe. (Kept until the cleanup release, for a
- * leftover viewer session from before the PIN was retired.)
- * @returns {Promise<'indexeddb'|'local'|'session'>} the mode that took; rejects if none did
- */
-export function restoreMemberPersistence() { return _setMemberPersistence(); }
 
 // Re-export auth operations so callers import from one place.
 export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
@@ -343,29 +310,6 @@ export const whenOwnWritesSentFor = (refs, ms) => ownWritesSentFor(() => waitFor
 /** This phone's note that its queue holds a write it can never send — device state, one key whoever
  *  is signed in; the rules are claim-retry.js → "A PHONE KNOWN TO HOLD A LEFTOVER". */
 const _leftover = leftoverNote({ get: lsGet, set: lsSet, del: lsDel }, 'myb_queue_leftover');
-
-/** How long the staff PIN's unsent writes get to leave before it is signed out. */
-export const VIEWER_WRITES_GRACE_MS = 2000;
-/**
- * LET THE STAFF PIN'S WRITES GO BEFORE IT IS SIGNED OUT. The PIN is retired (23 Nov 2026), so the
- * sign-outs left are a LEFTOVER viewer session's, and both await this first: a member signing in over
- * it (`shedCalendarViewer`, viewer-shed.js) and the expired-identity reconcile
- * (`reconcileExpiredIdentity`, session.js), which is how the Calendar and Trains end one on arrival.
- * `clearSession()` does not. A viewer write still queued when it was signed out (its page views, speed
- * samples) stays in Firestore's on-device queue — and the SDK's `waitForPendingWrites` for the next
- * member WAITS ON IT (its IndexedDB queue looks up the highest unsent batch,
- * `getHighestUnacknowledgedBatchId`, without bounding it to the signed-in account: `@firebase/firestore`
- * 4.19–4.20), so every checked save on that device ran out its 8s and every checked removal was
- * refused as offline. KNOWN_LIMITATIONS.md → "Admin saves are slow on iPhones".
- * Bounded, never throws, does not announce to the slow-save diagnostic, and does nothing offline
- * (nothing would leave) or for anybody but the viewer.
- * @param {number} [ms] @returns {Promise<boolean>} whether the viewer's queue drained
- */
-export async function letViewerWritesGo(ms = VIEWER_WRITES_GRACE_MS) {
-    if (!isViewerUser(auth.currentUser) || globalThis.navigator?.onLine === false) return false;
-    try { return await ownWritesSent(() => waitForPendingWrites(db), ms, { onSettled: () => {} }); }
-    catch { return false; }
-}
 
 /** A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1) — for the admin reads below, which
  *  Operations painted as current offline ("✓ No outstanding requests", "0/51"). analytics-client.js keeps the
@@ -525,7 +469,7 @@ export async function deletePushSubscription(endpoint) {
     // NO OWNER, NO DELETE: the rule would refuse it anyway, after a round trip a sign-out's 1.5s
     // time-box may not have. `releaseDevicePush` then drops the BROWSER subscription instead.
     const u = auth.currentUser;
-    if (!u || u.isAnonymous || isViewerUser(u)) throw Object.assign(new Error('push/no-owner-session'), { code: 'push/no-owner-session' });
+    if (!u || u.isAnonymous) throw Object.assign(new Error('push/no-owner-session'), { code: 'push/no-owner-session' });
     const id = await endpointId(endpoint);
     await deleteDoc(doc(db, COLLECTIONS.pushSubscriptions, id));
 }

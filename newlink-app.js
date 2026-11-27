@@ -80,8 +80,7 @@ const ABOUT = Object.freeze({
 /** Coordinator body, invoked by newlink-boot.js. Exported so a test can import without running. */
 export function init() {
     registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Trains: a signed-out view must still take an update
-    // Tear down a lingering privileged Firebase identity whose local session has expired — and a leftover session of the
-    // retired staff PIN (reconcileExpiredIdentity's default).
+    // Tear down a lingering privileged Firebase identity whose local session has expired.
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
     // The start-up every card-opening page shares (page-start.js), decided from the LOCAL session, as Operations does —

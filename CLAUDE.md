@@ -25,8 +25,7 @@
 Identity Federation, and the old `FIREBASE_SERVICE_ACCOUNT` key is retired: RECOVERY_RUNBOOK.md →
 "The deploy identity"): `HUDDLE_SECRET` (bearer for `ingestHuddle`) · `ANTHROPIC_API_KEY` (`parseRosterPDF`) ·
 `VAPID_PRIVATE_KEY` (Web Push; the PUBLIC key is a literal in `functions/index.js` **and** `notif.js`,
-and the two must match) · `CALENDAR_VIEWER_PIN` (the RETIRED staff PIN, bound by nothing — the owner
-destroys it, then this entry goes: OPERATIONS_REFERENCE.md → "The staff PIN (retired)").
+and the two must match).
 
 **Workflows:** `deploy-functions.yml` · `deploy-hosting.yml` · `deploy-rules.yml`, all by Workload
 Identity Federation, each `deploy` job alone holding `id-token: write` and running no test

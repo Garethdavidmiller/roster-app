@@ -1097,14 +1097,15 @@ viewer door in `getDocumentUrl` and the Operations PIN-lockout card are deleted.
 `firebase deploy --only functions --force` deletes a function `index.js` no longer exports, so nothing is
 deleted by hand; `firebase functions:list --project myb-roster` confirms `unlockCalendarViewer` is gone.
 
-**Kept on purpose until the cleanup release:** `functions/retired-viewer-account.js`, so Set up accounts,
-the leaver sweep, a reset and the notices never adopt the shared account while it exists, and the client's
-teardown of a leftover PIN session.
+**Kept until the cleanup release:** `functions/retired-viewer-account.js`, so Set up accounts, the leaver
+sweep, a reset and the notices never adopted the shared account while it existed, and the client's
+teardown of a leftover PIN session. Both went in the cleanup release (27 Nov 2026).
 
-### After the server release — the manual steps
+### After the server release — the manual steps (DONE, 26 Nov 2026)
 
-The owner's, once **Deploy Firebase Functions** and **Deploy Firestore/Storage rules** have both finished
-for the server release, in this order:
+The owner's, once **Deploy Firebase Functions** and **Deploy Firestore/Storage rules** had both finished
+for the server release, in this order. Steps 1–3 were done on 26 Nov 2026 — the secret through Google
+Cloud → Secret Manager, destroying its versions; step 4 is still the owner's choice:
 
 1. **Delete the `calendar-viewer` account** — Firebase console → Authentication → Users → the account
    with uid `calendar-viewer` → Delete. Any session still open on it ends at its next token refresh.
@@ -1119,9 +1120,9 @@ for the server release, in this order:
 5. **Keep** `roles/iam.serviceAccountTokenCreator` on the runtime service account: `getDocumentUrl` needs
    it (RECOVERY_RUNBOOK.md project facts).
 
-Then the **cleanup release** removes the client's transition code and
-`functions/retired-viewer-account.js` — after step 1, because until the account is gone a session on it
-can still exist.
+Then the **cleanup release** (27 Nov 2026) removed the client's transition code and
+`functions/retired-viewer-account.js` — after step 1, because until the account was gone a session on it
+could still exist. `calendar-viewer-parity.test.mjs` keeps every piece of it from coming back.
 
 **Never write the PIN's value anywhere** — not in a doc, a commit, a ticket or a test.
 
