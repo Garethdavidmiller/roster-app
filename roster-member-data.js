@@ -130,9 +130,11 @@ export const teamMembers = [
     // M. Laurencin — started Mon 5 Oct 2026, the M. Campbell pattern. Phase 1 (to Fri 27 Nov):
     // initial training Monday to Friday, which is `fixedRoster[3]` as the BASE roster — TRAINING WITH
     // NO TIMES (owner, 27 Nov 2026: training 7 hours a day, shown as training with no times, as for
-    // M. Campbell). Phase 2 (from Sun 29 Nov): the BILINGUAL link one line ABOVE D. Irvine —
-    // `currentWeek: 2` is REFERENCE-ANCHORED (D. Irvine's 3, minus one), not the line she is on that
-    // week (line 3 on 29 Nov, with D. Irvine on 4). She is due to join the new 26-line CEA link when
+    // M. Campbell). Phase 2 (from Sun 29 Nov): the BILINGUAL link one line ABOVE T. Gherbi, the line
+    // I. Melikian left — `currentWeek: 5` is REFERENCE-ANCHORED (T. Gherbi's 6, minus one), not the
+    // line she is on that week (line 6 on 29 Nov, with T. Gherbi on 7). v27.09 put her above D. Irvine
+    // (`currentWeek: 2`), an owner's slip corrected on 27 Nov 2026, before the move began, so the entry
+    // was edited in place: no day had yet been drawn from it. She is due to join the new 26-line CEA link when
     // it starts; that move is a `rosterChanges` entry ADDED then, never an edit to this one.
     // A CEA contract on a bilingual line, so no `bilingualContract` flag: the CEA allowance.
     // ⚠️ `proRatedAL` is PROVISIONAL — a day-count of the CEA allowance (88 days of 365, 5 Oct to
@@ -142,7 +144,7 @@ export const teamMembers = [
     // figure. Booked as a dated row in docs/MAINTENANCE_CALENDAR.md, because a comment reminds nobody.
     { name: 'M. Laurencin',            currentWeek: 3,  rosterType: 'fixed',      role: 'CEA',
       startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 8 },
-      rosterChanges: [{ from: new Date(2026, 10, 29), rosterType: 'bilingual', currentWeek: 2 }] },
+      rosterChanges: [{ from: new Date(2026, 10, 29), rosterType: 'bilingual', currentWeek: 5 }] },
 
     // Dispatchers — 10-week rotating cycle, reference week starting 01/02/26
     // currentWeek reflects each person's row in the base roster on that date
