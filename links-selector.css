@@ -21,18 +21,21 @@
 /* The sub-pages' header sits in the Calendar's column, with the Calendar's gap below it. */
 .container > .app-header { margin-bottom: 8px; }
 
-/* WHAT THIS IS, between the controls and the month: a quiet line, never a banner that competes with the grid. */
+/* WHAT THIS IS, between the controls and the month, in the band the Calendar puts there (index.css → .top-prompt: the
+   raised on-navy surface, light words on the navy canvas) — so it reads as the Calendar's own strip, not a new kind of box.
+   Left-aligned: it runs to three or four lines on a phone, and centred text past two works against the reader (the notice
+   rule, /new-notice). Shown at every width, where the Calendar's prompts are phone-only: this one is not an offer. */
 .selector-note {
-    margin: 0 0 12px;
-    padding: 8px 14px;
+    margin: 0 0 16px;
+    padding: 10px 14px;
     border-radius: var(--radius-lg);
-    background: color-mix(in oklch, var(--blue-sky) 14%, white);
-    color: var(--primary-blue);
-    font-size: var(--type-label);
+    background: var(--on-navy-raised);
+    border: 1px solid var(--on-navy-hairline);
+    color: rgba(255, 255, 255, 0.88);
+    font-size: var(--type-small);
     line-height: 1.45;
-    text-align: center;
-    text-wrap: balance;
 }
+.selector-note strong { color: white; }
 
 /* A day before the new link starts: the date alone, on the filler days' quiet ground — inert, so no lift and no hand. */
 .calendar-day.selector-blank {

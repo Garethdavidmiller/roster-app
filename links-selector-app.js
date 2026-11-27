@@ -149,8 +149,10 @@ function runSelector() {
     // their roster; what the two choices mean; what happens each week; and why January starts blank. "Date not final"
     // rather than "provisional", which is the word nobody uses out loud.
     const start = startDate();
-    el('selectorNote').textContent = `A proposal, not your roster. Choose a proposal and the line you’d be on in its first week, `
-        + `from ${DAY_NAMES_FULL[start.getDay()]} ${formatDayMonthYear(start)} (date not final). Each Sunday you move down one line.`;
+    const note = el('selectorNote');
+    note.replaceChildren(Object.assign(document.createElement('strong'), { textContent: 'A proposal, not your roster.' }),
+        ` Choose a proposal and the line you’d be on in its first week, from ${DAY_NAMES_FULL[start.getDay()]} `
+        + `${formatDayMonthYear(start)} (date not final). Each Sunday you move down one line.`);
     el('selectorStartDate').textContent = formatDayMonth(start);
     el('selectorStartBtn').setAttribute('aria-label', `${formatDayMonth(start)}: go to the week the new link starts`);
 
