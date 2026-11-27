@@ -271,7 +271,8 @@ describe('Track C — the open C5 decision and the unbuilt work', () => {
             const row = CONTRACT.split('\n').find(l => l.startsWith(`| ${n} |`)) || '';
             assert.ok(row, `AUTH_AND_SESSIONS.md has no invariant ${n}`);
             // A CONTENT matcher, not a path: docs sit together in docs/ and refer to each other by bare filename.
-            assert.ok(row.includes(`SECURITY_RELEASE_PLAN.md\` → ${id}`) && /not yet built/.test(row),
+            // 'declined' counts: F was declined (owner, 27 Nov 2026), and its row still describes no code.
+            assert.ok(row.includes(`SECURITY_RELEASE_PLAN.md\` → ${id}`) && /not yet built|declined/.test(row),
                 `invariant ${n} must route to SECURITY_RELEASE_PLAN.md → ${id} and say it is not yet built — ` +
                 'when it IS built, repoint it at the module and drop the marker here.');
             assert.ok(new RegExp(`^### ${id} — `, 'm').test(TRACK_C), `the plan has no "### ${id} — " design for invariant ${n} to route to`);

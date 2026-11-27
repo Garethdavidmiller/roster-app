@@ -1707,5 +1707,17 @@ says (KNOWN_LIMITATIONS.md → the 60-day session). So:
   set-password step now asks on an ordinary open as well as after a sign-in, asking for the current
   password up front, so it no longer waits for a session to run out (password-force.js).
 - **Rejected:** renewing everywhere (a forgotten session on the station PC would live as long as
-  somebody kept using that PC); a shorter session for everybody to cover the admin's phone (the
-  planned answer is a password check before admin actions, SECURITY_RELEASE_PLAN.md → F).
+  somebody kept using that PC); a shorter session for everybody to cover the admin's phone (see
+  "No password check before admin actions", below).
+
+## No password check before admin actions (owner, 27 Nov 2026)
+
+Proposed as Track F of the security plan: the server would refuse a password reset or an account
+change from Operations unless the admin had entered their password in the last 15–30 minutes, because
+a long session means a phone picked up while unlocked could reset a colleague's password. **Declined**:
+"My phone unlocks with a fingerprint and relocks with a power button press. There is no need to do
+this. It can also be deleted remotely if lost." The phone's own lock is the control for an unattended
+phone, and a lost one is wiped remotely — and an admin reset of the admin's own account still signs
+every device out (AUTH_AND_SESSIONS.md 23). Not to be re-proposed on the same argument. If it is ever
+reopened (for example a shared admin device), AUTH_AND_SESSIONS.md 16 holds the one rule: the server
+reading the token's `auth_time`, never a client timer.
