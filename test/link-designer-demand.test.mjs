@@ -1,0 +1,513 @@
+// @lane hygiene
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+    DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, demandAt, peakCars, demandBucket,
+    movementsOutside, dutySpans, summariseDemand, describeHours, describeMovements,
+} from '../link-designer-demand.js';
+import { DAYS, ROTATING_LINES, dayClass, calcHourlyCoverage, startMinutes, endMinutesAbs } from '../link-designer-design.js';
+import { generateLink } from '../link-designer-generate.js';
+import { PROPOSALS } from '../link-designer-proposals.js';
+import { buildDefaultTargets } from '../link-designer-default-targets.js';
+
+/**
+ * The profile is measured data, so the tests that matter most are the ones that would catch it
+ * being TRANSCRIBED wrong — a plausible-looking table nobody can check by eye. Totals and peaks are
+ * pinned against the figures in link-designer-demand.js's header, which is where the measurement is written up.
+ */
+describe('DEC_2026_DEMAND — the measured profile', () => {
+    const sum = (a) => a.reduce((x, y) => x + y, 0);
+
+    test('totals match the published measurement', () => {
+        assert.equal(sum(DEC_2026_DEMAND.weekday.mv), 311);
+        assert.equal(sum(DEC_2026_DEMAND.weekday.cars), 1756);
+        assert.equal(sum(DEC_2026_DEMAND.sat.mv), 215);
+        assert.equal(sum(DEC_2026_DEMAND.sat.cars), 1266);
+        assert.equal(sum(DEC_2026_DEMAND.sun.mv), 188);
+        assert.equal(sum(DEC_2026_DEMAND.sun.cars), 1059);
+    });
+
+    test('every day class carries 24 hours of both figures', () => {
+        for (const cls of ['weekday', 'sat', 'sun']) {
+            assert.equal(DEC_2026_DEMAND[cls].mv.length, 24, cls);
+            assert.equal(DEC_2026_DEMAND[cls].cars.length, 24, cls);
+        }
+    });
+
+    test('an hour with movements always carries cars, and vice versa', () => {
+        // A zero in one and not the other means a transcription slip, and it would render as either
+        // an invisible busy hour or a shaded empty one.
+        for (const cls of ['weekday', 'sat', 'sun']) {
+            for (let h = 0; h < 24; h++) {
+                assert.equal(
+                    DEC_2026_DEMAND[cls].mv[h] === 0, DEC_2026_DEMAND[cls].cars[h] === 0,
+                    `${cls} ${h}`,
+                );
+            }
+        }
+    });
+
+    test('EVERY movement carries a possible train length (3–9 cars)', () => {
+        // Max CAO runs 3 to 9 — that is the route, not a guess. Checked per MOVEMENT, deliberately:
+        // the first version of this test checked each hour's MEAN, and a single impossible value
+        // smooths away in a bucket of a dozen movements. It did: three arrivals carried 11, 13 and
+        // 13 cars from the diagram-sum recovery (a cell listing two unit diagrams) and this test was
+        // green over all three.
+        for (const cls of ['weekday', 'sat', 'sun']) {
+            for (const [t, cars, isArr] of DEC_2026_MOVEMENTS[cls]) {
+                assert.ok(cars >= 3 && cars <= 9,
+                    `${cls} ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} ` +
+                    `${isArr ? 'arr' : 'dep'} — ${cars} cars is not a possible train length`);
+            }
+        }
+    });
+
+    test('the derived hourly curve agrees with the movements it came from', () => {
+        // The curve is DERIVED, so this should be true by construction — which is exactly why it is
+        // worth pinning: if anyone ever reintroduces a hand-written hourly table beside the times,
+        // this is what notices, and nothing else would.
+        for (const cls of ['weekday', 'sat', 'sun']) {
+            assert.equal(sum(DEC_2026_DEMAND[cls].mv), DEC_2026_MOVEMENTS[cls].length, cls);
+            assert.equal(sum(DEC_2026_DEMAND[cls].cars),
+                DEC_2026_MOVEMENTS[cls].reduce((a, x) => a + x[1], 0), cls);
+        }
+    });
+
+    test('movements are sorted and within the day', () => {
+        for (const cls of ['weekday', 'sat', 'sun']) {
+            const t = DEC_2026_MOVEMENTS[cls].map(x => x[0]);
+            assert.deepEqual(t, [...t].sort((a, b) => a - b), cls);
+            assert.ok(t.every(v => v >= 0 && v < 1440), cls);
+            assert.ok(DEC_2026_MOVEMENTS[cls].every(x => x[2] === 0 || x[2] === 1), cls);
+        }
+    });
+
+    test('the weekday peak MOVES when weighted by cars — 08:00 by movement, 17:00 by cars', () => {
+        // This is the finding the two-figure design exists to preserve. If a future edit blends them
+        // into one number, or re-measures without the weighting, this is what notices.
+        const mv = DEC_2026_DEMAND.weekday.mv, cars = DEC_2026_DEMAND.weekday.cars;
+        assert.equal(mv.indexOf(Math.max(...mv)), 8);
+        assert.equal(cars.indexOf(Math.max(...cars)), 17);
+    });
+
+    test('Saturday and Sunday agree with themselves on both measures', () => {
+        for (const cls of ['sat', 'sun']) {
+            const mv = DEC_2026_DEMAND[cls].mv, cars = DEC_2026_DEMAND[cls].cars;
+            assert.equal(mv.indexOf(Math.max(...mv)), cars.indexOf(Math.max(...cars)), cls);
+        }
+    });
+
+    // This asserted `provisional === true` until v19.71, which pinned a STATE rather than a
+    // contract — so confirming the weekday file as final (owner, Aug 2026) failed a test whose real
+    // subject is "can a design be traced back to the data it was built on". `provisional` is
+    // genuinely allowed to flip; what must not change is that the source names the exact FILE.
+    //
+    // That matters because "final" means *this file* is settled, not that the naming was tidied. If
+    // a later weekday simplifier ever supersedes it, every figure in DEC_2026_MOVEMENTS has to be
+    // re-measured from that file rather than assumed to carry over — and the only thing that would
+    // tell a reader which file they are looking at is this string.
+    test('the source identifies the exact files, so a design can be traced back to them', () => {
+        assert.match(DEC_2026_SOURCE.detail, /10 of 13/, 'the weekday file must be identifiable by name');
+        assert.match(DEC_2026_SOURCE.detail, /Final/, 'and so must its Sat/Sun counterparts');
+        assert.match(DEC_2026_SOURCE.detail, /empty-stock moves left out/i);
+        assert.match(DEC_2026_SOURCE.detail, /Measured \w+ \d{4}/, 'when it was measured');
+        // The renderer branches on this, so it has to stay a boolean whichever way it points.
+        assert.equal(typeof DEC_2026_SOURCE.provisional, 'boolean');
+    });
+});
+
+describe('demandAt', () => {
+    test('maps every weekday key to the weekday curve', () => {
+        for (const d of ['mon', 'tue', 'wed', 'thu', 'fri']) {
+            assert.deepEqual(demandAt(DEC_2026_DEMAND, d, 17), { mv: 23, cars: 140 });
+        }
+    });
+
+    test('Saturday and Sunday have their own curves', () => {
+        assert.deepEqual(demandAt(DEC_2026_DEMAND, 'sat', 17), { mv: 14, cars: 82 });
+        assert.deepEqual(demandAt(DEC_2026_DEMAND, 'sun', 17), { mv: 14, cars: 78 });
+    });
+
+    test('Sunday has no service before 07:00 — the shape the window has to respect', () => {
+        for (let h = 1; h <= 6; h++) assert.deepEqual(demandAt(DEC_2026_DEMAND, 'sun', h), { mv: 0, cars: 0 });
+        assert.equal(demandAt(DEC_2026_DEMAND, 'sun', 7).mv, 3);
+    });
+
+    test('returns zeroes rather than throwing on junk — a missing figure must not kill the card', () => {
+        assert.deepEqual(demandAt(DEC_2026_DEMAND, 'nope', 12), { mv: 0, cars: 0 });
+        assert.deepEqual(demandAt(DEC_2026_DEMAND, 'mon', 24), { mv: 0, cars: 0 });
+        assert.deepEqual(demandAt(DEC_2026_DEMAND, 'mon', -1), { mv: 0, cars: 0 });
+        assert.deepEqual(demandAt(DEC_2026_DEMAND, 'mon', 1.5), { mv: 0, cars: 0 });
+        assert.deepEqual(demandAt(null, 'mon', 12), { mv: 0, cars: 0 });
+    });
+});
+
+describe('peakCars / demandBucket', () => {
+    test('peak is the busiest single hour across all three day classes', () => {
+        assert.equal(peakCars(DEC_2026_DEMAND), 140);   // weekday 17:00
+    });
+
+    test('peak of an empty or absent profile is 0, not NaN', () => {
+        assert.equal(peakCars(null), 0);
+        assert.equal(peakCars({}), 0);
+    });
+
+    test('any non-zero demand reaches at least bucket 1', () => {
+        // One 3-car train is a quiet hour, not a closed one. b0 is reserved for genuinely nothing.
+        assert.equal(demandBucket(1, 140), 1);
+        assert.equal(demandBucket(5, 140), 1);
+        assert.equal(demandBucket(140, 140), 5);
+    });
+
+    test('zero demand is bucket 0, and a zero peak cannot divide', () => {
+        assert.equal(demandBucket(0, 140), 0);
+        assert.equal(demandBucket(10, 0), 0);
+        assert.equal(demandBucket(-3, 140), 0);
+    });
+});
+
+describe('summariseDemand — the finding/fact split', () => {
+    /** Somebody on duty for the whole of every hour in `hours`, on every day, as `dutySpans` gives it. */
+    const cover = (/** @type {number[]} */ hours) => Object.fromEntries(DAYS.map(d => [d,
+        hours.map(h => /** @type {[number, number]} */ ([h * 60, h * 60 + 59]))]));
+    /** The whole day staffed — every hour open. */
+    const openAll = () => ({ start: 0, end: 24 * 60 });
+    /** The real Mon–Sat window: 06:20 to 23:55. */
+    const w0620 = () => ({ start: 6 * 60 + 20, end: 23 * 60 + 55 });
+    /** The real per-day windows: Mon–Sat 06:20–23:55, Sun 07:15–23:25. */
+    const realWindow = (d) => (d === 'sun'
+        ? { start: 7 * 60 + 15, end: 23 * 60 + 25 }
+        : { start: 6 * 60 + 20, end: 23 * 60 + 55 });
+
+    test('a staffed hour with trains and nobody on duty is a FINDING', () => {
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: openAll,
+        });
+        assert.ok(r.uncovered.length > 0);
+        assert.equal(r.outside.length, 0);
+        assert.ok(r.uncoveredCars > 0);
+    });
+
+    test('service when the station is shut is a FACT, never a finding', () => {
+        // The last trains and the 05:5x first departure are outside every real window. If they
+        // leaked into `uncovered` they would flag every design that will ever exist, and the row
+        // would be learned-ignored — taking the genuine finding with it.
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: w0620,
+        });
+        assert.ok(r.outside.length > 0);
+        assert.ok(r.outside.every(e => e.t < 6 * 60 + 20 || e.t > 23 * 60 + 55));
+        assert.ok(r.uncovered.every(e => e.hour >= 6));
+        assert.ok(r.outsideCars > 0);
+    });
+
+    test('outside is counted once per day CLASS — a weekday 00:01 is one fact, not five', () => {
+        // It depends only on the service and the window, never on the design. Reporting it per day
+        // would list the permanent, unmovable cases five times over and bury the entries that are
+        // actually about a boundary someone could move.
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: w0620,
+        });
+        assert.deepEqual([...new Set(r.outside.map(e => e.label))].sort(), ['Mon–Fri', 'Sat', 'Sun']);
+        assert.equal(r.outside.filter(e => e.label === 'Mon–Fri' && e.t === 1).length, 2);  // two 00:01 deps
+        // …while uncovered stays per day, because a hole on five days IS five times the problem.
+        assert.equal(r.uncovered.filter(e => e.hour === 12).length, 7);
+    });
+
+    test('every outside entry carries the label the reader sees', () => {
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: w0620,
+        });
+        for (const e of r.outside) assert.ok(['Mon–Fri', 'Sat', 'Sun'].includes(e.label), e.label);
+    });
+
+    test('an hour with cover is neither', () => {
+        const allHours = Array.from({ length: 24 }, (_, h) => h);
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover(allHours), days: DAYS, windowFor: openAll,
+        });
+        assert.equal(r.uncovered.length, 0);
+        assert.equal(r.outside.length, 0);
+    });
+
+    test('cover in an UNSTAFFED hour does not cancel the outside fact', () => {
+        // Someone rostered outside the window is an anomaly in its own right; the service then is
+        // still service the link does not officially staff, and the figure must say so.
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover([0]), days: DAYS, windowFor: w0620,
+        });
+        assert.ok(r.outside.some(e => e.t < 60));
+    });
+
+    test('an hour with NO trains is silent whether staffed or not', () => {
+        // 02:00–04:00 is empty on every day. A staffed hour with no service is not a hole.
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover([]), days: DAYS, windowFor: openAll,
+        });
+        for (const h of [2, 3, 4]) {
+            assert.ok(!r.uncovered.some(e => e.hour === h), `hour ${h} should be silent`);
+            assert.ok(!r.outside.some(e => Math.floor(e.t / 60) === h), `hour ${h} should be silent`);
+        }
+    });
+
+    test('THE LIVE SUNDAY CASE: the real 23:25 finish leaves five movements outside', () => {
+        // This is the finding the whole feature exists to surface, and the FIRST implementation
+        // could not see it. The window was tested an HOUR at a time, and 23:25 means the 23:00 hour
+        // is partly staffed — so an hourly test called it covered and all five movements vanished.
+        // The unit test passed too, because it used a synthetic `h <= 22` Sunday rather than the
+        // real window. It now runs against the REAL boundary, to the minute.
+        const allHours = Array.from({ length: 24 }, (_, h) => h);
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover(allHours), days: DAYS, windowFor: realWindow,
+        });
+        const late = r.outside.filter(e => e.label === 'Sun' && e.t > 23 * 60 + 25);
+        assert.equal(late.length, 5, 'the plan records exactly five Sunday movements after 23:25');
+        assert.deepEqual(late.map(e => `${Math.floor(e.t / 60)}:${String(e.t % 60).padStart(2, '0')} ${e.isArr ? 'arr' : 'dep'}`),
+            ['23:27 dep', '23:35 arr', '23:45 dep', '23:51 arr', '23:54 arr']);
+        // THREE of the five are arrivals — which is why the answer to open question 1 strengthens
+        // the Sunday case rather than weakening it. An earlier draft assumed only departures needed
+        // a CEA, which would have cut this from five movements to two.
+        assert.equal(late.filter(e => e.isArr).length, 3);
+
+        // Mon–Sat is a different story and the panel must not blur them together: the 23:55 finish
+        // is overhung by exactly two minutes — two weekday movements and one Saturday one, all at
+        // 23:57 — which the plan calls "no change needed", against Sunday's half hour. A summary
+        // that reported only a combined total would make those two look like the same problem.
+        const lateMonSat = r.outside.filter(e => e.label !== 'Sun' && e.t > 23 * 60 + 55);
+        assert.equal(lateMonSat.length, 3);
+        assert.ok(lateMonSat.every(e => e.t === 23 * 60 + 57));
+    });
+
+    test('totals equal the sum of their own entries', () => {
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: cover([8, 9, 10]), days: DAYS, windowFor: w0620,
+        });
+        assert.equal(r.uncoveredCars, r.uncovered.reduce((a, e) => a + e.cars, 0));
+        assert.equal(r.uncoveredMv, r.uncovered.reduce((a, e) => a + e.mv, 0));
+        assert.equal(r.outsideCars, r.outside.reduce((a, e) => a + e.cars, 0));
+        assert.equal(r.outsideMv, r.outside.length);   // one movement each, by construction
+    });
+
+    test('survives a cover map missing days entirely', () => {
+        const r = summariseDemand({
+            movements: DEC_2026_MOVEMENTS, spans: {}, days: DAYS, windowFor: openAll,
+        });
+        assert.ok(r.uncovered.length > 0);   // absent cover reads as zero cover, not as a crash
+    });
+});
+
+// ── THE COVER QUESTION IS ASKED TO THE MINUTE (whole-app review, Nov 2026) ─────────────────────────
+// It was asked of the hourly headcount, where anybody on for any part of an hour covers all of it, so
+// a gap inside an hour or straddling two was invisible: earlies to 14:20 and lates from 15:25 left 98
+// trains a week meeting nobody, and the panel said every staffed hour had someone on duty. Every
+// fixture before this one covered an hour completely or not at all, which is how it went unseen.
+describe('uncovered is asked train by train, to the minute', () => {
+    const L = ROTATING_LINES;
+    /** The real per-day windows: Mon–Sat 06:20–23:55, Sun 07:15–23:25. */
+    const realWindow = (/** @type {string} */ d) => (d === 'sun'
+        ? { start: 7 * 60 + 15, end: 23 * 60 + 25 }
+        : { start: 6 * 60 + 20, end: 23 * 60 + 55 });
+    const openAll = () => ({ start: 0, end: 24 * 60 });
+    /** Half the lines work `a` every day and half work `b` — the handover is the only gap. */
+    const twoShifts = (/** @type {string} */ a, /** @type {string} */ b) => {
+        /** @type {Record<string, any>} */ const p = {};
+        for (let i = 1; i <= L; i++) p[String(i)] = Object.fromEntries(DAYS.map(d => [d, i <= L / 2 ? a : b]));
+        return p;
+    };
+    const read = (/** @type {Record<string, any>} */ p, windowFor = realWindow) =>
+        summariseDemand({ movements: DEC_2026_MOVEMENTS, spans: dutySpans(p, L), days: DAYS, windowFor });
+    /** The day's trains strictly between two minutes, counted from the timetable itself. */
+    const trainsBetween = (/** @type {string} */ d, /** @type {number} */ from, /** @type {number} */ to) =>
+        DEC_2026_MOVEMENTS[dayClass(d)].filter(([t]) => t > from && t < to).length;
+
+    test('a gap INSIDE one hour is a finding — the hour it sits in had people on for the rest of it', () => {
+        // Earlies end 14:20, lates start 14:40.
+        const p = twoShifts('06:20-14:20', '14:40-23:55');
+        const hourly = calcHourlyCoverage(p, L);
+        assert.ok(DAYS.every(d => hourly[d].hours[14] > 0), 'premise: the heat map shows people on in hour 14');
+        const r = read(p);
+        assert.deepEqual(r.uncovered.map(e => `${e.day} ${e.hour}`), DAYS.map(d => `${d} 14`));
+        for (const e of r.uncovered) assert.equal(e.mv, trainsBetween(e.day, 14 * 60 + 20, 14 * 60 + 40), e.day);
+    });
+
+    test('a gap STRADDLING two hours is a finding in both', () => {
+        // The reader's case: 06:20–14:20 and 15:25–23:55, so 65 minutes a day with nobody on.
+        const r = read(twoShifts('06:20-14:20', '15:25-23:55'));
+        assert.deepEqual(r.uncovered.map(e => `${e.day} ${e.hour}`), DAYS.flatMap(d => [`${d} 14`, `${d} 15`]));
+        const expected = DAYS.reduce((n, d) => n + trainsBetween(d, 14 * 60 + 20, 15 * 60 + 25), 0);
+        assert.equal(r.uncoveredMv, expected, 'every train in the gap, and only those');
+        assert.equal(expected, 98, 'the figure the review measured');
+    });
+
+    test('a train exactly at a duty\'s start or finish meets the person on it', () => {
+        // Closed at both ends, like the staffed window: somebody finishing at 11:00 is there for it.
+        const movements = { weekday: [[600, 5, 0], [660, 6, 1], [700, 4, 0]], sat: [], sun: [] };
+        const r = summariseDemand({ movements, spans: { mon: [[600, 660]] }, days: ['mon'], windowFor: openAll });
+        assert.deepEqual(r.uncovered, [{ day: 'mon', hour: 11, mv: 1, cars: 4 }]);
+    });
+
+    test('a train is outside OR uncovered, never both — the ones before the opening are the fact', () => {
+        // The hour test counted the 06:04, 06:11 and 06:16 departures in the uncovered 06:00 hour AND
+        // as service before the opening. With nobody on, every train is now exactly one of the two.
+        const r = summariseDemand({ movements: DEC_2026_MOVEMENTS, spans: {}, days: DAYS, windowFor: realWindow });
+        const LABEL = /** @type {Record<string, string>} */ ({ weekday: 'Mon–Fri', sat: 'Sat', sun: 'Sun' });
+        for (const d of DAYS) {
+            const cls = dayClass(d);
+            const unc = r.uncovered.filter(e => e.day === d).reduce((n, e) => n + e.mv, 0);
+            const out = r.outside.filter(e => e.label === LABEL[cls]).length;
+            assert.equal(unc + out, DEC_2026_MOVEMENTS[cls].length, d);
+        }
+        const six = r.uncovered.find(e => e.day === 'mon' && e.hour === 6);
+        assert.equal(six?.mv, trainsBetween('mon', 6 * 60 + 19, 7 * 60), 'the 06:00 hour counts only trains from 06:20');
+    });
+
+    test('a day key that is not a day is asked about nothing — not quietly about the weekday service', () => {
+        // `dayClass` reads anything that is not a weekend key as a weekday, so 'sunday' would be
+        // answered from the Mon–Fri timetable and reported as a finding about a day that is not there.
+        const r = summariseDemand({ movements: DEC_2026_MOVEMENTS, spans: {}, days: ['sunday'], windowFor: openAll });
+        assert.deepEqual(r.uncovered, []);
+    });
+
+    test('a duty past midnight covers the next day\'s first trains, Saturday round to Sunday', () => {
+        const p = /** @type {Record<string, any>} */ ({ 1: { sat: '18:00-02:00' } });
+        const r = read(p, openAll);
+        assert.ok(!r.uncovered.some(e => e.day === 'sun' && e.hour < 2), 'the Sunday 00:05 is met by Saturday\'s late');
+        assert.ok(!r.uncovered.some(e => e.day === 'sat' && e.hour >= 18), 'and Saturday evening is met too');
+        assert.ok(r.uncovered.some(e => e.day === 'sun' && e.hour >= 7), 'premise: the rest of Sunday is bare');
+    });
+
+    test('dutySpans counts a duty in an hour exactly when the heat map does', () => {
+        // Two readers of a duty must never disagree: the heat map's picture and the finding under it.
+        // Real designs, then seeded random ones carrying the shapes only imported data reaches —
+        // a duty past midnight, a spare day, an unreadable cell.
+        const { slots, spareLines } = buildDefaultTargets();
+        const designs = [...PROPOSALS.map(x => x.patterns),
+            generateLink({ slots, spareLines, lines: L }).patterns, ...randomDesigns(40)];
+        for (const p of designs) {
+            const spans = dutySpans(p, L), hourly = calcHourlyCoverage(p, L);
+            for (const d of DAYS) for (let h = 0; h < 24; h++) {
+                const n = spans[d].filter(([s, e]) => s < (h + 1) * 60 && e > h * 60).length;
+                assert.equal(n, hourly[d].hours[h], `${d} ${h}:00`);
+            }
+        }
+    });
+
+    test('on random designs it finds exactly the trains a direct reading of the cells finds', () => {
+        // The oracle reads the patterns afresh, cell by cell, without `dutySpans`.
+        for (const p of randomDesigns(40)) {
+            const r = read(p);
+            /** @type {string[]} */ const want = [];
+            for (const [i, d] of DAYS.entries()) {
+                const prev = DAYS[(i + 6) % 7];
+                const { start, end } = realWindow(d);
+                /** @type {Map<number, number>} */ const perHour = new Map();
+                for (const [t] of DEC_2026_MOVEMENTS[dayClass(d)]) {
+                    if (t < start || t > end) continue;
+                    let on = false;
+                    for (let pos = 1; pos <= L && !on; pos++) {
+                        const today = p[String(pos)]?.[d], yday = p[String(pos)]?.[prev];
+                        const st = startMinutes(today), en = endMinutesAbs(today), yen = endMinutesAbs(yday);
+                        if (st !== null && en !== null && st <= t && t <= en) on = true;
+                        if (yen !== null && yen > 24 * 60 && t <= yen - 24 * 60) on = true;
+                    }
+                    if (!on) perHour.set(Math.floor(t / 60), (perHour.get(Math.floor(t / 60)) ?? 0) + 1);
+                }
+                for (const [h, n] of perHour) want.push(`${d} ${h} ${n}`);
+            }
+            assert.deepEqual(r.uncovered.map(e => `${e.day} ${e.hour} ${e.mv}`), want);
+        }
+    });
+});
+
+/**
+ * Seeded random designs (mulberry32, so a failure reproduces): mostly real duty times, with the
+ * shapes only legacy or imported data reaches — past midnight, spare, unreadable — mixed in.
+ * @param {number} n
+ */
+function randomDesigns(n) {
+    let a = 20261110;
+    const rnd = () => {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const CELLS = ['RD', 'RD', 'RD', 'SPARE', 'OFF', 'gibberish', '06:20-14:20', '07:15-15:45', '11:00-19:30',
+        '14:30-22:30', '15:25-23:55', '15:45-23:55', '18:00-02:00', '22:00-06:00', '06:55-15:00'];
+    return Array.from({ length: n }, () => {
+        /** @type {Record<string, any>} */ const p = {};
+        for (let i = 1; i <= ROTATING_LINES; i++) {
+            p[String(i)] = Object.fromEntries(DAYS.map(d => [d, CELLS[Math.floor(rnd() * CELLS.length)]]));
+        }
+        return p;
+    });
+}
+
+describe('movementsOutside', () => {
+    test('splits before and after the boundary, exclusive of the boundary itself', () => {
+        const mv = [[100, 4, 0], [200, 5, 1], [300, 6, 0]];
+        const r = movementsOutside(mv, 200, 200);
+        assert.deepEqual(r.before.map(e => e.t), [100]);
+        assert.deepEqual(r.after.map(e => e.t), [300]);
+    });
+
+    test('a movement exactly ON the window edge is inside it', () => {
+        // The station is staffed AT 06:20; a 06:20 departure is covered. Off-by-one here would put a
+        // real movement on the wrong side of a business argument.
+        assert.equal(movementsOutside([[380, 5, 0]], 380, 1435).before.length, 0);
+        assert.equal(movementsOutside([[1435, 5, 0]], 380, 1435).after.length, 0);
+    });
+
+    test('carries the length and the arr/dep flag through', () => {
+        const r = movementsOutside([[10, 7, 1]], 100, 200);
+        assert.deepEqual(r.before, [{ t: 10, cars: 7, isArr: true }]);
+    });
+
+    test('empty or absent movements give empty lists, not a throw', () => {
+        assert.deepEqual(movementsOutside(undefined, 0, 100), { before: [], after: [] });
+        assert.deepEqual(movementsOutside([], 0, 100), { before: [], after: [] });
+    });
+});
+
+describe('describeMovements', () => {
+    test('names each movement to the minute, with arr/dep', () => {
+        assert.equal(
+            describeMovements([{ label: 'Sun', t: 1407, cars: 5, isArr: false },
+                { label: 'Sun', t: 1415, cars: 4, isArr: true }]),
+            'Sun 23:27 dep, Sun 23:35 arr',
+        );
+    });
+
+    test('caps and counts the remainder', () => {
+        const e = Array.from({ length: 7 }, (_, i) => ({ day: 'sun', t: 60 + i, cars: 5, isArr: false }));
+        assert.match(describeMovements(e, 2), /\+5 more$/);
+    });
+
+    test('empty in, empty out', () => {
+        assert.equal(describeMovements([]), '');
+    });
+});
+
+describe('describeHours', () => {
+    test('names the hours, capped, with a remainder', () => {
+        const e = [
+            { day: 'sun', hour: 23 }, { day: 'mon', hour: 0 },
+            { day: 'tue', hour: 5 }, { day: 'wed', hour: 5 }, { day: 'thu', hour: 5 },
+        ];
+        assert.equal(describeHours(e, 2), 'Sun 23:00, Mon 00:00, +3 more');
+        assert.equal(describeHours(e.slice(0, 2)), 'Sun 23:00, Mon 00:00');
+    });
+
+    test("an entry's own label wins over its representative day", () => {
+        // A per-day-class fact must not read as being about Monday in particular.
+        assert.equal(describeHours([{ label: 'Mon–Fri', day: 'mon', hour: 0 }]), 'Mon–Fri 00:00');
+    });
+
+    test('pads the hour so the list aligns with the grid headings', () => {
+        assert.equal(describeHours([{ day: 'sat', hour: 6 }]), 'Sat 06:00');
+    });
+
+    test('empty in, empty out', () => {
+        assert.equal(describeHours([]), '');
+    });
+});

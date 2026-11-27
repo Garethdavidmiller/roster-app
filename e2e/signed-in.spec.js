@@ -29,10 +29,10 @@
  *                         has changed this" v25.96 closed, neither of which a stub can order. The
  *                         same reload proves the draft kept mid-save is not offered back once its
  *                         save is in the queue (v25.97).
- *   9. Links, back online — the designer's own account: a change to a design saved with no signal
+ *   9. Link Designer, back online — the designer's own account: a change to a design saved with no signal
  *                         is still in this device's queue when the design is renamed, so the
  *                         rename waits for it, and the queued save cannot then land on top and put
- *                         the old name back. Links store rule 5 (v25.96), on the real SDK and the
+ *                         the old name back. Link Designer store rule 5 (v25.96), on the real SDK and the
  *                         real `linkDesigns` rules. With the wait removed, that is exactly what
  *                         happened here (measured 13 November 2026).
  *  10. an admin reset    — the admin presses Reset in Operations on their own phone, through the real
@@ -103,7 +103,7 @@ const plain = roster.cea.filter((/** @type {string} */ n) => !withARole.has(n));
 const MEMBER = plain[0];
 const COLLEAGUE = plain[1];
 const MANAGER = roster.roles.manager[0];
-/** Whoever the server's role list makes a Links designer: the claim Links saves through. */
+/** Whoever the server's role list makes a link designer: the claim Link Designer saves through. */
 const DESIGNER = roster.roles.designer[0];
 /** Whoever the server's role list makes the admin: the claim an admin reset is made with. */
 const ADMIN = roster.roles.admin[0];
@@ -625,13 +625,13 @@ test('another account\'s leftover write: a checked save and delete go straight t
     expectNothingLeftForGoogle(page);
 });
 
-test('Links, back online: a rename waits for the save this device has not sent yet, and is not undone by it', async ({ page, context }) => {
+test('Link Designer, back online: a rename waits for the save this device has not sent yet, and is not undone by it', async ({ page, context }) => {
     const NAME = 'Option A';
     const RENAMED = 'Option A, renamed';
     /** The design as the database holds it, read past the rules. */
     const stored = async () => (await readCollection('linkDesigns')).find((d) => d.name === NAME || d.name === RENAMED);
     await page.addInitScript(() => { try { localStorage.setItem('myb_links_welcome_seen', '1'); } catch { /* private mode */ } });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await signInFirstTime(page, DESIGNER);
 
     // A design made with a signal, so the database holds it before anything is queued.

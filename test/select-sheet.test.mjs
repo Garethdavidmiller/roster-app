@@ -15,8 +15,8 @@
  *   FAILING TO REPORT A PICK costs a tap and is visible at once.
  *
  * The pure readers are tested against a fake DOM. The one thing a unit test cannot see — that the
- * trigger is actually reachable and the sheet actually opens — is the page specs' (`e2e/links.spec.js` among them), because that
- * is precisely the wiring gap that shipped in the Links picker and passed every unit test.
+ * trigger is actually reachable and the sheet actually opens — is the page specs' (`e2e/link-designer.spec.js` among them), because that
+ * is precisely the wiring gap that shipped in the Link Designer picker and passed every unit test.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';

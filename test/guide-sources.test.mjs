@@ -639,7 +639,7 @@ test('review-cadence reminder (never fails; logs due and overdue high-risk rows)
 // ── A DRAFT ROW MUST BE VISIBLE ON THE PAGE IT CERTIFIES (v20.05) ───────────────────────────────
 //
 // The register knowing a claim is unverified is worth nothing if the staff member reading the guide
-// cannot tell. This is the `links-deletion.js` lesson in a different file: the bin promised a 30-day
+// cannot tell. This is the `link-designer-deletion.js` lesson in a different file: the bin promised a 30-day
 // countdown for ten versions after the purge was switched off, and what that cost was not the
 // countdown — it was the reason to believe the next thing the panel said.
 //
@@ -652,7 +652,7 @@ test('review-cadence reminder (never fails; logs due and overdue high-risk rows)
 // checked the products at source, that banner was actively misleading in the OTHER direction: eight
 // well-sourced products and two contradictory ones presented as equally uncertain, so a reader could
 // no longer tell which was which — the same "reason to believe the next thing" cost the
-// links-deletion bin note incurred, running the other way. Hence a marker per class, and a banner
+// link-designer-deletion bin note incurred, running the other way. Hence a marker per class, and a banner
 // that has to mention every state actually present on the page.
 
 /**

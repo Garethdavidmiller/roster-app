@@ -3,7 +3,7 @@
  * admin-tips.js — CARD_TIPS for admin.html's `?` panels.
  *
  * Data, no DOM, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins — the split
- * Operations, Links, Overtime and Trains had already made. Content is not coordination, so it left
+ * Operations, Link Designer, Overtime and Trains had already made. Content is not coordination, so it left
  * `admin-app.js`, which only hands it to `initTipsLightbox`. An item or section marked `adminOnly`
  * shows to the admin and managers (who pick members exactly as the admin does), `staffOnly` to a
  * self-service member. The Huddle, roster and staff-login tips are Operations' (operations-tips.js),

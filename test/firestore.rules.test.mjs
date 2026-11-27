@@ -27,7 +27,7 @@ import { teamMembers } from '../roster-member-data.js';
 import { buildAnalyticsClient } from '../analytics-client.js';
 import { APP_VERSION } from '../roster-data.js';
 import { monthKey, dayKey, originLabel } from '../usage-stats.js';
-import { targetSetPayload, MAX_SET_NAME, MAX_SET_SLOTS, SPARE_WEEKS_CAP } from '../links-target-sets.js';
+import { targetSetPayload, MAX_SET_NAME, MAX_SET_SLOTS, SPARE_WEEKS_CAP } from '../link-designer-target-sets.js';
 import { buildDocumentClient } from '../documents-client.js';
 import { resolveUploadCommit } from '../upload-commit.js';
 import { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath } from '../storage-utils.js';
@@ -973,9 +973,9 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), noTs));
     });
     // `revision` — the v22.15 concurrency identity, shipped rules-first and now stamped on every save
-    // by links-design-store.js (this said "no client writes it yet" long after one did; test audit,
+    // by link-designer-design-store.js (this said "no client writes it yet" long after one did; test audit,
     // 7 Nov 2026). Both directions matter and they are not symmetric: rejecting a legitimate revision
-    // would permission-deny every Links save, while accepting a bad one
+    // would permission-deny every Link Designer save, while accepting a bad one
     // lets a value through that the co-editing guard then compares against. A design with NO
     // revision must keep working, because every design that exists today is one.
     test('a designer CAN write a revision', async () => {
@@ -1114,7 +1114,7 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
                 { deletedAt: past(), deletedBy: 'M. Robson' }, { merge: true }));
         });
         test('a rename on a stale baseline leaves the pair as it was, and is accepted', async () => {
-            // links-design-store.js writes only { name, revision } then, so the colleague's save is
+            // link-designer-design-store.js writes only { name, revision } then, so the colleague's save is
             // not signed as ours — the "unchanged" half of the rule.
             const id = uid();
             await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), { ...DESIGN(), revision: 1 }));
@@ -1138,7 +1138,7 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
                 { name: 'Line 1', patterns: {}, updatedAt: serverTimestamp(), updatedBy: 'M. Robson', revision: 2 }));
         });
         test('the restore the store writes — a merge clearing the deleter with deleteField() — is accepted, and only stamped now', async () => {
-            // links-design-store.js's restore is THIS write, not the full set above: a merge, so the
+            // link-designer-design-store.js's restore is THIS write, not the full set above: a merge, so the
             // rule sees the stored pattern and name plus the cleared pair.
             const id = uid();
             await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
@@ -1987,7 +1987,7 @@ describe('circulars', () => {
 
 describe('linkTargetSets — saved generator target sets, per-creator write (v21.04)', () => {
     // The one promise: anyone may save a NEW set; only the creator (or admin) may overwrite or
-    // delete one. Every case here has a client-side twin in links-target-sets.test.mjs — that copy
+    // delete one. Every case here has a client-side twin in link-designer-target-sets.test.mjs — that copy
     // drives the Save button, THIS is the protection, and the two must answer alike.
     const SET = (createdBy = 'G. Miller', updatedBy = createdBy) => ({
         name: 'Set A',
@@ -2090,7 +2090,7 @@ describe('linkTargetSets — saved generator target sets, per-creator write (v21
         };
         await assertSucceeds(setDoc(doc(db, 'linkTargetSets', id),
             targetSetPayload(table, 'S. Silva', 'S. Silva', serverTimestamp())));
-        // An overwrite passes the existing `createdBy` through, as links-generator-targets.js does.
+        // An overwrite passes the existing `createdBy` through, as link-designer-generator-targets.js does.
         await assertSucceeds(setDoc(doc(db, 'linkTargetSets', id),
             targetSetPayload({ ...table, spareLines: 0 }, 'S. Silva', 'S. Silva', serverTimestamp())));
     });

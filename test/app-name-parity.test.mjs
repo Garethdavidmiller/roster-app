@@ -36,6 +36,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { REDIRECT_PAGES } from '../scripts/app-pages.mjs';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -143,7 +144,7 @@ describe('"MYB" never names the app', () => {
         // Desktop audit, Nov 2026: eleven titles began "Marylebone Roster — …", so on a desktop with
         // several tabs open they truncated to the same words. The page's own name leads now, and the
         // app's name closes. The legacy redirect stubs say "moved" and are not pages anyone keeps open.
-        const pages = readdirSync(new URL('.', REPO_ROOT_URL)).filter(f => f.endsWith('.html') && !['guide.html', 'fip.html'].includes(f));
+        const pages = readdirSync(new URL('.', REPO_ROOT_URL)).filter(f => f.endsWith('.html') && !REDIRECT_PAGES.some(p => p.file === f));
         /** @type {Record<string, string>} */
         const titles = {};
         for (const f of pages) {

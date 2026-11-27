@@ -271,7 +271,7 @@ shown that yet.
   badge's colour and said nothing the badge did not. It made every title line taller, and it tipped
   Pay's HPP title onto two lines at 375px. v25.15 also had to fix it hanging onto the line beneath.
   The colour went to where it MEANS something: whatever you have chosen. Before, a chosen tab was
-  navy on most pages, raspberry on one Trains row and a gold tint on Links, so one screen could show
+  navy on most pages, raspberry on one Trains row and a gold tint on Link Designer, so one screen could show
   two colours for one idea. Navy is kept for buttons that do something. Choices with their own
   meaning (shift types, yes and no) keep their own colours. The rule and its exceptions are
   `.claude/rules/css-tokens.md` → "Whatever you have chosen wears the page's colour", enforced by
@@ -482,7 +482,7 @@ shown that yet.
 - **The Huddle print notice keeps `:has()` — DECLINED** (external review, 8 Sep 2026). Replacing
   `body:has(#huddleViewer.visible)` with a body-state class was proposed on portability grounds. The
   app already leans on `:has()` in several stylesheets, and the other uses fail *worse*: an unsupported
-  engine would leave a selected back-pay/HPP mode option and a ticked Links objective looking
+  engine would leave a selected back-pay/HPP mode option and a ticked Link Designer objective looking
   unselected, which is a wrong answer on screen, against one missing explanatory sentence here — the
   print protection itself is a plain `#huddleViewer { display: none }` and needs no `:has()` at all.
   A class would also add a third piece of open/closed state to the app's one hand-rolled overlay
@@ -515,7 +515,7 @@ shown that yet.
   padding and the container's 12px gap read as one 18px band of navy — the widest gap on the page,
   and reported as having "grown", though nothing about it had changed since v21.37. Removing a
   thing is not finished until the space it occupied is closed.
-- **Links compare on a phone — self-labelling cells: DECLINED** (v22.77, external review). The
+- **Link Designer compare on a phone — self-labelling cells: DECLINED** (v22.77, external review). The
   proposal was to give each compare cell its own day label so the grid survives a narrow screen.
   It is the wrong device for the job rather than a layout to fix: a 24x7 grid of two designs is a
   desk task, three named designers do it, and there is no reported use of compare mode on a phone.
@@ -524,7 +524,7 @@ shown that yet.
   what the review was reaching for (finding the changed lines quickly) is answered instead by the
   **only-the-lines-that-differ** view shipped in the same release, which helps on every width.
   Reopen only if somebody reports actually using it on a phone.
-- **Links sticky save bar — density pass: DECLINED** (v22.77, external review). Nothing is reported
+- **Link Designer sticky save bar — density pass: DECLINED** (v22.77, external review). Nothing is reported
   wrong with it, it has already had a tuning pass, and "denser" is not a defect. This is recorded
   rather than left on a list because it has now been deferred twice; a third deferral would be a
   decision nobody is making.
@@ -700,7 +700,7 @@ is still in force; nothing here reopens one.
 
 `select-sheet.js` replaced the OS popup everywhere a reader reads a list — the Calendar's member
 picker, Admin's member select (`#fieldMember`) and its month filter, the pay-period selector and the
-rest of the calculator's fields, and the Links saved-setups picker. Some were left alone on purpose,
+rest of the calculator's fields, and the Link Designer saved-setups picker. Some were left alone on purpose,
 so that "why is this one different?" has an answer:
 
 - **`#otIdentityMember` (Overtime).** It is `disabled` and carries exactly one option — the signed-in
@@ -742,13 +742,13 @@ families were invisible to it, and neither is minor:
   pages plus the Calendar's front door. It is also the highest-blast-radius change available —
   `e2e/auth.spec.js` drives it on every one of those surfaces — which is why it was recorded rather
   than converted in passing.
-- **`.gen-slot-time` (Links generator targets, one per shift slot).** Declared native: a dense table
+- **`.gen-slot-time` (Link Designer generator targets, one per shift slot).** Declared native: a dense table
   of times a designer sets in a run, not fields read one at a time. Replacing every cell of a table
   with a sheet trigger is a design question about tables, not a mechanical conversion. Designer-only
   surface, so nothing a member sees.
 
 The second hole was quieter and is the one to remember: the runtime half asked whether a MODULE
-calls `enhanceSelect` anywhere, not whether THIS select is enhanced. `links-generator-targets.js`
+calls `enhanceSelect` anywhere, not whether THIS select is enhanced. `link-designer-generator-targets.js`
 calls it for its saved-setups picker, so its nineteen slot times were reported as covered by a
 module that does enhance — just not them. **A guard whose unit is coarser than the thing it guards
 reports the thing as guarded.**
@@ -778,7 +778,7 @@ these" but "what does a phone user see instead", and the answer differed by what
   option is unavailable — and those were the only ones with real value, and the only ones a phone
   user was actively missing. Each became a line in the row (`.sunday-note` in the week grid,
   `.bp-mode-why` under the option; the roster review's Sunday note already worked this way and its
-  own comment argued the point). The Links totals cells got a legend line for the same reason.
+  own comment argued the point). The Link Designer totals cells got a legend line for the same reason.
 
 **Not adopted: an app-drawn tooltip component.** The Calendar has one (`initCalendarTooltip`) and it
 is deliberately a no-op on coarse pointers — a tooltip is a hover idiom, and building a better hover
@@ -816,7 +816,7 @@ argued for rather than typed.
 
 Settled by the iPhone audit of 7 Nov 2026, which found the app working everywhere from iOS 16.4 and
 degrading below it: the 114 `color-mix()` rules (Safari 16.2) drop their colours on 16.1 and earlier
-— the Links heat map's busiest hours go white on white — and below 15.4 `:has()` and `Object.hasOwn`
+— the Link Designer heat map's busiest hours go white on white — and below 15.4 `:has()` and `Object.hasOwn`
 are missing too (the latter breaks Operations' App Speed card). 16.4 is also where Web Push for an
 installed app begins, so it is the first version on which every feature of the app exists. The
 phones that stop short of it are the iPhone 6s, 7 and first-generation SE, whose last iOS is 15.8.
@@ -1312,7 +1312,7 @@ After both, the sweep finds nothing past the edge on any guide at any of its 4 w
   the Rangers quick answer would vanish into the page.
 - **Two overlay styles** — dark glass for About and the notices, white for sign-in and Tips — by design;
   and Pay's 10px small print is deliberate.
-- **The Links generator's boxes** measure 13px on a desktop and 16px on a touch screen, which a test holds.
+- **The Link Designer generator's boxes** measure 13px on a desktop and 16px on a touch screen, which a test holds.
 - **Trains' "Change station" and the grid's "Show every station" stay pills** — they act rather than
   reveal (`trains.css`), so the show-more corner does not reach them.
 - **Labels, pills and tags, card names and figures, the app's badges drawn in a guide, and controls**
@@ -1336,16 +1336,16 @@ Railcard guide's screen sizes reaching paper — each failed its test.
 
 ## The 55-hour row takes a cover week at its worst, as every run does (17 Nov 2026)
 
-**Decided (17 Nov 2026, under the owner's "do all" on a whole-app review):** the Links fatigue row "More
+**Decided (17 Nov 2026, under the owner's "do all" on a whole-app review):** the Link Designer fatigue row "More
 than 55 hours worked in any 7-day period" takes its verdict on a cover week's WORST case, as every run
-rule in the panel already does ("A cover week is an unknown, not a no", `.claude/rules/links-design.md`).
+rule in the panel already does ("A cover week is an unknown, not a no", `.claude/rules/link-designer.md`).
 It took it on the FLOOR — a cover week counted as no hours — so Balanced V6 read CLEAR at 50.9 hours
-while one of its cover weeks falling badly comes to over 60, and Links' Design checks counted 3 factors
+while one of its cover weeks falling badly comes to over 60, and Link Designer's Design checks counted 3 factors
 present where the New link page, built from the pack's worst case, counted 4. Members can read both
 during the consultation.
 
 **What the worst case is.** Each worked day of a cover week counts as a quarter of the contracted week,
-8h 45m (`COVER_DUTY_MINUTES`, links-fatigue.js): the app already counts a cover week as the contracted
+8h 45m (`COVER_DUTY_MINUTES`, link-designer-fatigue.js): the app already counts a cover week as the contracted
 week (the hours row, owner), and it is worked as four duties. The four fall on Monday to Saturday,
 placed as badly as each seven days allows, and the Sunday is worked as overtime on top — the bounds the
 run rules keep. The Sunday counts the same 8h 45m: one stated assumption rather than two.
@@ -1357,7 +1357,7 @@ worst case crosses 55. With no cover week the two figures are one, and nothing i
 **The New link page and the pack.** The page's counts now match the Design checks for all three
 shortlisted designs (Balanced V6 4, Level Crossing 0, Middle Ground 1). The pack's own worst case takes
 a cover duty as 8 hours (with 8h 45m and an 8-hour Sunday beside it), so its printed figures are a
-little lower than the app's — 58h 35m and 60h 30m where Links says 61.2 for Balanced V6 — and the two
+little lower than the app's — 58h 35m and 60h 30m where Link Designer says 61.2 for Balanced V6 — and the two
 agree on every verdict. The pack was NOT regenerated: its tables keep their own split, the duties the
 rota fixes and then "up to", so `report-data.mjs` reads the row at its floor for them, and every sheet,
 deck and figure on the page is what it was.
@@ -1366,7 +1366,7 @@ deck and figure on the page is what it was.
 crosses 55 — Balanced V6 and Middle Ground on the shortlist. The "today's link" row is unchanged: today's
 main cycle is over 55 on its fixed duties already.
 
-**What holds it:** `links-fatigue.test.mjs` (four of Monday to Saturday and never six, the Sunday on top,
+**What holds it:** `link-designer-fatigue.test.mjs` (four of Monday to Saturday and never six, the Sunday on top,
 the placement the pack's blocks reach, each week's own four across a lap, both figures in the
 sentence) and `newlink-data.test.mjs` (every count the page states is the Design checks' count for the
 same rota). Taking the verdict on the floor again fails both; dropping the pack's floor reading makes
@@ -1417,7 +1417,7 @@ flag), so the sign-in, the server's account list and Operations all reach it thr
 `signInMembers`. The account is a **plain member**, not a new claim tier: a member can already read the
 roster and write only their own records, and that is the access this grade needs, so the security rules
 did not change and there was no backend-first release to order. What the grade TAKES AWAY — Admin, Pay,
-Overtime, Links, New link — is the client's page policy (`otherStaff` in `PAGE_POLICIES`) and one drawer
+Overtime, Link Designer, New link — is the client's page policy (`otherStaff` in `PAGE_POLICIES`) and one drawer
 gate (`isNotOtherStaff`). That is UX, not a boundary, and it does not need to be one: a member opening
 Admin by its address could only record leave against a roster they do not have.
 
@@ -1510,13 +1510,13 @@ provisional paint"; the login freeze's lessons in AUTH_AND_SESSIONS.md → "The 
 
 **Considered and dropped.** A Daily Huddle history viewer — the Huddle's value is the day's duties, not
 browsing. A global `scroll-behavior: smooth` — it changes scroll feel app-wide for marginal benefit.
-The sub-44px ✎/✕ chip buttons (`links.css`) and `.roster-tick` (`operations.css`) stay as they are:
+The sub-44px ✎/✕ chip buttons (`link-designer.css`) and `.roster-tick` (`operations.css`) stay as they are:
 mouse-driven admin and designer surfaces, where equal 44px hit areas on adjacent controls would overlap.
 
 **The service worker: ONE for all pages.** Two workers sharing one scope competed and wiped each
 other's caches (v6.50–v7.07). `.claude/rules/pwa.md` carries it.
 
-**The Links workspace's founding choices** (v12.06–v12.47), beside the patterns-only documents
+**The Link Designer's founding choices** (v12.06–v12.47), beside the patterns-only documents
 KNOWN_LIMITATIONS.md already records: a SLOT-based generator rather than an early/late binary, because
 the station is staffed in waves (28 distinct start times, distinct Saturday and Sunday); and an
 HOURLY heat map rather than a bar chart per shift type, because it shows the real on-duty shape and
@@ -1565,7 +1565,7 @@ last week unreachable below ~825px, then two contrast failures the fix exposed),
 nothing while discouraging the look that found them. **Revisit if a change lands there that is polish
 and nothing else.** **A Huddle's TEXT is confidential — DECIDED 7 Sep 2026**: the Huddle, the Circular
 and the Newsletter are not readable without a sign-in (the client first, v23.17,
-`calendar-doc-access.js`; the rules at v23.18). Links already in circulation are EXC-007.
+`calendar-doc-access.js`; the rules at v23.18). Link Designer already in circulation are EXC-007.
 
 **From the print review (7 Sep 2026).** **A running footer on printed guides — WON'T DO, on evidence**
 (v24.06): Chromium implements no `@page` margin boxes, a `position: fixed` footer is clipped at the
@@ -1582,7 +1582,7 @@ Calendar, whose header already names the app, the member and the date.
 was deleted on 26 Nov 2026, its work shipped. **Its full last text is `git show
 16386f9b:docs/LINKS_DEC2026_PLAN.md`.** What is still open is `ROADMAP.md` → The new CEA link. The
 rules every design is judged against are `docs/links-26/RULES.md`; how the workspace is built is
-`.claude/rules/links-design.md`. Decisions already argued in a module header or that rule file stay
+`.claude/rules/link-designer.md`. Decisions already argued in a module header or that rule file stay
 there (the FF18 cadence reading, a spare week as four duties of seven, the 13-day limit and its
 withdrawn Hidden origin, the uplift control, demand weighted by cars, the run cap's trade). These had
 no other home:
@@ -1606,7 +1606,7 @@ which already covers the posts, is the baseline, and **the measured service is E
 the cover, never a target**: no CEA-per-train ratio exists, and the tool must not invent one.
 
 **The staffed window (owner, Aug 2026)** is Mon–Sat 06:20–23:55 and Sunday 07:15–23:25
-(`DEFAULT_WINDOW`, `links-window.js`); post-midnight trains are outside the link by design.
+(`DEFAULT_WINDOW`, `link-designer-window.js`); post-midnight trains are outside the link by design.
 **No duty runs past 23:25 on a Sunday** (owner, 28 Sep 2026: agreed practice, and it will remain so),
 so the five later Sunday movements (23:27 dep, 23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr) are stated
 on every design as a neutral fact, never a finding. Saturday shares Mon–Fri's window; the setting can
@@ -1617,7 +1617,7 @@ question with it: the work that fills a widened link comes from the December 202
 making today's lines denser. Every extra duty comes out of a rest day, so a service increase cannot be
 absorbed by the existing lines — the link has to get bigger, which means more staff. That is why the
 generator refuses a table that misses the contract in either direction, and why the uplift control was
-declined (owner, Aug 2026: "over complicates it"; `.claude/rules/links-design.md` → No uplift control).
+declined (owner, Aug 2026: "over complicates it"; `.claude/rules/link-designer.md` → No uplift control).
 
 **Re-measuring from a new timetable file** meets two traps that each failed silently once: a `+` in a
 time (`05+46`) marks an empty-stock move (all 53 such movements carried a `5x` headcode), and five

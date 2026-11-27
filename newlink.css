@@ -49,7 +49,7 @@ body {
     margin-bottom: 12px;
 }
 
-/* The page's identity: the leave teal, which no other pill or page wears (an accepted overload, as Links wears the
+/* The page's identity: the leave teal, which no other pill or page wears (an accepted overload, as Link Designer wears the
    Spare purple — the AL badge and this page are never on screen together). the header badge, the About badge and every chosen control all read it (shared.css :root → "Page identity", v25.14). Declared once, here.
    As text on a pale tint it reads in --al-deep. */
 :root {
@@ -362,7 +362,7 @@ body {
    sideways swipe at its edge from passing to the page. It is
    `position: relative` so the hidden " to " in each cell (.visually-hidden, absolutely placed) scrolls inside it: with no
    placed ancestor those escaped the frame and widened the document by the grid's overflow (39px at 320px and 1.3 times). */
-/* THE RIGHT-EDGE CUE (the 22 Nov 2026 review), the Links grid's recipe (links.css → --scroll-cue): at large text Saturday was
+/* THE RIGHT-EDGE CUE (the 22 Nov 2026 review), the Link Designer grid's recipe (link-designer.css → --scroll-cue): at large text Saturday was
    simply cut off at the frame with nothing to say it scrolls. `local` masks the fade once the end is reached, `scroll` pins
    the shadow to the frame; it shows in the gaps between cells and the frame's padding, so no listener can go stale. */
 .nl-weeks-wrap {
@@ -681,7 +681,7 @@ body {
     /* A tile's "See its weeks" asks paper to be pressed (the 22 Nov 2026 review): the name prints, on a plain edge. */
     .nl-name-go { display: none; }
     .nl-name { border-color: var(--print-muted); }
-    /* Paper has no tap-to-expand, so a folded card prints OPEN, as on Links (17 Nov 2026): "What's changed" and "How
+    /* Paper has no tap-to-expand, so a folded card prints OPEN, as on Link Designer (17 Nov 2026): "What's changed" and "How
        the figures are worked out" — the method notes among them — printed as their headers alone. Its chevron is a
        control, and goes. */
     .card-collapsible-body { display: block !important; }

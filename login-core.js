@@ -227,9 +227,9 @@ const SIGN_IN_ABOUT_BY_PAGE = Object.freeze({
         ]),
         footnote: SHARED_SCREEN,
     }),
-    Links: Object.freeze({
+    'Link Designer': Object.freeze({
         lines: Object.freeze([
-            'The workspace where new roster links are designed and checked.',
+            'The design tool where new roster links are drawn up and checked.',
             'Only the colleagues designing them can use it, so you sign in as yourself.',
         ]),
         footnote: SHARED_SCREEN,

@@ -4,8 +4,8 @@
  * service workers, card titles), the shared drawer and dialogs, the select sheet, the Huddle table,
  * and the large-text family that holds three pages to one layout rule.
  *
- * Until 3 Nov 2026 it also held every Admin, Links, Operations, Settings and guide test, in one
- * file of 10,599 lines. Those now live in the admin-*.spec.js files (split by feature on 25 Nov 2026), links.spec.js,
+ * Until 3 Nov 2026 it also held every Admin, Link Designer, Operations, Settings and guide test, in one
+ * file of 10,599 lines. Those now live in the admin-*.spec.js files (split by feature on 25 Nov 2026), link-designer.spec.js,
  * operations.spec.js, settings.spec.js and guides.spec.js, moved test for test and unchanged.
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';
@@ -89,7 +89,7 @@ test('a card title\'s emoji sits inside its title, on its first line, and a wrap
 for (const [label, url, appJs] of [
     ['admin', '/admin.html', 'admin'],
     ['operations', '/operations.html', 'operations'],
-    ['links', '/links.html', 'links'],
+    ['links', '/link-designer.html', 'links'],
 ]) {
     test(`${label}: a boot placeholder stands in for the blank page, and goes when the page is ready`, async ({ page }) => {
         // These three hide `.container` until `body.auth-ready`, and their HEADER with it — so
@@ -141,12 +141,12 @@ for (const [label, url, appJs] of [
     });
 }
 
-// The Links page replaced every native confirm()/prompt() with the in-app confirmDialog/
+// The Link Designer replaced every native confirm()/prompt() with the in-app confirmDialog/
 // promptDialog (overlay.js). Test those directly in a real browser: they build a .dialog-overlay
 // on the createLightbox lifecycle and resolve a Promise. overlay.js imports no Firebase, so it
 // loads standalone. Native confirm/prompt are overridden to throw — proving nothing falls back.
 test('confirmDialog: renders an in-app dialog and resolves true/false (not native confirm)', async ({ page }) => {
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     const r = await page.evaluate(async () => {
         window.confirm = () => { throw new Error('native confirm() was called'); };
         const { confirmDialog } = await import('/overlay.js');
@@ -181,7 +181,7 @@ test('confirmDialog: renders an in-app dialog and resolves true/false (not nativ
 });
 
 test('promptDialog: resolves the typed value on confirm, null on cancel (not native prompt)', async ({ page }) => {
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     const r = await page.evaluate(async () => {
         window.prompt = () => { throw new Error('native prompt() was called'); };
         const { promptDialog } = await import('/overlay.js');
@@ -212,13 +212,13 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
 });
 
 // ── A DIALOG OPENED FROM ANOTHER DIALOG'S ANSWER STILL OWNS A BACK ENTRY ─────────────────────────
-// Links chains them (`if (!await confirmDialog(…)) return; await promptDialog(…)` — New design,
+// Link Designer chains them (`if (!await confirmDialog(…)) return; await promptDialog(…)` — New design,
 // Duplicate). The confirm's close issues `history.back()`, whose popstate lands LATER; the prompt
 // opened in between pushed its entry on top, so the traversal popped the PROMPT's entry and its
 // echo was absorbed. The prompt stayed on screen with no entry, and Android Back left the page.
 // Only a browser can show this — the race is between a microtask and a history traversal.
 test('confirmDialog → promptDialog: Back closes the prompt and stays on the page', async ({ page }) => {
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await page.evaluate(async () => {
         const { confirmDialog, promptDialog } = await import('/overlay.js');
         /** @type {any} */ (window).__chain = (async () => {
@@ -235,7 +235,7 @@ test('confirmDialog → promptDialog: Back closes the prompt and stays on the pa
 
     await page.evaluate(() => history.back());
     await expect(page.locator('.dialog-overlay.open .dialog-input')).toBeHidden();
-    await expect(page).toHaveURL(/links\.html/);
+    await expect(page).toHaveURL(/link-designer\.html/);
     expect(await page.evaluate(() => /** @type {any} */ (window).__chain), 'Back is a cancel').toBe(null);
 });
 
@@ -841,7 +841,7 @@ test('every control Admin and Operations style is set in Inter', async ({ page }
 });
 
 // ── THE FIRST CARD SITS THE SAME DISTANCE UNDER THE HEADER ON EVERY PAGE (desktop audit, Nov 2026) ─
-// From 768px Admin, Operations and Links set it 14px down (their grid's gap, the header's margin 0)
+// From 768px Admin, Operations and Link Designer set it 14px down (their grid's gap, the header's margin 0)
 // and the other five 4px (the header's own margin) — so hopping pages, the content jumped 10px under
 // a header that did not move. What is measured is what a reader sees: the first thing PAINTED below
 // the header — a box with a fill, or words — not a wrapper's edge.
@@ -1269,7 +1269,7 @@ test.describe('a link in a Tips panel or a card explainer', () => {
 // A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime
 // registered the service worker only after their sign-in gate, so a release landing while somebody
 // sat on the sign-in screen left them working on the old release under the new worker. Operations
-// and Links had the rule since v16.21; this asks it of every app page, so the next one cannot miss it.
+// and Link Designer had the rule since v16.21; this asks it of every app page, so the next one cannot miss it.
 test('every app page registers its service worker on a signed-out visit', async ({ page }) => {
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__swRegisters = 0;
@@ -1366,7 +1366,7 @@ const APP_URLS = APP_PAGES_LIST.map(p => p.url);
  * its own. So is anything the page hides ON PURPOSE, which has no box by design: a closed dialog's
  * contents, a `[hidden]` block, and anything under a `display: none` of the page's own (the paused
  * Overtime page hides its cards' header actions that way). The one `display: none` that is NOT on
- * purpose is `.container`'s: Admin, Operations and Links hide the whole page under it until
+ * purpose is `.container`'s: Admin, Operations and Link Designer hide the whole page under it until
  * `body.auth-ready` (shared.css), and a page in that state is exactly the one that was not laid out.
  * @param {import('@playwright/test').Page} page @param {string} selector
  * @returns {Promise<{ held: number, withBox: number }>}
@@ -1465,7 +1465,7 @@ test('every control on every page and guide is set in Inter, not the browser\'s 
     await page.locator('#weekNavLabel').click();
     await expect(page.locator('.dp-content')).toBeVisible();
     wrong.push(...(await census()).map(c => `the date picker ${c}`));
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await page.evaluate(async () => {
         const { promptDialog } = await import('/overlay.js');
         promptDialog({ title: 'Name', message: 'Name?', defaultValue: 'seed' });
@@ -1479,7 +1479,7 @@ test('every control on every page and guide is set in Inter, not the browser\'s 
 // iOS force-zooms the page when you focus a field smaller than 16px, and the app has said "never go
 // below 16px on a focusable field" in css-tokens.md since v11.77 — with NOTHING enforcing it.
 //
-// It had already failed twice. `links.css` carried a `@media (pointer: coarse)` block setting the
+// It had already failed twice. `link-designer.css` carried a `@media (pointer: coarse)` block setting the
 // generator's inputs to 16px, with the right comment about iOS, and it did nothing: the base rule is
 // declared ~230 lines LATER at equal specificity, so source order handed the win to 13px. Its
 // neighbour in that same block worked, purely because ITS base rule happened to sit earlier — and
@@ -1693,11 +1693,11 @@ const KNOWN_SMALL = {
 //      is a control with a tap target like any other, and the app has several.
 //   3. IT WALKED A PAGE STATE WHERE ONE OF THE CONTROLS DOES NOT EXIST. "Remove saved email"
 //      renders only once an email IS saved, and this seeded no `getDocData` — so the button was
-//      `display: none` every time. Exactly the Links empty-state lesson of v22.61, arriving on a
+//      `display: none` every time. Exactly the Link Designer empty-state lesson of v22.61, arriving on a
 //      different page: a guard that walks every page has to reach each page's real working state.
 //
 // A CHECKBOX IS MEASURED AT ITS LABEL, when a label wraps it. That is not a softening — it is what
-// the app has already decided, in `links.css`: the `.gen-obj` boxes are 20px "because the ROW is
+// the app has already decided, in `link-designer.css`: the `.gen-obj` boxes are 20px "because the ROW is
 // the touch target: clicking a label toggles it, and the row clears 44px". Measuring the 20px box
 // would fail a control that is comfortably operable. What that bargain requires is that the row
 // ACTUALLY clears 44px, which is the half Settings was missing — its `.pw-show-row` had no height
@@ -1705,7 +1705,7 @@ const KNOWN_SMALL = {
 //
 // A `<summary>` IS A CONTROL TOO (whole-app check, 10 Nov 2026): it is the button that opens its
 // `<details>`, and the selector never named it, so no fold in the app was measured. The walk reaches
-// the Links check card's quiet fold; the others — Trains' "Train by train", Links' compare fold,
+// the Link Designer check card's quiet fold; the others — Trains' "Train by train", Link Designer's compare fold,
 // Admin's save receipt, Operations' stack trace — appear only after a choice, a save or an error
 // that this walk does not make.
 test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
@@ -1717,7 +1717,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
-    // A DESIGN, because links.html with none renders the EMPTY state — no grid, no brush bar, no
+    // A DESIGN, because link-designer.html with none renders the EMPTY state — no grid, no brush bar, no
     // chips — so this gate was measuring a page with almost none of its own controls on it and
     // passing. The paint chips it could not see measured 30x22, 27x20 and 53x22 (v22.61), and they
     // are the primary control on the page: you arm one and paint the grid with it, which on a phone
@@ -1743,7 +1743,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
 
     for (const url of APP_URLS) {
         await page.goto(url);
-        // SETTLED, not slept (test audit, 7 Nov 2026) — and for Links that includes the seeded
+        // SETTLED, not slept (test audit, 7 Nov 2026) — and for Link Designer that includes the seeded
         // design having loaded, which is the state this walk exists to reach (see above).
         await waitForPageSettled(page);
         // …AND NOTHING STILL LOADING (13 Nov 2026). "Settled" is the page-ready mark, and Operations
@@ -1802,7 +1802,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
             };
             const out = [];
             // A checkbox/radio wrapped in a LABEL is measured at the label: clicking the label
-            // toggles the box, so the label IS the target. `.gen-obj` on links.html is the app's
+            // toggles the box, so the label IS the target. `.gen-obj` on link-designer.html is the app's
             // decided case (20px boxes in a 44px row) and this is what makes that bargain legible
             // to the guard rather than an exemption from it. An UNWRAPPED box is measured itself.
             const target = (el) => (/^(checkbox|radio)$/.test(el.type)
@@ -1846,7 +1846,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 // for is worse than the false positive it was meant to remove.
                 if (clippedByScroller(el)) return;
                 // …and the same for a control a STICKY overlay is sitting on top of right now
-                // (v22.61). links.html's Save row is `position: sticky; bottom: 0` INSIDE the grid
+                // (v22.61). link-designer.html's Save row is `position: sticky; bottom: 0` INSIDE the grid
                 // card, so while the card is mid-viewport it covers whichever grid rows happen to
                 // be at the bottom — 25 of 168 on the first paint. Those cells are 61x43 and fully
                 // tappable; scroll on and the bar moves off them, and at the card's end it settles
@@ -2278,7 +2278,7 @@ test('huddle: a table too wide to fit scrolls itself, not the page', async ({ pa
 
 
 // ── AND THE SAME GRID SITS UNDER TWO MORE PAGES (v23.31) ───────────────────────────────────────
-// `links.css` and `operations.css` declared `.container` exactly as `admin.css` did before the fix:
+// `link-designer.css` and `operations.css` declared `.container` exactly as `admin.css` did before the fix:
 // a grid with no `grid-template-columns` and no `min-width: 0` on its children, plus the same
 // `overflow-x: clip`. The mechanism is a property of THAT CSS, not of Admin — so both pages carry
 // the same fix, and these two tests are what established they needed it.
@@ -2308,7 +2308,7 @@ test('links: large text does not shave the page @layout', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await expect(page.locator('#generatorToggleHeader')).toBeVisible();
 
     expect(await tooWide(page), 'premise: links fits at default text size').toEqual([]);

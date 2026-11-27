@@ -54,7 +54,7 @@
         'paycalc.html':    { href: './paycalc.html',    label: 'Back to Pay Calculator' },
         'operations.html': { href: './operations.html', label: 'Back to Operations' },
         'settings.html':   { href: './settings.html',   label: 'Back to Settings' },
-        'links.html':      { href: './links.html',      label: 'Back to Links' },
+        'link-designer.html': { href: './link-designer.html', label: 'Back to Link Designer' },
         'overtime.html':   { href: './overtime.html',   label: 'Back to Overtime' },
         'trains.html':     { href: './trains.html',     label: 'Back to Trains' },
         'newlink.html':    { href: './newlink.html',    label: 'Back to New link' },

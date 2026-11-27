@@ -4,7 +4,7 @@
 // 'HH:MM-HH:MM', a rest day ('RD' or 'OFF', which today's roster uses for some Sundays) or 'SPARE'
 // for every day of a cover week.
 
-import { assessFatigue } from '../../../links-fatigue.js';
+import { assessFatigue } from '../../../link-designer-fatigue.js';
 import { bilingualRoster } from '../../../roster-cycle-data.js';
 
 export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -126,7 +126,7 @@ export function worstRun(lines) {
     return best;
 }
 
-/** The app's own fatigue assessment (links-fatigue.js), and the FF11 run it reports. */
+/** The app's own fatigue assessment (link-designer-fatigue.js), and the FF11 run it reports. */
 export function fatigue(lines) {
     const f = assessFatigue(Object.fromEntries(lines.map((w, i) => [String(i + 1), w])), lines.length);
     const ff11 = +(f.results.find(x => x.code === 'FF11').detail.match(/is (\d+) shifts/) || [])[1];

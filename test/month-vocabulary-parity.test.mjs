@@ -17,7 +17,7 @@
  *   v23.xx  Overtime formatted through Intl and then trimmed with `.replace(/\bSept\b/, 'Sep')`,
  *           in TWO functions, because a column of deadlines came out ragged.
  *
- * Both were correct and neither generalised, so the Links print header, the Pay Calculator, the
+ * Both were correct and neither generalised, so the Link Designer print header, the Pay Calculator, the
  * Settings work-email card and the Operations error log went on saying "Sept" — on screen as well
  * as on paper. That is the shape this repo calls "the rule tested, the wiring not": each fix was
  * right about its own line and nothing asked the question anywhere else.

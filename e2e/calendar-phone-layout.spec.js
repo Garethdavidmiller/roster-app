@@ -124,7 +124,7 @@ for (const [width, fontPx] of [[320, 14], [360, 14], [375, 14], [360, 18], [360,
         expect(geo.left).toBeGreaterThanOrEqual(-0.5);
         expect(geo.right).toBeLessThanOrEqual(width + 0.5);
         // Wrapping must not be bought with an untappable control. 24px is WCAG 2.5.8 AA; v22.61 set
-        // a 30px floor for coarse pointers on the Links chips and the same standard applies here.
+        // a 30px floor for coarse pointers on the Link Designer chips and the same standard applies here.
         expect(geo.smallest).toBeGreaterThanOrEqual(30);
         expect(geo.shortest).toBeGreaterThanOrEqual(30);
 

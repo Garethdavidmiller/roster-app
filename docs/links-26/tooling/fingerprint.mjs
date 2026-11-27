@@ -1,10 +1,10 @@
 // Fingerprint of the live 20-line main roster — what "feel" means in numbers.
 import { weeklyRoster } from '../../../roster-cycle-data.js';
-import { runDesignChecks, weeklyHours, lineTotals, classifyShift, dutyMinutes, startMinutes, endMinutes } from '../../../links-design.js';
-import { assessFatigue } from '../../../links-fatigue.js';
-import { assessHardLimits } from '../../../links-limits.js';
-import { scoreOrder } from '../../../links-adjacency.js';
-import { buildRosterTargets } from '../../../links-seed.js';
+import { runDesignChecks, weeklyHours, lineTotals, classifyShift, dutyMinutes, startMinutes, endMinutes } from '../../../link-designer-design.js';
+import { assessFatigue } from '../../../link-designer-fatigue.js';
+import { assessHardLimits } from '../../../link-designer-limits.js';
+import { scoreOrder } from '../../../link-designer-adjacency.js';
+import { buildRosterTargets } from '../../../link-designer-seed.js';
 
 const DAYS = ['sun','mon','tue','wed','thu','fri','sat'];
 const L = 20;

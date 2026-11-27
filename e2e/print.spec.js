@@ -665,7 +665,7 @@ async function expectCardAlone(page) {
 
 // Pay is the set-password test above: it signs in through its own chain and does not lay a sheet over a lost session.
 for (const [url, ready] of /** @type {Array<[string, string]>} */ ([
-    ['/trains.html', '.btn-card-tips'], ['/newlink.html', 'main h2'], ['/links.html', '#linksGridCard'],
+    ['/trains.html', '.btn-card-tips'], ['/newlink.html', 'main h2'], ['/link-designer.html', '#linksGridCard'],
 ])) {
     test(`a session lost on ${url} prints the sign-in card alone, its page in no part of the PDF @print`, async ({ page, browserName }) => {
         test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
@@ -1180,7 +1180,7 @@ test('a filled pay estimate prints on two sheets, settings beside the result @pr
 // New link printed "The 26 weeks" and its colour key alone at the foot of a sheet, every grid after it
 // on the next: three whole grids cannot share a sheet, so the card must break between them, and its
 // heading and key must go with the first. Asserted through the cascade under print media, as the
-// Links card-break test is: a sheet count would move with every edit to the page above.
+// Link Designer card-break test is: a sheet count would move with every edit to the page above.
 test('New link: the 26 weeks heading and key print with the first grid @print', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.goto('/newlink.html');
@@ -1195,7 +1195,7 @@ test('New link: the 26 weeks heading and key print with the first grid @print', 
 
 // A Design checks family heading ("Intervals between duties") printed alone at a sheet's foot, its
 // factor on the next.
-test('Links: a design checks heading prints with its first row @print', async ({ page }) => {
+test('Link Designer: a design checks heading prints with its first row @print', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -1207,7 +1207,7 @@ test('Links: a design checks heading prints with its first row @print', async ({
         w.__E2E = w.__E2E || {};
         w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
     });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await expect(page.locator('.check-family').first()).toBeAttached();
     const after = await inPrint(page, () => [...new Set([...document.querySelectorAll('.check-family, .check-section-head')]
         .map(e => getComputedStyle(e).breakAfter))]);

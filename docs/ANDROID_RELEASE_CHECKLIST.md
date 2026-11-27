@@ -44,7 +44,7 @@ keeping if an unrun check looks different from a passed one.
 ## A · Chrome tab — what a work phone gets today
 
 - [ ] **Every page loads past the splash**: Calendar, Admin, Pay Calculator, Settings, Operations,
-      Links, Trains, New link (a normal CEA contract, a manager, the admin, or a name in
+      Link Designer, Trains, New link (a normal CEA contract, a manager, the admin, or a name in
       `CONFIG.NEWLINK_PREVIEW`) — and Overtime, which is paused and should show its paused note
       rather than a form.
 - [ ] **A deep link works from a cold tab** — `/admin.html`, `/paycalc.html` — not just the root.
@@ -122,7 +122,7 @@ below a tab check. **Reinstall if the manifest changed this release**: a change 
 Settings → Display: font size and display size both at their largest (the names vary by make).
 
 - [ ] **The keyboard does not cover the field being typed into**: the sign-in password, the Pay
-      Calculator hours, the Links design name.
+      Calculator hours, the Link Designer design name.
 - [ ] **Nothing is clipped or overlapping** on the Admin week grid's day rows, the Calendar day panel
       and the Calendar month grid. These are the densest rows in the app.
 - [ ] **The nav drawer's pills are still one per row**, and the footer (name, bell, Sign out) still

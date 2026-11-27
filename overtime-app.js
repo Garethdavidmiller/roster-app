@@ -89,7 +89,7 @@ export function init() {
     }
     // The service worker, BEFORE the access gate below (whole-app review, Oct 2026) — the sign-in and
     // "not open to you" branches return early, and a signed-out view must still take an update, as
-    // Operations and Links do. A release must not take a half-answered form, or a submit on its way,
+    // Operations and Link Designer do. A release must not take a half-answered form, or a submit on its way,
     // with it (v24.61) — `currentForm` is null until the form exists, so the check costs nothing earlier.
     const _busy = () => !!currentForm?.isDirty() || !!currentForm?.isSubmitting();
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });

@@ -3,7 +3,7 @@
  * newlink-render.js — every word of HTML on the new link page (newlink.html), as pure functions.
  *
  * The coordinator (newlink-app.js) decides WHICH view is on screen; this module builds it, from the generated figures
- * (newlink-data.js), the built-in proposals (links-proposals.js) and the page's settings (newlink-config.js). Nothing here
+ * (newlink-data.js), the built-in proposals (link-designer-proposals.js) and the page's settings (newlink-config.js). Nothing here
  * reads the DOM, the clock or the network, so every surface the page can show is testable in Node
  * (newlink-render.test.mjs).
  *
@@ -21,17 +21,17 @@
  * its long form says it to a screen reader in a visually hidden span instead.
  */
 import { escapeHtml as esc } from './roster-data.js';
-import { proposalDisplayName } from './links-proposals.js';
-// The shift rules are the Links workspace's, read rather than restated (25 Nov 2026): this page counted a cover week only when
+import { proposalDisplayName } from './link-designer-proposals.js';
+// The shift rules are the Link Designer's, read rather than restated (25 Nov 2026): this page counted a cover week only when
 // all SEVEN days were SPARE while `isCoverWeek` deliberately ignores Sunday, so a cover week written with a rest-day Sunday
-// was drawn as a week of loose cells and left out of the count. links-design.js already loads here, via links-proposals.js.
-import { DAYS, isCoverWeek, startMinutes, classifyShift } from './links-design.js';
+// was drawn as a week of loose cells and left out of the count. link-designer-design.js already loads here, via link-designer-proposals.js.
+import { DAYS, isCoverWeek, startMinutes, classifyShift } from './link-designer-design.js';
 import { formatDayMonthYear } from './date-format.js';
 
 /** @typedef {import('./newlink-data.js').Persona} Persona */
 /** @typedef {import('./newlink-data.js').Row} Row */
 /** @typedef {import('./newlink-data.js').PackFile} PackFile */
-/** @typedef {import('./links-proposals.js').Proposal} Proposal */
+/** @typedef {import('./link-designer-proposals.js').Proposal} Proposal */
 
 /** @type {Record<string, string>} */
 const DAY_SHORT = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' };
@@ -41,12 +41,12 @@ const DAY_LONG = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday
 /** Short on screen, whole to a screen reader. @param {string} shown @param {string} said */
 const short = (shown, said) => `<span aria-hidden="true">${esc(shown)}</span><span class="visually-hidden">${esc(said)}</span>`;
 
-/** A proposal's name as every page shows it — without the built-in list's " — Dec 2026" (links-proposals.js). */
+/** A proposal's name as every page shows it — without the built-in list's " — Dec 2026" (link-designer-proposals.js). */
 export const designName = proposalDisplayName;
 
 /**
  * The proposals in the order this page shows them — A TO Z by name, whatever order they arrive in (rule 1). The built-in
- * list is A to Z as well since 5 Nov 2026 (links-proposals.js), and for two days before that it put the recommendation
+ * list is A to Z as well since 5 Nov 2026 (link-designer-proposals.js), and for two days before that it put the recommendation
  * first: the page has never taken its order on trust, and still does not — every list of the three here passes through this.
  * @template {{ name: string }} P @param {ReadonlyArray<P>} proposals @returns {P[]}
  */
@@ -203,7 +203,7 @@ function weeksShape(proposals) {
     // the phrase, and a reader meeting it cold could not know it means the four shifts landing in the worst place — with the
     // cover week's Sunday worked as overtime too, as RULES.md §3 counts every worst case (the 22 Nov review: Balanced V6's 10
     // days in a row needs that Sunday). AND WHAT A LINK IS (the same review): the page's own title uses the word, and a
-    // newcomer may not know it — said as the Links workspace says it, "the rota everyone works through in turn"
+    // newcomer may not know it — said as the Link Designer says it, "the rota everyone works through in turn"
     return `<p class="nl-lead">A <strong>link</strong> is the set of weeks everyone works through in turn: one week each, then on to
         the next, and from the last back to the first. Each proposal is ${weeks} weeks long: ${weeks - cover} weeks of set shifts, and
         ${cover} <strong>cover weeks</strong> kept free to cover leave and absence. A cover week has four shifts between Monday and
@@ -356,7 +356,7 @@ export function renderPersonaChips(personas, chosen) {
 
 /**
  * What kind of duty a roster cell is, by its start: the app's own classes (CLAUDE.md → Shift types) — Early 04:00–10:59,
- * Late 11:00–20:59, Night 21:00–03:59 — so a proposal's cell is coloured as the Calendar and Links colour the same shift.
+ * Late 11:00–20:59, Night 21:00–03:59 — so a proposal's cell is coloured as the Calendar and Link Designer colour the same shift.
  * The pack's line between an early and a late is the same 11:00, so the colours agree with every figure on the page. None
  * of the three has a night today (the latest start is 15:45); a design that had one would draw it as a night, not a late
  * (the 22 Nov review), and the key would say so (`renderWeeksKey`).
@@ -366,8 +366,8 @@ export function renderPersonaChips(personas, chosen) {
 export function dutyKind(s) {
     if (s === 'RD') return 'rest';
     if (s === 'SPARE') return 'cover';
-    // The boundaries are `classifyShift`'s (links-design.js), never restated here; what it cannot read it calls a night,
-    // which is right for the Links grid's `N:` flag and wrong for a cell drawn on this page — so an unreadable value is
+    // The boundaries are `classifyShift`'s (link-designer-design.js), never restated here; what it cannot read it calls a night,
+    // which is right for the Link Designer grid's `N:` flag and wrong for a cell drawn on this page — so an unreadable value is
     // asked first, through the same strict reading of a time, and stays 'unknown'.
     if (startMinutes(s) === null) return 'unknown';
     return /** @type {'early'|'late'|'night'} */ (classifyShift(s));

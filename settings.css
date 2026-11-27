@@ -109,7 +109,7 @@ body {
 }
 
 /* ---- Work Email card ---- */
-/* The field labels are the app's `.field-eyebrow` (shared.css), as Pay, Trains and Links label theirs
+/* The field labels are the app's `.field-eyebrow` (shared.css), as Pay, Trains and Link Designer label theirs
    (settings review, Nov 2026): this card and the password form were the one place a field was named in
    grey sentence case. `.contact-label` only makes the <label> a block, so the eyebrow's margin lands. */
 .contact-label { display: block; }
@@ -454,7 +454,7 @@ body {
      · "Remove saved email"  118x17, reaching 53x18 — and it is the page's one DESTRUCTIVE control,
        removing the address account recovery is being saved for. It also only exists once an email
        IS saved, which is why the `@a11y` tap-target gate never saw it: that gate walked the page
-       in a state where this button is `display: none`. Same lesson as the Links empty state at
+       in a state where this button is `display: none`. Same lesson as the Link Designer empty state at
        v22.61 — a guard that walks every page has to reach each page's real working state.
      · "Show passwords"      18x18 — the ONE reveal for all three password fields, which is the
        control you reach for at the moment you have mistyped one.
@@ -462,10 +462,10 @@ body {
    AT THE END OF THE FILE, AND HERE THAT IS NECESSARY RATHER THAN CONVENTIONAL. `.btn-contact-remove`
    declares `display` and `padding` above, so the touch block below IS a same-property conflict at
    equal specificity, and placed above that rule it would read as though it worked and change
-   nothing. That is this repo's twice-recorded trap (links.css records both instances); it is live
+   nothing. That is this repo's twice-recorded trap (link-designer.css records both instances); it is live
    here, not hypothetical.
 
-   The remove button takes `.btn-text-link`'s recipe from links.css rather than a second one — the
+   The remove button takes `.btn-text-link`'s recipe from link-designer.css rather than a second one — the
    same shape (a small standalone underlined button), so the same answer. The "Show passwords" box
    is the app-drawn checkbox (shared.css — 20px, 22px under a coarse pointer, and no page sizes it),
    and the ROW is its target, because clicking a label toggles the box it wraps — the bargain the

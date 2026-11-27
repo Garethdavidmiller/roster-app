@@ -14,7 +14,7 @@ import { CONFIG } from '../roster-data.js';
 // changes). A synthetic name guaranteed to hold NO role.
 const ADMIN     = CONFIG.ADMIN_NAMES[0];
 const MANAGER   = CONFIG.MANAGER_NAMES[0];
-// The Links designers. The admin alone since 9 Nov 2026 (owner: "hide the link designer page from everyone apart from
+// The link designers. The admin alone since 9 Nov 2026 (owner: "hide the link designer page from everyone apart from
 // me"), so no real name is a designer and nothing else any more: the designer rows below run over the whole list, and
 // the designer-but-not-admin seat is held by claimsForTier (roster-parse-helpers.test.mjs) and by the browser specs,
 // which give themselves a designer list of their own (e2e/fixtures.js → withLinksDesigners).
@@ -31,7 +31,7 @@ describe('rolesFor (real CONFIG)', () => {
         assert.equal(r.manager, true); assert.equal(r.admin, false);
     });
     test('designer follows LINKS_DESIGNERS: every name on it, and nobody outside it', () => {
-        assert.ok(DESIGNERS.length > 0, 'somebody can open the Links workspace');
+        assert.ok(DESIGNERS.length > 0, 'somebody can open the Link Designer');
         for (const n of DESIGNERS) assert.equal(rolesFor(n).designer, true, `${n} is on the list`);
         assert.ok(!DESIGNERS.includes(MANAGER), 'premise: the manager below is not a designer');
         assert.equal(rolesFor(MANAGER).designer, false, 'a manager is not thereby a designer');

@@ -5,7 +5,7 @@
  * parts).
  *
  * WHY IT EXISTS (maintainability review, Nov 2026). Eight coordinators — Admin, Operations, Settings,
- * Links, the Pay Calculator, Trains, New link and Overtime — each wrote the same skeleton by hand:
+ * Link Designer, the Pay Calculator, Trains, New link and Overtime — each wrote the same skeleton by hand:
  * install the Back guard, decide access, open the sign-in card on 'login' with an in-place
  * continuation, re-establish the member's Firebase session, start the error reporter and the usage
  * counts once the session is ready. A real defect came from one page writing it differently: Admin
@@ -50,7 +50,7 @@
  * `run(member, { inPlace })` — the page's start as a function. The skeleton calls it after an 'allow',
  * at load and after an in-place sign-in alike. Admin, Settings, Trains, New link and Overtime.
  * `again` — the page's whole `init`, for a coordinator whose start is the rest of `init` itself
- * (Operations, Links, the Pay Calculator): `if (!startPage({ …, again: init })) return;`. After an
+ * (Operations, Link Designer, the Pay Calculator): `if (!startPage({ …, again: init })) return;`. After an
  * in-place sign-in the continuation runs `init` again, and its `startPage` decides afresh — so the
  * re-decision is still this module's, and the page's body is reached only when it says 'allow'.
  * Exactly one of the two; anything else throws, at the first load, where every test sees it.

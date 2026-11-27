@@ -5,7 +5,7 @@
 // operations, settings, guides).
 
 import { expect } from '@playwright/test';
-import { ROTATING_LINES } from '../links-design.js';
+import { ROTATING_LINES } from '../link-designer-design.js';
 import { shouldReport } from '../client-errors.js';
 import { TWO_TAP_MIN_MS } from '../two-tap.js';
 
@@ -79,11 +79,11 @@ export function seedSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_team_view_2026_done', '1');   // the Team View notice, from 27 Nov 2026 for 90 days
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
         localStorage.setItem('myb_pc_hpp_notice_2526_shown', '1');   // the Pay page's premium notice, 16 Nov 2026 – 8 Jan 2027 (v26.22)
-        // The Links first-visit panel ("How Links works") joined them at the 1.63 upgrade, for the
+        // The Link Designer first-visit panel ("How the Link Designer works") joined them at the 1.63 upgrade, for the
         // reason above: it opens after load and covers the burger, and Overtime's every-page sweep
         // dismissed it only if it was ALREADY up — under WebKit 2359 it opened a moment later, every
-        // time. The Links specs set this key themselves, which is why only a sweep passing THROUGH
-        // Links met the panel; the one spec ABOUT it re-enables it with clearNoticeFlags.
+        // time. The Link Designer specs set this key themselves, which is why only a sweep passing THROUGH
+        // Link Designer met the panel; the one spec ABOUT it re-enables it with clearNoticeFlags.
         localStorage.setItem('myb_links_welcome_seen', '1');
     }, name);
 }
@@ -435,7 +435,7 @@ export function firstFrameText(page, selector) {
  * Needed since v20.98, when the generator began refusing targets that cannot pay 35h a week
  * ex-Sunday. The roster seed cannot: today's duties pay 16 working lines, and the December 2026
  * rotation has 19 — which is the whole point of the rule, and it is asserted directly in
- * `links-contract.test.mjs`. So every spec that presses Generate has to bring work with it.
+ * `link-designer-contract.test.mjs`. So every spec that presses Generate has to bring work with it.
  *
  * ⚠️ IT SEEDS ONE KEY PER DESIGN ID, not just the unsaved one. The coordinator reads
  * `myb_links_gen_<activeDesignId>` and falls back to `myb_links_gen_unsaved` only while no design
@@ -459,7 +459,7 @@ export function firstFrameText(page, selector) {
  * default. A fourth slot tops it up at exactly one contracted week per extra working line — one
  * weekday count of a 7-hour turn is 5 x 420 = 2,100 minutes = 35h — so the caller gets a table that
  * still pays the contract exactly, whatever shape they asked for. More spare weeks than the default
- * needs no adjustment: over the contract is allowed (see `links-contract.test.mjs`).
+ * needs no adjustment: over the contract is allowed (see `link-designer-contract.test.mjs`).
  */
 export function seedContractTargets(page, { spareLines = 5, designIds = ['unsaved', 'd1', 'd2'] } = {}) {
     return page.addInitScript(([spare, ids, lines]) => {
@@ -481,7 +481,7 @@ export function seedContractTargets(page, { spareLines = 5, designIds = ['unsave
 /**
  * Click something WebKit reports as "outside of the viewport".
  *
- * Playwright auto-scrolls before every click, but inside the Links grid's sticky bars and
+ * Playwright auto-scrolls before every click, but inside the Link Designer grid's sticky bars and
  * horizontally-scrolling containers WebKit can report an element as off-screen AFTER that scroll and
  * then keep reporting it — the click retries until the test times out. Both failures the WebKit
  * projection found on its first branch run (v21.29) were this, and both passed locally at full
@@ -496,14 +496,14 @@ export function seedContractTargets(page, { spareLines = 5, designIds = ['unsave
  * @param {import('@playwright/test').Locator} locator
  */
 export async function clickInView(locator) {
-    // Re-issued, not scrolled once. Applying a generated design leaves the Links page scrolled ~3,100px
+    // Re-issued, not scrolled once. Applying a generated design leaves the Link Designer scrolled ~3,100px
     // down (measured: the RD brush chip sat at top -2891 in a 1000px viewport), and the app's own
     // scroll can land AFTER ours — so a single scrollIntoView is undone before the click and
     // Playwright then retries an off-screen click until the test times out. Polling until the box is
     // actually inside the viewport is what makes it deterministic rather than a race.
     for (let i = 0; i < 20; i++) {
         const inView = await locator.evaluate(el => {
-            // `window.scrollTo`, NOT `el.scrollIntoView`. Measured on the Links page in WebKit:
+            // `window.scrollTo`, NOT `el.scrollIntoView`. Measured on the Link Designer in WebKit:
             // scrollIntoView left `getBoundingClientRect().top` at -2891 with the window still at
             // scrollY 3115 — it simply did not move the document, twenty times in a row. Computing
             // the absolute position and scrolling the window does.
@@ -523,7 +523,7 @@ export async function clickInView(locator) {
     //
     // The poll above wins the race almost always; when it does not, the old unbounded `click()` was
     // the worst possible ending — Playwright re-checks "outside of the viewport" for the whole 30s
-    // test budget and the assertions the test exists for never run. That is what took the links-grid
+    // test budget and the assertions the test exists for never run. That is what took the link-designer-grid
     // test from flaky (v21.45) to failing (v21.46) on WebKit, a different engine each run.
     //
     // Five seconds is far beyond a click that is going to succeed, so a real regression — a chip
@@ -572,7 +572,7 @@ export async function clickDialogConfirm(page, selector = '.dialog-btn-confirm')
     // dialog's node stays in the page for half a second after it closes (overlay.js, `_openDialog`),
     // hidden, and AHEAD of a newer dialog in document order. When the steps between two dialogs ran
     // faster than that, `.first()` pressed the closed one's button — "Element is not visible" — and
-    // the Links test of a refused create failed five runs in six. A closing overlay loses `.open` the
+    // the Link Designer test of a refused create failed five runs in six. A closing overlay loses `.open` the
     // moment it starts to close (`dismissOverlay`), and the lifecycle adds it to a new one on the frame
     // after `.visible`, so waiting for a match inside an `.open` overlay waits for the fade to begin
     // on the right dialog. The geometry check below is what says the fade has finished.
@@ -743,7 +743,7 @@ export { TOUCH_PROJECTS };
 export const isTouchProject = (info) => TOUCH_PROJECTS.includes(info.project.name);
 
 /**
- * THE DESIGN MASTHEAD (v23.30; the picker became a sheet at v23.32 — links-design-header.js). Two
+ * THE DESIGN MASTHEAD (v23.30; the picker became a sheet at v23.32 — link-designer-design-header.js). Two
  * sheets hang off it: the PICKER, opened by the heading face, and the ··· More sheet holding every
  * verb but Save. So "how many designs" is the picker's row count, "which is open" is the face, and
  * Delete/Duplicate/Import/Compare/Recently deleted are reached by opening More first. Both sheets
@@ -815,7 +815,7 @@ export async function switchToDesign(page, name) {
  *    usable (overtime-app.js returns before `markPageReady` while `OVERTIME_ENABLED` is off).
  *
  * Two pages mark themselves usable a beat BEFORE content a sweep measures, and are waited for too:
- * Links stamps the mark at auth-ready and loads its designs after (the masthead's name is written
+ * Link Designer stamps the mark at auth-ready and loads its designs after (the masthead's name is written
  * only once they have arrived — empty until then), and Admin draws its week grid when the member's
  * saved changes land (until then it holds the "Loading…" status, which is not a settled state).
  *
@@ -833,7 +833,7 @@ export async function waitForPageSettled(page) {
             || (d.body.dataset.otPaused !== undefined && !!d.querySelector('#otMineContent .ot-state'));
         if (!ready) return 'no myb-page-ready mark, no Calendar sign-in card, no Overtime pause notice';
         const face = d.getElementById('designFaceName');
-        if (face && !(face.textContent || '').trim()) return 'Links: the designs have not loaded';
+        if (face && !(face.textContent || '').trim()) return 'Link Designer: the designs have not loaded';
         const grid = d.getElementById('weekGrid');
         if (grid && !grid.querySelector('.day-row, .week-empty:not([role="status"])')) return 'Admin: the week grid has not drawn';
         return 'settled';

@@ -5,7 +5,7 @@
  * `page-identity-parity.test.mjs` reads the stylesheets: which token each chosen rule declares, that
  * none is navy, and that Operations' type pills restate Admin's, type by type. What only a browser
  * answers is whether that rule WINS. A later rule, a more specific one, or a hover can paint over it
- * while every static check stays green — the v25.16 Links filter turned grey under the very pointer
+ * while every static check stays green — the v25.16 Link Designer filter turned grey under the very pointer
  * that switched it on, for exactly that reason. So each case reads the painted colour off a real
  * control and compares it with the same token resolved by the same engine on the same page.
  *

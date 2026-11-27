@@ -2525,7 +2525,7 @@
         /* A THUMB'S HEIGHT ON TOUCH (whole-app review, Oct 2026). The flavour chips and the "Rest day (RDW)"
            tick measured ~20px tall under a coarse pointer — under WCAG 2.2's 24px floor — and the touch gate
            never saw them, because it scans with this submenu closed. Gated on the POINTER, not the width,
-           as the Links paint chips are (css-tokens.md). */
+           as the Link Designer paint chips are (css-tokens.md). */
         @media (pointer: coarse) {
             .other-flavour-btn,
             .other-rdw-label { min-height: 30px; }

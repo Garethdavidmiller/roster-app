@@ -50,7 +50,7 @@ keeping if an unrun check looks different from a passed one.
 ## B · Current iPhone — the engine staff meet next
 
 - [ ] **Every page loads past the splash**: Calendar, Admin, Pay Calculator, Settings, Operations,
-      Links, Trains, New link (a normal CEA contract, a manager, the admin, or a name in `CONFIG.NEWLINK_PREVIEW`) — and Overtime,
+      Link Designer, Trains, New link (a normal CEA contract, a manager, the admin, or a name in `CONFIG.NEWLINK_PREVIEW`) — and Overtime,
       which is paused and should show its paused note rather than a form
       (`OVERTIME_AVAILABILITY.md` → Paused). A stuck splash is the exact failure the hourly currency
       check answers "yes" to, so it has to be looked at.
@@ -67,7 +67,7 @@ keeping if an unrun check looks different from a passed one.
       Trains, type "haddenham " in the station box. Results stay visible above the keyboard and
       nothing is autocorrected. In the drawer and the picker the keyboard's Search key puts the
       keyboard away; on Trains its Go key opens the first match.
-- [ ] **The keyboard's ‹ › arrows** inside an open dialog (a Links name prompt, the picker's search
+- [ ] **The keyboard's ‹ › arrows** inside an open dialog (a Link Designer name prompt, the picker's search
       over the sign-in card) keep focus inside the dialog. The DRAWER is not guarded yet — its own
       trap catches Tab only — so note what the arrows do from its search box rather than failing it.
 - [ ] **Pay Calculator, no zoom:** Unusual deductions → *Any other payslip adjustment* — tapping the
@@ -122,7 +122,7 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
       name.
 - [ ] **An update while the app is away:** let a release land with the app in the background, return
       after 30 seconds — no unexpected reload and no "couldn't finish loading".
-- [ ] **Unsaved Links edits:** paint a few cells, swipe the app away and reopen it — the page offers
+- [ ] **Unsaved Link Designer edits:** paint a few cells, swipe the app away and reopen it — the page offers
       to restore them. (Back from another app with the page still alive, the edits are simply still
       there: the offer is for a page that was reloaded or discarded.)
 - [ ] **Admin left open for a day:** return to it — the week shows what was booked elsewhere in the
@@ -133,7 +133,7 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
 ## D · Larger Text — the axis a viewport cannot express
 
 - [ ] **No field zooms on focus.** Any focusable input below 16px makes iOS zoom the page and it
-      does not zoom back. Pay Calculator hours/minutes, the Overtime time fields (once Overtime is back), the Links design-name and import fields,
+      does not zoom back. Pay Calculator hours/minutes, the Overtime time fields (once Overtime is back), the Link Designer design-name and import fields,
       the sign-in fields.
 - [ ] **The software keyboard does not cover the field being typed into** — the same list.
 - [ ] **Nothing is clipped or overlapping** on the Overtime form head (once Overtime is back), the Admin week grid's day

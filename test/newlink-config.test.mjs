@@ -19,7 +19,7 @@ import * as config from '../newlink-config.js';
 import { PHASE, CHOSEN, CLOSES, STARTS, TIMETABLE_STARTS, CONTACT, CONTACT_ROLE, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from '../newlink-config.js';
 import { CHANGE_DATE } from '../trains-data.js';
 import { closesWords, startsWords, designName } from '../newlink-render.js';
-import { PROPOSALS } from '../links-proposals.js';
+import { PROPOSALS } from '../link-designer-proposals.js';
 import { PAGE_POLICIES, requirePage, canOpenNewlink, rolesFor } from '../auth-policy.js';
 import { teamMembers, CONFIG } from '../roster-data.js';
 import { NAV_PAGES } from '../nav-destinations.js';

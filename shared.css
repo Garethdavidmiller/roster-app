@@ -38,7 +38,7 @@
    CSS CUSTOM PROPERTIES
    The app's tokens — every app page reads them. A token one
    page alone needs lives in that page's own stylesheet (the
-   page-identity trio, Links' design colours); anything two
+   page-identity trio, Link Designer's design colours); anything two
    pages share lives here, so a colour or spacing change is one
    edit.
    ============================================================ */
@@ -70,7 +70,7 @@
     --accent-gold-dark:  color-mix(in oklch, var(--accent-gold) 95%, black);
     /* Gold as TEXT. The brand gold itself fails contrast on white, so anything that has to be
        READ in gold uses this instead. Declared here since v23.33, when the shared picker sheet
-       started using it — it lived in links.css while only links.html read it, and the moment
+       started using it — it lived in link-designer.css while only link-designer.html read it, and the moment
        shared.css referenced it every other page was reading a property nothing declared. */
     --gold-text: oklch(46% 0.11 85deg);
 
@@ -344,7 +344,7 @@
        field and the button beneath it read as one set. Before this the fields sat on --radius-sm or
        a literal 8px while the buttons under them were 10px: two corners a few pixels apart in one
        card, which reads as assembled rather than designed. Dense inputs that sit in a ROW or a grid
-       (the Links generator, the Operations email table, the navy member bar) keep --radius-xs. */
+       (the Link Designer generator, the Operations email table, the navy member bar) keep --radius-xs. */
     --radius-field:  var(--radius-button);
     --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
     --radius-xl:    20px;   /* large lightbox/panel cards (v17.72 — was a hardcoded 20px in ~20 places) */
@@ -437,7 +437,7 @@
     --on-navy-raised:   rgba(255, 255, 255, 0.09);   /* chips, prompt strips, resting fills */
     --on-navy-hairline: rgba(255, 255, 255, 0.12);   /* dividers and their borders */
     /* The pressed/hover rung above `--on-navy-raised`. Promoted out of `.nav-panel`'s scope at
-       v22.60 for exactly the reason the text tokens below were: the Links page needed an on-navy
+       v22.60 for exactly the reason the text tokens below were: the Link Designer needed an on-navy
        hover and the only value in the app sat behind a selector it could not reach, so the choice
        was a literal or a fourth copy of it. */
     --on-navy-raised-strong: rgba(255, 255, 255, 0.16);
@@ -874,7 +874,7 @@ p { text-wrap: pretty; }
 /* Focus-visible safety net (v14.54): a ring for any interactive element without a focus rule of its own.
    Its weight is (0,1,0), NOT zero — the `:focus-visible` sits outside the `:where()` — so a component's
    `.x:focus-visible` (0,2,0) beats it, but a later single-class rule setting `outline` on the component
-   itself ties it and wins on order, and that component needs a focus rule of its own (Links' paint chips,
+   itself ties it and wins on order, and that component needs a focus rule of its own (Link Designer's paint chips,
    Nov 2026). Form fields are excluded (they use the brighten-to-white + glow focus system). */
 :where(a, button, [role="button"], [tabindex="0"]):focus-visible {
     /* Navy, not gold: this fallback fires mostly on LIGHT surfaces (cards/prose), where gold
@@ -1274,13 +1274,13 @@ html.lb-keep-gutter { scrollbar-gutter: stable; }
 }
 .lightbox-bug-link:active { background: rgba(255,255,255,0.16); }
 
-/* `display: block` above out-specifies the `hidden` attribute, so links.html's Operations shortcut
+/* `display: block` above out-specifies the `hidden` attribute, so link-designer.html's Operations shortcut
    (`#linksOpsLink`, hidden for a designer who is not an admin) was shown to everyone. Not a security
    hole — operations.html guards itself — but an affordance offered to people it then turns away.
    Found by page-visibility-parity.test.mjs. */
 .lightbox-bug-link[hidden] { display: none !important; }
 
-/* A ROW MAY BE A <button> AS WELL AS AN <a> (v22.83). These rows are ACTIONS, and links.html's
+/* A ROW MAY BE A <button> AS WELL AS AN <a> (v22.83). These rows are ACTIONS, and link-designer.html's
    "How this workspace works" opens a panel rather than navigating anywhere — so it is a button, and
    a button arrives with the UA's own border, font-family and background that this class never had
    to override. Reset here rather than in a page stylesheet: the component is shared, so the next
@@ -1381,7 +1381,7 @@ button.lightbox-bug-link {
 .login-receipt--fail { color: var(--error-text);   background: var(--error-bg); }
 
 /* ── THE PICKER SHEET — the app's own dropdown (v23.33) ────────────────────
-   Shared by `select-sheet.js` (any enhanced `<select>`) and by the Links design masthead,
+   Shared by `select-sheet.js` (any enhanced `<select>`) and by the Link Designer design masthead,
    so the two are ONE control with one definition rather than two that merely resemble each
    other. `select-sheet.js`'s header has the argument for why a native popup was not good
    enough; the short version is that the OS draws it and the app's design stops at its edge.
@@ -1526,7 +1526,7 @@ button.lightbox-bug-link {
        the line below broke it, which is the one shape of comment worse than none. Note this is 16px
        FLAT rather than the app's usual small-on-desktop + `@media (pointer: coarse)` override — the
        override pattern has failed in this repo three times by being written above the rule it meant
-       to beat (see links.css), and a modal search field gains nothing from being 14px on a mouse. */
+       to beat (see link-designer.css), and a modal search field gains nothing from being 14px on a mouse. */
     font-size: var(--type-medium);
     color: var(--text-dark);
     background-color: var(--field-bg);
@@ -2149,7 +2149,7 @@ button.lightbox-bug-link {
    large text (1.6×) into the badge. The zero margin undoes the focus-ring trick above, which offsets it. */
 @media (min-width: 1024px) {
     .app-header { position: relative; min-height: 72px; }
-    .app-header > :last-child { margin-left: auto; }   /* the badge, or Links' .header-end */
+    .app-header > :last-child { margin-left: auto; }   /* the badge, or Link Designer's .header-end */
     .app-header-brand { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
                         width: max-content; margin-block: 0; overflow: visible; }
 }
@@ -3357,7 +3357,7 @@ button.login-back:focus-visible { outline: var(--focus-outline); outline-offset:
 
 
 /* ── Boot placeholder ────────────────────────────────────────────────────────────────────────────
-   Admin, Operations and Links hide `.container`, and their header with it, until `body.auth-ready` —
+   Admin, Operations and Link Designer hide `.container`, and their header with it, until `body.auth-ready` —
    so before their JS runs those pages are blank navy with nothing on them, not even a burger.
    Trains hides its cards the same way (trains.css, `#trainsMain`) under a header that shows. This is
    what sits in that window. Pure CSS in both directions: shown by default, removed the
@@ -3453,7 +3453,7 @@ body.auth-ready .boot-placeholder { display: none; }
 .card-collapsible-body          { display: none; padding: var(--space-3) var(--space-4); }
 .card-collapsible-body.open     { display: block; }
 /* A `.card-body` NESTED inside a collapsible body would apply the same padding twice (a staff report:
-   content started 42px in on Links against Admin's 26px, and on Links the doubled 32px clipped a column
+   content started 42px in on Link Designer against Admin's 26px, and on Link Designer the doubled 32px clipped a column
    of the generator table). Zeroed here, where the padding is defined, rather than deleting the wrapper
    divs, which page JS queries in places. */
 .card-collapsible-body > .card-body { padding: 0; }

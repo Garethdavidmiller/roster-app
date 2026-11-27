@@ -117,7 +117,7 @@ describe('initNavPanel', () => {
 });
 
 // ── Sign-out: the push record is released only once the page has committed ────
-// Sep 2026 re-review: the release ran BEFORE the page's onSignOut, and Links' onSignOut could still
+// Sep 2026 re-review: the release ran BEFORE the page's onSignOut, and Link Designer's onSignOut could still
 // be cancelled over unsaved work — leaving a signed-in device with no push record.
 
 /** A generic element stub: records listeners; every other DOM call is inert. */
@@ -144,7 +144,7 @@ function mountDrawer(/** @type {any} */ opts) {
         addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
     });
     // A page that is not the Calendar, so a `./#…` link is a navigation (`_onCalendarPage`).
-    const location = { pathname: '/links.html', hash: '', replace() {} };
+    const location = { pathname: '/link-designer.html', hash: '', replace() {} };
     global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, location });
     /** @type {any} */ (global).location = location;
     global.history = /** @type {any} */ ({ pushState() {}, back() {} });
@@ -164,7 +164,7 @@ describe('the Other Staff gate defaults to keeping Admin and Pay', () => {
             createElement: () => { const el = fakeEl(); made.push(el); return el; }, body: fakeEl(),
             addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
         });
-        const location = { pathname: '/links.html', hash: '', replace() {} };
+        const location = { pathname: '/link-designer.html', hash: '', replace() {} };
         global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, location });
         /** @type {any} */ (global).location = location;
         global.history = /** @type {any} */ ({ pushState() {}, back() {} });

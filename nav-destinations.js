@@ -39,7 +39,7 @@ export const NAV_PAGES = Object.freeze([
     { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin',      otherStaffHidden: true },
     { id: 'paycalc',    label: '💷 Pay',         name: 'Pay Calculator', url: './paycalc.html',    colorClass: 'nav-panel-pill--pay',        otherStaffHidden: true },
     { id: 'operations', label: '🔧 Operations',   url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
-    { id: 'links',      label: '🔗 Links',         url: './links.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
+    { id: 'links',      label: '📐 Link Designer', url: './link-designer.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
     // Overtime's audience only (filtered, not the boundary — the page and server gate themselves).
     // PAUSED (owner, Nov 2026): `canOpenOvertime` is false for everyone while CONFIG.OVERTIME_ENABLED is off.
     { id: 'overtime',   label: '⏱️ Overtime',      url: './overtime.html',   colorClass: 'nav-panel-pill--overtime',   overtimeAudienceOnly: true },
@@ -110,9 +110,10 @@ export const NAV_GUIDES = Object.freeze([
  * One entry per section a notice can archive under, or its App Notices chip falls back to the
  * neutral grey; `calendar-notices.test.mjs` fails on an archived section with no entry here, and on
  * an entry with no `--on-navy-*` colour in shared.css.
+ * `Link Designer` stays beside `Link Designer`: a notice archived before the page was renamed (v27.09) keeps the old section name.
  * @type {Readonly<Record<string, string>>}
  */
-export const SECTION_MODS = Object.freeze({ Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New link': 'newlink' });
+export const SECTION_MODS = Object.freeze({ Pay: 'pay', 'Link Designer': 'links', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New link': 'newlink' });
 
 /**
  * Each flag a `NAV_PAGES` entry may carry, and the gate (an `initNavPanel` option, from `navGatesFor`)

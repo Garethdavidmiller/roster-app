@@ -6,7 +6,7 @@
  * ── WHY THIS IS A GATE AND NOT JUST A CONVENTION ────────────────────────────────────────────────
  *
  * The owner asked for UK English "when communicating with me and throughout the app". Measured that
- * day, the app already was: every page, guide, notification and the text of all 27 PDFs in the Links
+ * day, the app already was: every page, guide, notification and the text of all 27 PDFs in the Link Designer
  * 26 pack held no American spelling. The only American forms were a handful of developer comments
  * and one console message, all corrected in the same commit. So this gate does not fix anything; it
  * keeps a property that has so far held only because nobody broke it. A wording rule with no gate
@@ -78,7 +78,7 @@ const ROOT = new URL('.', REPO_ROOT_URL);
 const list = (/** @type {string} */ dir, /** @type {RegExp} */ re) =>
     readdirSync(new URL(dir, ROOT)).filter(f => re.test(f) && !f.includes('.test.')).map(f => dir + f);
 /** Everything staff see or receive: every served page, module, style sheet and the manifest; the
- *  Cloud Functions, which write notifications and messages; and the scripts that write the Links
+ *  Cloud Functions, which write notifications and messages; and the scripts that write the Link Designer
  *  26 pack's sheets and read-me. Test files are excluded: they must be able to name what they test. */
 const FILES = [
     ...list('./', /\.(html|js|css)$/).filter(f => f !== './purify.es.mjs'),

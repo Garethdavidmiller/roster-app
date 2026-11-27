@@ -200,7 +200,7 @@ describe('startPage — after an in-place sign-in (the card\'s onSuccess)', () =
 });
 
 describe('startPage — a page whose start is the rest of its init (again)', () => {
-    /** An `init` written as Operations, Links and the Pay Calculator write theirs. */
+    /** An `init` written as Operations, Link Designer and the Pay Calculator write theirs. */
     function makeInit(/** @type {Record<string, any>} */ over = {}) {
         const init = () => {
             log.push('init');

@@ -15,7 +15,7 @@
  * visual suite does not baseline settings at desktop, and even where it does, a first baseline
  * captures whatever renders and calls it correct. It was found by looking at a screenshot.
  *
- * This is the same failure `links-analysis.test.mjs` guards inside one module (v19.48: ~15 rows
+ * This is the same failure `link-designer-analysis.test.mjs` guards inside one module (v19.48: ~15 rows
  * shipped on `check-info`, a class no stylesheet defined) — one level up, and across files rather
  * than within one.
  *

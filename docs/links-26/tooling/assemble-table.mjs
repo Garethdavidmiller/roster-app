@@ -8,7 +8,7 @@
 // duty. The record fields (cap, pins, counts, fits) are carried so the sheet can state how the table was
 // found rather than assert it.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { DEC_2026_DEMAND } from '../../../links-demand.js';
+import { DEC_2026_DEMAND } from '../../../link-designer-demand.js';
 import { COVER_WEEKS } from './link.mjs';
 
 const [out, wkF, satF, sunF] = process.argv.slice(2);

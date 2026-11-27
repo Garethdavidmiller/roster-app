@@ -4,7 +4,7 @@
  * agrees (v25.14). No browser: it reads the served stylesheets and the drawer's page list.
  *
  * WHY THIS FILE EXISTS. Until v25.14 every page restated its colour in two hand-written rules — the
- * header badge and the About badge — and the copies had already drifted: Links' About badge had a
+ * header badge and the About badge — and the copies had already drifted: Link Designer's About badge had a
  * full-strength border where every other page's was a 35% tint. v25.14 made the colour three tokens
  * each page declares in its own `:root` (shared.css → "Page identity"), read by the header badge,
  * the About badge, a picker sheet's current row and — since v25.16 — every chosen control. Four
@@ -20,7 +20,7 @@
  *      tap and the badge you arrive at are one identity held in two hand-written places — the page
  *      stylesheets and the drawer's pill rules — so only a check keeps them in step.
  *   4. A CHOSEN control fills with its page's colour (v25.16). Before, a chosen tab was navy on most
- *      pages, raspberry on one Trains row and a gold tint on Links, so one screen could show two
+ *      pages, raspberry on one Trains row and a gold tint on Link Designer, so one screen could show two
  *      colours for one idea — the owner's screenshots showed Trains' raspberry view above a navy day.
  *      Each chosen colour was right where it was written; only reading them all together showed the
  *      drift, so that is what the test does. A choice with a MEANING (a shift type, yes or no) keeps
@@ -210,13 +210,13 @@ test('a page\'s badges carry its drawer pill\'s emoji — and its About badge th
 /** What says "this one is chosen" in a selector: the pressed, selected and checked states, and the
  *  classes the pages use for the same idea. `.is-current-week` is a marker, not a choice, and the
  *  lookahead keeps it out. `--on` and `.compare-active` joined at v25.20: Operations' month toggle and
- *  Links' compare-mode tile were still navy and gold after v25.16, unseen, because the walk could not
+ *  Link Designer's compare-mode tile were still navy and gold after v25.16, unseen, because the walk could not
  *  read how they spelled "chosen". The date pickers' chosen day, week and range and Trains' chosen
  *  column joined at v25.21, when they took the page's colour (until then they were navy, outside it). */
 const CHOSEN = /\[aria-(?:pressed|selected|checked)="true"\]|\.(?:active|is-active|is-on|is-chosen|is-current|compare-active|dp-sel|dp-inweek|rp-from|rp-to|rp-in-range|tr-col-on)(?![\w-])|--(?:active|on)(?![\w-])/;
 
 /** A rule FILLS a control when it declares a background. A ring, an edge or a text colour is not a
- *  fill, and the brush chips' armed ring (links.css) is one of those, deliberately. */
+ *  fill, and the brush chips' armed ring (link-designer.css) is one of those, deliberately. */
 const FILL = /(?:^|[;\s])background(?:-color)?\s*:\s*([^;]+)/;
 
 /**

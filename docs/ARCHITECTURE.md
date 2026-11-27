@@ -32,7 +32,7 @@ changed once.
 | **Calendar truth** | `CALENDAR_DATA.md` | What may be shown, and when — knowledge states, the access gate |
 | **Overtime availability** | `OVERTIME_AVAILABILITY.md` | Participants, deadlines, revisions, retention, audience |
 | **Pay calculator** | `.claude/rules/paycalc.md` · `PAYCALC_REFERENCE.md` | The rules file: the invariants, the payroll and design decisions, the payslip line names. The reference: the pay figures (their one home), the payroll mechanics, state, layout |
-| **Links designer** | `.claude/rules/links-design.md` · `LINKS_REFERENCE.md` | The rules file: the invariants and the decisions. The reference: grid, generator, coverage, fatigue, concurrency in full |
+| **link designer** | `.claude/rules/link-designer.md` · `LINK_DESIGNER_REFERENCE.md` | The rules file: the invariants and the decisions. The reference: grid, generator, coverage, fatigue, concurrency in full |
 | **Guide pages** | `.claude/rules/guide-pages.md` | The guides' shell, design principles, factual standards |
 | **Firestore collections** | `docs/DATA_MODEL.md` | What every collection holds and what its fields mean. Access is summarised there and OWNED by `firestore.rules` |
 | **CSS tokens & surfaces** | `.claude/rules/css-tokens.md` | Colour, type, spacing, focus, overlays |
@@ -182,7 +182,7 @@ is that it is quietly wrong and nothing will say so. Neither is a to-do item, an
 5. **Known temporary exceptions** — pointing at an `EXC-*` row, never re-explaining it.
 6. **Operational lifecycle** — how it is run, deployed, retained.
 7. **Deliberately not built** — the DEFERRED list.
-8. **Links to the registers** — the `VAL-*` rows that touch this feature.
+8. **Link Designer to the registers** — the `VAL-*` rows that touch this feature.
 
 **No implementation diary, and no superseded behaviour, in the same document.** A contract that
 records what something used to do is a contract a reader can follow into the past — and they will,

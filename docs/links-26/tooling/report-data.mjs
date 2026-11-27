@@ -3,11 +3,11 @@ import { LINES, COVER_WEEKS, COVER_LINES, DAYS_CEILING, daysAYear, coverSpread }
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { asRosteredRuns, materialise, coverLines, placementCombos } from './cover-placement.mjs';
-import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../links-design.js';
-import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../links-fatigue.js';
-import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../links-limits.js';
-import { scoreOrder, reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.js';
-import { DEC_2026_DEMAND, demandBucket, peakCars, movementsOutside, DEC_2026_MOVEMENTS } from '../../../links-demand.js';
+import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../link-designer-design.js';
+import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../link-designer-fatigue.js';
+import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../link-designer-limits.js';
+import { scoreOrder, reorderLines, applyOrder, OBJECTIVES } from '../../../link-designer-adjacency.js';
+import { DEC_2026_DEMAND, demandBucket, peakCars, movementsOutside, DEC_2026_MOVEMENTS } from '../../../link-designer-demand.js';
 import { weeklyRoster } from '../../../roster-cycle-data.js';
 
 // Early / late for the one-turn and mixing counts. The managers' edition splits at 11:00, as every sheet defines an
@@ -378,7 +378,7 @@ export function max7Minutes(seq) {
   return best;
 }
 const is55 = r => r.code === 'MRSF' && /55 hours/.test(r.title);
-// THE APP TAKES THIS ROW'S VERDICT ON A COVER WEEK'S WORST CASE since 17 Nov 2026 (links-fatigue.js →
+// THE APP TAKES THIS ROW'S VERDICT ON A COVER WEEK'S WORST CASE since 17 Nov 2026 (link-designer-fatigue.js →
 // worstHoursInAny7Days: a cover week's worked days at 8h 45m each, its Sunday included), and its figure is that worst
 // case. The pack keeps its own split, as it does for every row: the tables give the duties the rota FIXES, and the
 // "up to" adds the cover week from h55Worst below. So the row is read here at its FLOOR — the figure and the verdict

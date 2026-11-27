@@ -67,7 +67,7 @@ test('admin: a week-grid time box formats as typed, moves on, and flags an impos
     await start.focus();
     await expect(end, 'what is left of 22:30 stays as it is').toHaveValue('22:3');
     await expect(end, 'and is refused like any unfinished time').toHaveClass(/\binput-error\b/);
-    // Delete at the FRONT leaves what LOOKS like a whole time (external review of v26.87): the Links window took "2:30"
+    // Delete at the FRONT leaves what LOOKS like a whole time (external review of v26.87): the Link Designer window took "2:30"
     // as 02:30. Every time box reads a box that is left one way (`readClockBox`, clock-input.js), so here as there it is
     // unfinished, and refused.
     await end.fill('22:30');

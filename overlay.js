@@ -230,7 +230,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     function onKey(e) {
         // Only the TOPMOST overlay reacts. Both halves matter: Escape used to close every open
         // overlay at once (see `_isTopOverlay`), and `trapFocus` on a BURIED overlay would drag Tab
-        // back into a dialog the user cannot see. Fails open — see `_isTopOverlay`. Only e2e/links.spec.js
+        // back into a dialog the user cannot see. Fails open — see `_isTopOverlay`. Only e2e/link-designer.spec.js
         // proves this wiring: delete the guard and every unit test stays green.
         if (!_isTopOverlay(close)) return;
         if (e.key === 'Escape') { close(); return; }
@@ -276,7 +276,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
             overlay.classList.add('open');
             if (focusedEarly) return;
             const explicit = /** @type {any} */ (typeof initialFocus === 'function' ? initialFocus() : initialFocus);
-            // A NAMED TARGET THAT WILL NOT TAKE FOCUS COUNTS AS NONE. A disabled first row (the Links
+            // A NAMED TARGET THAT WILL NOT TAKE FOCUS COUNTS AS NONE. A disabled first row (the Link Designer
             // ··· More sheet's, on an unsaved design) refuses `focus()`, which left focus on the control
             // behind the dialog — where Enter acts on the page and a screen reader is never moved in.
             explicit?.focus?.();

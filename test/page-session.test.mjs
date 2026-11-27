@@ -109,9 +109,9 @@ beforeEach(() => { lastLoginOpts = null; ss.clear(); ls.clear(); docListeners = 
 describe('guardNamedSession', () => {
     test('an unconfirmed own session: clear, tear down the drawer, THEN the sign-in — and no watch', async () => {
         decision = 'login';
-        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: Promise.resolve() });
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Link Designer', member: 'A. Member', established: Promise.resolve() });
         await settle();   // the default sign-in is loaded on demand
-        assert.deepEqual(log, ['requirePage:links', 'releasePush', 'clearSession', 'resetNavPanel', 'login:Links'],
+        assert.deepEqual(log, ['requirePage:links', 'releasePush', 'clearSession', 'resetNavPanel', 'login:Link Designer'],
             'this device\'s push record goes first, as at every other end of a hold (audit A1)');
     });
 
@@ -142,7 +142,7 @@ describe('guardNamedSession', () => {
 
     test('…and when THIS member\'s identity lands late, the page reloads into it; anybody else\'s does not', async () => {
         decision = 'pending';
-        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Link Designer', member: 'A. Member', established: false });
         await settle();
         log = [];
         authCb(null);
@@ -158,13 +158,13 @@ describe('guardNamedSession', () => {
         decision = 'pending';
         const { nameToEmail } = await import('../auth-identity.js');
         const me = { isAnonymous: false, email: nameToEmail('A. Member') };
-        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Link Designer', member: 'A. Member', established: false });
         await settle();
         log = [];
         authCb(me);
         assert.deepEqual(log, ['authUnwatch', 'reload'], 'the first landing reloads');
         // The same tab, loaded again seconds later into the same stall, with the same late landing.
-        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Link Designer', member: 'A. Member', established: false });
         await settle();
         log = [];
         authCb(me);
@@ -196,12 +196,12 @@ describe('guardNamedSession', () => {
         try {
             decision = 'pending';
             const { nameToEmail } = await import('../auth-identity.js');
-            await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+            await ps.guardNamedSession({ page: 'links', pageLabel: 'Link Designer', member: 'A. Member', established: false });
             await settle();
             log = [];
             authCb({ isAnonymous: false, email: nameToEmail('A. Member') });
             await settle();
-            assert.deepEqual(log, ['authUnwatch', 'dismissLogin', 'login:Links'], 'no reload: the card is drawn again');
+            assert.deepEqual(log, ['authUnwatch', 'dismissLogin', 'login:Link Designer'], 'no reload: the card is drawn again');
             assert.equal(lastLoginOpts.notice, ps.LATE_IDENTITY_NOTICE);
             assert.equal(lastLoginOpts.alternative?.label, 'Try again');
             log = [];
@@ -218,7 +218,7 @@ describe('guardNamedSession', () => {
         try {
             decision = 'pending';
             const { nameToEmail } = await import('../auth-identity.js');
-            await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+            await ps.guardNamedSession({ page: 'links', pageLabel: 'Link Designer', member: 'A. Member', established: false });
             await settle();
             log = [];
             authCb({ isAnonymous: false, email: nameToEmail('A. Member') });
@@ -237,20 +237,20 @@ describe('guardNamedSession', () => {
         try {
             decision = 'pending';
             const { nameToEmail } = await import('../auth-identity.js');
-            await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+            await ps.guardNamedSession({ page: 'links', pageLabel: 'Link Designer', member: 'A. Member', established: false });
             await settle();
             log = [];
             lastLoginOpts = null;
             authCb({ isAnonymous: false, email: nameToEmail('A. Member') });
             await settle();
-            assert.deepEqual(log, ['authUnwatch', 'dismissLogin', 'login:Links'], 'the lock was taken for a sign-in in flight');
+            assert.deepEqual(log, ['authUnwatch', 'dismissLogin', 'login:Link Designer'], 'the lock was taken for a sign-in in flight');
             assert.equal(lastLoginOpts?.notice, ps.LATE_IDENTITY_NOTICE);
         } finally { global.sessionStorage = real; lockedOut = false; }
     });
 
     test('the shared sign-in after a LOST session names the member and says they were signed out (review, Nov 2026)', async () => {
         // It said nothing and asked for grade and name again, which read like a fault rather than a sign-out.
-        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: true });
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Link Designer', member: 'A. Member', established: true });
         currentUser = null;
         watchArgs.onLost();
         await settle();
@@ -838,7 +838,7 @@ describe('onReturnToPage — an installed app is not reloaded when it is reopene
 // ── unsaved-draft.js — THE KEPT COPY ITSELF ──────────────────────────────────────────────────────
 // The module's own suite lives here, beside the trigger that writes it: its rules are the five in
 // its header, and each test below names the one it holds. The browser half — a real hide, a reload
-// and the question on screen — is e2e/admin-unsaved-work.spec.js and e2e/links.spec.js.
+// and the question on screen — is e2e/admin-unsaved-work.spec.js and e2e/link-designer.spec.js.
 const ud = await import('../unsaved-draft.js');
 
 describe('unsaved-draft.js', () => {
@@ -885,7 +885,7 @@ describe('unsaved-draft.js', () => {
         assert.equal(ud.restoreQuestion(new Date(2026, 10, 7, 9, 5).getTime(), NOW), 'Restore your unsaved changes from 09:05?');
     });
 
-    test('a Links baseline read back is exact only when it says so — anything else is UNKNOWN, never "no baseline" (rule 5)', () => {
+    test('a Link Designer baseline read back is exact only when it says so — anything else is UNKNOWN, never "no baseline" (rule 5)', () => {
         assert.deepEqual(ud.draftBaseline({ loadedRevision: 4, loadedUpdatedAt: 1_750_000_000_000, baselineUnknown: false }),
             { loadedRevision: 4, loadedUpdatedAt: 1_750_000_000_000, baselineUnknown: false });
         assert.deepEqual(ud.draftBaseline({ loadedRevision: null, loadedUpdatedAt: 1_750_000_000_000, baselineUnknown: false }),

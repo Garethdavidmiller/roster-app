@@ -29,7 +29,7 @@
  *      one on this page (`CALENDAR_PIN_ACCESS`, its `open` mode) was retired v24.34. The access
  *      decision runs `reconcileExpiredIdentity()` first, so a valid named identity is PRESERVED
  *      rather than raced or replaced.
- *   2. **Authenticated pages that expose `sessionReady`** — Admin, Settings, Operations, Links,
+ *   2. **Authenticated pages that expose `sessionReady`** — Admin, Settings, Operations, Link Designer,
  *      Overtime, Trains and New link, all through ONE call site: the start-up's session step
  *      (`startSession`, page-start.js), `sessionReady.then(() => { initErrorReporter(); … })`.
  *   3. `paycalc-app.js`, which has no `sessionReady`:

@@ -60,7 +60,7 @@ function specList(src, key) {
 }
 
 /** A LANE's own specs are the `testMatch` at its config's TOP level. One inside `projects:` only
- *  narrows which of the lane's specs a project runs — playwright.webkit.mjs gives the Links specs
+ *  narrows which of the lane's specs a project runs — playwright.webkit.mjs gives the Link Designer specs
  *  projects of their own that way (12 Nov 2026) — and read as a lane's, it would demand those specs
  *  leave the default run, which is the DEPLOY gate's. So the read stops where the projects begin. */
 function laneHead(/** @type {string} */ src) {
@@ -112,7 +112,7 @@ describe('the opt-in lanes and the default lane agree', () => {
 
     test('a testMatch inside projects narrows a lane — it is not a lane of its own', () => {
         // The shape playwright.webkit.mjs would have with its constant written out: no testMatch at
-        // the top, one per project. Read as a lane's, the first test above would ask for the Links
+        // the top, one per project. Read as a lane's, the first test above would ask for the Link Designer
         // specs to leave the default run, and with them the deploy gate's Chromium smoke.
         const narrowed = "export default {\n    ...base,\n    projects: [\n"
             + "        { name: 'one-links', testMatch: 'links*.spec.js' },\n    ],\n};";

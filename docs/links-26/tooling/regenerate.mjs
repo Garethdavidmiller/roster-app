@@ -17,7 +17,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { DAYS } from '../../../links-design.js';
+import { DAYS } from '../../../link-designer-design.js';
 import { STRAPS, BASES } from './fresh.mjs';
 import { PACK_DIRS, today, weekdayFloorFit } from './report-data.mjs';
 
@@ -182,7 +182,7 @@ export const RETIRED_CODES = {
 // the same day: its entries were { ST: results/best-{A,B}-*.json }, { QT: results/best-{Q,R}-*.json }, { Q2: results/best-W-*.json }.
 // The Pinned Turns family (PT-24-P34 · dae6292e, P2-24-N13 · 33a78cbe) was withdrawn the same way on 30 Sep 2026 (owner):
 // its entries were { PT: results/best-RP-*.json, OTHER_MODE results/best-P-13.json } and { P2: results/best-RN-*.json,
-// OTHER_MODE results/best-N-7.json }. Both grids are kept unchanged in test-fixtures/links-designs/ for the Links compare tests.
+// OTHER_MODE results/best-N-7.json }. Both grids are kept unchanged in test-fixtures/link-designer-designs/ for the Link Designer compare tests.
 // Quiet Friday (QF-26-C1 · daf8f3c9), the 217-day what-if, was WITHDRAWN on 3 Oct 2026 (owner: "we can remove Quiet
 // Friday from the proposals"), and DELETED on 6 Nov 2026 with its tables and start (SUPPLIED, above).
 export const SEARCHED = [];   // the 26-line link ships every design as a grid (SUPPLIED): searched rotas are built first and then supplied

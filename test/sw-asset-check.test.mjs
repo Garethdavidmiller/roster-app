@@ -589,7 +589,7 @@ test('no unused CSS custom properties defined in :root', () => {
     // (the guides deliberately run their own palettes, so names like --green/--light/--bg
     // repeat across them). Link groups mirror the pages' actual <link> sets:
     const APP_GROUP = ['shared.css', 'index.css', 'admin.css', 'paycalc.css',
-        'operations.css', 'settings.css', 'links.css'];
+        'operations.css', 'settings.css', 'link-designer.css'];
     const LINK_GROUPS = [
         APP_GROUP,
         ['guide-shell.css', 'guide-doc.css', 'staff-guide.css'],

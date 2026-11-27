@@ -124,7 +124,7 @@ export function shouldResyncClock(correctedNow, deadlines, readAt = null) {
  *
  * ⚠️ THE SAME RULE EXISTS SERVER-SIDE, in `functions/overtime-core.js` (`canRestoreParticipant`),
  * and THAT one is the protection — this copy only decides what the panel OFFERS. The pattern is
- * `canOverwriteTargetSet` in the Links workspace: the button asks the client, the write asks the
+ * `canOverwriteTargetSet` in the Link Designer: the button asks the client, the write asks the
  * server, and the client is allowed to be wrong only in the direction of offering less.
  *
  * Kept in step by `overtime-parity.test.mjs`, which compares BEHAVIOUR over a table of states

@@ -13,7 +13,7 @@ import { openAdminOnDecember, openAdminOnThisWeek } from './admin-helpers.js';
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
-// which a phone suppresses, so the edits went without a word. It now asks first, like Links.
+// which a phone suppresses, so the edits went without a word. It now asks first, like Link Designer.
 /** @param {import('@playwright/test').Page} page */
 async function adminWithUnsavedEditAtSignOut(page) {
     await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });

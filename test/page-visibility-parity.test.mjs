@@ -319,7 +319,7 @@ test('the placeholder is removed by CSS, not by a coordinator', () => {
     const shared = stripCss(read('shared.css'));
     assert.ok(/body\.auth-ready\s+\.boot-placeholder\s*\{[^}]*display\s*:\s*none/.test(shared),
         'shared.css no longer hides .boot-placeholder on auth-ready');
-    for (const f of ['admin-app.js', 'operations-app.js', 'links-app.js']) {
+    for (const f of ['admin-app.js', 'operations-app.js', 'link-designer-app.js']) {
         assert.ok(!/bootPlaceholder/.test(read(f)),
             `${f} touches #bootPlaceholder — it must be pure CSS in both directions, or a ` +
             `coordinator that never finishes strands it`);

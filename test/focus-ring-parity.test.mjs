@@ -220,15 +220,15 @@ test('the controls on a navy surface name a ring drawn for one', () => {
 // ── 4. An outline in a BASE rule is a focus decision too (whole-app fix, 10 Nov 2026) ────────────────
 // Every scan above reads focus rules. An `outline` written on an element's own rule is drawn whether or
 // not it is focused — and at the specificity of its class it can outrank the shared fallback ring, so a
-// keyboard landing on it changes nothing on screen (the Links armed brush chip, css-links-paycalc-2). So a
+// keyboard landing on it changes nothing on screen (the Link Designer armed brush chip, css-links-paycalc-2). So a
 // selector whose base rule sets an outline must have a focus rule of its own, which shows its author
 // decided what focus looks like on it — or be named here as a decoration that is never a Tab stop.
 /** @type {Record<string, string>} selector → why it is not a Tab stop */
 const BASE_OUTLINE_DECORATIONS = {
     '.ddc-badge': 'the day panel\'s shift pill: a <span> (calendar-al-lightbox.js); its hairline keeps pale fills off the navy',
     '.ddm-chip': 'the day panel\'s marker chip: a <span> (calendar-al-lightbox.js); its outline is a whisper of gold',
-    '.dm-avatar': 'the Links masthead\'s initials badge: an aria-hidden <span> (links.html)',
-    '.cell-diff .shift-cell-btn': 'a compare-mode cell that differs: a <span> since v22.60 (links-compare.js), never pressed',
+    '.dm-avatar': 'the Link Designer masthead\'s initials badge: an aria-hidden <span> (link-designer.html)',
+    '.cell-diff .shift-cell-btn': 'a compare-mode cell that differs: a <span> since v22.60 (link-designer-compare.js), never pressed',
     '.pdf-viewer-page': 'the PDF viewer\'s page: a <div role="group"> holding a canvas (pdf-viewer.js), no tabindex; its hairline edges a dark page on the navy ground',
 };
 
