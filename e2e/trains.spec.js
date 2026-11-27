@@ -1338,7 +1338,7 @@ test('no view of the page runs off a phone\'s screen with larger text', async ({
 // ── THE WHOLE-APP FIX (Nov 2026) ─────────────────────────────────────────────────────────────────────
 // What only the page can show: that the coordinator hands each rule the right timetable, the right phase
 // and the right names. The rules themselves are trains-stations.test.mjs's and trains-change.test.mjs's.
-test.describe('trains — the page turns as a whole, and a station computer is told the staff PIN has gone', () => {
+test.describe('trains — the page turns as a whole', () => {
     // From 13 December only the tab and the card's title turned: the section, its ? and its chevron, and the
     // ? panel's own title, went on saying "What’s changing" to a screen reader and under the tab.
     test('every name the changes view goes by turns with it at the change', async ({ page }) => {

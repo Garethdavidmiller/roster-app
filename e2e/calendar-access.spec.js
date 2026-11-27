@@ -3,10 +3,10 @@
  *
  * Only a member's own sign-in opens the Calendar. Until 23 Nov 2026 the shared staff PIN opened it
  * too, and this file was calendar-pin.spec.js; the PIN's card, unlock, Lock and `#staff-pin` went
- * with it (owner decision), and what is left of the PIN here is its END — a browser still holding a
- * PIN session is signed out on arrival and told why ("A LEFTOVER STAFF-PIN SESSION", below).
+ * with it (owner decision), and the tests of a leftover PIN session's sign-out went with the account
+ * in the PIN's cleanup release (27 Nov 2026).
  *
- * The unit tests own the RULES; this owns the things only a browser can answer. Three of them
+ * The unit tests own the RULES; this owns the things only a browser can answer. Two of them
  * genuinely cannot be checked anywhere else:
  *
  *   · **that no roster data is in the DOM while locked.** Every unit test can prove a function
@@ -15,8 +15,6 @@
  *   · **that the splash comes down on the locked path.** The dismissal moved out of the deferred
  *     workspace precisely so a locked visitor is not left staring at a loading screen, and nothing
  *     short of a real page load exercises that ordering.
- *   · **that a leftover staff-PIN session is signed out, on the Calendar and on Trains, and the card
- *     says why.** The teardown is unit-tested; whether each page actually runs it is a wiring question.
  */
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
