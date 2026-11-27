@@ -152,7 +152,7 @@ discussion" decisions that bind only that area. A decision that binds more than 
 | `roster-data.md` | the member fields, `rosterChanges`, the cycles and fixed patterns, `APP_VERSION` | `roster-data.js` · `roster-cycle-data.js` · `roster-member-data.js` · `roster-roles.js` |
 | `roster-import.md` | the weekly roster import, and every defence against a week on the wrong days | the import modules and `functions/roster-*` |
 | `paycalc.md` | the Pay Calculator | `paycalc*` |
-| `link-designer.md` | the Link Designer | `links*` |
+| `link-designer.md` | the Link Designer | `link-designer*` |
 | `css-tokens.md` | surfaces, colour, type, motion, spacing, focus, the app-drawn controls | every `*.css` |
 | `guide-pages.md` | the guide pages | the guide pages |
 | `notifications.md` | the push notification language and the single builder | the push senders, `notif.js`, `notif-card*.js`, `service-worker.js` |

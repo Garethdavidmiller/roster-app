@@ -81,7 +81,7 @@ export const APP_PAGES = Object.freeze([
     app('operations.html', 'operations'),
     app('settings.html', 'settings'),
     // The id stays 'links' (analytics counters, the auth policy, the draft slot); the files took the page's
-    // name, Link Designer, in v27.09.
+    // name, Link Designer, in v27.10.
     app('link-designer.html', 'links', { coordinator: 'link-designer-app.js', boot: 'link-designer-boot.js', preloads: true }),
     app('overtime.html', 'overtime'),
     app('trains.html', 'trains'),

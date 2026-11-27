@@ -1279,3 +1279,21 @@ test('every page asks reconcileExpiredIdentity as it starts, with no argument �
         assert.deepEqual(args.filter(Boolean), [], `${file}: reconcileExpiredIdentity was asked to keep something (${args}) — the staff PIN is retired`);
     }
 });
+
+// ── EVERY PAGE IS ANSWERED OFFLINE BY ITSELF, AND A STUB BY ITS PAGE (Link Designer rename, 27 Nov 2026) ──
+// The service worker picks an offline fallback by the page's file name. A page with no entry is answered
+// with the Calendar, saying "the roster is not available": the rename to link-designer.html left the old
+// 'links' entry behind, so the Link Designer's offline copy was the Calendar, and every suite stayed green.
+test('every served page has an offline fallback in the service worker: itself, or for a stub, the page it moved to', () => {
+    const body = (codeOf('service-worker.js').match(/const PAGE_FALLBACKS = \[([\s\S]*?)\n\s*\];/) || [])[1];
+    assert.ok(body, 'service-worker.js: PAGE_FALLBACKS is not found');
+    const fallbacks = Object.fromEntries([...body.matchAll(/\['([\w-]+)',\s*'([^']+)'/g)].map(m => [m[1], m[2]]));
+    const stubs = Object.fromEntries(REDIRECT_PAGES.map(p => [p.file, p.to]));
+    for (const file of servedFiles().filter(f => f !== 'index.html')) {
+        const seg = file.replace(/\.html$/, '');
+        assert.ok(seg in fallbacks, `service-worker.js: ${file} has no PAGE_FALLBACKS entry, so offline it is answered with the Calendar`);
+        assert.equal(fallbacks[seg], stubs[file] ?? `./${file}`, `service-worker.js: ${file} falls back to ${fallbacks[seg]}`);
+    }
+    const unknown = Object.keys(fallbacks).filter(seg => !servedFiles().includes(`${seg}.html`));
+    assert.deepEqual(unknown, [], `service-worker.js: PAGE_FALLBACKS names pages that are not served — ${unknown.join(', ')}`);
+});
