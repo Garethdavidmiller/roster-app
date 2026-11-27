@@ -395,8 +395,11 @@ export const getDocFromCache = (ref) => {
   const held = e2e.docCache || {};
   const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
   if (id) (e2e.cacheAsked = e2e.cacheAsked || []).push(id);
-  if (id && (e2e.pendingIds || []).includes(id)) {
-    return Promise.resolve({ exists: () => true, data: () => held[id] || {}, metadata: { hasPendingWrites: true } });
+  // A set still HELD offline (below) is this device's own unsent write to that record, and the real
+  // SDK marks it so (27 Nov 2026): online, a checked write asks the record FIRST, and must see it.
+  const heldSet = id ? (e2e._heldSets || []).find(h => h.id === id) : null;
+  if (id && ((e2e.pendingIds || []).includes(id) || heldSet)) {
+    return Promise.resolve({ exists: () => true, data: () => held[id] || (heldSet && heldSet.data) || {}, metadata: { hasPendingWrites: true } });
   }
   if (!id || !Object.prototype.hasOwnProperty.call(held, id)) {
     return Promise.reject(Object.assign(new Error('e2e: Failed to get document from cache'), { code: 'unavailable' }));
@@ -479,9 +482,10 @@ const _answerHeld = (/** @type {any} */ e2e, /** @type {any} */ held) => {
   if (e2e.queuedSetRefusal) held.reject(Object.assign(new Error('e2e queued set refused'), { code: e2e.queuedSetRefusal }));
   else held.resolve(undefined);
 };
-const _answerWhenOnline = (/** @type {any} */ e2e) => new Promise((resolve, reject) => {
+const _answerWhenOnline = (/** @type {any} */ e2e, /** @type {any} */ ref, /** @type {any} */ data) => new Promise((resolve, reject) => {
   e2e._heldSets = e2e._heldSets || [];
-  e2e._heldSets.push({ resolve, reject });
+  // Its record's id and data go with it, so getDocFromCache can answer for it as the SDK's cache does.
+  e2e._heldSets.push({ resolve, reject, id: ref && ref.path ? String(ref.path).split('/').pop() : null, data });
   e2e.deliverQueuedSet = () => { const held = e2e._heldSets.shift(); if (held) _answerHeld(e2e, held); };
   if (e2e._heldSetsWired) return;
   e2e._heldSetsWired = true;
@@ -508,10 +512,10 @@ export const setDoc = (/** @type {any} */ ref, /** @type {any} */ data, /** @typ
       if (!e2e._addDocGate) e2e._addDocGate = new Promise(r => { e2e.releaseAddDoc = r; });
       return e2e._addDocGate.then(() => undefined);
     }
-    return _offlineNow() ? _answerWhenOnline(e2e) : Promise.resolve();
+    return _offlineNow() ? _answerWhenOnline(e2e, ref, data) : Promise.resolve();
   }
   e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
-  return _offlineNow() ? _answerWhenOnline(e2e) : Promise.resolve();
+  return _offlineNow() ? _answerWhenOnline(e2e, ref, data) : Promise.resolve();
 };
 export const updateDoc = () => Promise.resolve();
 // deleteDoc REMOVES the row from the seeded set (v18.97) instead of no-opping, so a card that

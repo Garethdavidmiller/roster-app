@@ -341,7 +341,7 @@ rest.)
 
 **Why it is worth doing.** It is the one change with two payoffs: fewer bytes on every cold load
 (`KNOWN_LIMITATIONS.md` → the Pages mirror's 21%), and headers and redirects reaching the staff who
-today get neither — most of them, since the mirror is where most staff open the app. The cost is
+today get neither — about half of them, since installed users are roughly level between the two addresses (owner, 27 Nov 2026). The cost is
 operational, not technical: telling colleagues, and reinstalling from the canonical URL.
 
 **Why AFTER the password plan, concretely.** The forced set-password overlay fires at the next sign-in

@@ -368,7 +368,7 @@ private window** (no cache, no SW): does `https://myb-roster.web.app` load *past
 to the calendar, with no red console errors?
 
 1. **Revert the commit** and let `deploy-hosting.yml` redeploy — **the only route that reaches BOTH
-   origins.** Most staff open the GitHub Pages mirror, which `deploy-mirror.yml` publishes after
+   origins.** About half the staff open the GitHub Pages mirror (owner, 27 Nov 2026), which `deploy-mirror.yml` publishes after
    each passing Hosting run. A Console rollback runs neither, so the mirror keeps serving the broken
    release.
 2. **Hosting rollback (fastest, `myb-roster.web.app` ONLY):** **Console → Hosting → release history →

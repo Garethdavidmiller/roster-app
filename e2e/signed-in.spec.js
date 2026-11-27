@@ -72,8 +72,9 @@
  *                         signs in online. The SDK's whole-queue wait then never drains (its
  *                         `getHighestUnacknowledgedBatchId` is not bounded to the signed-in account),
  *                         so before 24 Nov 2026 every checked save took eight seconds and a checked
- *                         delete was refused as offline. Now the records the save touches are asked
- *                         when the wait runs out (`ownWritesSentFor`), and the delete goes through.
+ *                         delete was refused as offline. Online, the records the save touches are now
+ *                         asked FIRST (`ownWritesSentFor`, 27 Nov 2026): the very first save and delete
+ *                         go straight through, with no eight seconds and no wait at all.
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -534,7 +535,7 @@ async function accountIds(names) {
     return names.map((n) => users.find((u) => u.email === nameToEmail(n))?.localId ?? '');
 }
 
-test('another account\'s leftover write: a checked delete still goes through, its own records clear (24 Nov 2026)', async ({ page, context }) => {
+test('another account\'s leftover write: a checked save and delete go straight through, never waiting for it (27 Nov 2026)', async ({ page, context }) => {
     // Firestore's IndexedDB queue looks for the highest unsent batch at or BELOW the signed-in account,
     // so only a leftover belonging to an account whose id sorts lower is found. Which of the two
     // members that is depends on the ids the emulator gave them, so the test asks it.
@@ -570,12 +571,39 @@ test('another account\'s leftover write: a checked delete still goes through, it
     // signed-in account's — and the SDK's own wait never sees past it: the fault.
     await signInFirstTime(page, signedIn);
     await ownPasswordRecorded(signedIn);
-    expect(await page.evaluate(() => import('/firebase-client.js').then((m) => m.whenOwnWritesSent(3_000))),
-        'the SDK\'s wait drained: this browser no longer reproduces the leftover fault, so this journey proves nothing — read KNOWN_LIMITATIONS "Admin saves are slow on iPhones"').toBe(false);
+    // The save must NOT have left first: a wait that drains because the save was sent is a broken premise,
+    // not the fault gone. Asked BEFORE the wait, so a failure says which of the two it was (27 Nov 2026,
+    // when the wait first drained on WebKit with Firebase 13.4.0). And what the SDK's own store holds is
+    // named in the message — a queue that did not survive the reload is the case that would matter.
     expect(await overridesFor(leftBehind, theirDay), 'the first member\'s save left this browser').toHaveLength(0);
+    const drained = await page.evaluate(() => import('/firebase-client.js').then((m) => m.whenOwnWritesSent(3_000)));
+    const store = drained ? await page.evaluate(async () => {
+        try {
+            const names = (await indexedDB.databases()).map((d) => d.name).filter((n) => /firestore/i.test(String(n)));
+            const counts = await Promise.all(names.map((name) => new Promise((resolve) => {
+                const open = indexedDB.open(String(name));
+                open.onerror = () => resolve(`${name}: unopenable`);
+                open.onsuccess = () => {
+                    const idb = open.result;
+                    if (!idb.objectStoreNames.contains('mutations')) { idb.close(); resolve(`${name}: no mutations store`); return; }
+                    const req = idb.transaction('mutations', 'readonly').objectStore('mutations').count();
+                    req.onsuccess = () => { idb.close(); resolve(`${name}: ${req.result} queued`); };
+                    req.onerror = () => { idb.close(); resolve(`${name}: count failed`); };
+                };
+            })));
+            return counts.join('; ') || 'no Firestore database at all';
+        } catch (e) { return `unreadable: ${e}`; }
+    }) : '';
+    expect(drained, `the SDK's wait drained: this browser no longer reproduces the leftover fault, so this journey proves nothing — read KNOWN_LIMITATIONS "Admin saves are slow on iPhones". On-device store: ${store}`).toBe(false);
 
-    // 3 · A save, then a delete of it. Both are checked; the delete is the one that used to be refused.
+    // 3 · A save, then a delete of it. Both are checked; the delete is the one that used to be refused,
+    // and both used to spend eight seconds first. Online, each asks its own record first (claim-retry.js
+    // → "ONLINE, THE RECORDS FIRST"), finds nothing of this account's on its way, and goes straight on.
     await page.reload();
+    await page.evaluate(() => import('/claim-retry.js').then((m) => {
+        /** @type {any} */ (window).__ownWaits = [];
+        m.watchOwnWritesWaits((w) => /** @type {any} */ (window).__ownWaits.push(w.outcome));
+    }));
     await openAdminWeek(page, day);
     await stageDay(page, day, 'annual_leave');
     await page.locator('#saveBtn').click();
@@ -590,29 +618,10 @@ test('another account\'s leftover write: a checked delete still goes through, it
     await expect(page.locator('#listFeedback')).toContainText(`Deleted: ${signedIn}`, { timeout: 30_000 });
     expect(await overridesFor(signedIn, day), 'the delete was refused, or did not reach the database').toHaveLength(0);
 
-    // 4 · This browser now KNOWS (25 Nov 2026): a checked write's wait ran out online with its records
-    // clear, so it noted the leftover — and the next checked write asks its records first rather than
-    // spend the eight seconds again (claim-retry.js → "A PHONE KNOWN TO HOLD A LEFTOVER").
-    expect(await page.evaluate(() => Number(localStorage.getItem('myb_queue_leftover'))),
-        'the wait ran out on a leftover, online, and this browser did not note it').toBeGreaterThan(0);
-    await page.evaluate(() => import('/claim-retry.js').then((m) => {
-        /** @type {any} */ (window).__ownWaits = [];
-        m.watchOwnWritesWaits((w) => /** @type {any} */ (window).__ownWaits.push(w.outcome));
-    }));
-    await stageDay(page, day, 'annual_leave');
-    await page.locator('#saveBtn').click();
-    await expect.poll(async () => (await overridesFor(signedIn, day)).length, { timeout: 30_000,
-        message: 'the second save never reached the database' }).toBe(1);
-    await expect(del).toBeVisible();
-    await del.click();
-    await expect(del).toHaveText('Delete?');
-    await pastDoubleTap(page);
-    await del.click();
-    await expect.poll(async () => (await overridesFor(signedIn, day)).length, { timeout: 30_000,
-        message: 'the second delete never reached the database' }).toBe(0);
     const waits = await page.evaluate(() => /** @type {any} */ (window).__ownWaits);
-    expect(waits, 'a checked write on a browser known to hold a leftover waited for it again').toContain('skipped, its records clear');
-    expect(waits.filter((/** @type {string} */ o) => o.startsWith('ran out')), 'no checked write should spend the wait again').toEqual([]);
+    expect(waits.length, 'neither checked write asked whether its records were clear').toBeGreaterThanOrEqual(2);
+    expect(waits.filter((/** @type {string} */ o) => o !== 'skipped, its records clear'),
+        'a checked write waited for another account\'s leftover, which can never leave').toEqual([]);
     expectNothingLeftForGoogle(page);
 });
 

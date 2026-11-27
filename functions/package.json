@@ -7,8 +7,8 @@
     "node": "24"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.7.0",
-    "firebase-admin": "^14.5.0",
+    "@anthropic-ai/sdk": "^1.8.0",
+    "firebase-admin": "^14.5.1",
     "firebase-functions": "^7.4.0",
     "mammoth": "1.13.0",
     "pdfjs-dist": "6.5.438",

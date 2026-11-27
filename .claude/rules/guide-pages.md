@@ -59,7 +59,7 @@ paths:
   Do not add a `shared.css` import to any guide.
 - **The two OLD guide URLs are still served, as redirect stubs**: `guide.html` → `staff-guide.html`,
   `fip.html` → `fip-guide.html`. `firebase.json` 301s both on the canonical origin only; the GitHub
-  Pages mirror (where most staff open the app) serves no redirects, so the redirect is also in the
+  Pages mirror (about half the staff's installs — owner, 27 Nov 2026) serves no redirects, so the redirect is also in the
   HTML. No content, no stylesheet, ONE script — the shared `legacy-redirect.js` (owner, 10 Nov 2026),
   which keeps a bookmark's `#country` and `?from=`, with a meta refresh as the no-script fallback. They
   are NOT guides: `REDIRECT_PAGES` in `scripts/app-pages.mjs`, with their own contract

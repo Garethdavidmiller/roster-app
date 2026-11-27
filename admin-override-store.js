@@ -430,11 +430,12 @@ export function asShown(ids) {
  *
  * THIS DEVICE'S OWN UNSENT SAVES GO FIRST. A save made offline waits in the device's queue and shows
  * as saved, but the transaction reads the SERVER: a delete of such a record found nothing, said
- * "Deleted", and the queued save then put the record back. So the transaction starts only once the
- * queue has drained (`whenOwnWritesSentFor`, claim-retry.js → `ownWritesSentFor`). A queue that has
- * not drained in time is passed over when none of the records this commit touches has a write of this
- * account's still on its way (the SDK's wait can be held up by ANOTHER account's leftover write, which
- * no record of ours carries). Otherwise it ends as a transaction that never reached the server does,
+ * "Deleted", and the queued save then put the record back. So the transaction starts only once none
+ * of the records this commit touches has a write of this account's still on its way
+ * (`whenOwnWritesSentFor`, claim-retry.js → `ownWritesSentFor`): online those records are asked first,
+ * and only one still queued, or one the cache cannot answer, waits for the queue to drain (the SDK's
+ * whole-queue wait can be held up for good by ANOTHER account's leftover write, which no record of
+ * ours carries). A record still queued when that wait runs out ends as a transaction that never reached the server does,
  * `unavailable` — `commitChecked` then holds a save that only writes BEHIND the queue, and a removal
  * is refused, writing nothing.
  * @param {Iterable<string|{id: string}>} items

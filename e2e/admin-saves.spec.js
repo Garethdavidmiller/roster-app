@@ -125,12 +125,13 @@ test('admin: a save that is waiting for the server says so, and the notice clear
     // online is written to the admin's Error Log, so a phone whose every save is slow says so — and it
     // says how much of the wait the page spent in the background (v25.87): this one never left the
     // screen, so the wait was the server's, the reading an iPhone report could not give. And it says how
-    // the checked save's wait for this device's own earlier saves went (22 Nov 2026): nothing queued
-    // here, so it drained at once — three iPhone reports of exactly 8.1s could not say whether it had.
+    // the checked save's check of this device's own earlier saves went (22 Nov 2026): nothing of its own
+    // queued here, so online it asked its records and did not wait at all (27 Nov 2026) — three iPhone
+    // reports of exactly 8.1s could not say whether it had.
     await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
         .filter((/** @type {any} */ w) => /^Slow save \(diagnostic\)/.test(w.data?.message ?? ''))
         .map((/** @type {any} */ w) => w.data.message)), { timeout: 5000 })
-        .toEqual([expect.stringMatching(/took \d+\.\ds to be confirmed — a save while the phone said it was online · on screen throughout · sign-in token \d+\.\ds · own-saves wait 0\.\ds, drained · installed app: /)]);
+        .toEqual([expect.stringMatching(/took \d+\.\ds to be confirmed — a save while the phone said it was online · on screen throughout · sign-in token \d+\.\ds · own-saves wait 0\.\ds, skipped, its records clear · installed app: /)]);
 });
 
 test('admin: a slow save says "Waiting for signal" only when the browser reports being offline (v24.54)', async ({ page, context }) => {
@@ -604,12 +605,15 @@ test('admin: deleting a saved change for another day of the week keeps the stage
 // shows as saved, but a delete's transaction reads the SERVER, which does not hold it yet. Just after the
 // signal returned, the delete called the record already gone and said "Deleted" — then the queued save
 // landed and the record was back. Now the delete waits for the queue: held while it is held, and away the
-// moment it is sent. The queue is the stub's (fixtures.js → waitForPendingWrites), a model of the SDK's.
+// moment it is sent. The queue is the stub's (fixtures.js → waitForPendingWrites), a model of the SDK's —
+// and so is the record: the real SDK marks a record whose own save is still queued (`hasPendingWrites`),
+// and online the delete asks that record first (claim-retry.js → "ONLINE, THE RECORDS FIRST"), so the
+// stub is told which one it is (`pendingIds`). Marked clear, the delete would not wait, and rightly.
 test('admin: a delete waits for the saves this device has not sent yet, then goes ahead', async ({ page }) => {
-    await page.addInitScript(() => {   // before the week's own seed, which keeps what is already here
+    await page.addInitScript((id) => {   // before the week's own seed, which keeps what is already here
         const w = /** @type {any} */ (window);
-        w.__E2E = { ...(w.__E2E || {}), queuedWrites: true };
-    });
+        w.__E2E = { ...(w.__E2E || {}), queuedWrites: true, pendingIds: [id] };
+    }, OWN_MON);
     await openWeekWithMondayLeave(page);
     await page.locator('#overridesToggleHeader').click();
     await deleteSavedChange(page, OWN_MON);

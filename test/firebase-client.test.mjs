@@ -927,28 +927,38 @@ describe('whenOwnWritesSent — the wait a checked write makes before it reads t
     });
 });
 
-// ── when the wait runs out, the records the save touches are asked (24 Nov 2026) ──────────────────
+// ── online, the records the save touches are asked first (27 Nov 2026) ─────────────────────────────
 // The rule is claim-retry.js's (ownWritesSentFor, tested there). The WIRING is tested here: that the
 // export reads the records from THIS Firestore's CACHE (a server read would wait on the network the
-// fallback exists to avoid waiting on), and asks the same SDK wait as `whenOwnWritesSent`.
-describe('whenOwnWritesSentFor — the wait, then the records from this device\'s cache', () => {
+// check exists to avoid waiting on), asks the same SDK wait as `whenOwnWritesSent` when one is still
+// queued, and hands the device's own online state through.
+describe('whenOwnWritesSentFor — the records from this device\'s cache, then the wait only if one is queued', () => {
     const waits = () => state.ops.filter((o) => o.op === 'waitForPendingWrites');
-    test('nothing queued: true at once, from the app\'s own wait, and no record read', async () => {
-        assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a')], 50), true);
-        assert.equal(waits().length, 1);
-        assert.equal(waits()[0].db, fc.db);
-        assert.deepEqual(state.cacheReads, []);
-    });
-    test('runs out, the records clear → true, each record asked from the cache', async () => {
-        state.pendingWrites = new Promise(() => {});
+    /** Run `fn` with the browser saying it is offline (Node's navigator has no onLine of its own). */
+    const whileOffline = async (/** @type {() => Promise<void>} */ fn) => {
+        Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true });
+        try { await fn(); } finally { delete (/** @type {any} */ (globalThis.navigator)).onLine; }
+    };
+    test('online, the records clear → true at once, each record asked from the cache, and the SDK wait never started', async () => {
+        state.pendingWrites = new Promise(() => {});   // another account's leftover: it would never drain
         state.docs.set('overrides/a', { memberName: 'G. Miller' });
-        assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a'), fc.doc(fc.db, 'overrides', 'b')], 20), true);
+        assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a'), fc.doc(fc.db, 'overrides', 'b')], 60_000), true);
         assert.deepEqual([...state.cacheReads].sort(), ['overrides/a', 'overrides/b']);
+        assert.equal(waits().length, 0);
     });
-    test('runs out, one of them still this account\'s to send → false', async () => {
+    test('online, one still this account\'s to send → the app\'s own wait; it runs out → false', async () => {
         state.pendingWrites = new Promise(() => {});
         state.docs.set('overrides/a', { memberName: 'G. Miller' });
         state.queued.add('overrides/a');
         assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a')], 20), false);
+        assert.equal(waits().length, 1);
+        assert.equal(waits()[0].db, fc.db);
+    });
+    test('offline, nothing queued: true from the app\'s own wait, and no record read', async () => {
+        await whileOffline(async () => {
+            assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a')], 50), true);
+        });
+        assert.equal(waits().length, 1);
+        assert.deepEqual(state.cacheReads, []);
     });
 });

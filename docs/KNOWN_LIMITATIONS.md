@@ -144,10 +144,13 @@ depends on how their account id sorts, which is why it looked like a few people'
   `ownWritesSentFor`): if none still has a write of THIS account's pending, the transaction goes ahead.
   **The price:** a phone with full bars and no data spends about sixteen seconds before a save is
   held — accepted.
-- A phone known to hold a leftover asks the records FIRST (v26.84, owner's choice, 25 Nov 2026 — the key
-  `myb_queue_leftover`), so it skips the eight seconds; the note is forgotten when the wait drains and
-  lapses after `LEFTOVER_NOTE_MS`. Admin's saves, the roster import and the Links DESIGNS use it.
-  **The price:** this account's own unsent write to a record the save does NOT touch is not waited for.
+- **Online, every phone asks the records FIRST** (v27.08, owner's choice, 27 Nov 2026), so a leftover
+  costs nothing: clear, the save goes straight on, with no wait at all; a record still queued, or one
+  the cache cannot answer, waits as before. Offline the wait still comes first. It replaced a per-phone
+  note (v26.84, 25 Nov 2026) that still cost every affected phone eight seconds on its first save and
+  again weekly. Admin's saves, the roster import and the Links DESIGNS use it. **The price:** this
+  account's own unsent write to a record the save does NOT touch is not waited for — the transaction
+  never reads that record. The leftover itself stays in the phone's storage, a few harmless bytes.
 
 **Who notices:** the Error Log. Each "Slow save (diagnostic)" entry carries the save's time, the time
 **in the background**, a **sign-in token** time, and how the own-saves wait went (`trackOwnWritesWaits`,
@@ -160,12 +163,13 @@ the other's ("(2 waits)" counts waits heard). These entries are not counted as u
 
 **What is still open:**
 
-- **An affected device spends eight seconds on its first checked save, and once a week after.** The
-  leftover never leaves — nobody can sign the PIN account in to send its queue. **Workaround:** clear
-  the site's stored data (or remove and re-add the installed app) and sign in again — after the Pay
-  Calculator's "Move Your Pay Data" export, because it clears those figures too. Not yet tried on an
-  affected phone. Clearing the leftover from the SDK's storage at start-up was offered and not chosen
-  (owner, 24 Nov 2026): it edits the SDK's private storage, which an update could change.
+- **The fault itself is Firebase's, and is still in `@firebase/firestore` 4.20.0** (Firebase 13.4.0, the
+  newest release on 27 Nov 2026 — checked in the published package, and journey 19 still reproduces it).
+  Nothing in the app now waits on it. Clearing the leftover from the SDK's storage was offered and not
+  chosen (owner, 24 Nov 2026): it edits the SDK's private storage, which an update could change; and the
+  SDK's public clear-the-cache function would also discard the member's own unsent saves, which only the
+  broken wait could say were there. If a release bounds the lookup to the signed-in account, nothing
+  here needs to change.
 - **Whether anything else is slow is unmeasured.** Long-polling on iPhones was prepared and not shipped
   (5 Oct 2026: App Speed's data contradicted the premise). The readings so far (Nov 2026) were each just
   past eight seconds, on screen, token 0.0s — the cause above. Read the iPhone entries before choosing
@@ -852,13 +856,14 @@ cheap HTML marker was removed — it made every bump touch ~8 files) or per-load
 a self-heal reload (a reload-loop hazard), both in the highest-outage-risk file. Revisit only if a real
 mixed-version incident is seen.
 
-### Dual hosting: web.app is canonical, and the github.io mirror is where most staff still are
+### Dual hosting: web.app is canonical, and the github.io mirror still serves about half the staff
 
 - **`https://myb-roster.web.app`** (+ `myb-roster.firebaseapp.com`) — Firebase Hosting, **canonical**:
   the URL for any new install and the origin in notification payloads (`STAFF_SITE_URL`).
 - **`https://garethdavidmiller.github.io/roster-app/`** — the GitHub Pages mirror (note the sub-path).
-  **Still the origin MOST staff use** (owner, Sep 2026; the move is gradual by design). It serves no
-  redirects and no HTTP headers, so anything leaning on either reaches the minority.
+  **Installed users are now roughly level between the two** (owner, 27 Nov 2026; in Sep 2026 most staff
+  were here — the move is gradual by design, and it is working). It serves no redirects and no HTTP
+  headers, so anything leaning on either misses everybody here.
 
 **Why both are safe:** push delivery is origin-independent, and the service worker re-bases a
 notification's target onto its own `registration.scope` (`notificationclick`, `service-worker.js`), so
