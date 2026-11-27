@@ -9,7 +9,7 @@
 // worker cache is invalidated by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '27.18';
+export const APP_VERSION = '27.19';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its line
@@ -61,6 +61,11 @@ export const CONFIG = {
     // untouched, and the code and its tests stay live (the suite switches it back on), so `true` is the way back.
     // Client only: the page has no endpoints, so no generated server copy. auth-policy.js → `linkDesignerEnabled`.
     LINK_DESIGNER_ENABLED:            false,
+    // THE LINKS SELECTOR IS A BETA FOR THE ADMIN (owner, 27 Nov 2026: "The beta would only be accessible to me the master
+    // admin until it is perfected"). `true` opens it to the New CEA Link page's audience (owner: "Same as new link page"):
+    // the page and its drawer pill together, through auth-policy.js → `canOpenSelector`. Client only — the page reads no
+    // Firestore of its own and has no endpoints — so no generated server copy.
+    LINKS_SELECTOR_OPEN:              false,
     // Who besides the page's audience (auth-policy.js → `newlinkAudience`) may open the New link page — the colleague who
     // leads the change (owner, 4 Nov 2026), kept in whatever the audience becomes. Page access only (the page shows only
     // public files), so no claim and no generated server copy. auth-policy.js → `canOpenNewlink` reads it.

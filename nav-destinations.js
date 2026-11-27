@@ -32,7 +32,7 @@
  * and Settings; drawn for everyone else, signed out included. auth-policy.js refuses the same pages. Its
  * gate, `isNotOtherStaff`, is the one `initNavPanel` defaults to TRUE: a page that passes no gates (signed out) keeps
  * Admin and Pay as it always has, and every page that knows its member spreads `navGatesFor`.
- * @type {ReadonlyArray<{ id: string, label: string, name?: string, url: string, colorClass: string, adminOnly?: boolean, linksDesignerOnly?: boolean, overtimeAudienceOnly?: boolean, newlinkAudienceOnly?: boolean, otherStaffHidden?: boolean }>}
+ * @type {ReadonlyArray<{ id: string, label: string, name?: string, url: string, colorClass: string, adminOnly?: boolean, linksDesignerOnly?: boolean, overtimeAudienceOnly?: boolean, newlinkAudienceOnly?: boolean, selectorAudienceOnly?: boolean, otherStaffHidden?: boolean }>}
  */
 export const NAV_PAGES = Object.freeze([
     { id: 'calendar',   label: '📅 Calendar',   url: './',      colorClass: 'nav-panel-pill--calendar'   },
@@ -50,6 +50,9 @@ export const NAV_PAGES = Object.freeze([
     // The new link's shortlisted proposals: every colleague on a normal CEA contract and the managers since it opened, with
     // the admin and the named previewers (`canOpenNewlink`) — the gate and auth-policy.js's role move together (nav-gates.test.mjs).
     { id: 'newlink',    label: '🔁 New CEA Link', url: './newlink.html',    colorClass: 'nav-panel-pill--newlink',    newlinkAudienceOnly: true },
+    // A proposal as a calendar (owner, 27 Nov 2026), beside the page that sets the proposals out: the admin's during its
+    // beta, then the New link page's audience (`canOpenSelector`, CONFIG.LINKS_SELECTOR_OPEN) — nav-gates.test.mjs.
+    { id: 'selector',   label: '🗓️ Links Selector', url: './links-selector.html', colorClass: 'nav-panel-pill--selector', selectorAudienceOnly: true },
     // SETTINGS IS A PAGE, SO IT IS A PILL (nav-panel.js's header has why); its badges' indigo (shared.css
     // has why). It comes last, so "work pages first" holds by position.
     { id: 'settings',   label: '⚙️ Settings',      url: './settings.html',   colorClass: 'nav-panel-pill--settings'   },
@@ -126,10 +129,11 @@ export const PILL_GATES = Object.freeze({
     linksDesignerOnly:    'isLinksDesigner',
     overtimeAudienceOnly: 'canOpenOvertime',
     newlinkAudienceOnly:  'canOpenNewlink',
+    selectorAudienceOnly: 'canOpenSelector',
     otherStaffHidden:     'isNotOtherStaff',
 });
 
-/** @typedef {{ isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, isNotOtherStaff?: boolean }} NavGates */
+/** @typedef {{ isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, canOpenSelector?: boolean, isNotOtherStaff?: boolean }} NavGates */
 
 /**
  * The pills a person sees, in menu order, each marked `current` when it is the page they are on. A

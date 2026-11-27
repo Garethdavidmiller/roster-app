@@ -734,6 +734,22 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // The Links Selector (27 Nov 2026): a proposal on the Calendar's grid. Scanned on its first month — sixteen blank days,
+    // then the proposal's — and again with a day's panel open, the page's one dialog besides the pickers.
+    test('links selector (admin) — January 2027, then a day\'s panel', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
+        await expect(page.locator('.calendar-day.selector-blank')).toHaveCount(16);
+        // The Calendar's documented exclusion (A11Y_BASELINE.md): the faded filler days are aria-hidden decoration.
+        let v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+        await page.locator('.calendar-day[data-detail-day="Monday 18 January 2027"]').click();
+        await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+        v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // THE PACK'S PDF VIEWER (pdf-viewer.js, v25.67): a dialog over the page, its pages drawings a screen reader cannot read —
     // so each page is a named group carrying its words, and the scroll box is a named tab stop. Scanned open on a drawn
     // file, then on the failure state with its Try again.
@@ -1110,6 +1126,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         ['links', '/link-designer.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
         ['trains', '/trains.html', '#trTotals .tr-total'],
         ['newlink', '/newlink.html', '[data-persona="all"]'],
+        ['selector', '/links-selector.html', '.calendar-grid'],
         ['overtime, paused', '/overtime.html', '#otMineContent .ot-state',
             () => document.addEventListener('DOMContentLoaded', () => { document.body.style.minHeight = '100vh'; })],
     ])) {
@@ -1121,7 +1138,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             await page.locator('#navMenuBtn').click();
             await page.locator('#navPanelBrand').click();
             await expect(page.locator('#iconLightbox .lightbox-badge')).toBeVisible();
-            const v = await scan(page);
+            // The Links Selector draws the Calendar's grid behind the panel, so it takes the Calendar's exclusion (A11Y_BASELINE.md).
+            const v = await scan(page, { exclude: name === 'selector' ? ['.other-month'] : [] });
             expect(v.length, report(v)).toBe(0);
             const badge = await new AxeBuilder({ page }).include('#iconLightbox .lightbox-badge').withRules(['color-contrast']).analyze();
             expect(badge.passes.length + badge.violations.length,

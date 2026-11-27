@@ -37,8 +37,10 @@ function reach(entry) {
     return seen;
 }
 
-/** The proposals, and everything that exists only to show them. */
-const PROPOSAL_MODULES = ['link-designer-proposals.js', 'newlink-data.js', 'newlink-render.js', 'newlink-config.js', 'newlink-app.js'];
+/** The proposals, and everything that exists only to show them — the Links Selector's modules too (27 Nov 2026), which put a
+ *  proposal on DATES and so are the likelier of the two to be mistaken for a roster if one ever reached a roster page. */
+const PROPOSAL_MODULES = ['link-designer-proposals.js', 'newlink-data.js', 'newlink-render.js', 'newlink-config.js', 'newlink-app.js',
+    'links-selector-core.js', 'links-selector-render.js', 'links-selector-app.js'];
 
 /** Each roster page, and the surfaces in it a member reads as their own roster — named so the walk is checked to cover them. */
 const ROSTER_PAGES = {
@@ -75,4 +77,20 @@ test('the page\'s own modules are loaded by the page alone', () => {
     const strangers = Object.entries(importers).flatMap(([m, fs]) => fs.filter(f => !f.startsWith('newlink')).map(f => `${f} → ${m}`));
     assert.deepEqual(strangers, [], 'only the new link page may load its modules');
     assert.deepEqual(importers['newlink-app.js'], ['newlink-boot.js'], 'the coordinator is started by its boot shim alone');
+});
+
+test('the Links Selector\'s modules are loaded by the Links Selector alone', () => {
+    // It borrows the Calendar's cell builders and swipe (links-selector-render.js says why it does not borrow the Calendar's
+    // month); the borrowing runs one way only. A roster module importing one of these is the leak above, a step early.
+    const own = ['links-selector-core.js', 'links-selector-render.js', 'links-selector-app.js'];
+    /** @type {string[]} */ const strangers = [];
+    for (const f of readFileSync(new URL('./service-worker.js', REPO_ROOT_URL), 'utf8').match(/'[\w.-]+\.js'/g) ?? []) {
+        const file = f.slice(1, -1);
+        if (file.startsWith('links-selector') || !existsSync(new URL(`./${file}`, REPO_ROOT_URL))) continue;
+        const src = read(file);
+        for (const m of own) if (new RegExp(`['"]\\./${m.replace('.', '\\.')}['"]`).test(src)) strangers.push(`${file} → ${m}`);
+    }
+    assert.deepEqual(strangers, [], 'only the Links Selector may load its modules');
+    // guard the guard: the page itself does load them, so the pattern above can match at all
+    assert.ok(/['"]\.\/links-selector-core\.js['"]/.test(read('links-selector-app.js')), 'the pattern no longer matches a real import');
 });

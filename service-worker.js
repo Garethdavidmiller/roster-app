@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '27.18';
+const APP_VERSION = '27.19';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -98,9 +98,11 @@ const APP_FILES = [
     'overtime.html',
     'trains.html',
     'newlink.html',
+    'links-selector.html',
     'admin.css',
     'index.css',
     'link-designer.css',
+    'links-selector.css',
     'newlink.css',
     'operations.css',
     'overtime.css',
@@ -253,6 +255,10 @@ const APP_FILES = [
     'link-designer-today.js',
     'link-designer-window-editor.js',
     'link-designer-window.js',
+    'links-selector-app.js',
+    'links-selector-boot.js',
+    'links-selector-core.js',
+    'links-selector-render.js',
     'login-core.js',
     'login-overlay.js',
     'ls.js',
@@ -718,6 +724,7 @@ self.addEventListener("fetch", event => {
             ['overtime',   './overtime.html',   'Overtime is not available offline. Please reconnect and reload.'],
             ['trains',     './trains.html',     'Trains is not available offline. Please reconnect and reload.'],
             ['newlink',    './newlink.html',    'New CEA Link is not available offline. Please reconnect and reload.'],
+            ['links-selector', './links-selector.html', 'The Links Selector is not available offline. Please reconnect and reload.'],
             ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
             // The guides fall back to THEMSELVES (Nov 2026, owner): through the default, a guide the warm-up
             // had not reached was answered with the Calendar at the race. A stub falls back to its page.

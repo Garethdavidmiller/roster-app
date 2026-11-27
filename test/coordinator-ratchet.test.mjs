@@ -641,11 +641,12 @@ const CAPS = {
     // into paycalc-app.js. Nothing else in the worker grew.
     // 1066 → 1068 (27 Nov 2026), two generated precache lines: `mirror-move.js` and `mirror-move-words.js`.
     // 1068 → 1070 (27 Nov 2026), two generated precache lines: `doc-dates.js` and `admin-day-change.js`.
-    // 1070 → 1072 (27 Nov 2026), two generated precache lines: `team-overlap.js` and `calendar-team-onwith.js`,
-    // the "Who’s on with me" card's arithmetic and markup, kept out of calendar-team-view.js. Nothing else grew.
-    // 1072 → 1073 (27 Nov 2026), one generated precache line: `trains-journey.js`, the Trains page's one lookup
-    // ("Aylesbury, after 17:15"), a pure module of its own rather than more of trains-cards.js. Nothing else grew.
-    'service-worker.js':       1073,
+    // 1070 → 1077 (27 Nov 2026), the Links Selector: six generated precache lines (its page, its sheet and its four
+    // modules) and its one offline-fallback row beside every other page's. No logic moved and none was added.
+    // 1077 → 1080 (27 Nov 2026), three generated precache lines: `team-overlap.js` and `calendar-team-onwith.js`,
+    // the "Who’s on with me" card's arithmetic and markup, kept out of calendar-team-view.js; and `trains-journey.js`,
+    // the Trains page's one lookup ("Aylesbury, after 17:15"), a pure module of its own. Nothing else grew.
+    'service-worker.js':       1080,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

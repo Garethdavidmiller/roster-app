@@ -100,7 +100,10 @@ test('each app page\'s declared stylesheet, coordinator and boot shim are real a
         } else {
             assert.ok(html.includes(`src="./${p.coordinator}"`), `${p.file} loads no boot shim, so it must load ${p.coordinator} directly`);
         }
-        assert.equal(p.cards, p.file !== 'index.html', `${p.file}: only the calendar is not built from cards`);
+        // Not built from cards: the calendar, and a page that draws the calendar's grid in its stylesheet (the Links Selector,
+        // which declares index.css in `alsoCss`). Any other page without cards is a mistake in the list.
+        const drawsTheCalendar = p.file === 'index.html' || (p.alsoCss ?? []).includes('index.css');
+        assert.equal(p.cards, !drawsTheCalendar, `${p.file}: only the calendar, and a page drawing its grid, is not built from cards`);
     }
 });
 

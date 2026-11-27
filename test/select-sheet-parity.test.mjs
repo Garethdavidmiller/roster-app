@@ -54,7 +54,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { pageStylesheets, GUIDE_PAGES, REDIRECT_PAGES } from '../scripts/app-pages.mjs';
+import { pageStylesheets, GUIDE_PAGES, REDIRECT_PAGES, APP_PAGES as APP_PAGE_LIST } from '../scripts/app-pages.mjs';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -362,7 +362,9 @@ test('a page whose enhanced selects carry no class of their own names .fieldpick
             .filter(m => !/\bclass=/.test(m[0]))
             .map(m => m[0].match(/\bid=["']([^"']+)["']/)?.[1] ?? '')
             .filter(id => id && ids.has(id));
-        if (classless.length && !read(css).includes('.fieldpick')) {
+        // A page's declared second sheet counts (`alsoCss`): the Links Selector's pickers are the Calendar's, styled by index.css.
+        const also = (APP_PAGE_LIST.find(p => p.file === page)?.alsoCss ?? []).map(c => read(c)).join('\n');
+        if (classless.length && !(read(css) + also).includes('.fieldpick')) {
             missing.push(`${page}: ${classless.join(', ')} carry no class, and ${css} never names .fieldpick`);
         }
     }

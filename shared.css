@@ -2475,6 +2475,7 @@ button.lightbox-bug-link {
 .nav-panel-pill--overtime   { background: var(--ot);          color: white; }
 .nav-panel-pill--trains     { background: var(--raspberry);   color: white; }
 .nav-panel-pill--newlink    { background: var(--al);          color: white; }
+.nav-panel-pill--selector   { background: var(--blue-sky);    color: white; }
 .nav-panel-pill--links      { background: var(--purple);      color: white; }
 .nav-panel-pill--settings   { background: var(--indigo);      color: white; }
 @media (hover: hover) and (pointer: fine) {
@@ -2484,6 +2485,7 @@ button.lightbox-bug-link {
     .nav-panel-pill--operations:hover { background: color-mix(in oklch, var(--orange) 91%, black); }
     .nav-panel-pill--trains:hover     { background: var(--raspberry-hover); }
     .nav-panel-pill--newlink:hover    { background: var(--al-hover); }
+    .nav-panel-pill--selector:hover   { background: color-mix(in oklch, var(--blue-sky) 91%, black); }
     .nav-panel-pill--links:hover      { background: color-mix(in oklch, var(--purple) 91%, black); }
     .nav-panel-pill--settings:hover   { background: var(--indigo-hover); }
     .nav-panel-pill--overtime:hover   { background: color-mix(in oklch, var(--ot) 91%, black); }
