@@ -37,7 +37,7 @@
 
 import { lsGet, lsSet, lsAvailable } from './ls.js';
 import { archiveNotice, reviseArchivedNotice, isNoticeExpired } from './notice-archive.js';
-import { createLightbox, openNoticeIfClear, followLinkOutOf } from './overlay.js';
+import { createLightbox, openNoticeIfClear, followLinkOutOf, whenHistorySettled } from './overlay.js';
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';
 import { getSession } from './session.js';
@@ -614,11 +614,15 @@ export function initCalendarNotices({ after } = {}) {
 
         // "Open Team Week View": answered, closed, and the page's own 👥 Team button pressed — the button's guards and
         // its announcement are then Team View's own, never a copy. Not pressed when Team View is already showing,
-        // which would toggle it back to the month.
+        // which would toggle it back to the month. Pressed once the close's Back has landed (`whenHistorySettled`):
+        // pressed at once, Team View's own entry went on top of the notice's, the close's Back took it, and one
+        // Back from Team View left the page (24-hour check, 27 Nov 2026).
         document.getElementById('teamNoticeShow')?.addEventListener('click', () => {
             markDone();
             lb.close();
-            if (!document.body?.classList.contains('team-view-active')) document.getElementById('teamViewBtn')?.click();
+            whenHistorySettled(() => {
+                if (!document.body?.classList.contains('team-view-active')) document.getElementById('teamViewBtn')?.click();
+            });
         });
         document.getElementById('teamNoticeLater')?.addEventListener('click', () => lb.close());
 

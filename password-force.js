@@ -18,7 +18,8 @@
  *     AL recording and the pay calculator. The Calendar runs this overlay too (v23.21, below), and
  *     there property 3 is what keeps it from being a lockout.
  *  2. **It fails open BEFORE showing.** A slow/failed `getPasswordStatus`, a non-`named` identity, or
- *     a missing login marker means it simply doesn't appear and tries again at the next sign-in.
+ *     a member this device knows to have their own password means it simply doesn't appear, and
+ *     tries again on the next open.
  *  3. **It fails open AFTER showing too.** This is the part a "mandatory overlay" gets wrong: once
  *     it is up, a rate-limit or a dropped connection would otherwise leave the member facing a
  *     dialogue they cannot satisfy and cannot dismiss. On any auth-layer failure they can't fix by
@@ -169,11 +170,6 @@ function _mount() {
 }
 
 /**
- * Show the mandatory overlay and resolve when it closes (set or escaped).
- * @param {string} member
- * @returns {Promise<void>}
- */
-/**
  * Could the set-password step have anything to do for this member on this load? A sign-in marker, or no
  * record that this device has seen their own password — read from local storage only, so the Calendar
  * can skip the session step on every load of a member who has moved on.
@@ -183,7 +179,11 @@ export function passwordStepMayBeDue(member) {
     return !!lsGet(PW_FORCE_PENDING_PREFIX + member) || !lsGet(PW_OWN_KNOWN_PREFIX + member);
 }
 
-/** @param {string} member @param {{ askCurrent?: boolean }} [opts] */
+/**
+ * Show the mandatory overlay and resolve when it closes (set or escaped).
+ * @param {string} member @param {{ askCurrent?: boolean }} [opts]
+ * @returns {Promise<void>}
+ */
 function _show(member, { askCurrent = false } = {}) {
     const overlay  = /** @type {HTMLElement} */ (_mount());
     const newEl    = /** @type {HTMLInputElement} */ (document.getElementById('pwfNew'));
@@ -419,7 +419,8 @@ function _show(member, { askCurrent = false } = {}) {
 }
 
 /**
- * Compel an un-migrated member to set their own password, once, right after a confirmed sign-in.
+ * Compel a member still on the surname to set their own password: after a confirmed sign-in, and on an
+ * ordinary open unless this device has seen the server say they have their own (owner, 26 Nov 2026).
  * Fire-and-forget from a coordinator's authorised path — never awaited on the login critical path.
  *
  * @param {string|null|undefined} member
@@ -438,7 +439,11 @@ export async function initPasswordForce(member, { ready } = {}) {
     const pendingKey = PW_FORCE_PENDING_PREFIX + member;
     const knownKey = PW_OWN_KNOWN_PREFIX + member;
     const afterSignIn = !!lsGet(pendingKey);
-    if (afterSignIn) lsDel(pendingKey);        // one-shot: consume BEFORE any await (see header)
+    // One-shot: consume BEFORE any await (see header). A sign-in also forgets what this device knew of
+    // the member's own password, before the read: a reset ends in a sign-in on the surname, and a read
+    // that then failed kept the old "own password" and skipped every later open for good (24-hour check,
+    // 27 Nov 2026). A sign-in with a failed read is asked again on the next open, which reads afresh.
+    if (afterSignIn) { lsDel(pendingKey); lsDel(knownKey); }
     // The flag is checked AFTER consuming the marker, which looks backwards but is deliberate: if it
     // were checked first, a flag-OFF deployment would leave markers lying in localStorage, and the
     // day the flag is switched on every one of those members would be ambushed on their next ordinary

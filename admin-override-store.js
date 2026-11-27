@@ -573,8 +573,18 @@ export async function commitChecked(write, { shownFor, removed = [], line, holdO
             if (!holdOffline || !NO_SERVER.has(/** @type {any} */ (err)?.code)) throw err;
         }
     }
+    // HELD OFFLINE, a delete must travel with a set (24-hour check, 27 Nov 2026). A queued delete reads as
+    // no record at all, so the next online save's "records first" check (`recordsClearOfOwnWrites`,
+    // claim-retry.js) cannot see it, and the delete would land after that save. A set queued beside it
+    // reads as queued, so the check waits. Every held save today is a set with the copies it replaces; one
+    // that only deletes is refused here rather than held.
     const batch = writeBatch(db);
-    write(batch);
+    let sets = 0, deletes = 0;
+    write({ set: (/** @type {any} */ ref, /** @type {any} */ data) => { sets++; batch.set(ref, data); },
+        delete: (/** @type {any} */ ref) => { deletes++; batch.delete(ref); } });
+    if (deletes > 0 && sets === 0) {
+        throw Object.assign(new Error('a save that only removes is never held offline'), { code: 'unavailable' });
+    }
     await batch.commit();
     return { checked: false, done: false };
 }

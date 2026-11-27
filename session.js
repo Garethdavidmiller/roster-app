@@ -700,11 +700,15 @@ export async function reconcileExpiredIdentity() {
     }
 }
 
-/** Running from the home screen, not a browser tab: the personal phone (silent-sign-in.js says why). */
+/** Running from the home screen of a phone or tablet: the personal device (silent-sign-in.js says why).
+ *  An app installed on a computer keeps the fixed lifetime, as a tab does — Chrome on a desktop offers its
+ *  own install, and that renewed for ever (24-hour check, 27 Nov 2026). Touch is `(pointer: coarse)`, the
+ *  test install-prompt.js already uses. */
 function installedApp() {
     try {
-        return globalThis.matchMedia?.('(display-mode: standalone)')?.matches === true
+        const home = globalThis.matchMedia?.('(display-mode: standalone)')?.matches === true
             || /** @type {any} */ (globalThis.navigator)?.standalone === true;
+        return home && globalThis.matchMedia?.('(pointer: coarse)')?.matches === true;
     } catch { return false; }
 }
 

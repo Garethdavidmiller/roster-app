@@ -99,7 +99,8 @@ export const teamMembers = [
     //     allowance. That is the case the field's own comment describes.
     // `proRatedAL` is TRANSCRIBED from the clerk's workbook (read 8 Sep 2026); re-read the book, never
     // recompute.
-    // LEFT by 6 Nov 2026 (owner) — his bilingual line, one above T. Gherbi, is a vacancy. Row kept,
+    // LEFT by 6 Nov 2026 (owner) — his bilingual line, one above T. Gherbi, was a vacancy until M. Laurencin
+    // took it from Sun 29 Nov 2026 (below): the two rows share the line ON PURPOSE, so never "fix" one. Row kept,
     // `hidden`, so his past shifts and everything recorded on them still resolve (the /leaver skill).
     { name: 'I. Melikian',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA', hidden: true,
       startDate: new Date(2026, 7, 10), proRatedAL: { 2026: 13 },

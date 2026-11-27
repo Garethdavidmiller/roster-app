@@ -23,7 +23,8 @@ import {
     personalActionsAllowed,
 } from '../calendar-access-core.js';
 
-const member  = { uid: 'abc123', isAnonymous: false };
+import { nameToEmail as _email } from '../auth-identity.js';
+const member  = { uid: 'abc123', isAnonymous: false, email: _email('G. Miller') };
 const anon    = { uid: 'anon-1', isAnonymous: true };
 const session = { name: 'G. Miller' };
 
@@ -34,6 +35,8 @@ describe('decideAccess', () => {
         assert.equal(decideAccess({ session: s, firebaseUser: { uid: 'a', isAnonymous: false, email: nameToEmail('G. Miller') } }), 'named');
         assert.equal(decideAccess({ session: s, firebaseUser: { uid: 'b', isAnonymous: false, email: nameToEmail('S. Silva') } }), 'none',
             'another tab signed a colleague in: the page must not show G. Miller over their reads');
+        assert.equal(decideAccess({ session: s, firebaseUser: { uid: 'c', isAnonymous: false } }), 'none',
+            'an account with no email is no member\'s');
     });
 
     test('a member with a live session and a restored identity → named', () => {

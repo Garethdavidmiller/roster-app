@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '27.12';
+const APP_VERSION = '27.13';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -1017,7 +1017,7 @@ self.addEventListener("notificationclick", event => {
                 return win.focus().then(focusedClient => {
                     if (!focusedClient) return clients.openWindow(targetUrl);
                     // Ask before navigating: a busy page is left alone and asked (sw-register.js).
-                    return askIfBusy(focusedClient).then(busy => {
+                    return askIfBusy(focusedClient, targetUrl).then(busy => {
                         if (busy) { focusedClient.postMessage({ type: 'myb-open-later', url: targetUrl }); return undefined; }
                         return navigateOrOpen(focusedClient);
                     });
@@ -1040,14 +1040,14 @@ self.addEventListener("notificationclick", event => {
     }
 });
 
-/** Is a window holding unsaved work or a save in flight? Unanswered in 500 ms → false. @param {any} client */
-function askIfBusy(client) {
+/** Is a window holding unsaved work or a save in flight? Unanswered in 500 ms → false. @param {any} client @param {string} targetUrl */
+function askIfBusy(client, targetUrl) {
     return new Promise(resolve => {
         try {
             const channel = new MessageChannel();
             const done = (/** @type {boolean} */ v) => { channel.port1.close(); resolve(v); };
             channel.port1.onmessage = (e) => done(!!(e.data && e.data.busy));
-            client.postMessage({ type: 'myb-busy?' }, [channel.port2]);
+            client.postMessage({ type: 'myb-busy?', url: targetUrl }, [channel.port2]);   // where the tap goes (sw-register.js)
             setTimeout(() => done(false), 500);   // a settled promise ignores the later call
         } catch (_) { resolve(false); }
     });
