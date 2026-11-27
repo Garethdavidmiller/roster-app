@@ -4,7 +4,7 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect, withLinksDesigners, routeAppPage, pauseLinkDesigner } from './fixtures.js';
+import { test, expect, withLinksDesigners, appTab, pauseLinkDesigner } from './fixtures.js';
 import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, isTouchProject, waitForReadsToLand } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the length as a literal — and `links: the
@@ -5778,8 +5778,7 @@ test('links: a Save pressed while a refused create is on its way adds nothing to
 
 test('links: a clean first tab does not throw away the copy a second tab kept of its queued save', async ({ page, context }) => {
     await openWindowDesign(page);                  // the first tab
-    const second = await context.newPage();
-    await routeAppPage(second);                    // the stubbed SDK, as the test's own page has it
+    const second = await appTab(context);          // the stubbed SDK, as the test's own page has it
     await openWindowDesign(second);                // the second — its Firestore queue is memory only
     await queueSaveOffline(second);
     expect((await keptDraft(page))?.data?.window?.monSat?.end, 'one storage, both tabs').toBe('14:20');

@@ -730,7 +730,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `paidInPeriodNum` · `awardWindow` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `awardLumpNonPremium`
 
 ### `paycalc-format.js`
-- **Exports:** `fd` · `fdShort` · `fdLong` · `fmt` · `fmtRate` · `fdList` · `clampMinute` · `minutesFieldText` · `decimalToHM` · `HM_PAIRS` · `isDataEmpty`
+- **Exports:** `fd` · `fdShort` · `fdLong` · `fmt` · `fmtRate` · `fdList` · `clampMinute` · `minutesFieldText` · `decimalToHM` · `HM_PAIRS` · `hasSavedComparison` · `isDataEmpty`
 
 ### `paycalc-breakdown.js`
 - **Exports:** `taxCodeNotRecognised` · `fmtHrsMins` · `buildSummaryRows` · `buildLoanLines` · `ytdMisfitNote` · `buildBreakdownRows` · `buildActualCheck` · `buildActualComparison` · `buildProvChips` · `buildBreakBar`
