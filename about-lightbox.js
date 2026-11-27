@@ -157,7 +157,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', getUserName,
 function fitHeaderBadge() {
     const header = document.querySelector('.app-header');
     const name = header?.querySelector('h1');
-    if (!header || !name || !header.querySelector('.badge-page') || header.dataset.badgeFit) return;
+    if (!(header instanceof HTMLElement) || !name || !header.querySelector('.badge-page') || header.dataset.badgeFit) return;
     header.dataset.badgeFit = '1';
     const fit = () => {
         header.classList.remove('app-header--tight');
