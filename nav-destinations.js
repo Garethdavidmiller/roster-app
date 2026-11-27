@@ -49,7 +49,7 @@ export const NAV_PAGES = Object.freeze([
     { id: 'trains',     label: '🚆 Trains',        url: './trains.html',     colorClass: 'nav-panel-pill--trains'     },
     // The new link's shortlisted proposals: every colleague on a normal CEA contract and the managers since it opened, with
     // the admin and the named previewers (`canOpenNewlink`) — the gate and auth-policy.js's role move together (nav-gates.test.mjs).
-    { id: 'newlink',    label: '🔁 New link', url: './newlink.html',    colorClass: 'nav-panel-pill--newlink',    newlinkAudienceOnly: true },
+    { id: 'newlink',    label: '🔁 New CEA Link', url: './newlink.html',    colorClass: 'nav-panel-pill--newlink',    newlinkAudienceOnly: true },
     // SETTINGS IS A PAGE, SO IT IS A PILL (nav-panel.js's header has why); its badges' indigo (shared.css
     // has why). It comes last, so "work pages first" holds by position.
     { id: 'settings',   label: '⚙️ Settings',      url: './settings.html',   colorClass: 'nav-panel-pill--settings'   },
@@ -114,7 +114,7 @@ export const NAV_GUIDES = Object.freeze([
  * `Links` stays beside `Link Designer`: a notice archived before the page was renamed (v27.10) keeps the old section name.
  * @type {Readonly<Record<string, string>>}
  */
-export const SECTION_MODS = Object.freeze({ Pay: 'pay', 'Link Designer': 'links', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New link': 'newlink' });
+export const SECTION_MODS = Object.freeze({ Pay: 'pay', 'Link Designer': 'links', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New CEA Link': 'newlink', 'New link': 'newlink' });
 
 /**
  * Each flag a `NAV_PAGES` entry may carry, and the gate (an `initNavPanel` option, from `navGatesFor`)

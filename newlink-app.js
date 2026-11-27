@@ -90,7 +90,7 @@ export function init() {
     // So the refusal keeps the session: it is a real view by a real member, signed in, guarded and counted. The standard
     // lost-session card carries this page's `about`, arriving with the member's name chosen and saying why they are asked.
     // The shared-screen line every sign-in card carries (polish review, 26 Nov 2026: this one stopped without it).
-    startPage({ page: 'newlink', label: 'New link', about: { ...ABOUT, footnote: SHARED_SCREEN }, refusalKeepsSession: true,
+    startPage({ page: 'newlink', label: 'New CEA Link', about: { ...ABOUT, footnote: SHARED_SCREEN }, refusalKeepsSession: true,
         run: (member) => start(member, true),
         refuse: (_decision, { member }) => start(/** @type {string} */ (member), false) });
 }
@@ -112,7 +112,7 @@ function start(member, admitted) {
     });
     // initAboutLightbox returns `{ open, close }`, not a function. Taking the object whole — as this page first did, copying
     // Trains — made the drawer's logo throw instead of opening About (found 2 Nov 2026).
-    openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — New link', getUserName: () => member })?.open ?? null;
+    openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — New CEA Link', getUserName: () => member })?.open ?? null;
     wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js — the one wiring)
     // The cards' ? panels, and the panel the drawer's "Words used in the app" opens — for a refused visitor too, whose
     // drawer has the row. A ? on a card hidden from them is never pressed.
