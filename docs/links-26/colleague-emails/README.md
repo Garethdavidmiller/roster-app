@@ -14,6 +14,7 @@ says nothing has been decided, and asks the reader to tell Sara or their manager
 |---|---|---|
 | `prefer-earlies.html` | likes early shifts, 06:20 starts most of all, and swaps onto earlies | Level Crossing |
 | `lates-by-2200.html` | likes late shifts finishing no later than 22:00, always swaps onto lates, and loves Sunday overtime | Balanced V6 |
+| `home-by-2230.html` | dislikes shifts finishing after 22:30, closing shifts most of all. It says first that no proposal has fewer closing shifts (three close every day), then which makes them easiest to live with | Middle Ground |
 | `lates-swapper-and-day-shifts.html` | swaps onto a late every day, and is thinking of also taking day shifts of roughly 08:00 to 17:00: it answers both, and says how the answer turns on how early is too early (07:30 or 07:00) | Balanced V6 |
 | `weekends-and-long-breaks.html` | wants full weekends off and three or four days off in a row, and would use a day or two of annual leave to get more of both. It explains why (how the days off are grouped: pairs against single days) and shows the year twice, Sundays worked and Sundays given up in advance, with every figure that needs the Sunday given up marked | Middle Ground |
 
