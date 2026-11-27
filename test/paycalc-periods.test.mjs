@@ -258,8 +258,25 @@ describe('periodPaidInMonth — the payslip a month on the Calendar means', () =
         assert.equal(paidOn(periods.find((/** @type {any} */ p) => p.start <= mid && mid <= p.cutoff)), '2026-12-18',
             'premise: the shifts covering 15 Nov are paid on 18 Dec');
         assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 10, 9))), '2026-11-20');
-        // And once it has been paid, the month still means it: a member checking the payslip in their hand.
-        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 25, 9))), '2026-11-20');
+    });
+    test('the month we are in, once its payday has gone, is the next payslip (owner, 27 Nov 2026)', () => {
+        // "It is November 27th so it really should have changed to the next payslip on November 21st."
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 19, 23))), '2026-11-20', 'the day before: still to come');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 20, 9))), '2026-11-20', 'payday morning: still to come');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 20, 13))), '2026-12-18',
+            'paid from payday\'s midday, as the calculator\'s own default reads it');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 21, 9))), '2026-12-18');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 27, 9))), '2026-12-18', 'the reported day');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 11, new Date(2026, 10, 30, 23))), '2026-12-18', 'the last evening of the month');
+        // …and it is the calculator's own default, so the button and a plain open agree.
+        const now = new Date(2026, 10, 27, 9);
+        assert.equal(periodPaidInMonth(periods, 2026, 11, now), periods.find((/** @type {any} */ p) => p.payday > now));
+    });
+    test('a month that is over still means the payslip paid in it; a month to come, the one due in it', () => {
+        const now = new Date(2026, 10, 27, 9);
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 10, now)), '2026-10-23', 'October, looking back');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2026, 12, now)), '2026-12-18', 'December, to come');
+        assert.equal(paidOn(periodPaidInMonth(periods, 2027, 1, now)), '2027-1-15', 'January, to come');
     });
     test('every month in the range opens a payslip paid in that month', () => {
         const now = new Date(2026, 10, 10, 9);

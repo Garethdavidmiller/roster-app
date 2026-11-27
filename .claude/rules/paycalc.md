@@ -159,7 +159,8 @@ expense refund does not belong in it, and the row and the guide say so.
   remember paydates"), with the printed P-number as the cross-check: "Paid 3 Jul 2026 · P16". Internal
   `p.num` keys are unchanged (the reference's "Payslip identity").
 - **A month means the payslip PAID in it** (owner, 10 Nov 2026): the Calendar's 💷 Pay button opens the
-  payslip whose payday is in that month (`periodPaidInMonth`).
+  payslip whose payday is in that month (`periodPaidInMonth`) — **except the month we are in, once its
+  payday has been paid, which opens the next payslip** (owner, 27 Nov 2026).
 - **Year to Date figures are anchored to the payslip they came from** (owner request). Do not replace
   the first-entry stamp with one that records NOTHING until the member picks; figures typed before any
   payslip of that year can be in hand are `YTD_SRC_EARLY`, never nothing.

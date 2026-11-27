@@ -747,8 +747,10 @@ cross-check). Internal `p.num` keys and `payslipPeriodNum()` are unchanged — d
 `?month=`, and `periodPaidInMonth` opens the payslip whose payday is in that month — the 💷 in its
 grid — never the one whose shifts cover it, which is usually paid the month after (in November 2026
 that opened the 18 Dec payslip before the 20 Nov one had paid). In the one two-payday month a year it
-is the first still to be paid, else the later. The drawer's Pay pill, with no month, still opens the
-payslip being earned (the ● one).
+is the first still to be paid, else the later. **Except the month we are in, once its payday has
+been paid** (from midday on payday): it opens the payslip being earned now, the next one (owner,
+27 Nov 2026 — on 27 November the button still opened 20 November). The drawer's Pay pill, with no
+month, opens the payslip being earned (the ● one), so the two now agree.
 
 ## Year to Date, the year so far and the payslip check
 
