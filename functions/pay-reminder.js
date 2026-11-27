@@ -48,10 +48,10 @@ function payReminderMembers(roster) {
 /**
  * A member's Auth uid, from the account their name derives to — the derivation setupRosterAuth
  * provisions with, and the one the Overtime notices resolve through. Any failure is `null`, and that
- * member is skipped. Only the member's own enabled account counts (`isMembersOwnAccount`): the shared
- * account the retired staff PIN signed in to is still refused, even if a roster email was once linked to
- * it — its devices were the station's shared PCs, not the member's phone. The PIN is retired (owner,
- * 23 Nov 2026), but the check stays while that account can still exist.
+ * member is skipped. Only the member's own enabled account counts (`isMembersOwnAccount`): an account
+ * at the member's address that does not carry their `member` claim is refused — the retired staff PIN's
+ * shared account was the case that made it matter (its devices were the station's PCs), and the rule
+ * stays now that account is deleted (27 Nov 2026), because it is the general one.
  * @param {string} name
  * @returns {Promise<string|null>}
  */

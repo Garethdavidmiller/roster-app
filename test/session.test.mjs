@@ -611,6 +611,18 @@ describe('reconcileExpiredIdentity', () => {
     // caller — or a flag put back — can keep nothing. page-contract-parity.test.mjs holds every page to a
     // bare call as well. (The tests of a leftover PIN session's teardown went with the account in the
     // PIN's cleanup release, 27 Nov 2026.)
+    // THE SIGN-OUT CAN FAIL (cleanup release review, 27 Nov 2026). Its only test drove a leftover PIN
+    // viewer, which went with the account; a member's lingering identity takes the same path.
+    test('a sign-out that FAILS ends nothing and throws nothing — the identity is left to the next load', async () => {
+        _signOutBehavior = 'auth/internal-error';
+        try {
+            const u = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
+            auth.currentUser = u;
+            await reconcileExpiredIdentity();   // must resolve: every protected page awaits it at init
+            assert.equal(auth.currentUser, u, 'a failed sign-out reported the identity as gone');
+        } finally { _signOutBehavior = 'ok'; }
+    });
+
     test('the old opt-in keeps nothing: a lingering identity is signed out whatever the call says', async () => {
         auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
         await /** @type {any} */ (reconcileExpiredIdentity)({ preserveCalendarViewer: true });

@@ -32,7 +32,7 @@ roster-app/
 ├── calendar-initial-fetch.js ← the Calendar's initial three-month override read and the sync chip: two-phase, cache first then the server (AUTH_AND_SESSIONS.md → "The two-phase load (E1)"). See also calendar-initial-fetch.test.mjs.
 ├── calendar-keyboard.js    ← keyboard navigation, the page shortcuts (`initCalendarShortcuts`: they press the page's own buttons) and the hover tooltip for index.html. See also calendar-keyboard.test.mjs, calendar-swipe-redraw.spec.js, calendar-day-detail.spec.js.
 ├── calendar-month-jump.js  ← the month/year jump picker opened from the month heading (`initMonthJump`). Tested by calendar-month-jump.test.mjs. See also calendar-access.spec.js.
-├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs a leftover staff-PIN session out. **Read its header first.** Tested by calendar-access.test.mjs. See also AUTH_AND_SESSIONS.md, calendar-access.spec.js.
+├── calendar-access.js ← the Calendar's ACCESS GATE: the sign-in front door or the member's come-back card, `calendarAccessReady`; only a named member is granted, and its teardown signs an expired identity out. **Read its header first.** Tested by calendar-access.test.mjs. See also AUTH_AND_SESSIONS.md, calendar-access.spec.js.
 ├── calendar-lock-slot.js ← the ONE place a card can stand in for the Calendar grid, and the workspace it hides; at most one card, no decisions. Exercised through calendar-access.test.mjs and e2e/calendar-access.spec.js
 ├── calendar-lock-cards.js ← the cards that can stand where the Calendar goes (sign-in, its can't-load fallback, come-back): it DRAWS, `calendar-access.js` DECIDES. Its header
 ├── calendar-access-core.js ← the PURE rules behind the gate: the viewer identity (for the teardown), `decideAccess`, notice audiences (members only). **No client file shapes, sends or compares a PIN.** Tested by calendar-access-core.test.mjs. See also CALENDAR_DATA.md.
@@ -638,7 +638,7 @@ roster-app/
 │   ├── calendar-drawer.test.mjs ← the Calendar's menu built and rebuilt for the session saved at the time
 │   ├── calendar-doc-access.test.mjs ← the document gate defaults SHUT. Part of test:hygiene
 │   ├── calendar-access-core.test.mjs ← the Calendar access decision as states the app can really be in. Part of test:hygiene
-│   ├── calendar-access.test.mjs ← the gate's decision, cards, grant and loss, asserting ORDER; a leftover viewer session is never granted (--experimental-test-module-mocks)
+│   ├── calendar-access.test.mjs ← the gate's decision, cards, grant and loss, asserting ORDER; an identity with no session is never granted (--experimental-test-module-mocks)
 │   ├── calendar-access-gate.test.mjs ← **no access, no override data** — the cache never consults the rules (--experimental-test-module-mocks)
 │   ├── calendar-viewer-parity.test.mjs ← the retired PIN stays retired: no grant in the rules, no exchange, secret or account guard on the server, one boot persistence path, nothing in the client that mints or recognises a PIN session, and the PIN never in the repository. Part of test:hygiene
 │   ├── calendar-notices.test.mjs ← who a Calendar notice is addressed to, and whether it asks (--experimental-test-module-mocks)
@@ -677,7 +677,7 @@ roster-app/
 │   ├── calendar-phone-layout.spec.js ← the Calendar at phone widths and under text scaling
 │   ├── calendar-desktop.spec.js ← the Calendar's desktop audit (CAL1–CAL12) and its header from 768px
 │   ├── calendar-helpers.js ← what more than one calendar-*.spec.js needs (not a spec)
-│   ├── calendar-access.spec.js ← the Calendar's access gate in a real browser: no roster data in a locked DOM, and a leftover staff-PIN session signed out on every page. Its header
+│   ├── calendar-access.spec.js ← the Calendar's access gate in a real browser: no roster data in a locked DOM, and the sign-in card is the only way in. Its header
 │   ├── auth.spec.js        ← the sign-in overlay and named-session enforcement on every authenticated page
 │   ├── paycalc-page.spec.js ← the Pay Calculator's sign-in, period selector and picker, privacy note and desktop workspace
 │   ├── paycalc-calendar-fill.spec.js ← figures from the calendar: the gold highlight, Fill this tax year, Fill and Replace

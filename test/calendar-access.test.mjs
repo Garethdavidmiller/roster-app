@@ -698,6 +698,20 @@ describe('initCalendarAccess', () => {
         assert.equal(_panelIsDown(), true, 'the card survived the grant');
     });
 
+    test('a late emission of SOMEBODY ELSE\'s account under a held session does not grant it (cleanup release, 27 Nov 2026)', async () => {
+        // The late twin of decideAccess's "somebody ELSE" rule. Its only test used the retired PIN's
+        // viewer, which went with the account; a colleague signed in from another tab is the real case.
+        const { nameToEmail } = await import('../auth-identity.js');
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
+        sessionValue = { name: 'G. Miller' };
+        emitAuth({ uid: 'uid-silva', isAnonymous: false, email: nameToEmail('S. Silva') });
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(getAccessType(), 'none', 'a colleague\'s late account was granted under G. Miller\'s session');
+        emitAuth({ uid: 'uid-miller', isAnonymous: false, email: nameToEmail('G. Miller') });
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(getAccessType(), 'named', 'guard the guard: the member\'s own late account is granted');
+    });
+
     test('a late ANONYMOUS emission does NOT grant named access', async () => {
         // The watcher re-runs the whole decision rather than trusting that any user will do. An
         // anonymous identity is precisely what v20.12 stopped honouring.

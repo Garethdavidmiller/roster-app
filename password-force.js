@@ -103,9 +103,8 @@ export { withTimeout, settleOrTimeout };
  *  · `flagOn`      — CONFIG.FORCE_PASSWORD_SET, the one-line kill switch.
  *  · `occasion`    — a confirmed sign-in, or an ordinary open (since 26 Nov 2026, see the header);
  *                    never anything else.
- *  · `authStatus`  — must be exactly `'named'`. NOT "an auth user exists": on the calendar that user
- *                    may be a leftover viewer of the retired staff PIN, and on paycalc (a `soft` policy page) a member
- *                    can be locally signed in with a FAILED Firebase session. In either case
+ *  · `authStatus`  — must be exactly `'named'`. NOT "an auth user exists": on paycalc (a `soft` policy
+ *                    page) a member can be locally signed in with a FAILED Firebase session. Then
  *                    `updatePassword` cannot succeed, so a hard block would trap them with no way through.
  *  · `!migrated`   — nothing to compel once they have their own password.
  *
