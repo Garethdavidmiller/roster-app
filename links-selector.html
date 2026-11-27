@@ -163,22 +163,28 @@
 
     <main id="calendarDisplay" aria-label="A proposed roster, month by month"></main>
 
-    <!-- The Calendar's key, with only what a proposal can show — no Rest Day Working, absence or Other day is ever drawn — and
-         the two things only this page has: a cover week's spare days, and the blank days before the link starts. -->
+    <!-- THE CALENDAR'S KEY, laid out as index.html lays it out and driven by the Calendar's own rule (calendar-legend.js):
+         an item shows only in a month that has it — Spare in a cover week's month, Annual Leave and the 🎄 in December, the
+         🐣 in Easter's month. Rest Day Working, absence, Other and Night are left out: a proposal has none. One item is this
+         page's own, shown only in a month with blank days: "Before the new link" (links-selector-app.js). -->
     <div class="legend" id="calendarLegend" role="group" aria-label="Colour legend">
         <div class="legend-row">
             <div class="legend-item"><div class="legend-color rest"></div><span class="legend-text">Rest</span></div>
             <div class="legend-item"><div class="legend-color early"></div><span class="legend-text">Early</span></div>
             <div class="legend-item"><div class="legend-color late"></div><span class="legend-text">Late</span></div>
-            <div class="legend-item"><div class="legend-color spare"></div><span class="legend-text">Spare (cover week)</span></div>
             <div class="legend-item"><div class="legend-color today"></div><span class="legend-text">Today</span></div>
+            <div class="legend-item" id="selectorLegendBlank" style="display:none"><div class="legend-color selector-blank-key"></div><span class="legend-text">Before the new link</span></div>
+        </div>
+        <div class="legend-row" id="legend-row-2">
+            <div class="legend-item" id="legend-spare"><div class="legend-color spare"></div><span class="legend-text">Spare (cover week)</span></div>
+            <div class="legend-item" id="legend-al"><div class="legend-color al"></div><span class="legend-text">Annual Leave (Christmas)</span></div>
         </div>
         <div class="legend-row">
-            <div class="legend-item"><div class="legend-color selector-blank-key"></div><span class="legend-text">Before the new link</span></div>
-            <div class="legend-item"><div class="legend-color al"></div><span class="legend-text">Annual Leave (Christmas)</span></div>
             <div class="legend-item"><span class="legend-text"><span aria-hidden="true">⭐</span> Bank Holiday</span></div>
             <div class="legend-item"><span class="legend-text"><span aria-hidden="true">✂️</span> Pay cut-off</span></div>
             <div class="legend-item"><span class="legend-text"><span aria-hidden="true">💷</span> Payday</span></div>
+            <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text"><span aria-hidden="true">🐣</span> Easter Sunday</span></div>
+            <div class="legend-item" id="legend-christmas" style="display:none"><span class="legend-text"><span aria-hidden="true">🎄</span> Christmas Day</span></div>
         </div>
     </div>
 </div>

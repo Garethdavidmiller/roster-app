@@ -174,6 +174,55 @@ test.describe('links selector', () => {
         await expect(page.locator('#selectorCoverLine')).toBeHidden();
     });
 
+    test('the key follows the month, by the Calendar\'s own rule — on a press and after a swipe', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        // line 1: a cover week from the start, so January has spare days and blank ones
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=1');
+        const shown = (/** @type {string} */ id) => page.locator(`#${id}`);
+        await expect(shown('selectorLegendBlank')).toBeVisible();
+        await expect(shown('legend-spare')).toBeVisible();
+        await expect(shown('legend-al')).toBeHidden();
+        await expect(shown('legend-christmas')).toBeHidden();
+        // February: no blank days, and lines 3 to 7 hold no cover week (lines 1, 6, 11, 16, 21 are the cover weeks)
+        await page.locator('#nextMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        const lc = /** @type {any} */ (proposalById('proposal:LC-26-T10'));
+        const febSpare = Array.from({ length: 28 }, (_, i) => /** @type {any} */ (dayOn(lc, 1, new Date(2027, 1, i + 1))).shift).includes('SPARE');
+        await expect(shown('selectorLegendBlank')).toBeHidden();
+        await expect(shown('legend-spare')).toBeVisible({ visible: febSpare });
+        // Easter Sunday 2027 is 28 March: its key shows in March only
+        await page.locator('#nextMonth').click();
+        await expect(shown('legend-easter')).toBeVisible();
+        // a swipe back to February takes the 🐣 away, as the Calendar's swipe commit does
+        const box = /** @type {{ x: number, y: number, width: number, height: number }} */ (await page.locator('#calendarDisplay').boundingBox());
+        const y = box.y + box.height / 2;
+        for (let attempt = 0; attempt < 4; attempt++) {
+            await page.mouse.move(box.x + 20, y);
+            await page.mouse.down();
+            await page.mouse.move(box.x + box.width - 20, y, { steps: 12 });
+            await page.mouse.up();
+            try {
+                await page.waitForFunction(() => document.querySelectorAll('.month-year').length === 1
+                    && document.querySelector('.month-year')?.textContent === 'February 2027', null, { timeout: 5000 });
+                break;
+            } catch { /* a simulated gesture is sometimes swallowed — e2e/calendar-swipe-redraw.spec.js */ }
+        }
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        await expect(shown('legend-easter')).toBeHidden();
+    });
+
+    test('in December the key names Christmas, and Christmas leave on a line that works it', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2027-12-01T09:00:00Z'));
+        const mb = /** @type {any} */ (proposalById('proposal:MB-26-V6'));
+        const line = Array.from({ length: 26 }, (_, i) => i + 1).find(l => /** @type {any} */ (dayOn(mb, l, new Date(2027, 11, 25))).christmasLeave);
+        await seedSession(page, ADMIN);
+        await page.goto(`/links-selector.html?proposal=MB-26-V6&line=${line}`);
+        await expect(page.locator('.month-year')).toHaveText('December 2027');
+        await expect(page.locator('#legend-christmas')).toBeVisible();
+        await expect(page.locator('#legend-al')).toBeVisible();
+        await expect(page.locator('#selectorLegendBlank')).toBeHidden();
+    });
+
     test('during the beta a colleague is refused with the app\'s card, and no menu offers them the page', async ({ page }) => {
         const colleague = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.bilingualContract && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
         await seedSession(page, colleague);

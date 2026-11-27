@@ -145,6 +145,31 @@ export function monthLines(startLine, year, month) {
     return first === null || last === null ? null : { first, last };
 }
 
+/**
+ * The kinds of day a month of the proposal draws, in the Calendar's own words for its key (calendar-overrides.js →
+ * getShiftTypesInMonth): 'SPARE' and 'AL' are the two a proposal can have. Read through `dayOn`, as the grid is, so the
+ * key can never name a day the grid does not show.
+ * @param {{ patterns: Record<string, Record<string, string>> }} proposal @param {number} startLine
+ * @param {number} year @param {number} month 0-indexed
+ * @returns {Set<string>}
+ */
+export function shiftTypesInMonth(proposal, startLine, year, month) {
+    const types = new Set();
+    const days = new Date(year, month + 1, 0).getDate();
+    for (let d = 1; d <= days; d++) {
+        const day = dayOn(proposal, startLine, new Date(year, month, d));
+        if (day.blank) continue;
+        if (day.shift === 'SPARE') types.add('SPARE');
+        else if (day.shift === 'AL') types.add('AL');
+    }
+    return types;
+}
+
+/** Does the month have days before the link starts — the ones the grid leaves blank? @param {number} year @param {number} month */
+export function hasBlankDays(year, month) {
+    return lineOn(1, new Date(year, month, 1)) === null;
+}
+
 /** Is { year, month } inside the months the page shows? @param {number} year @param {number} month */
 export function inRange(year, month) {
     const n = year * 12 + month;

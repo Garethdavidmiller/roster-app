@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.20 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -35,6 +35,11 @@ left, each for a decision rather than a default:
 - **Overtime stays paused** (owner, 3 Nov 2026). Its page, Cloud Functions and tests are kept and keep
   running in CI so it can be switched back on; removing it was offered and declined.
   `OVERTIME_AVAILABILITY.md` → Paused says what is switched off.
+- **The Link Designer is paused too** (owner, 27 Nov 2026), the same way: `CONFIG.LINK_DESIGNER_ENABLED`, every
+  saved design kept. `LINK_DESIGNER_REFERENCE.md` → Paused.
+- **The Links Selector is the admin's beta** (owner, 27 Nov 2026) until `CONFIG.LINKS_SELECTOR_OPEN`, and the day it
+  draws the new link from, Sunday 17 January 2027, is PROVISIONAL (`STARTS` in `links-selector-core.js`): when the day
+  is set, change it and `newlink-config.js` → `STARTS` together (`links-selector-core.test.mjs` holds the month).
 
 ## The Pages mirror costs every cold load 21% more bytes (measured 5 Sep 2026)
 

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.20 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Documentation milestone | `27.10` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The stamp in every stamped doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each is reviewed and re-stamped. |
+| Documentation milestone | `27.20` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The stamp in every stamped doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` — canonical, the **primary install + notification target**. The GitHub Pages mirror `https://garethdavidmiller.github.io/roster-app/` (**note the `/roster-app/` path**; the bare origin 404s) still serves about **half the staff**: installed users are roughly level between the two (owner, 27 Nov 2026 — the gradual changeover is working; it was most staff in Sep 2026). It serves **no redirects and no HTTP headers**, so weigh any change that relies on Firebase Hosting against the mirror, not the canonical URL — which is why every page carries a `<meta>` CSP. ARCHITECTURE.md EXC-006; the API key note below. |
 | Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name. Each endpoint's header holds its rules; the two that are easy to get wrong are marked: |
@@ -189,6 +189,7 @@ regression somewhere the author was not looking.
 | Change this | And you have changed | Verify with |
 |---|---|---|
 | `resolveEffectiveShift` (`override-utils.js`) | Calendar · Team Week View · Admin · Overtime roster context | `override-utils.test.mjs` · `e2e/overtime.spec.js` |
+| `calendar-renderer/-swipe/-keyboard/-legend.js`, `index.css` | the Links Selector | `e2e/links-selector.spec.js` |
 | the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — its two shipped defects were invisible to behaviour | `e2e/calendar-day-detail.spec.js` · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
 | `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
 | `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on every surface that draws a day, the leave records, the allowance (`entitlementFor`) and Admin's save checks | `christmas-leave.test.mjs` · `admin-al-projection.test.mjs` · the `christmas` e2e (`calendar-leave-panel`, `admin-leave-records` specs) |
