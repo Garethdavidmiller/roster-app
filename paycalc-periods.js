@@ -367,6 +367,14 @@ export function periodLinkMissNote(askedFor, periods) {
  * and 31 Jul). Then it is the first of the two still to be paid, or the later once both are — the
  * one nearer today. Null when no payslip on offer is paid in that month (before or after the
  * calculator's range, or before a new starter's join year); the caller says so (`periodLinkMissNote`).
+ *
+ * THE MONTH WE ARE IN, ONCE ITS PAYDAY HAS GONE, MEANS THE NEXT ONE (owner, 27 Nov 2026: "It is
+ * November 27th so it really should have changed to the next payslip on November 21st"). Once the
+ * month's last payday has been paid — from that day's midday, as the calculator's own default reads it
+ * — the current month opens the payslip being earned now, which is what the calculator opens on its own. A month that is over still means the payslip paid in it (looking back),
+ * and a month to come the one due in it. The payslip just paid is one press of ← Earlier away.
+ * The rule this replaced kept the paid one for the whole month, for "a member checking the payslip in
+ * their hand"; the owner's reading is that by then the member is earning the next one.
  * @param {any[]} periods  the payslips on offer, oldest first
  * @param {number} year
  * @param {number} month  1-based, as the link writes it
@@ -376,7 +384,10 @@ export function periodLinkMissNote(askedFor, periods) {
 export function periodPaidInMonth(periods, year, month, now = new Date()) {
   const inMonth = periods.filter((/** @type {any} */ p) => p.payday.getFullYear() === year && p.payday.getMonth() === month - 1);
   if (!inMonth.length) return null;
-  return inMonth.find((/** @type {any} */ p) => p.payday > now) ?? inMonth[inMonth.length - 1];
+  const unpaid = inMonth.find((/** @type {any} */ p) => p.payday > now);
+  if (unpaid) return unpaid;
+  const thisMonth = now.getFullYear() === year && now.getMonth() === month - 1;
+  return (thisMonth && periods.find((/** @type {any} */ p) => p.payday > now)) || inMonth[inMonth.length - 1];
 }
 
 /**

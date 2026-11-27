@@ -100,6 +100,21 @@ test('the Pay button opens the payslip paid in the month on screen, not the mont
         'November\'s payslip, still to be paid — the ● one — not 18 Dec').toBe('● Paid 20 November 2026 · P36');
 });
 
+// …and once November's payday has been paid, November is the payslip being earned now (owner, 27 Nov
+// 2026: "It is November 27th so it really should have changed to the next payslip on November 21st").
+test('in the month we are in, once its payday has been paid, the Pay button opens the next payslip', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#payBtn').click();
+    await page.waitForURL(/paycalc\.html\?month=2026-11$/);
+    const picker = page.locator('#periodSelect');
+    await expect(picker.locator('option').first()).toBeAttached();
+    await expect.poll(() => picker.evaluate(s => /** @type {HTMLSelectElement} */ (s).selectedOptions[0]?.textContent),
+        'the payslip being earned — the ● one — not 20 Nov, already paid').toBe('● Paid 18 December 2026 · P40');
+});
+
 // CAL2 — the desktop controls are ONE centred row, and Team view used to remove the month's half of
 // it, so everything slid ~200px: the click after Team landed on 📝 Admin (a double-click on Team
 // opened Admin at every desktop width), the click after Month on Next →. The slot is now kept.

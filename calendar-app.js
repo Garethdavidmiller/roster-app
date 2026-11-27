@@ -564,7 +564,8 @@ document.getElementById('nextMonth')?.addEventListener('click', (e) => {
 });
 
 // Pay button — opens the calculator on the payslip PAID in the month being viewed (the 💷 in its
-// grid: `periodPaidInMonth`, paycalc-periods.js), for anyone.
+// grid), or, in the month we are in once its payday has been paid, the next one (`periodPaidInMonth`,
+// paycalc-periods.js, which decides both), for anyone.
 // DELIBERATELY NOT `navigateToPaycalc`, and not gated by `personalActionsAllowed`: that helper
 // guards the routes that name a DAY (CALENDAR_DATA.md 14). This button names no member and no day:
 // paycalc opens on the reader's OWN localStorage-namespaced data, or its own in-place login. So a

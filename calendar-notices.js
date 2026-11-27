@@ -41,7 +41,7 @@ import { createLightbox, openNoticeIfClear, followLinkOutOf } from './overlay.js
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';
 import { getSession } from './session.js';
-import { teamMembers } from './roster-data.js';
+import { teamMembers, isOtherStaff } from './roster-data.js';
 import { payCalculatorPrices } from './pay-audience.js';   // the Pay page's own audience question
 import { installRoute, onPagesMirror, promptInstall, yieldToInstallNotice, releaseInstallNoticeYield, retireInstallStrip } from './install-prompt.js';
 import { canOpenNewlink } from './auth-policy.js';   // the New link notice's audience — the drawer pill's own question
@@ -156,6 +156,17 @@ const moveRecord = (pay) => ({
         + (pay ? ' Pay Calculator figures move with 💾\u00a0Move Your Pay\u00a0Data on the Pay page: save a copy on the '
             + 'old address, then restore it at myb-roster.web.app.' : ''),
 });
+
+/**
+ * What App Notices keeps of the Team View notice (27 Nov 2026). Nothing in it dates: Team View, where it is, and what
+ * it is for stay true for the 180 days the record is listed.
+ */
+const TEAM_RECORD = {
+    id: 'team-view-2026', section: 'Calendar', date: '27 Nov 2026',
+    title: 'See who you’re on duty with',
+    body: 'Select 👥\u00a0Team above your calendar to see everyone on your grade side by side, a week at a time: who is on '
+        + 'with you, and who is on a rest day when you might swap.',
+};
 
 /** What every notice waits for after access — set once by `initCalendarNotices`. @type {Promise<any>} */
 let _after = Promise.resolve();
@@ -555,6 +566,67 @@ export function initCalendarNotices({ after } = {}) {
         // 'members' — the page is signed-in only (owner, 2 Nov 2026), as every notice now is.
         _openWhenAudienceAllows(lb, 'members',
             () => canOpenNewlink(getSession()?.name) && (installNoticeDone || !installRoute()));
+    }());
+
+    // ── See who you're on duty with: Team Week View (owner, 27 Nov 2026) ──────────────────────────────────────────
+    //
+    // "An in sequence app notice on calendar to explain team view — see who you are on duty with or could swap shifts
+    // with." Team View is a button many members have never pressed, and it answers two questions they ask a manager
+    // instead: who am I on with, and who is off on the day I want to work. The body names where the button is, so
+    // "Not now" loses nothing, and its own button OPENS Team View on this page — a notice that only points at a
+    // control is one more thing to find.
+    //
+    // FOR MEMBERS ON THE ROSTER. An Other Staff login has no line, so "who is on with you" has no answer for them; asked
+    // at OPEN time, through the gate, because a front-door sign-in has no session at wiring time. Refused, unflagged.
+    //
+    // IN SEQUENCE, never sharing a visit, and LAST: after the timetable notice (`FOLLOWS`, which itself waits for the
+    // install and New link notices until its final week), after the install notice where that one is this device's
+    // (`FOLLOWS_INSTALL`), and wired after every other notice, so on a load where the move notice is also due on the
+    // Pages copy, that one takes the screen and this one comes back next time (openNoticeIfClear). Both followed ends
+    // are in `FOLLOWED_ENDS`, so neither holds it after it has ended.
+    //
+    // A ONE-OFF on the rule every notice here follows, from its posting day (`STARTS`) for 90 days — an explanation of
+    // a feature, not news, so it waits as long as the queue in front of it might. Archived on open.
+    (function () {
+        const DONE_KEY        = 'myb_notice_team_view_2026_done';
+        const STARTS          = new Date(2026, 10, 27);    // local midnight, Friday 27 November — its posting day
+        const NOTICE_DATE     = '27 Nov 2026';
+        const FOLLOWS         = 'myb_notice_timetable_soon_2026_done';
+        const FOLLOWS_INSTALL = 'myb_notice_install_app_2026_done';   // …where that notice is this device's
+
+        const overlay = document.getElementById('teamNoticeLb');
+        if (!overlay) return;
+        if (lsGet(DONE_KEY)) return;
+        if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }
+        if (Date.now() < STARTS.getTime()) return;
+        if (!followedDone(FOLLOWS)) return;
+        const installNoticeDone = followedDone(FOLLOWS_INSTALL);
+
+        const markDone = () => lsSet(DONE_KEY, '1');
+
+        const lb = createLightbox({
+            overlay,
+            content:  /** @type {HTMLElement} */ (document.getElementById('teamNoticeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('teamNoticeClose')),
+            onOpen() { archiveNotice(TEAM_RECORD); },
+            onClose() { markDone(); },
+        });
+
+        // "Open Team Week View": answered, closed, and the page's own 👥 Team button pressed — the button's guards and
+        // its announcement are then Team View's own, never a copy. Not pressed when Team View is already showing,
+        // which would toggle it back to the month.
+        document.getElementById('teamNoticeShow')?.addEventListener('click', () => {
+            markDone();
+            lb.close();
+            if (!document.body?.classList.contains('team-view-active')) document.getElementById('teamViewBtn')?.click();
+        });
+        document.getElementById('teamNoticeLater')?.addEventListener('click', () => lb.close());
+
+        const onTheRoster = () => {
+            const m = teamMembers.find(t => t.name === getSession()?.name);
+            return !!m && !isOtherStaff(m);
+        };
+        _openWhenAudienceAllows(lb, 'members', () => onTheRoster() && (installNoticeDone || !installRoute()));
     }());
 }
 

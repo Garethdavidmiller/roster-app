@@ -425,6 +425,7 @@ test('on a phone, the New link notice comes the load after the install notice �
             sessionStorage.setItem('__e2e_flags_cleared', '1');
             for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done']) localStorage.removeItem(k);
             localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');
+            localStorage.setItem('myb_notice_team_view_2026_done', '1');   // the Team View notice, last in the queue: its own test
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
@@ -464,7 +465,8 @@ async function colleagueWithNoNoticesAnswered(page, day) {
         // below must survive the reload that follows it (helpers.js → seedCalendarMember).
         if (!sessionStorage.getItem('__e2e_flags_cleared')) {
             sessionStorage.setItem('__e2e_flags_cleared', '1');
-            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_timetable_soon_2026_done']) localStorage.removeItem(k);
+            for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_timetable_soon_2026_done',
+                             'myb_notice_team_view_2026_done']) localStorage.removeItem(k);
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
@@ -485,7 +487,7 @@ async function answerInOrder(page, order) {
     await expect(page.locator('.notice-lb-content:visible'), 'every one answered: nothing more').toHaveCount(0);
 }
 
-test('from 16 November the timetable notice comes after the install and New link notices — one a load (v26.21)', async ({ page }, info) => {
+test('from 16 November the timetable notice comes after the install and New link notices, and the Team View notice after it — one a load (v26.21)', async ({ page }, info) => {
     // By the 27th the October notices have ended and flag themselves, and the New link vote notice (from the 26th) is
     // running. The install notice is offered on a touch screen only, so a desk starts at the New link notice.
     test.setTimeout(90_000);
@@ -493,7 +495,8 @@ test('from 16 November the timetable notice comes after the install and New link
     await colleagueWithNoNoticesAnswered(page, TIMETABLE_NOTICE_DAY);
     await answerInOrder(page, [...(isTouchProject(info) ? [['#installNoticeLb', '#installNoticeClose']] : []),
                                ['#newlinkNoticeLb', '#newlinkNoticeLater'],
-                               ['#timetableSoonNoticeLb', '#timetableSoonNoticeLater']]);
+                               ['#timetableSoonNoticeLb', '#timetableSoonNoticeLater'],
+                               ['#teamNoticeLb', '#teamNoticeLater']]);
     expect(errors).toHaveLength(0);
 });
 
@@ -505,7 +508,30 @@ test('in its final week the timetable notice goes first — the install notice, 
     const errors = collectFatalErrors(page);
     await colleagueWithNoNoticesAnswered(page, TIMETABLE_FINAL_WEEK);
     await answerInOrder(page, [['#timetableSoonNoticeLb', '#timetableSoonNoticeLater'],
-                               ['#installNoticeLb', '#installNoticeClose']]);
+                               ['#installNoticeLb', '#installNoticeClose'],
+                               ['#teamNoticeLb', '#teamNoticeLater']]);
+    expect(errors).toHaveLength(0);
+});
+
+test('Team View notice: its button opens Team Week View, and it fits the smallest phone without scrolling (owner, 27 Nov 2026)', async ({ page }) => {
+    // Last in the queue: with every notice before it answered, a member on the roster gets it on 27 November. Its
+    // button presses the page's own 👥 Team, and the notice is answered.
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.clock.setFixedTime(TIMETABLE_NOTICE_DAY);
+    await seedMemberSession(page);
+    await clearNoticeFlags(page, ['myb_notice_team_view_2026_done']);
+    await page.goto('/');
+    const notice = page.locator('#teamNoticeLb');
+    await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    await expect(page.locator('#teamNoticeContent .lightbox-app-name')).toHaveText('See who you’re on duty with');
+    await page.waitForTimeout(600);                           // the open transition, so the card is measured at rest
+    const fit = await page.locator('#teamNoticeContent').evaluate(el => el.scrollHeight - el.clientHeight);
+    expect(fit, 'the card scrolls inside itself on an iPhone SE').toBeLessThanOrEqual(0);
+    await page.locator('#teamNoticeShow').click();
+    await expect(notice).not.toHaveClass(/\bopen\b/);
+    await expect(page.locator('body')).toHaveClass(/team-view-active/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_team_view_2026_done'))).toBe('1');
     expect(errors).toHaveLength(0);
 });
 

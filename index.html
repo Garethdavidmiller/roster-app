@@ -330,6 +330,27 @@
         </div>
     </div>
 
+    <!-- One-time notice: what Team Week View is for — who you are on duty with, and who you could swap with (owner, 27 Nov
+         2026; calendar-notices.js). Last in the Calendar's queue, for members on the roster; its button opens Team View. -->
+    <div id="teamNoticeLb" class="lb-overlay" role="dialog" aria-label="See who you’re on duty with" aria-modal="true">
+        <div id="teamNoticeContent" class="lb-content notice-lb-content">
+            <button id="teamNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-head">
+                <div class="notice-badge notice-badge--calendar">📅 Calendar</div>
+                <div class="lightbox-app-name">See who you’re on duty with</div>
+                <div class="notice-date">Posted 27 November 2026</div>
+            </div>
+            <div class="notice-main">
+                <p class="notice-body"><strong>👥&nbsp;Team</strong>, above your calendar, shows everyone on your grade side by side, a week at a time: who is on with you each day, and who is on a rest day.</p>
+                <p class="notice-body">Thinking of swapping a shift? Look for a colleague on a rest day when you’d like to work, or working on a day you’d like off. <strong>📅&nbsp;Month</strong> brings your calendar back.</p>
+            </div>
+            <div class="notice-actions">
+                <button id="teamNoticeShow" class="notice-cta" type="button">Open Team Week View</button>
+                <button id="teamNoticeLater" class="notice-later" type="button">Not now</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Annual Leave lightbox — opened by tapping the 🏖️ AL button -->
     <div id="alLightbox" class="lb-overlay" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
         <div id="alLightboxContent" class="lb-content">

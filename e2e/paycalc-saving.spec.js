@@ -158,6 +158,10 @@ test('paycalc: a tab with nothing of its own follows a clear made in another tab
     await openOctober(b, null);
     await expect(b.locator('#satH')).toHaveValue('8');
     await page.bringToFront();   // the two-tap Clear disarms in a hidden tab (paycalc-clear-confirm.js)
+    // PAUSED, so the one second below is the only time between the taps (as paycalc-backpay.spec.js's Clear):
+    // `clock.install` lets time run on, and on a busy runner the real seconds took the armed button past its
+    // three and disarmed it, so the second tap armed it again and nothing was cleared.
+    await page.clock.pauseAt(new Date(DAY.getTime() + 60_000));
     const btn = page.locator('#clearBtn');
     await btn.click();
     await expect(btn).toHaveText(/Select again/);
@@ -216,6 +220,7 @@ test('paycalc: a Clear whose delete is refused puts the stored figure back and s
         const real = Storage.prototype.removeItem;
         Storage.prototype.removeItem = function (key) { if (key !== k) real.call(this, key); };
     }, KEY);
+    await page.clock.pauseAt(new Date('2026-10-22T09:01:00Z'));   // the taps one second apart, whatever the runner's speed
     const btn = page.locator('#clearBtn');
     await btn.click();
     await page.clock.runFor(1000);
