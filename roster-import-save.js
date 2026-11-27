@@ -155,9 +155,9 @@ export async function saveRosterWrites(toWrite, currentUser, shown = new Map()) 
                     await batch.commit();
                     return;
                 }
-                // Its own queued saves first (the module header); when that wait runs out, every record
-                // this part deletes OR writes is asked instead — an older queued write of ours to one it
-                // only writes would otherwise land after it (claim-retry.js → ownWritesSentFor).
+                // Its own queued saves first (the module header): every record this part deletes OR
+                // writes is asked — an older queued write of ours to one it only writes would otherwise
+                // land after it — and only one still queued waits for the queue (claim-retry.js → ownWritesSentFor).
                 const touched = [...deletes.map(({ id }) => doc(db, COLLECTIONS.overrides, id)), ...sets.map(({ ref }) => ref)];
                 if (!(await whenOwnWritesSentFor(touched))) {
                     throw Object.assign(new Error(UNSENT_SAVES_DETAIL), { code: 'unavailable', unsent: true });

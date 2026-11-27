@@ -1157,9 +1157,9 @@ authority on the reasoning, and owns six rules:
    behind the earlier writes, and a restore, a purge or the automatic bin is refused. `ownWritesSent`
    is a REQUIRED dependency, so a store built without the wait throws rather than run unguarded. **It
    is handed the design's own record** (`runTx([ref], …)`), and the page passes it to
-   `whenOwnWritesSentFor`: a phone whose queue holds ANOTHER account's leftover write is answered by
-   that record instead of an eight-second wait for a queue that never drains (KNOWN_LIMITATIONS.md →
-   "Admin saves are slow on iPhones"). Never call `runTx` without the record the transaction reads —
+   `whenOwnWritesSentFor`, which asks that record first while online: a phone whose queue holds
+   ANOTHER account's leftover write is answered by it, with no wait for a queue that never drains
+   (KNOWN_LIMITATIONS.md → "Admin saves are slow on iPhones"). Never call `runTx` without the record the transaction reads —
    handed none, the records always read clear.
 6. **A queued save says how it ENDED.** A queued create or save carries `settled`, which
    resolves `'acked'` (the server has it), `'held'` (signed out with it queued) or `'failed'` (the

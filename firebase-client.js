@@ -21,8 +21,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // avoid the cost.
 // @ts-ignore
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
-import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent, ownWritesSentFor, leftoverNote } from './claim-retry.js';
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent, ownWritesSentFor } from './claim-retry.js';
 import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
 
@@ -298,18 +297,14 @@ export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRe
 /** Whether this device's queued writes reach the server within `ms` — a checked write asks first (claim-retry.js → ownWritesSent). @param {number} [ms] */
 export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrites(db), ms);
 /**
- * The same wait, and when it runs out, the records this save touches asked instead
- * (claim-retry.js → `ownWritesSentFor`): true when none of `refs` has this account's own write still
- * queued. A checked save that knows its documents asks this; it rescues a phone whose queue holds
- * another account's leftover write, which the SDK's whole-queue wait never sees past.
+ * For a checked save that knows its documents (claim-retry.js → `ownWritesSentFor`): true when none of
+ * `refs` has this account's own write still queued. Online the records are asked FIRST, so another
+ * account's leftover write — which the SDK's whole-queue wait never sees past — holds up nothing.
  * @param {Iterable<any>} refs  every document the save writes or deletes
  * @param {number} [ms]
  */
 export const whenOwnWritesSentFor = (refs, ms) => ownWritesSentFor(() => waitForPendingWrites(db), getDocFromCache, refs, ms,
-    { leftover: _leftover, online: () => globalThis.navigator?.onLine !== false });
-/** This phone's note that its queue holds a write it can never send — device state, one key whoever
- *  is signed in; the rules are claim-retry.js → "A PHONE KNOWN TO HOLD A LEFTOVER". */
-const _leftover = leftoverNote({ get: lsGet, set: lsSet, del: lsDel }, 'myb_queue_leftover');
+    { online: () => globalThis.navigator?.onLine !== false });
 
 /** A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1) — for the admin reads below, which
  *  Operations painted as current offline ("✓ No outstanding requests", "0/51"). analytics-client.js keeps the
