@@ -44,6 +44,19 @@ test.describe('a desktop at the Pages mirror', () => {
         // Under the header, once: a page start that runs twice does not stack a second.
         await expect(page.locator('header + #mirrorMoveBanner')).toHaveCount(1);
         await expect(page.locator('.mirror-move')).toHaveCount(1);
+        // Not tight against the cards (owner, 27 Nov 2026), and on the cards' own edges.
+        const fit = await page.evaluate(() => {
+            const b = /** @type {HTMLElement} */ (document.getElementById('mirrorMoveBanner')).getBoundingClientRect();
+            // The first painted box in the page: the cards are the page's own, so asked by their paint, not a class.
+            const card = [...document.querySelectorAll('main *')].map(el => ({ el, r: el.getBoundingClientRect() }))
+                .filter(({ el, r }) => r.height > 20 && getComputedStyle(el).backgroundColor !== 'rgba(0, 0, 0, 0)')
+                .sort((x, y) => x.r.top - y.r.top)[0].r;
+            const main = /** @type {HTMLElement} */ (document.querySelector('main')).getBoundingClientRect();
+            return { gap: card.top - b.bottom, left: b.left - main.left, right: main.right - b.right };
+        });
+        expect(fit.gap).toBeGreaterThanOrEqual(12);
+        expect(Math.abs(fit.left)).toBeLessThanOrEqual(1);
+        expect(Math.abs(fit.right)).toBeLessThanOrEqual(1);
     });
 
     test('every other page\'s strip says nothing about pay', async ({ page }) => {

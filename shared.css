@@ -3100,7 +3100,7 @@ button.nav-panel-link--notices {
    under the sign-in card's title, taking the title's gap, and as a strip under a page's header. */
 .login-mirror, .mirror-move { background: var(--gold-wash-bg); border: 1px solid var(--gold-wash-border); color: var(--text-dark); font-size: var(--type-label); line-height: 1.45; text-align: left; }
 .login-mirror { border-radius: var(--radius-field); padding: 10px 14px; margin: -12px 0 20px; }
-.mirror-move { border-width: 0 0 1px; padding: 10px 16px; text-align: center; }
+.mirror-move { border-width: 0 0 1px; padding: 10px 16px; margin: 0 auto var(--space-4); max-width: var(--content-max-width); text-align: center; }
 .mirror-move-link { font-weight: 700; color: var(--primary-blue); text-decoration: underline; }
 .mirror-move-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
 @media print { .mirror-move { display: none; } }
