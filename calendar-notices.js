@@ -126,9 +126,9 @@ const TIMETABLE_SOON_RECORD = {
  * yet", which the record would go on saying after the choice is made; the page itself says where things stand.
  */
 const NEWLINK_RECORD = {
-    id: 'newlink-2026', section: 'New link', date: '9 Nov 2026',
+    id: 'newlink-2026', section: 'New CEA link', date: '9 Nov 2026',
     title: 'See the three proposals for the new link',
-    body: 'The three proposals for the new link, which starts in January 2027, are on the New link page — open it '
+    body: 'The three proposals for the new link, which starts in January 2027, are on the New CEA link page — open it '
         + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',
 };
 
@@ -137,9 +137,9 @@ const NEWLINK_RECORD = {
  * begun, so it never says "starts soon" (the notice's title does): it says what to do BEFORE the vote, which stays true.
  */
 const NEWLINK_VOTE_RECORD = {
-    id: 'newlink-vote-2026', section: 'New link', date: '26 Nov 2026',
+    id: 'newlink-vote-2026', section: 'New CEA link', date: '26 Nov 2026',
     title: 'Before the vote on the new link',
-    body: 'Before the vote on which of the three proposals goes forward, each one is on the New link page — open it '
+    body: 'Before the vote on which of the three proposals goes forward, each one is on the New CEA link page — open it '
         + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',
 };
 
