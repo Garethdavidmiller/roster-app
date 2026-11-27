@@ -275,6 +275,13 @@ export function ownWritesSent(waitForPendingWrites, ms = OWN_WRITES_WAIT_MS, { o
  * held rejects with `unavailable` — nothing of ours can be queued for it, since a queued write puts the
  * record in the cache — and that is 'clear'. Any other failure is 'unknown', which the caller treats as
  * 'queued': a check the device cannot answer never lets a transaction through.
+ *
+ * IT CANNOT SEE A QUEUED DELETE (review, 27 Nov 2026). The SDK answers a record whose unsent write is a
+ * DELETE as no document at all, with `hasPendingWrites` false (`@firebase/firestore` 4.20.0), so such a
+ * record reads 'clear'. Today that costs nothing: the only deletes queued offline are the "copy it
+ * replaces" deletes of a held Admin batch (admin-overrides.js), which always travel with a SET to the
+ * day's fixed id in the same batch, and every caller passes that id, which does read as queued. A new
+ * caller whose queued write could be a delete alone must not rely on this check to see it.
  * @param {(ref: any) => Promise<any>} readFromCache  the SDK's `getDocFromCache`
  * @param {Iterable<any>} refs  every document the save writes or deletes
  * @returns {Promise<RecordsState>}
