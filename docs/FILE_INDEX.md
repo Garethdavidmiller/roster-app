@@ -99,6 +99,8 @@ roster-app/
 ├── perf-reporter.js        ← the shared anonymous latency recorder behind the App Speed card; only time somebody spent waiting is counted. See also perf-reporter.test.mjs.
 ├── perf-stats.js           ← pure latency maths behind the App Speed card
 ├── calendar-team-view.js        ← Team Week View; its overrides come from the SHARED month fetch, with no Firestore read of its own. See also CALENDAR_DATA.md, team-week-start.test.mjs, calendar-team-view.spec.js.
+├── calendar-team-onwith.js      ← Team View's "On with" card: the colleagues whose duties overlap a member's shift, above the week grid. See also team-overlap.js, calendar-team-onwith.test.mjs, calendar-team-view.spec.js.
+├── team-overlap.js              ← PURE: which shifts overlap and for how long, across midnight and the days either side. Tested by team-overlap.test.mjs
 ├── calendar-tips.js             ← CARD_TIPS for Team Week View's `?`, in the shared Tips panel (tips-lightbox.js). See also tips-content.test.mjs.
 ├── al-contract.js ← a member's CONTRACT leave allowance for a year; read it through `entitlementFor`. Pure; tested by al-entitlement.test.mjs
 ├── al-entitlement.js ← which annual-leave days consume entitlement and where that leaves a member — the ONE answer every surface asks. Its header. Pure; tested by al-entitlement.test.mjs
@@ -464,6 +466,8 @@ roster-app/
 │   ├── touch-gate-parity.test.mjs ← **a touch-only test must run on every touch engine** (a skip is green). Part of test:hygiene
 │   ├── hidden-member-visibility.test.mjs ← **a leaver is off the roster everywhere it is listed**, and every copy agrees. Part of test:hygiene
 │   ├── team-week-start.test.mjs ← which week the team grid opens on. Part of test:hygiene
+│   ├── team-overlap.test.mjs ← "Who's on with me": midnight, the overnights either side, touching ends, the order. Part of test:hygiene
+│   ├── calendar-team-onwith.test.mjs ← the "On with" card executed: who is listed, in what order, who never is, and its wait. Part of test:hygiene
 │   ├── admin-deep-link.test.mjs ← where an admin.html hash lands, and never throwing on a malformed one. Part of test:hygiene
 │   ├── admin-shift-rules.test.mjs ← the maximum-length and minimum-rest checks at their boundaries. Part of test:hygiene
 │   ├── admin-auth.test.mjs ← the provisioning audit as the card runs it: never a false all-clear

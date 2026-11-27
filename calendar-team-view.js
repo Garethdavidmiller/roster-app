@@ -6,12 +6,17 @@
  *   shown week needs, toggle, chrome updates, ARIA week announcement.
  * Does NOT own: personal calendar rendering, override cache population,
  *   overlay history management (all passed as deps).
- * Edit here for: team grid layout, grade tab logic, week navigation, cell display.
+ * Edit here for: team grid layout, grade tab logic, week navigation, cell display, the "On with" card.
+ *
+ * THE "ON WITH" CARD (owner, 27 Nov 2026): the day panel's "Who’s on with me" opens this view on the date's
+ * week (`showWhoIsOn`), the card above the grid (calendar-team-onwith.js). Its shifts are resolved by
+ * `effectiveDay`, as the cells are, through the shared fetch; Hide, another week or leaving drops it.
  * Do not edit here for: personal calendar, override cache management, nav structure.
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, SHIFT_KIND_LABELS, isSunday, parseISODate } from './roster-data.js';
+import { buildOnWithCard, dayOf } from './calendar-team-onwith.js';
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
@@ -121,6 +126,7 @@ export function weekAfterDateChange(shown, { was, now, away }) {
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
  * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void,
+ *   showWhoIsOn: (who: { name: string, iso: string }) => void,
  *   followDate: (change: { was: Date, now: Date, away: boolean }) => void, isOffThisWeek: () => boolean, isGridShown: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
@@ -149,6 +155,13 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
 
     /** The date watcher moved the week (`followDate`) and nothing has drawn it yet. */
     let _weekMoved = false;
+
+    /** The "On with" card: whose shift, on which date (ISO) — set by `showWhoIsOn`, dropped by Hide, by a
+     *  week that no longer holds the date, and by leaving Team View. Null: the plain week grid.
+     *  @type {{ name: string, iso: string }|null} */
+    let _onWith = null;
+    /** The next render puts focus on the card's heading: it has just been opened. */
+    let _focusOnWith = false;
 
     /** Grade tab shown in team view: the grade of the member the Calendar is showing, decided each
      *  time the view OPENS until the reader picks a tab — that choice then stays. It was decided once,
@@ -191,24 +204,33 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     }
 
     /**
+     * The day a member is on, as every surface resolves it: `getBaseShift`, the shared override cache
+     * (never an override before the member's start date) and `resolveDayShift`. The grid's cells and the
+     * "On with" card both read it, so the two cannot disagree.
+     * @param {any} member @param {Date} date
+     * @returns {{ shift: string, rdwTime: string, derivedRdw: boolean, christmasLeave: boolean }}
+     */
+    function effectiveDay(member, date) {
+        const dateStr  = formatISO(date);
+        const baseShiftTV = getBaseShift(member, date);
+        const override = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
+        return resolveDayShift(override, baseShiftTV, isSunday(dateStr), isChristmasLeaveDay(member, date), isChristmasOrBoxingDay(dateStr));
+    }
+
+    /**
      * Returns the effective shift display data for a member on a date,
      * applying any cached Firestore overrides over the base roster.
      * @returns {{ text: string, cls: string, label?: string }}
      */
     function getTeamCellDisplay(/** @type {any} */ member, /** @type {any} */ date) {
         const dateStr  = formatISO(date);
-        const cacheKey = `${member.name}|${dateStr}`;
-
-        const baseShiftTV = getBaseShift(member, date);
-        const override = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(cacheKey) : null;
         // ONE shared override→effective-shift ladder (calendar renderer + month legend use it too,
         // v16.48) so the Team view can never disagree with them — including the non-contracted
         // suppression (sick on rest/Sunday, AL/Other on Sunday; the Sunday-AL case fixed v16.37).
         // `shift` is the canonical value; an rdw override arrives as 'RDW' with its time in rdwTime,
         // and an Other day's derived-RDW-ness comes back as derivedRdw.
         // Christmas leave (v25.37) shows here as it does on the member's own calendar — christmas-leave.js.
-        const { shift, rdwTime, derivedRdw, christmasLeave } =
-            resolveDayShift(override, baseShiftTV, isSunday(dateStr), isChristmasLeaveDay(member, date), isChristmasOrBoxingDay(dateStr));
+        const { shift, rdwTime, derivedRdw, christmasLeave } = effectiveDay(member, date);
 
         // `label` is the accessible name (used as the cell's aria-label) so meaning
         // never depends on colour alone (the rest cell is just a coloured "–") and
@@ -311,6 +333,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
 
         const weekDates  = getTeamWeekDates(currentTeamWeekStart);
         const weekLabel  = formatTeamWeekLabel(currentTeamWeekStart);
+        // The card belongs to ONE date: a week that no longer holds it (Prev, Next, the jump, the date
+        // turning) is the plain grid, and coming back does not bring the card with it.
+        if (_onWith && getSunday(dayOf(_onWith.iso)).getTime() !== currentTeamWeekStart.getTime()) _onWith = null;
+        const onWithCard = buildOnWithCard({ onWith: _onWith, effectiveDay, monthKey: /** @type {any} */ (monthKey) });
 
         // Save scroll position before innerHTML wipe so it can be restored when skipFetch
         // (grade tab switch or Firestore callback re-render). Week navigation intentionally
@@ -400,6 +426,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         calendarDisplay.innerHTML = `
             <div class="team-view-container">
                 <div class="tv-print-header">Team Week View · ${grade} · ${weekLabel}</div>
+                ${onWithCard.html}
                 <div class="grade-tabs-row">
                     <div></div>
                     <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>
@@ -455,7 +482,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         // wait state rather than repeating the failure copy — the press has to look like it did
         // something. Re-rendering WITHOUT skipFetch is what actually re-queries.
         calendarDisplay.querySelector('#tvRetry')?.addEventListener('click', () => {
-            _weekMonths.forEach(k => { clearFetchedMonth(k); forgetOverrideKnowledge(k); });
+            new Set([..._weekMonths, ...onWithCard.months]).forEach(k => { clearFetchedMonth(k); forgetOverrideKnowledge(k); });
             renderTeamView(currentTeamGrade);
         });
 
@@ -596,8 +623,22 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             });
         }
 
+        // Hide: the plain week grid, in place; focus to the week's label, the button being gone.
+        calendarDisplay.querySelector('#tvOnWithHide')?.addEventListener('click', () => {
+            _onWith = null;
+            renderTeamView(currentTeamGrade, { skipFetch: true });
+            /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvWeekJump'))?.focus();
+        });
+        // Just opened from the day panel: its heading takes focus, so a screen reader starts at the answer.
+        if (_focusOnWith) {
+            _focusOnWith = false;
+            /** @type {HTMLElement|null} */ (calendarDisplay.querySelector('#tvOnWithTitle'))?.focus();
+        }
+
         if (!skipFetch) {
-            ensureTeamWeekCached(weekDates);
+            // The card's day before and day after through the SAME shared fetch: a Sunday's overnight
+            // from Saturday can sit in last month, outside the week (CALENDAR_DATA.md 6 — no fetcher of its own).
+            ensureTeamWeekCached([...weekDates, ...onWithCard.dates]);
         }
     }
 
@@ -688,6 +729,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             currentTeamWeekStart = weekStartForMonth(getDisplayedMonth?.(), new Date());
             renderTeamView(openingGrade());
         } else {
+            _onWith = null;                       // the card is Team View's, and goes with it
             _clearOverlayHistory(toggleTeamView); // Remove THIS overlay's pushed entry when exiting via button
             watchHintFit(null, null);             // the week's box is about to go: stop watching it
             renderCalendar();
@@ -809,6 +851,31 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         _weekMoved = true;
     }
 
+    /**
+     * "Who’s on with me" from the day panel: Team View on `iso`'s week, with the "On with" card for
+     * `name` above the grid. Entered as the Team button enters it — the same chrome and the same ONE
+     * history entry, so one Back returns to the month — but on the DATE's week rather than the month's.
+     * The caller has waited for the panel's own Back to land (`whenHistorySettled`), or this push would
+     * be the entry that Back took.
+     * @param {{ name: string, iso: string }} who
+     */
+    function showWhoIsOn({ name, iso }) {
+        if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return;
+        _onWith = { name, iso };
+        _focusOnWith = true;
+        currentTeamWeekStart = getSunday(dayOf(iso));
+        if (!teamViewMode) {
+            teamViewMode = true;
+            lsSet(TEAM_VIEW, '1');
+            applyTeamViewChrome();
+            _pushOverlayState(toggleTeamView); // Back returns to calendar, as from the Team button
+            renderTeamView(openingGrade());
+        } else {
+            renderTeamView(currentTeamGrade);
+        }
+        announceTeamWeek();
+    }
+
     // ── PUBLIC API ────────────────────────────────────────────────────────────
 
     return {
@@ -819,6 +886,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         refreshFromCache,
         refetchShownWeek,
         followDate,
+        showWhoIsOn,
         /** Is the grid on screen on a week other than this one? Asked by the date watcher. */
         isOffThisWeek: () => teamViewMode && currentTeamWeekStart.getTime() !== getSunday(new Date()).getTime(),
         /** @returns {boolean} did the last team render draw SHIFT DATA, rather than the withheld

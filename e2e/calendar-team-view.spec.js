@@ -759,3 +759,112 @@ test('Team View: the swipe hint shows only while the week is wider than its box'
     await expect(hint, 'narrowed in place, the table scrolls again and the hint is back').toBeVisible();
     expect(await retired(), 'nothing on the way was the member\'s swipe').toBeNull();
 });
+
+// ─── "WHO’S ON WITH ME" (owner, 27 Nov 2026) ─────────────────────────────────────────────────────────
+// The day panel's button on a day worked with times opens Team View on that date's week, with the
+// colleagues whose duties overlap listed above the grid, longest together first. The arithmetic is
+// team-overlap.test.mjs's and the card's markup calendar-team-onwith.test.mjs's; this is the WIRING — the
+// cell's date and times reaching the panel, the panel's close waiting for its Back before Team View pushes
+// its own (`whenHistorySettled`), the card drawn from the shared cache, focus, Hide, and one Back out.
+/** Three current CEAs other than G. Miller, from the roster by position, so no name is written here. */
+const onWithCast = () => teamMembers.filter(m => !m.hidden && m.role === 'CEA' && m.name !== 'G. Miller'
+    && !(m.startDate && m.startDate > new Date(2026, 8, 15))).slice(0, 3);
+/** @param {import('@playwright/test').Page} page */
+async function seedOnWithDay(page) {
+    const [early, long, away] = onWithCast();
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await page.addInitScript(({ early, long, away }) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        const row = (/** @type {string} */ id, /** @type {string} */ memberName, /** @type {string} */ type, /** @type {string} */ value) =>
+            ({ id, memberName, date: '2026-09-16', type, value, note: '' });
+        w.__E2E.docs = [
+            row('ow1', 'G. Miller', 'shift', '14:00-22:30'),
+            row('ow2', early, 'shift', '06:00-15:00'),        // the owner's example: together 14:00–15:00
+            row('ow3', long, 'shift', '13:00-21:00'),         // together seven hours, so listed before it
+            row('ow4', away, 'annual_leave', 'AL'),           // on leave: never listed
+        ];
+    }, { early: early.name, long: long.name, away: away.name });
+    return { early, long, away };
+}
+
+test('team view: "Who’s on with me" opens the week on that date with the overlap card, and one Back returns to the month', async ({ page }) => {
+    const { early, long, away } = await seedOnWithDay(page);
+    expect(away, 'premise: the roster has three CEAs besides G. Miller').toBeTruthy();
+    await page.goto('/railcard-guide.html');              // where the member came from
+    await page.goto('/');
+    const day = page.locator('.calendar-day[data-detail-iso="2026-09-16"]');
+    await expect(day).toHaveAttribute('data-detail-worked-times', '14:00-22:30');
+    const entries = await page.evaluate(() => history.length);
+    await day.click();
+    const btn = page.locator('#dayDetailTeamBtn');
+    await expect(btn).toBeVisible();
+    await expect(btn).toHaveAccessibleName('Who’s on with me');
+    await btn.click();
+
+    const card = page.getByRole('region', { name: 'On with G. Miller · Wednesday 16 September' });
+    await expect(card).toBeVisible();
+    await expect(page.locator('#tvOnWithTitle'), 'focus did not move to the answer').toBeFocused();
+    await expect(page.locator('#tvWeekJump')).toHaveText('13–19 Sep 2026');
+    await expect(page.locator('.team-table'), 'the week grid is not under the card').toBeVisible();
+    const row = (/** @type {string} */ name) => card.locator('.tv-onwith-row', { has: page.locator('.tv-onwith-name', { hasText: name }) });
+    await expect(row(early.name)).toContainText('Together 14:00–15:00');
+    await expect(row(long.name)).toContainText('Together 14:00–21:00');
+    const names = await card.locator('.tv-onwith-name').allTextContents();
+    expect(names.indexOf(long.name), 'seven hours together was not listed before one').toBeLessThan(names.indexOf(early.name));
+    await expect(card, 'somebody on leave was listed').not.toContainText(away.name);
+    await expect(card.locator('.tv-onwith-name', { hasText: 'G. Miller' }), 'the member was listed as on with themselves').toHaveCount(0);
+
+    // ONE entry for Team View, the panel's own gone first. Pushed before the panel's Back had landed, the
+    // panel's entry survived beneath Team View's (history.length one higher), an entry nothing answers.
+    expect(await page.evaluate(() => history.length), 'the panel\'s history entry was left behind').toBe(entries + 1);
+    await page.goBack();
+    await expect(page.locator('.calendar-day').first(), 'one Back did not return to the month').toBeVisible();
+    await expect(page.locator('#tvOnWith')).toHaveCount(0);
+    expect(await page.evaluate(() => history.state?.mybOverlay ?? null), 'Back landed on an overlay\'s entry').toBeNull();
+    await page.goBack();
+    await expect(page, 'one more Back leaves the Calendar').toHaveURL(/\/railcard-guide\.html$/);
+});
+
+test('team view: Hide puts the plain week back, and another week drops the card', async ({ page }) => {
+    await seedOnWithDay(page);
+    await page.goto('/');
+    await page.locator('.calendar-day[data-detail-iso="2026-09-16"]').click();
+    await page.locator('#dayDetailTeamBtn').click();
+    const card = page.locator('#tvOnWith');
+    await expect(card).toBeVisible();
+    await page.locator('#tvOnWithHide').click();
+    await expect(card).toHaveCount(0);
+    await expect(page.locator('.team-table'), 'Hide left Team View').toBeVisible();
+    await expect(page.locator('#tvWeekJump')).toBeFocused();
+
+    // Opened again, then the week moved: the card belongs to its date and does not follow.
+    await page.locator('#teamViewBtn').click();
+    await page.locator('.calendar-day[data-detail-iso="2026-09-16"]').click();
+    await page.locator('#dayDetailTeamBtn').click();
+    await expect(card).toBeVisible();
+    await page.locator('#tvNextWeek').click();
+    await expect(card).toHaveCount(0);
+    await page.locator('#tvPrevWeek').click();
+    await expect(card, 'coming back to the week brought the card back').toHaveCount(0);
+});
+
+test('team view: a rest day offers no "Who’s on with me", and a colleague’s day names them', async ({ page }) => {
+    await seedOnWithDay(page);
+    const colleague = onWithCast()[0];
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const rest = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
+        .findIndex(c => /** @type {HTMLElement} */ (c).dataset.detailShiftValue === 'RD'));
+    expect(rest, 'premise: the month has a rest day').toBeGreaterThan(-1);
+    await page.locator('.calendar-day:not(.other-month)').nth(rest).click();
+    await expect(page.locator('#dayDetailTeamBtn')).toBeHidden();
+    await expect(page.locator('#dayDetailTeamBtn')).toHaveCSS('display', 'none');
+    await page.locator('#dayDetailClose').click();
+
+    await page.locator('#teamMemberSelect').selectOption({ label: colleague.name });
+    await page.locator('.calendar-day[data-detail-iso="2026-09-16"]').click();
+    await expect(page.locator('#dayDetailTeamBtn')).toHaveAccessibleName(`Who’s on with ${colleague.name}`);
+    await page.locator('#dayDetailTeamBtn').click();
+    await expect(page.getByRole('region', { name: `On with ${colleague.name} · Wednesday 16 September` })).toBeVisible();
+    await expect(page.locator('#tvOnWith .tv-onwith-name', { hasText: 'G. Miller' }), 'G. Miller (14:00–22:30) shares 14:00–15:00').toHaveCount(1);
+});

@@ -99,7 +99,7 @@ test('4. the month heading row wraps — the net for the longest month name and 
 test('5. every control on the Calendar\'s navy surfaces names a ring drawn for a dark one', () => {
     const ON_NAVY = ['.title-icon:focus-visible', '.top-prompt-action:focus-visible', '.top-prompt-dismiss:focus-visible',
         '#dayDetailClose:focus-visible', '#alLightboxClose:focus-visible',
-        '#huddleViewerClose:focus-visible', '.day-detail-pay-btn:focus-visible', '.day-detail-leave-btn:focus-visible',
+        '#huddleViewerClose:focus-visible', '.day-detail-pay-btn:focus-visible', '.day-detail-leave-btn:focus-visible', '.day-detail-team-btn:focus-visible',
         '.al-lb-yearbtn:focus-visible', '.al-lb-link:focus-visible'];
     /** @type {Record<string, string>} */ const ring = {};
     for (const m of css.matchAll(/([^{}]*:focus-visible[^{}]*)\{([^}]*)\}/g)) {

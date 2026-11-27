@@ -587,11 +587,12 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
     const alIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
         .findIndex(c => c.dataset.detailShiftValue === 'AL'));
     expect(alIdx, 'the fixture no longer puts leave in this month').toBeGreaterThan(-1);
-    // NEITHER action: not leave, and not a pay-marked day. The row's own guard is about the day
-    // that has nothing to offer, so a payday would prove the opposite of what the last block asks.
+    // NO action: not leave, not a pay-marked day, and not worked with times ("Who’s on with me", 27 Nov
+    // 2026). The row's own guard is about the day that has nothing to offer, so a payday or a worked
+    // shift would prove the opposite of what the last block asks.
     const otherIdx = await page.evaluate(() => [...document.querySelectorAll('.calendar-day:not(.other-month)')]
         .findIndex(c => c.dataset.detailDay && c.dataset.detailShiftValue !== 'AL'
-                        && !c.dataset.paydayIso && !c.dataset.cutoffIso));
+                        && !c.dataset.paydayIso && !c.dataset.cutoffIso && !c.dataset.detailWorkedTimes));
     expect(otherIdx, 'the fixture has no ordinary day left to check').toBeGreaterThan(-1);
 
     await page.locator('.calendar-day:not(.other-month)').nth(alIdx).click();
@@ -706,7 +707,11 @@ test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ 
     expect(payIdx, 'the month has no pay-marked day to check').toBeGreaterThan(-1);
     await page.locator('.calendar-day:not(.other-month)').nth(payIdx).click();
     await expect(page.locator('#dayDetailPayBtn')).toBeHidden();
-    await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'none');
+    // No PERSONAL action in the row. "Who’s on with <name>" may share it on a worked day: it is not
+    // personal, and names the colleague whose shift it asks about (27 Nov 2026).
+    await expect(page.locator('#dayDetailActions > :not([hidden]):not(#dayDetailTeamBtn)')).toHaveCount(0);
+    const worked = await page.locator('.calendar-day:not(.other-month)').nth(payIdx).getAttribute('data-detail-worked-times');
+    await expect(page.locator('#dayDetailActions')).toHaveCSS('display', worked ? 'flex' : 'none');
 });
 
 // ─── AND THE OTHER TWO ROUTES TO THE CALCULATOR (v23.07) ────────────────────────────────────────

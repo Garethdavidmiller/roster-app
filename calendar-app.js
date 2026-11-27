@@ -139,7 +139,9 @@ let openAboutLightbox = null;
 // `initCalendarTooltip`/`initCalendarKeyboard` further down: with `#calendarDisplay` empty they have
 // nothing to act on, and the keyboard ACTS only inside it, so the stored copy painted in the lock
 // slot before the grant is read, never used.
-const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc, isTeamView: () => teamView.isTeamViewMode() });
+const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc, isTeamView: () => teamView.isTeamViewMode(),
+    // The day panel's "Who’s on with me": Team Week View on that date's week, overlap card on top.
+    openWhoIsOn: (who) => teamView.showWhoIsOn(who) });
 
 
 // ── TEAM VIEW ──

@@ -56,6 +56,7 @@ below, and run `npm run generate:ai-map`.
 | Which Huddle cells are physically in column 1 (`firstColumnMask`), for the sticky job column | `huddle-table-grid.js` |
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
 | Team Week View, and which week it opens on | `calendar-team-view.js` |
+| "Who’s on with me": the overlap card, and the overlap arithmetic | `calendar-team-onwith.js` · `team-overlap.js` |
 | Override priority, member start, rest shifts, the shared display ladder (`resolveEffectiveShift`), the Sunday rule, the training value grammar and its pay resolver | `override-utils.js` (the grammar and its pay resolver: `other-day.js`, re-exported) |
 | Body scroll lock, overlay history, focus trap, the lightbox lifecycle, the in-app dialogs, card collapse | `overlay.js` (the Back stack: `overlay-history.js`; the Tab trap: `overlay-focus.js`; the scroll fade and pinned ✕: `overlay-panel-scroll.js`) |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
@@ -243,6 +244,12 @@ below, and run `npm run generate:ai-map`.
 
 ### `calendar-team-view.js`
 - **Exports:** `weekStartForMonth` · `weekAfterDateChange` · `initTeamView`
+
+### `calendar-team-onwith.js`
+- **Exports:** `dayOf` · `cardDate` · `colleaguesOf` · `buildOnWithCard`
+
+### `team-overlap.js`
+- **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `rangeText` · `whoIsOnWith`
 
 ### `calendar-tips.js`
 - **Exports:** `CARD_TIPS`
