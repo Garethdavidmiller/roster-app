@@ -2,7 +2,7 @@
 
 Five email templates, each written for colleagues who share a set of preferences. Each compares the three
 shortlisted proposals — Balanced V6, Level Crossing and Middle Ground — and today's link, says which proposal's figures
-fit that person best and what each one gives up, and points them to the New CEA link page and the proposal sheet. Written
+fit that person best and what each one gives up, and points them to the New CEA Link page and the proposal sheet. Written
 on 27 Nov 2026 against the shortlist of 8 Nov 2026.
 
 **They are not a recommendation of how to vote.** Sara Silva, the RMT rep, leads the change; every template says so,
@@ -41,7 +41,7 @@ template of its own here.
 
 ## Where the figures come from
 
-Every figure is either the New CEA link page's (`newlink-data.js`) or a proposal sheet's, or **counted from the proposals'
+Every figure is either the New CEA Link page's (`newlink-data.js`) or a proposal sheet's, or **counted from the proposals'
 own weeks** (`link-designer-proposals.js`) by the page's rules: one person over a year, Monday to Saturday as Sundays are
 overtime, cover weeks left out. Each counted figure was first checked by reproducing a figure the page publishes with
 the same count; a count that cannot reproduce the page's figures is not used.

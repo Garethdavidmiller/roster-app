@@ -1403,7 +1403,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
         lb._cfg.onOpen();                                     // the harness records an open; the lightbox would run this itself
         const filed = _archived.find(n => n.id === 'newlink-vote-2026');
         assert.ok(filed, 'archived on OPEN, before the link can take the member away');
-        assert.equal(filed.section, 'New CEA link', 'filed under the page it is about — coloured in App Notices (block 10)');
+        assert.equal(filed.section, 'New CEA Link', 'filed under the page it is about — coloured in App Notices (block 10)');
     });
 
     test('its words say what the page says, and its menu route is the real pill', async () => {

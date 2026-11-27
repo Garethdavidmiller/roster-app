@@ -354,7 +354,7 @@ test('New link notice: a colleague the page is for is told, and its link takes t
     expect(await page.evaluate(() => sessionStorage.getItem('__newlinkDoneAtClick')), 'the link marks it done as it is pressed').toBe('1');
     const filed = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_app_notices') || '[]')
         .filter((/** @type {any} */ n) => n.id === 'newlink-vote-2026').map((/** @type {any} */ n) => n.section));
-    expect(filed, 'archived on open, under its own section').toEqual(['New CEA link']);
+    expect(filed, 'archived on open, under its own section').toEqual(['New CEA Link']);
     expect(errors).toHaveLength(0);
 });
 
