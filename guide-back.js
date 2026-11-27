@@ -57,7 +57,7 @@
         'link-designer.html': { href: './link-designer.html', label: 'Back to Link Designer' },
         'overtime.html':   { href: './overtime.html',   label: 'Back to Overtime' },
         'trains.html':     { href: './trains.html',     label: 'Back to Trains' },
-        'newlink.html':    { href: './newlink.html',    label: 'Back to New link' },
+        'newlink.html':    { href: './newlink.html',    label: 'Back to New CEA Link' },
     };
 
     var back = document.querySelector('.btn-back');
