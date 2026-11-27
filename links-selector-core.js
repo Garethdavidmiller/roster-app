@@ -34,7 +34,8 @@
 
 import { PROPOSALS, proposalDisplayName } from './link-designer-proposals.js';
 import { DAYS, ROTATING_LINES, isCoverWeek } from './link-designer-design.js';
-import { isChristmasRD, isWorkedShift } from './roster-data.js';
+import { isChristmasRD } from './roster-data.js';
+import { isChristmasDueByPattern } from './christmas-leave.js';
 
 /**
  * The Sunday the new link starts, as the Links Selector draws it — PROVISIONAL (owner, 27 Nov 2026: "It should
@@ -92,8 +93,9 @@ export function dayOn(proposal, startLine, date) {
     if (line === null) return { blank: true };
     const pattern = proposal.patterns[String(line)]?.[DAYS[date.getDay()]] ?? 'RD';
     if (isChristmasRD(date)) {
-        // Sundays are uncontracted, and 25 and 26 December cannot be spare days (christmas-leave.js → isChristmasLeaveDay).
-        const due = date.getDay() !== 0 && pattern !== 'SPARE' && isWorkedShift(pattern);
+        // The Calendar's own rule, asked of the proposal's value (christmas-leave.js → isChristmasDueByPattern): never on a
+        // Sunday, never on a spare day.
+        const due = isChristmasDueByPattern(date, pattern);
         return { blank: false, shift: due ? 'AL' : 'RD', line, christmasLeave: due };
     }
     return { blank: false, shift: pattern, line, christmasLeave: false };

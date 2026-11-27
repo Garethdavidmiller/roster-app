@@ -325,7 +325,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `getAuthSnapshot` · `subscribeAuth` · `dispatchAuth` · `_resetAuthStateForTest`
 
 ### `auth-policy.js`
-- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `canOpenSelector` · `navGatesFor` · `overtimeEnabled` · `linkDesignerEnabled` · `requirePage`
+- **Exports:** `DECISIONS` · `selectorRoles` · `PAGE_POLICIES` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `canOpenSelector` · `navGatesFor` · `overtimeEnabled` · `linkDesignerEnabled` · `requirePage`
 
 ### `operations-app.js`
 - **Exports:** `init`
@@ -493,7 +493,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `dayLabel` · `sheetWords` · `patternWords` · `drawnWords` · `appWords` · `figuresLine` · `personNotes` · `chipsFor` · `totalsEntries` · `reasonWords` · `CARD_WORDS` · `beyondHeadWords` · `checkedWords` · `overallWords` · `oldWords` · `unplacedWords` · `appOnlyWords` · `moreDaysWords` · `notComparedWords` · `ageWords` · `SAVE_WORDS` · `questionWords` · `confirmWords` · `afterWords` · `stillDiffersWords` · `unansweredWords` · `saveButtonWords` · `savingWords` · `refusalWords` · `receiptWords` · `leftFreeWords` · `lastSaveWords` · `undoConfirmWords` · `undoneWords`
 
 ### `christmas-leave.js`
-- **Exports:** `CHRISTMAS_LEAVE_FROM_YEAR` · `isChristmasLeaveDay` · `isChristmasClosureDate` · `isUncountedChristmasLeave` · `allowanceForBoxingDay` · `boxingDayForAllowance` · `allowanceYearsOf` · `boxingDayLieuDays` · `resolveDayShift` · `christmasLeaveDates` · `christmasLeaveByYear` · `christmasLeaveLine`
+- **Exports:** `CHRISTMAS_LEAVE_FROM_YEAR` · `isChristmasLeaveDay` · `isChristmasDueByPattern` · `isChristmasClosureDate` · `isUncountedChristmasLeave` · `allowanceForBoxingDay` · `boxingDayForAllowance` · `allowanceYearsOf` · `boxingDayLieuDays` · `resolveDayShift` · `christmasLeaveDates` · `christmasLeaveByYear` · `christmasLeaveLine`
 
 ### `leave-year.js`
 - **Exports:** `LEAVE_YEAR_CHOICE` · `LEAVE_YEAR_FROM` · `leaveYearChoiceEnabled` · `isValidLeaveYear` · `carriedFrom` · `leaveYearOf` · `nextLeaveYear` · `canChooseLeaveYear` · `offeredJanuaries` · `carryLine`

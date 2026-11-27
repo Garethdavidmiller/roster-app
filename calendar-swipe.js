@@ -345,10 +345,11 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
                 gestureCurrentPanel = null;
                 _swipeCooldown = false;
                 _gestureActive = false;
+                // Another page's months settle by its own rule, and touch nothing of the Calendar's below.
+                if (months) { months.settled(); return; }
                 // Always persist — ensureOverridesCached is a no-op for pre-cached
                 // months and won't call renderCalendar (which is where persist
                 // normally happens), so we must persist unconditionally here.
-                if (months) { months.settled(); return; }
                 persistViewedMonth();
                 // No member or mode guard here: the read is every member's, so whatever is on screen
                 // when it lands is waiting on it. The dep routes the repaint to the live surface.

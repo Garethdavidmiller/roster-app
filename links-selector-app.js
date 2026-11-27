@@ -23,7 +23,7 @@ import { SHARED_SCREEN } from './login-core.js';
 import { CONFIG, MONTH_NAMES, shiftBadgeParts, escapeHtml, teamMembers } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { sessionReady, reconcileExpiredIdentity } from './session.js';
-import { signOutAndLeave } from './page-session.js';
+import { signOutAndLeave, onReturnToPage } from './page-session.js';
 import { startPage } from './page-start.js';
 import { navGatesFor } from './auth-policy.js';
 import { createLightbox } from './overlay.js';
@@ -32,7 +32,8 @@ import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { markPageReady, clearLoginStart } from './perf-reporter.js';
 import { enhanceSelect } from './select-sheet.js';
-import { initSwipeHandler } from './calendar-swipe.js';
+import { initSwipeHandler, isSwipeCooldown } from './calendar-swipe.js';
+import { rovingCellFor } from './calendar-renderer.js';
 import { initCalendarTooltip, initCalendarKeyboard, initCalendarShortcuts } from './calendar-keyboard.js';
 import { lsGet, lsSet } from './ls.js';
 import { formatDayMonth, formatDayMonthYear, formatClock, printedStamp, DAY_NAMES_FULL } from './date-format.js';
@@ -112,6 +113,7 @@ function showNotForYou(member) {
     document.querySelector('nav.controls')?.remove();
     document.getElementById('selectorNote')?.remove();
     document.getElementById('calendarLegend')?.remove();
+    document.getElementById('selectorPrintHead')?.remove();   // nothing chosen to print
     document.getElementById('calendarDisplay')?.replaceChildren(card);
 }
 
@@ -204,18 +206,33 @@ function runSelector() {
     const title = () => `${MONTH_NAMES[month]} ${year} — Links Selector — Marylebone Roster`;
     const prevBtn = /** @type {HTMLButtonElement} */ (el('prevMonth'));
     const nextBtn = /** @type {HTMLButtonElement} */ (el('nextMonth'));
+    // THE CALENDAR'S WAY AT THE ENDS (calendar-app.js → updateNavButtonState): `aria-disabled` and a faded button, never
+    // `disabled` — a disabled button drops the focus it holds, so pressing Next →, key by key, into December 2028 left the
+    // keyboard on <body>. The press itself is refused in `step`.
     function updateNav() {
-        prevBtn.disabled = !inRange(shift(-1).year, shift(-1).month);
-        nextBtn.disabled = !inRange(shift(1).year, shift(1).month);
+        for (const [btn, delta] of /** @type {Array<[HTMLButtonElement, number]>} */ ([[prevBtn, -1], [nextBtn, 1]])) {
+            const end = !inRange(shift(delta).year, shift(delta).month);
+            btn.setAttribute('aria-disabled', end ? 'true' : 'false');
+            btn.style.opacity = end ? '0.4' : '';
+        }
     }
-    function render() {
-        display.replaceChildren(build(year, month));
-        document.title = title();
-        updateNav();
-        // The printed heading's second line (links-selector.html → #selectorPrintHead), kept true at every redraw.
+    /** The printed heading's second line (links-selector.html → #selectorPrintHead): the choice, and when it was printed. */
+    function stampPrint() {
         const now = new Date();
         el('selectorPrintChoice').textContent = `${proposalDisplayName(proposal)} (${proposal.ref}) · starting on line ${line}`
             + ` · a proposal, not a roster · ${printedStamp(now, formatClock(now))}`;
+    }
+    function render() {
+        // KEEP THE KEYBOARD ON THE GRID, as the Calendar's renderCalendar does: replacing the month drops a focused day to
+        // <body>, and then ← → change the month instead of moving between days. The new grid's entry day takes it.
+        const active = document.activeElement;
+        const onCell = active instanceof HTMLElement && active.classList.contains('calendar-day');
+        const container = build(year, month);
+        display.replaceChildren(container);
+        if (onCell) rovingCellFor(container, null)?.focus({ preventScroll: true });
+        document.title = title();
+        updateNav();
+        stampPrint();
     }
     const announce = () => { if (announcer) announcer.textContent = `${MONTH_NAMES[month]} ${year}`; };
     /** @param {number} delta */
@@ -224,8 +241,14 @@ function runSelector() {
         if (!inRange(to.year, to.month)) return;
         ({ year, month } = to);
     }
-    /** @param {number} delta */
-    function step(delta) { changeMonth(delta); render(); announce(); }
+    /** A press of Prev or Next (and PgUp/PgDn and ← →, which press them). Refused mid-swipe, as the Calendar's are: a month
+     *  drawn under a finger would be overtaken by the swipe's own commit. @param {number} delta */
+    function step(delta) {
+        if (isSwipeCooldown()) return;
+        const to = shift(delta);
+        if (!inRange(to.year, to.month)) return;   // the faded end button: a true no-op, nothing re-announced
+        changeMonth(delta); render(); announce();
+    }
 
     /** Keep the choice in the address and on this device, then redraw. */
     function chosen() {
@@ -251,6 +274,7 @@ function runSelector() {
     prevBtn.addEventListener('click', () => step(-1));
     nextBtn.addEventListener('click', () => step(1));
     el('selectorStartBtn').addEventListener('click', () => {
+        if (isSwipeCooldown()) return;
         year = FIRST_MONTH.year; month = FIRST_MONTH.month;
         render(); announce();
     });
@@ -263,18 +287,21 @@ function runSelector() {
         getAccessType: () => 'named', isTeamViewMode: () => false, isFirstRun: () => false,
         jumpToCurrentWeek: () => {},
         goToToday: () => { ({ year, month } = openingMonth()); render(); announce(); },
-        print: () => window.print(),
+        print: () => { stampPrint(); window.print(); },
     });
     initCalendarKeyboard({ navigateToPaycalc: () => false, openDayDetail: /** @type {any} */ (openDayDetail) });
     initCalendarTooltip();
 
+    // With `months` given the swipe builds, bounds, titles and settles through the page's own months, so its Calendar-only
+    // deps — the month read's repaint, the legend, the day panel for its adjacent panels — are never called here; they are
+    // passed because the signature is the Calendar's.
     initSwipeHandler({
         isTeamViewMode: () => false,
         changeMonth,
         renderCalendar: render,
         updateLegend: () => {},
         updateNavButtonState: updateNav,
-        openDayDetail: /** @type {any} */ (openDayDetail),
+        openDayDetail: null,
         announceMonthChange: announce,
         months: {
             buildPanel: (delta) => { const to = shift(delta); return build(to.year, to.month); },
@@ -283,6 +310,12 @@ function runSelector() {
             settled: () => {},
         },
     });
+
+    // The print time is stamped again as the browser prints, where it says it is printing (Safari's AirPrint does not —
+    // CLAUDE.md, the iOS hazards — and keeps the time of the last redraw or the P key).
+    window.addEventListener('beforeprint', stampPrint);
+    // An installed app is reopened, not reloaded: today's ring, and the opening month, move on with the date.
+    onReturnToPage(0, render);
 
     paintProposal();
     paintLine();

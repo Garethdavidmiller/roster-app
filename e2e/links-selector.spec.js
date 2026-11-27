@@ -63,7 +63,12 @@ test.describe('links selector', () => {
     test('Next, Prev and the swipe change the month; Start goes back to January 2027', async ({ page }) => {
         await seedSession(page, ADMIN);
         await page.goto('/links-selector.html?proposal=MB-26-V6&line=3');
-        await expect(page.locator('#prevMonth')).toBeDisabled();
+        // the Calendar's end-of-range button: faded and aria-disabled, never `disabled`, which would drop its focus
+        await expect(page.locator('#prevMonth')).toHaveAttribute('aria-disabled', 'true');
+        await page.locator('#prevMonth').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('.month-year')).toHaveText('January 2027');
+        await expect(page.locator('#prevMonth')).toBeFocused();
         await page.locator('#nextMonth').click();
         await expect(page.locator('.month-year')).toHaveText('February 2027');
         await expect(page).toHaveTitle(/^February 2027 — Links Selector/);
@@ -145,6 +150,11 @@ test.describe('links selector', () => {
         await page.locator('.calendar-day[tabindex="0"]').focus();
         await page.keyboard.press('PageDown');
         await expect(page.locator('.month-year')).toHaveText('February 2027');
+        // the keyboard stays on the grid, as on the Calendar: the next arrow moves a day, not a month
+        await expect(page.locator(':focus')).toHaveClass(/calendar-day/);
+        await page.keyboard.press('ArrowRight');
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        await expect(page.locator(':focus')).toHaveClass(/calendar-day/);
         await page.locator('h1').click();
         await page.keyboard.press('t');
         await expect(page.locator('.month-year')).toHaveText('January 2027');

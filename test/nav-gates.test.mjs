@@ -25,7 +25,7 @@
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { NAV_PAGES, PILL_GATES, visiblePills } from '../nav-destinations.js';
-import { navGatesFor, requirePage, overtimeEnabled, linkDesignerEnabled, PAGE_POLICIES } from '../auth-policy.js';
+import { navGatesFor, requirePage, overtimeEnabled, linkDesignerEnabled, PAGE_POLICIES, selectorRoles, requirePageAuth, rolesFor } from '../auth-policy.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 
 const g = /** @type {any} */ (globalThis);
@@ -162,4 +162,18 @@ describe('visiblePills — the one filter', () => {
             assert.ok(!visiblePills(NAV_PAGES, others, '').some(p => p.id === page.id), `${flag} stays shut on every other gate`);
         }
     });
+});
+
+test('the Links Selector\'s switch: admin alone now, and once open exactly the New CEA Link page\'s audience', () => {
+    // The policy is fixed when auth-policy.js loads, so the OPEN state is asked of `selectorRoles` — the function the policy
+    // itself is built from — rather than by flipping CONFIG under a module that has already read it.
+    assert.deepEqual(PAGE_POLICIES.selector.role, selectorRoles(CONFIG.LINKS_SELECTOR_OPEN === true), 'the policy is not selectorRoles');
+    assert.deepEqual(selectorRoles(false), ['admin']);
+    assert.equal(selectorRoles(true), PAGE_POLICIES.newlink.role, 'open, it must be the New link page\'s own list, not a copy');
+    // and through the real decision, for every name on the roster: opened, it admits exactly whom the New link page admits
+    const open = { requireNamed: true, role: selectorRoles(true) };
+    for (const member of everyone()) {
+        const snapshot = { status: 'named', member };
+        assert.equal(requirePageAuth(snapshot, open, rolesFor(member)).decision, requirePage(snapshot, 'newlink').decision, member);
+    }
 });

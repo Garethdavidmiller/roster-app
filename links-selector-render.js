@@ -28,9 +28,11 @@ import { MONTH_NAMES, isSameDay, isBankHoliday, isChristmasDay, isEasterSunday, 
 import { createCalendarHeader, createDayCell, dayCellParts, dayCellName, dayMarkers, shiftWords, splitShiftLine } from './calendar-renderer.js';
 import { ROTATING_LINES } from './link-designer-design.js';
 import { dayOn, monthLines, isCoverLine } from './links-selector-core.js';
+import { DAY_NAMES, DAY_NAMES_FULL } from './date-format.js';
 
-const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const SHORT_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// The app's one list of day names (date-format.js), as the Calendar's grid reads it.
+const FULL_DAY_NAMES = DAY_NAMES_FULL;
+const SHORT_DAY_NAMES = DAY_NAMES;
 
 /** No member is drawn, so no member's `permanentShift` forces a badge: every worked day wears its time's own kind. */
 const NO_MEMBER = Object.freeze({});

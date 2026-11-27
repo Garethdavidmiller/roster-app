@@ -40,6 +40,17 @@ export const DECISIONS = Object.freeze(['allow', 'soft-allow', 'login', 'forbidd
 const NEWLINK_ROLES = /** @type {string[]} */ (Object.freeze(['admin', 'newlinkPreview', 'newlinkAudience']));
 
 /**
+ * The Links Selector's roles for either position of its switch (CONFIG.LINKS_SELECTOR_OPEN): the admin during the beta,
+ * the New link page's own list once open. A function so the OPEN answer can be tested before anybody flips the switch
+ * (nav-gates.test.mjs) — the policy below is fixed when this module loads.
+ * @param {boolean} open
+ * @returns {string[]}
+ */
+export function selectorRoles(open) {
+    return open ? NEWLINK_ROLES : ['admin'];
+}
+
+/**
  * Per-page access policy — the single home for "what does this page require?". GROUNDED in the
  * coordinators' actual gates (v14.60):
  *  - operations: admin ONLY (non-admins, incl. managers, are redirected) → role ['admin'].
@@ -93,7 +104,7 @@ export const PAGE_POLICIES = Object.freeze({
     newlink:    { requireNamed: true,  role: NEWLINK_ROLES },
     // The Links Selector (owner, 27 Nov 2026): a beta for the admin until CONFIG.LINKS_SELECTOR_OPEN, then exactly the New
     // link page's audience (owner: "Same as new link page"). Read once, here, so the page and `canOpenSelector` agree.
-    selector:   { requireNamed: true,  role: CONFIG.LINKS_SELECTOR_OPEN === true ? NEWLINK_ROLES : ['admin'] },
+    selector:   { requireNamed: true,  role: selectorRoles(CONFIG.LINKS_SELECTOR_OPEN === true) },
 });
 
 /** @returns {AuthDecision} */
