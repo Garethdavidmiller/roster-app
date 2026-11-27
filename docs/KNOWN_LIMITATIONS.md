@@ -852,13 +852,14 @@ cheap HTML marker was removed — it made every bump touch ~8 files) or per-load
 a self-heal reload (a reload-loop hazard), both in the highest-outage-risk file. Revisit only if a real
 mixed-version incident is seen.
 
-### Dual hosting: web.app is canonical, and the github.io mirror is where most staff still are
+### Dual hosting: web.app is canonical, and the github.io mirror still serves about half the staff
 
 - **`https://myb-roster.web.app`** (+ `myb-roster.firebaseapp.com`) — Firebase Hosting, **canonical**:
   the URL for any new install and the origin in notification payloads (`STAFF_SITE_URL`).
 - **`https://garethdavidmiller.github.io/roster-app/`** — the GitHub Pages mirror (note the sub-path).
-  **Still the origin MOST staff use** (owner, Sep 2026; the move is gradual by design). It serves no
-  redirects and no HTTP headers, so anything leaning on either reaches the minority.
+  **Installed users are now roughly level between the two** (owner, 27 Nov 2026; in Sep 2026 most staff
+  were here — the move is gradual by design, and it is working). It serves no redirects and no HTTP
+  headers, so anything leaning on either misses everybody here.
 
 **Why both are safe:** push delivery is origin-independent, and the service worker re-bases a
 notification's target onto its own `registration.scope` (`notificationclick`, `service-worker.js`), so
