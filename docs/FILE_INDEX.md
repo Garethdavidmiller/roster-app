@@ -276,6 +276,7 @@ roster-app/
 ├── trains-weekdays.js      ← PURE: which weekdays a figure is true of. Tested by trains-stations.test.mjs
 ├── trains-verdict.js       ← PURE: a station's change in words. Tested by trains-stations.test.mjs
 ├── trains-headlines.js     ← PURE: the "what's changing" headlines. Tested by trains-stations.test.mjs
+├── trains-journey.js       ← PURE: "Aylesbury, after 17:15" — the lookup box read as a station and a time, and the first train there and the next two on one date. Tested by trains-journey.test.mjs
 ├── trains-tips.js          ← CARD_TIPS for trains.html's `?` panels, with the page's caveats and sources
 ├── newlink.html            ← the new link page: the three shortlisted proposals for the new CEA link (from January 2027), presented evenly, and the pack. Signed-in only, never the staff PIN
 ├── newlink.css             ← CSS for newlink.html
@@ -622,6 +623,7 @@ roster-app/
 │   ├── overtime-clock.test.mjs ← overtime-clock.js's extraction: the same objects re-exported, no imports. Part of test:hygiene
 │   ├── trains-assemble.test.mjs ← the timetable builder (`assemble.py`) joins a continued train only to its ONE continuation, run on synthetic books. Part of test:hygiene; skipped without python3
 │   ├── trains-change.test.mjs ← what the Trains page says changes, against hand-checked facts from the printed books. Part of test:hygiene
+│   ├── trains-journey.test.mjs ← the Trains lookup box: "Aylesbury, after 17:15" read, and the first and next trains, the last train and the 13 December switch, on the real timetables. Part of test:hygiene
 │   ├── trains-stations.test.mjs ← the Trains page from a station, and its words. Part of test:hygiene
 │   ├── newlink-data.test.mjs ← the new link page says what the pack says (the generator in `--check` mode)
 │   ├── newlink-config.test.mjs ← the new link page's switch held to its gate and audience

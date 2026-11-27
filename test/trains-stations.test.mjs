@@ -1798,6 +1798,9 @@ describe('the lookup and the cards as the words review read them (Nov 2026)', ()
     test('a.m. or p.m. still to come is recognised, for an hour that can take one — and a tail begun is a time', async () => {
         const { amPmPending } = await import('../trains-cards.js');
         for (const v of ['5 ', '5.15 ', '515 ', '12 ', '12.15  ']) assert.equal(amPmPending(v), true, v);
+        // …after a station too, since the two lookups became one box (Find a train, Nov 2026).
+        for (const v of ['aylesbury 5 ', 'Aylesbury, 5.15 ', 'high wycombe after 515 ']) assert.equal(amPmPending(v), true, v);
+        for (const v of ['aylesbury ', 'aylesbury 17:15 ', 'aylesbury 5.15pm ', 'route 66 x ']) assert.equal(amPmPending(v), false, v);
         for (const v of ['', '5', '5.', '5.1', '5.15', '5.15pm', '5.15 a.m.', '1715 ', '17:15p', '0.15 ', '13p', 'abc ',
             '5.15p', '5.15 p', '5.15p.', '515a', '12p', '10.15p']) assert.equal(amPmPending(v), false, v);
         for (const v of ['5.15p', '5.15 p', '5.15p.', '515a', '12p', '10.15p']) assert.ok(parseTypedTime(v), `${v} is answered as a time`);

@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * trains-cards.js — paints each card of trains.html from the page's state: the overview, the changes
- * list, the time lookup, the station picker and card, Last trains and the stopping grid.
+ * list, Find a train (the one lookup: a station and a time, or a time alone), the station picker and card,
+ * Last trains and the stopping grid.
  *
  * Split from trains-app.js, which keeps the page's STATE and its wiring — which view is on screen,
  * what a press changes, focus after a redraw. Here, each card reads the timetables through
@@ -16,11 +17,12 @@
 
 import { lsGet, lsSet } from './ls.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
-import { parseTypedTime, daysUntil, timetablePhase, dateWords, railwayToday, JOURNEY_PLANNER_URL } from './trains-change.js';
+import { daysUntil, timetablePhase, dateWords, railwayToday, JOURNEY_PLANNER_URL } from './trains-change.js';
+import { parseJourney, findStation, journeyDate, journey, isoDate } from './trains-journey.js';
 import { stationView, busiestStations, matchStations, stoppingGrid, stopsKnown, stationBands, lastTrains } from './trains-stations.js';
 import { headlineChanges } from './trains-headlines.js';
 import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME, DAY_NAMES,
-    leadWords, renderFurtherChanges, partialStopsNote } from './trains-render.js';
+    leadWords, renderFurtherChanges, partialStopsNote, renderJourney, renderNoStation } from './trains-render.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
 /** @typedef {'dep'|'arr'} Dir */
@@ -74,14 +76,22 @@ export function renderOverview(p) {
     setText('trGridDec', p.newLabel);
 }
 
-/** The changes view: its list, the lookup, and the desktop's jump card. @param {PageState} state @param {ReturnType<typeof phase>} p */
-export function renderChanges(state, p) {
+/** The changes view: its list. @param {PageState} state */
+export function renderChanges(state) {
     const day = TIMETABLES.now[state.day], dec = TIMETABLES.dec[state.day];
     setText('trChangesHint', `${DAY_NAMES[state.day]}, trains leaving Marylebone — biggest change first`);
     setHTML(el('trChanges'), renderHeadlines(HEADLINES.get(state.day) ?? HEADLINES.set(state.day, headlineChanges(day.dep, dec.dep, STATIONS)).get(state.day), { showAll: state.allHeads, partial: !dec.dep.every(stopsKnown) }));
-    renderLookup(state);
-    // The desktop's jump card (trains.css shows it from 1024px): the busiest stations, as the Stations tab offers them.
-    setHTML(el('trJumpPicks'), renderPicks(busiestStations((p.started ? dec : day).dep), { typed: false, selected: state.station, stations: STATIONS, last: lsGet(LAST_STATION_KEY) }));
+}
+
+/**
+ * The journey box's station chips, under the box on a wide screen (trains.css shows them from 1024px): the busiest
+ * stations of the timetable running, as the Stations tab offers them, each opening its station's card — what the
+ * desktop's "Jump to a station" card did until the two lookups became one (Nov 2026).
+ * @param {PageState} state @param {ReturnType<typeof phase>} p
+ */
+export function renderJump(state, p) {
+    const run = TIMETABLES[p.started ? 'dec' : 'now'][state.day];
+    setHTML(el('trJumpPicks'), renderPicks(busiestStations(run.dep), { typed: false, selected: state.station, stations: STATIONS, last: lsGet(LAST_STATION_KEY) }));
 }
 
 /** The stopping grid. The day is named in the subtitle because the day tabs do not print. @param {PageState} state */
@@ -147,7 +157,8 @@ export function renderStationCard(state) {
  * @returns {boolean}
  */
 export function amPmPending(raw) {
-    const m = String(raw).trimStart().match(/^(\d{1,2})(?:[:.]?\d{2})?\s+$/);
+    // The time may follow a station since the two lookups became one: "aylesbury 5 " waits as "5 " does.
+    const m = String(raw).trimStart().match(/(?:^|[\s,])(\d{1,2})(?:[:.]?\d{2})?\s+$/);
     if (!m) return false;
     const h = Number(m[1]);
     return h >= 1 && h <= 12;
@@ -155,21 +166,76 @@ export function amPmPending(raw) {
 
 /** The day the lookup last answered for: a kept answer is kept only for the same day. @type {string|null} */
 let lookupDay = null;
+/** What the lookup last answered — the box, the day, the date and, for "the next train", the minute — so a redraw
+ *  of the page that changes none of them is not worked out again (the time alone is 40–75 ms). @type {string} */
+let lookupKey = '';
 
-/** "What happens to the 17:15?" — trains-render.js writes the answer. @param {PageState} state */
+/** The dates the page's timetable switch turns on (`timetablePhase`). */
+const DATES = Object.freeze({ change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL });
+
+/** A time the box cannot read — alone, or after a station it found. */
+const TIME_HINT = '<p class="card-explainer tr-lead">Type a time like 17:15, 1715 or 5.15pm.</p>';
+
+/** A clock time as 'HH:MM'. @param {Date} d */
+const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+/**
+ * THE ONE LOOKUP (owner, Nov 2026: "bring the existing time and station lookups together"). One box takes where
+ * the customer is going and, if they say, when — "Aylesbury, after 17:15" — and answers with the first train there
+ * (trains-journey.js, trains-render.js → `renderJourney`). A TIME ALONE is answered as it always was, "what happens
+ * to the 17:15?", the two timetables side by side for the day chosen (`lookupHtml`).
+ *
+ * The journey is for a DATE: today's railway day while the day chosen is today's kind, else the next date of the
+ * kind chosen (`journeyDate`) — and from now, today, when no time is given. @param {PageState} state
+ */
 export function renderLookup(state) {
     const raw = /** @type {HTMLInputElement|null} */ (el('trLookupInput'))?.value ?? '';
     const typed = raw.trim();
-    const at = typed ? parseTypedTime(typed) : null;
     const result = el('trLookupResult');
     // An a.m./p.m. still being typed keeps the answer on screen (`amPmPending`) — for the day it answered,
     // and only when there is one: a day tab pressed meanwhile, or a box empty until now, answers afresh.
     if (amPmPending(raw) && lookupDay === state.day && result?.innerHTML) return;
     lookupDay = state.day;
+    const ask = parseJourney(typed);
+    const now = new Date(), today = railwayToday(now);
+    const date = journeyDate(today, state.day);
+    const isToday = isoDate(date) === isoDate(today);
     const p = phase();
-    setHTML(result, !typed ? '' : !at ? '<p class="card-explainer tr-lead">Type a time like 17:15, 1715 or 5.15pm.</p>'
-        : lookupHtml({ at, day: state.day, nowRows: TIMETABLES.now[state.day].dep, decRows: TIMETABLES.dec[state.day].dep,
-            started: p.started, ended: p.phase === 'ended', labels: { old: p.oldLabel, new: p.newLabel }, change: CHANGE_DATE, stations: STATIONS }));
+    const key = JSON.stringify([typed, state.day, isoDate(today), p.phase, ask.place && !ask.time && isToday ? hhmm(now) : '']);
+    if (key === lookupKey) return;   // nothing it answers from has changed: the answer on screen stands
+    lookupKey = key;
+    if (!typed) { setHTML(result, ''); return; }
+    if (!ask.place) {
+        const at = ask.time;
+        setHTML(result, !at ? TIME_HINT
+            : lookupHtml({ at, day: state.day, nowRows: TIMETABLES.now[state.day].dep, decRows: TIMETABLES.dec[state.day].dep,
+                started: p.started, ended: p.phase === 'ended', labels: { old: p.oldLabel, new: p.newLabel }, change: CHANGE_DATE, stations: STATIONS }));
+        return;
+    }
+    // Equal matches go busiest first, on the timetable running, as the Stations tab's search orders them.
+    const found = findStation(ask.place, STATIONS, busiestStations(TIMETABLES[p.started ? 'dec' : 'now'].SX.dep, Infinity));
+    if (!found.crs) { setHTML(result, renderNoStation(ask.place, found.closest, STATIONS)); return; }
+    if (ask.timeText && !ask.time) { setHTML(result, TIME_HINT); return; }
+    const at = ask.time ?? (isToday ? hhmm(now) : null);
+    const j = journey({ crs: found.crs, at, date, timetables: TIMETABLES, dates: DATES });
+    setHTML(result, renderJourney(j, { crs: found.crs, stations: STATIONS, asked: ask.time ? 'time' : isToday ? 'now' : 'day', today: isToday, others: found.others }));
+}
+
+/** Whether the lookup's answer is "the next train from now" — a station with no time — which the minute moves on. */
+export function lookupFollowsClock() {
+    const ask = parseJourney(/** @type {HTMLInputElement|null} */ (el('trLookupInput'))?.value ?? '');
+    return !!ask.place && !ask.timeText;
+}
+
+/**
+ * "Or did you mean": a station chip under the answer puts that station in the box, keeping the time typed.
+ * @param {string} crs
+ */
+export function chooseJourneyStation(crs) {
+    const box = /** @type {HTMLInputElement|null} */ (el('trLookupInput'));
+    if (!box || !STATIONS[crs]) return;
+    const { timeText } = parseJourney(box.value);
+    box.value = timeText ? `${STATIONS[crs]}, after ${timeText}` : STATIONS[crs];
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────

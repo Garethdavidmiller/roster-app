@@ -643,7 +643,9 @@ const CAPS = {
     // 1068 → 1070 (27 Nov 2026), two generated precache lines: `doc-dates.js` and `admin-day-change.js`.
     // 1070 → 1072 (27 Nov 2026), two generated precache lines: `team-overlap.js` and `calendar-team-onwith.js`,
     // the "Who’s on with me" card's arithmetic and markup, kept out of calendar-team-view.js. Nothing else grew.
-    'service-worker.js':       1072,
+    // 1072 → 1073 (27 Nov 2026), one generated precache line: `trains-journey.js`, the Trains page's one lookup
+    // ("Aylesbury, after 17:15"), a pure module of its own rather than more of trains-cards.js. Nothing else grew.
+    'service-worker.js':       1073,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

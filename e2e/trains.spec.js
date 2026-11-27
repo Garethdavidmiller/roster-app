@@ -154,8 +154,13 @@ test.describe('trains', () => {
         await expect(page.locator('#trLookupResult .tr-answer').first()).toContainText('The 17:15 to Oxford');
         await page.locator('#trLookupInput').fill('1716');
         await expect(page.locator('#trLookupResult')).toContainText('No weekday train leaves at exactly 17:16 in the current timetable.');
+        // A word that is no time is a station asked for since the two lookups became one box (Nov 2026): not
+        // found, and the box says how to ask, a time among the ways. A time it cannot read still says how to type one.
         await page.locator('#trLookupInput').fill('noon');
-        await expect(page.locator('#trLookupResult')).toContainText('Type a time like 17:15');
+        await expect(page.locator('#trLookupResult')).toContainText('No station matches “noon”.');
+        await expect(page.locator('#trLookupResult')).toContainText('a time like 17:15, 1715 or 5.15pm');
+        await page.locator('#trLookupInput').fill('5');
+        await expect(page.locator('#trLookupResult')).toHaveText('Type a time like 17:15, 1715 or 5.15pm.');
 
         // The `?` panels are wired — the page's caveats live there.
         await page.locator('.btn-card-tips[data-card="changes"]').click();
@@ -181,9 +186,13 @@ test.describe('trains', () => {
             await expect(page.locator('#trFestive')).toBeVisible();
             await expect(page.locator('#trFestive')).toBeInViewport();
             await expect(page.locator('#trFestive')).toContainText('Christmas and New Year times are not on this page.');
-            // And the fold still does its job: the first answer is on the first screen.
-            const first = await page.locator('#trChanges .tr-head').first().evaluate(e => Math.round(e.getBoundingClientRect().top));
-            expect(first, 'the first headline is still on the first screen').toBeLessThan(560);
+            // And the fold still does its job: Find a train's box comes next, on the first screen (owner, Nov 2026:
+            // "once they're using the page at the gateline, the lookup should come first"), and the first headline
+            // is still on the first screen beneath it. It was held under 560px before the box came above it.
+            const top = (/** @type {string} */ sel) => page.locator(sel).first().evaluate(e => Math.round(e.getBoundingClientRect().top));
+            expect(await top('#trLookupInput'), 'the box is on the first screen, under the Christmas line').toBeLessThan(400);
+            expect(await top('#trLookupInput'), 'the Christmas line comes first').toBeGreaterThan(await top('#trFestive'));
+            expect(await top('#trChanges .tr-head'), 'the first headline is still on the first screen').toBeLessThan(844 - 60);
         });
     }
 
@@ -402,30 +411,44 @@ test.describe('trains', () => {
         await expect(page.locator('#trOverviewBody')).not.toHaveClass(/\bopen\b/);
         await expect(page.locator('#trOverviewChevron')).toHaveAttribute('aria-expanded', 'false');
         await expect(page.locator('#trCountdown')).toHaveText('51 days to go');
-        // On a phone the lookup comes before the list and starts folded; opening it puts the cursor in the box.
+        // FIND A TRAIN COMES FIRST (owner, Nov 2026: "once they're using the page at the gateline, the lookup should
+        // come first"). Before the tabs and every view, OPEN on a phone too — until then it started folded there, so
+        // the changes list was the first thing read.
         expect(await page.evaluate(() => {
-            const lookup = document.getElementById('trLookupCard'), changes = document.getElementById('trChangesCard');
-            return !!lookup && !!changes && !!(lookup.compareDocumentPosition(changes) & Node.DOCUMENT_POSITION_FOLLOWING);
-        }), 'the lookup card precedes the changes card').toBe(true);
-        await expect(page.locator('#trLookupBody')).not.toHaveClass(/\bopen\b/);
-        const first = await page.locator('#trChanges .tr-head').first().evaluate(e => Math.round(e.getBoundingClientRect().top));
+            const lookup = document.getElementById('trLookupCard');
+            return ['trControls', 'trChangesCard', 'trViewStations', 'trViewGrid'].every(id => {
+                const other = document.getElementById(id);
+                return !!lookup && !!other && !!(lookup.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING);
+            }) && !lookup?.closest('.tr-view');
+        }), 'the lookup card precedes the tabs and every view, and belongs to none of them').toBe(true);
+        await expect(page.locator('#trLookupBody')).toHaveClass(/\bopen\b/);
+        const box = await page.locator('#trLookupInput').evaluate(e => Math.round(e.getBoundingClientRect().bottom));
         // Until 10 January the Christmas line sits above the fold ON PURPOSE (v25.20): it is the one thing
         // on the card a member must not miss. So it is not counted against the budget, and is held instead
-        // to being a short note, not a paragraph — everything else above the first answer still has to fit
-        // in 500px. (Counted, it measured 512px on the phone project.) The note's own cap allows for the
-        // renderer: 84px here (three lines), 105px on CI's runners (four), which set a 100px cap off.
+        // to being a short note, not a paragraph. The note's own cap allows for the renderer: 84px here (three
+        // lines), 105px on CI's runners (four), which set a 100px cap off. The first headline was held under
+        // 500px past it; the box comes first now, and its whole height is the budget (589px before v24.92).
         const christmas = await page.locator('#trFestive').evaluate(e => /** @type {HTMLElement} */ (e).hidden ? 0 : Math.round(e.getBoundingClientRect().height));
         expect(christmas, 'the Christmas line stays a short note, not a paragraph').toBeLessThan(130);
-        expect(first - christmas, 'the first headline is on the first screen with room to spare (589px before v24.92)').toBeLessThan(500);
+        expect(box - christmas, 'the box is on the first screen with room for its answer').toBeLessThan(320);
+        // The first headline is still on the first screen, under the box.
+        const first = await page.locator('#trChanges .tr-head').first().evaluate(e => Math.round(e.getBoundingClientRect().top));
+        expect(first, 'the first headline is still on the first screen').toBeLessThan(727);
+        // Folded and opened again by its header, the card puts the cursor in the box.
+        await page.locator('#trLookupToggleHeader').click();
+        await expect(page.locator('#trLookupBody')).not.toHaveClass(/\bopen\b/);
         await page.locator('#trLookupToggleHeader').click();
         await expect(page.locator('#trLookupInput')).toBeFocused();
         await page.keyboard.type('1715');
         await expect(page.locator('#trLookupResult .tr-answer').first()).toContainText('The 17:15 to Oxford');
-        // A desktop has the room: the lookup is open in its own column.
+        // A desktop: open too, above the changes list, which has the page's width to itself.
         await page.setViewportSize({ width: 1280, height: 900 });
         await page.reload();
         await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
         await expect(page.locator('#trLookupBody')).toHaveClass(/\bopen\b/);
+        const [lookupCard, changesCard] = await Promise.all(['#trLookupCard', '#trChangesCard'].map(s => page.locator(s).evaluate(e => e.getBoundingClientRect().toJSON())));
+        expect(changesCard.top, 'the changes list is below the lookup').toBeGreaterThan(lookupCard.bottom);
+        expect(Math.abs(changesCard.width - lookupCard.width), 'and as wide as it').toBeLessThanOrEqual(1);
     });
 
     test('a chosen station folds the picker away; Change station brings it back; the headlines read as lead, detail and a chip (v24.92)', async ({ page }) => {
@@ -923,12 +946,15 @@ test.describe('trains — the eight improvements (v24.94)', () => {
         await expect(page.locator('#trLast .tr-chip--moved').first()).toHaveText(/^\d+ mins? (later|earlier)$/);
     });
 
-    test('the desktop jump card: the busiest stations beside the changes list, on a wide screen only', async ({ page }) => {
+    // The desktop's "Jump to a station" card is part of Find a train since the two lookups became one (Nov 2026):
+    // its chips sit under the box, on a wide screen only, and still open a station's card in one click.
+    test('the desktop jump chips: the busiest stations under the lookup box, on a wide screen only', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
         await page.goto('/trains.html');
         const wide = (page.viewportSize()?.width ?? 0) >= 1024;
-        const card = page.locator('#trJumpCard');
+        const card = page.locator('#trJump');
+        await expect(page.locator('#trLookupCard #trJumpPicks')).toHaveCount(1);
         if (!wide) { await expect(card).toBeHidden(); return; }
         await expect(card).toBeVisible();
         const first = page.locator('#trJumpPicks .tr-pick').first();
@@ -1854,4 +1880,140 @@ test.describe('trains — the totals and the header, measured', () => {
         expect(look.gap, 'the name runs up against the badge').toBeGreaterThanOrEqual(6);
         expect(look.whole, 'beside Trains\' badge the name still fits whole').toBe(true);
     });
+});
+
+// ── FIND A TRAIN (owner, Nov 2026): "bring the existing time and station lookups together" ───────────────────────
+// trains-journey.test.mjs proves the answers on the real tables; this proves the WIRING — that the box a colleague
+// types into reaches them for the day chosen and the clock, that the chips under an answer do what they say, and
+// that the answer fits a phone. Local times, no "Z": the page reads the browser's clock, in this file's time zone.
+test.describe('trains — Find a train', () => {
+    /** @param {import('@playwright/test').Page} page @param {string} when */
+    const open = async (page, when) => {
+        await page.clock.setFixedTime(new Date(when));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trLookupInput')).toBeVisible();
+    };
+    /** Type into the box and press Enter, which answers at once. @param {import('@playwright/test').Page} page @param {string} text */
+    const ask = async (page, text) => {
+        await page.locator('#trLookupInput').fill(text);
+        await page.locator('#trLookupInput').press('Enter');
+    };
+
+    test('"Aylesbury, after 17:15": the first train, its route and the next two, the timetable and "Scheduled", stops on tap', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await open(page, '2026-11-27T12:00:00');   // Friday 27 November
+        const result = page.locator('#trLookupResult');
+        await expect(result).toHaveAttribute('aria-live', 'polite');
+        await ask(page, 'Aylesbury, after 17:15');
+        await expect(result.locator('.tr-jr-meta')).toHaveText('Friday 27 November·Timetable until Saturday 12 DecemberScheduled');
+        await expect(result.locator('.tr-jr-ask')).toHaveText('First train to Aylesbury after 17:15');
+        const first = result.locator('.tr-jr-first');
+        await expect(first.locator('.tr-jr-line')).toHaveText('17:30 to Aylesbury Vale Parkway, via Amersham');
+        await expect(first.locator('.tr-jr-arr')).toHaveText('Gets to Aylesbury at 18:21');
+        await expect(result.locator('.tr-jr-list > li .tr-jr-line')).toHaveText(['17:41 to Aylesbury, via Amersham', '17:59 to Aylesbury Vale Parkway, via Amersham']);
+        // Where it stops, on tap — and the station asked about stands out in words, not weight alone.
+        const stops = first.locator('.tr-jr-stops');
+        await expect(stops.locator('.tr-jr-stoplist')).toBeHidden();
+        await stops.locator('summary').click();
+        await expect(stops.locator('.tr-jr-stoplist li').first()).toHaveText('17:30 London Marylebone');
+        await expect(stops.locator('.tr-jr-here')).toHaveText('18:21 Aylesbury, the station asked about');
+        // The same question, typed as people say it, gets the same answer.
+        await ask(page, 'aylesbury 5.15pm');
+        await expect(first.locator('.tr-jr-line')).toHaveText('17:30 to Aylesbury Vale Parkway, via Amersham');
+        // A station only one route reaches is not given one.
+        await ask(page, 'gerrards x after 17:15');
+        await expect(result.locator('.tr-jr-ask')).toHaveText('First train to Gerrards Cross after 17:15');
+        await expect(first.locator('.tr-jr-line')).not.toContainText('via');
+        // A time alone is still "what happens to the 17:15?", both timetables side by side.
+        await ask(page, '17:15');
+        await expect(result.locator('.tr-answer').first()).toContainText('The 17:15 to Oxford');
+        await expect(result.locator('.tr-near-head')).toHaveCount(2);
+        expect(errors, errors.join('\n')).toEqual([]);
+    });
+
+    test('with no time, it is the next train from the page\'s clock — and it moves on as the minute turns', async ({ page }) => {
+        await open(page, '2026-11-27T17:25:00');
+        await ask(page, 'High Wycombe');
+        const result = page.locator('#trLookupResult');
+        await expect(result.locator('.tr-jr-ask')).toHaveText('Next train to High Wycombe');
+        await ask(page, 'Aylesbury');
+        await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('17:30');
+        // The 17:30 leaves; nobody presses anything, and the tab is never hidden.
+        await page.clock.setFixedTime(new Date('2026-11-27T17:35:00'));
+        await page.clock.runFor(60_000);
+        await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('17:41');
+    });
+
+    test('the day tabs choose the date: Saturdays, on a Friday, is tomorrow\'s first train', async ({ page }) => {
+        await open(page, '2026-11-27T12:00:00');
+        await ask(page, 'Aylesbury');
+        await page.locator('[data-day="SO"]').click();
+        const result = page.locator('#trLookupResult');
+        await expect(result.locator('.tr-jr-meta')).toContainText('Saturday 28 November');
+        await expect(result.locator('.tr-jr-ask')).toHaveText('First train to Aylesbury');
+    });
+
+    test('past the last train it says so, and gives the first one tomorrow — from the new timetable across the change', async ({ page }) => {
+        await open(page, '2026-12-13T00:30:00');   // still Saturday 12 December's railway day
+        await ask(page, 'Beaconsfield');
+        const result = page.locator('#trLookupResult');
+        await expect(result.locator('.tr-answer').first()).toHaveText('No more trains to Beaconsfield today.');
+        await expect(result.locator('.tr-jr-ask')).toHaveText('First train tomorrow');
+        await expect(result.locator('.tr-jr-meta').nth(1)).toHaveText('Sunday 13 December·Timetable from Sunday 13 DecemberScheduled');
+        await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('07:42');
+    });
+
+    test('on 13 December the new timetable answers: its new Sunday 15:38 to Birmingham Moor Street', async ({ page }) => {
+        await open(page, '2026-12-13T15:00:00');
+        await ask(page, 'moor st after 15:30');
+        const result = page.locator('#trLookupResult');
+        await expect(result.locator('.tr-jr-meta')).toHaveText('Sunday 13 December·Timetable from Sunday 13 DecemberScheduled');
+        await expect(result.locator('.tr-jr-first .tr-jr-line')).toHaveText('15:38 to Birmingham Moor Street');
+    });
+
+    test('a station it cannot find is said, with the closest to choose from; a chip puts its station in the box, keeping the time', async ({ page }) => {
+        await open(page, '2026-11-27T12:00:00');
+        const box = page.locator('#trLookupInput'), result = page.locator('#trLookupResult');
+        await ask(page, 'aylsbury after 17:15');
+        await expect(result.locator('.tr-lead').first()).toHaveText('No station matches “aylsbury”.');
+        await result.locator('[data-journey="AYS"]').click();
+        await expect(box).toHaveValue('Aylesbury, after 17:15');
+        await expect(box).toBeFocused();
+        await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('17:30');
+        // The other matches of a station found are offered too: "Or did you mean".
+        await result.locator('.tr-jr-others [data-journey="AVP"]').click();
+        await expect(box).toHaveValue('Aylesbury Vale Parkway, after 17:15');
+        await expect(result.locator('.tr-jr-ask')).toHaveText('First train to Aylesbury Vale Parkway after 17:15');
+    });
+
+    test('"All trains to and from" opens the station\'s card, as Jump to a station did, and Back returns', async ({ page }) => {
+        await open(page, '2026-11-27T12:00:00');
+        await ask(page, 'Aylesbury, after 17:15');
+        await page.locator('#trLookupResult .tr-jr-card').click();
+        await expect(page.locator('[data-view="stations"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#trStationTitle')).toHaveText('Aylesbury');
+        await expect(page.locator('#trStationTitle')).toBeFocused();
+        // The box and its answer stay, above the view.
+        await expect(page.locator('#trLookupResult .tr-jr-first')).toBeVisible();
+        await page.goBack();
+        await expect(page.locator('[data-view="changes"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    for (const width of [320, 390]) {
+        test(`an answer, its stops open, fits a ${width}px phone`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 800 });
+            await open(page, '2026-11-29T12:00:00');   // a Sunday: both routes, the longest lines
+            await ask(page, 'Haddenham & Thame Parkway, after 17:45');
+            await expect(page.locator('#trLookupResult .tr-jr-first')).toBeVisible();
+            for (const s of await page.locator('#trLookupResult summary').all()) await s.click();
+            const over = await page.evaluate(() => {
+                const edge = /** @type {HTMLElement} */ (document.getElementById('trLookupCard')).getBoundingClientRect().right;
+                return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                    card: Math.max(0, ...[...document.querySelectorAll('#trLookupCard *')].map(e => e.getBoundingClientRect().right - edge)) };
+            });
+            expect(over.page, 'the page scrolls sideways').toBeLessThanOrEqual(1);
+            expect(over.card, 'something runs past the card').toBeLessThanOrEqual(1);
+        });
+    }
 });

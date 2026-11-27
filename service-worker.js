@@ -393,6 +393,7 @@ const APP_FILES = [
     'trains-data.js',
     'trains-grid-mirror.js',
     'trains-headlines.js',
+    'trains-journey.js',
     'trains-render.js',
     'trains-stations.js',
     'trains-status.js',

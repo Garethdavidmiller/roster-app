@@ -17,11 +17,12 @@
 
 import { escapeHtml as esc } from './roster-data.js';
 import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, routeKey, LINES, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin,
-    JOURNEY_PLANNER_URL, minsWords, monthWords } from './trains-change.js';
+    JOURNEY_PLANNER_URL, minsWords, monthWords, viaWords } from './trains-change.js';
 import { pairColumns, lineOf, orderStations, stopChanges, parseStops } from './trains-stations.js';
 import { aRealDay, weekdayGroups, weekdayWords, WEEKDAYS, runsOn } from './trains-weekdays.js';
 import { minutesWords, hourNote, hourWords, andList } from './trains-verdict.js';
 import { CHANGE_DATE } from './trains-data.js';
+import { isoDate } from './trains-journey.js';
 
 /** The three kinds of day in words, as the day tabs name them — one copy for every sentence that names one. */
 export const DAY_NAMES = /** @type {Readonly<Record<'SX'|'SO'|'SU', string>>} */ (Object.freeze({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' }));
@@ -656,6 +657,98 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
         + `<p class="card-explainer tr-lead">${within}:</p>`
         + `<div class="tr-near-cols"><div><h3 class="tr-near-head">${esc(labels.old)}</h3>${list(near.now, onlyNow)}</div>`
         + `<div><h3 class="tr-near-head">${esc(labels.new)}</h3>${list(near.dec, onlyDec)}</div></div>` + barNote;
+}
+
+/** What the journey box says when it cannot read what was typed: how to ask, in the box's own example. */
+export const JOURNEY_HINT = 'Type a station, a time like 17:15, 1715 or 5.15pm, or both: Aylesbury, after 17:15.';
+
+/**
+ * "Aylesbury, after 17:15" answered (trains-journey.js → `journey`): the first train from Marylebone that stops
+ * there, in a box of its own, then the next two — each with when it leaves, where it ends, its route where
+ * the data tells two apart, when it gets there, and where it stops on tap.
+ *
+ * THE PLAN, NOT THE BOARDS. Above the answer: the date it is for and the timetable it comes from, by name
+ * ("Timetable from Sunday 13 December"), and the word "Scheduled", because the time is the published one and
+ * a colleague must not take it for live running. A later train that gets there first says so — Aylesbury's
+ * two routes take different times, and "before the 17:53" is the thing to tell the customer.
+ *
+ * NO TRAIN LEFT. Said, with the first train the next day from the next day's own timetable; with none then
+ * either, the journey planner, which finds a route with a change of train.
+ * @param {ReturnType<typeof import('./trains-journey.js').journey>} j
+ * @param {{ crs: string, stations: Readonly<Record<string, string>>, asked: 'time'|'now'|'day', today: boolean, others?: string[] }} o
+ *   asked — a time was typed; no time, today, so from now; or no time on another day, so from its first train ·
+ *   today — the date is today's railway day · others — the search's other matches, to choose instead
+ * @returns {string}
+ */
+export function renderJourney(j, { crs, stations, asked, today, others = [] }) {
+    const name = stations[crs] ?? crs;
+    const on = (/** @type {Date} */ d) => dateWords(isoDate(d), 0, { weekday: true });
+    const meta = (/** @type {import('./trains-journey.js').JourneyDay} */ day) => `<p class="tr-jr-meta"><span>${esc(on(day.date))}</span>`
+        + `<span aria-hidden="true">·</span><span>${esc(day.timetable.label)}</span><span class="tr-jr-sched">Scheduled</span></p>`;
+    /** One train: its time and end, its route, when it gets there, and its stops on tap. */
+    const train = (/** @type {import('./trains-journey.js').Departure} */ t, /** @type {boolean} */ via,
+        /** @type {import('./trains-journey.js').Departure|null} */ first) => {
+        const to = stations[t.to] ?? t.to;
+        const route = via && t.via ? `<span class="tr-jr-via">, ${esc(viaWords(t.via))}</span>` : '';
+        // A later train that gets there sooner, said in words with the train it beats (the header).
+        const sooner = first?.arrives && t.arrives && serviceMinutes(t.arrives) < serviceMinutes(first.arrives) ? `, before the ${first.dep}` : '';
+        const arr = t.arrives ? `<p class="tr-jr-arr">${esc(t.to === crs ? `Gets there at ${t.arrives}` : `Gets to ${name} at ${t.arrives}`)}${esc(sooner)}</p>` : '';
+        const stop = (/** @type {string} */ time, /** @type {string} */ at) => at === crs
+            ? `<li class="tr-jr-here"><span class="tr-near-time">${esc(time)}</span> <strong>${esc(stations[at] ?? at)}</strong><span class="sr-only">, the station asked about</span></li>`
+            : `<li><span class="tr-near-time">${esc(time)}</span> ${esc(stations[at] ?? at)}</li>`;
+        // "Where they stop" asked of one train: the grid's question, as a list that has each stop's time.
+        const stops = t.stops.length
+            ? `<details class="tr-jr-stops"><summary>Where it stops<span class="sr-only">, the ${esc(t.dep)}</span></summary><ol class="tr-jr-stoplist">`
+                + stop(t.dep, 'MYB') + t.stops.map(s => stop(s.time, s.crs)).join('') + '</ol></details>'
+            : '';
+        return `<p class="tr-jr-line"><span class="tr-jr-time">${esc(t.dep)}</span> to ${esc(to)}${route}</p>${arr}${stops}`;
+    };
+    const first = (/** @type {import('./trains-journey.js').JourneyDay} */ day) =>
+        `<div class="tr-answer tr-jr-first">${train(day.trains[0], day.via, null)}</div>`;
+    const ended = j.timetable.ended ? ENDED_NOTE : '';
+    // The station's own card, a press away — what "Jump to a station" did, for the station asked about.
+    const card = `<button type="button" class="tr-head tr-head--plain tr-jr-card" data-station="${esc(crs)}"><span class="tr-head-text">`
+        + `<span class="tr-head-lead">All trains to and from ${esc(name)}</span></span><span class="tr-head-go" aria-hidden="true">›</span></button>`;
+    const choose = others.length
+        ? `<div class="tr-picks tr-jr-others"><p class="tr-picks-label">Or did you mean</p>${others.map(c =>
+            `<button type="button" class="tr-pick" data-journey="${esc(c)}">${esc(stations[c] ?? c)}</button>`).join('')}</div>`
+        : '';
+    const sched = '<p class="card-explainer tr-note">Scheduled means Chiltern’s published time, not live running: on the day a train can still be late or cancelled.</p>';
+    const dayWord = today ? 'today' : `on ${on(j.date)}`;
+    if (j.trains.length) {
+        const ask = asked === 'time' ? `First train to ${name} after ${j.at}` : asked === 'now' ? `Next train to ${name}` : `First train to ${name}`;
+        const then = j.trains.slice(1);
+        return ended + meta(j) + `<p class="tr-jr-ask">${esc(ask)}</p>` + first(j)
+            + (then.length ? `<p class="tr-picks-label tr-jr-then">Then</p><ol class="tr-jr-list">${then.map(t => `<li>${train(t, j.via, j.trains[0])}</li>`).join('')}</ol>` : '')
+            + sched + card + choose;
+    }
+    // Nothing left that day. "After 17:15" is said only when it was typed: a time read from the clock would change
+    // the sentence each minute, and the polite live region would read it out each time.
+    const none = j.total
+        ? `No more trains to ${name} ${dayWord}${asked === 'time' ? ` after ${j.at}` : ''}.`
+        : `No train from Marylebone stops at ${name} ${dayWord}.`;
+    const nextWord = today ? 'tomorrow' : 'the day after';
+    const next = j.next?.trains.length
+        ? `<p class="tr-jr-ask">First train ${nextWord}</p>` + meta(j.next) + first(j.next) + sched
+        : `<p class="card-explainer tr-lead">None ${nextWord} either. For a journey with a change of train, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a>.</p>`;
+    return ended + meta(j) + `<p class="tr-answer"><strong>${esc(none)}</strong></p>` + next + card + choose;
+}
+
+/**
+ * The journey box's answer for a place it cannot find: said, with the closest stations the search knows
+ * (trains-journey.js → `findStation`) to choose from, and how to ask.
+ * @param {string} place  as typed
+ * @param {string[]} closest
+ * @param {Readonly<Record<string, string>>} stations
+ * @returns {string}
+ */
+export function renderNoStation(place, closest, stations) {
+    // Marylebone is where every train here starts, not a destination: said so, rather than "not found".
+    if (/marylebone|^myb$/i.test(place.trim())) return '<p class="card-explainer tr-lead">Every train on this page leaves from London Marylebone. Type where the customer is going.</p>';
+    return `<p class="card-explainer tr-lead">No station matches “${esc(place)}”.</p>`
+        + (closest.length ? `<div class="tr-picks tr-jr-others"><p class="tr-picks-label">Closest matches</p>${closest.map(c =>
+            `<button type="button" class="tr-pick" data-journey="${esc(c)}">${esc(stations[c] ?? c)}</button>`).join('')}</div>` : '')
+        + `<p class="card-explainer tr-note">${esc(JOURNEY_HINT)}</p>`;
 }
 
 /**

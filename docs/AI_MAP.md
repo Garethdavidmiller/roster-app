@@ -511,20 +511,21 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `admin-al-year.js`
 - **Exports:** `alFigureYear`
 
-### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js` / `trains-status.js`
+### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js` / `trains-status.js` / `trains-journey.js`
 - **Exports of `trains-app.js`:** `init`
 - **Exports of `trains-boot.js`:** none
-- **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `amPmPending` · `renderLookup` · `setText` · `el`
-- **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `restatePair` · `foldVariantsAt` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `minsWords` · `changeLabel` · `timetablePhase` · `dateWords` · `monthWords` · `holidaysWithin` · `daysLabel` · `routeName` · `JOURNEY_PLANNER_URL`
+- **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderJump` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `amPmPending` · `renderLookup` · `lookupFollowsClock` · `chooseJourneyStation` · `setText` · `el`
+- **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `restatePair` · `foldVariantsAt` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `minsWords` · `changeLabel` · `timetablePhase` · `dateWords` · `monthWords` · `holidaysWithin` · `daysLabel` · `routeName` · `viaWords` · `JOURNEY_PLANNER_URL`
 - **Exports of `trains-stations.js`:** `boardingTime` · `parseStops` · `stopsKnown` · `callsOf` · `lineOf` · `callingAt` · `endingAt` · `knowableWithoutStops` · `decemberKnown` · `summarise` · `stationView` · `stationTrains` · `stopChanges` · `busiestStations` · `matchStations` · `stationBands` · `stoppingGrid` · `orderStations` · `pairColumns` · `lastTrains`
 - **Exports of `trains-weekdays.js`:** `WEEKDAYS` · `REAL_DAY` · `runsOn` · `daysCode` · `aRealDay` · `onWeekday` · `weekdayGroups` · `weekdayWords`
 - **Exports of `trains-verdict.js`:** `EDGE_SHIFT_MIN` · `JOURNEY_SHIFT_MIN` · `verdictFor` · `balanceFacts` · `hourChanged` · `rateWords` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList`
 - **Exports of `trains-headlines.js`:** `headlineChanges`
-- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `HEADLINES_SHOWN` · `partialStopsNote` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `renderLastTrains`
+- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `HEADLINES_SHOWN` · `partialStopsNote` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `JOURNEY_HINT` · `renderJourney` · `renderNoStation` · `renderLastTrains`
 - **Exports of `trains-data.js`:** `CHANGE_DATE` · `FURTHER_CHANGES_UNTIL` · `DEC_VALID_UNTIL` · `LEAF_FALL` · `STATIONS` · `STATION_ORDER` · `TIMETABLES`
 - **Exports of `trains-tips.js`:** `CARD_TIPS` · `tipsOn`
 - **Exports of `trains-grid-mirror.js`:** `syncGridMirror`
 - **Exports of `trains-status.js`:** `announce` · `statusLine` · `matchesLine`
+- **Exports of `trains-journey.js`:** `parseJourney` · `findStation` · `dayKindOf` · `isoDate` · `addDays` · `journeyDate` · `timetableOn` · `departures` · `viaMatters` · `JOURNEY_TRAINS` · `journey`
 
 ### `overflow-hint.js`
 - **Exports:** `watchOverflowHint`
