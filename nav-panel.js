@@ -60,6 +60,7 @@
 import { releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter } from './firebase-client.js';
 import { newsletterInMenu } from './newsletter-recency.js';
+import { docDateLabel } from './doc-dates.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade } from './overlay.js';
 import { recordOpen } from './usage-reporter.js';
 import { injectNavPanel } from './nav-panel-markup.js';
@@ -234,6 +235,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // And the Newsletter's row: an issue that turns six weeks old with the page open goes, and one
         // the Calendar's check or an upload has just recorded comes (newsletter-recency.js).
         const nl = panel.querySelector('.nav-panel-link--newsletter')?.parentElement; if (nl) nl.hidden = !newsletterInMenu();
+        // …and each document row's date (doc-dates.js): what the Calendar last heard, worded for today.
+        panel.querySelectorAll('[data-doc-date]').forEach(el => {
+            const words = docDateLabel(/** @type {any} */ (/** @type {HTMLElement} */ (el).dataset.docDate));
+            if (el.textContent !== words) el.textContent = words;
+        });
         // Delay focus so the CSS transition has started — screen readers announce the dialog heading
         // rather than the close button label alone. …Unless the drawer has closed since: the ✕ would
         // take focus inside a panel already aria-hidden, and lose it when the slide-out ended.

@@ -90,6 +90,12 @@ function _known() {
     return _memo ?? lsGet(NEWSLETTER_LATEST_KEY);
 }
 
+/** The latest issue's date as this device knows it ('YYYY-MM-DD'), '' for none, null for never asked —
+ *  the ☰ menu's date beside the row (doc-dates.js). @returns {string|null} */
+export function latestNewsletterDate() {
+    return _known();
+}
+
 /**
  * Should the ☰ menu offer the Marylebone Newsletter now? Asked by the drawer as it is drawn and
  * every time it opens. (The Calendar's sign-in card asked too, for the staff PIN's line, until the PIN

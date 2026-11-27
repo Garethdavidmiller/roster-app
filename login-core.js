@@ -92,7 +92,7 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // reset, so the wording names "the admin" generically (an account matter — house rule) and
         // doesn't wrongly promise a reset that can't fix an unset-up account. ONE sentence for both,
         // so the card never tells a stranger which of the two it was.
-        if (isCredential(code)) return { ok: false, kind: 'credential', error: 'Password not recognised — if you’ve forgotten it, or your account isn’t set up yet, ask the admin.' };
+        if (isCredential(code)) return { ok: false, kind: 'credential', error: 'Password not recognised — check it and try again. Forgotten it, or new here? Use the button below to ask the admin.' };
         // EVERYTHING ELSE IS NOT A PASSWORD PROBLEM (sessions-2, Nov 2026). Until then this fell through
         // to the line above: a site missing from the API key's allowed referrers, a disabled account,
         // sign-in switched off, or the Calendar viewer that could not be signed out — each told the

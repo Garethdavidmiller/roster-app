@@ -16,7 +16,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAttentionItems, ATTENTION_CATALOGUE, attentionBadge } from '../operations-attention.js';
+import { buildAttentionItems, ATTENTION_CATALOGUE, attentionBadge, allClear } from '../operations-attention.js';
 
 test('a zero count renders nothing, and an UNREPORTED card is absent — unknown is not clean', () => {
     assert.deepEqual(buildAttentionItems({}), []);
@@ -241,4 +241,17 @@ test('unchecked(): the item stays and says "couldn’t check" in neutral; a good
     strip.report('resets', 0);
     assert.equal(container.hidden, true, 'a good read of an empty queue is clean again');
     assert.throws(() => strip.unchecked('reset'), /unknown id/, 'a typo cannot report into the void here either');
+});
+
+// ── "NOTHING NEEDS YOUR ATTENTION" ONLY ONCE EVERY ITEM HAS ANSWERED (owner, 27 Nov 2026) ──────────────
+test('allClear: every item reported a zero — and nothing less will do', () => {
+    const zero = Object.fromEntries(Object.keys(ATTENTION_CATALOGUE).map(id => [id, { count: 0 }]));
+    assert.equal(allClear(zero), true, 'every item answered with nothing to do');
+    for (const id of Object.keys(ATTENTION_CATALOGUE)) {
+        const missing = { ...zero }; delete missing[id];
+        assert.equal(allClear(missing), false, `${id} has not answered (loading, failed or withdrawn): not clear`);
+        assert.equal(allClear({ ...zero, [id]: { count: 0, unchecked: true } }), false, `${id} could not be checked: not clear`);
+        assert.equal(allClear({ ...zero, [id]: { count: 1 } }), false, `${id} has something to do`);
+    }
+    assert.equal(allClear({ ...zero, errors: { count: 0, truncated: true } }), false, '"0+" errors is a floor, not a zero');
 });

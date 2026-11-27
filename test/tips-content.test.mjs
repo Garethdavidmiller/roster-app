@@ -340,7 +340,7 @@ describe('the pay reminder is promised only to the grades it is sent to, everywh
         assert.deepEqual(grades, ['CEA', 'CES']);
     });
     test('Settings: the subtitle\'s and the list\'s pay pieces start hidden — the page shows them to those it is sent to', () => {
-        assert.match(settings, /<span class="hint">Get a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter<span id="notifHintPay" hidden>, and the pay reminder<\/span><\/span>/);
+        assert.match(settings, /<span class="hint">For this device only: a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter<span id="notifHintPay" hidden>, and the pay reminder<\/span><\/span>/);
         assert.match(settings, /<span class="notif-kind" id="notifKindPay" hidden>Pay reminder ·<\/span>/);
     });
     // Since 22 Nov 2026 the status lines name no kind at all: they point at the list above them, which is

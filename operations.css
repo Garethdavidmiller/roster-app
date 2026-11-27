@@ -80,6 +80,14 @@ body.auth-ready .container { display: grid; }
 /* Gold ring, not navy — these pills sit on the navy canvas where the default ring vanishes. */
 .attn-item:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
 .attn-count { flex-shrink: 0; }
+/* Every item answered, nothing to do (owner, 27 Nov 2026): one quiet line in the group labels' voice,
+   not gold — gold is this strip's "something is wrong". */
+.attn-clear {
+    margin: 4px 0 0 2px;
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--on-navy-muted);
+}
 /* A reset queue that could not be read (owner, 10 Nov 2026): "couldn't check" in place of a count.
    Neutral, not the count's red — it is a gap in what the page knows, not a backlog. Two classes, so
    it beats .errorlog-count-chip's red wherever that rule sits in the file. */

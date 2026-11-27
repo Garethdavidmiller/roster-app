@@ -461,6 +461,22 @@ for (const [label, issue, shown] of /** @type {[string, string, boolean][]} */ (
     });
 }
 
+// THE DATE BESIDE EACH DOCUMENT (owner, 27 Nov 2026): what the Calendar last heard, so a member can tell
+// before opening whether it is the one they have read. A date the device has never heard is left out.
+test('documents: the ☰ menu dates each latest document, and leaves out a date it does not know', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 10, 27, 12, 0, 0) });
+    await withKnownNewsletter(page, '2026-11-02');
+    await page.addInitScript(() => { try { localStorage.setItem('myb_huddle_latest', '2026-11-28'); } catch { /* none */ } });
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/admin.html');   // a page that does not ask
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel a.nav-panel-link[href="./#huddle"] .nav-doc-date')).toHaveText('for Sat 28 Nov');
+    await expect(newsletterRow(page).locator('.nav-doc-date')).toHaveText('Mon 2 Nov');
+    await expect(page.locator('#navPanel .nav-panel-link--circular .nav-doc-date'), 'never heard: no date').toBeHidden();
+    await expect(page.locator('#navPanel .nav-panel-link--circular')).toHaveText(/^\S+\s*Weekly Retail Circular$/);
+});
+
 test('newsletter: an issue that turns six weeks old with the page open leaves the ☰ menu at the next open', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 10, 14, 12, 0, 0) });
     await withKnownNewsletter(page, '2026-10-04');   // 41 days before 14 Nov

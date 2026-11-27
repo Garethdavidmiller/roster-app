@@ -604,7 +604,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `TYPES` · `PILL_TYPES` · `renderTable` · `resetTableMemberFilter` · `renderWeekGrid` · `buildWeekGridInto` · `updateWeekNavLabel` · `updateSaveBtn` · `resetBulkPills` · `_hasStagedEdits` · `setSaveInFlight` · `isSaveInFlight` · `sendingDays` · `NOT_ON_ROSTER_LINE` · `initOverrideStore` · `getAllOverrides` · `setAllOverrides` · `removeFromCache` · `whenOverridesReady` · `whenLoadSettled` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `loadOverrides` · `ensureMemberLoaded` · `buildMemberDateMap` · `isWorkingDate` · `initOverrides` · `refusedLine` · `executeSave` · `getEffectiveShift` · `validateShiftRules` · `recordRangeOverrides` · `formatDisplay`
 
 ### `admin-save-receipt.js`
-- **Exports:** `buildSaveReceipt`
+- **Exports:** `dayWords` · `changeWords` · `buildSaveReceipt`
 
 ### `slow-save.js`
 - **Exports:** `SLOW_SAVE_MS` · `SLOW_SAVE_TEXT` · `SLOW_SAVE_TEXT_BATCHED` · `SLOW_SAVE_TEXT_ONLINE` · `SLOW_SAVE_TEXT_BATCHED_ONLINE` · `SLOW_SAVE_TEXT_UNHELD` · `SLOW_SAVE_TEXT_UNHELD_ONLINE` · `slowSaveText` · `SLOW_SAVE_EVENT` · `watchSlowCommit` · `trackHiddenTime` · `trackOwnWritesWaits` · `writesInFlight` · `withSlowSaveNotice`
@@ -838,7 +838,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `NEWSLETTER_CARD` · `CARD_TIPS`
 
 ### `operations-attention.js`
-- **Exports:** `ATTENTION_CATALOGUE` · `attentionBadge` · `buildAttentionItems` · `reportLoginAccounts` · `withdrawLoginAccounts` · `createAttentionStrip`
+- **Exports:** `ATTENTION_CATALOGUE` · `attentionBadge` · `buildAttentionItems` · `allClear` · `ALL_CLEAR_LINE` · `reportLoginAccounts` · `withdrawLoginAccounts` · `createAttentionStrip`
 
 ### `operations-doc-links.js`
 - **Exports:** `ROTATE_LINKS_URL` · `docLinksRequestInFlight` · `requestLinkRotation` · `describePreview` · `describeResult` · `checkFailure` · `runFailure` · `initDocLinksCard`
@@ -876,8 +876,16 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `nav-guide-fold.js`
 - **Exports:** `wireGuideFold`
 
+### `doc-dates.js`
+- **Exports:**
+- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
+
+### `admin-day-change.js`
+- **Exports:**
+- **Exports:** `stagedDayChanges` · `previewChanges`
+
 ### `newsletter-recency.js`
-- **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`
+- **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `latestNewsletterDate` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`
 
 ### `notice-archive.js`
 - **Exports:** `noticeDateInFull` · `isNoticeExpired` · `archiveNotice` · `reviseArchivedNotice` · `readArchivedNotices`
