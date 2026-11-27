@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for Marylebone Roster
 
-*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -49,7 +49,7 @@ below, and run `npm run generate:ai-map`.
 | Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
 | WHEN the Calendar page may draw — the start-up stage, the one wait for a swipe, the focus owed to the next grid | `calendar-redraw.js` |
 | The Calendar's menu — built for the saved session, and rebuilt in place for whoever signs in | `calendar-drawer.js` |
-| The notification prompt strip and silent renewal on the Calendar (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
+| The notification prompt strip and silent renewal on the Calendar (never on the GitHub Pages mirror) | `calendar-notif-prompt.js` |
 | The install strip on the Calendar, and the route the install notice asks of it | `install-prompt.js` |
 | A desktop at the Pages mirror told the address is closing — the strip and the sign-in card's line / their words | `mirror-move.js` / `mirror-move-words.js` |
 | Daily Huddle viewer — the `#huddle` hash, the subscription, the two render paths, the per-table scroll boxes (wrapTables) | `calendar-huddle-viewer.js` |
