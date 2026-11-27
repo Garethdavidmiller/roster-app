@@ -14,6 +14,7 @@ says nothing has been decided, and asks the reader to tell Sara or their manager
 |---|---|---|
 | `prefer-earlies.html` | likes early shifts, 06:20 starts most of all, and swaps onto earlies | Level Crossing |
 | `lates-by-2200.html` | likes late shifts finishing no later than 22:00, always swaps onto lates, and loves Sunday overtime | Balanced V6 |
+| `lates-swapper-and-day-shifts.html` | swaps onto a late every day, and is thinking of also taking day shifts of roughly 08:00 to 17:00: it answers both, and says how the answer turns on how early is too early (07:30 or 07:00) | Balanced V6 |
 | `weekends-and-long-breaks.html` | wants full weekends off and three or four days off in a row, and would use a day or two of annual leave to get more of both. It explains why (how the days off are grouped: pairs against single days) and shows the year twice, Sundays worked and Sundays given up in advance, with every figure that needs the Sunday given up marked | Middle Ground |
 
 Each is for the **main CEA roster** — the roster the new link replaces. Check the person's line in `roster-member-data.js`
@@ -48,6 +49,9 @@ the same count; a count that cannot reproduce the page's figures is not used.
   finishing by 22:00 on the rota each weekday. Checked against the page's lates a year (88 · 94 · 94 · 94) and the
   presentations' finishes at 22:00 or later (78 today, 94 on Level Crossing).
 - **`prefer-earlies.html`** counts the lates to the close, checked the same way.
+- **`lates-swapper-and-day-shifts.html`** counts earlies by start time, the weeks that are all earlies, all lates
+  or mixed (a whole week of earlies is one swap), and the extra time from swapping every early for the day's average
+  late, which reproduces the page's "a late against an early, same day" minutes times the earlies a year.
 - **`weekends-and-long-breaks.html`** plans a whole year exactly: for each proposal, the fewest days of leave that give
   a number of football weekends (a Saturday and Sunday off) and three- or four-day trips with no day used twice,
   averaged over every week of the rota the year could start on — once with rostered Sundays worked, and once with

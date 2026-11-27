@@ -88,7 +88,7 @@ const CAPS = {
     'docs/KNOWN_LIMITATIONS.md':             92_000,
     'docs/LATENCY.md':                       21_000,
     'docs/links-26/30-days-off/README.md':     23_000,
-    'docs/links-26/colleague-emails/README.md': 5_000,
+    'docs/links-26/colleague-emails/README.md': 6_000,
     'docs/links-26/HISTORY.md':               685_000,
     'docs/links-26/README.md':                 30_000,
     'docs/links-26/RULES.md':                  12_000,
