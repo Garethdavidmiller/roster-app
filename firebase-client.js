@@ -13,14 +13,14 @@
  */
 
 // @ts-ignore
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getDocFromCache, getDocFromServer, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath, waitForPendingWrites } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, getDocFromCache, getDocFromServer, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath, waitForPendingWrites } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported via `_getStorageSdk()` (handed to the shared
 // upload engine in documents-client.js) — only operations.html uploads files, so the other pages
 // avoid the cost.
 // @ts-ignore
-import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js';
+import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
 import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent, ownWritesSentFor, leftoverNote } from './claim-retry.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { buildAnalyticsClient } from './analytics-client.js';
@@ -359,7 +359,7 @@ let _storagePromise = null;
 function _getStorageSdk() {
     if (!_storagePromise) {
         // @ts-ignore
-        _storagePromise = import('https://www.gstatic.com/firebasejs/13.2.0/firebase-storage.js')
+        _storagePromise = import('https://www.gstatic.com/firebasejs/13.4.0/firebase-storage.js')
             .then(({ getStorage, ref, uploadBytes, getDownloadURL, deleteObject }) =>
                 ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL, deleteObject }))
             // Reset on rejection: a rejected promise is truthy, so ONE transient CDN failure would be
