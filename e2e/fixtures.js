@@ -810,6 +810,10 @@ export async function routeAppPage(page) {
         // assertions that have nothing to do with passwords. Compel tests opt back in with
         // `forcePasswordSet(page)`.
         body = body.replace(/FORCE_PASSWORD_SET:\s*(?:true|false)/, 'FORCE_PASSWORD_SET: false');
+        // DEFAULT ON for the whole suite: the Link Designer is PAUSED for staff (CONFIG.LINK_DESIGNER_ENABLED, owner,
+        // 27 Nov 2026), Overtime's way, and its tests go on driving the real page so it is ready to come back. The paused
+        // page's own tests opt out with `pauseLinkDesigner(page)`.
+        body = body.replace(/LINK_DESIGNER_ENABLED:\s*(?:true|false)/, 'LINK_DESIGNER_ENABLED: true');
         for (const [pattern, value] of Object.values(_configOverrides.get(page) || {})) {
             body = body.replace(pattern, value);
         }
@@ -856,6 +860,17 @@ export async function forcePasswordSet(page) {
 export async function withLinksDesigners(page, names) {
     _setConfigOverride(page, 'LINKS_DESIGNERS',
         /LINKS_DESIGNERS:\s*\[[^\]]*\]/, `LINKS_DESIGNERS: ${JSON.stringify(names)}`);
+}
+
+/**
+ * Show one test the Link Designer as staff see it: PAUSED (CONFIG.LINK_DESIGNER_ENABLED, owner, 27 Nov 2026). The suite
+ * switches it ON by default (the roster-data.js route, above), so the real page stays tested; this puts it back as it
+ * ships. Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ */
+export async function pauseLinkDesigner(page) {
+    _setConfigOverride(page, 'LINK_DESIGNER_ENABLED',
+        /LINK_DESIGNER_ENABLED:\s*(?:true|false)/, 'LINK_DESIGNER_ENABLED: false');
 }
 
 /**
