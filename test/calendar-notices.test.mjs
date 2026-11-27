@@ -43,8 +43,11 @@ const SOURCE = readFileSync(new URL('./calendar-notices.js', REPO_ROOT_URL), 'ut
 /** @type {Map<string, Function>} */ let _listeners = new Map();
 /** One element per id for the whole wiring, so a line the install notice hides STAYS hidden (block 5). */
 /** @type {Map<string, any>} */ let _els = new Map();
+/** Every element a notice pressed (`el.click()`), in order — the Team View notice presses the page's own button. */
+/** @type {string[]} */ let _clicks = [];
 function fakeEl(/** @type {string} */ id) {
     return { id, hidden: undefined,
+             click() { _clicks.push(id); },
              addEventListener(/** @type {string} */ type, /** @type {Function} */ fn) { _listeners.set(`${id}:${type}`, fn); } };
 }
 global.document = {
@@ -181,6 +184,7 @@ async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay)
     _store = { ...store };
     _reads = []; _writes = []; _archived = []; _openedViaHelper = []; _directOpens = 0; _listeners = new Map();
     _els = new Map(); _closed = []; _installCalls = []; _screenTaken = false; _oneScreen = false; _followed = [];
+    _clicks = [];
     _expired = expired;
     _access = newAccessGate();
     const mod = await import(`../calendar-notices.js?n=${++_n}`);
@@ -295,7 +299,7 @@ const inFinalWeek = (/** @type {{ finalWeek: number|null }} */ n) => n.finalWeek
 
 /** Would the Pay Calculator price this session's member? The real test (pay-audience.js, by the role
  *  at the time — today's, as the notices ask it), from the real roster. */
-const { teamMembers, CONFIG } = await import('../roster-data.js');
+const { teamMembers, CONFIG, isOtherStaff } = await import('../roster-data.js');
 const { payCalculatorPrices } = await import('../pay-audience.js');
 function payCalcFor(/** @type {{ name: string } | null} */ session) {
     return payCalculatorPrices(teamMembers.find(m => m.name === session?.name) ?? null);
@@ -1063,8 +1067,9 @@ describe('8 · the timetable notice: from 16 November behind the install and New
 
     /** @type {Array<[string, string, string[]]>} */
     const PHONE_ORDERS = [
-        ['lets in', FOR_NEWLINK, [INST.overlay, NL.overlay, SOON.overlay]],
-        ['turns away', NOT_NEWLINK, [INST.overlay, SOON.overlay]],
+        // …and the Team View notice last of all, for a member on the roster (block 16).
+        ['lets in', FOR_NEWLINK, [INST.overlay, NL.overlay, SOON.overlay, 'teamNoticeLb']],
+        ['turns away', NOT_NEWLINK, [INST.overlay, SOON.overlay, 'teamNoticeLb']],
     ];
     for (const [page, name, order] of PHONE_ORDERS) {
         test(`on a phone, for a member the New link page ${page}: ${order.join(', then ')} — one a load, each the load after the last`, async () => {
@@ -1264,8 +1269,11 @@ describe('11 · the New link notice: only where the page would let them in, afte
         // The page's own question, asked of whoever is signed in when it OPENS — never a list of its own.
         assert.match(IIFE, /canOpenNewlink\(getSession\(\)\?\.name\)/);
         assert.match(SOURCE, /import \{ canOpenNewlink \} from '\.\/auth-policy\.js'/);
-        // LAST: on a load where anything else is due, that one takes the screen and this one comes back next time.
-        assert.equal(NOTICES[NOTICES.length - 1].overlay, NL.overlay, 'wired last, so it yields to every other notice');
+        // LAST of the notices it could share a load with: on a load where anything else is due, that one takes the
+        // screen and this one comes back next time. Only the Team View notice is wired after it, and that one follows
+        // the timetable notice, which waits for this one until it has ended — so the two are never due together.
+        const after = NOTICES.slice(NOTICES.findIndex(n => n.overlay === NL.overlay) + 1).map(n => n.overlay);
+        assert.deepEqual(after, ['teamNoticeLb'], 'wired last but for the Team View notice, so it yields to every other one');
     });
 
     test('before 26 November nothing in the matrix is about it — it gets its rows here instead', () => {
@@ -1728,5 +1736,143 @@ describe('15 · move to the main address: only on the GitHub Pages copy, after t
         assert.ok(text.includes(`${card[1]} ${card[2]}`), `the notice names the card as the Pay page does: ${card[1]} ${card[2]}`);
         const href = (/** @type {string} */ id) => new RegExp(`href="([^"]+)" id="${id}"`).exec(html)?.[1];
         assert.equal(href('moveNoticeGo'), href('installNoticeGo'), 'one main address, written the same in both notices');
+    });
+});
+
+describe('16 · see who you are on duty with: Team View, last in the queue, for members on the roster, from 27 Nov (owner, 27 Nov 2026)', () => {
+    // "An in sequence app notice on calendar to explain team view — see who you are on duty with or could swap shifts
+    // with." Organised by what a wrong answer costs: sharing a visit breaks one-at-a-time; offered to an Other Staff
+    // login it asks somebody with no line who they are on with; flagged where refused, that device never sees it; and
+    // a button that toggles Team View when it is already showing takes the reader back to the month.
+    const TV   = /** @type {{ overlay: string, audience: string, follows: string|null, followsInstall: string|null, starts: number|null }} */ (NOTICES.find(n => n.overlay === 'teamNoticeLb'));
+    const SOON = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableSoonNoticeLb'));
+    const INST = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
+    const DONE = DONE_KEY_OF(TV);
+    const IIFE = IIFE_OF('teamNoticeLb');
+    const NOV_27 = new Date(2026, 10, 27, 9, 0).getTime();
+    const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === TV.overlay));
+    const AFTER_TIMETABLE = { [DONE_KEY_OF(SOON)]: '1', [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' };
+    const ON_DESK = { accessType: /** @type {const} */ ('named'), route: null, store: AFTER_TIMETABLE,
+                      present: [TV.overlay, 'teamNoticeShow', 'teamNoticeLater', 'teamViewBtn'] };
+
+    test('in the matrix, members only, its own key, no snooze, from 27 November for 90 days, after the REAL timetable and install keys, wired last', () => {
+        assert.ok(TV, 'found by the same pattern as every other notice');
+        assert.equal(TV.audience, 'members');
+        assert.equal(DONE, 'myb_notice_team_view_2026_done');
+        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
+        assert.equal(TV.starts, new Date(2026, 10, 27).getTime(), 'STARTS is its posting day, read from the source');
+        assert.match(IIFE, /const NOTICE_DATE\s*=\s*'27 Nov 2026'/);
+        assert.match(IIFE, /isNoticeExpired\(NOTICE_DATE, 90\)/);
+        assert.equal(TV.follows, DONE_KEY_OF(SOON), 'after the timetable notice, which itself waits for the install and New link ones');
+        assert.equal(TV.followsInstall, DONE_KEY_OF(INST));
+        assert.match(IIFE, /if \(!followedDone\(FOLLOWS\)\) return;/, 'the timetable notice, through its END too — never its flag alone');
+        assert.equal(NOTICES[NOTICES.length - 1].overlay, TV.overlay, 'wired last, so it yields to every other notice');
+    });
+
+    test('on a desk, after the timetable notice, it opens for a member on the roster — nothing flagged yet', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire(ON_DESK);
+        await settleAccess();
+        assert.ok(opened());
+        assert.deepEqual(_writes, []);
+    });
+
+    test('not for an Other Staff login, nor a name not on the roster — and NOT flagged for either', async () => {
+        const other = teamMembers.find(m => isOtherStaff(m))?.name;
+        assert.ok(other, 'precondition: the roster has an Other Staff login');
+        for (const name of [other, 'Not On The Roster']) {
+            mock.timers.setTime(NOV_27);
+            await wire({ ...ON_DESK, session: { name } });
+            await settleAccess();
+            assert.equal(opened(), undefined, `${name}: offered`);
+            assert.ok(!_writes.some(([k]) => k === DONE), `${name}: refused, so left unflagged`);
+        }
+    });
+
+    test('it waits for the timetable notice, and on a phone browser for the install notice — unflagged', async () => {
+        mock.timers.setTime(NOV_27);
+        for (const [what, extra] of /** @type {const} */ ([
+            ['the timetable notice still to come', { store: { [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' } }],
+            ['a phone browser before the install notice', { route: { how: 'menu', mirror: false } }],
+        ])) {
+            await wire({ ...ON_DESK, ...extra });
+            await settleAccess();
+            assert.equal(opened(), undefined, `it shared a visit with ${what}`);
+            assert.ok(!_writes.some(([k]) => k === DONE));
+        }
+    });
+
+    test('NOT on the load the timetable notice is answered — that flag is read at wiring time — and the load after, it opens', async () => {
+        mock.timers.setTime(NOV_27);
+        // The vote notice answered, so the timetable notice — which waits for it until 6 December — has this load.
+        const VOTE = DONE_KEY_OF(/** @type {any} */ (NOTICES.find(n => n.overlay === 'newlinkNoticeLb')));
+        await wire({ ...ON_DESK, present: [...ON_DESK.present, SOON.overlay], store: { [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1', [VOTE]: '1' } });
+        await settleAccess();
+        const soon = /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === SOON.overlay));
+        assert.ok(soon, 'premise: the timetable notice has this load');
+        soon._cfg.onClose();
+        assert.equal(opened(), undefined, 'the second notice of one visit');
+        await wire({ ...ON_DESK, store: { ..._store } });
+        await settleAccess();
+        assert.ok(opened(), 'the next load is its turn');
+    });
+
+    test('before 27 November nothing is offered, and nothing flagged', async () => {
+        mock.timers.setTime(new Date(2026, 10, 26, 21, 0).getTime());
+        await wire(ON_DESK);
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, []);
+    });
+
+    test('"Open Team Week View" answers it, closes it and presses the page\'s own 👥 Team button; Not now and the close answer it', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire(ON_DESK);
+        await settleAccess();
+        const lb = opened();
+        _listeners.get('teamNoticeShow:click')?.();
+        assert.deepEqual(_writes, [[DONE, '1']]);
+        assert.deepEqual(_closed, [TV.overlay]);
+        assert.deepEqual(_clicks, ['teamViewBtn'], 'Team View through its own button — its guards and announcement are its own');
+        _writes = [];
+        lb._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']], 'any close answers it');
+        _listeners.get('teamNoticeLater:click')?.();
+        assert.deepEqual(_closed, [TV.overlay, TV.overlay], 'Not now closes it');
+    });
+
+    test('with Team View already showing, the button leaves it showing — never toggles back to the month', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire(ON_DESK);
+        await settleAccess();
+        const doc = /** @type {any} */ (global.document);
+        doc.body = { classList: { contains: (/** @type {string} */ c) => c === 'team-view-active' } };
+        try {
+            _listeners.get('teamNoticeShow:click')?.();
+            assert.deepEqual(_clicks, [], 'pressed Team while Team View was up');
+            assert.deepEqual(_writes, [[DONE, '1']]);
+        } finally { delete doc.body; }
+    });
+
+    test('archived on open, in words that stay true — and its body names where Team is, so Not now loses nothing', async () => {
+        mock.timers.setTime(NOV_27);
+        await wire(ON_DESK);
+        await settleAccess();
+        opened()._cfg.onOpen();
+        const filed = _archived.find(n => n.id === 'team-view-2026');
+        assert.ok(filed);
+        assert.equal(filed.section, 'Calendar');
+        assert.equal(filed.date, '27 Nov 2026');
+        assert.match(filed.body, /👥\u00a0Team above your calendar/);
+        assert.doesNotMatch(filed.title + filed.body, /\bnew\b|\bsoon\b|\btoday\b/i, 'nothing that dates');
+        const html = readFileSync(new URL('./index.html', REPO_ROOT_URL), 'utf8');
+        const at = html.indexOf('id="teamNoticeLb"');
+        const text = html.slice(at, html.indexOf('</div>\n    </div>', at)).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+        assert.match(text, /👥 Team , above your calendar/, 'where the button is');
+        assert.match(text, /📅 Month brings your calendar back/, 'and the way back, in the words the button then shows');
+        // The screen's own name, as its About badge and the Team button's spoken label give it.
+        assert.match(text, /Open Team Week View/);
+        assert.match(readFileSync(new URL('./calendar-team-view.js', REPO_ROOT_URL), 'utf8'), /'Switch to Team Week View'/);
+        assert.doesNotMatch(text, /resting/, 'one word for it: "on a rest day", the app\'s own');
     });
 });

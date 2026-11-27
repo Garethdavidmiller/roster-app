@@ -1216,6 +1216,22 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('the Team View notice open (calendar) — the gold Calendar badge on the glass (owner, 27 Nov 2026)', async ({ page }) => {
+        // The one live notice wearing the Calendar's own gold badge, and the one whose button acts on this page. Members
+        // on the roster, from 27 November, last in the queue: the seeders mark every notice before it answered, so
+        // clearing this flag alone is the setup, on every project.
+        await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await seedMemberSession(page, 'G. Miller');
+        await seedMember(page);
+        await clearNoticeFlags(page, ['myb_notice_team_view_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#teamNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('the Holiday Pay Premium notice open (pay) — the Pay page\'s own notice, on its own page (v26.22)', async ({ page }) => {
         // Every Pay page notice is suppressed in this suite, so none had been scanned on the page it opens
         // over: the green Pay badge was measured on the Calendar's glass (the Year to Date scan above), never
