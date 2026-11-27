@@ -55,6 +55,12 @@ export const CONFIG = {
     // the daily creator unexported (404). The retention purge keeps running. The code and its tests
     // stay live while it is off: OVERTIME_AVAILABILITY.md → "Paused" is the way back.
     OVERTIME_ENABLED:                 false,
+    // THE LINK DESIGNER IS PAUSED (owner, 27 Nov 2026), the Overtime way: paused, never deleted. This is the whole
+    // switch. `false` takes the pill off every menu and turns link-designer.html (and links.html, which redirects to it)
+    // into a "paused" note for everyone, the admin included. Every saved design and target set stays in Firestore,
+    // untouched, and the code and its tests stay live (the suite switches it back on), so `true` is the way back.
+    // Client only: the page has no endpoints, so no generated server copy. auth-policy.js → `linkDesignerEnabled`.
+    LINK_DESIGNER_ENABLED:            false,
     // Who besides the page's audience (auth-policy.js → `newlinkAudience`) may open the New link page — the colleague who
     // leads the change (owner, 4 Nov 2026), kept in whatever the audience becomes. Page access only (the page shows only
     // public files), so no claim and no generated server copy. auth-policy.js → `canOpenNewlink` reads it.

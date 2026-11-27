@@ -270,7 +270,7 @@ export function navGatesFor(member) {
     const r = rolesFor(member);
     return {
         isAdmin:         r.admin,
-        isLinksDesigner: r.designer,
+        isLinksDesigner: r.designer && linkDesignerEnabled(),   // paused, the pill leaves every menu (the switch, below)
         canOpenOvertime: canOpenOvertime(member),
         canOpenNewlink:  canOpenNewlink(member),
         // TRUE for nobody signed in, deliberately: their drawer keeps every ungated pill
@@ -297,6 +297,23 @@ export function navGatesFor(member) {
 export function overtimeEnabled() {
     const seam = /** @type {any} */ (globalThis).__E2E?.overtimeEnabled;
     return typeof seam === 'boolean' ? seam : CONFIG.OVERTIME_ENABLED === true;
+}
+
+/**
+ * Is the Link Designer switched on at all? `CONFIG.LINK_DESIGNER_ENABLED` (paused, owner, 27 Nov 2026).
+ *
+ * The Overtime pause's shape, and for the same reasons: the ONE reading of the switch on the client. `navGatesFor`
+ * consults it, so the pill leaves every menu, and link-designer.html consults it before its own gate, so the page says
+ * it is paused, to everyone, the admin included, signed in or not. Paused, never deleted: every saved design and target
+ * set stays in Firestore, untouched, and the rules still admit a designer, so switching it back on loses nothing.
+ *
+ * `__E2E.linkDesignerEnabled` is a TEST SEAM, `overtimeEnabled`'s: a suite that cannot rewrite roster-data.js (the
+ * signed-in lane) sets it to go on driving the real page. Nothing in production sets __E2E.
+ * @returns {boolean}
+ */
+export function linkDesignerEnabled() {
+    const seam = /** @type {any} */ (globalThis).__E2E?.linkDesignerEnabled;
+    return typeof seam === 'boolean' ? seam : CONFIG.LINK_DESIGNER_ENABLED === true;
 }
 
 /**

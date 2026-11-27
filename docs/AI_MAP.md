@@ -324,7 +324,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `getAuthSnapshot` · `subscribeAuth` · `dispatchAuth` · `_resetAuthStateForTest`
 
 ### `auth-policy.js`
-- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `navGatesFor` · `overtimeEnabled` · `requirePage`
+- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `navGatesFor` · `overtimeEnabled` · `linkDesignerEnabled` · `requirePage`
 
 ### `operations-app.js`
 - **Exports:** `init`

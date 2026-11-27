@@ -39,6 +39,7 @@ export const NAV_PAGES = Object.freeze([
     { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin',      otherStaffHidden: true },
     { id: 'paycalc',    label: '💷 Pay',         name: 'Pay Calculator', url: './paycalc.html',    colorClass: 'nav-panel-pill--pay',        otherStaffHidden: true },
     { id: 'operations', label: '🔧 Operations',   url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
+    // PAUSED (owner, 27 Nov 2026): `isLinksDesigner` is false for everyone while CONFIG.LINK_DESIGNER_ENABLED is off.
     { id: 'links',      label: '📐 Link Designer', url: './link-designer.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
     // Overtime's audience only (filtered, not the boundary — the page and server gate themselves).
     // PAUSED (owner, Nov 2026): `canOpenOvertime` is false for everyone while CONFIG.OVERTIME_ENABLED is off.
