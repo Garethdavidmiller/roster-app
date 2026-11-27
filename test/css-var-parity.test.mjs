@@ -18,7 +18,7 @@
  * (`--gold`, in shared.css, so on every page — it drew white), the Overtime person button's fill and
  * three of its transitions (`--surface-card`, `--ease-out`), the pay calculator's disabled-field
  * ink at five sites (`--text-muted` — it drew full-dark, and the comment beside it promised muted),
- * the Links demand-row rule (`--border`) and the guide chip fill (`--white`, defined by three guide
+ * the Link Designer demand-row rule (`--border`) and the guide chip fill (`--white`, defined by three guide
  * pages and not by the two that load the shell through guide-doc.css). All seven were the same
  * shape: a name that exists SOMEWHERE in the repo, reached for from a file that does not load it.
  *

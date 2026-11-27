@@ -220,7 +220,7 @@ test('B1: operations clears the session and shows the in-place login on a failed
 
 test('B1: links clears the session and shows the in-place login on a failed named session', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     // B1 re-auth now shows the in-place login (clears the session, no redirect to admin).
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
@@ -267,8 +267,8 @@ test('B1 + sign-in OK: operations loads (not redirected)', async ({ page }) => {
 
 test('B1 + sign-in OK: links loads for a designer (not redirected)', async ({ page }) => {
     await seedSession(page, 'G. Miller');   // G. Miller is a links designer
-    await page.goto('/links.html');
-    await expect(page).toHaveURL(/links\.html$/);
+    await page.goto('/link-designer.html');
+    await expect(page).toHaveURL(/link-designer\.html$/);
 });
 // ── IN-PLACE SIGN-IN — Phase 9 (the INPLACE_LOGIN flag was retired at v24.32; this is the only path) ──
 // The init()-wrapped coordinators (operations/links/paycalc) initialise the page
@@ -313,13 +313,13 @@ test('in-place sign-in on Settings is timed as a sign-in, and writes no "Usable"
 });
 
 test('in-place sign-in: links initialises without a reload', async ({ page }) => {
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await page.evaluate(() => { window.__noReload = 1; });
     await signInThroughOverlay(page, 'G. Miller');  // designer → passes the links gate
 
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
     await expect(page.locator('body.auth-ready')).toBeVisible();   // authorised body ran in place
-    await expect(page).toHaveURL(/links\.html$/);
+    await expect(page).toHaveURL(/link-designer\.html$/);
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
 });
 
@@ -1002,13 +1002,13 @@ test('login overlay geometry is identical across every page that shows it', asyn
 });
 
 // EVERY PAGE'S CARD SAYS WHAT THE PAGE IS (owner, 21 Nov 2026). Admin, Pay, New link and Trains explained
-// themselves on the sign-in card; Settings, Operations and Links did not, so the same card read differently
+// themselves on the sign-in card; Settings, Operations and Link Designer did not, so the same card read differently
 // from page to page. Every page that puts up the shared sign-in now carries an explanation. The five a member
 // reaches with their own account also say why they are signed in as yourself, and carry the shared-screen
 // footnote; New link's says who the page is for. (Until the staff PIN was retired, 23 Nov 2026, the five
 // also said the PIN does not open them, and Trains' card was the way in FOR the PIN. No card mentions it now.)
 test('every page\'s sign-in card says what the page is, and none mentions the retired staff PIN', async ({ page }) => {
-    const SAYS_SIGN_IN_AS_YOURSELF = ['/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/links.html'];
+    const SAYS_SIGN_IN_AS_YOURSELF = ['/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/link-designer.html'];
     const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
         && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
     for (const url of PAGES) {
@@ -1383,7 +1383,7 @@ for (const [name, url, ready, init] of /** @type {Array<[string, string, string,
     ['operations', '/operations.html', '#huddleUploadCard'],
     ['paycalc', '/paycalc.html', '#settingsCard', () => localStorage.setItem('myb_pc_ns_migrated', '1')],
     ['settings', '/settings.html', '#contactToggleHeader'],
-    ['links', '/links.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
+    ['links', '/link-designer.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
     ['overtime', '/overtime.html', 'body[data-ot-paused]'],
     ['trains', '/trains.html', '#trTotals .tr-total'],
     ['newlink', '/newlink.html', '[data-persona="all"]'],
@@ -1434,7 +1434,7 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
 
     // Admin SAYS why it is not for them, as the Pay Calculator does (owner, 24 Nov 2026): it used to send them back to
     // the Calendar with nothing said, and the Calendar's 📝 Admin button and "Record leave" both land there.
-    test('Admin and the Pay Calculator each say why they are not for them; Operations and Links go to Admin', async ({ page }) => {
+    test('Admin and the Pay Calculator each say why they are not for them; Operations and Link Designer go to Admin', async ({ page }) => {
         await withOtherStaff(page, NAME);
         await seedSession(page, NAME);
         await page.goto('/admin.html#book-annual-leave');
@@ -1450,13 +1450,13 @@ test.describe('an Other Staff login — the Calendar, Trains and Settings, under
             await expect(page.locator(hidden), `${hidden} shows behind the card`).toBeHidden();
         }
         await expect(page.locator('#navMenuBtn'), 'the drawer is the way out').toBeVisible();
-        // Operations and Links send this login to Admin's card, which says why (owner, 26 Nov 2026): a message, never a
+        // Operations and Link Designer send this login to Admin's card, which says why (owner, 26 Nov 2026): a message, never a
         // silent hop back to the Calendar.
         await page.goto('/operations.html');
         await expect(page.locator('#adminRoleCard')).toBeVisible();
         await page.goto('/paycalc.html');
         await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
-        await page.goto('/links.html');
+        await page.goto('/link-designer.html');
         await expect(page.locator('#adminRoleCard')).toBeVisible();
     });
 

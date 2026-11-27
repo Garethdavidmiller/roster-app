@@ -22,7 +22,7 @@
 //
 // So a single number was answering a question nobody asked. A sheet that prints only the ceiling
 // flags designs that are clear as rostered; one that prints only the block reading is the
-// false-assurance failure `links-fatigue.js` names as its dominant risk. Both, labelled, is the
+// false-assurance failure `link-designer-fatigue.js` names as its dominant risk. Both, labelled, is the
 // only honest shape — and the GAP between them is itself the finding, because it says how much of
 // a design's fatigue exposure is a property of the link and how much is a question for the roster
 // office.
@@ -45,8 +45,8 @@
 // "how many 8-hour duties in a row" must assume a cover duty is one, and a row that asks about
 // early starts must assume it is early. Handing every row the same sentinel would let a rule go
 // quiet on the cover week, which is the v21.98 defect one level down.
-import { DAYS, SPARE_WORKED_DAYS, ROTATING_LINES, runLengthsWhere, worstCaseWorkedRun, dutyMinutes } from '../../../../links-design.js';
-import { longestRunBetween48hBreaks, isEarlyStart, toSequence } from '../../../../links-fatigue.js';
+import { DAYS, SPARE_WORKED_DAYS, ROTATING_LINES, runLengthsWhere, worstCaseWorkedRun, dutyMinutes } from '../../../../link-designer-design.js';
+import { longestRunBetween48hBreaks, isEarlyStart, toSequence } from '../../../../link-designer-fatigue.js';
 
 /** The block placements of a cover week's four duties: true = worked. */
 export const BLOCK_PLACEMENTS = [0, 1, 2, 3].map(start =>

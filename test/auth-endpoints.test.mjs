@@ -102,7 +102,7 @@ const ADMIN    = 'G. Miller';
 const MEMBER   = 'L. Springer';        // on the roster, and not the admin
 const MEMBER2  = 'A. Hared';           // a SECOND ordinary member, for the coalescing cases
 const MANAGER  = 'D. Watts';           // roles.manager in roster-members.json
-const DESIGNER = 'M. Robson';          // NOT an admin; a Links designer until 9 Nov 2026 — see withDesigners
+const DESIGNER = 'M. Robson';          // NOT an admin; a link designer until 9 Nov 2026 — see withDesigners
 const ADMIN_UID = 'uid_admin_gm';
 const emailFor = (n) => `${n[0].toLowerCase()}.${n.split('. ')[1].toLowerCase()}@myb-roster.local`;
 const uidFor   = (n) => `uid_${n.replace(/\W/g, '')}`;
@@ -1941,7 +1941,7 @@ test('the module never reaches for a broadcast sender', () => {
     // that no behavioural test happens to exercise — an error path, a "no targets" fallback — and
     // the cost of finding that out in production is a leak, so the import surface is pinned too.
     //
-    // COMMENTS ARE STRIPPED FIRST (v23.62), the rule `links-rotation-parity` and
+    // COMMENTS ARE STRIPPED FIRST (v23.62), the rule `link-designer-rotation-parity` and
     // `card-header-parity` already apply for the same reason. Naming the forbidden sender is
     // exactly how a module explains why it uses the other one, and this guard duly fired on the
     // sentence "sendTargetedPush, never fanOutPush" in the reset endpoint's own header. A guard

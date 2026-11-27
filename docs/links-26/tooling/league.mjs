@@ -65,7 +65,7 @@
 import fs from 'fs';
 const R = new URL('../../', import.meta.url).pathname;   // docs/
 const M24 = await import(R + 'links-26/tooling/reference-24/report-data.mjs'), M26 = await import(R + 'links-26/tooling/report-data.mjs');
-const { scoreOrder } = await import(new URL('../../../links-adjacency.js', import.meta.url).href);
+const { scoreOrder } = await import(new URL('../../../link-designer-adjacency.js', import.meta.url).href);
 const { leave, leaveRuns } = await import(R + 'links-26/tooling/leave.mjs');
 const { daysAYear, DAYS_CEILING } = await import(R + 'links-26/tooling/link.mjs');
 const { closingMeasures } = await import(R + 'links-26/tooling/closing.mjs');

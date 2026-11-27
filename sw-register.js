@@ -27,7 +27,7 @@ import { backgroundWritesInFlight } from './claim-retry.js';
 // The forced password change (password-force.js) can open on any page after a sign-in, and its
 // password write and the record that follows it (`changeOwnPassword`) are counted while they are on
 // their way (`trackBackgroundWrite`, claim-retry.js). Only Admin, Settings and Operations read that
-// count, in their own busy checks. So on the Pay Calculator, Trains, New link, Links and Overtime,
+// count, in their own busy checks. So on the Pay Calculator, Trains, New link, Link Designer and Overtime,
 // and on the Calendar once it was hidden, an update arriving in the second the write took reloaded
 // the page under it, and the member was asked to choose a password again at the next sign-in
 // (found by the sign-in audit, and closed at v26.01).
@@ -213,7 +213,7 @@ function markUpdateReload() {
  * speed sample knows a release caused it. For a `beforeReload` that reloads directly once it has its
  * answer (links' confirm), and for the default path below. Now — unless a write no page started is
  * on its way (the note beside `backgroundWriteOnItsWay`), when it waits for the next time the page is
- * hidden with nothing on its way; a Reload answered in Links' question in that second takes effect
+ * hidden with nothing on its way; a Reload answered in Link Designer's question in that second takes effect
  * when the member next looks away. It is `reloadWhenNotBusy` for a page with nothing of its own to
  * wait for, so the single armed listener and the stamp before the reload are that function's.
  * @param {() => void} [reload]
@@ -358,7 +358,7 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                     //
                     // OPT-IN, and the Calendar is the only caller. The pages with work to lose decide
                     // for themselves: Admin, Operations, Settings and Overtime wait for an idle moment
-                    // (`reloadWhenNotBusy`), and Links asks first while it holds unsaved edits —
+                    // (`reloadWhenNotBusy`), and Link Designer asks first while it holds unsaved edits —
                     // holding THAT question until the app is backgrounded would greet the member with
                     // a confirm dialog on return. The rest reload at once. And every one of them waits
                     // for a write no page started (the note beside `backgroundWriteOnItsWay`).

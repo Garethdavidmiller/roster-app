@@ -80,7 +80,9 @@ export const APP_PAGES = Object.freeze([
     app('paycalc.html', 'paycalc', { authBarrier: 'afterAuth', preloads: true }),
     app('operations.html', 'operations'),
     app('settings.html', 'settings'),
-    app('links.html', 'links', { preloads: true }),
+    // The id stays 'links' (analytics counters, the auth policy, the draft slot); the files took the page's
+    // name, Link Designer, in v27.09.
+    app('link-designer.html', 'links', { coordinator: 'link-designer-app.js', boot: 'link-designer-boot.js', preloads: true }),
     app('overtime.html', 'overtime'),
     app('trains.html', 'trains'),
     // The new link (the December link until v25.10): the three shortlisted proposals, for the colleagues who will work the new link. An admin
@@ -111,6 +113,7 @@ export const cardGuides = () => GUIDE_PAGES.filter(p => !p.documentStyle);
 export const REDIRECT_PAGES = Object.freeze([
     { file: 'guide.html', kind: 'redirect', to: './staff-guide.html' },
     { file: 'fip.html', kind: 'redirect', to: './fip-guide.html' },
+    { file: 'links.html', kind: 'redirect', to: './link-designer.html' },
 ]);
 
 /** Every served HTML file, all three kinds. @returns {string[]} */

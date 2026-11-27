@@ -62,7 +62,7 @@ paths:
   Pages mirror (about half the staff's installs — owner, 27 Nov 2026) serves no redirects, so the redirect is also in the
   HTML. No content, no stylesheet, ONE script — the shared `legacy-redirect.js` (owner, 10 Nov 2026),
   which keeps a bookmark's `#country` and `?from=`, with a meta refresh as the no-script fallback. They
-  are NOT guides: `REDIRECT_PAGES` in `scripts/app-pages.mjs`, with their own contract
+  are NOT guides: `REDIRECT_PAGES` in `scripts/app-pages.mjs` (which also holds `links.html`, the Link Designer's old address), with their own contract
   (`LEGACY_REDIRECTS`, `page-contract-parity.test.mjs`). **A future guide rename needs the same pair** —
   the Firebase redirect and the stub — or it breaks old links for the larger half of the staff.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP

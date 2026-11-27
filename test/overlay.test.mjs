@@ -634,7 +634,7 @@ describe('createLightbox — focus goes back to whatever opened it', () => {
 describe('createLightbox — an initial focus that cannot take focus falls back to the panel', () => {
     beforeEach(() => { _drainLock(); _bodyClasses.clear(); });
 
-    // The Links ··· More sheet names its first row, which is DISABLED on an unsaved design. `focus()`
+    // The Link Designer ··· More sheet names its first row, which is DISABLED on an unsaved design. `focus()`
     // on it does nothing, so focus stayed on the ··· button behind the dialog: Enter acted on the page,
     // and a screen reader was never moved in. A target that refuses focus is treated as no target.
     test('a disabled explicit target: focus goes to the panel, as if none were named', () => {

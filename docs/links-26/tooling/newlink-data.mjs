@@ -10,8 +10,8 @@
 // being rewritten fails the build rather than reaching staff. Run it after what-it-means-sheet.mjs, whenever the pack moves.
 //
 // WHAT IS NOT HERE, ON PURPOSE:
-//   · the grids. The page draws the 26 weeks from links-proposals.js, the copy the Links workspace already builds in and
-//     links-proposals.test.mjs already pins to the proposals' own files — a second copy would be a second thing to drift;
+//   · the grids. The page draws the 26 weeks from link-designer-proposals.js, the copy the Link Designer already builds in and
+//     link-designer-proposals.test.mjs already pins to the proposals' own files — a second copy would be a second thing to drift;
 //   · a recommendation. The page shows the three evenly, A to Z (owner, 2 Nov 2026: "No, three evenly"), and since 5 Nov
 //     2026 the pack names none either (owner: "Remove the marks"), so there is nothing to read;
 //   · anything about a person. The page has no member data, no pay estimate of anyone's own, and no votes.
@@ -23,8 +23,8 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { GROUPS, TC, C, BV, LC, MG, FIG, RATE, claim, tidyText, isBest, hm, H, Hmax, first, timed, MS, SHORTLIST, grid } from './what-it-means-data.mjs';
-import { PROPOSALS, proposalDisplayName } from '../../../links-proposals.js';
-import { DAYS } from '../../../links-design.js';
+import { PROPOSALS, proposalDisplayName } from '../../../link-designer-proposals.js';
+import { DAYS } from '../../../link-designer-design.js';
 // EACH ONE'S EDGE AND ITS COST (12 Nov 2026): the facts the at-a-glance sheet's cards word, by the same rule — the page's
 // "Where they differ" card words exactly the same facts, so the two cannot list different points
 import { wordsExactly, worstOf, others, MARGIN } from './edge-cost.mjs';
@@ -38,7 +38,7 @@ const WORDS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 
 /** One figure across the three: "12", or "0 to 12" where they differ. @param {number[]} v */
 const span = v => { const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? `${lo}` : `${lo} to ${hi}`; };
 
-// THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is the Links workspace's order and fresh.mjs's too, with
+// THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is the Link Designer's order and fresh.mjs's too, with
 // no recommendation (5 Nov 2026). Since 8 Nov 2026 they are Balanced V6, Level Crossing and Middle Ground (owner: "Put Level
 // Crossing, Middle Ground and Balanced V6 as the shortlist for now", for a new design target: no two closing weeks side by side)
 const NAMES = C.map(c => c.name);
@@ -328,7 +328,7 @@ const src = `// @ts-check
  * one-page sheet, from the same module (what-it-means-data.mjs), and every sentence asserted against them when this was
  * written. newlink-data.test.mjs fails when this file is not what the generator would write now.
  *
- * The 26 weeks themselves are not here: the page draws them from links-proposals.js. Nor is a recommendation: the page shows
+ * The 26 weeks themselves are not here: the page draws them from link-designer-proposals.js. Nor is a recommendation: the page shows
  * the three evenly, A to Z.
  *
  * PUBLIC, like every file in this repository: it holds the proposals' published figures and nothing about any person.

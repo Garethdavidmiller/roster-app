@@ -135,7 +135,7 @@ rules_version = '2';
 //   H2 (this deploy): linkDesigns write now requires the `linksDesigner` claim (or admin); reads were
 //   left open to any authed session (tightened to a `name` claim at v19.39 — see the sweep line at the
 //   top of this file). setupRosterAuth sets linksDesigner for CONFIG.LINKS_DESIGNERS; a stale
-//   designer token self-heals via writeWithClaimRetry in links-app.js. Rollback = restore
+//   designer token self-heals via writeWithClaimRetry in link-designer-app.js. Rollback = restore
 //   `allow read, write: if request.auth != null;`. Both rollbacks are instant, no data migration.
 //   clientErrors pins `timestamp == request.time` (server clock), admin-only read/update.
 //   Override `value` grammar accepts the other-family sentinels (TRG/IND/ASSESS/TEAM ± RDW ± times).
@@ -652,9 +652,9 @@ service cloud.firestore {
         (isMember() || request.auth.token.admin == true);
       // Writes require the linksDesigner claim (or admin, who outranks). setupRosterAuth
       // sets linksDesigner:true for CONFIG.LINKS_DESIGNERS. Closes H2 — before this, the
-      // links-app.js client redirect was the ONLY control and the server accepted a write
+      // link-designer-app.js client redirect was the ONLY control and the server accepted a write
       // from any authenticated session. See AUTH_AND_SESSIONS.md → "The claim tiers".
-      // A designer on a pre-cutover token self-heals: links-app.js wraps every linkDesigns
+      // A designer on a pre-cutover token self-heals: link-designer-app.js wraps every linkDesigns
       // write in writeWithClaimRetry (v16.29), so a permission-denied forces a token refresh
       // and one retry — no manual sign-out needed. The test is `isLinksWriter()`, defined once at
       // the top of the file (it was written out here and again in linkTargetSets until Nov 2026).
@@ -685,12 +685,12 @@ service cloud.firestore {
       // NOTE the rules cannot express "only a designer may empty the bin" any more finely than
       // this: delete is already gated on isLinksWriter(), which is the same set of people who can
       // soft-delete. Nothing expires from the bin: a binned design stays until a designer deletes it
-      // for good (links-design-store.js), and no rule or client timer purges it.
+      // for good (link-designer-design-store.js), and no rule or client timer purges it.
       // `window` is the v19.54 OPERATING WINDOW — when the station is staffed, stored per design
       // so a proposal can test a moved boundary (the live case is Sunday, where five December 2026
       // movements fall after the current 23:25 finish). OPTIONAL, like deletedAt/deletedBy: every
       // design predates it and reads as the app default. Type-checked as a map only — its
-      // {monSat,sun}:{start,end} shape is checked on the client by links-window.js's
+      // {monSat,sun}:{start,end} shape is checked on the client by link-designer-window.js's
       // normaliseWindow, which is also the read path: a row it cannot read becomes the default, row
       // by row, but a readable unpadded time ("6:20") passes through as stored. The editor always
       // writes padded times.
@@ -733,7 +733,7 @@ service cloud.firestore {
       // already has, and this block exists to state it server-side: anyone who can write designs
       // can CREATE a set, but OVERWRITING or DELETING one belongs to its creator (or the admin).
       // The client's Save button asks the same question (canOverwriteTargetSet in
-      // links-target-sets.js) — that copy drives the UI; THIS one is the protection.
+      // link-designer-target-sets.js) — that copy drives the UI; THIS one is the protection.
       //
       // Read matches linkDesigns exactly, for the same self-heal reason documented there.
       allow read: if request.auth != null &&

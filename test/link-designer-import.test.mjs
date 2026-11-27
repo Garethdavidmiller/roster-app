@@ -1,0 +1,397 @@
+// @lane hygiene
+/**
+ * link-designer-import.test.mjs — the design importer, which is a TRUST BOUNDARY.
+ * Run: node scripts/run-tests.mjs test/link-designer-import.test.mjs   (no mocks; part of `npm run test:hygiene`)
+ *
+ * ORGANISED BY THE FAILURE, not by the function. Text pasted from outside is a claim about a
+ * design, and the question this suite asks of every case is which of two things happened to a
+ * claim that was wrong:
+ *
+ *   · it was REFUSED, with a message naming where — fine; or
+ *   · it became a design anyway, quietly smaller or quieter than the paste said — the whole
+ *     hazard, because a proposal missing four duties reads as a lighter week rather than as an
+ *     import that went wrong, and every panel downstream then reports confidently about it.
+ *
+ * The second is what almost every case below is really checking, which is why so many of them
+ * assert on WHAT WAS PARSED rather than merely that parsing succeeded.
+ */
+
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseCell, parseGrid, parseDesignImport, summariseImport } from '../link-designer-import.js';
+import { ROTATING_LINES, normalisePatterns } from '../link-designer-design.js';
+import { MAX_DESIGN_NAME } from '../link-designer-design-naming.js';
+
+/** A full seven-column row as a tab-separated line. */
+const line = (...cells) => cells.join('\t');
+const week = (v) => line(v, v, v, v, v, v, v);
+
+describe('one cell — where a proposal loses a duty', () => {
+    test('a time is accepted in every shape a person or a spreadsheet writes it', () => {
+        // All five are the SAME duty, and they must land on one string — two spellings of one
+        // shift would defeat compare mode, the diff outline and every equality the workspace makes.
+        for (const t of ['06:20-14:20', '06:20–14:20', '6:20-14:20', '06.20-14.20', '06:20 to 14:20']) {
+            assert.deepEqual(parseCell(t), { value: '06:20-14:20' }, t);
+        }
+    });
+
+    test('a rest day, a spare day and an empty cell each land somewhere real', () => {
+        for (const t of ['RD', 'rd', 'Rest', 'REST DAY', 'R']) assert.equal(parseCell(t).value, 'RD', t);
+        for (const t of ['SP', 'spare', 'Cover', 'S']) assert.equal(parseCell(t).value, 'SPARE', t);
+        assert.equal(parseCell('OFF').value, 'OFF', 'OFF is its own value, not folded into RD');
+        // An empty cell is the commonest cell on a roster sheet and means nothing is worked.
+        for (const t of ['', '   ', null, undefined]) assert.equal(parseCell(t).value, 'RD', JSON.stringify(t));
+    });
+
+    test('NA becomes a rest day AND says so — the app has one non-worked state', () => {
+        // Marylebone's Sundays are non-contracted, so a paper roster writes NA for "no Sunday duty"
+        // while using RD for a rest day in a contracted week. That distinction cannot survive the
+        // import, and the reader is told rather than left to find a grid disagreeing with the sheet.
+        const r = parseCell('NA');
+        assert.equal(r.value, 'RD');
+        assert.match(String(r.assumed), /NA.*RD/);
+        // A cell that IS what it stores says nothing — otherwise every rest day would raise a note
+        // and the ones that matter would be lost in it.
+        assert.equal(parseCell('RD').assumed, undefined);
+    });
+
+    test('anything else is REFUSED, never quietly turned into a rest day', () => {
+        // The core rule. Defaulting an unreadable cell to RD is the failure this module exists to
+        // prevent: the design imports "successfully", one duty lighter, and the hours panel then
+        // reports a comfortable average for a week nobody proposed.
+        for (const t of ['?', 'TBC', 'early', '25:00-26:00', '06:20', '06:20-', 'x']) {
+            const r = parseCell(t);
+            assert.ok('error' in r, `${t} was accepted as ${JSON.stringify(r)}`);
+        }
+    });
+
+    test('an impossible MINUTE is refused on either side, and :59 still is not', () => {
+        // The shipped defect: the hour was checked on both sides of the range and the minute on
+        // NEITHER, so `07:75-15:30` and `07:45-15:99` both became duties. `canonicaliseShift` only
+        // pads and re-spells, so an impossible minute round-tripped unchanged — and nothing
+        // downstream refuses one. The heat map counts the duty, the hours maths adds it, and the
+        // cell renders as an ordinary shift, so the only thing that could catch it was a reader
+        // noticing the digits in somebody else's pasted proposal.
+        for (const t of ['07:75-15:30', '07:45-15:99', '07:60-15:30', '07:45-15:60', '07:99-15:99']) {
+            assert.ok('error' in parseCell(t), `${t} was accepted as ${JSON.stringify(parseCell(t))}`);
+        }
+        // The other direction, which is the one a careless fix breaks: 59 is a real minute and 23
+        // a real hour, and a `>=` would refuse the last minute of the day on every design.
+        assert.deepEqual(parseCell('07:59-15:59'), { value: '07:59-15:59' });
+        assert.deepEqual(parseCell('00:00-23:59'), { value: '00:00-23:59' });
+    });
+
+    test('a value it returns is one the design layer already accepts', () => {
+        // Round-tripped through the app's own canonicaliser rather than compared to a literal —
+        // a test asserting its own idea of the format would pass while the app stored something else.
+        const patterns = { 1: { sun: parseCell('6:20-14:20').value, mon: parseCell('na').value } };
+        assert.deepEqual(normalisePatterns(patterns), { 1: { sun: '06:20-14:20', mon: 'RD' } });
+    });
+});
+
+describe('a pasted grid — where a paste loses a COLUMN', () => {
+    test('seven columns, or a refusal naming the row', () => {
+        // Six columns is not a week with a missing day; it is a paste that lost a separator, and
+        // guessing WHICH column is guessing at somebody's rest days.
+        const r = parseGrid(line('RD', 'RD', 'RD', 'RD', 'RD', 'RD'));
+        assert.equal(r.ok, false);
+        assert.match(String(r.error), /Row 1 has 6 day columns/);
+    });
+
+    test('TRAILING empty cells survive, because they are rest days', () => {
+        // The defect this test was written for. A week ending Friday and Saturday off exports from
+        // a spreadsheet as a row with two empty trailing cells, and trimming the LINE before
+        // splitting eats them — turning a valid row into a five-column one and refusing it with a
+        // message about separators, which sends the reader looking for a fault that is not there.
+        const r = parseGrid('06:20-14:20\t06:20-14:20\t06:20-14:20\t06:20-14:20\t06:20-14:20\t\t');
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(r.patterns['1'].fri, 'RD');
+        assert.deepEqual(r.patterns['1'].sat, 'RD');
+    });
+
+    // ── A WEEK WITH NOTHING IN IT (whole-app fix, Nov 2026) ─────────────────────────────────────
+    // A spreadsheet copies a row whose every cell is empty as a line of tabs. It was filtered out as
+    // a blank line before the rows were counted, so in an UNNUMBERED paste every later week was
+    // imported one line early — the sheet's week 3 on line 2 — and nothing said so. The design saved
+    // was not the one on the sheet, and every rule measured BETWEEN lines (the turnaround across the
+    // week boundary, weekends off, the longest run) then described a rotation nobody proposed.
+    const sheet = (/** @type {string} */ empty) => [week('06:20-14:20'), empty, week('14:00-22:00'), week('SP')].join('\n');
+
+    test('an empty week keeps its place — the weeks after it do not move up a line', () => {
+        const r = parseGrid(sheet('\t\t\t\t\t\t'), { lines: 4 });
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(r.patterns), ['1', '2', '3', '4']);
+        assert.deepEqual(Object.values(r.patterns['2']), Array(7).fill('RD'), 'the empty week is all rest days');
+        assert.equal(r.patterns['3'].mon, '14:00-22:00', 'the sheet\'s week 3 is on line 3, not line 2');
+        assert.equal(r.patterns['4'].mon, 'SPARE');
+    });
+
+    test('…the same as the same sheet pasted with commas, and through the entry point the panel calls', () => {
+        const csv = parseGrid(sheet(',,,,,,').replaceAll('\t', ','), { lines: 4 });
+        const ui = parseDesignImport(sheet('\t\t\t\t\t\t'), { lines: 4 });
+        assert.equal(ui.ok, true, ui.ok ? '' : ui.error);
+        assert.deepEqual(/** @type {any} */ (ui).patterns, /** @type {any} */ (csv).patterns);
+    });
+
+    test('…whatever its width: an empty week copied WITH its hours column is still one empty week', () => {
+        // The days plus an hours total, unnumbered: the empty week's hours cell is empty too, so the
+        // row is eight empty cells. With every cell empty there is no duty a lost column could move.
+        const r = parseGrid([line(...Array(7).fill('SP'), '35'), '\t\t\t\t\t\t\t', line(...Array(7).fill('RD'), '0')].join('\n'), { lines: 3 });
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(/** @type {any} */ (r).patterns), ['1', '2', '3']);
+    });
+
+    test('…and the line it lands on is NAMED before the save, so a stray empty row can still be taken out', () => {
+        const one = parseGrid(sheet('\t\t\t\t\t\t'), { lines: 4 });
+        assert.ok(one.ok && one.warnings.some(w => /^Line 2 is empty in the paste/.test(w)), JSON.stringify(one));
+        const two = parseGrid([week('RD'), '\t\t\t\t\t\t', week('SP'), '\t\t\t\t\t\t', week('SP'), '\t\t\t\t\t\t', week('SP')].join('\n'), { lines: 7 });
+        assert.ok(two.ok && two.warnings.some(w => /^Lines 2, 4 and 6 are empty in the paste/.test(w)), JSON.stringify(two));
+    });
+
+    test('an empty row is a week only where the weeks around it pin its place', () => {
+        // AFTER the last week it moves nothing: a selection run past the end is neither counted as
+        // weeks nor refused as too many of them.
+        const tail = parseGrid([week('RD'), week('SP'), ...Array(ROTATING_LINES).fill('\t\t\t\t\t\t')].join('\n'));
+        assert.equal(tail.ok, true, tail.ok ? '' : tail.error);
+        assert.deepEqual(Object.keys(/** @type {any} */ (tail).patterns), ['1', '2']);
+        // BEFORE a row of day names it is a spacer above the table, not week 1.
+        const above = parseGrid(['\t\t\t\t\t\t', 'SUN\tMON\tTUE\tWED\tTHU\tFRI\tSAT', week('SP')].join('\n'));
+        assert.equal(above.ok, true, above.ok ? '' : above.error);
+        assert.equal(/** @type {any} */ (above).patterns['1'].mon, 'SPARE');
+        // A line with no cells at all still carries nothing.
+        const gap = parseGrid([week('SP'), '', '   ', week('RD')].join('\n'));
+        assert.deepEqual(Object.keys(/** @type {any} */ (gap).patterns), ['1', '2']);
+    });
+
+    test('in a NUMBERED paste an empty row says nothing, and is not "an unnumbered row"', () => {
+        const r = parseGrid([line('1', ...Array(7).fill('SP')), '\t\t\t\t\t\t\t', line('3', ...Array(7).fill('RD'))].join('\n'));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(/** @type {any} */ (r).patterns), ['1', '3'], 'each row is where its own number puts it');
+    });
+
+    test('a day-name header row is dropped, not parsed as a week', () => {
+        const r = parseGrid(['WK\tSUN\tMON\tTUE\tWED\tTHU\tFRI\tSAT\tHRS', line('1', ...Array(7).fill('RD'), '0')].join('\n'));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.equal(Object.keys(r.patterns).length, 1);
+    });
+
+    test('a leading week number places the row; a trailing hours total is discarded', () => {
+        // The hours column is the author's arithmetic about their own sheet. The workspace computes
+        // hours from the duties, and carrying a second figure beside the first is how two numbers
+        // for one fact end up on a screen.
+        const r = parseGrid(line('7', ...Array(7).fill('SP'), '35'));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(r.patterns), ['7'], 'the stated week number wins over position');
+        assert.deepEqual(Object.values(r.patterns[7]), Array(7).fill('SPARE'));
+    });
+
+    test('with no numbers, ORDER is the rotation', () => {
+        const r = parseGrid([week('RD'), week('SP')].join('\n'));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(r.patterns), ['1', '2']);
+    });
+
+    test('SOME rows numbered is refused, and the message says that rather than something else', () => {
+        // It used to report "Week 1 appears twice" here — accurate, and pointing at the wrong
+        // problem, because the duplicate is a symptom of the mixed numbering rather than the fault.
+        // Numbering is now decided over the whole paste before a cell is read.
+        const r = parseGrid([week('RD'), line('1', ...Array(7).fill('RD'), '0')].join('\n'));
+        assert.equal(r.ok, false);
+        assert.match(String(r.error), /1 of 2 rows are numbered/);
+    });
+
+    test('a duplicate or out-of-range week is refused rather than resolved', () => {
+        const dup = parseGrid([line('3', ...Array(7).fill('RD'), '0'), line('3', ...Array(7).fill('SP'), '0')].join('\n'));
+        assert.equal(dup.ok, false);
+        assert.match(String(dup.error), /Line 3 appears twice/);
+        const far = parseGrid(line('99', ...Array(7).fill('RD'), '0'));
+        assert.equal(far.ok, false);
+        assert.match(String(far.error), /outside the .* rotation/);
+    });
+
+    test('more weeks than the rotation is refused; FEWER is a warning', () => {
+        // The asymmetry is the point. Too many means the paste and the rotation disagree about what
+        // is being described. Too few is a half-drafted proposal, which is a real thing to want in
+        // the workspace — and the design panels report an unfilled line better than this could.
+        const over = parseGrid(Array.from({ length: ROTATING_LINES + 1 }, () => week('RD')).join('\n'));
+        assert.equal(over.ok, false);
+        assert.match(String(over.error), /rotation is \d+ lines/);
+
+        const under = parseGrid([week('06:20-14:20'), week('SP')].join('\n'));
+        assert.equal(under.ok, true, under.ok ? '' : under.error);
+        assert.ok(under.warnings.some(w => /Only 2 of \d+ lines are filled/.test(w)), JSON.stringify(under.warnings));
+        // A week of rest days is a line not yet designed, and the warning counts as the summary beside it does.
+        // This assertion read "2 of N" over two weeks of rest days — the count of KEYS — until the two agreed.
+        const rest = parseGrid([week('RD'), week('RD')].join('\n'));
+        assert.equal(rest.ok, true, rest.ok ? '' : rest.error);
+        assert.ok(rest.warnings.some(w => /Only 0 of \d+ lines are filled/.test(w)), JSON.stringify(rest.warnings));
+    });
+
+    test('a bad cell names its week AND its day', () => {
+        // "Something in your paste is wrong" about a 168-cell grid is not an error message.
+        const r = parseGrid(line('1', 'RD', 'RD', 'RD', 'RD', 'RD', 'RD', 'TBC', '0'));
+        assert.equal(r.ok, false);
+        assert.match(String(r.error), /Row 1, SAT/);
+    });
+
+    test('commas and aligned columns work as well as tabs', () => {
+        for (const sep of [',', '   ']) {
+            const r = parseGrid(['RD', 'RD', 'RD', 'RD', 'RD', 'RD', 'RD'].join(sep));
+            assert.equal(r.ok, true, `${JSON.stringify(sep)}: ${r.ok ? '' : r.error}`);
+        }
+    });
+
+    test('nothing at all is refused rather than producing an empty design', () => {
+        for (const t of ['', '   \n  \n', null]) assert.equal(parseGrid(t).ok, false, JSON.stringify(t));
+    });
+});
+
+describe('the app\'s own JSON', () => {
+    const good = { name: 'Option A', patterns: { 1: { sun: 'RD', mon: '06:20-14:20', tue: 'SP', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } } };
+
+    test('a design round-trips, name and all', () => {
+        const r = parseDesignImport(JSON.stringify(good));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.equal(r.name, 'Option A');
+        assert.equal(r.patterns['1'].mon, '06:20-14:20');
+        assert.equal(r.patterns['1'].tue, 'SPARE');
+    });
+
+    test('its name is held to the one limit every other way a design is named uses', () => {
+        // The import's cap was a second literal of MAX_DESIGN_NAME, tied to it by nothing (whole-app
+        // fix, Nov 2026): a change to the design limit would have left imports on the old one.
+        const r = parseDesignImport(JSON.stringify({ ...good, name: 'x'.repeat(MAX_DESIGN_NAME + 20) }));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.equal(r.name.length, MAX_DESIGN_NAME);
+    });
+
+    // Whole-app review, Oct 2026: a night start or a past-midnight finish imported silently, and the
+    // paint bar then offered it as an "early" chip. CEAs do not work nights.
+    test('a night or past-midnight duty imports with a WARNING before Save, in both shapes', () => {
+        const night = { patterns: { 1: { sun: 'RD', mon: '22:00-06:00', tue: '15:00-00:30', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } } };
+        const r = parseDesignImport(JSON.stringify(night));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        const w = (r.warnings || []).find(x => /night/.test(x));
+        assert.ok(w, `no night warning in ${JSON.stringify(r.warnings)}`);
+        assert.match(String(w), /15:00-00:30, 22:00-06:00/);
+        const g = parseGrid(line('RD', '22:00-06:00', 'RD', 'RD', 'RD', 'RD', 'RD'));
+        assert.ok(g.ok && g.warnings.some(x => /Customer Experience Ambassadors \(CEAs\) do not work nights/.test(x)));
+        const fine = parseDesignImport(JSON.stringify(good));
+        assert.ok(fine.ok && !fine.warnings.some(x => /night/.test(x)), 'an ordinary design carries no night warning');
+    });
+
+    test('JSON that parses but is not a design is refused AS JSON', () => {
+        // Falling through to the grid parser would report "not a time" about a line of JSON — an
+        // accurate sentence sending the reader to entirely the wrong place.
+        const r = parseDesignImport('{"nope":1}');
+        assert.equal(r.ok, false);
+        assert.match(String(r.error), /no “patterns”/);
+        assert.match(String(parseDesignImport('{oops').error), /not valid/);
+    });
+
+    test('a line key that is not a line number, or is out of range, is refused', () => {
+        assert.match(String(parseDesignImport('{"patterns":{"x":{}}}').error), /not a line number/);
+        assert.match(String(parseDesignImport('{"patterns":{"999":{}}}').error), /outside the/);
+    });
+
+    test('a MISSING or null day is refused by name, never read as a rest day', () => {
+        // The grid path refuses a six-column row; the JSON path read an absent key through
+        // `parseCell(undefined)`, i.e. as an empty cell, i.e. RD — a duty silently lost (invariant 6).
+        const missing = { patterns: { 1: { ...good.patterns[1] } } };
+        delete /** @type {any} */ (missing.patterns[1]).fri;
+        const r = parseDesignImport(JSON.stringify(missing));
+        assert.equal(r.ok, false);
+        assert.match(String(r.error), /Line 1, FRI/);
+        const nulled = { patterns: { 1: { ...good.patterns[1], mon: null } } };
+        assert.match(String(parseDesignImport(JSON.stringify(nulled)).error), /Line 1, MON/);
+    });
+
+    test('a zero-padded line key lands on the line it names, and two spellings of one line are refused', () => {
+        // "01".."09" were stored under keys nothing reads: the preview said every line was filled
+        // while lines 1–9 stayed empty on the grid.
+        const row = good.patterns[1];
+        const padded = /** @type {Record<string, any>} */ ({});
+        for (let i = 1; i <= 3; i++) padded[String(i).padStart(2, '0')] = row;
+        const r = parseDesignImport(JSON.stringify({ patterns: padded }), { lines: 3 });
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(/** @type {any} */ (r).patterns).sort(), ['1', '2', '3']);
+
+        const both = parseDesignImport(JSON.stringify({ patterns: { 1: row, '01': row } }));
+        assert.equal(both.ok, false);
+        assert.match(String(both.error), /Line 1 appears twice/);
+    });
+
+    test('an unreadable cell inside JSON is refused too', () => {
+        // The JSON path is not a trusted path. It is the same claim in a different notation.
+        const bad = { patterns: { 1: { ...good.patterns[1], sat: 'maybe' } } };
+        assert.match(String(parseDesignImport(JSON.stringify(bad)).error), /Line 1, SAT/);
+    });
+
+    test('a grid keeps its trailing empty cells through THIS entry point too', () => {
+        // The same defect as the grid test above, one level up, and it survived the fix: this
+        // function trimmed the whole paste to decide "is there anything here", then handed the
+        // trimmed text on — eating the trailing tabs of the LAST line. That is the row most likely
+        // to have them, and the UI calls this function, not `parseGrid`. A mutation putting the
+        // trim back passed the entire suite until this case existed.
+        const r = parseDesignImport('06:20-14:20\t06:20-14:20\t06:20-14:20\t06:20-14:20\t06:20-14:20\t\t');
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.equal(r.patterns['1'].sat, 'RD');
+    });
+
+    test('a grid still reaches the grid parser, with a grid-shaped error', () => {
+        const r = parseDesignImport(line('RD', 'RD'));
+        assert.equal(r.ok, false);
+        assert.match(String(r.error), /day columns/);
+    });
+});
+
+describe('the summary shown before the save', () => {
+    test('it counts, and it does not judge', () => {
+        // Deliberately no hours, no coverage, no verdict — the workspace's own panels assess a
+        // design, and a second opinion computed here would compete with `runDesignChecks`. The
+        // first time the two disagreed nobody would know which to believe.
+        const { patterns } = /** @type {any} */ (parseGrid([week('RD'), week('SP'), line(...Array(7).fill('06:20-14:20'))].join('\n')));
+        const s = summariseImport(patterns);
+        // Two filled, not three (17 Nov 2026): a week of rest days is a line not yet designed, as the Design
+        // checks call it, and the summary counts lines the way they do.
+        assert.deepEqual(s, { filled: 2, lines: ROTATING_LINES, worked: 7, spare: 7, rest: 7 });
+        assert.deepEqual(Object.keys(s).sort(), ['filled', 'lines', 'rest', 'spare', 'worked'],
+            'a verdict, an average or a score has been added — see the module header');
+    });
+
+    test('an empty row is a line kept in its place, never a FILLED one — the summary and the warning agree', () => {
+        // A full paste with line 5 blank said "26 of 26 lines" directly above "Line 5 is empty in the paste": the count
+        // read the line's KEY, which an empty week keeps so every later week stays in its place (invariant 6).
+        // A spreadsheet copies an empty row as its separators alone — six tabs between seven empty cells.
+        const rows = Array.from({ length: ROTATING_LINES }, (_, i) => (i === 4 ? '\t\t\t\t\t\t' : week('06:20-14:20')));
+        const r = /** @type {any} */ (parseGrid(rows.join('\n')));
+        assert.equal(r.ok, true);
+        assert.ok(r.warnings.some((/** @type {string} */ w) => /^Line 5 is empty in the paste/.test(w)), 'premise: the warning names line 5');
+        assert.equal(Object.keys(r.patterns).length, ROTATING_LINES, 'premise: the empty week is kept in its place');
+        assert.equal(summariseImport(r.patterns).filled, ROTATING_LINES - 1, 'the empty line is not counted as filled');
+    });
+
+    test('…and a SHORT paste with an empty row: the short-rotation warning states the summary\'s count', () => {
+        // The full paste above was mended on 17 Nov; a short one still said "19 of 26 lines" in its summary
+        // and "Only 20 of 26 lines are filled" one line below it, in the same box — the warning counted KEYS,
+        // and the empty week keeps its key. One box, two numbers for one fact (whole-app check, Nov 2026).
+        const short = ROTATING_LINES - 6;
+        const rows = Array.from({ length: short }, (_, i) => (i === 4 ? '\t\t\t\t\t\t' : week('06:20-14:20')));
+        const grid = /** @type {any} */ (parseGrid(rows.join('\n')));
+        assert.equal(grid.ok, true, grid.ok ? '' : grid.error);
+        assert.ok(grid.warnings.some((/** @type {string} */ w) => /^Line 5 is empty in the paste/.test(w)), 'premise: line 5 is an empty week');
+        const filled = summariseImport(grid.patterns).filled;
+        assert.equal(filled, short - 1, 'premise: the summary counts the lines that hold work');
+        const said = grid.warnings.map((/** @type {string} */ w) => /^Only (\d+) of (\d+) lines are filled/.exec(w)).find(Boolean);
+        assert.ok(said, `no short-rotation warning in ${JSON.stringify(grid.warnings)}`);
+        assert.deepEqual([Number(said[1]), Number(said[2])], [filled, ROTATING_LINES], 'the warning and the summary count the filled lines differently');
+        // The app's own JSON shape, through the entry point the panel calls: a week of rest days is a key there too.
+        /** @type {Record<string, any>} */ const patterns = {};
+        for (let i = 1; i <= short; i++) patterns[String(i)] = Object.fromEntries(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(d => [d, i === 5 || d === 'sun' ? 'RD' : '06:20-14:20']));
+        const json = /** @type {any} */ (parseDesignImport(JSON.stringify({ name: 'A. Person', patterns })));
+        assert.equal(json.ok, true, json.ok ? '' : json.error);
+        assert.ok(json.warnings.some((/** @type {string} */ w) => w.startsWith(`Only ${summariseImport(json.patterns).filled} of ${ROTATING_LINES} lines are filled`)),
+            `the JSON path counts keys: ${JSON.stringify(json.warnings)}`);
+        assert.equal(summariseImport(json.patterns).filled, short - 1, 'premise: one of the JSON weeks is all rest days');
+    });
+});

@@ -45,7 +45,7 @@
 import { test, expect } from './fixtures.js';
 import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, stubUsageReads, usageStats, sheetAction } from './helpers.js';
 import { FIXED_TIME, dismissOneTimeOverlays, prep, settle } from './visual-harness.js';
-import { ROTATING_LINES } from '../links-design.js';
+import { ROTATING_LINES } from '../link-designer-design.js';
 import { alSheetFixture } from './al-sheet-fixture.js';
 import { teamMembers } from '../roster-data.js';
 import { SAVE_WORDS, questionWords, confirmWords, saveButtonWords, receiptWords, undoConfirmWords, undoneWords } from '../al-leave-words.js';
@@ -425,7 +425,7 @@ test('operations — Annual leave sheet: the review, the Save\'s receipt and its
     await expect(card).toHaveScreenshot('operations-al-sheet-undone.png');
 });
 
-// ── Links workspace ───────────────────────────────────────────────────────────────────────────
+// ── Link Designer ───────────────────────────────────────────────────────────────────────────
 // The app's most visually complex surface — a 28×7 grid, an hour-by-hour heat map, a paint bar, a
 // design picker — and until v19.38 it had no pixel coverage at all. Baselined at DESKTOP, where the
 // grid's sticky header and the ≥1024px `overflow-x` drop are load-bearing (see the links rules doc);
@@ -464,14 +464,14 @@ test('links — the blank state, no designs saved (desktop 1280)', async ({ page
         /** @type {any} */ (window).__E2E.docs = [];
     });
     await prep(page, { width: 1280, height: 900 });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     // Sentinels: the empty state must be the thing on screen, and it must carry its action — a
     // regression that dropped the button would otherwise just re-baseline as the new truth.
     await expect(page.locator('#linksEmptyState')).toBeVisible();
     await expect(page.locator('#linksEmptyGenerate')).toBeVisible();
     await expect(page.locator('#linksGridHint')).not.toContainText('Paint bar');
     await settle(page, '#linksEmptyState');
-    await expect(page.locator('#linksGridCard')).toHaveScreenshot('links-blank-grid-card.png');
+    await expect(page.locator('#linksGridCard')).toHaveScreenshot('link-designer-blank-grid-card.png');
 });
 
 test('links — design grid + coverage + checks (desktop 1280)', async ({ page }) => {
@@ -482,7 +482,7 @@ test('links — design grid + coverage + checks (desktop 1280)', async ({ page }
         }];
     }, LINKS_DESIGN);
     await prep(page, { width: 1280, height: 2400 });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
 
     // Sentinels BEFORE the capture. Without them a regression that dropped the seeded design still
     // renders a plausible page — a grid of empty rows and an empty-state heat map — and the next
@@ -494,8 +494,8 @@ test('links — design grid + coverage + checks (desktop 1280)', async ({ page }
     await expect(page.locator('#linksOverLengthNotice')).toBeHidden();
     await expect(page.locator('tr.row-unfilled')).toHaveCount(0, { timeout: 10000 });
     await expect(page.locator('#coverageHeatmap')).toBeVisible();
-    await settle(page, '.links-grid');
-    await expect(page).toHaveScreenshot('links-workspace.png');
+    await settle(page, '.link-designer-grid');
+    await expect(page).toHaveScreenshot('link-designer-workspace.png');
 });
 
 // The AUTO-GENERATOR had no pixel coverage at all until v19.64, because the card is collapsed in the
@@ -516,7 +516,7 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
         }];
     }, LINKS_DESIGN);
     await prep(page, { width: 1280, height: 2600 });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
 
@@ -598,7 +598,7 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
         .toBeGreaterThan(5);
 
     await settle(page, '.gen-objectives');
-    await expect(page.locator('#generatorCard')).toHaveScreenshot('links-generator.png');
+    await expect(page.locator('#generatorCard')).toHaveScreenshot('link-designer-generator.png');
 });
 
 // The same card at a NARROW viewport, where its layout rules actually differ: the shift-time column
@@ -616,7 +616,7 @@ test('links — auto-generator card at a narrow width (390)', async ({ page }) =
         }];
     }, LINKS_DESIGN);
     await prep(page, { width: 390, height: 1400 });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
     await page.locator('#objWeekends').uncheck();
@@ -628,9 +628,9 @@ test('links — auto-generator card at a narrow width (390)', async ({ page }) =
     // this project is fine-pointer, where the number box is 52×28 and the clause fits whatever you
     // do to it. The v19.65 fragmentation only happens at 56×40 — the coarse-pointer size. Measured:
     // deleting the `white-space: nowrap` that fixes it leaves this test green. It lives in
-    // links.spec.js on mobile-chrome instead, where it fails.
+    // link-designer.spec.js on mobile-chrome instead, where it fails.
     await settle(page, '.gen-objectives');
-    await expect(page.locator('.gen-objectives')).toHaveScreenshot('links-objectives-narrow.png');
+    await expect(page.locator('.gen-objectives')).toHaveScreenshot('link-designer-objectives-narrow.png');
 });
 
 // THE DESIGN CHECKS CARD HAD NO PIXEL COVERAGE EITHER, and it is the panel that goes to the
@@ -670,7 +670,7 @@ test('links — design checks panel, disclosure open (desktop 1280)', async ({ p
         }];
     }, CHECKS_DESIGN);
     await prep(page, { width: 1280, height: 900 });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await page.evaluate(() => document.querySelectorAll('#checksContent details').forEach((d) => {
         /** @type {HTMLDetailsElement} */ (d).open = true;
@@ -683,7 +683,7 @@ test('links — design checks panel, disclosure open (desktop 1280)', async ({ p
     await expect(page.locator('#checksContent')).toContainText('design target');
     await expect(page.locator('#checksContent')).toContainText('consecutive days worked');
     await settle(page, '#checksContent');
-    await expect(page.locator('#checksContent')).toHaveScreenshot('links-design-checks.png');
+    await expect(page.locator('#checksContent')).toHaveScreenshot('link-designer-design-checks.png');
 });
 
 // The "Recently deleted" panel (v19.41) had NO pixel coverage, and it shipped broken because of it:
@@ -702,13 +702,13 @@ test('links — Recently deleted panel (desktop 1280)', async ({ page }) => {
         ];
     }, LINKS_DESIGN);
     await prep(page, { width: 1280, height: 900 });
-    await page.goto('/links.html');
+    await page.goto('/link-designer.html');
     await sheetAction(page, 'designBinBtn');
     // Sentinel: the row must actually be there, or the baseline locks in an empty panel.
     await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
     await expect(page.locator('.bin-row-meta')).toContainText('Deleted');
     await settle(page, '#designBinContent');
-    await expect(page.locator('#designBinContent')).toHaveScreenshot('links-recently-deleted.png');
+    await expect(page.locator('#designBinContent')).toHaveScreenshot('link-designer-recently-deleted.png');
 });
 
 // ── Guide pages (static, auth-free) ────────────────────────────────────────────────────────

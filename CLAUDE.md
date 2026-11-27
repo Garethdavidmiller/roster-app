@@ -152,7 +152,7 @@ discussion" decisions that bind only that area. A decision that binds more than 
 | `roster-data.md` | the member fields, `rosterChanges`, the cycles and fixed patterns, `APP_VERSION` | `roster-data.js` · `roster-cycle-data.js` · `roster-member-data.js` · `roster-roles.js` |
 | `roster-import.md` | the weekly roster import, and every defence against a week on the wrong days | the import modules and `functions/roster-*` |
 | `paycalc.md` | the Pay Calculator | `paycalc*` |
-| `links-design.md` | the Links workspace | `links*` |
+| `link-designer.md` | the Link Designer | `links*` |
 | `css-tokens.md` | surfaces, colour, type, motion, spacing, focus, the app-drawn controls | every `*.css` |
 | `guide-pages.md` | the guide pages | the guide pages |
 | `notifications.md` | the push notification language and the single builder | the push senders, `notif.js`, `notif-card*.js`, `service-worker.js` |
@@ -176,7 +176,7 @@ tables, each row pointing at the module header that argues it:
 | Authentication | `AUTH_AND_SESSIONS.md` | session ↔ identity ↔ claim, the three ways they disagree, and a write whose account has gone |
 | Overtime | `OVERTIME_AVAILABILITY.md` → Invariants | the frozen population, the deadline clock, no-response ≠ not-available |
 | Pay calculator | `.claude/rules/paycalc.md` → Invariants | round trips, per-member keys, and never guessing a figure |
-| Links workspace | `.claude/rules/links-design.md` → Invariants | advisory vs hard limits, co-editing, refusing rather than half-loading |
+| Link Designer | `.claude/rules/link-designer.md` → Invariants | advisory vs hard limits, co-editing, refusing rather than half-loading |
 
 **When an invariant changes, the row changes in the same commit** — a contract nobody updates is
 worse than none, because it is believed.

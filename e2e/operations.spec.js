@@ -3720,7 +3720,7 @@ test('operations: an unreadable cell can be answered in the review, and the entr
 });
 
 test('operations: entry times typed without a colon are shaped into real times and written', async ({ page }) => {
-    // The same keypad problem as the Links window: `manualCellValue` demands HH:MM, and a phone's
+    // The same keypad problem as the Link Designer window: `manualCellValue` demands HH:MM, and a phone's
     // numeric keypad cannot type the colon, so "0600" left the cell at "Enter both times" for ever.
     await seedSession(page, 'G. Miller');
     await openRosterReview(page);
@@ -4260,7 +4260,7 @@ test('operations: confirming the leaver disable keeps the first run\'s report', 
 });
 
 // A TIER TAKEN AWAY, AND A DISABLED LEAVER'S NOTIFICATIONS, ARE REPORTED (sign-in audit D3 and D2, 13 Nov 2026). The
-// server signs a member out of every device when a run takes admin, manager or Links designer from them (`demoted`),
+// server signs a member out of every device when a run takes admin, manager or link designer from them (`demoted`),
 // and a confirmed sweep switches off the notifications of leavers disabled on an earlier run
 // (`disabledLeaverPushRemoved`). A member signed out unasked will ask the admin why, so both reach the result box;
 // a count of nought says nothing.

@@ -114,7 +114,7 @@ h2:first-of-type { margin-top: 4px; }
 .guide-header h2::before,
 .guide-header h2::after { content: none; }
 
-/* ── Links: guide-shell.css (v25.84), one recipe for all five guides ── */
+/* ── Link Designer: guide-shell.css (v25.84), one recipe for all five guides ── */
 
 /* ── Lede / intro paragraph ──────────────────────────── */
 .lede { font-size: 14px; color: var(--text); margin-bottom: 10px; }

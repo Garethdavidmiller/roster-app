@@ -40,7 +40,7 @@ export const CONFIG = {
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
-    // Names with access to the Links design workspace — the owner alone (owner, 9 Nov 2026: "hide the link designer
+    // Names with access to the Link Designer design workspace — the owner alone (owner, 9 Nov 2026: "hide the link designer
     // page from everyone apart from me"). Regenerate (`npm run generate:roster-members`) with any change here, and run
     // Operations → Set up accounts after the deploy: the server's `linksDesigner` claim is what lets a design be SAVED.
     LINKS_DESIGNERS:                  ['G. Miller'],
@@ -175,7 +175,7 @@ export function projectAnnualLeaveOverage({ name, year, existingALDates, newALDa
 // ============================================
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported, so a module that already
-// imports from roster-data.js (the Links workspace does) need not import both files.
+// imports from roster-data.js (the Link Designer does) need not import both files.
 import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS } from './roster-cycle-data.js';
 import { isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS };

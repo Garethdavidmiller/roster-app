@@ -15,7 +15,7 @@ import { folderStats, today, assess, sheetRules as currentRules, dutyMinutes, st
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import fs from 'node:fs';
 import { waivedRows, WAIVERS, waiveShort, SHORTLIST } from './fresh.mjs';
-import { scoreOrder } from '../../../links-adjacency.js';
+import { scoreOrder } from '../../../link-designer-adjacency.js';
 const DIR = new URL('../proposals/', import.meta.url);
 const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
 const timed = s => /^\d\d:\d\d-\d\d:\d\d$/.test(s);
@@ -130,7 +130,7 @@ body.dense td{line-height:1.1}
    padding and the floor are as they were */
 body.dense td .wv, body.dense td.n em.tl, body.dense td.n em.hl{line-height:1}
 </style></head><body>
-<div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
+<div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
 <div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${countWord(SHORTLIST.length)} shortlisted ones marked ★, and the ${countWord(rows.filter(r => r.thirty).length)} where 14 days’ leave buys 30 days off, as today, marked so — sorted by December rules met, then avoidable fatigue warnings, then by name${rows.some(r => r.hard) ? '; a proposal that breaks a hard limit cannot be run as it stands and comes last' : ''}.<span class="how"> Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them.</span> Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
 <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 <table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings<sup class="fn">§</sup></th><th>Most days in a row<sup class="fn">§</sup></th><th>Full weekends off</th><th>Shortest rest between shifts<sup class="fn">§</sup></th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, <span style="white-space:nowrap">Mon–Sat</span></th><th>Weeks on one shift time, all earlies or all lates</th><th class="mix">Weeks mixing earlies and lates</th><th><span style="white-space:nowrap">Week-to-week</span> change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
@@ -138,7 +138,7 @@ ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>
 <div class="foot"><p>* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover-week duties are not known yet and are left out. “Shift times” counts different start–finish times; “new” means nobody works that time today. <b class="gk">Green</b>: every December rule met, or no avoidable fatigue warning in the fixed duties.</p><p>“Weeks on one shift time” means one shift time Monday to Friday, all earlies or all lates; beneath it, the longest block of weeks in a row on one kind, “up to” if the cover weeks beside it go the same way. The week-to-week change is the average move of the start time from one week to the next.</p><p>§ On the duties the rota fixes, the cover weeks left out for the proposal and today alike; “up to” is the worst place a cover week’s four duties could fall, its Sunday worked as overtime — for the 55-hour week, as <span style="white-space:nowrap">8-hour</span> duties. Avoidable fatigue warnings come from the ORR’s good-practice list plus rail-industry checks, leaving out the two that come with the station and the link — the 06:20 open and a weekly rotation — and are reported, never pass or fail.</p>${rows.some(r => r.waived) ? `<p>‡ A rule set aside for that proposal (${rows.filter(r => r.waived).map(r => `${r.name}: the ${WAIVERS[r.code].keys.map(waiveShort).join(' and ')}, ${WAIVERS[r.code].date.replace(/ (\w{3})\w+ /, ' $1 ')}`).join('; ')}).</p>` : ''}<p>Full detail for each proposal is in its own eight-page sheet; the rules themselves are in <span style="white-space:nowrap">links-26-rules.pdf</span>.</p></div>
-<p class="pfoot"><span>Page 1 of 1 — Every proposal against today’s link</span><span><b>At a glance</b> · Marylebone Roster — Links designer</span></p>
+<p class="pfoot"><span>Page 1 of 1 — Every proposal against today’s link</span><span><b>At a glance</b> · Marylebone Roster — Link Designer</span></p>
 </body></html>`;
 // ONE PAGE, WHATEVER THE COUNT (30 Oct 2026). The fourteenth proposal, In Step, pushed the footer onto a second sheet:
 // the type was sized for thirteen rows and nothing said so. So the page is printed, its pages counted, and the scale

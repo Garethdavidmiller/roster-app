@@ -26,9 +26,9 @@
 // it starts from come from anneal.mjs with its spacing terms (GAP_W, ISO_X, DAYS_X, HEAVY_W) switched on.
 //   [floors] node space-polish.mjs <start.json> <out.json> <seed> <iterations>
 import { readFileSync, writeFileSync } from 'node:fs';
-import { runDesignChecks, DAYS, startMinutes, endMinutesAbs } from '../../../links-design.js';
-import { assessFatigue } from '../../../links-fatigue.js';
-import { scoreOrder } from '../../../links-adjacency.js';
+import { runDesignChecks, DAYS, startMinutes, endMinutesAbs } from '../../../link-designer-design.js';
+import { assessFatigue } from '../../../link-designer-fatigue.js';
+import { scoreOrder } from '../../../link-designer-adjacency.js';
 import { feel, dutyMinutes, tightestRest } from './report-data.mjs';
 import { leave } from './leave.mjs';
 

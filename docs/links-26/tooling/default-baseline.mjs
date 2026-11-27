@@ -1,14 +1,14 @@
 // What the app's own shipped default produces at ROTATING_LINES (26 since v24.47) — the comparator for any proposal.
 // Moved from docs/links-24/tooling on 7 Nov 2026 (it was written at 24 lines, which this line used to say), unchanged
-// but for this note: docs/LINKS_REFERENCE.md sends a reader here to measure the default (the December 2026
+// but for this note: docs/LINK_DESIGNER_REFERENCE.md sends a reader here to measure the default (the December 2026
 // plan, which quoted its 24-line output, is in git: git show 16386f9b:docs/LINKS_DEC2026_PLAN.md). From this
 // folder: node default-baseline.mjs — the `adj` line's gentleMean, gentleWorst and gentleOver are the quoted figures.
-import { runDesignChecks, weeklyHours, lineTotals, ROTATING_LINES } from '../../../links-design.js';
-import { generateLink } from '../../../links-generate.js';
-import { buildDefaultTargets } from '../../../links-default-targets.js';
-import { assessFatigue } from '../../../links-fatigue.js';
-import { assessHardLimits } from '../../../links-limits.js';
-import * as adj from '../../../links-adjacency.js';
+import { runDesignChecks, weeklyHours, lineTotals, ROTATING_LINES } from '../../../link-designer-design.js';
+import { generateLink } from '../../../link-designer-generate.js';
+import { buildDefaultTargets } from '../../../link-designer-default-targets.js';
+import { assessFatigue } from '../../../link-designer-fatigue.js';
+import { assessHardLimits } from '../../../link-designer-limits.js';
+import * as adj from '../../../link-designer-adjacency.js';
 const t = buildDefaultTargets();
 const g = generateLink({ slots: t.slots, spareLines: t.spareLines, lines: ROTATING_LINES });
 console.log('mode', g.mode, 'reason', g.reason, 'waves', g.waves, 'keys', Object.keys(g));

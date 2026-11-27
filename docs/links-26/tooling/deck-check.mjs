@@ -20,7 +20,7 @@ import { personal, weekendGap } from './plain.mjs';
 import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 import { kindBlocks } from './blocks.mjs';
-import { scoreOrder } from '../../../links-adjacency.js';
+import { scoreOrder } from '../../../link-designer-adjacency.js';
 import { SHORTLIST, BASES } from './fresh.mjs';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy

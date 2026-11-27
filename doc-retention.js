@@ -17,7 +17,7 @@
  *
  * **The clock must be the server's.** A six-month cutoff computed from `new Date()` is a deletion
  * driven by whichever admin device happened to upload; one running months fast takes months of
- * current documents with it, silently. This repo already knows that hazard — it is why the Links
+ * current documents with it, silently. This repo already knows that hazard — it is why the Link Designer
  * bin's automatic purge was disarmed at v19.86 — and this path had it too. No server time, no
  * sweep: retention is housekeeping and runs again on the next upload.
  *
@@ -57,7 +57,7 @@ import { sixMonthCutoffISO, legacyDocPath } from './storage-utils.js';
 export async function pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject, fs) {
     // TRUSTED TIME (v21.86, external audit). The cutoff came from `new Date()` — a destructive
     // delete driven by whichever admin device uploaded, so a clock running months fast silently
-    // took months of current documents. This is the hazard that had the Links purge disarmed at
+    // took months of current documents. This is the hazard that had the Link Designer purge disarmed at
     // v19.86, in a path nobody had disarmed. The doc we just wrote carries a server `uploadedAt`;
     // reading it back costs one read and needs no new infrastructure. Unreadable or missing →
     // SKIP: retention is housekeeping and runs again on the next upload. The right long-term home

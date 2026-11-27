@@ -26,10 +26,10 @@
  *
  *   · `login-overlay.js`'s `#loginGrade` / `#loginName` — the sign-in cascade, the FIRST dropdown
  *     any member touches, on all six protected pages plus the Calendar's front door.
- *   · `links-generator-targets.js`'s `.gen-slot-time` — one per shift slot in the generator table.
+ *   · `link-designer-generator-targets.js`'s `.gen-slot-time` — one per shift slot in the generator table.
  *
  * The `createElement` half had a second, quieter hole: it asked whether a MODULE calls
- * `enhanceSelect` anywhere, not whether THIS select is enhanced. `links-generator-targets.js` calls
+ * `enhanceSelect` anywhere, not whether THIS select is enhanced. `link-designer-generator-targets.js` calls
  * it for its saved-setups picker, so its slot times were reported as covered by a module that does
  * enhance — just not them. Both holes are closed by identifying each select individually, at its own
  * construction site, in all three shapes.
@@ -63,9 +63,9 @@ const ROOT = new URL('.', REPO_ROOT_URL);
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, ROOT), 'utf8');
 
 /** Block comments, line-leading `//`, and HTML comments — the same stripping card-header-parity
- *  does, and for the same reason: half the modules and both of links.html's masthead comments
+ *  does, and for the same reason: half the modules and both of link-designer.html's masthead comments
  *  DISCUSS `<select>` in prose, and prose is not shipped markup. Leaving HTML comments in was the
- *  first cut, and it reported two selects in links.html that are two sentences about a select that
+ *  first cut, and it reported two selects in link-designer.html that are two sentences about a select that
  *  no longer exists. */
 const strip = (/** @type {string} */ s) => s
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -136,13 +136,13 @@ const NATIVE_BY_DECISION = {
         + 'carried the identical phantom picker, just one card further down where it was less likely '
         + 'to be noticed first.',
 
-    'links-generator-targets.js.gen-slot-time':
+    'link-designer-generator-targets.js.gen-slot-time':
         'One per shift slot, inside the generator target TABLE — a dense grid of times a designer '
         + 'sets in a run, not fields read one at a time. Replacing every cell of a table with a '
         + 'sheet trigger is a different interaction from replacing a field, and it is a design '
         + 'question for the owner rather than a mechanical conversion. Designer-only surface.',
 
-    // The Links inline grid-cell editor (`links-app.js` then, `links-grid.js` since 25 Nov 2026) WAS
+    // The Link Designer inline grid-cell editor (`link-designer-app.js` then, `link-designer-grid.js` since 25 Nov 2026) WAS
     // listed here, and is not any more: v23.38 converted it, and the conversion is why the
     // detached-select rule above exists. The editor now builds a select purely to parse its own
     // options and hands the groups to `openOptionSheet`, which is the right answer for an ephemeral
@@ -187,11 +187,11 @@ function findSelects() {
         for (const m of src.matchAll(/(?:\b(?:const|let|var)\s+)?([A-Za-z_$][\w$]*)\s*=\s*document\.createElement\(\s*['"]select['"]\s*\)/g)) {
             const ident = m[1];
             const after = src.slice(m.index, m.index + 600);
-            // A DETACHED select is not a control. `links-grid.js` builds one purely to turn an
+            // A DETACHED select is not a control. `link-designer-grid.js` builds one purely to turn an
             // options string into the sheet's grouped shape via `readGroups`, and never inserts it
             // — so there is no OS popup to replace and nothing for a reader to open. Recognised per
             // SELECT, by this variable reaching `readGroups`, rather than per MODULE by the file
-            // importing it: `links-generator-targets.js` both imports the enhancer and ships native
+            // importing it: `link-designer-generator-targets.js` both imports the enhancer and ships native
             // selects, which is exactly how a module-level answer reported them as covered.
             if (new RegExp(`readGroups\\(\\s*${ident}\\b`).test(src)) continue;
             const id  = after.match(/\.id\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? '';

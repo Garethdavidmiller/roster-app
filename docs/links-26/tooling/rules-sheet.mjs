@@ -17,7 +17,7 @@ import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, COVE
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { today, assess, sheetRules as currentRules, flexibleRules, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
-import { assessFatigue } from '../../../links-fatigue.js';
+import { assessFatigue } from '../../../link-designer-fatigue.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const OUT = new URL('../links-26-rules.pdf', import.meta.url).pathname;
@@ -94,7 +94,7 @@ const ffTitle = r => r.code === 'FF2' ? 'Early shift starting 05:00 to 06:59' : 
 const ffRows = live.map(r => `<tr><td class="ff-code">${esc(r.code)}</td><td>${ffTitle(r)}${r.confirm ? ' <span class="conf">definition to confirm</span>' : ''}</td><td class="fam">${esc(r.family)}</td><td class="num">${ffStatus(r)}</td></tr>`).join('');
 
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The December 2026 rules — the new CEA link</title>
-<link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
+<link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/link-designer.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
 html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 10.5px; line-height: 1.36; }
@@ -152,7 +152,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </style></head><body>
 
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · the rules</div><h1>The December 2026 rules</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · the rules</div><h1>The December 2026 rules</h1>
   <div class="sub">The rules every proposed CEA link is measured against, with today’s link beside each one</div>
   <div class="meta">Prepared ${RENDERED} · the rules and every figure below are read from the same code that writes the proposal sheets, not typed</div></div></div>
 
@@ -186,7 +186,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${decRows}</tbody></table>
   <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ.</p>
 
-  <div class="foot"><span>Page 1 of 2 — Hard limits and the December 2026 rules</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 1 of 2 — Hard limits and the December 2026 rules</span><span><b>December 2026 rules</b> · Marylebone Roster — Link Designer</span></div>
 </section>
 
 <section class="page">
@@ -206,7 +206,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>Preferences <span class="tag adv">not scored</span></h2>
   <p class="lead">Not rules, and not scored. The first two and the last are gains, so a proposal sheet marks a design green where it beats today’s link on them; how much each matters is for staff to say.</p>
   <ul class="list">
-    <li><b>Days in a row.</b> The Links designer aims for six or fewer, well inside the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</li>
+    <li><b>Days in a row.</b> The link designer aims for six or fewer, well inside the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</li>
     <li><b>Full weekends off.</b> A Saturday off followed by a Sunday off at the start of the next line. Today’s link gives ${TA.checks.weekendsOff} in 20.</li>
     <li><b>Weeks on one shift time.</b> The same clock time Monday to Friday, all earlies or all lates. A week that mixes the two is what people mean by “all over the place”.</li>
     <li><b>Familiar shift times.</b> How many of a design’s times somebody already works today. A rough guide to what there is to learn, not to what staff will accept.</li>
@@ -226,7 +226,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <div class="callout" style="margin-top:2px;padding-top:4px;padding-bottom:4px"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and every sheet and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>
 
-  <div class="foot"><span>Page 2 of 2 — Flexible rules, fatigue factors, preferences and open questions</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 2 of 2 — Flexible rules, fatigue factors, preferences and open questions</span><span><b>December 2026 rules</b> · Marylebone Roster — Link Designer</span></div>
 </section>
 </body></html>`;
 

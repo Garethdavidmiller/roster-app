@@ -31,7 +31,7 @@ const { canOpenNewlink } = await import('../auth-policy.js');
 const drawer = await import('../calendar-drawer.js');
 
 const ADMIN = CONFIG.ADMIN_NAMES[0];
-/** A current member who is no admin, no Links designer and no manager — an ordinary colleague. */
+/** A current member who is no admin, no link designer and no manager — an ordinary colleague. */
 const MEMBER = /** @type {any} */ (teamMembers.find((/** @type {any} */ m) => !m.hidden
     && !CONFIG.ADMIN_NAMES.includes(m.name) && !CONFIG.LINKS_DESIGNERS.includes(m.name)
     && !(CONFIG.MANAGER_NAMES ?? []).includes(m.name))).name;
@@ -75,7 +75,7 @@ describe('calendarDrawerOptions — the drawer a session gets', () => {
         assert.deepEqual(used, ['signOut']);
     });
 
-    test('the admin gets the admin and Links pills', () => {
+    test('the admin gets the admin and Link Designer pills', () => {
         const o = drawer.calendarDrawerOptions({ name: ADMIN }, hooks().deps);
         assert.equal(o?.isAdmin, true);
         assert.equal(o?.isLinksDesigner, CONFIG.LINKS_DESIGNERS.includes(ADMIN));

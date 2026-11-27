@@ -9,7 +9,7 @@
  *   TOO EARLY is the dangerous one and it is intermittent. The sheet's close issues a
  *   `history.back()` whose popstate arrives later; a caller that opens a dialog before that echo
  *   pushes an entry the traversal then pops, so the dialog closes itself the instant it opened.
- *   The Links grid editor opens `promptDialog` from exactly this callback. Nothing errors, and it
+ *   The Link Designer grid editor opens `promptDialog` from exactly this callback. Nothing errors, and it
  *   depends on how fast the browser answers, so it does not reproduce on demand.
  *
  *   TOO LATE only costs time — but it cost every pick in the app 320 ms for six releases, a fixed
@@ -231,7 +231,7 @@ describe('the preview fires ON THE TAP — that is what makes a pick read as ins
 describe('ONE tap is one pick — a second tap during the fade is not another', () => {
     // The real close() hands a second caller the SAME landing promise, so each extra tap chained
     // another onPick onto it: two picks → two `change` events, and a double tap on "Custom…" in the
-    // Links grid editor → two promptDialogs stacked.
+    // Link Designer grid editor → two promptDialogs stacked.
     test('two taps before the close lands report one pick, the first', async () => {
         /** @type {string[]} */ const picked = [];
         mod.openOptionSheet({ title: 't', groups: GROUPS, createLightbox: fakeLightbox, onPick: (/** @type {string} */ v) => picked.push(v) });

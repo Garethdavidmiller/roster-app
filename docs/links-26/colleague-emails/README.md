@@ -42,7 +42,7 @@ template of its own here.
 ## Where the figures come from
 
 Every figure is either the New link page's (`newlink-data.js`) or a proposal sheet's, or **counted from the proposals'
-own weeks** (`links-proposals.js`) by the page's rules: one person over a year, Monday to Saturday as Sundays are
+own weeks** (`link-designer-proposals.js`) by the page's rules: one person over a year, Monday to Saturday as Sundays are
 overtime, cover weeks left out. Each counted figure was first checked by reproducing a figure the page publishes with
 the same count; a count that cannot reproduce the page's figures is not used.
 
@@ -63,6 +63,6 @@ the same count; a count that cannot reproduce the page's figures is not used.
 ## When they go stale
 
 The figures belong to the three designs as they stand. **If the shortlist changes, or a design's weeks change
-(`links-proposals.js`), every figure here must be checked again before another email is sent** — the proposal
+(`link-designer-proposals.js`), every figure here must be checked again before another email is sent** — the proposal
 sheets' links name each design's fingerprint, so a changed design also changes the link in the template. Once a
 proposal is chosen (`CHOSEN` in `newlink-config.js`), these templates are history: do not send them.

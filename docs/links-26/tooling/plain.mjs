@@ -102,7 +102,7 @@ const PLAIN_FATIGUE = [
   [/consecutive early shifts/i, 'long runs of early shifts'],
   [/successive start times varying/i, 'start times that jump by more than two hours'],
   [/less than 12h rest/i, 'less than 12 hours between two shifts'],
-  [/55 hours/i, 'more than 55 hours in any seven-day period'],   // the app's own title (MRSF, links-fatigue.js): a rolling seven days, not a calendar week (external review, 31 Oct 2026)
+  [/55 hours/i, 'more than 55 hours in any seven-day period'],   // the app's own title (MRSF, link-designer-fatigue.js): a rolling seven days, not a calendar week (external review, 31 Oct 2026)
   [/consecutive 8h shifts/i, 'long runs of 8-hour shifts'],
   [/consecutive day shifts/i, 'long runs of day shifts'],
   [/backward rotating/i, 'start times moving earlier through the week'],
@@ -357,7 +357,7 @@ function front({ T, P, meta, pages, coverHead }) {
     plus.length ? `For staff, the biggest ${plus.length === 1 ? 'gain is' : 'gains are'} ${andList(plus)}.` : 'Nothing is notably better for staff than today.',
     minus.length ? (minus.length === 1 ? `The main trade-off: ${minus[0]}.` : `The main trade-offs: ${minus.slice(0, -1).join('; ')}; and ${minus[minus.length - 1]}.`) : 'Nothing is notably worse than today.'].join(' ');
 
-  const foot = (k, title) => `<div class="foot"><span>Page ${k} of ${pages} — ${title}</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>`;
+  const foot = (k, title) => `<div class="foot"><span>Page ${k} of ${pages} — ${title}</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Link Designer</span></div>`;
   const n1f = x => x == null ? '—' : Number(x).toFixed(1);
   const tile = (cls, qn, big, label, small) => `<div class="tile ptile ptile-${cls}"><span class="q">${qn}</span><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
 
@@ -550,8 +550,8 @@ function methodPage({ meta, pages }) {
   <div class="tboxes">${boxes}</div>
   <h2 class="pmh">What each figure is based on</h2>
   <div class="pcards">${items.map(([h, t]) => `<div class="pcard"><h4>${h}</h4><p>${t}</p></div>`).join('')}</div>
-  <p class="muted pimport">The rota is supplied with this PDF, in the pack’s import files, as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on it — giving the runs at their worst case, which pages 2 and 7 give as “up to” — though not the December rules or the yearly figures, which are this sheet’s. The fingerprint <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the ${LINES * 7} days of the rota and nothing else, so a printout always matches the design it came from.</p>
-  <div class="foot"><span>Page ${pages} of ${pages} — Workings · Can I trust these numbers?</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
+  <p class="muted pimport">The rota is supplied with this PDF, in the pack’s import files, as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Link Designer (Import), which re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on it — giving the runs at their worst case, which pages 2 and 7 give as “up to” — though not the December rules or the yearly figures, which are this sheet’s. The fingerprint <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the ${LINES * 7} days of the rota and nothing else, so a printout always matches the design it came from.</p>
+  <div class="foot"><span>Page ${pages} of ${pages} — Workings · Can I trust these numbers?</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Link Designer</span></div>
 </section>`;
 }
 
@@ -819,12 +819,12 @@ section.page.rota-tight .gloss { font-size: 8.9px; line-height: 1.27; } section.
 section.page.rota-tighter .print-grid .shift-cell { height: 18px; } section.page.rota-tighter .print-grid .shift-cell-btn { line-height: 1.05; font-size: 8.2px; }
 /* page 3: a cover week's days were a pale gold within a shade of an early turn's peach, in the grid and in its key.
    A light diagonal hatch on the same gold says "not yet given a turn" at a glance, in colour or not. The app's own
-   Links page is untouched: this is the sheet's stylesheet. */
+   Link Designer page is untouched: this is the sheet's stylesheet. */
 .print-grid .shift-cell-btn.type-spare, .legend i.lg-cover { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent-gold) 26%, white) 0 3px, color-mix(in srgb, var(--accent-gold) 9%, white) 3px 6px) !important; }
 /* page 3 IN BLACK AND WHITE (whole-pack review, 5 Nov 2026): an early's peach, a late's pale blue and a rest day's grey all
    printed as the same light grey, so on an office printer the grid was a wall of one tone. A rest day is now white — nothing
    to work — and a late a deeper blue than an early's peach, so the three read apart in grey as well as in colour; the cover
-   week keeps its hatch. The key beneath the grid follows. The app's own Links page is untouched. */
+   week keeps its hatch. The key beneath the grid follows. The app's own Link Designer page is untouched. */
 .print-grid .shift-cell-btn.type-rd, .legend i.lg-rd { background: white !important; }
 .print-grid .shift-cell-btn.type-late, .legend i.lg-late { background: color-mix(in srgb, var(--shift-late-fill) 34%, white) !important; }
 /* THIRD POLISH PASS (4 Oct 2026, two visual reviews of all 80 pages). Spacing, widths and sizes only; the words that move are

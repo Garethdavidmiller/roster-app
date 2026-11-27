@@ -180,10 +180,10 @@ test('a doc that says "`symbol` in `file.js`" is right about the file', () => {
     // they moved to the files that now hold the reasoning, and a guard that reads only the old homes
     // stops guarding.
     const claims = [];
-    // The two area REFERENCE docs joined 26 Nov 2026, the day they were split out of links-design.md and
+    // The two area REFERENCE docs joined 26 Nov 2026, the day they were split out of link-designer.md and
     // paycalc.md: the routing claims moved with the text, and this guard follows them, for the reason above.
     for (const doc of ['./CLAUDE.md', './docs/AI_MAP.md', './docs/FILE_INDEX.md',
-        './docs/LINKS_REFERENCE.md', './docs/PAYCALC_REFERENCE.md',
+        './docs/LINK_DESIGNER_REFERENCE.md', './docs/PAYCALC_REFERENCE.md',
         ...readdirSync(new URL('./.claude/rules/', REPO_ROOT_URL)).filter(f => f.endsWith('.md')).sort()
             .map(f => `./.claude/rules/${f}`)]) {
         for (const m of read(doc).matchAll(/`([A-Za-z_$][\w$]*)`\s*(?:\([^)]*\)\s*)?(?:[a-z]+\s+){0,3}in\s+`([\w.-]+\.(?:js|mjs))`/g))
@@ -250,7 +250,7 @@ test('every e2e spec is routed in CLAUDE.md', () => {
 });
 
 // A test file that is LISTED and never RUN is worse than one that is neither, because the listing
-// is what a reader checks. `links-contract.test.mjs` shipped at v20.98 as the gate on a money-
+// is what a reader checks. `link-designer-contract.test.mjs` shipped at v20.98 as the gate on a money-
 // affecting rule, was teeth-verified by mutation, was written up in CLAUDE.md as "Part of
 // test:hygiene" — and was never added to the runner. It sat green for two releases by not existing
 // as far as `npm test` was concerned, and the only reason it was found is that a later edit to the
@@ -406,7 +406,7 @@ test('every module has its own FILE_INDEX row, not just a mention', () => {
 
 // ── CONTRACT 2: no doc restates a count that a constant owns ───────────────────────────────────
 //
-// `links-rotation-parity.test.mjs` proved this works for ONE number, after the rotation length was
+// `link-designer-rotation-parity.test.mjs` proved this works for ONE number, after the rotation length was
 // found restated in ~15 places. The failure generalises: a count written into prose renders
 // perfectly while describing something that no longer exists, and nothing anywhere reads prose for
 // a number.
@@ -417,7 +417,7 @@ test('every module has its own FILE_INDEX row, not just a mention', () => {
 
 /** `[constant, its live value, a regex for the prose form that restates it]`. */
 const OWNED_COUNTS = [
-    // ROTATING_LINES already has links-rotation-parity.test.mjs; the others had nothing.
+    // ROTATING_LINES already has link-designer-rotation-parity.test.mjs; the others had nothing.
     // Scoped to a DELETION countdown specifically. The first draft matched any "N-day window" and
     // flagged the links welcome notice (14 days), the clientErrors retention (90) and the usage
     // dedup window (30) — three unrelated figures with three different owners. A guard that cries
@@ -430,15 +430,15 @@ const OWNED_COUNTS = [
     // number. Note what this exposes about the guard's shape — it never resolved a constant's live
     // VALUE, so deleting one could not have made it fail. It would have gone on citing a dead file
     // for ever if nobody looked. The test below pins the deletion so this row cannot become fiction.
-    ['the deleted Links retention constant', 'links-deletion.js (the bin is permanent)',
+    ['the deleted Link Designer retention constant', 'link-designer-deletion.js (the bin is permanent)',
         /\b(?:removed for good|purged|destroyed|restorable|kept in the bin)\s+(?:for\s+|after\s+|in\s+)?(\d+)\s*days?\b|\b(\d+)[- ]day (?:countdown|retention)\b/gi,
         'nothing expires a binned design — a doc may not promise any removal window'],
-    ['MAX_CONSECUTIVE_WORKED_DAYS', 'links-limits.js',
+    ['MAX_CONSECUTIVE_WORKED_DAYS', 'link-designer-limits.js',
         /\blimit of (\d+) consecutive\b/gi,
-        'the consecutive-day limit is owned by links-limits.js'],
-    ['CONTRACTED_HOURS_PER_WEEK', 'links-design.js',
+        'the consecutive-day limit is owned by link-designer-limits.js'],
+    ['CONTRACTED_HOURS_PER_WEEK', 'link-designer-design.js',
         /\bcontracted (?:week|hours) of (\d+)\b/gi,
-        'the contracted week is owned by links-design.js'],
+        'the contracted week is owned by link-designer-design.js'],
 ];
 
 /** The docs a staff member or a session actually reads. Plans record history and are exempt. */
@@ -449,7 +449,7 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     // enough to notice the total is wrong. It passed the rule on arrival, which is the moment to
     // adopt one rather than after it has drifted.
     './docs/DATA_MODEL.md',
-    './docs/OPERATIONS_REFERENCE.md', './.claude/rules/links-design.md', './.claude/rules/css-tokens.md',
+    './docs/OPERATIONS_REFERENCE.md', './.claude/rules/link-designer.md', './.claude/rules/css-tokens.md',
     // README.md is the only one of these written for somebody who has never seen the repo, which
     // makes it the one most likely to be believed and the least likely to be reread. It joined at
     // v22.32, when it was written to tell an external reviewer which lanes run with nothing
@@ -480,8 +480,8 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     // figures were removed rather than corrected, which is that contract's own rule.
     './docs/FILE_INDEX.md',
     // The REFERENCE halves of the two largest rule files joined 26 Nov 2026, on the day they were split
-    // out: every line in them was under this guard yesterday as part of links-design.md and paycalc.md.
-    './docs/LINKS_REFERENCE.md', './docs/PAYCALC_REFERENCE.md',
+    // out: every line in them was under this guard yesterday as part of link-designer.md and paycalc.md.
+    './docs/LINK_DESIGNER_REFERENCE.md', './docs/PAYCALC_REFERENCE.md',
     // EVERY `.claude/rules/*.md`, READ FROM THE FOLDER (24 Nov 2026). The list was written out by hand, and
     // grew by whoever remembered — "a list that grew by whoever remembered" is the line above. Read from the
     // folder, a new rule file (operations.md, that day) is under this guard the moment it exists.
@@ -531,7 +531,7 @@ test('AI_MAP\'s export lines match the code (npm run generate:ai-map)', async ()
 //
 // ── IT JUDGES THE SENTENCE, NOT THE NAME ───────────────────────────────────────────────────────
 //
-// A doc must be able to say "`links-legal.js` until v19.91", "do not add back `initFromRosters`",
+// A doc must be able to say "`link-designer-legal.js` until v19.91", "do not add back `initFromRosters`",
 // "no `refreshNavIdentity` needed". Those are the docs doing their job. So a name is only a problem
 // when the line makes no claim about it being gone — which is judged by the line, and needs no
 // exemption list. That distinction is what keeps this guard from acquiring one, and an exemption
@@ -595,7 +595,7 @@ test('no live doc names a symbol the source does not contain', () => {
         lines.forEach((line, i) => {
             // The PREVIOUS line counts too. Markdown prose wraps, so "the names ... / survived" puts
             // the marker one line above the identifier — which flagged a correct historical note in
-            // links-design.md on the first run.
+            // link-designer.md on the first run.
             const context = `${lines[i - 1] || ''} ${line}`;
             if (HISTORICAL.test(context)) return;
             for (const m of line.matchAll(IDENT)) {
@@ -618,7 +618,7 @@ test('the symbol guard would catch the two defects that motivated it — guard t
         '- **Coming-soon lightbox (v10.69):** `_csReturnFocus` captures `document.activeElement` before opening.',
     ];
     const shouldPass = [
-        '| `links-limits.js` | the HARD limits (v19.80; named `links-legal.js` until v19.91) |',
+        '| `link-designer-limits.js` | the HARD limits (v19.80; named `link-designer-legal.js` until v19.91) |',
         '**Do not add back** `buildDefaultDesign` — that path was removed at v12.43.',
         'deferred past sign-in so it renders once — no `refreshNavIdentity` needed.',
         'This is also why `minInstances` (a standing cost) is not needed.',
@@ -822,14 +822,14 @@ test('no live doc restates a count that a constant owns', () => {
 // The row above owns a count that no longer has a constant, which only works while the constant
 // really is gone. If a retention period ever comes back it must come back as an owned constant, and
 // this failing is how the row gets re-pointed at it rather than silently describing nothing.
-test('the Links bin has no retention constant to restate', () => {
-    const src = read('./links-deletion.js');
+test('the Link Designer bin has no retention constant to restate', () => {
+    const src = read('./link-designer-deletion.js');
     assert.equal(/SOFT_DELETE_RETENTION_DAYS\s*=/.test(src), false,
         'the retention constant is back — re-point the OWNED_COUNTS row at it');
     for (const gone of ['export function isPurgeable', 'export function purgeableIds',
                         'export function daysLeft']) {
         assert.equal(src.includes(gone), false,
-            `${gone} is back in links-deletion.js — the bin was accepted as permanent at v24.10`);
+            `${gone} is back in link-designer-deletion.js — the bin was accepted as permanent at v24.10`);
     }
 });
 

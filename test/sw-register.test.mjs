@@ -483,10 +483,10 @@ describe('the update-reload marker', () => {
         } finally { h.restore(); }
     });
 
-    test('Links reloads through reloadForUpdate, never a bare reload', () => {
+    test('Link Designer reloads through reloadForUpdate, never a bare reload', () => {
         // The helper can be perfect and the page still reload around it — the same shape as the
         // Calendar's pinned call below.
-        const src = readFileSync(new URL('./links-app.js', REPO_ROOT_URL), 'utf8');
+        const src = readFileSync(new URL('./link-designer-app.js', REPO_ROOT_URL), 'utf8');
         const call = src.match(/registerServiceWorker\(\{[\s\S]*?\n {4}\}\);/)?.[0] ?? '';
         assert.match(call, /reloadForUpdate\(\)/, 'the confirmed reload must say a release caused it');
         assert.doesNotMatch(call, /location\.reload/, 'a bare reload loses the label');
@@ -869,15 +869,15 @@ describe('a write no page started holds every update reload', () => {
         } finally { await w.land(); h.restore(); }
     });
 
-    test('reloadForUpdate (Links, its question answered): held while the write is out — and two releases arm ONE reload', async () => {
+    test('reloadForUpdate (Link Designer, its question answered): held while the write is out — and two releases arm ONE reload', async () => {
         const h = makeHarness({ hasRegistration: true, controlled: true });
         const w = backgroundWrite();
         try {
-            registerServiceWorker({ beforeReload: () => reloadForUpdate() });   // Links with nothing unsaved
+            registerServiceWorker({ beforeReload: () => reloadForUpdate() });   // Link Designer with nothing unsaved
             await h.flush();
             h.fireControllerChange();
             assert.equal(h.state.reloads, 0, 'Reload was the answer, but the password write is still on its way');
-            h.fireControllerChange();                 // Links' beforeReload runs on EVERY update
+            h.fireControllerChange();                 // Link Designer's beforeReload runs on EVERY update
             h.setVisibility('hidden');
             assert.equal(h.state.reloads, 0, 'hidden, and the write still on its way');
             h.setVisibility('visible');

@@ -367,7 +367,7 @@ white, a third recipe for one job. */
     border-bottom: 1px solid var(--border-light);
 }
 /* Column heads are the app's eyebrow — the metrics of .field-eyebrow, which Admin's week-grid header
-and the Links grid's heads already wear (v24.93; these were 12px sentence case, the one table recipe
+and the Link Designer grid's heads already wear (v24.93; these were 12px sentence case, the one table recipe
 the Pay Calculator's comparison table also uses — the uppercase label is the commoner of the two). */
 .tr-trains thead th, .tr-st-table thead th, .tr-last thead th, .tr-near-head {
     color: var(--text-light);

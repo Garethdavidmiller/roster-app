@@ -43,7 +43,7 @@ const SINGLE_PROJECT_EXEMPT = [
     {
         // In three specs since pages.spec.js was split by page (3 Nov 2026): the sweep, and two
         // page tests that size their own controls.
-        files: ['pages.spec.js', 'admin-week-grid.spec.js', 'links.spec.js'],
+        files: ['pages.spec.js', 'admin-week-grid.spec.js', 'link-designer.spec.js'],
         match: "'a thumb, not a mouse'",
         why: 'WCAG 2.2 SC 2.5.8 tap-target sizing. A standard about geometry, not about rendering — '
            + 'the number is the same on both engines, so a second run would cost time and prove nothing.',
@@ -83,7 +83,7 @@ describe('a touch-only test runs on every touch engine', () => {
             src.split('\n').forEach((line, i) => {
                 // Skip gates AND branches (whole-app review, I10). This read only `test.skip(` lines
                 // on the reasoning that a branch chooses a viewport, not whether the test runs — but
-                // a branch can decide whether an ASSERTION runs: the Links sticky-header test keyed
+                // a branch can decide whether an ASSERTION runs: the Link Designer sticky-header test keyed
                 // its phone viewport and its phone expectations on 'mobile-chrome', so under
                 // mobile-safari it took the desktop branch and the phone half never ran on WebKit.
                 if (!NAMES_ONE_TOUCH_PROJECT.test(line)) return;

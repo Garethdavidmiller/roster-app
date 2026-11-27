@@ -1,7 +1,7 @@
 // THE SHORTLIST SHEET (3 Oct 2026, owner: "a two page analysis sheet comparing the three — snappy but evidence led,
 // choose one if you like one, compare to the existing roster too"). Two A4 pages: the shortlisted designs against each
 // other and against today's link. EVERY FIGURE IS COMPUTED HERE from the grids and today's roster by the same functions
-// the proposal sheets use (report-data.mjs assess, plain.mjs personal, leave.mjs, links-adjacency.js scoreOrder), and the
+// the proposal sheets use (report-data.mjs assess, plain.mjs personal, leave.mjs, link-designer-adjacency.js scoreOrder), and the
 // league's spread from league.mjs itself; nothing is typed in. The prose is the owner's and this session's judgement and
 // says so.
 // FOUR SINCE 30 OCT 2026 (owner: "Can we add closing time to the shortlist?"). Closing Time broke two sentences that had
@@ -170,7 +170,7 @@ import { LINES, DAYS_CEILING, longDates } from './link.mjs';
 import { assess, today, folderStats, sheetRules, flexibleRules, h55Worst } from './report-data.mjs';
 import { personal } from './plain.mjs';
 import { leave } from './leave.mjs';
-import { scoreOrder } from '../../../links-adjacency.js';
+import { scoreOrder } from '../../../link-designer-adjacency.js';
 import { SHORTLIST, SHORTLIST_DATE } from './fresh.mjs';
 import { kindBlocks, blockText } from './blocks.mjs';
 
@@ -623,7 +623,7 @@ const an = s => (/^(8|11|18)/.test(s) ? 'an ' : 'a ') + s;   // "an 8h 40m", "a 
 // THE FAMILY'S BAND AND FOOTER (pack polish, 1 Nov 2026): the date moves from the footer into a "Prepared" line in the band, as on
 // every proposal sheet and the rules, and the footer reads as theirs do — the page's section, then the title and the app
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-const STYLE = `<link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
+const STYLE = `<link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/link-designer.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
 html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 11.1px; line-height: 1.38; }
@@ -688,7 +688,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The shortlist — the new CEA link</title>
 ${STYLE}</head><body>
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · The shortlist</div><h1>${Word(D.length)} good links, one edge each</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · The shortlist</div><h1>${Word(D.length)} good links, one edge each</h1>
   <div class="sub">${esc(list(D.map(d => d.name)))}, against each other and against today’s link</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 
@@ -722,7 +722,7 @@ ${STYLE}</head><body>
     <tr><td>The fewest new shift times: ${word(HG.newT)}</td><td><b>Home Grown</b></td></tr>
     <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b></td></tr>
   </tbody></table>
-  <div class="foot"><span>Page 1 of 2 — What they share, where they differ, which to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 1 of 2 — What they share, where they differ, which to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Link Designer</span></div>
 </section>
 
 <section class="page p2">
@@ -752,7 +752,7 @@ ${STYLE}</head><body>
     <li><b>Choose Level Crossing</b> if no fatigue warning in any cover-week placement tested, steady start times and the most starts at 06:20, ${Math.round(LF.pp.open0620)} a year each, matter most — for the fewest long breaks, about ${longRestYear(LF)} a year.</li>
     <li><b>Choose Middle Ground</b> if no shift over 8h&nbsp;30m and the closest Saturday fit matter most — for the fewest early finishes, four at the open every day and the least Sunday overtime pay.</li>
   </ul>
-  <div class="foot"><span>Page 2 of 2 — Against today, the costs, how to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 2 of 2 — Against today, the costs, how to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Link Designer</span></div>
 </section>
 </body></html>`;
 // a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
@@ -832,18 +832,18 @@ const groupsHtml = dirs => OTHER_GROUPS.filter(g => dirs.includes(g[0])).map(([d
 const othersHtmlOf = pages => `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The other designs — the new CEA link</title>
 ${STYLE}</head><body>
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · Beside the shortlist</div><h1>The other ${word(others.length)} designs</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · Beside the shortlist</div><h1>The other ${word(others.length)} designs</h1>
   <div class="sub">What each has, and what it pays, beside ${esc(list(D.map(d => d.name)))}</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
   <p class="lead">Beside the ${N}, each design here has something and pays for it, meets every December staffing rule and has its own sheet. All but Balanced V10, Clockface and Short Working put closing weeks side by side, which the ${N} keep apart, cover weeks aside.</p>
   ${groupsHtml(pages[0])}
-  <div class="foot"><span>${pages.length === 1 ? 'Page 1 of 1 — Beside the shortlist: what each other design has, and what it pays' : 'Page 1 of 2 — Beside the shortlist: the designs in the proposals folder'}</span><span><b>The other designs</b> · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>${pages.length === 1 ? 'Page 1 of 1 — Beside the shortlist: what each other design has, and what it pays' : 'Page 1 of 2 — Beside the shortlist: the designs in the proposals folder'}</span><span><b>The other designs</b> · Marylebone Roster — Link Designer</span></div>
 </section>${pages.length === 1 ? '' : `
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The other designs · continued</div><h1>Where 14 days’ leave buys 30 days off, as today</h1>
   <div class="sub">What each has, and what it pays, beside ${esc(list(D.map(d => d.name)))}</div></div></div>
   ${groupsHtml(pages[1])}
-  <div class="foot"><span>Page 2 of 2 — Beside the shortlist: the designs where 14 days’ leave buys 30 days off</span><span><b>The other designs</b> · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 2 of 2 — Beside the shortlist: the designs where 14 days’ leave buys 30 days off</span><span><b>The other designs</b> · Marylebone Roster — Link Designer</span></div>
 </section>`}
 </body></html>`;
 // THE PAGE IS A FIXED HEIGHT, so content that does not fit is HIDDEN, not pushed onto another page — a row added on

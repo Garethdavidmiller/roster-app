@@ -19,9 +19,9 @@
 // (anneal.mjs reads it when imported, and the two modes score on different scales: 12,700 against 38,060 for the same
 // rotation), so a mismatch is refused rather than written.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { runDesignChecks, DAYS } from '../../../links-design.js';
-import { assessFatigue } from '../../../links-fatigue.js';
-import { scoreOrder } from '../../../links-adjacency.js';
+import { runDesignChecks, DAYS } from '../../../link-designer-design.js';
+import { assessFatigue } from '../../../link-designer-fatigue.js';
+import { scoreOrder } from '../../../link-designer-adjacency.js';
 import { feel, dutyMinutes } from './report-data.mjs';
 import { evaluate } from './anneal.mjs';
 

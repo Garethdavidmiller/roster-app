@@ -91,7 +91,7 @@ export const limit = () => marker('limit');
 // removed. Still an opaque object to every consumer; only the delete stub reads .path.
 // doc(collectionRef), with ONE argument, is an AUTO-ID reference, as the real one is (whole-app fix,
 // Nov 2026): it carries a fresh id from the same sequence addDoc uses, so a document named before it is
-// written has an identity, and a setDoc on it is recorded as a CREATE (see setDoc). The Links store
+// written has an identity, and a setDoc on it is recorded as a CREATE (see setDoc). The Link Designer store
 // creates a design that way. It minted no id here, and a design made so had none.
 export const doc = (...a) => {
   if (a.length === 1 && a[0] && a[0].__stub === 'collection') {
@@ -140,7 +140,7 @@ export const writeBatch = () => {
 // runTransaction(db, fn): runs the update fn against the SEEDED rows (v19.41 — it used to hand back
 // a permanently non-existent doc). With nothing seeded it still resolves "no such doc", so every
 // existing caller behaves as before; when a test seeds window.__E2E.docs the transaction sees them,
-// which is what makes the Links purge testable at all — that purge re-reads inside the transaction
+// which is what makes the Link Designer purge testable at all — that purge re-reads inside the transaction
 // precisely so a stale cached snapshot cannot destroy a restored design, and a tx.get that always
 // says "gone" would let a no-op purge pass as a working one.
 export const runTransaction = (_db, fn) => {
@@ -381,7 +381,7 @@ export const getDocsFromCache = () => {
   const docs = rows.map(r => ({ id: r.id, data: () => r }));
   return Promise.resolve({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
 };
-// The SINGLE-document cache read (whole-app fix, Nov 2026), which the Links store consults offline.
+// The SINGLE-document cache read (whole-app fix, Nov 2026), which the Link Designer store consults offline.
 // Seed window.__E2E.docCache = { id: row } for a document this device holds, or { id: null } for one
 // whose deletion the cache recorded — that resolves as NOT EXISTING, exactly as the real SDK answers
 // it. A document not named was never held, and the read REJECTS, as the real one does; so nothing
@@ -469,7 +469,7 @@ export const addDoc = (/** @type {any} */ ref, /** @type {any} */ data) => {
   return Promise.resolve(created);
 };
 // OFFLINE, A SET WAITS FOR THE SIGNAL (v26.03), as the real SDK's does: a write made while the browser
-// is offline resolves only once the server has it. Resolved at once, the stub told the Links store that
+// is offline resolves only once the server has it. Resolved at once, the stub told the Link Designer store that
 // every queued save had already landed (store rule 6) — the one thing a queued save cannot know. It is
 // recorded as it is made, and answered on the page's next 'online' event, oldest first: refused then
 // with the code in window.__E2E.queuedSetRefusal when a test sets one (the server turning it down),
@@ -494,7 +494,7 @@ const _answerWhenOnline = (/** @type {any} */ e2e, /** @type {any} */ ref, /** @
   });
 });
 // setDoc RECORDS its payload (v19.41), for the same reason writeBatch does: a test that can only
-// see the UI is checking the SUMMARY of a write, not the write. The Links soft delete is exactly
+// see the UI is checking the SUMMARY of a write, not the write. The Link Designer soft delete is exactly
 // that trap — a hard delete and a soft delete BOTH make the design vanish from the picker, so
 // asserting the chip is gone would pass against the very implementation being replaced. The
 // payload is where the two differ.
@@ -845,7 +845,7 @@ export async function forcePasswordSet(page) {
 }
 
 /**
- * Give one test its own Links designers (CONFIG.LINKS_DESIGNERS). The real list has been the admin alone since 9 Nov
+ * Give one test its own link designers (CONFIG.LINKS_DESIGNERS). The real list has been the admin alone since 9 Nov
  * 2026 (owner: "hide the link designer page from everyone apart from me"), and the admin can overwrite anybody's work —
  * so the rules that bind an ORDINARY designer (whose saved set they may not overwrite, whose draft a second designer on
  * the same phone must never be offered) have no real seat to be tested from. Call BEFORE page.goto(). A pattern that

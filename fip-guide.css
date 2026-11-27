@@ -38,7 +38,7 @@ body {
     padding: 20px max(16px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 
-/* ── Links ───────────────────────────────── */
+/* ── Link Designer ───────────────────────────────── */
 /* The link itself is guide-shell.css's, one recipe for all five guides (v25.84); every classed control
    (.btn-*, .cf-popular a, .country-jump a) still wins with its own colour and decoration. */
 /* A number in the text that you can tap to call stays on one line: split at a space, it reads as two
@@ -567,7 +567,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        rendering this page and reading the MediaBox back. Letter is 6mm wider and 18mm shorter
        than A4, so on the A4 stock every printer at this station holds, the layout is composed for
        a page that is not the sheet: every break lands in the wrong place and the foot can clip.
-       The two document guides (guide-doc.css) and the Calendar, Links and Pay Calculator have
+       The two document guides (guide-doc.css) and the Calendar, Link Designer and Pay Calculator have
        always stated it; these had not. */
     @page { size: A4 portrait; margin: 13mm 12mm; }
     * { orphans: 2; widows: 2; }

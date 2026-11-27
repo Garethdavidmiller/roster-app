@@ -106,7 +106,7 @@ would stay published, in the file and its history, after the person is back.
 | fixed | no rotation — `currentWeek` selects which pattern in `fixedRoster` the member sits on; the patterns are described in the comment above `fixedRoster` in `roster-cycle-data.js`, and who sits on each is `roster-member-data.js` |
 
 **A fixed pattern is SHARED, so editing one member's hours there edits everyone on that line.** Never
-write a cycle's length down: it is the constant's, and the Links seed reads the same constants.
+write a cycle's length down: it is the constant's, and the Link Designer seed reads the same constants.
 
 **The bilingual link (owner, 27 Nov 2026):** the bilingual contract is being phased out and no new ones are
 added; bilingual cover is not needed at all times. Its duties start at 07:00 or later and finish before the

@@ -1209,8 +1209,8 @@ def build(who):
         # as "PptxGenJS", the library the first deck was drawn with, and its subject as "PptxGenJS Presentation"; the PDFs
         # exported from them carried the same author. The dates stay as they are
         for part, subs in (('docProps/core.xml', ((r'<dc:subject>[^<]*</dc:subject>', f'<dc:subject>The new CEA link, for {who}</dc:subject>'),
-                                                  (r'<dc:creator>[^<]*</dc:creator>', '<dc:creator>Marylebone Roster — Links designer</dc:creator>'),
-                                                  (r'<cp:lastModifiedBy>[^<]*</cp:lastModifiedBy>', '<cp:lastModifiedBy>Marylebone Roster — Links designer</cp:lastModifiedBy>'))),
+                                                  (r'<dc:creator>[^<]*</dc:creator>', '<dc:creator>Marylebone Roster — Link Designer</dc:creator>'),
+                                                  (r'<cp:lastModifiedBy>[^<]*</cp:lastModifiedBy>', '<cp:lastModifiedBy>Marylebone Roster — Link Designer</cp:lastModifiedBy>'))),
                            ('docProps/app.xml', ((r'<Company>[^<]*</Company>', '<Company>Marylebone Roster</Company>'),))):
             x_ = open(f'{d}/{part}', encoding='utf-8').read()
             for rx, new in subs:

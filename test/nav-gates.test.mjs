@@ -18,7 +18,7 @@
  * ungated pill is drawn ON PURPOSE (owner, 11 Nov 2026: each opens with the person's own sign-in, and
  * hiding them from a station would hide that they exist) and every gated one is hidden.
  *
- * Roles the real lists hold nobody in today (a Links designer who is not the admin, an Overtime beta
+ * Roles the real lists hold nobody in today (a link designer who is not the admin, an Overtime beta
  * participant) are given to a real member for the test and taken back, so the roles are exercised by
  * the real code rather than by roles made up for the test.
  */
@@ -109,10 +109,10 @@ for (const paused of [true, false]) {
             assert.deepEqual(wrong, []);
         });
 
-        test('the representatives: admin, manager, Links designer, Overtime beta, a plain member', () => {
+        test('the representatives: admin, manager, link designer, Overtime beta, a plain member', () => {
             const admin = CONFIG.ADMIN_NAMES[0];
             const manager = /** @type {string} */ ((CONFIG.MANAGER_NAMES || [])[0]);
-            const designer = someone('a member to make a Links designer', m => m.role === 'CEA');
+            const designer = someone('a member to make a link designer', m => m.role === 'CEA');
             const beta = someone('a member to invite to the Overtime beta', m => m.role === 'CEA' && m.name !== designer);
             const plain = someone('a plain member (a Dispatcher)', m => m.role === 'Dispatcher');
             withRole('LINKS_DESIGNERS', designer);
@@ -123,7 +123,7 @@ for (const paused of [true, false]) {
             }
             // …and the roles really do move the pills, so the equalities above are not all one answer.
             assert.ok(drawn(admin).includes('operations') && !drawn(manager).includes('operations'), 'Operations is the admin\'s alone');
-            assert.ok(drawn(designer).includes('links') && !drawn(plain).includes('links'), 'Links is the designers\'');
+            assert.ok(drawn(designer).includes('links') && !drawn(plain).includes('links'), 'Link Designer is the designers\'');
             assert.equal(drawn(beta).includes('overtime'), !paused, 'an Overtime beta participant sees Overtime exactly while it is on');
             assert.equal(drawn(manager).includes('overtime'), !paused, 'and so does a reviewer');
             assert.equal(drawn(plain).includes('overtime'), false, 'never a member with neither');

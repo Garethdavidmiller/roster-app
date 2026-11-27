@@ -14,7 +14,7 @@
 // claimed today's weeks, where it keeps seven of today's times (the whole-pack review, 5 Nov 2026). All six now stand alone.
 import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, daysAYear, LINK_STARTS } from './link.mjs';
 import { sheetRules as currentRules, h55Worst, singleRestsOver48, fitCmp } from './report-data.mjs';
-import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.js';
+import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../link-designer-design.js';
 
 /** code → [one-line description, how it was made]. `search`: built by computer search against the rules and the
  *  timetable. `hand`: drawn by hand and checked by the app. `hand+search`: drawn by hand, weeks put in order by
@@ -301,7 +301,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   ${rank.map(d => tr(d, d.code === code)).join('')}${todayRow}
   </tbody></table>
   <p class="muted">Grouped by rules met, then fewest fatigue findings; within a group, alphabetical — not ranked by any other figure, so read across the row. <b>Rules met</b> counts the ${R.of} December 2026 rules on page 7. <b>Fatigue findings</b> are the design-specific patterns present at worst — FF2 and FF18, on every weekly link, are recorded on page 8 but not counted. <b>Most days in a row</b> is at worst, against Chiltern’s limit of 13; <b>shortest rest</b> must be at least 12 hours, or the rota cannot be run. <b>Full weekends off</b> are out of 24 (20 for today’s link). <b>Floor fit</b> is how closely the people on the floor follow the trains (the ticket office counted only while its second person helps at the quiet ends) — lower is closer (page 6). <b>Shift times</b> is how many different times the rota uses, and <b>already worked today</b> how many of them people work now.</p>
-  <div class="foot"><span>Page 9 of 10 — Beside the other proposals</span><span class="foot-id"><b>${name}</b> · ${code} · ${meta.identity.fingerprint} · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 9 of 10 — Beside the other proposals</span><span class="foot-id"><b>${name}</b> · ${code} · ${meta.identity.fingerprint} · Marylebone Roster — Link Designer</span></div>
 </section>`;
 
   const sunMet = P.daily.sun >= 10;
@@ -408,9 +408,9 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     // page 8
     [/Good practice guidelines — Fatigue Factors, p3 \(December 2021\)\. ⚠ present — the pattern is in this design and worth a look, not a breach · ✓ clear — it is not · ● standing — true of the station itself, not of any design · – does not apply here\. This is the list the link is assessed against\./g, 'From the ORR’s good-practice guidance, Fatigue Factors, page 3 (December 2021). ⚠ present — the pattern is in this design and worth a look, not a breach · ✓ clear — it is not · ● standing — comes with the station’s hours or with any rotating link, not with this design’s choices · – means it does not apply here.'],
     // page 10
-    [/Links → Import, then paste the whole block below\. Line number, then Sunday to Saturday; SP is a cover week\. The (?:Links designer|workspace) re-runs every check on these pages from the pasted cells, so nothing here has to be taken on trust(?: — and the two designers can edit it there like any other design)?\./g, 'Paste the whole block into the app’s Links designer (Links → Import). It re-runs the grid, the hours, the hard limits, the fatigue factors and the hour-by-hour cover from the pasted days; the rest is worked out by the tools that made this sheet (see below).'],
+    [/Link Designer → Import, then paste the whole block below\. Line number, then Sunday to Saturday; SP is a cover week\. The (?:link designer|workspace) re-runs every check on these pages from the pasted cells, so nothing here has to be taken on trust(?: — and the two designers can edit it there like any other design)?\./g, 'Paste the whole block into the app’s Link Designer (Import). It re-runs the grid, the hours, the hard limits, the fatigue factors and the hour-by-hour cover from the pasted days; the rest is worked out by the tools that made this sheet (see below).'],
     [/The same rotation is also supplied beside this PDF as <span class="tt">[^<]*<\/span> \(tab-separated, pastes directly\) and <span class="tt">[^<]*<\/span> \(the app's own format\)\./g, 'The same rota is also supplied as two files, one to paste and one the app can open.'],
-    [/Every figure in this document was computed by the Marylebone Roster app's Links modules \(v([\d.]+)\) from exactly these cells; import them and the [^.]*\./g, 'The grid, the hours, the hard limits, the fatigue factors and the hour-by-hour cover were calculated by the Marylebone Roster app (version $1) from exactly these days, and pasting them into the app shows the same figures there. The ticket office, the floor figures, the fits and the December 2026 rules are worked out from the same days by the proposal tools that made this sheet.'],
+    [/Every figure in this document was computed by the Marylebone Roster app's Link Designer modules \(v([\d.]+)\) from exactly these cells; import them and the [^.]*\./g, 'The grid, the hours, the hard limits, the fatigue factors and the hour-by-hour cover were calculated by the Marylebone Roster app (version $1) from exactly these days, and pasting them into the app shows the same figures there. The ticket office, the floor figures, the fits and the December 2026 rules are worked out from the same days by the proposal tools that made this sheet.'],
     // contents and footers: one name per page
     [/<b>5<\/b> A week compared with today/g, '<b>5</b> A week, and the duty table'], [/<b>7<\/b> Hard limits and the December 2026 figures/g, '<b>7</b> Hard limits and the December 2026 rules'],
     [/<b>10<\/b> The grid, ready to paste into the app/g, '<b>10</b> The rota, ready to paste into the app'],
@@ -436,9 +436,9 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     [/Soft — the room weighs these against each other/g, 'Soft — weigh these against each other'], [/Preference — staff's to state, not the tool's/g, 'Preference — for staff to say, not the app'],
     [/ \(class C\)/g, ''], [/, unconfirmed threshold/g, ''],
     [/the 13-day limit's policy citation is still outstanding/g, 'the written source of the 13-day limit is still to be confirmed'],
-    [/Computed from the cells; re-computed by the Links designer on import/g, 'Worked out from the rota; checked again by the app when it is loaded'],
+    [/Computed from the cells; re-computed by the link designer on import/g, 'Worked out from the rota; checked again by the app when it is loaded'],
     [/Working weeks on one turn/g, 'Working weeks on one shift time'], [/One turn all week can still be a bad week if the turn is long/g, 'One shift time all week can still be a hard week if the shift is long'], [/more of the day's traffic/g, 'more of the day’s trains'],
-    [/\bBLOCK\b/g, 'block'], [/the Links designer’s own target is 6/g, 'the app’s own target is 6'],
+    [/\bBLOCK\b/g, 'block'], [/the link designer’s own target is 6/g, 'the app’s own target is 6'],
     [/still "definition to confirm"/g, 'whose exact definition is still to be confirmed'],
     [/Measured timetable, one share-based measure on one December 2026 timetable curve/g, 'The measured December 2026 timetable; one way of measuring, not the only one'],
     [/<b>Indicative<\/b>/g, '<b>A guide</b>'], [/<b>Firm<\/b>, but a proxy for acceptability/g, '<b>Firm</b>, but only a rough guide to what staff will accept'],
@@ -472,7 +472,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     [/<b>9<\/b> Where it came from/g, '<b>9</b> Beside the other proposals'], [/Owner-relayed/g, 'Relayed'], [/owner-relayed/g, 'relayed'], [/owner’s figure for December 2026/g, 'the December 2026 figure'],
     [/ The generator refuses a design it cannot repair to this;[^.<]*\./g, ''],
     [/ It is the measure the searched tables were chosen on, and the fit of the average weekday is the <i>Wk fit<\/i> on page 9\./g, ' Page 1’s weekday figure is worked out from the five weekdays combined, so it is not an average of the scores shown.'],
-    [/the workspace’s own/g, 'the Links designer’s own'], [/the workspace's/g, 'the Links designer’s'], [/the workspace/g, 'the Links designer'], [/The workspace/g, 'The Links designer'],
+    [/the workspace’s own/g, 'the link designer’s own'], [/the workspace's/g, 'the link designer’s'], [/the workspace/g, 'the link designer'], [/The workspace/g, 'The link designer'],
   ];
   // durations never break between the hours and the minutes ("8h" / "40m" on a line each — accuracy check, 28 Sep 2026)
   const KEEP = [[/(\d+h) (\d\dm)\b/g, '$1&nbsp;$2']];

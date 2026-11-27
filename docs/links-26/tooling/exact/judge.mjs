@@ -1,11 +1,11 @@
 // THE JUDGE THE SOLVER IS HELD TO: every verdict model.py encodes, read off a grid by the sheets' own code
-// (report-data.mjs assess / sheetRules / flexibleRules / h55Worst, links-fatigue.js). check_model.py pins the model to a
+// (report-data.mjs assess / sheetRules / flexibleRules / h55Worst, link-designer-fatigue.js). check_model.py pins the model to a
 // grid and compares each of its answers with these, both ways round.
 //   node judge.mjs <grids.json>      a JSON array of grids (or one grid); prints a JSON array of verdicts
 import fs from 'node:fs';
 import { assess, today, sheetRules, flexibleRules, h55Worst } from '../report-data.mjs';
 import { monSatMinutes, daysAYear } from '../link.mjs';
-import { DAYS } from '../../../../links-design.js';
+import { DAYS } from '../../../../link-designer-design.js';
 
 const raw = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const grids = (Array.isArray(raw) ? raw : [raw]).map(j => j.patterns ?? j);

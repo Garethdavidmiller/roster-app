@@ -698,10 +698,10 @@ jobs:
   # THE IPHONE PROJECT IS SPLIT FOUR WAYS, THE DESKTOP ONE TWO (3 Nov 2026). Playwright cuts a
   # project into equal COUNTS of tests, in file order, and cannot weight a shard by time. Under
   # WebKit 2359 (Playwright 1.63, which runs 10–50% slower than 2215) the iPhone project's second
-  # half, where links.spec.js's long flows all fall, took up to 24 minutes of tests against the
+  # half, where link-designer.spec.js's long flows all fall, took up to 24 minutes of tests against the
   # 25-minute step budget below, and on 3 Nov one run was stopped at that budget with every test it
   # had run passing. Simulated from that night's own per-test times: four iPhone shards put the
-  # longest at ~12 minutes (three still leave ~16, because Links sits inside one third), and desktop
+  # longest at ~12 minutes (three still leave ~16, because Link Designer sits inside one third), and desktop
   # WebKit's longest is ~14 at two. Hence a list per project rather than one shard count, and
   # `shards` carried in each entry so the command can never disagree with the number of jobs.
   # workflow-hygiene.test.mjs holds the list to playwright.webkit.mjs: every project, every shard.
@@ -710,15 +710,15 @@ jobs:
   # a count. On 12 Nov desktop WebKit's second shard was stopped at the 25-minute budget twice, on
   # one PR, with every test passing (25.1 minutes of tests, on runners ~1.5× slower than that
   # evening's other branch, the Chromium jobs at their usual speed), and the iPhone's third shard ran
-  # 21.5 — the one holding all of links.spec.js, which is 11% of the iPhone tests and 28% of their
-  # time. A fifth iPhone shard would not have helped: the Links flows stay together in the count. So
-  # playwright.webkit.mjs runs each device as two projects, the Links specs and the rest, and each is
+  # 21.5 — the one holding all of link-designer.spec.js, which is 11% of the iPhone tests and 28% of their
+  # time. A fifth iPhone shard would not have helped: the Link Designer flows stay together in the count. So
+  # playwright.webkit.mjs runs each device as two projects, the Link Designer specs and the rest, and each is
   # cut on its own below. Simulated from that night's per-test times on the slow runner (the method
   # came within 1.5 minutes of the real shards, under them): the rest in three, longest ~14.6
-  # minutes on the iPhone and ~14.0 on the desktop; the Links in two on the iPhone (~8.7) and in one
+  # minutes on the iPhone and ~14.0 on the desktop; the Link Designer in two on the iPhone (~8.7) and in one
   # on the desktop (~9.5). Longest ~15 instead of 25-plus, on the same slow runner.
   #
-  # AND THE IPHONE'S LINKS PROJECT DRAWS AT 2x (12 Nov 2026, the same day). Most Links tests open a
+  # AND THE IPHONE'S LINKS PROJECT DRAWS AT 2x (12 Nov 2026, the same day). Most Link Designer tests open a
   # desktop-size window, which at the iPhone's 3x density WebKit draws at a few frames a second, and
   # every click waits on frames; playwright.webkit.mjs has the measurements beside LINKS_IPHONE_DPR.
   # The whole project ran in 4.4 minutes locally instead of 8.7, with the same 165 passed and 8
@@ -729,8 +729,8 @@ jobs:
   # the count cut was uneven here too (the smoke job above explains `weights`). Timed from that
   # run's nine job logs: desktop WebKit's 61 test-minutes and the iPhone's 69 in four time-equal
   # shards each come to 15.3 and 17.3 test-minutes a shard, about 8 and 9 minutes on two workers,
-  # where three count-equal shards had run up to 25 and 26. The two Links projects run whole: 13.5
-  # and 13.7 test-minutes, about 7 each, under the other shards, so the iPhone's second Links shard
+  # where three count-equal shards had run up to 25 and 26. The two Link Designer projects run whole: 13.5
+  # and 13.7 test-minutes, about 7 each, under the other shards, so the iPhone's second Link Designer shard
   # no longer buys anything. That keeps the run at 26 jobs at the start (`tested` comes at the end) — GitHub runs about 20 of one account's
   # jobs at once, and three of #1803's waited up to 69 seconds for a runner, so a job added here is
   # also a job queued.
@@ -741,7 +741,7 @@ jobs:
   # merge head and #1840's), each test's time averaged over the runs: the iPhone's four count-equal
   # shards ran 22.6 to 27.2 test-minutes, and no cut of four does better than 25.3, about 12.7 minutes
   # on two workers. Five time-equal shards come to 20.2 each, about 10 minutes — level with desktop
-  # WebKit, whose four re-cut shards come to 18.0 to 18.1 (from 16.1 to 19.0), and with the two Links
+  # WebKit, whose four re-cut shards come to 18.0 to 18.1 (from 16.1 to 19.0), and with the two Link Designer
   # projects. A sixth would buy under two minutes for another queued job. Single runs varied far more
   # than the cut did (one shard ran 31.9 test-minutes where the average said 27), so read a spread
   # across several runs before re-cutting, and re-cut by the same method: the cut goes where the
@@ -756,14 +756,14 @@ jobs:
   # is contention, and the flake history says so (playwright.webkit.mjs).
   #
   # AND THE LINKS PROJECTS IN TWO, ALL RE-CUT (25 Nov 2026, later). Two runs of that layout (#1861's,
-  # attempts 1 and 3) ended 15.3 minutes after they began, and the last job each time was a Links
+  # attempts 1 and 3) ended 15.3 minutes after they began, and the last job each time was a Link Designer
   # project run whole: the iPhone's 25.2 test-minutes took 13.6 minutes as a job, where every other shard
-  # finished by 12. So each Links project is now two shards, 127 and 84 tests (the cut lands there on
+  # finished by 12. So each Link Designer project is now two shards, 127 and 84 tests (the cut lands there on
   # both devices: 11.1 and 10.1 test-minutes on the desktop, 13.0 and 12.2 on the iPhone), and the
   # others are re-cut on the two runs' averaged times — desktop WebKit's 76.9 test-minutes in five of
   # 15.3 to 15.5, the iPhone's 96.1 in six of 16.0 to 16.1. That is 21 browser jobs and 8 short ones
   # against the account's 20 at a time: the short ones are done within two minutes, so the last few
-  # shards start that much late, which costs less than one Links job running whole.
+  # shards start that much late, which costs less than one Link Designer job running whole.
   #
   # THE COST, STATED: fifteen jobs (eleven until 25 Nov 2026) pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here

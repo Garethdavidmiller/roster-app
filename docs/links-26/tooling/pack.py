@@ -58,7 +58,7 @@ for name, code, fp in proposals:
             if os.path.exists(src): files.append((src, f'3 Presentations/{os.path.basename(src)}'))
     d = DIR_OF[code]
     files += [(f'{ROOT}/{d}/{base}-{fp}.pdf', f'4 Proposal sheets/{IN_ZIP[d]}{base}-{fp}.pdf'),
-              (f'{ROOT}/{d}/{base}-import.txt', f'5 Import files for the Links page/{IN_ZIP[d]}{base}-import.txt')]
+              (f'{ROOT}/{d}/{base}-import.txt', f'5 Import files for the Link Designer/{IN_ZIP[d]}{base}-import.txt')]
 # THE TECHNICAL NOTES ARE RULES.md ALONE (owner, 5 Nov 2026: "Leave it out of the pack"). README.md (with HISTORY.md since 24 Nov 2026) is this folder's
 # working record — every design's history, the tooling, the league — written for whoever rebuilds the pack rather than for a reader
 # of it, and it had come to say things the pack does not. It stays in the repository, where the read-me's history points
@@ -262,11 +262,11 @@ THIRTY_SET = ['Balanced V10', 'Balanced V6', 'Balanced V7', 'Balanced V8', 'Bala
 THIRTY_IN = sorted(n for n, c, _ in proposals if in30(DIR_OF[c]))
 if THIRTY_IN != THIRTY_SET:
     raise SystemExit(f'pack: the read-me names {THIRTY_SET} as the 30-day folder; regenerate.mjs puts {THIRTY_IN} there')
-built_in = open('links-proposals.js', encoding='utf-8').read()
+built_in = open('link-designer-proposals.js', encoding='utf-8').read()
 missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
-if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
+if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; link-designer-proposals.js lacks {missing}')
 if '(v25.52)' not in built_in:   # item 5 says these three have been built in since app version 25.52
-    raise SystemExit('pack: the read-me says the three were built in at app version 25.52; links-proposals.js no longer says so')
+    raise SystemExit('pack: the read-me says the three were built in at app version 25.52; link-designer-proposals.js no longer says so')
 sl_where = sorted({DIR_OF[c] for n, c, _ in proposals if n in SHORTLIST})
 if sl_where != ['30-days-off', '30-days-off/balanced']:   # the route and item 4 say where the three sheets are
     raise SystemExit(f'pack: the read-me says the three sheets are in 30 days off, Balanced V6\'s in its subfolder; they are in {sl_where}')
@@ -311,8 +311,8 @@ def whole(t):
 runt = lambda t: re.sub(r' (?=\S{1,12}$)', '\x00', t)
 para = lambda t: textwrap.fill(runt(whole(' '.join(t.split()))), W, break_on_hyphens=False).replace('\x00', ' ')
 # A LABEL TOO LONG FOR ITS COLUMN HAS A LINE OF ITS OWN (8 Nov 2026, the pack audit). A format width pads a short label and
-# never cuts a long one, so when item 5 took its folder's full name on 6 Nov, "5 Import files for the Links page" ran
-# straight into its text: "5 Import files for the Links pageEach proposal as text...". Every label is kept, and the read-me
+# never cuts a long one, so when item 5 took its folder's full name on 6 Nov, "5 Import files for the Link Designer" ran
+# straight into its text: "5 Import files for the Link DesignerEach proposal as text...". Every label is kept, and the read-me
 # is refused below if one ever runs into its text again
 LABELS = []
 def item(label, text, hang=21):
@@ -492,9 +492,9 @@ readme = '\n'.join([
     mark_item('no colour', 'a fact, or for colleagues to weigh'),
     item('', 'The code and eight-character fingerprint in each file name identify the exact rota, so a printout can '
          'never be mixed up with a variant.'),
-    item('5 Import files for the Links page', 'Each proposal as text for the Links page (Import), which lays out 26 lines since app version '
+    item('5 Import files for the Link Designer', 'Each proposal as text for the Link Designer (Import), which lays out 26 lines since app version '
          '24.47 (3 October 2026) and re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on whatever is pasted in; the December rules and the yearly figures are the sheets\' own. The '
-         f'{WORDS[len(SHORTLIST)]} shortlisted designs are built into the app\'s Links designer as examples, for reference '
+         f'{WORDS[len(SHORTLIST)]} shortlisted designs are built into the app\'s link designer as examples, for reference '
          f'(these {WORDS[len(SHORTLIST)]} since app version 25.52).'),
     item('6 Technical notes', 'The 26-line rules with what changed from 24. Written for the technical record, not for '
          'reading out.'),
@@ -625,7 +625,7 @@ for f in FOLDERS:
     for k in range(1, len(w)):
         if re.search(re.escape(' '.join(w[:k])) + r'\n *' + re.escape(' '.join(w[k:])), readme):
             raise SystemExit(f'pack: the read-me splits the folder name "{f}" across lines')
-# and no label running into its text (the pack audit, 8 Nov 2026: "5 Import files for the Links pageEach proposal")
+# and no label running into its text (the pack audit, 8 Nov 2026: "5 Import files for the Link DesignerEach proposal")
 _run = sorted({lab for lab in LABELS if lab for l in readme.split('\n')
                if l.startswith(f'  {lab}') and len(l) > 2 + len(lab) and l[2 + len(lab)] != ' '})
 if _run: raise SystemExit(f'pack: the read-me runs the label {_run} into its text; a label too long for its column needs a line of its own')

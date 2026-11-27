@@ -125,7 +125,7 @@ export function signedOutLine(what, whereToCheck) {
 //
 // abandonOnSignOut ends the WAIT; it does not cancel the WRITE, which Firestore keeps for that
 // account and may still send. Every caller written before v24.36 assumed "rejected = not written",
-// and where a save mints fresh document ids — roster import, a long leave range, a new Links design
+// and where a save mints fresh document ids — roster import, a long leave range, a new Link Designer design
 // — a second attempt then wrote a SECOND copy beside the first, with nothing on screen to say so and
 // no rule to stop it (overrides have no uniqueness on member + date). A duplicate override also
 // resurfaces later: delete the winning copy and the other one takes its place.

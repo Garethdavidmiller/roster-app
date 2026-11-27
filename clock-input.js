@@ -7,8 +7,8 @@
  *
  * Four places in the app type a time into a text box rather than an `<input type="time">`: the
  * roster review's entry control (`manualCellValue`, override-utils.js), the Admin week grid
- * (admin-time-inputs.js), the Overtime custom-hours row (overtime-form.js) and the Links window
- * editor (links-window-editor.js). Each refused the native control
+ * (admin-time-inputs.js), the Overtime custom-hours row (overtime-form.js) and the Link Designer window
+ * editor (link-designer-window-editor.js). Each refused the native control
  * for the same measured reason — Chromium renders it from the OS format settings, not the page, so
  * it shows `06:00 AM` beside 24-hour shift badges — and each pays the same price: nothing in the
  * browser validates the value or helps type it any more. Both halves of that price are paid here,
@@ -24,7 +24,7 @@
  *
  * **A screen asks a box ONE question when it is left: `readClockBox`** (external review of v26.87). The
  * answer is a time to take, an empty box, or a refusal with its reason — never a string to judge for itself.
- * Each of the four screens once judged the settled text its own way, and the Links window judged it by a
+ * Each of the four screens once judged the settled text its own way, and the Link Designer window judged it by a
  * laxer rule than the other three: an unfinished edit, "6:30" from Delete at the front of 16:30, was taken
  * there as 06:30. `clockBoxCallers` in clock-input.test.mjs holds every caller to it.
  */
@@ -48,7 +48,7 @@ export function isClockTime(v) {
 /**
  * What a TEXT clock box should show after each keystroke (v24.61, iOS audit). The boxes are
  * `inputmode="numeric"`, and on an iPhone that keypad has digits and nothing else — no colon — so
- * a box whose reader demands `HH:MM` could not be filled from a phone at all: the Links window
+ * a box whose reader demands `HH:MM` could not be filled from a phone at all: the Link Designer window
  * times reverted "0730" and the roster review's entry cells stayed "Not saved" on it. The admin
  * week grid had solved this on its own since v10; this is that rule as a pure function, and since
  * v24.64 the week grid uses it too (admin-time-inputs.js keeps only the focus move): keep the
@@ -312,7 +312,7 @@ export function settleClockBox(box) {
 /**
  * What a box's SETTLED text is: a time to take, nothing, an unfinished edit (`asLeft`'s "6:30", "22:3" — what is
  * left of a time, never guessed at), or no time at all ("25:00", "9am"). Pure, for a caller that holds the text and
- * not the box (`windowEditRefusal`, links-window.js). @param {string} text
+ * not the box (`windowEditRefusal`, link-designer-window.js). @param {string} text
  * @returns {'time'|'empty'|'unfinished'|'not-a-time'}
  */
 export function clockTextStatus(text) {

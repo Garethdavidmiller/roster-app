@@ -2796,7 +2796,7 @@
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             /* A right-edge shadow that appears only while there is more to see — pure CSS, no
-               scroll listener. Same device as the Links target table, and for the same reason:
+               scroll listener. Same device as the Link Designer target table, and for the same reason:
                a table that silently continues past the edge reads as a table that ends there. */
             background:
                 linear-gradient(to right, white 30%, rgba(255,255,255,0)) left / 24px 100% no-repeat local,

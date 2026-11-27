@@ -12,7 +12,7 @@
  * Nothing enforced it. Found by a mutation audit of every guard in the repo (19 Sep 2026): putting
  * `.mutant-probe { color: #ff0000; background: #123456; }` into `index.css` and running the WHOLE
  * hygiene lane passed. `guide-colour-parity.test.mjs` covers the guide stylesheets and four named
- * `links.css` tokens; the seven app stylesheets had no cover at all, which is where the palette
+ * `link-designer.css` tokens; the seven app stylesheets had no cover at all, which is where the palette
  * actually lives.
  *
  * That matters more here than the usual tidiness argument, because this app repaints itself from
@@ -146,7 +146,7 @@ const NEUTRAL_RGB = /^(0\s*[, ]\s*0\s*[, ]\s*0|255\s*[, ]\s*255\s*[, ]\s*255)(\s
 /** Coloured rgb() literals each sheet held on 3 Nov 2026 — may only go DOWN (see the rgb() test). The
  *  guides' joined on 17 Nov 2026, when the guide sheets came under this file: every one is the navy
  *  card shadow (`rgba(0, 30, 60, …)`), the same tint the app sheets' baselines hold. */
-const RGB_BASELINE = /** @type {Record<string, number>} */ ({ 'index.css': 8, 'links.css': 6, 'shared.css': 3,
+const RGB_BASELINE = /** @type {Record<string, number>} */ ({ 'index.css': 8, 'link-designer.css': 6, 'shared.css': 3,
     // Railcard 8 → 0, Rangers 10 → 0 and FIP 5 → 1 (Nov 2026): the card shadow is guide-shell.css's
     // `--shadow-card` token now, a definition (exemption 1).
     'fip-guide.css': 1, 'guide-doc.css': 2, 'guide-shell.css': 2, 'paycalc-guide.css': 1, 'staff-guide.css': 5 });

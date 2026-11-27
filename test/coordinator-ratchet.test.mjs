@@ -9,10 +9,10 @@
  * function, renders the result and arranges persistence. The RULE — the thing that would be wrong
  * if it were wrong — belongs in a module of its own, where it can be tested without a DOM.
  *
- * The app is already good at this: `links-design.js`, `overtime-core.js`, `paycalc-calc.js`,
+ * The app is already good at this: `link-designer-design.js`, `overtime-core.js`, `paycalc-calc.js`,
  * `calendar-data-state.js` and a dozen others exist because reasoning was pulled out of a
  * coordinator. But extraction has been an ACT OF WILL each time, and nothing stopped the next
- * feature going straight back into the big file. `links-app.js` stood at 3,200 lines when this was
+ * feature going straight back into the big file. `link-designer-app.js` stood at 3,200 lines when this was
  * written; its cap below says what it is held to now.
  *
  * ── WHY A RATCHET AND NOT A LIMIT ───────────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ const SCANNED_DIRS = ['./', 'functions/'];
  */
 const CAPS = {
     // 3200 → 3150 at v21.87. The design collection's PERSISTENCE LIFECYCLE left for
-    // links-design-store.js — 3,197 measured lines down to 3,076 — and the ceiling comes down with
+    // link-designer-design-store.js — 3,197 measured lines down to 3,076 — and the ceiling comes down with
     // it. Leaving it at 3,200 would bank the whole saving as future headroom, which is the ratchet
     // quietly loosening rather than tightening; the same reasoning as the v21.31 cut above.
     //
@@ -118,7 +118,7 @@ const CAPS = {
     // a grid, a paint tool, a generator, a compare mode, an importer and a bin, and the next
     // genuine seam (target-set persistence) is a smaller version of the one just taken.
     // 3150 → 3175 at v22.18, deliberately and after extracting first. The revision identity's RULES
-    // all went to links-concurrency.js — `conflictOf` path 0, `baselineAfterCommit`, `nextRevision`
+    // all went to link-designer-concurrency.js — `conflictOf` path 0, `baselineAfterCommit`, `nextRevision`
     // and `baselineFromEntry`, which exists precisely because arming a baseline from a loaded entry
     // was about to be restated at two call sites here. What stayed is one more piece of state
     // threaded through the save, rename and select paths that already carried the old one, which is
@@ -127,55 +127,55 @@ const CAPS = {
     // 3175 → 3185 at v22.36, and stated because a raised cap should never pass unnoticed. The
     // external review's already-restored finding put a THIRD store outcome on the restore path, and
     // the reaction to it is UI: drop the stale bin row, repaint, say what happened. The RULE — write
-    // nothing when the design is already live — went into links-design-store.js, which is where the
+    // nothing when the design is already live — went into link-designer-design-store.js, which is where the
     // ratchet wants rules to go, so this is the coordinator doing its actual job. Extraction was
     // tried first and mostly worked; the last 3 lines are reasoning, and deleting reasoning to
     // satisfy a number is the trade this file exists to prevent, not the one it asks for.
     //
     // 3185 → 3150 in the same release, from the other direction: the `?`-panel content left for
-    // links-tips.js, which took the file below where it stood before the raise. Help text is not
+    // link-designer-tips.js, which took the file below where it stood before the raise. Help text is not
     // coordination, and it went because the generator card's prose was moving into the same panel.
     // The ceiling comes down with it rather than being banked as headroom — the v21.87 reasoning
     // above — so the raise of ten lines survives on its merits and the saving of seventy-six is
     // not quietly spent.
     // 2370 → 2372 at v25.09, a RAISE, said so. The file stood at exactly its cap, so "Keep only the
     // shortlist" could not add a single line here — and it did what the note below asks: the RULES
-    // went into links-shortlist.js and the press, with its ··· More row, into links-design-library.js
+    // went into link-designer-shortlist.js and the press, with its ··· More row, into link-designer-design-library.js
     // beside import and the bin. What is left is the one hook the press needs from the coordinator,
     // because only the coordinator owns the live list and the open design. The cap is the measured
     // size, so the next addition is a raise too.
     // 2371 → 2399 on 7 Nov 2026 (iPhone audit), a RAISE: the unsaved-work draft's wiring — keep the open design and its baseline on a hide, offer and restore them; the rules went to unsaved-draft.js.
-    // 2399 → 2380 the same day (desktop audit), brought DOWN with the code that left: the grid's input — its clicks, the keyboard's one Tab stop and a mouse's paint stroke — went to links-grid-input.js.
+    // 2399 → 2380 the same day (desktop audit), brought DOWN with the code that left: the grid's input — its clicks, the keyboard's one Tab stop and a mouse's paint stroke — went to link-designer-grid-input.js.
     // 2380 → 2750 in the whole-app fix (Nov 2026), a RAISE, said so: measured at 2654, plus 50, to the next 50. What it
     // bought is COORDINATION the page alone can do, because only it holds the working copy: a create, copy or delete that
     // lands late re-checks whether the page has moved on before it opens anything; nothing makes a design until the list
     // is in; the Build press says it is building; and the wiring the
     // store, the header and the library asked for (the cache's own read, `activeId`, the queued pill, the gone design's
     // bin row). About half is the argument beside each. The rules went out: the wording of a delete or rename that found
-    // the design gone to links-deletion.js, a create's bound to links-design-store.js, the pill's words to
-    // links-design-header.js. The next Links rule still goes in a domain module.
+    // the design gone to link-designer-deletion.js, a create's bound to link-designer-design-store.js, the pill's words to
+    // link-designer-design-header.js. The next Link Designer rule still goes in a domain module.
     // 2750 → 2773 in the second whole-app check (Nov 2026), a RAISE, said so, after extracting first: the RULE — a list read
-    // answered after the page changed it is applied around those changes — went to links-concurrency.js (`mergeListAnswer`,
+    // answered after the page changed it is applied around those changes — went to link-designer-concurrency.js (`mergeListAnswer`,
     // unit-tested). What stayed is wiring only this page can do (a refused save re-reads the list, and the save row follows;
     // a delete that lands after a switch keeps the comparison; two spans stamped from SPARE_WORKED_DAYS) and the reason
     // beside each. Set at the measured size: no room is banked.
     // 2773 → 2750 on 18 Nov 2026, brought DOWN with what left (external review: make the next debt change small, one
     // job): what a READ of the design collection means — the split both readers made, their two bin rules, the cached
-    // and legacy gates, the list's one order, which design opens — went to links-design-load.js, 2,773 measured lines
+    // and legacy gates, the list's one order, which design opens — went to link-designer-design-load.js, 2,773 measured lines
     // to 2,744. The formula gives 2800, a raise, so it is clamped to the round number below the old cap, as admin-app.js
     // was at v23.54: six lines of room. The save conversation in `saveChanges` is the next seam.
-    // 2750 → 2550: brought DOWN with what left (Nov 2026): the Build press's words and bookkeeping (links-build-press.js) and what the page reads from today's roster (links-today.js), 2,744 measured lines to 2,483; the measured size plus 50, rounded up.
-    // 2550 → 2400: brought DOWN again (Nov 2026): the grid's cells (links-grid-cells.js), the one working-copy setter, one read of the collection and the print net (links-print.js), 2,483 measured lines to 2,348; the measured size plus 50, rounded.
-    // 2400 → 1950: brought DOWN (Nov 2026), by cutting comments to their reasons: the changelog went — git log keeps it — and every why an edit could break stayed, 2,348 measured lines to 1,860; the measured size plus 50, rounded up. The next Links rule still goes in a domain module.
-    // 1950 → 1450 on 25 Nov 2026, brought DOWN with what left (the maintainability split): the grid and what a cell press means (links-grid.js), the paint bar and its brush (links-brush-bar.js), the staffed-window editor (links-window-editor.js) and the Build press (links-build-button.js), 1,872 measured lines to 1,356; the measured size plus 50, rounded up.
-    'links-app.js':            1450,   // ← 25 Nov 2026, the maintainability split (1950 earlier in Nov 2026)
+    // 2750 → 2550: brought DOWN with what left (Nov 2026): the Build press's words and bookkeeping (link-designer-build-press.js) and what the page reads from today's roster (link-designer-today.js), 2,744 measured lines to 2,483; the measured size plus 50, rounded up.
+    // 2550 → 2400: brought DOWN again (Nov 2026): the grid's cells (link-designer-grid-cells.js), the one working-copy setter, one read of the collection and the print net (link-designer-print.js), 2,483 measured lines to 2,348; the measured size plus 50, rounded.
+    // 2400 → 1950: brought DOWN (Nov 2026), by cutting comments to their reasons: the changelog went — git log keeps it — and every why an edit could break stayed, 2,348 measured lines to 1,860; the measured size plus 50, rounded up. The next Link Designer rule still goes in a domain module.
+    // 1950 → 1450 on 25 Nov 2026, brought DOWN with what left (the maintainability split): the grid and what a cell press means (link-designer-grid.js), the paint bar and its brush (link-designer-brush-bar.js), the staffed-window editor (link-designer-window-editor.js) and the Build press (link-designer-build-button.js), 1,872 measured lines to 1,356; the measured size plus 50, rounded up.
+    'link-designer-app.js':            1450,   // ← 25 Nov 2026, the maintainability split (1950 earlier in Nov 2026)
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
-    // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
+    // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Link Designer
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap
     // without reading it. What it is spent on is two of those: the ··· sheet's Rename row is now
     // handed to the masthead for its disabled state, and a declined design switch now re-renders
     // the picker. Five lines, both wiring, neither a rule — the rules and their reasoning went
-    // into links-design-header.js, which is where the three-homes discipline puts them. The room
+    // into link-designer-design-header.js, which is where the three-homes discipline puts them. The room
     // is the header's own 50-line allowance so the next small fix is not blocked in turn.
     // 2000 → 1900 at v21.89. The sticky take-home bar left for paycalc-sticky-total.js — 1,988
     // measured lines down to 1,888. Of everything in this coordinator it was the piece whose
@@ -290,21 +290,21 @@ const CAPS = {
     'admin-app.js':            1285,
     // 1500 → 1503 in the second whole-app check (Nov 2026), a RAISE, said so: two RULES grew where rules belong — the rest
     // repair tries the earlier duty of a short turnaround when no swap of the later one works, and the shift balance counts a
-    // cover week as its duties — each pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
+    // cover week as its duties — each pinned in link-designer-design.test.mjs. Nothing in it is coordination. At the measured size.
     // 1503 → 1513 (Nov 2026), a RAISE, said so: two rules where rules belong — `lineTotals` counts a lone spare day as a
     // floor (`loneSpare`), and `hoursFigure` is the one way a weeklyHours average is stated ("(partial)" included), both
-    // pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
-    // 1513 → 870 (25 Nov 2026, at 1511 of 1513): the generator left for links-generate.js, its comments with it, and the
+    // pinned in link-designer-design.test.mjs. Nothing in it is coordination. At the measured size.
+    // 1513 → 870 (25 Nov 2026, at 1511 of 1513): the generator left for link-designer-generate.js, its comments with it, and the
     // turnaround formula's second copy became a call to `restBetween`. The ceiling comes down to the new size plus room.
-    'links-design.js':          870,   // a DOMAIN module: large is less alarming here, but still capped
-    // NEW 25 Nov 2026: the generator moved out of links-design.js whole (`generateLink`, the two constructions, the rest
+    'link-designer-design.js':          870,   // a DOMAIN module: large is less alarming here, but still capped
+    // NEW 25 Nov 2026: the generator moved out of link-designer-design.js whole (`generateLink`, the two constructions, the rest
     // repair), its long argued comments included. A pure DOMAIN module, so capped at the measured size plus room.
-    'links-generate.js':        740,
+    'link-designer-generate.js':        740,
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
     // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same
     // kind of rule, pure and shared by every save path that wants it; admin-overrides.js, the caller,
-    // is at its own cap. A pure DOMAIN module like links-design.js, so capped where it stands.
+    // is at its own cap. A pure DOMAIN module like link-designer-design.js, so capped where it stands.
     // 928 → 900 (16 Nov 2026, at 928 of 928): changelog narrative in its comments cut to the rule and
     // its reason (git log keeps the history), 928 lines down to 847 — the ceiling comes down with them.
     // 900 → 775 (25 Nov 2026, at 745 of 899): the Other-day grammar and its pay resolver left for other-day.js,
@@ -497,7 +497,7 @@ const CAPS = {
     // filter, its own row rendering and the reset break-glass, and is the obvious next seam.
     // 1020 → 920 in Oct 2026, a LOWER: the App Speed review needed four lines of help text in a file
     // at its cap to the line, and the answer was EXTRACT — the help panels are content, and moved to
-    // operations-tips.js as Links, Overtime and Trains had done (−152). The ceiling comes down with
+    // operations-tips.js as Link Designer, Overtime and Trains had done (−152). The ceiling comes down with
     // them, to the usual headroom over 875, rather than banking the saving. The Account-status seam
     // above is still the next one.
     // 920 → 837 on 13 Nov 2026, a LOWER, to the measured size: the sign-in audit's lost-phone Reset (D1)

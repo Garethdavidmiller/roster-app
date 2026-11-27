@@ -9,7 +9,7 @@
  * on an iPhone; iOS also discards a page it has put in the background whenever it wants the memory;
  * and a swipe back, or away to another app, asks nothing on any phone. The in-page questions — the
  * drawer, the About panel, the logo, sign-out — cover the exits the app draws itself. These are the
- * ones it does not, and the Links grid and Admin's staged week lived only in memory through all of
+ * ones it does not, and the Link Designer grid and Admin's staged week lived only in memory through all of
  * them: the member came back to a page that had quietly started again.
  *
  * So when the page becomes hidden WITH unsaved work, a copy goes into localStorage
@@ -42,7 +42,7 @@
  *      read only by its own member on its own page: a colleague's staged week, left on a shared PC by
  *      somebody who never opened that page there again, stayed in storage for good.
  *   5. A DRAFT IS WORK, NOT A DECISION. What it puts back is unsaved again, and saving it asks the
- *      page's own questions. Links restores the concurrency baseline the edits were made against
+ *      page's own questions. Link Designer restores the concurrency baseline the edits were made against
  *      (`draftBaseline`), so a colleague's save since still meets "Someone else saved"; Admin puts
  *      back only the rows whose saved record is still the one the row was DRAWN from, compared whole
  *      by the rule a save uses (`keptRecord` / `sameKeptRecord`, override-compare.js — v26.08: an
@@ -59,9 +59,9 @@
  *      is what is asked about and put back. Admin judges it from what the save was SENDING when the
  *      page went (`sendingDays`, admin-week-editor.js) against what each day holds now
  *      (`unsavedWeekDraft`, admin-week-row-state.js) — the outcome, never a guess about which queue
- *      the save was in. Links keeps the copy a QUEUED save wrote until the server confirms it
- *      (links-design-store.js rule 6) — a second tab's queue is memory only — and takes out a draft
- *      the design now holds exactly (`_draftStillUnsaved`, links-app.js).
+ *      the save was in. Link Designer keeps the copy a QUEUED save wrote until the server confirms it
+ *      (link-designer-design-store.js rule 6) — a second tab's queue is memory only — and takes out a draft
+ *      the design now holds exactly (`_draftStillUnsaved`, link-designer-app.js).
  *
  * ── WHAT IT IS NOT ──────────────────────────────────────────────────────────────────────────────
  *
@@ -148,9 +148,9 @@ export function restoreQuestion(savedAt, now) {
 }
 
 /**
- * The concurrency baseline a Links draft was edited against, as read back from storage (rule 5).
+ * The concurrency baseline a Link Designer draft was edited against, as read back from storage (rule 5).
  * Anything unusable reads as UNKNOWN, never as "no baseline": `conflictOf` treats a null baseline
- * that is not flagged unknown as safe to overwrite, which is the silent overwrite links-design.md
+ * that is not flagged unknown as safe to overwrite, which is the silent overwrite link-designer.md
  * invariant 5 exists to stop.
  * @param {any} raw
  * @returns {{ loadedRevision: number|null, loadedUpdatedAt: number|null, baselineUnknown: boolean }}
@@ -208,9 +208,9 @@ function sweepStaleDrafts(now) {
  * what has since saved (rule 6); when nothing is left the draft is deleted and nothing is asked.
  *
  * `usable(data)` is the page's own test of a draft it could put back WHOLE: one that fails it is
- * neither offered nor kept. A Links draft whose patterns were unreadable would otherwise come back
+ * neither offered nor kept. A Link Designer draft whose patterns were unreadable would otherwise come back
  * as an empty grid, and a Save would write that over the shared design — restored whole or not at
- * all, as an import is (links-design.md, invariant 6).
+ * all, as an import is (link-designer.md, invariant 6).
  * @param {{ page: string, by: string, now?: () => number, usable?: (data: Record<string, any>) => boolean }} opts
  */
 export function createDraftSlot({ page, by, now = Date.now, usable = () => true }) {

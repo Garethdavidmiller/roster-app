@@ -49,7 +49,7 @@ below, and run `npm run generate:ai-map`.
 | Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
 | WHEN the Calendar page may draw — the start-up stage, the one wait for a swipe, the focus owed to the next grid | `calendar-redraw.js` |
 | The Calendar's menu — built for the saved session, and rebuilt in place for whoever signs in | `calendar-drawer.js` |
-| The notification prompt strip and silent renewal on the Calendar (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
+| The notification prompt strip and silent renewal on the Calendar (never on the GitHub Pages mirror) | `calendar-notif-prompt.js` |
 | The install strip on the Calendar, and the route the install notice asks of it | `install-prompt.js` |
 | A desktop at the Pages mirror told the address is closing — the strip and the sign-in card's line / their words | `mirror-move.js` / `mirror-move-words.js` |
 | Daily Huddle viewer — the `#huddle` hash, the subscription, the two render paths, the per-table scroll boxes (wrapTables) | `calendar-huddle-viewer.js` |
@@ -71,9 +71,9 @@ below, and run `npm run generate:ai-map`.
 | Usage card (ops page) — anonymous page popularity + active-account counts | `usage-reporter.js`, `firebase-client.js`, `usage-stats.js` (date/aggregation maths), `operations-usage.js`, `operations.css`, `firestore.rules` (`analytics`) |
 | Document links card (ops page) — a new key for every stored Huddle, Circular and Newsletter file, so every old copy of a link stops working | `operations-doc-links.js` (the card) · `functions/documents.js` (`rotateDocumentLinks`, the endpoint) · `functions/doc-link-rotation.js` (the rules) |
 | Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · decisions `docs/DECISIONS.md` → The annual leave uploader |
-| Links design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `links-app.js` + `links.html` + `links.css`; the grid `links-grid.js`, the paint bar `links-brush-bar.js`, the window editor `links-window-editor.js`, the Build press `links-build-button.js` |
-| Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), the rest between two duties, design quality checks | `links-design.js` (pure — no DOM/Firebase, imports nothing; tested by `links-design.test.mjs`) |
-| The link generator — the two constructions, the contract gate, the minimum-rest repair | `links-generate.js` (pure; imports its constants from `links-design.js`; tested by `links-design.test.mjs` and `links-contract.test.mjs`) |
+| Link Designer design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `link-designer-app.js` + `link-designer.html` + `link-designer.css`; the grid `link-designer-grid.js`, the paint bar `link-designer-brush-bar.js`, the window editor `link-designer-window-editor.js`, the Build press `link-designer-build-button.js` |
+| Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), the rest between two duties, design quality checks | `link-designer-design.js` (pure — no DOM/Firebase, imports nothing; tested by `link-designer-design.test.mjs`) |
+| The link generator — the two constructions, the contract gate, the minimum-rest repair | `link-designer-generate.js` (pure; imports its constants from `link-designer-design.js`; tested by `link-designer-design.test.mjs` and `link-designer-contract.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |
 | Which AL days consume entitlement, and a member's taken/booked/remaining position | `al-entitlement.js` (pure — no DOM/Firebase; tested by `al-entitlement.test.mjs`) |
 | CHRISTMAS LEAVE — who is shown on leave on 25/26 December, never counted, and the Boxing Day day in lieu | `christmas-leave.js` (pure; `christmas-leave.test.mjs`) · the whole allowance `entitlementFor` in `al-entitlement.js` |
@@ -190,7 +190,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports of `overtime-form.js`:** `renderWeekForm`
 - **Exports of `overtime-roster.js`:** `rosterBadge` · `loadRosterContext` · `loadRosterForMembers`
 
-### `links-import.js`
+### `link-designer-import.js`
 - **Exports:** `MAX_IMPORT_NAME` · `parseCell` · `parseGrid` · `parseDesignImport` · `summariseImport`
 
 ### `overtime-manager.js`
@@ -335,73 +335,73 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports of `operations-usage.js`:** `initUsageCard`
 - **Exports of `operations-speed.js`:** `initPageSpeedCard`
 
-### `links-app.js`
+### `link-designer-app.js`
 - **Exports:** `init`
 
-### `links-analysis.js`
+### `link-designer-analysis.js`
 - **Exports:** `initLinksAnalysis`
 
-### `links-compare-analysis.js`
+### `link-designer-compare-analysis.js`
 - **Exports:** `compareDesigns`
 
-### `links-compare.js`
+### `link-designer-compare.js`
 - **Exports:** `COMPARE_ACTIVE_FALLBACK` · `initLinksCompare`
 
-### `links-grid-input.js`
+### `link-designer-grid-input.js`
 - **Exports:** `cellAfterKey` · `createGridInput` · `trackPaintBarHeight`
 
-### `links-build-press.js`
+### `link-designer-build-press.js`
 - **Exports:** `overCapacityLine` · `refusalLine` · `buildConfirm` · `withSurplusLines` · `createBuildCounter` · `builtStatusLine`
 
-### `links-today.js`
+### `link-designer-today.js`
 - **Exports:** `shiftOptionLists` · `currentLinkBaseline`
 
-### `links-grid-cells.js`
+### `link-designer-grid-cells.js`
 - **Exports:** `DAY_LABELS` · `shiftLabel` · `cellName` · `emptyPattern` · `isUnfilledPattern` · `cellAriaName` · `editCellHtml` · `compareCellHtml` · `coverCellsHtml`
 
-### `links-grid.js`
+### `link-designer-grid.js`
 - **Exports:** `shiftOptionsHtml` · `totalCellsHtml` · `coverFootHtml` · `createDesignGrid`
 
-### `links-brush-bar.js`
+### `link-designer-brush-bar.js`
 - **Exports:** `brushTimes` · `brushSig` · `createBrushBar`
 
-### `links-window-editor.js`
+### `link-designer-window-editor.js`
 - **Exports:** `createWindowEditor`
 
-### `links-build-button.js`
+### `link-designer-build-button.js`
 - **Exports:** `STILL_LOADING` · `boxFigure` · `initBuildButton`
 
-### `links-analyse.js`
+### `link-designer-analyse.js`
 - **Exports:** `readAgainstService` · `analyse`
 
-### `links-print.js`
+### `link-designer-print.js`
 - **Exports:** `createPrintPrep`
 
 ### `newlink-tips.js`
 - **Exports:** `CARD_TIPS`
 
-### `links-tips.js`
+### `link-designer-tips.js`
 - **Exports:** `DEFAULT_TABLE_FIGURES` · `CARD_TIPS`
 
-### `links-design.js`
+### `link-designer-design.js`
 - **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `WEEKENDS_OFF_AIM_PCT` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `hoursFigure` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `restBetween` · `runDesignChecks`
 
-### `links-generate.js`
+### `link-designer-generate.js`
 - **Exports:** `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `repairShortRest` · `generateLink`
 
-### `links-target-sets-store.js`
+### `link-designer-target-sets-store.js`
 - **Exports:** `createTargetSetStore`
 
-### `links-target-hours.js`
+### `link-designer-target-hours.js`
 - **Exports:** `assessTargetHours` · `targetHoursLines` · `targetProvenanceNote`
 
-### `links-design-doc.js`
+### `link-designer-design-doc.js`
 - **Exports:** `LEGACY_DOC_ID` · `LINK_26_FROM` · `PREVIOUS_LINK_LENGTH` · `isPre26Design` · `deepCopyPatterns` · `designFromDoc` · `binEntryFromDoc` · `docPayload` · `workingCopy` · `binEntryFrom` · `restoredEntryFrom` · `recordSave` · `lastSavedLabel`
 
-### `links-design-load.js`
+### `link-designer-design-load.js`
 - **Exports:** `splitDesignDocs` · `binOldOnLoad` · `binOldOnRefresh` · `readCannotAnswer` · `migratesLegacy` · `byDesignName` · `designToOpen` · `emptyStateFor`
 
-### `links-generator-targets.js`
+### `link-designer-generator-targets.js`
 - **Exports:** `CUSTOM_SHIFT_PROMPT` · `customShiftRefusal` · `createTargetPanel`
 
 ### `select-sheet.js`
@@ -409,57 +409,57 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 
 ### `select-sheet-parity.test.mjs`
 
-### `links-proposals.js`
+### `link-designer-proposals.js`
 - **Exports:** `PROPOSAL_PREFIX` · `PROPOSALS` · `proposalDisplayName` · `PROPOSAL_NAMES` · `isProposalId` · `proposalById` · `proposalCopyName`
 
-### `links-shortlist.js`
+### `link-designer-shortlist.js`
 - **Exports:** `OLDER_BEFORE` · `LISTED_IN_DIALOG` · `isOlderDesign` · `olderDesigns` · `canKeepOnlyShortlist` · `keepOnlyShortlistMessage` · `keptOnlyShortlistLine`
 
-### `links-design-header.js`
+### `link-designer-design-header.js`
 - **Exports:** `toDate` · `lastSaveTime` · `groupDesigns` · `saveButtonLabel` · `statusCopy` · `whoCopy` · `proposeNewDesignName` · `createDesignHeader`
 
-### `links-design-naming.js`
+### `link-designer-design-naming.js`
 - **Exports:** `MAX_DESIGN_NAME` · `nameKey` · `nameConflict` · `checkName` · `checkDesignName` · `proposeCopyName`
 
 ### `rangers-guide.css`
 The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff accept or refuse at the gateline, drawn as a dialect of the Railcard guide. A static page with no app modules; its chip bar is `guide-chips.js` and its ⤓ PDF button `guide-print.js`. The page's rules are `.claude/rules/guide-pages.md` → "Rangers & Rovers guide"; each product's evidence is a `GUIDE_SOURCES.md` row, held to the page by `guide-sources.test.mjs`.
 
-### `links-seed.js`
+### `link-designer-seed.js`
 - **Exports:** `rosterSeedLines` · `buildRosterTargets`
 
-### `links-default-targets.js`
+### `link-designer-default-targets.js`
 - **Exports:** `DEFAULT_COVER_WEEKS` · `OPENING_TURNS` · `CLOSING_TURNS` · `EVENING_TURNS_FROM_22` · `SATURDAY_CLOSING_TURNS` · `SATURDAY_TURNS` · `SUNDAY_TURNS` · `TARGET_DAYS_PER_WEEK` · `DEFAULT_SHIFT_TIMES` · `sameTargetTable` · `isSupersededMemory` · `buildDefaultTargets`
 
-### `links-target-sets.js`
+### `link-designer-target-sets.js`
 - **Exports:** `MAX_SET_NAME` · `MAX_SET_SLOTS` · `SPARE_WEEKS_CAP` · `targetSetProblem` · `targetSetFromDoc` · `targetSetPayload` · `canOverwriteTargetSet` · `describeSetState` · `sortTargetSets` · `describeSetList`
 
-### `links-limits.js`
+### `link-designer-limits.js`
 - **Exports:** `MAX_CONSECUTIVE_WORKED_DAYS` · `POLICY_SOURCE_CONFIRMED` · `LIMIT_CLAIM` · `CONTRACTED_DAYS_CEILING` · `contractedDaysPerYear` · `contractedDaysFromCounts` · `assessHardLimits`
 
-### `links-fatigue.js`
+### `link-designer-fatigue.js`
 - **Exports:** `DAY_NAME` · `isRest` · `isWorked` · `dutyMinutes` · `isEarlyStart` · `isVeryEarlyStart` · `coversNightWindow` · `toSequence` · `longestRunBetween48hBreaks` · `longestWorkedRun` · `longestRunOf` · `earlyBlocksWithShortRecovery` · `maxHoursInAny7Days` · `COVER_DUTY_MINUTES` · `COVER_DUTY_WORDS` · `worstHoursInAny7Days` · `startTimeJumps` · `rotationDirection` · `assessFatigue`
 
-### `links-window.js`
+### `link-designer-window.js`
 - **Exports:** `DEFAULT_WINDOW` · `WINDOW_ROWS` · `windowMinutes` · `rowMinutes` · `canonicaliseWindowTime` · `isValidWindowRow` · `windowEditRefusal` · `normaliseWindow` · `windowForDay` · `isHourStaffed` · `heatSpan` · `formatWindow` · `windowsDiffer` · `isDefaultWindow`
 
-### `links-demand.js`
+### `link-designer-demand.js`
 - **Exports:** `DEC_2026_SOURCE` · `DAY_CLASS_KEYS` · `DEC_2026_MOVEMENTS` · `DEC_2026_DEMAND` · `demandAt` · `peakCars` · `demandBucket` · `peakHours` · `DAY_LABEL` · `DAY_CLASSES` · `movementsOutside` · `dutySpans` · `summariseDemand` · `describeHours` · `describeMovements`
 
-### `links-adjacency.js`
+### `link-designer-adjacency.js`
 - **Exports:** `OBJECTIVES` · `GENTLE_THRESHOLD_MINUTES` · `DEFAULT_BLOCK_TARGET` · `lineStartProfile` · `weekStep` · `breakLength` · `boundaryRest` · `blockRuns` · `longestBlockOf` · `blockExcess` · `spareSpread` · `longestRunFor` · `runExcess` · `scoreOrder` · `cost` · `reorderLines` · `applyOrder`
 
-### `links-deletion.js`
+### `link-designer-deletion.js`
 - **Exports:** `tsMillis` · `isDeleted` · `deletedLabel` · `sortByDeleted` · `deleteOutcomeLine` · `renameRefusedLine`
 
-### `links-concurrency.js`
+### `link-designer-concurrency.js`
 - **Exports:** `conflictOf` · `baselineAfterWrite` · `baselineAfterCommit` · `baselineFromEntry` · `nextRevision` · `canAdvanceBaseline` · `listRowSig` · `mergeListAnswer`
 
 ### `admin-tips.js`
 - **Exports:** `CARD_TIPS`
 
-### `admin-boot.js` / `links-boot.js` / `operations-boot.js` / `paycalc-boot.js` / `settings-boot.js`
+### `admin-boot.js` / `link-designer-boot.js` / `operations-boot.js` / `paycalc-boot.js` / `settings-boot.js`
 - **Exports of `admin-boot.js`:** none
-- **Exports of `links-boot.js`:** none
+- **Exports of `link-designer-boot.js`:** none
 - **Exports of `operations-boot.js`:** none
 - **Exports of `paycalc-boot.js`:** none
 - **Exports of `settings-boot.js`:** none
@@ -926,13 +926,13 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `overtime-review-controller.js`
 - **Exports:** `createReviewController`
 
-### `links-design-library.js`
+### `link-designer-design-library.js`
 - **Exports:** `createDesignLibrary`
 
-### `links-design-store.js`
+### `link-designer-design-store.js`
 - **Exports:** `isOfflineFailure` · `createDesignStore`
 
-### `links-queued-saves.js`
+### `link-designer-queued-saves.js`
 - **Exports:** `createQueuedSaves` · `refusedMakeLine` · `stillUnsaved`
 
 ### `upload-commit.js`
@@ -959,7 +959,7 @@ The server-side Firestore security rules, and the authority on access (what the 
 ### `storage.rules`
 The Firebase Storage rules for the three document folders — `huddles/`, `circulars/`, `newsletters/` — admin-only to read, write and delete, at most 20 MB (`MAX_FILE_BYTES` in `functions/index.js` must match) and PDF or Word only; every other path is denied. Staff never open a file through these rules: the short-lived signed url and the stored url both bypass them. Verify with `npm run test:rules`.
 
-### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `links.css` / `overtime.css` / `trains.css` / `newlink.css`
+### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `link-designer.css` / `overtime.css` / `trains.css` / `newlink.css`
 Each app page's own stylesheet, linked after `shared.css`: a visual change specific to one page goes here, and anything two pages share goes in `shared.css`. Served from the service worker's version cache like the app's JS. Tokens, surfaces and the recipes are `.claude/rules/css-tokens.md`; a raw hex colour fails `css-hex-parity.test.mjs`.
 
 ### `guide-shell.css`

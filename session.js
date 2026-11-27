@@ -571,7 +571,7 @@ export async function refreshClaimsIfStale(epoch) {
  *
  * ⚠️ A lingering Firebase identity is NOT harmless: a named/admin/manager/designer identity retains
  * real access at the FIREBASE layer (all staff emails, on-behalf override writes, admin uploads,
- * Links writes) after the local app session expired, reachable on a shared device via devtools.
+ * Link Designer writes) after the local app session expired, reachable on a shared device via devtools.
  * `reconcileExpiredIdentity()` is the COORDINATED teardown, run AFTER the auth restore; the Calendar
  * calls it on virtually every launch, and every protected page's coordinator at init (grep for the
  * call rather than trusting a list here). (Finding #9)

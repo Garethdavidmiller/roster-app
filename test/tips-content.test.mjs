@@ -32,8 +32,8 @@
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ROTATING_LINES, MIN_REST_MINUTES, WEEKENDS_OFF_AIM_PCT } from '../links-design.js';
-import { DEFAULT_TABLE_FIGURES } from '../links-tips.js';
+import { ROTATING_LINES, MIN_REST_MINUTES, WEEKENDS_OFF_AIM_PCT } from '../link-designer-design.js';
+import { DEFAULT_TABLE_FIGURES } from '../link-designer-tips.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -41,9 +41,9 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 /**
  * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
  *
- * Links, Trains and Operations' leave-file age interpolate constants into their tips strings. Links:
+ * Link Designer, Trains and Operations' leave-file age interpolate constants into their tips strings. Link Designer:
  * four of its entries state the rotation length and one states the main cycle's length, and
- * `links-rotation-parity.test.mjs` requires the former to be DERIVED rather than typed (the length
+ * `link-designer-rotation-parity.test.mjs` requires the former to be DERIVED rather than typed (the length
  * went 28 → 22 at v19.98 and left prose behind in fifteen places). Importing the module builds each
  * string from the module's REAL constants, so a tips string quoting the wrong number would still have
  * to be wrong about something else to pass.
@@ -52,7 +52,7 @@ const PAGES = [
     { js: 'admin-tips.js',     html: 'admin.html' },
     { js: 'operations-tips.js', html: 'operations.html' },
     { js: 'settings-tips.js',  html: 'settings.html' },
-    { js: 'links-tips.js',     html: 'links.html' },
+    { js: 'link-designer-tips.js',     html: 'link-designer.html' },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
     // The Calendar's one ? is drawn by Team View (calendar-team-view.js), so that file is where its button is read.
     { js: 'calendar-tips.js',  html: 'calendar-team-view.js', noCardHeading: true },
@@ -436,36 +436,36 @@ describe('the Staff Guide does not say only a manager changes a day', () => {
     });
 });
 
-// ── links-tips.js says what the Links page DRAWS (whole-app fix, Nov 2026 — links-app-13) ────────────
-// The structural checks below cannot see prose, and four Links panels had stopped describing the page:
+// ── link-designer-tips.js says what the Link Designer DRAWS (whole-app fix, Nov 2026 — links-app-13) ────────────
+// The structural checks below cannot see prose, and four Link Designer panels had stopped describing the page:
 // a blank Coverage cell was "nobody on duty" and a red 0 a mid-day hole, after the staffed window made
 // a gap any OPEN hour; the generator named a "Custom time…" option that reads "Custom…"; Generate was
 // said to refuse only an underpaying table; and the Design checks panel explained five rows of a card
 // that is mostly hours, company limits and ORR factors. Each test ties a sentence to the code that draws
 // what it describes, so a change to either side breaks here rather than on a colleague's screen.
-describe('links-tips.js — the ? panels describe the page as drawn', () => {
+describe('link-designer-tips.js — the ? panels describe the page as drawn', () => {
     const src = (/** @type {string} */ f) => readFileSync(new URL(`./${f}`, REPO_ROOT_URL), 'utf8');
     /** A panel's words, tags stripped. @param {any} tips @param {string} key */
     const words = (tips, key) => tips[key].sections.flatMap((/** @type {any} */ s) => s.items.map((/** @type {any} */ i) => i.html))
         .join(' ').replace(/<[^>]+>/g, '');
 
     test('Coverage: a red 0 is an OPEN hour with nobody on, and a grey hour is the station shut', async () => {
-        const { CARD_TIPS } = await import('../links-tips.js');
-        const note = src('links-analysis.js');
+        const { CARD_TIPS } = await import('../link-designer-tips.js');
+        const note = src('link-designer-analysis.js');
         assert.match(note, /Red 0 = the station is open and nobody is on\. Grey = outside the staffed window\./,
             'the card\'s own note changed — re-read the coverage tip against it');
-        const tip = words(CARD_TIPS, 'links-coverage');
+        const tip = words(CARD_TIPS, 'link-designer-coverage');
         assert.match(tip, /red 0 means a gap — the station is open and nobody is on duty/);
         assert.match(tip, /grey hour is outside the staffed window/);
         assert.doesNotMatch(tip, /blank = nobody|in the middle of that day/, 'the pre-window reading of the heat map');
     });
 
     test('the generator names its custom option by the label the option carries', async () => {
-        const { CARD_TIPS } = await import('../links-tips.js');
-        // The shift list is links-grid.js's since 25 Nov 2026 (`shiftOptionsHtml`, out of links-app.js).
-        const label = src('links-grid.js').match(/opt\('__custom__', '([^']+)'\)/)?.[1];
-        assert.ok(label, 'the custom option\'s label was not found in links-grid.js');
-        const tip = words(CARD_TIPS, 'links-generator');
+        const { CARD_TIPS } = await import('../link-designer-tips.js');
+        // The shift list is link-designer-grid.js's since 25 Nov 2026 (`shiftOptionsHtml`, out of link-designer-app.js).
+        const label = src('link-designer-grid.js').match(/opt\('__custom__', '([^']+)'\)/)?.[1];
+        assert.ok(label, 'the custom option\'s label was not found in link-designer-grid.js');
+        const tip = words(CARD_TIPS, 'link-designer-generator');
         assert.ok(tip.includes(`choose ${label}`), `the tip should send the designer to "${label}"`);
         assert.doesNotMatch(tip, /Custom time/);
     });
@@ -473,13 +473,13 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
     // ONE ROW PER SHIFT TIME (17 Nov 2026): the card's intro and the tip said "one row per start time", and the
     // default table opens with three rows that start at 06:20 and finish at different times.
     test('the generator\'s table is one row per SHIFT time, start and finish — the card and the tip say so', async () => {
-        const { CARD_TIPS } = await import('../links-tips.js');
-        const { DEFAULT_SHIFT_TIMES } = await import('../links-default-targets.js');
+        const { CARD_TIPS } = await import('../link-designer-tips.js');
+        const { DEFAULT_SHIFT_TIMES } = await import('../link-designer-default-targets.js');
         const starts = DEFAULT_SHIFT_TIMES.map(t => t.slice(0, 5));
         assert.ok(new Set(starts).size < starts.length, 'premise: two rows of the default table start together');
-        const tip = words(CARD_TIPS, 'links-generator');
-        const intro = src('links.html').match(/<p class="links-desc">List the shifts([\s\S]*?)<\/p>/)?.[1] ?? '';
-        assert.ok(intro, 'the generator card\'s intro was not found in links.html');
+        const tip = words(CARD_TIPS, 'link-designer-generator');
+        const intro = src('link-designer.html').match(/<p class="link-designer-desc">List the shifts([\s\S]*?)<\/p>/)?.[1] ?? '';
+        assert.ok(intro, 'the generator card\'s intro was not found in link-designer.html');
         for (const [where, text] of [['the tip', tip], ['the card\'s intro', intro]]) {
             assert.match(text, /one row per shift time, its start and finish/, `${where} says what a row is`);
             assert.doesNotMatch(text, /start time(?!s)/, `${where} still calls a row a start time`);
@@ -487,33 +487,33 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
     });
 
     test('the refusal is described both ways, each with its own remedies', async () => {
-        const { CARD_TIPS } = await import('../links-tips.js');
-        const gen = src('links-generate.js');   // the generator moved out of links-design.js (25 Nov 2026)
+        const { CARD_TIPS } = await import('../link-designer-tips.js');
+        const gen = src('link-designer-generate.js');   // the generator moved out of link-designer-design.js (25 Nov 2026)
         for (const reason of ['short-hours', 'over-hours']) assert.ok(gen.includes(`'${reason}'`), `generateLink no longer refuses with ${reason}`);
         // The generator's panel, since Nov 2026: the refusal is the generator's, of a table of targets.
-        const tip = words(CARD_TIPS, 'links-generator');
+        const tip = words(CARD_TIPS, 'link-designer-generator');
         assert.match(tip, /refuses a table of targets that does not pay the contracted week exactly — under it or over it/);
         assert.match(tip, /more duties, longer ones, or more cover weeks/);
         assert.match(tip, /fewer duties, shorter ones, or fewer cover weeks/);
         // The line count is fixed, so spreading the work over more lines is no remedy and is not offered.
-        assert.doesNotMatch(words(CARD_TIPS, 'links-grid') + tip, /more lines never can|over more lines/);
+        assert.doesNotMatch(words(CARD_TIPS, 'link-designer-grid') + tip, /more lines never can|over more lines/);
     });
 
     // THE DEFAULT TABLE'S FIGURES ARE READ, NOT TYPED (Nov 2026), and the panel's claim that the
     // shortlisted designs staff the same duties each day is checked against every shortlisted grid.
     test('the default table: its figures are the table\'s, and the shortlist claim holds', async () => {
-        const { CARD_TIPS } = await import('../links-tips.js');
-        const { PROPOSALS } = await import('../links-proposals.js');
-        const { isCoverWeek } = await import('../links-design.js');
+        const { CARD_TIPS } = await import('../link-designer-tips.js');
+        const { PROPOSALS } = await import('../link-designer-proposals.js');
+        const { isCoverWeek } = await import('../link-designer-design.js');
         const F = DEFAULT_TABLE_FIGURES;
-        const tip = words(CARD_TIPS, 'links-generator');
+        const tip = words(CARD_TIPS, 'link-designer-generator');
         assert.ok(tip.includes(`${F.weekday} on each weekday, ${F.sat} on a Saturday, ${F.sun} on a Sunday, with ${F.cover} cover weeks`));
         assert.ok(tip.includes(`at ${F.days} contracted days a year — under the ${F.ceiling} ceiling`));
         // …and the VERDICT words beside those figures are typed, so they are checked here against the table
         // itself (24-hour check, Nov 2026): a table that moved off the contract, or up to the ceiling, would
         // otherwise keep "exactly" and "under" while the figures interpolated beside them said otherwise.
-        const { buildDefaultTargets } = await import('../links-default-targets.js');
-        const { assessTargetHours } = await import('../links-target-hours.js');
+        const { buildDefaultTargets } = await import('../link-designer-default-targets.js');
+        const { assessTargetHours } = await import('../link-designer-target-hours.js');
         const t = buildDefaultTargets();
         assert.match(tip, /Mon–Sat pays exactly the contracted week/);
         assert.equal(assessTargetHours(t.slots, { spareLines: t.spareLines, totalLines: ROTATING_LINES }).onTarget, true,
@@ -533,28 +533,28 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
             assert.equal(n.sun, F.sun, `${p.name}: Sunday`);
             assert.equal(cover, F.cover, `${p.name}: cover weeks`);
         }
-        assert.ok(words(CARD_TIPS, 'links-checks').includes(`Aim for at least ${WEEKENDS_OFF_AIM_PCT}% of weeks`));
+        assert.ok(words(CARD_TIPS, 'link-designer-checks').includes(`Aim for at least ${WEEKENDS_OFF_AIM_PCT}% of weeks`));
     });
 
     test('Design checks: every section the card draws is explained', async () => {
-        const { CARD_TIPS } = await import('../links-tips.js');
-        const card = src('links-analysis.js');
-        const tip = words(CARD_TIPS, 'links-checks');
+        const { CARD_TIPS } = await import('../link-designer-tips.js');
+        const card = src('link-designer-analysis.js');
+        const tip = words(CARD_TIPS, 'link-designer-checks');
         for (const [drawn, said] of [['<strong>Hours a week</strong>', 'Hours a week'], ['Company limits <span', 'Company limits'],
             ['Fatigue factors <span', 'Fatigue factors'], ['For comparison — today\'s link', 'For comparison — today\'s link']]) {
-            assert.ok(card.includes(drawn), `links-analysis.js no longer draws "${said}" — re-read the checks tip`);
+            assert.ok(card.includes(drawn), `link-designer-analysis.js no longer draws "${said}" — re-read the checks tip`);
             assert.ok(tip.includes(said), `the checks tip does not explain "${said}"`);
         }
         assert.match(tip, /not pass\/fail limits/, 'the ORR factors are explained as factors present, never pass or fail');
     });
 
-    // A CELL COUNTS EVERYONE ON AT ANY POINT IN ITS HOUR (links-analysis-1, routed to links-tips.js): the
+    // A CELL COUNTS EVERYONE ON AT ANY POINT IN ITS HOUR (links-analysis-1, routed to link-designer-tips.js): the
     // tip said "more people on at once", and the card now reports a gap inside an hour whose cell is not 0.
     test('Coverage: a cell counts everyone on at some point in its hour, and a shorter gap is named by the note', async () => {
-        const { CARD_TIPS } = await import('../links-tips.js');
-        assert.match(src('links-analysis.js'), /Each cell counts everyone on duty at any point in that hour/,
+        const { CARD_TIPS } = await import('../link-designer-tips.js');
+        assert.match(src('link-designer-analysis.js'), /Each cell counts everyone on duty at any point in that hour/,
             'the card\'s own note changed — re-read the coverage tip against it');
-        const tip = words(CARD_TIPS, 'links-coverage');
+        const tip = words(CARD_TIPS, 'link-designer-coverage');
         assert.match(tip, /more people on duty at some point in that hour/);
         assert.doesNotMatch(tip, /at once/);
         assert.match(tip, /gap shorter than an hour .* still shows a number/);
@@ -564,14 +564,14 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
     // rest tip and the line-order card's load-bearing note each TYPED "12 hours". Both are 12 today, so
     // the tip is evaluated with a stand-in minimum, and the note must be a stamped span, never a figure.
     test('the minimum rest is read from MIN_REST_MINUTES in the tip, and stamped into the page\'s note', async () => {
-        assert.match(words(TIPS['links-tips.js'], 'links-checks'), new RegExp(`for less than ${MIN_REST_MINUTES / 60} hours rest`));
-        const moved = await tipsWith('links-tips.js', 'links-design.js', { MIN_REST_MINUTES: 11 * 60 });
-        assert.match(words(moved, 'links-checks'), /for less than 11 hours rest/, 'a moved minimum moves the tip');
-        const note = src('links.html').match(/<p class="gen-obj-note">([\s\S]*?)<\/p>/)?.[1] ?? '';
+        assert.match(words(TIPS['link-designer-tips.js'], 'link-designer-checks'), new RegExp(`for less than ${MIN_REST_MINUTES / 60} hours rest`));
+        const moved = await tipsWith('link-designer-tips.js', 'link-designer-design.js', { MIN_REST_MINUTES: 11 * 60 });
+        assert.match(words(moved, 'link-designer-checks'), /for less than 11 hours rest/, 'a moved minimum moves the tip');
+        const note = src('link-designer.html').match(/<p class="gen-obj-note">([\s\S]*?)<\/p>/)?.[1] ?? '';
         assert.match(note, /less than <span class="js-min-rest-hours">\d+<\/span> hours between a Saturday finish/,
             'the note states the minimum through the stamped span');
-        assert.match(src('links-app.js'), /'\.js-min-rest-hours'\)\) el\.textContent = String\(MIN_REST_MINUTES \/ 60\)/,
-            'and links-app.js stamps it from the constant');
+        assert.match(src('link-designer-app.js'), /'\.js-min-rest-hours'\)\) el\.textContent = String\(MIN_REST_MINUTES \/ 60\)/,
+            'and link-designer-app.js stamps it from the constant');
     });
 });
 
@@ -630,8 +630,8 @@ for (const { js, html, noCardHeading } of PAGES) {
         // Visible copy uses ’ and “ ”, and a straight quote had drifted into four of these modules (36
         // apostrophes and 4 double quotes) because nothing looked. Read as the lightbox shows it, tags
         // stripped, so an attribute's own quotes (an href) are not counted.
-        // links-tips.js is left out of both checks below only because another session owns the Links page.
-        if (js !== 'links-tips.js') test(`no tip in ${js} shows a straight apostrophe or double quote`, () => {
+        // link-designer-tips.js is left out of both checks below only because another session owns the Link Designer.
+        if (js !== 'link-designer-tips.js') test(`no tip in ${js} shows a straight apostrophe or double quote`, () => {
             const straight = [];
             for (const [key, v] of Object.entries(tips)) {
                 const texts = [v.title, ...v.sections.flatMap((/** @type {any} */ s) => [s.heading ?? '', ...s.items.map((/** @type {any} */ i) => i.html)])];
@@ -646,7 +646,7 @@ for (const { js, html, noCardHeading } of PAGES) {
         // the title; the card's header carries the emoji. And the title is the card's heading, so the
         // panel a reader opens is named as the card they opened it from ("Weekly Roster upload" was not).
         // Team Week View has no card, so no h2 to match: its title is the view's own name, checked with no emoji below.
-        if (js !== 'links-tips.js' && !noCardHeading) test(`every panel title in ${js} is its card's heading, with no emoji`, () => {
+        if (js !== 'link-designer-tips.js' && !noCardHeading) test(`every panel title in ${js} is its card's heading, with no emoji`, () => {
             const page = readFileSync(html, 'utf8');
             const wrong = [];
             for (const m of page.matchAll(/class="[^"]*btn-card-tips[^"]*"[^>]*data-card="([^"]+)"/g)) {

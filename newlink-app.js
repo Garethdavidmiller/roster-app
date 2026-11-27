@@ -53,7 +53,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { markPageReady, clearLoginStart } from './perf-reporter.js';
 import { initPdfViewer } from './pdf-viewer.js';
 import { isPlainClick } from './pdf-viewer-core.js';
-import { PROPOSALS } from './links-proposals.js';
+import { PROPOSALS } from './link-designer-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { CLOSES, STARTS, TIMETABLE_STARTS, PACK_BASE, HAVE_YOUR_SAY, CHOSEN, CONTACT } from './newlink-config.js';
 import { renderStatus, statusPhase, statusHint, renderList, renderCommon, renderDiffers, renderPersonas, renderPersonaChips,

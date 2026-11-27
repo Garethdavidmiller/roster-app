@@ -438,7 +438,7 @@ test('paycalc: every transition on the page takes its timing from the motion tok
 test('paycalc: a card header is the shared header — edge, padding and hint as on Settings', async ({ page }) => {
     // paycalc.css kept a copy of the header (padding and divider, the same values) and of the hint,
     // plus a 2px margin no other page has: Pay's hints sat 2px under their titles, every other card
-    // page's at 0 (measured on Settings, Operations, Admin, Trains and Links). A page-local copy is
+    // page's at 0 (measured on Settings, Operations, Admin, Trains and Link Designer). A page-local copy is
     // what keeps the old look when the shared header changes (css-tokens.md).
     await seedSession(page);
     await seedMember(page);

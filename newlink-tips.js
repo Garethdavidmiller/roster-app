@@ -11,7 +11,7 @@
  * ── RULES AN EDIT CAN BREAK ─────────────────────────────────────────────────────────────────────
  *
  * 1. **Nothing here says who decides, beyond who LEADS.** The change is led by `CONTACT`, `CONTACT_ROLE`, imported
- *    — never a name typed again — and the page makes no decision (`.claude/rules/links-design.md`, the opening).
+ *    — never a name typed again — and the page makes no decision (`.claude/rules/link-designer.md`, the opening).
  * 2. **Nothing here has a tense.** The status line's words follow the date and the choice (`renderStatus`,
  *    newlink-render.js); a panel cannot, so it says only what stays true: the page decides nothing, and who leads.
  * 3. **The roster words link to the glossary by themselves**: a panel that says "Spare" or "RDW" ends with "What

@@ -83,7 +83,7 @@ async function scan(page, { pageWaivers = [], exclude = [] } = {}) {
     // A scan that follows a click lands inside whatever that click set fading. v25.16 made chosen
     // controls a dark fill under white text, and a control's text can arrive before its fill does,
     // so for a tenth of a second the new white words sit on the old pale ground. WebKit in CI scanned
-    // exactly that frame on Links' only-what-differs filter and reported the button the settled page
+    // exactly that frame on Link Designer's only-what-differs filter and reported the button the settled page
     // gives 8.2:1 — while Chromium, faster, scanned the settled page. Nobody reads that frame; the
     // scan's job is the page a reader is left with. CSS TRANSITIONS only, never every animation: an
     // infinite one (a spinner) would never finish, and a bounded wait would still be a wait on it.
@@ -859,7 +859,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     test('links (designer, signed in)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
-        await page.goto('/links.html');
+        await page.goto('/link-designer.html');
         await expect(page.locator('#generatorToggleHeader')).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
@@ -905,7 +905,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns,
                 updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
         });
-        await page.goto('/links.html');
+        await page.goto('/link-designer.html');
         // Wait for the content itself, not the shell — the whole point of this test.
         await expect(page.locator('.cov-heat')).toBeVisible();
         await expect(page.locator('.cov-demand')).toBeVisible();
@@ -944,7 +944,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
                 { id: 'd2', name: 'Design B', patterns: mk('14:00-22:00', 3), updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
             ];
         });
-        await page.goto('/links.html');
+        await page.goto('/link-designer.html');
         await sheetAction(page, 'compareBtn');
         await expect(page.locator('#compareGridBodyRowsA tr').first()).toBeVisible();
         const filter = page.locator('#compareDiffOnlyBtn');
@@ -998,7 +998,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.setViewportSize({ width: 1366, height: 900 });
         await seedSession(page);
         await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify(
-            ['Trains', 'Pay', 'Links', 'Settings', 'Operations', 'Calendar', 'New link', 'General']
+            ['Trains', 'Pay', 'Link Designer', 'Settings', 'Operations', 'Calendar', 'New link', 'General']
                 .map((section, i) => ({ id: `probe-${i}`, section, title: `A ${section} notice`, date: '21 Oct 2026',
                     body: 'Body text.', archivedAt: new Date().toISOString() })))));   // stamped now: a fixed date ages out of the 180-day archive and the list comes up empty (App Notices review)
         await page.goto('/admin.html');
@@ -1085,7 +1085,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         ['operations', '/operations.html', '#huddleUploadCard'],
         ['paycalc', '/paycalc.html', '#settingsCard', () => localStorage.setItem('myb_pc_ns_migrated', '1')],
         ['settings', '/settings.html', '#contactToggleHeader'],
-        ['links', '/links.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
+        ['links', '/link-designer.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
         ['trains', '/trains.html', '#trTotals .tr-total'],
         ['newlink', '/newlink.html', '[data-persona="all"]'],
         ['overtime, paused', '/overtime.html', '#otMineContent .ot-state',

@@ -74,7 +74,7 @@ const UNNAMED_BY_DESIGN = {
     // These two were named by sw-asset-check's preload table until the preloads became generated
     // (scripts/generate-copies.mjs reads them from scripts/app-pages.mjs, which names no file).
     'paycalc-boot.js':    'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
-    'links-boot.js':      'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
+    'link-designer-boot.js':      'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
 
     'operations-usage.js':  'driven through its card by e2e/operations.spec.js (Usage)',
     'operations-speed.js':  'driven through its card by e2e/operations.spec.js (App Speed)',

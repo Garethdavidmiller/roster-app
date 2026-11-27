@@ -3,7 +3,7 @@
  * settings-tips.js — CARD_TIPS for settings.html's `?` panels.
  *
  * Data, no DOM, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins — the split
- * Admin, Calendar, Links, Operations, Overtime and Trains had already made. Content is not
+ * Admin, Calendar, Link Designer, Operations, Overtime and Trains had already made. Content is not
  * coordination, so it left `settings-app.js` (25 Nov 2026), which only hands it to `initTipsLightbox`.
  *
  * Static content at module scope, so it exists before anything in the coordinator's init() runs (Nov

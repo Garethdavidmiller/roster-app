@@ -336,7 +336,7 @@ describe('every caller reports what the box held', () => {
 });
 
 // ── ONE ANSWER WHEN A BOX IS LEFT (external review of v26.87) ────────────────────────────────────
-// Each screen judged the settled text its own way, and the Links window took an unfinished "6:30" as 06:30.
+// Each screen judged the settled text its own way, and the Link Designer window took an unfinished "6:30" as 06:30.
 describe('readClockBox — a time to take, an empty box, or a refusal with its reason', () => {
     it('clockTextStatus reads each kind of settled text', () => {
         for (const [text, status] of /** @type {[string, string][]} */ ([
