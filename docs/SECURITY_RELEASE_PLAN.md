@@ -28,7 +28,7 @@ reconciled across five files, and two had drifted — `auth-plan-parity.test.mjs
 | **F — step-up for sensitive admin actions** | **Declined** (owner, 27 Nov 2026) | — | — | Not to be built: DECISIONS.md → "No password check before admin actions". If it is ever reopened, invariant 16 (AUTH_AND_SESSIONS.md) still says how |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
 | **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session (the staff PIN was retired on 23 Nov 2026 — DECISIONS.md → "The staff PIN retired"), and the server refuses anything without a verified member (`isMember()`) or `admin` (the retired PIN's `calendarViewer` grants nothing since its server release). RECOVERY_RUNBOOK → "The staff PIN (retired)" has the read-tightening order | **E3** — INDIVIDUAL authentication as designed, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
-| **E6 — document files** | Short-lived signed links live (`getDocumentUrl`: server v24.16–18, client v24.19); the stored permanent link kept as the fallback (owner, 7 Oct 2026); rotation built (12 Nov 2026), not yet run | — | Owner — the first rotation run; revisit the fallback on DECISIONS.md's trigger (a leaked link, or `getDocumentUrl` failures making the fallback usual) | ARCHITECTURE.md EXC-007 closes: the links already in circulation no longer open |
+| **E6 — document files** | Short-lived signed links live (`getDocumentUrl`: server v24.16–18, client v24.19); the stored permanent link kept as the fallback (owner, 7 Oct 2026); rotation built (12 Nov 2026) and RUN by the owner (27 Nov 2026), so links handed out before it no longer open | — | Owner — revisit the fallback on DECISIONS.md's trigger (a leaked link, or `getDocumentUrl` failures making the fallback usual) | ARCHITECTURE.md EXC-007 closes: no permanent link is handed out at all |
 
 **Three things the table is deliberately explicit about**, because each was once implied and
 misread: **E1 is client preparation, not protection** — the boundary moves at the READ RULE, which
@@ -320,9 +320,9 @@ Console step that can be taken now (`firestore.rules` still records it as enable
 
 ### E6 — the document FILES (independent)
 Built: short-lived signed links, the Office viewer kept (`AUTH_AND_SESSIONS.md` → "The document files
-(E6)"). **Open**: the first run of Operations → Document links, which rotates the URLs already in
-circulation and reaches the orphaned objects retention cannot; and the stored permanent fallback,
-revisited only on DECISIONS.md's trigger. Both keep `ARCHITECTURE.md` EXC-007 open. E6 is a different
+(E6)"). **Done**: the first run of Operations → Document links (the owner, 27 Nov 2026), which rotated
+the URLs then in circulation and reached the orphaned objects retention cannot. **Open**: the stored
+permanent fallback, revisited only on DECISIONS.md's trigger, which keeps `ARCHITECTURE.md` EXC-007 open. E6 is a different
 failure domain from the rules work, on its own schedule.
 
 ### What to measure — and pre-register

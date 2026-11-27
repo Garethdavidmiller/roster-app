@@ -634,8 +634,8 @@ rewritten.
   which the client treats as "use the stored URL" — a silent degrade, not a dead button.
 - **Rotation is built** (Operations → Document links, `rotateDocumentLinks`, rules in
   `functions/doc-link-rotation.js`, 12 Nov 2026): rewriting the objects turns "whoever ever held a
-  URL" into "whoever held one since", and it is the only thing that reaches an orphaned object. Its
-  first run is the owner's (`ARCHITECTURE.md` EXC-007).
+  URL" into "whoever held one since", and it is the only thing that reaches an orphaned object. The
+  owner made its first run on 27 Nov 2026 (`ARCHITECTURE.md` EXC-007).
 - **The documents are behind the sign-in** (owner, 7 Sep 2026: the Daily Huddle, the Weekly Retail
   Circular and the Marylebone Newsletter must not be visible without signing in). The viewers open on
   the full grant only and refuse the read at source, so the local cache cannot answer it
