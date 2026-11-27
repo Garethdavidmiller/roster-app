@@ -516,7 +516,7 @@ test('::selection, ::placeholder and caret-color are declared for the app AND th
 
 // ── 12. no dictionary underlines on data ────────────────────────────────────────────────────────
 test('every served page turns spellcheck off at the body', () => {
-    // The legacy redirect stubs (v22.48; the Link Designer's old address since v27.09) carry no
+    // The legacy redirect stubs (v22.48; the Link Designer's old address since v27.10) carry no
     // fields at all — they are a <meta refresh> and a link. page-contract-parity gives them their own
     // contract for the same reason, and the list is REDIRECT_PAGES's, never a copy.
     const LEGACY = REDIRECT_PAGES.map(p => p.file);

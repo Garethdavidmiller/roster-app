@@ -60,7 +60,7 @@ table.t tr.band .gist { display: block; font-size: 10.4px; color: var(--text-dar
 * { text-wrap: pretty; } h1 { text-wrap: balance; }
 </style></head><body>
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · What it means if you…</div><h1>What it means if you…</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Link Designer · What it means if you…</div><h1>What it means if you…</h1>
   <div class="sub">What each shortlisted link would mean for six ways of working</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
   <p class="lead">One person, a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. Pounds are gross, at the CEA rate of £${RATE.toFixed(2)}; the Pay Calculator in the app estimates a payslip. <b class="best">Bold</b> marks the best of the three for that person.</p>

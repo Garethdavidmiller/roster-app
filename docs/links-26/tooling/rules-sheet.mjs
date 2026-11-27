@@ -152,7 +152,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </style></head><body>
 
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · the rules</div><h1>The December 2026 rules</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Link Designer · the rules</div><h1>The December 2026 rules</h1>
   <div class="sub">The rules every proposed CEA link is measured against, with today’s link beside each one</div>
   <div class="meta">Prepared ${RENDERED} · the rules and every figure below are read from the same code that writes the proposal sheets, not typed</div></div></div>
 
@@ -206,7 +206,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>Preferences <span class="tag adv">not scored</span></h2>
   <p class="lead">Not rules, and not scored. The first two and the last are gains, so a proposal sheet marks a design green where it beats today’s link on them; how much each matters is for staff to say.</p>
   <ul class="list">
-    <li><b>Days in a row.</b> The link designer aims for six or fewer, well inside the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</li>
+    <li><b>Days in a row.</b> The Link Designer aims for six or fewer, well inside the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</li>
     <li><b>Full weekends off.</b> A Saturday off followed by a Sunday off at the start of the next line. Today’s link gives ${TA.checks.weekendsOff} in 20.</li>
     <li><b>Weeks on one shift time.</b> The same clock time Monday to Friday, all earlies or all lates. A week that mixes the two is what people mean by “all over the place”.</li>
     <li><b>Familiar shift times.</b> How many of a design’s times somebody already works today. A rough guide to what there is to learn, not to what staff will accept.</li>

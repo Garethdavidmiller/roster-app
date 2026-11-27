@@ -110,7 +110,7 @@ export const NAV_GUIDES = Object.freeze([
  * One entry per section a notice can archive under, or its App Notices chip falls back to the
  * neutral grey; `calendar-notices.test.mjs` fails on an archived section with no entry here, and on
  * an entry with no `--on-navy-*` colour in shared.css.
- * `Link Designer` stays beside `Link Designer`: a notice archived before the page was renamed (v27.09) keeps the old section name.
+ * `Links` stays beside `Link Designer`: a notice archived before the page was renamed (v27.10) keeps the old section name.
  * @type {Readonly<Record<string, string>>}
  */
 export const SECTION_MODS = Object.freeze({ Pay: 'pay', 'Link Designer': 'links', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New link': 'newlink' });

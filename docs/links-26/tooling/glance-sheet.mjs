@@ -262,7 +262,7 @@ table.t td .bv { font-weight: 800; color: var(--primary-blue); }
 * { text-wrap: pretty; }
 </style></head><body>
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · The shortlist at a glance</div><h1>The shortlist at a glance</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Link Designer · The shortlist at a glance</div><h1>The shortlist at a glance</h1>
   <div class="sub">${names}, shortlisted from ${stats.length} designs, beside today’s link</div>
   <div class="meta">The new CEA link from January 2027 · prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 

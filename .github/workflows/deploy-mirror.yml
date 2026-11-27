@@ -190,7 +190,8 @@ jobs:
 
       # The mirror is where most staff are, so a file missing from it is a broken app for most staff.
       # Every path the service worker precaches must be in the artifact — the same five lists, and
-      # the same reading of them, as sw-asset-check.test.mjs's ghost-entry check.
+      # the same reading of them, as sw-asset-check.test.mjs's ghost-entry check. workflow-hygiene.test.mjs
+      # runs this script against the tree, so a reading the deploy would fail on fails CI first.
       - name: Every precached file is in the site
         run: |
           set -euo pipefail
@@ -200,7 +201,10 @@ jobs:
           const missing = [];
           let seen = 0;
           for (const name of ['NETWORK_FIRST_FILES', 'CORE_ASSETS', 'SUPPLEMENTARY_ASSETS', 'FONT_ASSETS', 'ICON_ASSETS']) {
-            const body = (sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`)) || [])[1] || '';
+            // Comments are not entries: stripped as sw-asset-check.test.mjs strips them (the [^:] keeps a
+            // URL's //). An apostrophe in a comment once paired with the next quote and failed the deploy.
+            const raw = (sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`)) || [])[1] || '';
+            const body = raw.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
             for (const m of body.matchAll(/['"]([^'"]+)['"]/g)) {
               if (m[1].startsWith('http')) continue;
               seen++;
