@@ -1,7 +1,7 @@
 // @ts-check
 // @lane hygiene
 /**
- * glossary.test.mjs — "Words used in the app" (glossary.js): the words the owner asked for, one line each, and the test
+ * glossary.test.mjs — "Glossary" (glossary.js): the words the owner asked for, one line each, and the test
  * that decides which `?` panels end with a link to it.
  * Run: node scripts/run-tests.mjs test/glossary.test.mjs   (part of `npm run test:hygiene`)
  *

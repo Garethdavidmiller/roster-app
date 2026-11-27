@@ -114,7 +114,7 @@ function start(member, admitted) {
     // Trains — made the drawer's logo throw instead of opening About (found 2 Nov 2026).
     openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — New CEA Link', getUserName: () => member })?.open ?? null;
     wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js — the one wiring)
-    // The cards' ? panels, and the panel the drawer's "Words used in the app" opens — for a refused visitor too, whose
+    // The cards' ? panels, and the panel the drawer's "Glossary" opens — for a refused visitor too, whose
     // drawer has the row. A ? on a card hidden from them is never pressed.
     initTipsLightbox(CARD_TIPS);
     if (!admitted) {

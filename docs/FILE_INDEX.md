@@ -81,7 +81,7 @@ roster-app/
 ├── date-format.js          ← the app's OWN date vocabulary and month/day tables (roster-data.js re-exports `DAY_NAMES`, `MONTH_ABB` and `MONTH_NAMES`). Pure. Tested by date-format.test.mjs and month-vocabulary-parity.test.mjs
 ├── about-lightbox.js       ← the shared About panel, plus `wireHeaderLogo` — the only wiring of a sub-page's header logo. Used by every app page
 ├── tips-lightbox.js        ← the shared per-card Tips panel. See also tips-content.test.mjs.
-├── glossary.js            ← "Words used in the app": the roster words, one line each, and which `?` panels link to them; shown in the page's Tips panel. See also glossary.test.mjs, e2e/glossary.spec.js.
+├── glossary.js            ← "Glossary": the roster words, one line each, and which `?` panels link to them; shown in the page's Tips panel. See also glossary.test.mjs, e2e/glossary.spec.js.
 ├── login-overlay.js        ← the shared in-place sign-in overlay for every page that signs in, as a modal or inline (the Calendar's front door). Its header. See also auth.spec.js, calendar-access.spec.js.
 ├── login-core.js           ← the sign-in card's DOM-free rules, including the 30-second typed sign-in deadline (`SIGN_IN_GIVE_UP_MS`) and the set-password marker's hold; login-overlay.js re-exports them. Tested by login-overlay.test.mjs
 ├── password-force.js ← the MANDATORY "set your own password" overlay (AUTH_AND_SESSIONS.md → "The forced password overlay"). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs. See also page-contract-parity.test.mjs.

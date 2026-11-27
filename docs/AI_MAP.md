@@ -61,7 +61,7 @@ below, and run `npm run generate:ai-map`.
 | Body scroll lock, overlay history, focus trap, the lightbox lifecycle, the in-app dialogs, card collapse | `overlay.js` (the Back stack: `overlay-history.js`; the Tab trap: `overlay-focus.js`; the scroll fade and pinned ✕: `overlay-panel-scroll.js`) |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
-| The roster words, one line each ("Words used in the app"), and which ? panels link to them | `glossary.js` (shown by `tips-lightbox.js`) |
+| The roster words, one line each ("Glossary"), and which ? panels link to them | `glossary.js` (shown by `tips-lightbox.js`) |
 | Service worker registration + update lifecycle (every app page) | `sw-register.js` |
 | Auth/session helpers — the local session and re-establishing Firebase on load | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` (+ `admin-boot.js`) + `admin.html` |
