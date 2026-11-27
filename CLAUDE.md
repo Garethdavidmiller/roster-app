@@ -391,6 +391,8 @@ Every collection's fields, meanings, access summary and retention: **`docs/DATA_
     `localStorage` can throw, a Safari tab loses ALL its storage after a week away, and Safari fires
     neither `beforeprint` for AirPrint nor `transitionend` on a backgrounded tab. **Oldest iOS
     supported: 16.4** (owner, 7 Nov 2026).
+  - **The ~5 station PCs: a Windows login each**, so nothing in a browser there is shared (owner;
+    DECISIONS.md → "Shared office PCs").
   - **Every release passes the Chromium suite and a few Safari tests on the deploy** (owner, 17 Nov
     2026); the whole WebKit suite runs on branches only, so weigh a branch WebKit failure seriously.
 - **Print CSS** — any new shift type, cell class, or badge needs `@media print` rules.
@@ -401,9 +403,8 @@ Every collection's fields, meanings, access summary and retention: **`docs/DATA_
 
 ## Known issues & deferred work
 
-Active constraints and deferred fixes, including task #1 of the four v11 security tasks: **see
-`KNOWN_LIMITATIONS.md`**. Future capabilities: **see `ROADMAP.md`**. Decisions already taken, so they
-are not re-argued — the UX experiments tried and held back among them: **`DECISIONS.md`**.
+Active constraints and deferred fixes: **`KNOWN_LIMITATIONS.md`**. Future capabilities: **`ROADMAP.md`**.
+Decisions already taken, so not re-argued: **`DECISIONS.md`**.
 
 **Do-not-change UI labels (Claude-relevant):**
 - **Admin button label** — "Admin" = administration, not administrator. Intentional. Do not rename.

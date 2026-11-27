@@ -337,6 +337,9 @@ shown that yet.
   each colleague has their own Windows profile and therefore their own browser storage, and the
   residue is that person's own. The proposal changes `persistentLocalCache`, an architecture
   decision, and buys nothing under that arrangement.
+  Restated 27 Nov 2026: *"There are about 5 station computers, but we use our own windows login on
+  each one. So whilst it is a shared pc, no data is shared."* So no design may cite "a shared station
+  PC" as a reason on its own: what a station PC risks is the same as a phone, being left unlocked.
 
 - **Year to Date figures that do not fit the tax code are NOT used** (owner, 15 Nov 2026). A
   member's estimate took no tax at all and said "a refund may be due": their Tax Paid was far above
@@ -1701,13 +1704,13 @@ says (KNOWN_LIMITATIONS.md → the 60-day session). So:
 - **In the app installed on a phone, a session renews on each open** (`renewWhenServerVouches`,
   session.js) — once the member's own account is restored AND the server has issued its token within
   the hour, so a disabled account stops renewing within that hour. A browser tab or a desktop keeps
-  the fixed 60 days, because a computer may be shared. The work phones are one person each (owner),
+  the fixed 60 days: the owner's choice ("Makes sense on desktop I think"), not a shared browser,
+  since each colleague has their own Windows login on the station PCs ("Shared office PCs", above). The work phones are one person each (owner),
   so they count as personal. Invariant: AUTH_AND_SESSIONS.md 2.
 - **"You should still be made to reset the surname password"** (the owner's condition): the
   set-password step now asks on an ordinary open as well as after a sign-in, asking for the current
   password up front, so it no longer waits for a session to run out (password-force.js).
-- **Rejected:** renewing everywhere (a forgotten session on the station PC would live as long as
-  somebody kept using that PC); a shorter session for everybody to cover the admin's phone (see
+- **Rejected:** renewing everywhere (the owner kept the desktop on 60 days); a shorter session for everybody to cover the admin's phone (see
   "No password check before admin actions", below).
 
 ## No password check before admin actions (owner, 27 Nov 2026)
