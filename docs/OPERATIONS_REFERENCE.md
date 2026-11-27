@@ -518,8 +518,8 @@ whoever holds a copy — a browser's history, a forwarded message, Microsoft's W
 with no sign-in (ARCHITECTURE.md EXC-007). **Operations → Document links** gives every file a new key, and
 every old copy stops working at once. Staff notice nothing: the app opens documents through a 15-minute
 link signed from the file's PATH, and each record is moved onto the new key before the old one goes. The
-owner asked for one run when it was built (12 Nov 2026, DECISIONS.md); ARCHITECTURE.md EXC-007 records
-whether it has been made.
+owner asked for one run when it was built (12 Nov 2026, DECISIONS.md) and made it on 27 Nov 2026
+(ARCHITECTURE.md EXC-007).
 
 **When:** a document link has been shared somewhere it should not be — or on a schedule, if one is ever
 wanted (AUTH_AND_SESSIONS.md → "The document files (E6)").

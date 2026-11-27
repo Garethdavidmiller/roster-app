@@ -299,9 +299,10 @@ The deployed exception and what closes it are `ARCHITECTURE.md` → EXC-007. Whi
 - **A permanent tokenised URL bypasses the rules.** Members open documents through a short-lived signed
   URL from `getDocumentUrl` (used only when it names the file on screen — `resolveDocumentOpenUrl`),
   falling back to the stored permanent `storageUrl` (owner decision, DECISIONS.md). Anyone who ever
-  held a permanent URL keeps access until the object is deleted or its key rotated. **Fix:** Operations
-  → Document links (OPERATIONS_REFERENCE.md → "Document links — replacing every old copy"), built and
-  not yet run.
+  held a permanent URL keeps access until the object is deleted or its key rotated. The owner rotated
+  every key on 27 Nov 2026, so only a link handed out since then still opens; another press of
+  Operations → Document links (OPERATIONS_REFERENCE.md → "Document links — replacing every old copy")
+  ends those too.
 - **The signed URL depends on one IAM grant** (`roles/iam.serviceAccountTokenCreator` on the runtime
   service account, on itself — RECOVERY_RUNBOOK.md → 5b). Without it every call answers 503 and nobody
   notices, because every open falls back. **Check:** open a document and look for
