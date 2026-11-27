@@ -14,7 +14,7 @@ says nothing has been decided, and asks the reader to tell Sara or their manager
 |---|---|---|
 | `prefer-earlies.html` | likes early shifts, 06:20 starts most of all, and swaps onto earlies | Level Crossing |
 | `lates-by-2200.html` | likes late shifts finishing no later than 22:00, always swaps onto lates, and loves Sunday overtime | Balanced V6 |
-| `weekends-and-long-breaks.html` | wants full weekends off and three or four days off in a row, gives up Sundays in advance, and would use a day or two of annual leave to get more of both | Middle Ground |
+| `weekends-and-long-breaks.html` | wants full weekends off and three or four days off in a row, and would use a day or two of annual leave to get more of both. It explains why (how the days off are grouped: pairs against single days) and shows the year twice, Sundays worked and Sundays given up in advance, with every figure that needs the Sunday given up marked | Middle Ground |
 
 Each is for the **main CEA roster** — the roster the new link replaces. Check the person's line in `roster-member-data.js`
 (`rosterType: 'main'`, `role: 'CEA'`) before sending: the figures mean nothing to anybody else.
@@ -50,9 +50,9 @@ the same count; a count that cannot reproduce the page's figures is not used.
 - **`prefer-earlies.html`** counts the lates to the close, checked the same way.
 - **`weekends-and-long-breaks.html`** plans a whole year exactly: for each proposal, the fewest days of leave that give
   a number of football weekends (a Saturday and Sunday off) and three- or four-day trips with no day used twice,
-  averaged over every week of the rota the year could start on. It assumes leave is granted when asked, that the
-  colleague gives up the Sundays they need in advance (the owner, 27 Nov 2026: there are plenty of takers for the
-  overtime), and leaves out cover weeks, whose four shifts are set nearer the time. Its weekends and breaks with no
+  averaged over every week of the rota the year could start on — once with rostered Sundays worked, and once with
+  every Sunday given up in advance (the owner, 27 Nov 2026: unavailability is marked ahead, and there are plenty of
+  takers for the overtime). It assumes leave is granted when asked, and leaves out cover weeks, whose four shifts are set nearer the time. Its weekends and breaks with no
   leave reproduce the page's single rest days (10 · 22 · 10 · 12) and breaks of three or four days (13 · 6 · 2 · 4).
 
 ## When they go stale
