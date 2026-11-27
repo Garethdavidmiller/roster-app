@@ -688,7 +688,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The shortlist — the new CEA link</title>
 ${STYLE}</head><body>
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · The shortlist</div><h1>${Word(D.length)} good links, one edge each</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Link Designer · The shortlist</div><h1>${Word(D.length)} good links, one edge each</h1>
   <div class="sub">${esc(list(D.map(d => d.name)))}, against each other and against today’s link</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 
@@ -832,7 +832,7 @@ const groupsHtml = dirs => OTHER_GROUPS.filter(g => dirs.includes(g[0])).map(([d
 const othersHtmlOf = pages => `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The other designs — the new CEA link</title>
 ${STYLE}</head><body>
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · link designer · Beside the shortlist</div><h1>The other ${word(others.length)} designs</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Link Designer · Beside the shortlist</div><h1>The other ${word(others.length)} designs</h1>
   <div class="sub">What each has, and what it pays, beside ${esc(list(D.map(d => d.name)))}</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
   <p class="lead">Beside the ${N}, each design here has something and pays for it, meets every December staffing rule and has its own sheet. All but Balanced V10, Clockface and Short Working put closing weeks side by side, which the ${N} keep apart, cover weeks aside.</p>

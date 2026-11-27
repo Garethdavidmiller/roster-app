@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '27.10';
+const APP_VERSION = '27.11';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -432,9 +432,8 @@ const SUPPLEMENTARY_ASSETS = [
     "./staff-guide.html",
     "./railcard-guide.html",
     "./rangers-guide.html",
-    // The legacy URLs (two guides, and since v27.09 the Link Designer's old address): ~3 KB redirect
-    // stubs, cached because the Pages mirror serves no redirect rules, so the file IS the redirect
-    // there and an old bookmark should land offline.
+    // The legacy URLs (two guides, and since v27.10 the old address of the Link Designer): ~3 KB redirect
+    // stubs, cached because the Pages mirror serves no redirect rules, so an old bookmark lands offline.
     // Do NOT write a quoted string in a comment here: the ghost-entry check parses quoted paths.
     "./guide.html",
     "./fip.html",
@@ -710,13 +709,13 @@ self.addEventListener("fetch", event => {
             ['paycalc',    './paycalc.html',    'Pay Calculator is not available offline. Please reconnect and reload.'],
             ['operations', './operations.html', 'Operations is not available offline. Please reconnect and reload.'],
             ['settings',   './settings.html',   'Settings is not available offline. Please reconnect and reload.'],
-            ['links',      './link-designer.html',       'The Link Designer is not available offline. Please reconnect and reload.'],
+            ['link-designer', './link-designer.html', 'The Link Designer is not available offline. Please reconnect and reload.'],
             ['overtime',   './overtime.html',   'Overtime is not available offline. Please reconnect and reload.'],
             ['trains',     './trains.html',     'Trains is not available offline. Please reconnect and reload.'],
             ['newlink',    './newlink.html',    'New link is not available offline. Please reconnect and reload.'],
             ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
             // The guides fall back to THEMSELVES (Nov 2026, owner): through the default, a guide the warm-up
-            // had not reached was answered with the Calendar at the race. A stub falls back to its guide.
+            // had not reached was answered with the Calendar at the race. A stub falls back to its page.
             ['staff-guide',    './staff-guide.html',    'The Staff &amp; Admin Guide is not available offline. Please reconnect and reload.'],
             ['paycalc-guide',  './paycalc-guide.html',  'The Pay Calculator Guide is not available offline. Please reconnect and reload.'],
             ['railcard-guide', './railcard-guide.html', 'The Railcard Guide is not available offline. Please reconnect and reload.'],
@@ -724,6 +723,7 @@ self.addEventListener("fetch", event => {
             ['fip-guide',      './fip-guide.html',      'The FIP Travel Guide is not available offline. Please reconnect and reload.'],
             ['guide',          './staff-guide.html',    'The Staff &amp; Admin Guide is not available offline. Please reconnect and reload.'],
             ['fip',            './fip-guide.html',      'The FIP Travel Guide is not available offline. Please reconnect and reload.'],
+            ['links',          './link-designer.html',  'The Link Designer is not available offline. Please reconnect and reload.'],
         ];
         // Match the page by its exact path segment, not a substring — path.includes('admin') would mis-route
         // a future '/admin-report.html' to the wrong fallback (the class of the historical /admin-app.js MIME bug).

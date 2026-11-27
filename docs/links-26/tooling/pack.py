@@ -311,8 +311,8 @@ def whole(t):
 runt = lambda t: re.sub(r' (?=\S{1,12}$)', '\x00', t)
 para = lambda t: textwrap.fill(runt(whole(' '.join(t.split()))), W, break_on_hyphens=False).replace('\x00', ' ')
 # A LABEL TOO LONG FOR ITS COLUMN HAS A LINE OF ITS OWN (8 Nov 2026, the pack audit). A format width pads a short label and
-# never cuts a long one, so when item 5 took its folder's full name on 6 Nov, "5 Import files for the Link Designer" ran
-# straight into its text: "5 Import files for the Link DesignerEach proposal as text...". Every label is kept, and the read-me
+# never cuts a long one, so when item 5 took its folder's full name on 6 Nov, "5 Import files for the Links page" ran
+# straight into its text: "5 Import files for the Links pageEach proposal as text...". Every label is kept, and the read-me
 # is refused below if one ever runs into its text again
 LABELS = []
 def item(label, text, hang=21):
@@ -494,7 +494,7 @@ readme = '\n'.join([
          'never be mixed up with a variant.'),
     item('5 Import files for the Link Designer', 'Each proposal as text for the Link Designer (Import), which lays out 26 lines since app version '
          '24.47 (3 October 2026) and re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on whatever is pasted in; the December rules and the yearly figures are the sheets\' own. The '
-         f'{WORDS[len(SHORTLIST)]} shortlisted designs are built into the app\'s link designer as examples, for reference '
+         f'{WORDS[len(SHORTLIST)]} shortlisted designs are built into the app\'s Link Designer as examples, for reference '
          f'(these {WORDS[len(SHORTLIST)]} since app version 25.52).'),
     item('6 Technical notes', 'The 26-line rules with what changed from 24. Written for the technical record, not for '
          'reading out.'),
@@ -625,7 +625,7 @@ for f in FOLDERS:
     for k in range(1, len(w)):
         if re.search(re.escape(' '.join(w[:k])) + r'\n *' + re.escape(' '.join(w[k:])), readme):
             raise SystemExit(f'pack: the read-me splits the folder name "{f}" across lines')
-# and no label running into its text (the pack audit, 8 Nov 2026: "5 Import files for the Link DesignerEach proposal")
+# and no label running into its text (the pack audit, 8 Nov 2026: "5 Import files for the Links pageEach proposal")
 _run = sorted({lab for lab in LABELS if lab for l in readme.split('\n')
                if l.startswith(f'  {lab}') and len(l) > 2 + len(lab) and l[2 + len(lab)] != ' '})
 if _run: raise SystemExit(f'pack: the read-me runs the label {_run} into its text; a label too long for its column needs a line of its own')

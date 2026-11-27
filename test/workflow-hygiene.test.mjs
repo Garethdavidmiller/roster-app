@@ -19,7 +19,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, existsSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync, symlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -917,10 +917,10 @@ describe('a few Safari tests gate the Hosting release', () => {
         assert.match(jobs.get('safari') ?? '', new RegExp(`^\\s*run: npm run test:webkit -- --project=mobile-safari ${SPEC.replace(/\./g, '\\.')}[ \\t]*$`, 'm'),
             `the safari job no longer runs ${SPEC} on the iPhone project, so a page Safari will not start can be released`);
         assert.ok(existsSync(SPEC), `${SPEC} is gone, so the gate's every-page step finds no tests`);
-        // The iPhone project runs every spec whose name does not start with "links" (playwright.webkit.mjs).
+        // The iPhone project runs every spec whose name does not start with "link-designer" (playwright.webkit.mjs).
         assert.match(readFileSync('playwright.webkit.mjs', 'utf8'), /name: 'mobile-safari', testMatch: NOT_LINKS_SPECS\b/,
             'the mobile-safari project no longer selects its specs by NOT_LINKS_SPECS, so check it still runs ' + SPEC);
-        assert.ok(!/^links/.test(SPEC.split('/').pop() ?? ''), `${SPEC} would fall to the Link Designer projects, and the gate's step would find no tests`);
+        assert.ok(!/^link-designer/.test(SPEC.split('/').pop() ?? ''), `${SPEC} would fall to the Link Designer projects, and the gate's step would find no tests`);
     });
 
     test('and WebKit runs in no other gate job', () => {
@@ -3398,3 +3398,26 @@ describe('no install script runs beside a token it could use', () => {
     }
 });
 
+
+// ── THE MIRROR'S PRECACHE CHECK PASSES ON THIS TREE (Link Designer rename, 27 Nov 2026) ─────────────
+// deploy-mirror.yml refuses to publish a site missing any file the service worker precaches, reading
+// the lists with a regular expression. An apostrophe in a comment inside one paired with the next quote,
+// the check read nonsense, and the mirror stayed on the old release while every suite here was green. So
+// the step's own script is run, against this tree standing in for the archived site.
+test('deploy-mirror.yml: its precache check passes on this tree', () => {
+    const script = stepScript(readFileSync(join(WF_DIR, 'deploy-mirror.yml'), 'utf8'), 'Every precached file is in the site');
+    const dir = mkdtempSync(join(tmpdir(), 'mirror-precache-'));
+    try {
+        symlinkSync(realpathSync('.'), join(dir, '_site'));
+        writeFileSync(join(dir, 'check.sh'), script);
+        let out = '';
+        try {
+            out = execFileSync('bash', ['--noprofile', '--norc', 'check.sh'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+        } catch (/** @type {any} */ e) {
+            assert.fail(`the mirror's precache check fails on this tree, so the mirror would not deploy:\n${e.stdout ?? ''}${e.stderr ?? ''}`);
+        }
+        assert.match(out, /All \d+ precached paths are in the site/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
