@@ -886,7 +886,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `doc-dates.js`
 - **Exports:**
-- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
+- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `HUDDLE_NEXT_DAY_FROM_HOUR` · `huddleForDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
 
 ### `admin-day-change.js`
 - **Exports:**
