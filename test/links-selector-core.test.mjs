@@ -11,7 +11,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STARTS, FIRST_MONTH, LAST_MONTH, startDate, lineOn, dayOn, proposalsAtoZ, isCoverLine, lineOptions,
-    monthLines, inRange, openingMonth, initialChoice, choiceQuery, shiftTypesInMonth, hasBlankDays } from '../links-selector-core.js';
+    monthLines, inRange, openingMonth, initialChoice, choiceQuery, shiftTypesInMonth, hasBlankDays, ignoredWords, refusalWords } from '../links-selector-core.js';
+import { readFileSync } from 'node:fs';
 import { STARTS as NEWLINK_STARTS } from '../newlink-config.js';
 import { PROPOSALS, proposalDisplayName } from '../link-designer-proposals.js';
 import { DAYS, ROTATING_LINES } from '../link-designer-design.js';
@@ -117,18 +118,23 @@ test('the months the page shows, and the one it opens on', () => {
 
 test('the opening choice: the address, then this device, then the first proposal on line 1 — and nothing guessed', () => {
     const first = proposalsAtoZ()[0];
-    assert.deepEqual(initialChoice('', null), { proposalId: first.id, line: 1 });
-    assert.deepEqual(initialChoice('?proposal=LC-26-T10&line=7', null), { proposalId: 'proposal:LC-26-T10', line: 7 });
-    assert.deepEqual(initialChoice('', { proposal: 'MG-26-T8', line: 12 }), { proposalId: 'proposal:MG-26-T8', line: 12 });
+    assert.deepEqual(initialChoice('', null), { proposalId: first.id, line: 1, ignored: [] });
+    assert.deepEqual(initialChoice('?proposal=LC-26-T10&line=7', null), { proposalId: 'proposal:LC-26-T10', line: 7, ignored: [] });
+    assert.deepEqual(initialChoice('', { proposal: 'MG-26-T8', line: 12 }), { proposalId: 'proposal:MG-26-T8', line: 12, ignored: [] });
     // the address wins, half by half: a link naming only a line keeps the proposal this device last showed
-    assert.deepEqual(initialChoice('?line=3', { proposal: 'MG-26-T8', line: 12 }), { proposalId: 'proposal:MG-26-T8', line: 3 });
+    assert.deepEqual(initialChoice('?line=3', { proposal: 'MG-26-T8', line: 12 }), { proposalId: 'proposal:MG-26-T8', line: 3, ignored: [] });
     // a choice that names nothing is ignored, never guessed at
     for (const bad of ['?proposal=XX&line=0', '?proposal=proposal:LC-26-T10&line=27', '?line=7.5', '?line=-1', '?line=1e1']) {
         const got = initialChoice(bad, null);
         assert.equal(got.proposalId, first.id, bad);
         assert.equal(got.line, 1, bad);
     }
-    assert.deepEqual(initialChoice('', { proposal: 42, line: '12' }), { proposalId: first.id, line: 12 });
+    // what the ADDRESS named and could not be shown is reported, half by half; what this device kept never is
+    assert.deepEqual(initialChoice('?proposal=XX&line=0', null).ignored, ['proposal', 'line']);
+    assert.deepEqual(initialChoice('?proposal=XX&line=4', null).ignored, ['proposal']);
+    assert.deepEqual(initialChoice('?proposal=LC-26-T10&line=27', null).ignored, ['line']);
+    assert.deepEqual(initialChoice('?proposal=&line=', null).ignored, ['proposal', 'line']);
+    assert.deepEqual(initialChoice('', { proposal: 42, line: '12' }), { proposalId: first.id, line: 12, ignored: [] });
     assert.equal(choiceQuery(/** @type {any} */ (PROPOSALS[0]), 9), `?proposal=${PROPOSALS[0].code}&line=9`);
 });
 
@@ -151,4 +157,34 @@ test('the key\'s month: the kinds of day drawn, read through dayOn, and the blan
     assert.equal(hasBlankDays(2027, 0), true);
     assert.equal(hasBlankDays(2027, 1), false);
     assert.equal(hasBlankDays(2028, 0), false);
+});
+
+test('a shared link that named nothing here says so, and what is shown instead', () => {
+    assert.equal(ignoredWords([], 'Balanced V6', 1), '');
+    assert.match(ignoredWords(['proposal'], 'Balanced V6', 4), /names a proposal that isn’t on the shortlist, so this shows Balanced V6\.$/);
+    assert.match(ignoredWords(['line'], 'Level Crossing', 1), new RegExp(`isn’t one of the ${ROTATING_LINES}, so this shows line 1\\.$`));
+    assert.match(ignoredWords(['proposal', 'line'], 'Balanced V6', 1), /a proposal and a line that aren’t here, so this shows Balanced V6 from line 1\.$/);
+});
+
+test('the refusal card tells each reader what is true for them — never "not yet" to somebody it will never admit', () => {
+    assert.match(refusalWords({ otherStaff: true, inAudience: false }).title, /for the CEA roster/);
+    assert.match(refusalWords({ otherStaff: false, inAudience: false }).title, /doesn’t apply to your contract/);
+    assert.match(refusalWords({ otherStaff: false, inAudience: true }).title, /isn’t open to you yet/);
+    // Other Staff wins over the audience: it has no line at all, whatever else is true
+    assert.match(refusalWords({ otherStaff: true, inAudience: true }).title, /for the CEA roster/);
+});
+
+// THE COPIED SENTENCES. The day panel says three things in another page's words, so a colleague reading both pages meets
+// one explanation, not two. They are copies — the Calendar's and New CEA Link's modules are not this page's to import
+// (newlink-boundary.test.mjs) — so this holds each copy to its source: reword one and this fails until both agree.
+test('the day panel\'s Christmas, cover-week and Sunday lines are the Calendar\'s and New CEA Link\'s own words', () => {
+    const app = readFileSync(new URL('../links-selector-app.js', import.meta.url), 'utf8');
+    const calendar = readFileSync(new URL('../calendar-al-lightbox.js', import.meta.url), 'utf8');
+    const tips = readFileSync(new URL('../newlink-tips.js', import.meta.url), 'utf8');
+    const weeksKey = readFileSync(new URL('../newlink-render.js', import.meta.url), 'utf8');
+    const christmas = ': due at work, so this is annual leave. It does not come off the allowance.';
+    assert.ok(calendar.includes(christmas) && app.includes(christmas), 'the Christmas line');
+    const cover = 'four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.';
+    assert.ok(tips.includes(cover) && app.includes(`A cover week: ${cover}`), 'the cover-week line');
+    assert.ok(weeksKey.includes('Sunday shifts are overtime.') && app.includes("'Sunday shifts are overtime.'"), 'the Sunday line');
 });

@@ -20,13 +20,13 @@
  */
 
 import { SHARED_SCREEN } from './login-core.js';
-import { CONFIG, MONTH_NAMES, shiftBadgeParts, escapeHtml, teamMembers, computeEaster } from './roster-data.js';
+import { MONTH_NAMES, shiftBadgeParts, escapeHtml, computeEaster } from './roster-data.js';
 import { createLegend } from './calendar-legend.js';
 import { initNavPanel } from './nav-panel.js';
 import { sessionReady, reconcileExpiredIdentity } from './session.js';
 import { signOutAndLeave, onReturnToPage } from './page-session.js';
 import { startPage } from './page-start.js';
-import { navGatesFor } from './auth-policy.js';
+import { navGatesFor, rolesFor, selectorRoles } from './auth-policy.js';
 import { createLightbox } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -40,7 +40,8 @@ import { lsGet, lsSet } from './ls.js';
 import { formatDayMonth, formatDayMonthYear, formatClock, printedStamp, DAY_NAMES_FULL } from './date-format.js';
 import { proposalById, proposalDisplayName } from './link-designer-proposals.js';
 import { buildSelectorMonth } from './links-selector-render.js';
-import { FIRST_MONTH, inRange, openingMonth, shiftTypesInMonth, hasBlankDays, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate } from './links-selector-core.js';
+import { FIRST_MONTH, inRange, openingMonth, shiftTypesInMonth, hasBlankDays, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate,
+    lineOn, ignoredWords, refusalWords } from './links-selector-core.js';
 
 /** Where this device keeps the last choice — a proposal code and a line, nothing about the person. */
 export const STORE_KEY = 'myb_links_selector_choice';
@@ -90,19 +91,14 @@ function start(member, admitted) {
 
 /** The one card a signed-in colleague the page is not (yet) for is shown — the app's refusal card. @param {string} member */
 function showNotForYou(member) {
-    const other = teamMembers.find(m => m.name === member)?.otherStaff === true;
     const card = document.createElement('div');
     card.className = 'role-card';
     card.id = 'selectorNotForYou';
-    // Two answers, and the switch decides which is true: during the beta it will open to them (unless they have no roster
-    // line at all); once it is open, a colleague still refused is outside the New CEA Link page's audience for good.
-    const open = CONFIG.LINKS_SELECTOR_OPEN === true;
-    const title = other ? 'The Links Selector is for the CEA roster'
-        : open ? 'The Links Selector doesn’t apply to your contract'
-        : 'The Links Selector isn’t open to you yet';
-    const why = other ? 'It shows the proposed new rota for colleagues on a normal CEA contract. An Other Staff login has no roster line, so there is nothing here for it.'
-        : open ? 'It shows the proposed new rota for colleagues on a normal CEA contract, and yours keeps its own link.'
-        : 'It is being tried out before it opens. The three proposals are on the New CEA Link page in the meantime.';
+    // WHICH ANSWER IS TRUE is asked of the reader, not of the switch: would the page admit them once it opens
+    // (`selectorRoles(true)`, the policy's own open list)? Asked of `CONFIG.LINKS_SELECTOR_OPEN`, a colleague on a
+    // bilingual contract was told during the beta that it "isn't open to you yet" — a promise it will never keep.
+    const roles = /** @type {Record<string, boolean>} */ (rolesFor(member));
+    const { title, why } = refusalWords({ otherStaff: roles.otherStaff === true, inAudience: selectorRoles(true).some(r => roles[r] === true) });
     card.innerHTML = `<div class="role-card-icon" aria-hidden="true">🗓️</div>
         <h2 class="role-card-title">${title}</h2>
         <p class="role-card-why">${why}</p>
@@ -153,7 +149,11 @@ function runSelector() {
     const note = el('selectorNote');
     note.replaceChildren(Object.assign(document.createElement('strong'), { textContent: 'A proposal, not your roster.' }),
         ` Choose a proposal and the line you’d be on in its first week, from ${DAY_NAMES_FULL[start.getDay()]} `
-        + `${formatDayMonthYear(start)} (date not final). Each Sunday you move down one line.`);
+        + `${formatDayMonthYear(start)} (date not final). Each Sunday you move down one line. Who starts on which line is decided later.`);
+    // A shared link that named something this page cannot show says so, and what it shows instead — never a quiet swap.
+    const linkNote = el('selectorLinkNote');
+    linkNote.textContent = ignoredWords(choice.ignored, proposalDisplayName(proposal), line);
+    linkNote.hidden = !linkNote.textContent;
     el('selectorStartDate').textContent = formatDayMonth(start);
     el('selectorStartBtn').setAttribute('aria-label', `${formatDayMonth(start)}: go to the week the new link starts`);
 
@@ -183,6 +183,9 @@ function runSelector() {
             : d.detailCover === 'week' ? 'A cover week: four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.'
             : '';
         cover.hidden = !cover.textContent;
+        const sunday = el('selectorSundayLine');
+        sunday.textContent = d.detailSunday === 'overtime' ? 'Sunday shifts are overtime.' : '';
+        sunday.hidden = !sunday.textContent;
         const extras = el('dayDetailExtras');
         /** @type {Array<{ icon: string, label: string }>} */
         let markers;
@@ -227,7 +230,8 @@ function runSelector() {
     }
     // THE CALENDAR'S KEY RULE (calendar-legend.js), handed this page's month: an item shows only in a month that has it.
     // No member is drawn, so its "member" is an empty one — never on the Dispatcher roster, so no Night key — and its month
-    // is always a drawn grid ('render'). The one item of this page's own follows its own month: the blank days.
+    // is always a drawn grid ('render'). This page's own two follow its month too: the blank days, and Today, which is
+    // drawn only where today has a line — so not at all before the link starts, where a Today key would explain nothing.
     const legend = createLegend({
         getCurrentMember: () => ({}),
         getShiftTypesInMonth: (_m, y, mo) => shiftTypesInMonth(proposal, line, y, mo),
@@ -241,6 +245,9 @@ function runSelector() {
         legend.update();
         const blankKey = document.getElementById('selectorLegendBlank');
         if (blankKey) blankKey.style.display = hasBlankDays(year, month) ? '' : 'none';
+        const todayKey = document.getElementById('selectorLegendToday');
+        const now = new Date();
+        if (todayKey) todayKey.style.display = now.getFullYear() === year && now.getMonth() === month && lineOn(1, now) !== null ? '' : 'none';
     }
     function render() {
         // KEEP THE KEYBOARD ON THE GRID, as the Calendar's renderCalendar does: replacing the month drops a focused day to
@@ -256,25 +263,26 @@ function runSelector() {
         stampPrint();
     }
     const announce = () => { if (announcer) announcer.textContent = `${MONTH_NAMES[month]} ${year}`; };
-    /** @param {number} delta */
+    /** Move the shown month, inside the range; reports whether it moved. @param {number} delta */
     function changeMonth(delta) {
         const to = shift(delta);
-        if (!inRange(to.year, to.month)) return;
+        if (!inRange(to.year, to.month)) return false;
         ({ year, month } = to);
+        return true;
     }
     /** A press of Prev or Next (and PgUp/PgDn and ← →, which press them). Refused mid-swipe, as the Calendar's are: a month
-     *  drawn under a finger would be overtaken by the swipe's own commit. @param {number} delta */
+     *  drawn under a finger would be overtaken by the swipe's own commit. At the faded end button a true no-op, nothing
+     *  re-announced. @param {number} delta */
     function step(delta) {
         if (isSwipeCooldown()) return;
-        const to = shift(delta);
-        if (!inRange(to.year, to.month)) return;   // the faded end button: a true no-op, nothing re-announced
-        changeMonth(delta); render(); announce();
+        if (changeMonth(delta)) { render(); announce(); }
     }
 
     /** Keep the choice in the address and on this device, then redraw. */
     function chosen() {
         try { history.replaceState(history.state, '', choiceQuery(proposal, line) + location.hash); } catch { /* a sandboxed frame */ }
         lsSet(STORE_KEY, JSON.stringify({ proposal: proposal.code, line }));
+        linkNote.hidden = true;   // what the link named is behind them now: the screen shows their own choice
         render();
     }
 
@@ -302,10 +310,13 @@ function runSelector() {
     // THE CALENDAR'S OWN KEYS AND HOVER LINE (calendar-keyboard.js), not a copy: ← → change the month until a day has focus,
     // then the arrows walk the days, PgUp/PgDn change the month, Enter opens a day, T goes to this month (the opening one)
     // and P prints — with the Calendar's guards (an open overlay, the drawer, a swipe in flight). Registered in the Calendar's
-    // order, the shortcuts first. There is no team view, first run or locked state here, so those three answer no; and no
-    // pay day leads to the calculator from a proposal, so Enter on a payday opens the day like any other.
+    // order, the shortcuts first. There is no team view or first run here, so those two answer no; the one LOCKED state is
+    // the sign-in card a lost session puts up (page-session.js), and behind it the keys must not move the month, as the
+    // Calendar's do not behind its lock. No pay day leads to the calculator from a proposal, so Enter on a payday opens the
+    // day like any other.
     initCalendarShortcuts({
-        getAccessType: () => 'named', isTeamViewMode: () => false, isFirstRun: () => false,
+        getAccessType: () => (document.getElementById('loginOverlay') ? 'none' : 'named'),
+        isTeamViewMode: () => false, isFirstRun: () => false,
         jumpToCurrentWeek: () => {},
         goToToday: () => { ({ year, month } = openingMonth()); render(); announce(); },
         print: () => { stampPrint(); window.print(); },
@@ -335,7 +346,8 @@ function runSelector() {
     // The print time is stamped again as the browser prints, where it says it is printing (Safari's AirPrint does not —
     // CLAUDE.md, the iOS hazards — and keeps the time of the last redraw or the P key).
     window.addEventListener('beforeprint', stampPrint);
-    // An installed app is reopened, not reloaded: today's ring, and the opening month, move on with the date.
+    // An installed app is reopened, not reloaded: the month shown is redrawn, so today's ring and the Today key move on
+    // with the date. The month itself stays where the colleague left it; T goes to today's.
     onReturnToPage(0, render);
 
     paintProposal();

@@ -29,6 +29,8 @@ test.describe('links selector', () => {
         // 1 to 16 January: a date and nothing else
         await expect(page.locator('.calendar-day.selector-blank')).toHaveCount(16);
         await expect(page.locator('.calendar-day.selector-blank .shift-badge')).toHaveCount(0);
+        // and no month before the link draws today's ring, so the key does not name it
+        await expect(page.locator('#selectorLegendToday')).toBeHidden();
         // 17 to 31 January: the proposal's own days, cell for cell
         const lc = /** @type {any} */ (proposalById('proposal:LC-26-T10'));
         const days = page.locator('.calendar-day[role="button"]');
@@ -245,5 +247,66 @@ test.describe('links selector', () => {
         await page.locator('a.nav-panel-pill', { hasText: 'Links Selector' }).click();
         await expect(page).toHaveURL(/links-selector\.html/);
         await expect(page.locator('.calendar-grid')).toBeVisible();
+    });
+    test('a shared link that names nothing here says so, until the next choice — and the address keeps its hash', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=XX-99&line=4#top');
+        const note = page.locator('#selectorLinkNote');
+        await expect(note).toBeVisible();
+        await expect(note).toHaveText('The link you opened names a proposal that isn’t on the shortlist, so this shows Balanced V6.');
+        // the address is put right at once, so a link copied now is the view on screen; the hash is the page's, not ours
+        await expect(page).toHaveURL(/\?proposal=MB-26-V6&line=4#top$/);
+        await page.locator('#selectorLine').selectOption('9');
+        await expect(note).toBeHidden();
+        await expect(page).toHaveURL(/\?proposal=MB-26-V6&line=9#top$/);
+        // a good link says nothing
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=2');
+        await expect(note).toBeHidden();
+    });
+
+    test('a Sunday shift says it is overtime; a Sunday rest day says nothing', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=2');
+        const mb = /** @type {any} */ (proposalById('proposal:MB-26-V6'));
+        // the premise, from the proposal itself: on line 2 the 31st is a worked Sunday and the 24th a rest day
+        expect(/** @type {any} */ (dayOn(mb, 2, new Date(2027, 0, 31))).shift).toMatch(/^\d\d:\d\d-/);
+        expect(/** @type {any} */ (dayOn(mb, 2, new Date(2027, 0, 24))).shift).toBe('RD');
+        await page.locator('.calendar-day[data-detail-day="Sunday 31 January 2027"]').click();
+        await expect(page.locator('#selectorSundayLine')).toHaveText('Sunday shifts are overtime.');
+        await page.locator('#dayDetailClose').click();
+        await page.locator('.calendar-day[data-detail-day="Sunday 24 January 2027"]').click();
+        await expect(page.locator('#selectorSundayLine')).toBeHidden();
+    });
+
+    test('the Today key shows only in the month that draws today\'s ring', async ({ page }) => {
+        // before the link starts no month draws today, so the key never names it (the first test, January 2027); once it
+        // runs, today's month has the ring and the key, and the next month has neither
+        await page.clock.setFixedTime(new Date('2027-03-10T09:00:00Z'));
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html');
+        await expect(page.locator('.month-year')).toHaveText('March 2027');
+        await expect(page.locator('.calendar-day.today')).toHaveCount(1);
+        await expect(page.locator('#selectorLegendToday')).toBeVisible();
+        await page.locator('#nextMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('April 2027');
+        await expect(page.locator('#selectorLegendToday')).toBeHidden();
+    });
+
+    test('on paper it says which proposal and line it shows', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=5');
+        const lc = /** @type {any} */ (proposalById('proposal:LC-26-T10'));
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('#selectorPrintHead')).toBeVisible();
+        await expect(page.locator('#selectorPrintChoice')).toContainText(`Level Crossing (${lc.ref}) · starting on line 5 · a proposal, not a roster`);
+        await expect(page.locator('#selectorNote')).toBeHidden();
+    });
+
+    test('a colleague whose contract keeps its own link is told so, not "not yet" — during the beta too', async ({ page }) => {
+        const bilingual = /** @type {string} */ (teamMembers.find(m => m.bilingualContract && !m.hidden && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
+        await seedSession(page, bilingual);
+        await page.goto('/links-selector.html');
+        await expect(page.locator('#selectorNotForYou')).toContainText('doesn’t apply to your contract');
+        await expect(page.locator('#selectorNotForYou')).not.toContainText('yet');
     });
 });

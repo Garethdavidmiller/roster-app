@@ -533,7 +533,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `links-selector-app.js` / `links-selector-boot.js` / `links-selector-core.js` / `links-selector-render.js`
 - **Exports of `links-selector-app.js`:** `STORE_KEY` · `init`
 - **Exports of `links-selector-boot.js`:** none
-- **Exports of `links-selector-core.js`:** `STARTS` · `FIRST_MONTH` · `LAST_MONTH` · `startDate` · `lineOn` · `dayOn` · `proposalsAtoZ` · `isCoverLine` · `lineOptions` · `monthLines` · `shiftTypesInMonth` · `hasBlankDays` · `inRange` · `openingMonth` · `initialChoice` · `choiceQuery`
+- **Exports of `links-selector-core.js`:** `STARTS` · `FIRST_MONTH` · `LAST_MONTH` · `startDate` · `lineOn` · `dayOn` · `proposalsAtoZ` · `isCoverLine` · `lineOptions` · `monthLines` · `shiftTypesInMonth` · `hasBlankDays` · `inRange` · `openingMonth` · `initialChoice` · `ignoredWords` · `refusalWords` · `choiceQuery`
 - **Exports of `links-selector-render.js`:** `buildSelectorMonth`
 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`
