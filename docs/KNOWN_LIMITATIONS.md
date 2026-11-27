@@ -214,7 +214,7 @@ protect a tab-only member who stays away a week. Whether Safari grants `navigato
 
 The ROOT tree is development tooling only (the Firebase CLI, the rules harness, Playwright, ESLint);
 nothing in it is served. **Do not trust a count written here; run `npm audit`.** Its shape on
-26 Nov 2026: moderate findings only, none high or critical.
+27 Nov 2026 (Firebase CLI 15.36.0, ESLint 10.15.0): moderate findings only, none high or critical.
 
 - **Inside `firebase-tools`** (pubsub, opentelemetry, archiver, gaxios, glob, uuid and neighbours): npm
   offers only `npm audit fix --force`, which DOWNGRADES the CLI a major version — declined. They clear
