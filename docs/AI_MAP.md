@@ -51,6 +51,7 @@ below, and run `npm run generate:ai-map`.
 | The Calendar's menu — built for the saved session, and rebuilt in place for whoever signs in | `calendar-drawer.js` |
 | The notification prompt strip and silent renewal on the Calendar (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
 | The install strip on the Calendar, and the route the install notice asks of it | `install-prompt.js` |
+| A desktop at the Pages mirror told the address is closing — the strip and the sign-in card's line / their words | `mirror-move.js` / `mirror-move-words.js` |
 | Daily Huddle viewer — the `#huddle` hash, the subscription, the two render paths, the per-table scroll boxes (wrapTables) | `calendar-huddle-viewer.js` |
 | Which Huddle cells are physically in column 1 (`firstColumnMask`), for the sticky job column | `huddle-table-grid.js` |
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
@@ -1078,6 +1079,12 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 
 ### `install-prompt.js`
 - **Exports:** `onPagesMirror` · `installRoute` · `promptInstall` · `yieldToInstallNotice` · `releaseInstallNoticeYield` · `retireInstallStrip` · `installNoticeHasTheVisit` · `initInstallPrompt`
+
+### `mirror-move.js`
+- **Exports:** `showMirrorBanner` · `mirrorCardLine`
+
+### `mirror-move-words.js`
+- **Exports:** `MIRROR_LEAD` · `MIRROR_TAIL` · `MIRROR_PAY` · `mirrorLineDue` · `mainAddressFor` · `buildMirrorLine`
 
 ### `text-scale.js`
 - **Exports:** `LARGE_FROM` · `COMPACT_FROM` · `LARGE_VALUE` · `COMPACT_VALUE` · `tierFor` · `measureTextScale` · `applyTextScale`

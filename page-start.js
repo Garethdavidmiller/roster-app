@@ -81,6 +81,7 @@ import { initPasswordForce } from './password-force.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
+import { showMirrorBanner } from './mirror-move.js';
 
 /** @typedef {import('./auth-policy.js').AuthDecision} AuthDecision */
 /** @typedef {{ inPlace: boolean }} StartContext */
@@ -116,6 +117,7 @@ let _resuming = false;
 export function startPage(spec) {
     if (!spec.run === !spec.again) throw new TypeError(`[page-start] ${spec.page}: pass exactly one of run and again`);
     reloadIfRestoredForSomeoneElse();                       // 1. before any branch below can return
+    showMirrorBanner({ pay: spec.page === 'paycalc' });     // a desktop at the Pages mirror only (mirror-move.js)
     return decideAndRoute(spec, _resuming);
 }
 

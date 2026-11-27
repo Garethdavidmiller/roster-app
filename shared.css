@@ -3096,6 +3096,14 @@ button.nav-panel-link--notices {
     color: var(--text-light);
     margin-bottom: 24px;
 }
+/* The Pages mirror's line on a desktop (mirror-move.js) in the gold wash, "something here wants doing":
+   under the sign-in card's title, taking the title's gap, and as a strip under a page's header. */
+.login-mirror, .mirror-move { background: var(--gold-wash-bg); border: 1px solid var(--gold-wash-border); color: var(--text-dark); font-size: var(--type-label); line-height: 1.45; text-align: left; }
+.login-mirror { border-radius: var(--radius-field); padding: 10px 14px; margin: -12px 0 20px; }
+.mirror-move { border-width: 0 0 1px; padding: 10px 16px; text-align: center; }
+.mirror-move-link { font-weight: 700; color: var(--primary-blue); text-decoration: underline; }
+.mirror-move-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
+@media print { .mirror-move { display: none; } }
 .login-field {
     text-align: left;
     margin-bottom: 14px;

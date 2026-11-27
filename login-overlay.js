@@ -50,6 +50,7 @@ import { enhanceSelect } from './select-sheet.js';
 import { markLoginStart, clearLoginStart, markAwaitingInput } from './perf-reporter.js';
 
 import { setStatus, speakAfterMount } from './status-text.js';
+import { mirrorCardLine } from './mirror-move.js';
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
 /** What the card says once a sign-in has been out for 8 seconds (owner's wording, 24 Nov 2026): slow, not
@@ -285,6 +286,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         const a = overlay.querySelector('#loginAlternative'); if (a) a.textContent = alternative.label;
         const h = overlay.querySelector('#loginAlternativeHint'); if (h && alternative.hint) h.textContent = alternative.hint;
     }
+    // A desktop at the Pages mirror: where the app lives now, under the card's title (mirror-move.js) —
+    // on a card over the page only. A card IN the page (the Calendar's front door) has the page's strip above it.
+    const mirrorLine = inline ? null : mirrorCardLine(document);
+    if (mirrorLine) overlay.querySelector('#loginSubtitle')?.insertAdjacentElement('afterend', mirrorLine);
     if (about) {
         fillAbout(overlay, about);
         // Static words, not a live region: describing the dialog is what gets them read with it.

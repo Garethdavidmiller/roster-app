@@ -49,6 +49,9 @@ mock.module('../password-force.js', { namedExports: { initPasswordForce: (/** @t
 mock.module('../error-reporter.js', { namedExports: { initErrorReporter: () => log.push('errorReporter') } });
 mock.module('../usage-reporter.js', { namedExports: { recordUsage: (/** @type {string} */ p, /** @type {string} */ n) => log.push(`usage:${p}:${n}`) } });
 mock.module('../perf-reporter.js', { namedExports: { recordPageLatency: (/** @type {string} */ p, /** @type {string} */ n) => log.push(`latency:${p}:${n}`) } });
+/** What `startPage` asked of the Pages mirror's strip, one entry per page start. @type {any[]} */
+const mirrorAsks = [];
+mock.module('../mirror-move.js', { namedExports: { showMirrorBanner: (/** @type {any} */ o) => { mirrorAsks.push(o); return null; } } });
 
 global.window = /** @type {any} */ ({ location: { reload: () => log.push('reload') } });
 
@@ -242,4 +245,11 @@ describe('startPage — a page whose start is the rest of its init (again)', () 
         makeInit()();
         assert.deepEqual(log.slice(-1), ['refuse:G. Admin']);
     });
+});
+
+test('every page start offers the Pages mirror its strip first, saying which page is the Pay page', () => {
+    mirrorAsks.length = 0;
+    startPage(spec({ page: 'paycalc', label: 'Pay Calculator' }));
+    startPage(spec());
+    assert.deepEqual(mirrorAsks, [{ pay: true }, { pay: false }]);
 });

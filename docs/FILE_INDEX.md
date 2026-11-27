@@ -60,6 +60,8 @@ roster-app/
 ├── guide-index.js          ← GENERATED cross-guide search index — do NOT hand-edit; `npm run generate:guide-index` with any guide-content change. Pinned by guide-index-parity.test.mjs
 ├── nav-guide-search.js     ← the drawer's guide search box, lazy-loaded with the index on first focus
 ├── install-prompt.js ← the one-off "add to home screen" strip on the Calendar, plus `installRoute`; never shown with the notification prompt. Its header. See also install-route.test.mjs.
+├── mirror-move.js ← on a DESKTOP at the Pages mirror, the line saying the address is closing: a strip under every page's header, and a line on the sign-in card. Its header. See also mirror-move.spec.js
+├── mirror-move-words.js ← that line's words, who gets it, and its link to the same page at the main address. Pure; tested by mirror-move.test.mjs
 ├── calendar-notif-prompt.js ← the Calendar's one-off notification prompt and the silent subscription renewal; never for a leftover staff-PIN viewer. Its header. Tested by calendar-notif-prompt.test.mjs
 ├── calendar-doc-access.js ← whether this Calendar may read the DOCUMENTS (Huddle, Circular, Newsletter): the gate their viewers and drawer links consult, read from `calendar-access-state.js`. Its header. Tested by calendar-doc-access.test.mjs
 ├── calendar-access-state.js ← whether Calendar access is HELD right now — the one copy, with one write, read by both the roster gate and the document gate. Its header. Tested by calendar-access-state.test.mjs

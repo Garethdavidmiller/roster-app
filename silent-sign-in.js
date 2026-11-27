@@ -139,8 +139,8 @@ export function sessionStartMs(user, email, now) {
 
 // ── THE INSTALLED APP STAYS SIGNED IN (owner, 26 Nov 2026) ───────────────────────────────────────
 //
-// A session lasts `SESSION_MS` from sign-in in a browser tab or on a desktop, where the device may be
-// shared. In the app installed on a phone's home screen it is RENEWED each time the app opens with the
+// A session lasts `SESSION_MS` from sign-in in a browser tab or on a desktop (the owner's choice; a
+// station PC is not a shared browser — each colleague has their own Windows login). In the app installed on a phone's home screen it is RENEWED each time the app opens with the
 // member's own Firebase identity live: "If it is on someone's personal mobile, why am I asking them to
 // sign in every 60 days." Nobody installs the app on a shared station PC, and the work phones are one
 // person each (owner), so the installed app is the personal phone.
