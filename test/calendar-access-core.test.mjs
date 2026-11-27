@@ -23,7 +23,8 @@ import {
     personalActionsAllowed,
 } from '../calendar-access-core.js';
 
-const member  = { uid: 'abc123', isAnonymous: false };
+import { nameToEmail as _email } from '../auth-identity.js';
+const member  = { uid: 'abc123', isAnonymous: false, email: _email('G. Miller') };
 const anon    = { uid: 'anon-1', isAnonymous: true };
 const session = { name: 'G. Miller' };
 

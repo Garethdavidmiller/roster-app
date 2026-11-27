@@ -532,6 +532,14 @@ test('Team View notice: its button opens Team Week View, and it fits the smalles
     await expect(notice).not.toHaveClass(/\bopen\b/);
     await expect(page.locator('body')).toHaveClass(/team-view-active/);
     expect(await page.evaluate(() => localStorage.getItem('myb_notice_team_view_2026_done'))).toBe('1');
+    // ONE Back leaves Team View for the month, and the page stays: Team View was opened only once the
+    // notice's own Back entry had gone (24-hour check, 27 Nov 2026).
+    const entries = await page.evaluate(() => history.length);
+    await page.goBack();
+    await expect(page.locator('body')).not.toHaveClass(/team-view-active/);
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    expect(await page.evaluate(() => history.state?.mybOverlay ?? null), 'no step is left that nothing answers').toBeNull();
+    expect(await page.evaluate(() => history.length)).toBe(entries);
     expect(errors).toHaveLength(0);
 });
 

@@ -27,7 +27,7 @@ import {
   payslipGross, pricePayslip, takeHomeInputs,
 } from './paycalc-calc.js';
 import { resetOverrides } from './paycalc-roster-suggestions.js';
-import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, lsSetVerified, lsDelVerified, requestPersistentStorage } from './ls.js';
+import { lsGet, lsDel, lsKeys, lsAvailable, lsSetVerified, lsDelVerified, requestPersistentStorage } from './ls.js';
 import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -480,7 +480,7 @@ export function init() {
     const persistSetting = (fields) => () => { const pNum = currentPeriodNum(), p = periodByNum(pNum);
       const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative,
         periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }), fields);
-      if (w) { try { lsSet(periodKey(pNum), w); updateSaveStatus(pNum); } catch { /* storage unavailable */ } }
+      if (w) { if (lsSetVerified(periodKey(pNum), w)) updateSaveStatus(pNum); else _notSaved(pNum, NOT_SAVED); }   // never "saved" over a write the device did not keep
       calculate(); };
 
     /** Paint payslip `p`'s own default pension into the field; no payslip, no paint. @param {any} p */

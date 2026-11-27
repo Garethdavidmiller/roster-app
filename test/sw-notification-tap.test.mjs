@@ -102,6 +102,8 @@ describe('a notification tap never takes away unsaved work', () => {
     test('an idle page is navigated, as before', async () => {
         const { wins } = await tap({ windows: [{ answer: 'idle' }], url: 'https://myb-roster.web.app/paycalc.html?payday=2026-10-23' });
         assert.deepEqual(wins[0].navigated, [`${SCOPE}paycalc.html?payday=2026-10-23`]);
+        // The question names where the tap goes, so a page it would not leave holds nothing (sw-register.js).
+        assert.equal(wins[0].messages.find((/** @type {any} */ m) => m.type === 'myb-busy?')?.url, `${SCOPE}paycalc.html?payday=2026-10-23`);
     });
 
     test('a page that never answers (an older release) is still navigated after the wait', async () => {

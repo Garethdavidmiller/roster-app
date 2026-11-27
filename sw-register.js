@@ -222,6 +222,15 @@ export function reloadForUpdate(reload = () => window.location.reload()) {
     reloadWhenNotBusy(() => false, reload);
 }
 
+/** Is `url` this very document — same origin, path and query, whatever its #hash? @param {unknown} url */
+function sameDocument(url) {
+    if (typeof url !== 'string') return false;
+    try {
+        const u = new URL(url, location.href);
+        return u.origin === location.origin && u.pathname === location.pathname && u.search === location.search;
+    } catch { return false; }
+}
+
 /**
  * A NOTIFICATION TAP MUST NOT THROW AWAY WORK (Oct 2026 review). The worker's `notificationclick`
  * used to navigate the first app window it found, so tapping a Huddle notice while Admin held staged
@@ -244,7 +253,10 @@ function answerNotificationTaps(isBusy) {
         if (data.type === 'myb-busy?' && e.ports && e.ports[0]) {
             let busy;
             try { busy = backgroundWriteOnItsWay() || !!isBusy?.(); } catch { busy = true; }   // a predicate that throws must not cost work
-            if (!busy) markLeaving();   // the worker navigates this page next: no update reload may cancel it
+            // The worker navigates this page next, so no update reload may cancel it — unless it is going to
+            // THIS document (a #huddle tap on the Calendar): nothing unloads then, and holding the reload only
+            // cost a failed import its recovery (24-hour check, 27 Nov 2026). An older worker sends no url.
+            if (!busy && !sameDocument(data.url)) markLeaving();
             e.ports[0].postMessage({ busy });
         } else if (data.type === 'myb-open-later' && typeof data.url === 'string') {
             const url = new URL(data.url, location.href);

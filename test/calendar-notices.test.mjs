@@ -119,6 +119,8 @@ mock.module('../overlay.js', {
         }),
         // The real one replaces the notice's history entry with the link's page; that is overlay-history.test.mjs's.
         followLinkOutOf: (/** @type {any} */ lb, /** @type {any} */ e) => { _followed.push({ lb, e }); return true; },
+        // The real one waits for a close's Back to land (overlay-history.test.mjs); here nothing is pending.
+        whenHistorySettled: (/** @type {() => void} */ fn) => fn(),
         // Its real contract: true when it opened the notice, false when the screen was not clear.
         openNoticeIfClear: (/** @type {any} */ lb) => {
             if (_screenTaken) return false;

@@ -1039,6 +1039,19 @@ describe('7 · an ordinary save is checked too, whenever the server can be asked
         assert.equal(_server.get(FIXED)?.value, '07:00-15:00', 'the trade, stated: offline cannot ask, so the later save stands');
     });
 
+    // A queued delete reads as no record, so the next online save's "records first" check could not see
+    // it, and it would land after that save (24-hour check, 27 Nov 2026). It travels with a set, or not at all.
+    test('offline, a save that only removes is refused, never held — and one that sets beside its removals is held', async () => {
+        const store = await seed([]);
+        const onlyRemoves = (/** @type {any} */ w) => { w.delete({ id: 'old-1' }); };
+        await assert.rejects(offline(() => store.commitChecked(onlyRemoves, { shownFor: () => null, line })),
+            (/** @type {any} */ e) => e.code === 'unavailable');
+        assert.equal(_batchCommits, 0, 'a lone delete was queued');
+        const res = await offline(() => store.commitChecked(saveDay(['old-1']), { shownFor: () => null, line }));
+        assert.deepEqual(res, { checked: false, done: false });
+        assert.equal(_batchCommits, 1);
+    });
+
     test('"online" with no server (unavailable) → held as a batch, not lost', async () => {
         const store = await seed([]);
         _txFails = Object.assign(new Error('Failed to get document because the client is offline.'), { code: 'unavailable' });

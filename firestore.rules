@@ -1076,10 +1076,11 @@ service cloud.firestore {
     }
 
     // ── oneOffPushes — a dated one-off notification's send record (v26.94) ───────────────────────
-    // Claimed BEFORE the send so a schedule delivered twice sends once (functions/newlink-reminder.js),
-    // with what the send reached written beside it. Written ONLY by that function through the Admin
-    // SDK. Closed to every client, the admin included: a client that could write it could block the
-    // send, or delete the claim and let a second run ring every phone again.
+    // Claimed BEFORE the send so a schedule delivered twice sends once, with what the send reached
+    // written beside it. Its one writer, the New link reminder, was removed once it had sent, so
+    // nothing writes it now; a later one-off would write it through the Admin SDK. Closed to every client,
+    // the admin included: a client that could write it could block the send, or delete the claim and let
+    // a second run ring every phone again.
     match /oneOffPushes/{docId} {
       allow read, write: if false;
     }

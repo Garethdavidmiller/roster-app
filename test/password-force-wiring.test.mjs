@@ -96,7 +96,7 @@ doc.getElementById = (/** @type {string} */ id) => ids[id] ?? null;
 globalThis.document = /** @type {any} */ (doc);
 /** @type {any} */ (globalThis).CustomEvent = class { constructor(/** @type {string} */ t) { /** @type {any} */ (this).type = t; } };
 
-const { initPasswordForce } = await import('../password-force.js');
+const { initPasswordForce, passwordStepMayBeDue } = await import('../password-force.js');
 
 const settle = () => new Promise(r => setTimeout(r, 20));
 /** Press Enter with focus on `target`; report whether the overlay took the key. */
@@ -317,6 +317,33 @@ test('a sign-in asks the server whatever this device remembers — and forgets a
     assert.equal(stored.has(KNOWN), false, 'the stale "migrated" was kept, so later opens would skip the step');
     ids.pwfEscape.click();
     await done;
+});
+
+// A reset ends in a sign-in on the surname. When the read after it failed, the device kept its old
+// "own password" and skipped every later open — and the installed app may never sign in by hand again
+// (24-hour check, 27 Nov 2026). The Calendar's `passwordStepMayBeDue` read the same note.
+test('a sign-in whose status read fails forgets the old "own password", so the next open asks again', async () => {
+    stored.set(KNOWN, '1');                                    // remembered from before the admin reset
+    statusImpl = async () => { throw new Error('offline'); };  // the read after the sign-in fails
+    assert.equal(await initPasswordForce('G. Miller'), false, 'a failed read never blocks');
+    assert.equal(stored.has(KNOWN), false, 'the old "own password" outlived the sign-in');
+    assert.equal(passwordStepMayBeDue('G. Miller'), true, 'the Calendar would skip the step on every later open');
+
+    statusImpl = async () => ({});                             // the next open reads: on the surname
+    const done = initPasswordForce('G. Miller');
+    for (let i = 0; i < 40 && doc.activeElement !== ids.pwfNew; i++) await new Promise(r => setTimeout(r, 5));
+    assert.equal(doc.activeElement, ids.pwfNew, 'the next ordinary open did not ask');
+    ids.pwfEscape.click();
+    await done;
+});
+
+test('passwordStepMayBeDue: a sign-in marker, or no note of the member\'s own password, makes the step due', () => {
+    stored.clear();
+    assert.equal(passwordStepMayBeDue('G. Miller'), true, 'nothing known: due');
+    stored.set(KNOWN, '1');
+    assert.equal(passwordStepMayBeDue('G. Miller'), false, 'own password seen, no sign-in: nothing to do');
+    stored.set(MARKER, '1');
+    assert.equal(passwordStepMayBeDue('G. Miller'), true, 'a sign-in is always due');
 });
 
 test('a load whose identity is not a named member is never compelled — whatever the marker says', async () => {

@@ -280,8 +280,8 @@ export function ownWritesSent(waitForPendingWrites, ms = OWN_WRITES_WAIT_MS, { o
  * DELETE as no document at all, with `hasPendingWrites` false (`@firebase/firestore` 4.20.0), so such a
  * record reads 'clear'. Today that costs nothing: the only deletes queued offline are the "copy it
  * replaces" deletes of a held Admin batch (admin-overrides.js), which always travel with a SET to the
- * day's fixed id in the same batch, and every caller passes that id, which does read as queued. A new
- * caller whose queued write could be a delete alone must not rely on this check to see it.
+ * day's fixed id in the same batch, and every caller passes that id, which does read as queued. A held
+ * save that only deletes is refused rather than queued (`commitChecked`, admin-override-store.js).
  * @param {(ref: any) => Promise<any>} readFromCache  the SDK's `getDocFromCache`
  * @param {Iterable<any>} refs  every document the save writes or deletes
  * @returns {Promise<RecordsState>}

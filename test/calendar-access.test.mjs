@@ -21,6 +21,9 @@
 import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { nameToEmail as _email } from '../auth-identity.js';
+/** Every member signs in by email; the access rule requires the session member's own. */
+const MILLER_EMAIL = _email('G. Miller');
 
 // ── Fakes ───────────────────────────────────────────────────────────────────────────────────────
 
@@ -137,7 +140,7 @@ mock.module('../session.js', {
             // tied the two together would make "trust the boolean" indistinguishable
             // from "re-read ground truth", which is the one thing worth checking here.
             if (silentReauthUser !== undefined) currentUser = silentReauthUser;
-            else if (silentReauthSucceeds) currentUser = { uid: 'member-1', isAnonymous: false };
+            else if (silentReauthSucceeds) currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
             return silentReauthSucceeds;
         },
     },
@@ -373,7 +376,7 @@ describe('the render gate and the WRITE gate open at the same instant', () => {
         // push renewal) still await `calendarAuthReady`, and a grant that forgot to release it
         // would silence all of them while the Calendar looked perfectly healthy.
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         let accessResolved = false, authResolved = false;
         calendarAccessReady.then(() => { accessResolved = true; });
         calendarAuthReady.then(() => { authResolved = true; });
@@ -402,7 +405,7 @@ describe('the staff PIN\'s unlock and Lock are gone from the client', () => {
 describe('initCalendarAccess', () => {
     test('a live named session starts the Calendar with no card', async () => {
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         let started = 0;
         const type = await initCalendarAccess({ onGranted: () => { started++; } });
         assert.equal(type, 'named');
@@ -414,7 +417,7 @@ describe('initCalendarAccess', () => {
     // `reconcileExpiredIdentity` with NO argument — until the staff PIN was retired (23 Nov 2026) the
     // Calendar passed `preserveCalendarViewer` here, and nothing may be kept any more.
     test('a restored identity with NO local session is NOT granted, and the boot asks the teardown to keep nothing', async () => {
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         let started = 0;
         const type = await initCalendarAccess({ onGranted: () => { started++; } });
         assert.equal(type, 'none', 'an identity without a session opened the Calendar');
@@ -462,7 +465,7 @@ describe('initCalendarAccess', () => {
         assert.equal(lockCardId(), 'calendarLock', 'something other than the sign-in card stands in the slot');
         handleAccessLost(); await drainTurns(); loginMounts = []; _resetPageForTest();
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
         assert.deepEqual(ops.filter(o => o.startsWith('replaceState:') || o.startsWith('replace:') || o === 'reload'), [],
             'the hash moved the address or reloaded the page');
@@ -604,7 +607,7 @@ describe('initCalendarAccess', () => {
 
         test('takes the form down with the card', async () => {
             await openTheForm();
-            emitAuth({ uid: 'member-1', isAnonymous: false });   // the slow restore lands
+            emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });   // the slow restore lands
             assert.equal(getAccessType(), 'named', 'premise: granted');
             assert.equal(loginDismissals, 1, 'the full-screen sign-in stayed over a Calendar already granted');
         });
@@ -612,7 +615,7 @@ describe('initCalendarAccess', () => {
         test('…but not while the form\'s OWN sign-in is in flight — its success grants, after the forced set-password step\'s marker is written', async () => {
             await openTheForm();
             loginBusy = true;                                     // the member pressed Sign in; Firebase signs them in
-            emitAuth({ uid: 'member-1', isAnonymous: false });
+            emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });
             assert.equal(getAccessType(), 'none', 'the restore granted under the form\'s own sign-in — the first grant ran before its marker was written');
             assert.equal(loginDismissals, 0, 'the form went before its own sign-in had finished');
         });
@@ -621,7 +624,7 @@ describe('initCalendarAccess', () => {
             await initCalendarAccess({ onGranted: () => {} });    // nothing held: the inline sign-in card
             assert.ok(loginMounts.at(-1)?.host, 'premise: the inline card is up');
             sessionValue = { name: 'G. Miller' };                 // a member's identity lands late
-            emitAuth({ uid: 'member-1', isAnonymous: false });
+            emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });
             assert.equal(getAccessType(), 'named');
             assert.equal(loginDismissals, 0, 'the inline card was dismissed as though it were the dialog — '
                 + 'its scroll unlock is unpaired, and would release another overlay\'s lock');
@@ -691,7 +694,7 @@ describe('initCalendarAccess', () => {
         // The restore lands. Session and identity are now both present, which is exactly what
         // `decideAccess` asked for at boot and did not get.
         sessionValue = { name: 'G. Miller' };
-        emitAuth({ uid: 'member-1', isAnonymous: false });
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });
 
         assert.equal(getAccessType(), 'named');
         assert.equal(started, 1);
@@ -727,7 +730,7 @@ describe('initCalendarAccess', () => {
         // A Firebase identity with no session is what `reconcileExpiredIdentity` exists to tear down.
         // Honouring it here would let an expired member keep their access by outlasting the bound.
         assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
-        emitAuth({ uid: 'member-1', isAnonymous: false });
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });
         assert.equal(getAccessType(), 'none');
     });
 
@@ -796,7 +799,7 @@ describe('initCalendarAccess', () => {
         // The gate's job is the decision. A rendering fault downstream is the coordinator's problem,
         // and swallowing the decision with it would leave the page locked with no card and no cause.
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         const type = await initCalendarAccess({ onGranted: () => { throw new Error('render blew up'); } });
         assert.equal(type, 'named');
     });
@@ -815,7 +818,7 @@ describe('handleAccessLost', () => {
         // A Firestore `permission-denied` after the Calendar is open means the session expired, not
         // that the network is poor. Left as a sync-chip retry it is a loop the member cannot win.
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
         handleAccessLost();
         assert.equal(getAccessType(), 'none');
@@ -825,7 +828,7 @@ describe('handleAccessLost', () => {
     test('a MEMBER losing access gets their own card (CALENDAR_DATA.md 11)', async () => {
         // Until v23.19 this path showed the PIN card to everyone; the way back in is the member's own.
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         await initCalendarAccess({ onGranted: () => {} });
         assert.equal(getAccessType(), 'named');
         handleAccessLost();
@@ -840,7 +843,7 @@ describe('handleAccessLost', () => {
 
     test('a MEMBER whose SESSION has also gone gets the sign-in card, with the reason on it', async () => {
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         await initCalendarAccess({ onGranted: () => {} });
         sessionValue = null;   // expired and cleared by the time the read was refused
         loginMounts = [];
@@ -960,7 +963,7 @@ describe('a returning named member is granted ONCE, and only after the identity 
         await Promise.resolve(); await Promise.resolve();
         assert.deepEqual(seen, [], 'something was granted while the stored identity was still unconfirmed');
         assert.equal(grid.hidden, true, 'the workspace was shown before the confirmation');
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         release();
         assert.equal(await done, 'named');
         assert.deepEqual(seen, ['every(0):named', 'onGranted:named'],
@@ -985,7 +988,7 @@ describe('the cards themselves', () => {
         // is forced deterministically: start the card, let it reach its `await`, then grant.
         const pending = showSignInPanel();
         sessionValue = { name: 'G. Miller' };
-        emitAuth({ uid: 'member-1', isAnonymous: false });   // the restore lands — but nothing is watching yet
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });   // the restore lands — but nothing is watching yet
         return initCalendarAccess({ onGranted: () => {} })
             .then(() => pending)
             .then(() => {
@@ -1024,7 +1027,7 @@ describe('the cards themselves', () => {
     test('…but not over a Calendar granted while the form was failing to load', async () => {
         formLoadFails = true;
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
         await showSignInPanel();
         assert.equal(lockCardId(), null, 'a fallback card went up over a granted Calendar');
@@ -1059,14 +1062,14 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
     /** A member's grant at boot — the one grant there is since the staff PIN was retired. */
     async function grantMember() {
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
     }
 
     test('a member\'s grant: the workspace is back BEFORE the documents are told, and both hooks find every gate open', async () => {
         const grid = domEl('calendarDisplay');   // created first: the module only hides what exists
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         /** @type {string[]} */ const order = [];
         // The documents are told from INSIDE the write, and a document a locked tap was waiting for
         // opens there and then: over the Calendar, never over a workspace still hidden.
@@ -1089,7 +1092,7 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
         assert.equal(hasCalendarAccess(), false, 'premise: nothing is granted yet');
         onDocumentAccess(open => order.push(`documents:${open}:card=${lockCardId()}`));
         sessionValue = { name: 'G. Miller' };
-        emitAuth({ uid: 'member-1', isAnonymous: false });
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });
         assert.deepEqual(order, ['documents:true:card=null', 'every:true', 'granted:true'],
             'a held document would have opened over a card about to be taken away');
     });
@@ -1113,7 +1116,7 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
 
     test('a MEMBER\'s card is still owed, and their own, after a refused read has ALREADY shut the state', async () => {
         sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
         await initCalendarAccess({ onGranted: () => {} });
         setCalendarAccess(false);
         handleAccessLost();
@@ -1155,7 +1158,7 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
         _resetPageForTest(); sessionValue = null; currentUser = null;
         await initCalendarAccess({ onGranted: () => {} });
         sessionValue = { name: 'G. Miller' };
-        emitAuth({ uid: 'member-1', isAnonymous: false });
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });
         assert.equal(grantNumber(), first + 1, 'a read still out from before the lock would settle under the new grant');
         assert.equal(getAccessType(), 'named');
     });
@@ -1182,7 +1185,7 @@ describe('a sign-in on a card grants in place, or reloads', () => {
     /** What the sign-in core leaves behind on success: the saved session and the member's identity. */
     function signedIn(name = 'G. Miller') {
         sessionValue = { name };
-        currentUser = { uid: 'member-1', isAnonymous: false };
+        currentUser = { uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL };
     }
 
     test('the front door: no reload, the page\'s rebuild BEFORE the grant, the first grant\'s steps once', async () => {
@@ -1208,7 +1211,7 @@ describe('a sign-in on a card grants in place, or reloads', () => {
         const form = loginMounts.at(-1);
         assert.equal(form?.host, undefined, 'premise: the full-screen form is up');
         loginBusy = true;                                     // Sign in pressed: Firebase signs them in
-        emitAuth({ uid: 'member-1', isAnonymous: false });
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });
         assert.deepEqual(seen, [], 'a grant ran before the sign-in finished');
         await form.onSuccess('G. Miller');
         assert.ok(!ops.includes('reload'), `reloaded: ${JSON.stringify(ops)}`);
@@ -1280,7 +1283,7 @@ describe('a sign-in on a card grants in place, or reloads', () => {
         await new Promise(r => setTimeout(r, 0));
         await document.getElementById('calLockSubmit')._listeners.get('click')();
         loginBusy = true;                                     // Sign in pressed: Firebase signs them in…
-        emitAuth({ uid: 'member-1', isAnonymous: false });
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });
         await new Promise(r => setTimeout(r, 450));
         assert.equal(getAccessType(), 'none', 'granted under the form');
         loginBusy = false;                                    // …but the attempt times out: no onSuccess
@@ -1313,7 +1316,7 @@ describe('a sign-in on a card grants in place, or reloads', () => {
         await document.getElementById('calLockSubmit')._listeners.get('click')();
         const form = loginMounts.at(-1);
         loginBusy = true;                                     // Sign in pressed…
-        emitAuth({ uid: 'member-1', isAnonymous: false });    // …and an identity lands: the watcher waits
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });    // …and an identity lands: the watcher waits
         await form.onSuccess('G. Miller');                    // the form's success grants, in place
         assert.deepEqual(seen, ['signedIn:none', 'onEveryGrant', 'onGranted'], 'premise: granted once');
         handleAccessLost();                                   // a refused read, moments later
@@ -1336,7 +1339,7 @@ describe('a sign-in on a card grants in place, or reloads', () => {
         await flush();
         t.mock.timers.tick(4000);                             // …past the card's bound
         assert.equal(await boot, 'none', 'premise: the come-back card, the silent attempt still out');
-        emitAuth({ uid: 'member-1', isAnonymous: false });    // the restore lands and is granted
+        emitAuth({ uid: 'member-1', isAnonymous: false, email: MILLER_EMAIL });    // the restore lands and is granted
         assert.equal(getAccessType(), 'named', 'premise: granted by the watcher');
         handleAccessLost();                                   // …and lost
         release();                                            // the silent attempt succeeds, late
