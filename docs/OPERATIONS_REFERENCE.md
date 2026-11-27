@@ -716,7 +716,7 @@ check the lockfile diff is patch or minor releases only, run `npm run test:funct
 
 ## The Pages mirror — behind the Hosting gate
 
-**Why.** Most staff open the app on the GitHub Pages mirror, and until 10 November 2026 GitHub built it
+**Why.** About half the staff open the app on the GitHub Pages mirror (installed users roughly level between the two addresses — owner, 27 Nov 2026; most of them, at the time of the incident below), and until 10 November 2026 GitHub built it
 straight from `main` with no test: on 24 Oct 2026 v24.94 failed the Hosting gate while the mirror shipped
 it, and most staff ran a refused release for about three hours. Since 10 November 2026 the mirror is
 published by `deploy-mirror.yml`, only after a passing Hosting run. Still open: `main` requires no checks
