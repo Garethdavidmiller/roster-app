@@ -141,8 +141,8 @@ including inputs inside modals, where keyboard users most need it. Measured: `e2
 "every focusable field wears the field ring when focused" reads every field's computed shadow on every
 app page, cards open; the drawer's guide search is its one exemption, by name. **One field cannot wear
 it on an iPhone, by engine:** WebKit draws no `box-shadow` on a `<select>` that keeps the platform's
-face, as the Links generator's time boxes do on touch by decision (`links.css`, "THE CLOSED FACE IS THE
-APP'S"); there the OUTLINE is the indicator (`e2e/links.spec.js` → "the generator's boxes and the
+face, as the Link Designer generator's time boxes do on touch by decision (`link-designer.css`, "THE CLOSED FACE IS THE
+APP'S"); there the OUTLINE is the indicator (`e2e/link-designer.spec.js` → "the generator's boxes and the
 Import fields wear the app's field recipe"). The sweep cannot meet it: it runs on a fine pointer.
 
 **Never leave a Tab stop with no indicator.** `outline: none` in a focus rule is legitimate only when a
@@ -189,7 +189,7 @@ would change meaning, not tidy it.
 |-------|-------|-----|
 | `--radius-button` | 12px | every action button; a TAB is a button (`.ty-tab`, `.ot-tab`, Trains' `.tr-tab`, Team View's `.grade-tab`); a SHOW-MORE is a button (Pay's `.show-more-btn`, Trains' `.tr-more`); the Calendar's controls and Team View's arrows; the leave panel's two links (`.al-lb-link`); Admin's week navigation |
 | `--radius-field` | `= --radius-button` | every text field, select and picker trigger that sits on a card |
-| `--radius-xs` | 6px | dense inputs that sit in a ROW or a grid — the Links generator, the Operations email table, the navy member bar's picker |
+| `--radius-xs` | 6px | dense inputs that sit in a ROW or a grid — the Link Designer generator, the Operations email table, the navy member bar's picker |
 | `--field-border` | `2px solid var(--border-mid)` | the field's edge |
 
 Two corners a few pixels apart in one card, or a field on a fainter hairline than its neighbours, read
@@ -233,7 +233,7 @@ panel, and the white Circular/Newsletter viewer (`min(420px, 88vw)`) — which s
 
 `shared.css :root` defines `--space-2/3/4/5` (8/12/16/24px). In `shared.css` they name exactly two
 things — the card-body padding and the nav-drawer gaps. `overtime.css` has adopted them throughout,
-`trains.css` widely, and `links.css` and `admin.css` in a rule or two, so **changing a `--space-*`
+`trains.css` widely, and `link-designer.css` and `admin.css` in a rule or two, so **changing a `--space-*`
 value moves those pages too**. The app has no general spacing scale.
 
 **A general spacing migration is a WON'T-DO, and the numbers are why** (measured across the app
@@ -322,7 +322,7 @@ editing tokens, edit the `oklch`/`color-mix` values in `shared.css`, not these h
 All colour values must be in CSS variables in `:root` — never hardcode hex (enforced by
 `css-hex-parity.test.mjs`). **And a page-local token that mirrors an app colour must FORWARD it
 (`var(--orange)`), not restate its value** — a restated copy drifts measurably from the token it
-claims to mirror. `guide-colour-parity.test.mjs` asserts the forwarding for the Links workspace,
+claims to mirror. `guide-colour-parity.test.mjs` asserts the forwarding for the Link Designer,
 alongside the guides.
 
 ## The orange family — a deliberate split
@@ -359,7 +359,7 @@ neutrals. Alpha values are tuned for WCAG AA on navy (0.70 ≈ 7:1, 0.55 ≈ 5:1
 separated from the scrolling body by hairline `--nav-border` borders, not by a colour change.
 
 **Pills:** every page pill wears its page's solid colour — Calendar gold, Pay green, Operations orange,
-Links purple, Trains raspberry, New link teal, Overtime `--ot`, Settings indigo. The **Admin pill** uses
+Link Designer purple, Trains raspberry, New link teal, Overtime `--ot`, Settings indigo. The **Admin pill** uses
 `--nav-raised` with gold text (not a navy fill, which would vanish on navy). Sign-out mixes
 `--error-red` 65% with white to clear AA on the dark footer. Do not revert the drawer to a white body.
 
@@ -397,14 +397,14 @@ the choice, so one screen never shows two colours for one idea.
   named, with its reason, in `page-identity-parity.test.mjs` → `MEANING`.
 - **A tick box, a radio and the option row built round one keep their own recipe** — the box's mark
   carries the state (`.gen-obj`, `.bp-mode-opt`/`.hpp-mode-opt`). A RING on a coloured chip is a marker,
-  not a fill (Links' armed brush), and stays navy.
+  not a fill (Link Designer's armed brush), and stays navy.
 - **Small text inside a chosen fill is re-measured on the new colour** — a tint of white that passes on
   navy can fail on a lighter accent. Every ink-on-accent pair is AA: 5.19:1 (New link's teal, the
   lowest) to 10.5:1 (gold).
 - **Hover never repaints a chosen control.** Every hover rule on a choosable control either excludes
   the chosen state (`:not([aria-pressed="true"])`, `:not(.active)`, `:not(.is-current)`) or loses to the
   chosen rule on order at equal specificity — check it: `.picker-opt:hover:not(:disabled)` is (0,3,0)
-  and beats `.is-current` at (0,2,0). Pinned by `e2e/links.spec.js` → "links compare: the filter hides
+  and beats `.is-current` at (0,2,0). Pinned by `e2e/link-designer.spec.js` → "links compare: the filter hides
   the identical lines" and "links: editing a grid cell uses the app sheet".
 - **A control that turns DARK when chosen animates its text with its fill** — the rule "A colour may
   not transition independently of the ground behind it", below. `e2e/axe.spec.js` → `scan()` waits for
@@ -501,9 +501,9 @@ the colliding surfaces are rarely co-visible, and new hues would cost more than 
 
 - **paycalc pay badges deliberately borrow the roster's shift colours** — Saturday Early orange,
   Sunday Late blue, Bank Holiday the AL teal; the labels carry the meaning.
-- **`--purple` = Spare shift AND the Links page identity** — co-visible on Links itself, where Spare
+- **`--purple` = Spare shift AND the Link Designer identity** — co-visible on Link Designer itself, where Spare
   takes the app's purple (owner, 22 Nov 2026: Spare looks the same on every page). The page identity is only the header badge and the drawer pill; every
-  Spare cell is labelled SP, so the label carries the meaning. Ordinary staff never see Links.
+  Spare cell is labelled SP, so the label carries the meaning. Ordinary staff never see Link Designer.
 - **`--blue-sky` = Late shift AND assorted admin accents** (source pill, overwrite-active) — labelled,
   low co-visibility.
 

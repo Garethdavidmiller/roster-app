@@ -3,9 +3,9 @@
 // every move (same-day swaps, whole-line swaps). The app's own modules judge every candidate;
 // the "feel" terms are the only thing added, and they are what "like today's roster" means in numbers.
 import { writeFileSync, readFileSync } from 'node:fs';
-import { runDesignChecks, startMinutes, DAYS, dutyMinutes } from '../../../links-design.js';
-import { assessFatigue } from '../../../links-fatigue.js';
-import { scoreOrder } from '../../../links-adjacency.js';
+import { runDesignChecks, startMinutes, DAYS, dutyMinutes } from '../../../link-designer-design.js';
+import { assessFatigue } from '../../../link-designer-fatigue.js';
+import { scoreOrder } from '../../../link-designer-adjacency.js';
 import { LINES, COVER_LINES } from './link.mjs';
 const MODE = process.env.MODE ?? 'feel';   // 'feel' = like today's roster · 'rules' = fatigue-first, no feel terms
 const GAP_W = Number(process.env.GAP_W ?? 0), ISO_X = Number(process.env.ISO_X ?? 0);

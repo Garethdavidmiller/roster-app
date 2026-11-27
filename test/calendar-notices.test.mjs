@@ -1208,7 +1208,7 @@ describe('10 · every section a notice archives under has its colour in App Noti
         [...readFileSync(new URL(`./${f}`, here), 'utf8').matchAll(/(?:archiveNotice\(\{|_RECORD = \{)[^}]*?section:\s*'([^']+)'/gs)].map(m => m[1])));
     const css = readFileSync(new URL('./shared.css', here), 'utf8');
     test('the scan is reading real sections, from the files that archive', () => {
-        for (const f of ['calendar-notices.js', 'paycalc-lightboxes.js', 'links-app.js']) assert.ok(ARCHIVERS.includes(f), `${f} archives a notice: ${ARCHIVERS}`);
+        for (const f of ['calendar-notices.js', 'paycalc-lightboxes.js', 'link-designer-app.js']) assert.ok(ARCHIVERS.includes(f), `${f} archives a notice: ${ARCHIVERS}`);
         assert.ok(sections.has('Trains') && sections.has('Pay'), [...sections].join(', '));
         assert.equal(SECTION_MODS.Pay, 'pay');
     });

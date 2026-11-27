@@ -82,7 +82,10 @@ for (const r of REDIRECT_PAGES) {
         const thrown = thrownBy(page);
         await page.goto(`/${r.file}`);
         await expect(page).toHaveURL(new RegExp(`/${target.replace(/\./g, '\\.')}$`));
-        await expect(page.locator('main')).toBeVisible();
+        // A guide shows its text to anybody; an app page (the Link Designer's old address) keeps its main
+        // hidden behind the sign-in card, so there it is enough to have landed on the page itself.
+        if (APP_PAGES.some(p => p.file === target)) await expect(page).not.toHaveTitle(/moved/);
+        else await expect(page.locator('main')).toBeVisible();
         expect(thrown, `${r.file} threw on its way to ${target}`).toEqual([]);
     });
 }

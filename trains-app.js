@@ -101,7 +101,7 @@ let overviewCard = { setOpen(/** @type {boolean} */ _open) {} };
 
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
 export function init() {
-    registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Links: a signed-out view must still take an update (whole-app review)
+    registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Link Designer: a signed-out view must still take an update (whole-app review)
     // Tear down a lingering privileged Firebase identity whose local session has expired — and a leftover session of the
     // retired staff PIN (owner, 23 Nov 2026), which is what a signed-out visitor most often brings.
     const teardown = reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled

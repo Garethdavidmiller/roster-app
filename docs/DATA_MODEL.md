@@ -420,27 +420,27 @@ Also read once per Calendar load, for the latest issue's `date` only (`checkLate
 name        Design name
 patterns    Full-rotation pattern data, one entry per line (`ROTATING_LINES`)
 window      The design's own OPERATING WINDOW (when the station is staffed) — `normaliseWindow`,
-            links-window.js. Stored PER DESIGN so a proposal can test a moved boundary. Every path
-            that rebuilds a design must carry it (`links-design-doc.js`): a design restored without
+            link-designer-window.js. Stored PER DESIGN so a proposal can test a moved boundary. Every path
+            that rebuilds a design must carry it (`link-designer-design-doc.js`): a design restored without
             it comes back wearing the app default, and the next save writes that default over the
             boundary the design existed to test.
 updatedAt   Firestore server timestamp
 updatedBy   Member name string — the last to SAVE. A rename on a baseline it could not verify does
-            not write it (links-design-store.js), because the content is still that person's.
+            not write it (link-designer-design-store.js), because the content is still that person's.
 revision    Optional int >= 1 (absent on designs last written before it existed) — the co-editing
             CONCURRENCY IDENTITY a save compares against, for equality only. A
             transaction writes the value it read + 1; a QUEUED (offline) write stamps the clock in
-            ms instead, so it can never equal a colleague's online revision (links-design-store.js).
+            ms instead, so it can never equal a colleague's online revision (link-designer-design-store.js).
 deletedAt   Optional — Firestore server timestamp. PRESENT = in the "Recently deleted" bin (hidden
             from the picker, restorable until somebody removes it by hand — the bin is permanent and
-            nothing expires a design, links-deletion.js); ABSENT = live. Restore clears it with
+            nothing expires a design, link-designer-deletion.js); ABSENT = live. Restore clears it with
             deleteField(), so absence is unambiguous.
 deletedBy   Optional — display name of whoever deleted it
 ```
 Read: a **named** session — a bound member identity (`isMember()`) or `admin`. Deliberately NOT narrowed to `linksDesigner`: a designer whose token predates that claim must still be able to LOAD the workspace so their first write can permission-deny and self-heal through `writeWithClaimRetry`.
-Write: requires the `linksDesigner` claim OR `admin` (H2), and create/update is **shape-validated** — the authoritative key list is the `hasOnly([…])` in `firestore.rules` and the payload builder `docPayload` in `links-design-doc.js`; **do not restate it here** (a copy here once omitted `window` while the rules and the payload carried it). `name` is a 1–100 char string, `patterns` a map, `updatedAt` a timestamp, `updatedBy` a ≤100 char string; `window`, `revision`, `deletedAt` and `deletedBy` are optional and type-checked when present (a live design carries neither delete field). **Each stamp pair is the writer's own**: a write that changes `updatedBy`/`updatedAt`, or `deletedBy`/`deletedAt`, must carry the writer's bound name and the server's time (`request.time`, i.e. `serverTimestamp()`), or leave the pair exactly as it was — a soft delete carries the saver's pair through, and a rename on a stale baseline writes neither — because the store's fallback conflict check trusts `updatedBy` and the bin moves read `updatedAt`. An admin token may stamp without a bound name, never another time. **A hard delete is allowed only on a design already in the bin** (`deletedAt` present), so a client that deletes from a stale list can only fail, never destroy a live design. `linksDesigner` is set by `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS`; every write goes through the design store with `writeWithClaimRetry`, so a stale token self-heals, and saves atomically via `runTransaction`. Designs are **not** member-owned (no per-member isolation — any designer edits, deletes or restores any design).
-Written by: `links-design-store.js` — every design write, through `createDesignStore`. Read by: the same store's
-`loadAll`, for the load and the refresh alike, which says whether the cache answered (`links-design-load.js` reads it).
+Write: requires the `linksDesigner` claim OR `admin` (H2), and create/update is **shape-validated** — the authoritative key list is the `hasOnly([…])` in `firestore.rules` and the payload builder `docPayload` in `link-designer-design-doc.js`; **do not restate it here** (a copy here once omitted `window` while the rules and the payload carried it). `name` is a 1–100 char string, `patterns` a map, `updatedAt` a timestamp, `updatedBy` a ≤100 char string; `window`, `revision`, `deletedAt` and `deletedBy` are optional and type-checked when present (a live design carries neither delete field). **Each stamp pair is the writer's own**: a write that changes `updatedBy`/`updatedAt`, or `deletedBy`/`deletedAt`, must carry the writer's bound name and the server's time (`request.time`, i.e. `serverTimestamp()`), or leave the pair exactly as it was — a soft delete carries the saver's pair through, and a rename on a stale baseline writes neither — because the store's fallback conflict check trusts `updatedBy` and the bin moves read `updatedAt`. An admin token may stamp without a bound name, never another time. **A hard delete is allowed only on a design already in the bin** (`deletedAt` present), so a client that deletes from a stale list can only fail, never destroy a live design. `linksDesigner` is set by `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS`; every write goes through the design store with `writeWithClaimRetry`, so a stale token self-heals, and saves atomically via `runTransaction`. Designs are **not** member-owned (no per-member isolation — any designer edits, deletes or restores any design).
+Written by: `link-designer-design-store.js` — every design write, through `createDesignStore`. Read by: the same store's
+`loadAll`, for the load and the refresh alike, which says whether the cache answered (`link-designer-design-load.js` reads it).
 
 **linkTargetSets**
 ```
@@ -457,8 +457,8 @@ about but not lose my set" (owner, Aug 2026) holds across devices. Read: named s
 (matches linkDesigns, same self-heal reasoning). Create: `linksDesigner` or admin, shape-validated,
 `createdBy == memberName()`. Update/delete: only the creator or the admin. The client's
 Save button asks the same question (`canOverwriteTargetSet`) but that copy only decides what is
-OFFERED — the rules are the protection. Read, overwritten and deleted through `links-target-sets-store.js`
-(`list`, `writeIfUnchanged`); a NEW set is created directly by `links-generator-targets.js` (`addDoc`),
+OFFERED — the rules are the protection. Read, overwritten and deleted through `link-designer-target-sets-store.js`
+(`list`, `writeIfUnchanged`); a NEW set is created directly by `link-designer-generator-targets.js` (`addDoc`),
 which also wires the generator card's Saved sets row; rules covered case-for-case by
 `firestore.rules.test.mjs`. There is no bin behind a set: deleting one is final, which is why the
 confirm names it and is marked destructive.

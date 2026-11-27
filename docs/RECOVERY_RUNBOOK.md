@@ -279,11 +279,11 @@ repository schedules the drill — adding a row to `MAINTENANCE_CALENDAR.md` is 
 
 ### C. A Link Design was lost or corrupted
 
-**Symptom:** a design in the Links workspace is gone or scrambled.
+**Symptom:** a design in the Link Designer is gone or scrambled.
 
 - `linkDesigns` docs are `{ name, patterns, window, updatedAt, updatedBy }` plus the `revision` the
   store stamps on every save (copy it back too: it is the co-editing identity) — the shape is
-  `docPayload` in `links-design-doc.js`, which exists precisely so nobody hand-builds another copy
+  `docPayload` in `link-designer-design-doc.js`, which exists precisely so nobody hand-builds another copy
   of it. **`window` is load-bearing.** A design restored without its window comes back wearing the
   app default, the heat map then measures its gaps against a span nobody chose, and the next save
   writes that default over the moved boundary the design was built to test.
@@ -291,7 +291,7 @@ repository schedules the drill — adding a row to `MAINTENANCE_CALENDAR.md` is 
   restoring. (Do not write the line count down here; `ROTATING_LINES` owns it.)
 - **Restore the old content:** with PITR on, export a pre-corruption snapshot and restore
   **`patterns` AND `window` together**, then paste back by editing the design (or re-create the doc).
-- Low urgency: Links is a design workspace used by the members of `CONFIG.LINKS_DESIGNERS`, not a
+- Low urgency: Link Designer is a design workspace used by the members of `CONFIG.LINKS_DESIGNERS`, not a
   staff-facing record.
 
 ### D. A Circular / Newsletter / Huddle won't open or has the wrong metadata
@@ -572,7 +572,7 @@ after step 1 means the condition was mistyped; re-run step 1 with the line exact
 |---------|-------------|-------|
 | One shift/AL/absence wrong or deleted | Re-enter it | Admin → Change a Shift |
 | Bad roster upload | Re-upload correct PDF (self-heals imports) | Operations → Weekly Roster |
-| Link design lost | Regenerate, or read old `patterns` from a PITR snapshot | Links workspace |
+| Link design lost | Regenerate, or read old `patterns` from a PITR snapshot | Link Designer |
 | Doc won't open / wrong date | Re-upload for the correct date | Operations |
 | Bad Functions deploy | `git revert` + push; only if Actions is down, `firebase deploy --only functions` from a pulled checkout of `main` with the revert | git / CLI |
 | Bad Rules deploy | Console → Rules → Rollback to the previous version (seconds) — never past v24.23 | Firebase Console |

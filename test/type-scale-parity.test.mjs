@@ -130,7 +130,7 @@ test('no text-entry field is under 16px without a coarse-pointer override', () =
         // BRACE-MATCHED, not regex-delimited: a coarse block contains nested rules, so a lazy
         // `}` match ends it at the FIRST inner close and every selector after that is invisible —
         // which is how the first cut of this test reported `.gen-input` as an offender when
-        // links.css raises it correctly eleven lines in.
+        // link-designer.css raises it correctly eleven lines in.
         const coarse = new Set();
         for (const open of [...css.matchAll(/@media[^{]*pointer:\s*coarse[^{]*\{/g)]) {
             let depth = 1, i = open.index + open[0].length;

@@ -60,7 +60,7 @@ first again. *Quarter Past out, Well Kept in* has the table and the reason.
 
 **The shortlist was drawn again on 5 Nov 2026**: Common Ground, Even Step and Short Run. In Step left it, and its
 presentations stay in the pack. **Later that day the recommendation went** (owner: "Remove the marks"): the pack and
-the app present the three evenly, A to Z, and the deck builders, `pack.py` and `links-proposals.test.mjs` refuse a
+the app present the three evenly, A to Z, and the deck builders, `pack.py` and `link-designer-proposals.test.mjs` refuse a
 recommendation back. Sections dated before then speak of the shortlist and the recommendation of their day; *The
 shortlist drawn again* and *The whole pack reviewed* say what changed.
 
@@ -1525,7 +1525,7 @@ Sunday's closer and fit, now shared lines, which with five value columns squeeze
 decks:** every manager "Why" slide now says what all four give, and its first line drops the flexible rules, since
 Closing Time's brief swapped one; the colleague decks' leave notes say all four are worse than today on four weeks off.
 All eight decks — two for each shortlisted design — were rebuilt and re-exported with them. **The app:** Closing Time is built into the Links
-designer beside the other three from v25.01 (`links-proposals.js`, copied cell for cell from `proposals/`). *(Superseded
+designer beside the other three from v25.01 (`link-designer-proposals.js`, copied cell for cell from `proposals/`). *(Superseded
 later the same day: the shortlist was cut to In Step and Short Run, with In Step recommended — "The shortlist cut to two",
 below.)*
 
@@ -1788,7 +1788,7 @@ pairs were rebuilt: the managers' "Why" slide says what both give, what this one
 refused if the other has it) and what it costs against today; each design's managers' notes set it beside the other,
 with the figures checked against the grids before a deck is built. *The pack's read-me* takes the recommendation from
 `RECOMMENDED`, so its twenty-minute read is now `In-Step-for-managers.pdf`. *The app* (v25.02) builds in In Step and
-Short Run only (`links-proposals.js`), and a test holds that list to `SHORTLIST`, in order; the generator's default
+Short Run only (`link-designer-proposals.js`), and a test holds that list to `SHORTLIST`, in order; the generator's default
 table is unchanged — it was always Second Edition's duty table, which is Short Run's exactly.
 
 **The accuracy check (30 Oct 2026).** Four reviewers, working read-only and each recomputing one part of the pack from
@@ -1847,7 +1847,7 @@ such as full weekends off"), which is what those rows — and the leave and clos
 for. No shading changed.
 
 **2 · The four are contracted days, Monday to Saturday; the Sunday is overtime on top.** The app's own rules said so
-already (`.claude/rules/links-design.md`: "a spare week's four days come from Mon–Sat"); its run checks did not, and let
+already (`.claude/rules/link-designer.md`: "a spare week's four days come from Mon–Sat"); its run checks did not, and let
 one of the four fall on the Sunday. They now count a cover week's Sunday as worked in the worst case without spending the
 four (`spareDrawsOnFour`, app v25.03), FF11 included, and the cover-placement reading here follows: the four as a block
 from Monday, Tuesday or Wednesday, the Sunday worked at worst and left off at best. What moved, all computed and no
@@ -1884,8 +1884,8 @@ rule that it may extend a run but not create one. While the four could include t
 threshold here exceeds; with the Sunday worked it is five early starts, over FF15's four, on designs whose early starts
 never run past four. A placement now keeps its worked days SPARE and the app's own `requireMatch` applies.
 
-**What changed.** The app: `links-design.js` (`spareDrawsOnFour`, used by `runLengthsWhere`), `links-fatigue.js` (FF11,
-and one shared sentence for what a cover week adds), `links-limits.js` and `links-analysis.js` (what a cover week is,
+**What changed.** The app: `link-designer-design.js` (`spareDrawsOnFour`, used by `runLengthsWhere`), `link-designer-fatigue.js` (FF11,
+and one shared sentence for what a cover week adds), `link-designer-limits.js` and `link-designer-analysis.js` (what a cover week is,
 in words), the tests (two new, four mutations each caught) and the rules file. The tooling: `cover-placement.mjs`,
 `report-data.mjs` (`h55Worst`, which `fresh.mjs` now calls rather than keeping a copy), `fresh.mjs`, `render.mjs`,
 `plain.mjs`, `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` (its run claim, Second Look's new edge, and a
@@ -2002,7 +2002,7 @@ reproducible, so the grid is committed (`tooling/even-step.json`) and
 **The closer rule, reworded** (F3, `RULES.md`). It read "every weekday closer starts at 15:45", and the check behind it
 accepted exactly 15:45, which flagged Closing Time's 16:00, a closer the owner had already accepted ("whether it is 1545
 or 1600 doesn't matter"). It now reads **15:45 or later, on a weekday**: `report-data.mjs`'s flexible rule, the rules
-sheet and `links-default-targets.test.mjs` (mutated to 15:30 to see it fail) all say so, and Closing Time meets all three
+sheet and `link-designer-default-targets.test.mjs` (mutated to 15:30 to see it fail) all say so, and Closing Time meets all three
 flexible rules. Saturday's closer is not covered, so Short Run's 15:15 Saturday closer stands. The decks' managers' notes
 and the pack's read-me say "15:45 or later" too, and no proposal sheet's figure moved.
 
@@ -2036,7 +2036,7 @@ choices were corrected, each asserted); each one's edge; the guide; the recommen
 *The league reweighted*). *The summary* stars three. *The rules sheet* and `RULES.md` carry
 the reworded closer rule. *The presentations* (below). *The pack's read-me* gains a paragraph for Even Step, refused unless
 it is shortlisted and recommended, and its twenty-minute read is now `Even-Step-for-managers.pdf`. *The app* (v25.04)
-builds in Even Step first, then In Step and Short Run (`links-proposals.js`), and a test now holds the first to
+builds in Even Step first, then In Step and Short Run (`link-designer-proposals.js`), and a test now holds the first to
 `RECOMMENDED` as well as the list to `SHORTLIST`; the shortlist e2e opens Even Step.
 
 **Presentations (31 Oct 2026).** `presentations/Even-Step-for-colleagues` and `-for-managers`, built by
@@ -2270,7 +2270,7 @@ They asked for four statements to be more precise. Each is now said as asked, ev
 - **"A year is exactly two turns"** becomes **"52 weeks are exactly two turns"**: two turns are 364 days. This is on
   sheet page 8, and in the colleagues' notes for slides 5 and 7.
 - **"A 55-hour week"** becomes **"more than 55 hours in seven days"**, and the factor is named **"more than 55 hours in
-  any seven-day period"**. That is the app's own title for it (`links-fatigue.js`, MRSF): a rolling seven days, not a
+  any seven-day period"**. That is the app's own title for it (`link-designer-fatigue.js`, MRSF): a rolling seven days, not a
   calendar week. Changed on sheet pages 1, 2 and 7, the shortlist's page 1, and the colleagues' notes 12 and managers'
   notes 6. The 8-hour-duty assumption behind 56.3 to 56.8 hours was already disclosed and stays.
 - **Managers' slide 9** says the December rules and the Sunday cover were **"confirmed verbally"**. The 26 people are
@@ -2793,7 +2793,7 @@ proposal — not your roster", numbered and never dated; how to have your say; a
 byte-identical before and after — into `what-it-means-data.mjs` (the figures and every asserted sentence) and the
 sheet that prints them. `newlink-data.mjs` reads the same module and writes the app's `newlink-data.js`, and
 `newlink-data.test.mjs` runs it in `--check` mode, so a figure that moves here without the app's copy being rewritten
-fails the build. The weeks come from `links-proposals.js`, already pinned to `proposals/`.
+fails the build. The weeks come from `link-designer-proposals.js`, already pinned to `proposals/`.
 
 **The pack it offers** is a colleague's: the three presentations, the three proposal sheets and the rules. Not the
 shortlist sheet or the one-page sheet, both of which name the recommendation, and not the managers' decks. Firebase
@@ -4222,7 +4222,7 @@ rule ("only keep the shortlist's presentations") still holds for everything else
   rest days.
 
 **The app, v25.36.** The Links designer's built-in shortlist is Even Step, Common Ground and Short Run
-(`links-proposals.js`; Common Ground's grid copied cell for cell from `30-days-off/`). The New link page lists the three
+(`link-designer-proposals.js`; Common Ground's grid copied cell for cell from `30-days-off/`). The New link page lists the three
 A to Z, and had been doing so by accident: "Even Step, In Step, Short Run" was the recommendation-first order and A to Z
 at once, so the page never sorted, and with Common Ground it would have put the recommendation first on a page that names
 none. It now sorts its own tiles, weeks and tabs (`aToZ`, `newlink-render.js`), the comparison's columns come A to Z from
@@ -4250,7 +4250,7 @@ when finished"*. Four reviews ran — accuracy of the sheets, accuracy of the de
 - **The recommendation:** *"Remove the marks."* Nothing in the pack or the app names one. `RECOMMENDED` is gone from
   `tooling/fresh.mjs` and `SHORTLIST` is A to Z — Common Ground, Even Step, Short Run. `deck-polish.py` and `pack.py`
   refuse a `RECOMMENDED` back, and the word "recommend" in any deck or in the read-me (bar the read-me's "none is
-  recommended"); `links-proposals.test.mjs` refuses it in `fresh.mjs` too. The shortlist sheet gives each one's edge
+  recommended"); `link-designer-proposals.test.mjs` refuses it in `fresh.mjs` too. The shortlist sheet gives each one's edge
   and its price, and which to choose by what matters most; the managers' title slides say "One of three shortlisted new
   CEA links"; the read-me opens on the three, each with the reason to choose it and its price, every figure in that
   section checked against the shortlist sheet or the New link page's asserted sentences.
@@ -4990,10 +4990,10 @@ slide 7 each design's own figure, and the colleague decks' new-times slides coun
 and six on Short Run, whose slide 8 now says "on a Saturday only the ticket-office late is new". The checks each claim
 carried stopped the build until it was true again.
 
-**The app (v25.41).** The three built-in proposals are the new grids (`links-proposals.js`; Common Ground `03af96b2`, Even
+**The app (v25.41).** The three built-in proposals are the new grids (`link-designer-proposals.js`; Common Ground `03af96b2`, Even
 Step `fb7a3988`, Short Run `247f3636`). The generator's default table is Short Run's duties, so its Saturday gives
-one 14:00–22:30 and one 13:30–21:00 in place of two 14:00–22:00 (`links-default-targets.js`), and a new test holds the
-table to Short Run's grid day class by day class, because nothing compared the two before (`links-default-targets.test.mjs`;
+one 14:00–22:30 and one 13:30–21:00 in place of two 14:00–22:00 (`link-designer-default-targets.js`), and a new test holds the
+table to Short Run's grid day class by day class, because nothing compared the two before (`link-designer-default-targets.test.mjs`;
 mutated: a same-length change to that Saturday row fails it alone). The New link page says what changed on Short Run's
 Saturday since colleagues saw it: three cells against 3 October's grid, the two office lates and one late to 13:30–21:00.
 
@@ -5043,8 +5043,8 @@ days" row and the app's own FF11 detail.
   The FF2 and FF15 sentence was shortened too, because the FF2 row and the standing-factors line already carry it.
 - **The app (v25.42).** The Links designer's FF11 explanation said the same, and now matches: "Longest run between
   two-day breaks … a single rest day does not reset this count, even when the shifts either side leave 48 hours, so it
-  can only overstate a run". `links-app.js`'s comparison line says "without a two-day break". The module header,
-  `AI_MAP.md`, the December 2026 plan (since deleted; `git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`) and `.claude/rules/links-design.md` say "is not counted as" instead of "is not".
+  can only overstate a run". `link-designer-app.js`'s comparison line says "without a two-day break". The module header,
+  `AI_MAP.md`, the December 2026 plan (since deleted; `git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`) and `.claude/rules/link-designer.md` say "is not counted as" instead of "is not".
 
 **3. The 55-hour "up to" is a figure with 8-hour cover duties, not a ceiling.** The contract counts a cover week as 35
 hours, and four 8-hour duties are 32. So the sheets now:
@@ -5165,7 +5165,7 @@ but one, and was reported to the owner that day.
 - `30-days-off/README.md` has its column, in league order, and a paragraph.
 
 **Unchanged:** every other design's sheet, grid and fingerprint, the rules sheet, the "What it means if you…" sheet, the
-decks and the app (`links-proposals.js` builds in the shortlist only).
+decks and the app (`link-designer-proposals.js` builds in the shortlist only).
 
 ## The 72-hour review's fixes to the pack (6 Nov 2026)
 
@@ -5188,7 +5188,7 @@ of these was found there and checked before it was changed:
   sheets also want the weekend duty the same kind, so with mixed weeks allowed the solver can count a week the sheets do
   not. On Balanced V7 that is 15 against 13. `exact-rota.py`'s header says so, and it refuses `FAMILY=1` with `MIXED`,
   which held nothing. V7's own figures were corrected in its section above.
-- **The app's built-in designs** (`links-proposals.test.mjs`): each one's ref is now held to the fingerprint of its
+- **The app's built-in designs** (`link-designer-proposals.test.mjs`): each one's ref is now held to the fingerprint of its
   cells, recomputed as `regenerate.mjs` computes it. Until now a grid edited in the app and in the pack alike, with the
   ref left alone, passed.
 
@@ -5796,11 +5796,11 @@ the 24-line `folderStats`) and, in the two modules, their import depths:
 | `tooling/report-data.mjs`, `tooling/cover-placement.mjs` (the 24-line ones, not this folder's) | `tooling/reference-24/` | `league.mjs`, for its Familiar Nine (24) row |
 | `proposals/Familiar-Nine-F9-24-K31s.json` | `tooling/reference-24/` | that row, and `leave.mjs --check`'s second case |
 | `presentations/Familiar-Nine-for-colleagues.pptx`, `…-for-managers.pptx` | `tooling/reference-24/` | `second-nature-decks.py`, which builds the template every deck in the pack starts from |
-| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/links-design.md`, which sends a reader to it to measure the default, and the December 2026 plan, which quoted what it printed at 24 lines (deleted 26 Nov 2026; `git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`) |
-| `proposals/Fifteen-Turns-FT-24-EXT.json`, `proposals/Weekday-Lates-WL-24-EXT.json` | `test-fixtures/links-designs/`, lower-cased as the fixtures there are | `links-compare.test.mjs` and `links-compare-analysis.test.mjs` |
+| `tooling/default-baseline.mjs` | `tooling/default-baseline.mjs` | `.claude/rules/link-designer.md`, which sends a reader to it to measure the default, and the December 2026 plan, which quoted what it printed at 24 lines (deleted 26 Nov 2026; `git show 16386f9b:docs/LINKS_DEC2026_PLAN.md`) |
+| `proposals/Fifteen-Turns-FT-24-EXT.json`, `proposals/Weekday-Lates-WL-24-EXT.json` | `test-fixtures/link-designer-designs/`, lower-cased as the fixtures there are | `link-designer-compare.test.mjs` and `link-designer-compare-analysis.test.mjs` |
 
 The Familiar Nine row could not simply go: it sits inside the main league's range (`REF_IN_RANGE=1`), so every score
-depends on it. Without it all 24 main-league scores move (Crossover's by +0.32) and so does the order. `links-compare.test.mjs`
+depends on it. Without it all 24 main-league scores move (Crossover's by +0.32) and so does the order. `link-designer-compare.test.mjs`
 now refuses a grid it has no fixture for, rather than looking for it in the old folder.
 
 **Proved unchanged.** Every output that reads those files was recorded before the move and rebuilt after it, with the
@@ -5815,9 +5815,9 @@ folder gone from the disk:
 - **the shortlist and summary sheets**, rebuilt: text the same as the committed PDFs, which were left as committed;
 - **`default-baseline.mjs`**: the same output from its old place, in a copy of the untouched tree, as from its new one.
 
-**One figure corrected on the way.** `.claude/rules/links-design.md` quoted the December default's week-to-week step as it was
+**One figure corrected on the way.** `.claude/rules/link-designer.md` quoted the December default's week-to-week step as it was
 on 3 Nov (typically 2h 13m, largest 8h 51m, 4 of 26 over 2h; the script reproduces those on that day's tree). Three changes
-to `links-default-targets.js` on 5–6 Nov moved it, and the line was not re-measured: it is now typically 2h 37m, largest 8h 36m, 5 of
+to `link-designer-default-targets.js` on 5–6 Nov moved it, and the line was not re-measured: it is now typically 2h 37m, largest 8h 36m, 5 of
 26 over, still 10 unmeasurable across the cover weeks. Not caused by the removal; found because that line named the script
 being moved. **Since #1707, merged the same day, the rule file quotes no step figure for the default:** a pass over the
 rule files took dated measurements out of them, since they go stale as this one had. It quotes today's link's step only
@@ -5857,7 +5857,7 @@ has no old folder and nothing installed:
 
 An independent review of the commit found nothing broken and six points of wording, all corrected (the size is 34.7 MB,
 not the 33.1 MiB first written; `folderStats`'s one caller, `folderRank`, is itself called by nothing; the three scripts are
-not unchanged; and `test-fixtures/links-designs/` now has its `FILE_INDEX.md` entry). It also found `regenerate.mjs` running
+not unchanged; and `test-fixtures/link-designer-designs/` now has its `FILE_INDEX.md` entry). It also found `regenerate.mjs` running
 a `final.mjs` that has never been in this folder: inert, since `SEARCHED` is empty, and now commented with where it is.
 
 ## Both Ways and Fine Tune deleted (7 Nov 2026)
@@ -5884,7 +5884,7 @@ Their local renders in `tooling/` (ignored by git) went too. Sixteen tracked fil
   its own verifier) and Five-Day Flow's, which was never shipped. It reads nothing from the deleted folder.
 - **Even Keel's meta** still says it came from "the outside reviewer who supplied Fine Tune": true, and its sheet does not
   print it.
-- **`links-fatigue.js`** in the app names Both Ways as the example of a single rest day leaving 48 hours, dated 6 Nov 2026.
+- **`link-designer-fatigue.js`** in the app names Both Ways as the example of a single rest day leaving 48 hours, dated 6 Nov 2026.
   It is a comment in a served file and true of that day; changing it would start a Hosting deploy for nothing anyone sees.
 - **This README's sections** about them, each marked deleted with a note under its heading, and the comments in the
   tooling that mention them as history.
@@ -6113,7 +6113,7 @@ leads Even Step, now by 0.15 rather than 0.6, and Next Step by 0.05.
 - **`30-days-off/README.md`.** Their columns, in league order, every place re-read, and a paragraph.
 
 **Unchanged:** every other design's grid and fingerprint, the rules sheet, the "What it means if you…" sheet, the decks
-and the app (`links-proposals.js` builds in the shortlist only).
+and the app (`link-designer-proposals.js` builds in the shortlist only).
 
 ## The Balanced designs in a subfolder of their own (7 Nov 2026)
 
@@ -6269,7 +6269,7 @@ that draws it. The audit found two faults, both in the read-me.
     has the same text and the same pixels, apart from the "Prepared" date.
   - The summary, shortlist, other designs', what-it-means and rules sheets came out the same.
 - **The import files.**
-  - All 24 went through the Links page's own importer (`parseDesignImport` in `links-import.js`). Each gave its grid back
+  - All 24 went through the Links page's own importer (`parseDesignImport` in `link-designer-import.js`). Each gave its grid back
     cell for cell, with no warning.
   - The app's three built-in designs are identical to the shipped grids.
 - **The decks.**
@@ -6372,7 +6372,7 @@ complete weeks off take 14.
   - `pack.py` refuses a zip that holds a deck while its read-me says none ships.
 - **No new measure in the tables or the league.** The closing weeks are a line the three share on the shortlist sheet,
   asserted both ways. Counting them in the league is step 3, audited below and not done.
-- **The Links designer's default duty table stays Short Run's** (`links-default-targets.js`). The three staff the same
+- **The Links designer's default duty table stays Short Run's** (`link-designer-default-targets.js`). The three staff the same
   number of duties each day at different times: 15 every weekday, 14 on a Saturday and 10 on a Sunday. So the table
   still fits them. Which design's duties the generator starts from is the owner's question, and nothing here answers it.
 
@@ -6380,13 +6380,13 @@ complete weeks off take 14.
 - With no decks to start from, both audiences start with the sheets. Its history gains a paragraph for 8 Nov.
 - Its checks read the shortlist and its date from `fresh.mjs`. It refuses the zip if:
   - a deck is in it, or a shortlisted design has a deck the zip leaves out;
-  - `links-proposals.js` no longer says the three were built in at v25.52;
+  - `link-designer-proposals.js` no longer says the three were built in at v25.52;
   - the three sheets are no longer in `30-days-off/`, with Balanced V6's in its subfolder.
 - **The zip** holds 55 files, where the audit's had 71: the sixteen deck files are out.
 
 **The app, v25.52.**
 - **The Links designer.** The built-in, read-only shortlist is Balanced V6, Level Crossing and Middle Ground, A to Z
-  (`links-proposals.js`). Each is copied cell for cell from its grid, and `links-proposals.test.mjs` compares each with
+  (`link-designer-proposals.js`). Each is copied cell for cell from its grid, and `link-designer-proposals.test.mjs` compares each with
   the grid it came from.
 - **The New link page.** `newlink-data.js` is regenerated from `tooling/newlink-data.mjs`. The page says what has changed
   since Short Run was shown, and what all three give and cost against today. Its full pack is the three proposal sheets
@@ -7141,7 +7141,7 @@ they were 13th (Short Openers), 17th (Even Keel), 21st (In Step), 23rd (Second L
   but for the chart workbook's save time, so the committed files were kept.
 - **Their codes**, in `regenerate.mjs` → `RETIRED_CODES`: a code names one design for good, so none of the five can be given
   to another design (a mutation giving Clockface `IS-26-T4` fails the check, naming In Step).
-- **`links-proposals.js`** in the app names Even Keel and In Step in its history comments: true of their day, and changing a
+- **`link-designer-proposals.js`** in the app names Even Keel and In Step in its history comments: true of their day, and changing a
   served file would start a Hosting deploy for nothing anyone sees. **The app does not change**, and there is no version
   bump.
 - **This README's sections** about them, each marked deleted with a note under its heading, the 30-day folder's README,
@@ -7335,7 +7335,7 @@ Sixteen tracked files deleted, and four moved byte for byte. In the league as we
 - **Their codes**, in `regenerate.mjs` → `RETIRED_CODES`, so none can be given to another design.
 - **The deck builders before the shortlist's** (`common-ground-decks.py`, `even-step-decks.py`, `short-run-decks.py`,
   `in-step-decks.py`) and the tooling's comments that name the four: the record of how things were made.
-- **The app**, which names Common Ground and Even Step only in history comments (`links-proposals.js`, two stylesheets and
+- **The app**, which names Common Ground and Even Step only in history comments (`link-designer-proposals.js`, two stylesheets and
   two tests) and in a made-up design name in one test: true of their day, and a change to a served file would start a
   Hosting deploy for nothing anyone sees. **The app does not change**, and there is no version bump.
 - **This README's sections** about them, each marked discarded with a note under its heading, and notes under those of

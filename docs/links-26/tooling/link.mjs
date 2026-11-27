@@ -3,9 +3,9 @@
 // cover weeks" into a dozen files; that is what this file replaces. The search and solver scripts (skeleton.mjs,
 // skeleton-start.mjs, exact-*.py, short-earlies.mjs) still carry their own copy of the link's shape, so a change of length
 // is this edit and those (the accuracy check, 30 Oct 2026). The rules themselves are `../RULES.md` (owner, 1 Oct 2026).
-// The Links page's own `ROTATING_LINES` (links-design.js) moved to 26 at v24.47 (3 Oct 2026); every app function here is
+// The Link Designer's own `ROTATING_LINES` (link-designer-design.js) moved to 26 at v24.47 (3 Oct 2026); every app function here is
 // still passed LINES rather than left to default, so the sheets' line count is stated in this one place.
-import { startMinutes, endMinutes, DAYS } from '../../../links-design.js';
+import { startMinutes, endMinutes, DAYS } from '../../../link-designer-design.js';
 
 export const LINES = 26;
 export const COVER_WEEKS = 5;

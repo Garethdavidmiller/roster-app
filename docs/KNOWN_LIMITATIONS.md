@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -24,8 +24,8 @@ left, each for a decision rather than a default:
   added ~15 MB each. The zip is now built on demand and untracked (owner, 3 Nov 2026 —
   `docs/links-26/tooling/pack.py`), and `docs/links-24` (its own 13 MB zip) was removed on 7 Nov 2026
   (owner: no longer of use; `git checkout 924b9dbc -- docs/links-24` restores it). Both stay in
-  history: rewriting it was ruled out. What the Links tests and tooling still read was moved first
-  (`test-fixtures/links-designs/`, `docs/links-26/tooling/reference-24/`,
+  history: rewriting it was ruled out. What the Link Designer tests and tooling still read was moved first
+  (`test-fixtures/link-designer-designs/`, `docs/links-26/tooling/reference-24/`,
   `docs/links-26/tooling/default-baseline.mjs`).
 - **Size.** Several modules sit exactly at their cap in `coordinator-ratchet.test.mjs`, and the
   largest stylesheets in `stylesheet-ratchet.test.mjs`. A file at its cap takes the next feature only
@@ -82,9 +82,9 @@ mirror", step 1).
   run in five, and the cause was the app — a lightbox closed before its first frame ran that frame
   afterwards (`createLightbox`, `overlay.js`). Before calling a test a flake, give it one run that logs.
 - **A long flow on this engine is split, not given more time** (15 Nov 2026): at a desktop width on the
-  Links page each change to the page costs WebKit a 300–450 ms frame, measured, and Playwright waits
+  Link Designer page each change to the page costs WebKit a 300–450 ms frame, measured, and Playwright waits
   two frames before each click — one test spent 35–58 s of its 60 that way while the app answered in
-  under 40 ms. It became two tests (`e2e/links.spec.js`).
+  under 40 ms. It became two tests (`e2e/link-designer.spec.js`).
 
 ## Two editors on one day: warned whenever the server can be asked
 
@@ -148,7 +148,7 @@ depends on how their account id sorts, which is why it looked like a few people'
   costs nothing: clear, the save goes straight on, with no wait at all; a record still queued, or one
   the cache cannot answer, waits as before. Offline the wait still comes first. It replaced a per-phone
   note (v26.84, 25 Nov 2026) that still cost every affected phone eight seconds on its first save and
-  again weekly. Admin's saves, the roster import and the Links DESIGNS use it. **The price:** this
+  again weekly. Admin's saves, the roster import and the Link Designer DESIGNS use it. **The price:** this
   account's own unsent write to a record the save does NOT touch is not waited for — the transaction
   never reads that record. The leftover itself stays in the phone's storage, a few harmless bytes.
 
@@ -199,7 +199,7 @@ installed app, so neither applies there.
   IndexedDB, the service worker and its caches. The Home Screen app's count moves only on days it opens.
 
 **What it costs, worst first:** Pay Calculator figures (the one thing that cannot be recreated — they
-live only in localStorage, by design); the sign-in; the Links staffing-table edits; notice flags (a
+live only in localStorage, by design); the sign-in; the Link Designer staffing-table edits; notice flags (a
 notice can come round again); and the Usage counts, which see a tab and an install as two devices.
 
 **Workaround (since 7 Nov 2026):** the install wording on the Calendar and in Settings tells an iPhone
@@ -241,8 +241,8 @@ Both WebKit lanes run at the iPhone Pro geometry staff carry (`IPHONE_PRO_VIEWPO
 
 - **The 17 Pro descriptor** — it would change only the user agent's iOS number, which the app never
   reads (`playwright.webkit.mjs`).
-- **3x density for the Links specs**: they draw at 2x (`LINKS_IPHONE_DPR`, 12 Nov 2026). A desktop-size
-  Links window drew at 6.5–11 frames a second at 3x and every click waits on frames; nothing in Links
+- **3x density for the Link Designer specs**: they draw at 2x (`LINKS_IPHONE_DPR`, 12 Nov 2026). A desktop-size
+  Link Designer window drew at 6.5–11 frames a second at 3x and every click waits on frames; nothing in Link Designer
   reads the density. Every other iPhone spec stays at 3x.
 - **Landscape (874×402, 956×440).** Playwright's Linux WebKit reports every safe-area inset as zero, so
   a baseline would prove nothing about the Dynamic Island. A real iPhone in landscape is a device check.
@@ -998,18 +998,18 @@ and regenerating in the same commit (the `/new-starter` and `/leaver` skills inc
 
 ---
 
-## Links design workspace — accepted constraints
+## Link Designer design workspace — accepted constraints
 
-The workspace's rules are `.claude/rules/links-design.md`. What it deliberately does not do, or cannot
+The workspace's rules are `.claude/rules/link-designer.md`. What it deliberately does not do, or cannot
 know:
 
 - **Duplicate names are refused from the list you LOADED, not from the collection.**
-  `links-design-naming.js` refuses a name already in this page's list, but two designers holding the
+  `link-designer-design-naming.js` refuses a name already in this page's list, but two designers holding the
   same list can each create "Option B" — random Firestore ids, both writes succeed, neither is told. The
   promise is "you cannot knowingly create a duplicate", not "duplicates cannot exist", though the
   message reads like the stronger one. **Decision:** not closed — server-owned uniqueness is real
   machinery for a handful of designers who rarely overlap. Revisit if that changes; the shape is
-  `links-target-sets-store.js`'s transaction.
+  `link-designer-target-sets-store.js`'s transaction.
 - **The rotation's length and cover weeks rest on evidence class C** — the owner's verbal account
   (`docs/links-26/RULES.md`, which advises getting staffing levels in writing before a design is put
   forward). Fine to build against; not something to present to an assessing manager as a requirement.
@@ -1017,9 +1017,9 @@ know:
   `DEFAULT_MAX_RUN`; with the full objective set on, the status line states the achieved figure and the
   shortfall. The trade is **weekends off**: on the 24-line default every weight that reached the target
   cost 3–4 full weekends. **An owner decision still to be made** — a longer run inside the company limit
-  against weekends staff feel — so it is recorded, not tuned (`docs/LINKS_REFERENCE.md` → Line order, the
+  against weekends staff feel — so it is recorded, not tuned (`docs/LINK_DESIGNER_REFERENCE.md` → Line order, the
   run-cap switch has the measurements).
-- **Designs longer than the rotation are left exactly as they are** (`.claude/rules/links-design.md` →
+- **Designs longer than the rotation are left exactly as they are** (`.claude/rules/link-designer.md` →
   Line numbering). The admin's *Keep only the shortlist* bins every design saved before 2 Nov 2026 in
   one press; until then a designer can work on a link nobody is building.
 - **The fatigue-factor panel is an AID, not a fatigue risk assessment** — the risk is a design with few
@@ -1028,7 +1028,7 @@ know:
   - **FF19 is the owner's reading**, rendered "(definition to confirm)": "a rest day resets it", more
     lenient than ORR 7.71. On the strict wording all 9 proposal sheets of 28 Sep 2026 have FF19; the
     owner's reading left 4 clear. The other rows were checked against ORR's *Managing rail staff
-    fatigue* (Aug 2024) on 28 Sep 2026 (`links-fatigue.js`).
+    fatigue* (Aug 2024) on 28 Sep 2026 (`link-designer-fatigue.js`).
   - **A cover week's hours are an assumption, stated**: the 55-hour row counts each worked cover day,
     Sunday included, as a quarter of the contracted week (8h 45m) and shows the floor beside it
     (17 Nov 2026). A count of long duties cannot see a cover week, so it is a floor, and says so.
@@ -1039,12 +1039,12 @@ know:
     rotations end to end reports a longest run that belongs to the join, so a design's figures mean
     something only once its lines are one rotation.
 - **The generator's objectives genuinely conflict** — line ORDER is one scarce resource, and `gentle`
-  and `variety` are opposites (`docs/LINKS_REFERENCE.md` → Line order). The switches are the
+  and `variety` are opposites (`docs/LINK_DESIGNER_REFERENCE.md` → Line order). The switches are the
   answer: the designer makes the trade.
-- **Interleaving the waves inside the generator is a WON'T-DO, measured** (`.claude/rules/links-design.md`
+- **Interleaving the waves inside the generator is a WON'T-DO, measured** (`.claude/rules/link-designer.md`
   → the generator): a 6h25 turnaround and two long weekends lost for no gain. A test fails if it returns.
 - **The hard-limit check is a WORST CASE on a design, and it enforces nothing.** The consecutive-days
-  limit (`MAX_CONSECUTIVE_WORKED_DAYS`, `links-limits.js`) is **Chiltern's roster limit**, from company
+  limit (`MAX_CONSECUTIVE_WORKED_DAYS`, `link-designer-limits.js`) is **Chiltern's roster limit**, from company
   policy; its origin is the standard adopted after the **Hidden report** into the 1988 Clapham Junction
   crash, withdrawn in 2007 — so Hidden is cited as an origin, never a current requirement, and it is not
   legislation. It passes or fails and renders red on a breach, but:
@@ -1053,45 +1053,45 @@ know:
     week, so the figure is what the link *permits*; never quote it as how many days in a row people work.
   - **It rests on a spare week being four duties, Monday to Saturday** (owner, Aug 2026), with its
     Sunday counted as worked in the worst case (owner, 31 Oct 2026). If the cover model changes,
-    `SPARE_WORKED_DAYS` and `spareDrawsOnFour` (`links-design.js`) move with it.
+    `SPARE_WORKED_DAYS` and `spareDrawsOnFour` (`link-designer-design.js`) move with it.
 - **The generator and the grid lose their column headers on a PHONE.** Below 768px each table sits in an
   `overflow-x: auto` wrapper, which per spec makes it a vertical scroll container too, so the sticky
   header sticks to a box that never scrolls. **Do not "fix" it with `overflow-y: visible`** — the spec
   overrides exactly that. Measured at 390×844: the grid is about 43% off-screen with no header for most
   of the scroll. **Accepted:** the orientation panel says it is best on a desktop or tablet, ≥768px gets
-  the working layout (`links.css` says why 768), and the real fix — a `max-height` nested scrollbox
-  around the main editing path — is a UX decision (`ROADMAP.md` → Links generator). An e2e pins both
+  the working layout (`link-designer.css` says why 768), and the real fix — a `max-height` nested scrollbox
+  around the main editing path — is a UX decision (`ROADMAP.md` → Link Designer generator). An e2e pins both
   widths.
 - **From 768px to about 830px, at Android's largest text, the grid cuts off its last totals column.**
-  From 768px the wrapper stops scrolling so the day header can stick (`links.css`, the 768px block).
+  From 768px the wrapper stops scrolling so the day header can stick (`link-designer.css`, the 768px block).
   Below 1024px the totals' names and the days note may wrap, so it fits at normal text and 1.3×
-  (`e2e/links.spec.js`); at 1.6× (Font size × Display size, invisible to
+  (`e2e/link-designer.spec.js`); at 1.6× (Font size × Display size, invisible to
   width queries) the table needs 754px and the card clips the last column with no scroll.
   **Accepted: the owner kept the sticky day header** (10 November 2026).
 - **The coverage heat map counts pattern positions, not a named headcount** — every position, designed
   or not, on a scale relative to the week's own peak.
 - **EVERY line rotates and must be filled** — an all-rest line is unfinished, not a vacancy
-  (`.claude/rules/links-design.md` → Line numbering): the link must survive staff changes. "Start with a
-  blank grid" (`#linksEmptyNew`) and the importer (`links-import.js`) are flagged until every line is
+  (`.claude/rules/link-designer.md` → Line numbering): the link must survive staff changes. "Start with a
+  blank grid" (`#linksEmptyNew`) and the importer (`link-designer-import.js`) are flagged until every line is
   designed.
 - **The rotation LENGTH is hardcoded by design** — `ROTATING_LINES`, the agreed concept, not derived
   from roster data (invariant 1). **Do not write the number down here.**
 - **Save concurrency is warn-on-conflict, not merge.** A conflicting save names who saved last and offers
-  **"Save mine as new"**; the whole document is still replaced (`links-concurrency.js`). Two devices
+  **"Save mine as new"**; the whole document is still replaced (`link-designer-concurrency.js`). Two devices
   under the SAME display name with an unknown baseline do not conflict-prompt (`conflictOf`'s header).
 - **The consecutive-day hard limit has no document citation yet, and the panel SAYS so.** The evidence
   gate needs class A or B before anything renders as "must be met"; this is class **C** (owner, Aug
   2026), so the heading reads "Configured Chiltern limits — policy source outstanding".
-  `POLICY_SOURCE_CONFIRMED` (`links-limits.js`) is its single home, tested in BOTH directions, so the day
+  `POLICY_SOURCE_CONFIRMED` (`link-designer-limits.js`) is its single home, tested in BOTH directions, so the day
   the citation arrives is a test failure, not a forgotten edit. **Missing:** the policy's title, clause,
   staff group and effective/review date. **To close:** put it in `CONFIRMED_BASIS`, flip the flag, run
   `npm test`. Promoting the other limits (turn length, rest between turns, weekly ceiling) needs the
   confirmed figures — never from recall.
 - **Delete is a SOFT delete and the bin is PERMANENT** (owner, 19 Sep 2026): nothing expires a binned
-  design and nothing will (`.claude/rules/links-design.md` → Deletion; `links-deletion.js`'s header).
+  design and nothing will (`.claude/rules/link-designer.md` → Deletion; `link-designer-deletion.js`'s header).
   `doc-parity.test.mjs` fails if a countdown constant comes back.
 - **The generator's provenance is DEVICE-LOCAL** (external review, Sep 2026): which target table built a
-  design lives in `localStorage` (`myb_links_gen_<designId>`, `links-generator-targets.js`), so a
+  design lives in `localStorage` (`myb_links_gen_<designId>`, `link-designer-generator-targets.js`), so a
   colleague sees the note absent and cannot answer "what staffing was this built from?". Moving it means
   adding a field to `linkDesigns`' `hasOnly` list — a **backend-first** change (CLAUDE.md → Workflows)
   and a decision about what a shared design asserts. Until then it is one designer's working memory.

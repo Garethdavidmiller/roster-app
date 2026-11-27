@@ -112,7 +112,7 @@ function weighted(rnd, table) {
 const FAVOURITE_TIMES = ['22:30', '16:30', '12:30', '23:45', '21:15', '13:05', '10:20', '19:30'];
 // What a 'page' box was last typed to before the page wrote its time: its memory, which the next key is judged by.
 // Two-digit priors that BEGIN a favourite time matter most: the page writes the time back over what the member typed
-// (Links' window editor does), and a memory that matched the new time's start fooled rule 5 (review, 25 Nov 2026).
+// (Link Designer's window editor does), and a memory that matched the new time's start fooled rule 5 (review, 25 Nov 2026).
 const PRIORS = ['', '7', '13', '223', '2230', '0915', '10', '22', '19', '1', '135'];
 const PASTES = ['630', '130', '1:30', '0730', '22:30', '2400', '12', '7', '9:5', '12345', '1a3', '4', '8', '5', '1'];
 

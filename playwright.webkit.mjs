@@ -104,7 +104,7 @@
  * The runner has 4 vCPU and Playwright defaults `workers` to half the CPUs, so TWO. Total serial
  * work for one project is ~11.6 WebKit-minutes, which puts the 2-worker floor at ~5.8 against the
  * 6.9 observed. `e2e.yml` therefore shards each project (two ways each at first; then the iPhone
- * four ways and desktop two; since 12 Nov 2026 each device as two projects, the Links specs apart,
+ * four ways and desktop two; since 12 Nov 2026 each device as two projects, the Link Designer specs apart,
  * nine jobs — the note above LINKS_SPECS, and e2e.yml says why), and the wall clock falls with the
  * runner count rather than fighting for cores on one machine.
  *
@@ -141,42 +141,42 @@ import { devices } from '@playwright/test';
 // is 390×844; every iPhone Pro since the 15 — the 16 Pro, the 17 Pro and the 18 Pro, which is to a
 // web page the same device as the 17 Pro — is 402×874 at the same density. The user agent and DPR
 // stay the descriptor's, because the ENGINE is what this lane tests and a UA string changes no
-// layout (one exception, the Links project's density: LINKS_IPHONE_DPR, below). Playwright 1.63 carries a 17 Pro descriptor (1.56 had none). Swapping to it would change only
+// layout (one exception, the Link Designer project's density: LINKS_IPHONE_DPR, below). Playwright 1.63 carries a 17 Pro descriptor (1.56 had none). Swapping to it would change only
 // the iOS number in the user agent (15_0 to 18_7), which the app never reads — print-guard.js says why
 // it stopped — so the lane keeps the 13's descriptor under this override. KNOWN_LIMITATIONS.md, "The
 // test matrix and the phones staff carry".
 export const IPHONE_PRO_VIEWPORT = { width: 402, height: 874 };
 
 // THE LINKS SPECS RUN AS PROJECTS OF THEIR OWN (12 Nov 2026). Playwright cuts a project into shards
-// by test COUNT, in file order, and cannot weigh a shard by time. The Links flows are long: on the
+// by test COUNT, in file order, and cannot weigh a shard by time. The Link Designer flows are long: on the
 // iPhone they are 11% of the tests and 28% of the test time (11.9 s each on average, against 3–4 s
 // elsewhere), and because they sit together in that order they all fell into one shard — 21.5
 // minutes of tests against the step's 25, beside siblings of 12 to 16. On the desktop, the shard
 // they shared went past the 25 on a slow runner with every test passing, twice in one night. So each
-// device runs as two projects, the Links specs and everything else, and e2e.yml cuts each on its own
+// device runs as two projects, the Link Designer specs and everything else, and e2e.yml cuts each on its own
 // (the numbers are beside the job there). `npm run test:webkit -- --project=webkit
 // --project=webkit-links` is the whole desktop set.
 //
 // Two traps, one avoided by construction and one guarded. "Everything else" is chosen by a PATTERN
-// — `!(links*)` is glob for a name that does not start with "links" — and not by an ignore list of
+// — `!(link-designer*)` is glob for a name that does not start with "link-designer" — and not by an ignore list of
 // its own, because a project's `testIgnore` REPLACES the shared config's list instead of adding to
 // it, and the CSP, visual, offline, live and signed-in specs would start running here. Chosen this
 // way, the shared list is inherited and cannot be lost. And the touch helpers decide "is this a
 // phone?" from the project's NAME, so the iPhone twin is `mobile-…` and listed in
 // e2e/touch-projects.js, which touch-gate-parity.test.mjs requires; under any other name the 14
-// touch gates in links.spec.js would quietly take the desktop branch on an iPhone.
-const LINKS_SPECS = 'links*.spec.js';
-const NOT_LINKS_SPECS = '!(links*).spec.js';
+// touch gates in link-designer.spec.js would quietly take the desktop branch on an iPhone.
+const LINKS_SPECS = 'link-designer*.spec.js';
+const NOT_LINKS_SPECS = '!(link-designer*).spec.js';
 
 // THE IPHONE'S LINKS PROJECT DRAWS AT 2x, NOT THE DESCRIPTOR'S 3x (12 Nov 2026) — the one place this
 // lane departs from "the DPR stays the descriptor's" (the note above IPHONE_PRO_VIEWPORT), and why.
-// A Links test on the iPhone took 10.6 s at the median against 1.3 on Chromium, and the time was not
+// A Link Designer test on the iPhone took 10.6 s at the median against 1.3 on Chromium, and the time was not
 // the page: opening it took the same 0.4 s everywhere and the generator's search 0.9 s. It was every
 // click and tick — about a second each — because Playwright waits for an element to hold still over
-// two frames, and about four Links tests in five open a DESKTOP window (1024–1440 wide), whatever
+// two frames, and about four Link Designer tests in five open a DESKTOP window (1024–1440 wide), whatever
 // the project. At 3x a 1280 window is 16 million pixels a frame under software rendering; measured
-// on links.html, 6.5–11 frames a second at 1280×1400, against 40 at 2x and 48 at the device's own
-// size. Nothing in the Links specs or the Links code reads the density (no `devicePixelRatio`, no
+// on link-designer.html, 6.5–11 frames a second at 1280×1400, against 40 at 2x and 48 at the device's own
+// size. Nothing in the Link Designer specs or the Link Designer code reads the density (no `devicePixelRatio`, no
 // resolution query), so 2x changes what is drawn, not what is tested: the viewport, user agent,
 // touch and `isMobile` stay the iPhone's. 2x, not 1x, because 2x is a density Apple ships — every
 // iPad, and the Macs desktop Safari runs on.
@@ -229,7 +229,7 @@ export default {
     expect: { timeout: 15_000 },
     // See the sharding note above: this is what stops one 143-test file owning a whole shard.
     fullyParallel: true,
-    // Each device twice: everything but the Links specs, then the Links specs alone (the note above
+    // Each device twice: everything but the Link Designer specs, then the Link Designer specs alone (the note above
     // LINKS_SPECS). A project's testMatch only narrows this lane — runner-parity.test.mjs reads a
     // lane's own specs from the TOP level, so these are not mistaken for an opt-in lane's.
     projects: [

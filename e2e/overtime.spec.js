@@ -1118,7 +1118,7 @@ test.describe('access and chrome', () => {
         // fix was applied uniformly — six near-identical edits is exactly where one gets missed.
         await seedSession(page, 'G. Miller');       // admin: sees every pill, so no page is skipped
         await stubOvertime(page);
-        for (const path of ['/', '/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/links.html']) {
+        for (const path of ['/', '/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/link-designer.html']) {
             await page.goto(path);
             // Several pages open a one-time notice on a fresh profile (links has a welcome panel,
             // paycalc a Year-to-Date prompt). They are modal, so they cover the burger — dismiss
@@ -4019,7 +4019,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         // rather than pass the absence check.
         //
         // EVERY APP PAGE, read from scripts/app-pages.mjs (test audit, 7 Nov 2026 — OT-5). This
-        // visited four by hand, so Trains, the Pay Calculator, Links and New link could each hand
+        // visited four by hand, so Trains, the Pay Calculator, Link Designer and New link could each hand
         // their drawer an Overtime pill while paused and nothing here would look: `canOpenOvertime:
         // !!member` on trains-app.js stayed green in every lane. A page added to the list is walked.
         test.setTimeout(60_000);

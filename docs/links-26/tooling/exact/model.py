@@ -8,7 +8,7 @@
 #   December the nine staffing rules, read exactly as report-data.mjs's sheetRules reads them for a proposal;
 #   flexible fourteen on a Saturday and every weekday closer at 15:45 (flex=True); the cover weeks stay where the
 #            design has them, so the cover-spread rule is whatever the design already scores.
-# Fatigue is counted per factor exactly as links-fatigue.js counts it at the worst cover placement, plus the 55-hour row
+# Fatigue is counted per factor exactly as link-designer-fatigue.js counts it at the worst cover placement, plus the 55-hour row
 # at its worst (h55Worst in report-data.mjs). check_model.py holds the encoding to the JS judge (judge.mjs) both ways.
 #
 # A cell is CHANGED when it differs from the base design; a base time no longer allowed on its day (a 9h05 Sunday) is a
@@ -144,7 +144,7 @@ def build(base, parts=ALLPARTS, flex=False, fmax=None, cmax=None, fix=None, forb
         for idx in pure_windows(14): m.Add(sum(W(q) for q in idx) <= 13)
         for b in before: m.Add(sum(W((b - t) % N) for t in range(10)) <= 9)
         for a in after: m.Add(sum(W((a + t) % N) for t in range(10)) <= 9)
-    # ── the fatigue factors, at the worst cover placement (links-fatigue.js assessFatigue) ────────────────────────
+    # ── the fatigue factors, at the worst cover placement (link-designer-fatigue.js assessFatigue) ────────────────────────
     z = {f: m.NewBoolVar(f) for f in FACTORS}
     for idx in pure_windows(5): m.Add(sum(E(q) for q in idx) - 4 <= z['FF15'])
     for b in before: m.Add(E(b) <= z['FF15'])
@@ -274,7 +274,7 @@ def quality_terms(m, x, base, WORK):
 # A stand-in, not the measure: every grid it helps choose is re-judged by the sheets' own code.
 DEMAND = {'wk': {6: 53, 7: 107, 8: 127, 9: 122, 10: 95, 11: 85, 12: 75, 13: 84, 14: 79, 15: 87, 16: 105, 17: 140, 18: 138, 19: 107, 20: 90, 21: 73, 22: 75, 23: 55},
           'sat': {6: 24, 7: 58, 8: 75, 9: 81, 10: 92, 11: 88, 12: 77, 13: 64, 14: 68, 15: 72, 16: 84, 17: 82, 18: 67, 19: 64, 20: 79, 21: 78, 22: 62, 23: 36},
-          'sun': {7: 15, 8: 45, 9: 65, 10: 71, 11: 74, 12: 71, 13: 61, 14: 55, 15: 64, 16: 69, 17: 78, 18: 73, 19: 75, 20: 52, 21: 71, 22: 65, 23: 26}}   # links-demand.js DEC_2026_MOVEMENTS, carriages per hour inside the staffed window
+          'sun': {7: 15, 8: 45, 9: 65, 10: 71, 11: 74, 12: 71, 13: 61, 14: 55, 15: 64, 16: 69, 17: 78, 18: 73, 19: 75, 20: 52, 21: 71, 22: 65, 23: 26}}   # link-designer-demand.js DEC_2026_MOVEMENTS, carriages per hour inside the staffed window
 def mm(a, b, h):
     """Minutes of [a, b) inside hour h (a day's end clipped at midnight, as minuteCover clips it)."""
     return max(0, min(b, 1440, (h + 1) * 60) - max(a, h * 60))

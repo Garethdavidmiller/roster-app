@@ -142,7 +142,7 @@ lane is a choice: one that mocks a module (`mock.module`) needs `unit`, for its 
   this is the one place the app, the SDK, the rules and the server meet before production: a first
   sign-in and the forced password change, a day of leave saved, reloaded and drawn on the Calendar, a
   colleague's day refused, a manager recording on behalf, a save with no signal, a delete made just
-  after the signal returns while that save is still queued, the same race in the Links workspace (a
+  after the signal returns while that save is still queued, the same race in the Link Designer (a
   rename made while a design's offline save is still queued, as the designer), Back after signing out, and the sign-in audit's journeys: a real admin reset
   and the member's phone opened again, a token renewal refused mid-save, the silent surname re-sign-in,
   a disabled leaver, "Can't get in?", a new password from Settings, two tabs signing out, a browser

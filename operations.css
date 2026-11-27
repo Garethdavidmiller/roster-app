@@ -1532,7 +1532,7 @@ body.auth-ready .container { display: grid; }
 @media (pointer: coarse) { .al-sheet-group-head { min-height: 44px; } }
 
 /* One person: a fold whose closed row is the summary. A <summary> laid out as a grid loses its ::marker
-   in Chromium (links.css found it with flex), so the chevron is drawn in a column of its own, and the
+   in Chromium (link-designer.css found it with flex), so the chevron is drawn in a column of its own, and the
    body starts at the text's edge: one left edge from the name to the last day. */
 .al-sheet-person { background-color: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius); }
 .al-sheet-person-head, .al-sheet-more > summary, .al-sheet-group-head { list-style: none; cursor: pointer; -webkit-user-select: none; user-select: none; }

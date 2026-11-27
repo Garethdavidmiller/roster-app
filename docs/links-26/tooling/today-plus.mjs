@@ -18,9 +18,9 @@
 //   node today-plus.mjs <steps> <restarts> <seed> <out.json>
 import fs from 'node:fs';
 import { today } from './report-data.mjs';
-import { DAYS, runDesignChecks } from '../../../links-design.js';
-import { assessFatigue, toSequence, earlyBlocksWithShortRecovery, startTimeJumps, rotationDirection, dutyMinutes, isEarlyStart } from '../../../links-fatigue.js';
-import { assessHardLimits } from '../../../links-limits.js';
+import { DAYS, runDesignChecks } from '../../../link-designer-design.js';
+import { assessFatigue, toSequence, earlyBlocksWithShortRecovery, startTimeJumps, rotationDirection, dutyMinutes, isEarlyStart } from '../../../link-designer-fatigue.js';
+import { assessHardLimits } from '../../../link-designer-limits.js';
 
 const STEPS = Number(process.argv[2] ?? 100000), RESTARTS = Number(process.argv[3] ?? 2), SEED0 = Number(process.argv[4] ?? 1);
 const OUT = process.argv[5];

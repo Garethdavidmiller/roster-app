@@ -76,6 +76,11 @@
         "source": "/fip.html",
         "destination": "/fip-guide.html",
         "type": 301
+      },
+      {
+        "source": "/links.html",
+        "destination": "/link-designer.html",
+        "type": 301
       }
     ],
     "headers": [

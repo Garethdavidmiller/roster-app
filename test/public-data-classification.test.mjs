@@ -174,7 +174,7 @@ describe('roster-data.js is world-readable, so what it carries is a decision', (
 //
 // The checks above stop at `teamMembers`, and the same world-readable file ships everything else
 // it exports. Seven `CONFIG` keys carry people — who holds the admin and manager claims, who may
-// open the Links and New link workspaces, who is in the Overtime beta, the Calendar's default
+// open the Link Designer and New link workspaces, who is in the Overtime beta, the Calendar's default
 // member, and the bug-report mailbox — and none of it was classified anywhere. Measured: a NAMED
 // list added to CONFIG passed all 4,231 hygiene tests. These close that the same way the member
 // fields are closed: a key or an export nobody has classified fails, and the way past is to decide.
@@ -204,7 +204,7 @@ const PUBLIC_CONFIG_KEYS = /** @type {const} */ ({
     ADMIN_NAMES:                      'Who holds the admin claim. Published because the client draws its '
         + 'buttons from it; the claim itself is set server-side and is what the rules check, so '
         + 'reading the name grants nothing.',
-    LINKS_DESIGNERS:                  'Who may open the Links workspace. Same standing: the '
+    LINKS_DESIGNERS:                  'Who may open the Link Designer. Same standing: the '
         + '`linksDesigner` claim is set server-side and is the control.',
     OVERTIME_ENABLED:                 'Whether the Overtime page is open. A switch.',
     NEWLINK_PREVIEW:                  'Who may open the New link besides its audience (its preview until '

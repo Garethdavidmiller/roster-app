@@ -21,9 +21,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from '../newlink-data.js';
-import { PROPOSALS, proposalDisplayName } from '../links-proposals.js';
-import { assessFatigue } from '../links-fatigue.js';
-import { ROTATING_LINES } from '../links-design.js';
+import { PROPOSALS, proposalDisplayName } from '../link-designer-proposals.js';
+import { assessFatigue } from '../link-designer-fatigue.js';
+import { ROTATING_LINES } from '../link-designer-design.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -151,7 +151,7 @@ test('where they differ: each of the three, with something better AND something 
 test('Links\' Design checks count what this page counts, for the same rotas (17 Nov 2026)', () => {
     // This page states each proposal's avoidable fatigue warnings "if a cover week falls badly" — the pack's worst case,
     // the 55-hour week among them. The Design checks read the 55-hour row on a cover week as no hours until 17 Nov 2026,
-    // so Links said Balanced V6 had 3 factors present while this page said 4: two counts for one rota, in the same
+    // so Link Designer said Balanced V6 had 3 factors present while this page said 4: two counts for one rota, in the same
     // consultation. The app now takes that row at a cover week's worst too, and every count stated here must be its count.
     const nb = (/** @type {string} */ s) => s.replace(/\u00a0/g, ' ');
     let stated = 0;
@@ -162,12 +162,12 @@ test('Links\' Design checks count what this page counts, for the same rotas (17 
         const row55 = fat.results.find(r => r.title.includes('55 hours'));
         for (const line of [...d.better, ...d.worse].map(nb)) {
             const most = /avoidable fatigue warnings \((\d+)\)/.exec(line);
-            if (most) { stated++; assert.equal(fat.present, +most[1], `${d.design}: this page says ${most[1]}, Links' Design checks ${fat.present}`); }
+            if (most) { stated++; assert.equal(fat.present, +most[1], `${d.design}: this page says ${most[1]}, Link Designer's Design checks ${fat.present}`); }
             if (/no avoidable fatigue warnings/.test(line) && /however a cover week falls/i.test(line)) {
-                stated++; assert.equal(fat.present, 0, `${d.design}: this page says none however a cover week falls, Links' Design checks ${fat.present}`);
+                stated++; assert.equal(fat.present, 0, `${d.design}: this page says none however a cover week falls, Link Designer's Design checks ${fat.present}`);
             }
             if (/never more than 55 hours in any seven days/.test(line)) {
-                stated++; assert.equal(row55?.status, 'clear', `${d.design}: this page says never more than 55 hours, Links' row says ${row55?.value}`);
+                stated++; assert.equal(row55?.status, 'clear', `${d.design}: this page says never more than 55 hours, Link Designer's row says ${row55?.value}`);
             }
         }
     }

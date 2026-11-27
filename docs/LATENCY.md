@@ -265,13 +265,13 @@ The rule, written before the readings: the plan closes when the identity decisio
 Phase 2 reading is acted on, either way — and if both are "no build", it closes as a success, with the
 second to `Recognised` recorded as the price of the security model. Both happened by 19 Sep 2026.
 
-## Links workspace — measured 24 Aug 2026
+## Link Designer — measured 24 Aug 2026
 
 On a throttled phone (4× CPU, 40 ms RTT, 4 Mbps): 46 modules (~1.1 MB), grid visible ~3.5 s, 8–9
 discovery rounds, transfer ≈ 2.2 s. **Shipped: `modulepreload`**, CI-checked against the real
 graph — discovery down to 1–2 rounds, ~100 ms off DOMContentLoaded. **Not shipped: lazy-loading the
 interaction-only modules** — most of the first 122 KB estimate is on the boot path, and the deferrable
-~53 KB (`links-import.js`, `links-adjacency.js`, ~100 ms cold only) would make `checkImport()` async on
+~53 KB (`link-designer-import.js`, `link-designer-adjacency.js`, ~100 ms cold only) would make `checkImport()` async on
 a trust boundary whose design is "refuse rather than half-load". A poor trade. Playwright blocks the
 service worker, so these are first-visit figures.
 

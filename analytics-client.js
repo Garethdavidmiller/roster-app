@@ -24,7 +24,7 @@
  *     2026). The three prunes (resolved Error Log records past 90 days; the active-account and
  *     address buckets past 35) are deletions on shared data, and they ran on `new Date()`: an admin
  *     device running weeks fast deleted the whole live usage window, and months fast, records resolved
- *     days before. doc-retention.js refuses exactly that, and the Links bin's purge was disarmed for
+ *     days before. doc-retention.js refuses exactly that, and the Link Designer bin's purge was disarmed for
  *     it. `trustedNow` is when this session's ID token was issued, by the token service's clock — a
  *     LOWER bound on the server's now, so a cut-off from it can only delete less; no trusted time, no
  *     prune (housekeeping runs again on the next read). What a card SHOWS still reads this device's

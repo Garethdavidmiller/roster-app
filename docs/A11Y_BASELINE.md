@@ -159,7 +159,7 @@ Three ways to fix one. Reach for the first:
 
 - **Build the name from the strings the control shows.** The calendar's day cells (`dayCellParts`
   feeds both the cell and `dayCellName`), Operations' Needs-attention items (`short: badge after`),
-  the Links design picker and Admin's week label.
+  the Link Designer design picker and Admin's week label.
 - **Let the name come from the content**, and put what only an icon said in a visually hidden
   phrase at the end: the Pay Calculator's calendar rows.
 - **Lead with the visible word** where the name is a fixed string: "Prev month", "AL — view annual
@@ -190,7 +190,7 @@ every state.
 - **`aria-expanded` must follow a programmatically-opened card.** A coordinator that opens a
   collapsible card or disclosure by adding `.open` directly must update the control's ARIA state too,
   or an auto-opened card reports `aria-expanded="false"` until its first manual toggle. The paths:
-  `admin-app.js` via `openCollapsibleCard(body, chevron)`, `links-app.js`'s generator auto-expand,
+  `admin-app.js` via `openCollapsibleCard(body, chevron)`, `link-designer-app.js`'s generator auto-expand,
   `paycalc-settings.js setSettingsCardOpen` (mirrors `initCardCollapse`), and the paycalc "more
   options" auto-expand through `setDisclosure(btnId, bodyId, open, …)` in `paycalc-disclosures.js`.
   The axe gate can't catch this class (it scans a settled state).

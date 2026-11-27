@@ -283,49 +283,49 @@ roster-app/
 ├── newlink-tips.js         ← CARD_TIPS for newlink.html's `?` panels. Pure data. See also tips-content.test.mjs
 ├── pdf-viewer.js           ← the in-app PDF viewer (`#pdfViewer`, newlink.html), drawing with PDF.js; why it exists is pdf-viewer-core.js's header. See also newlink.spec.js.
 ├── pdf-viewer-core.js      ← the PDF viewer's pure rules, including never offering to open a file inside an installed app's scope
-├── links.html              ← the link design workspace (visible to `CONFIG.LINKS_DESIGNERS` only)
-├── links.css               ← CSS for links.html
-├── links-app.js            ← coordinator for links.html: the working copy and `dirty`, the save conversation and the wiring; no Firestore I/O of its own. Body is `init()`, run by links-boot.js. See also coordinator-ratchet.test.mjs.
-├── links-boot.js           ← two-line bootstrap for links.html (CSP blocks inline module scripts)
-├── links-design-library.js ← the design library's panels: import and the Recently deleted bin. Its header. See also links-design-library.test.mjs.
-├── links-design-store.js ← the design collection's persistence lifecycle and concurrency protocol; the four rules it makes unwritable: its header. Tested by links-design-store.test.mjs
-├── links-queued-saves.js ← the Links saves only this browser's queue holds until the server answers. Pure; the seven rules are its header
-├── links-concurrency.js    ← the PURE co-editing rules for the Links workspace. Every bug here was a SILENT overwrite of a colleague's work. Tested by links-concurrency.test.mjs. See also links-design-store.test.mjs.
-├── links-fatigue.js ← the ORR fatigue factors assessed against a design. **It reports factors PRESENT and never passes or fails a design.** Tested by links-fatigue.test.mjs
-├── links-limits.js ← the HARD limits a design meets or does not — kept apart from links-fatigue.js on purpose (its header). Tested by links-limits.test.mjs
-├── links-adjacency.js ← the ORDER the lines sit in, and its scoring. Its header. Tested by links-adjacency.test.mjs
-├── links-demand.js ← the service a design has to cover (trains per hour at Marylebone); never scores a design. Tested by links-demand.test.mjs. See also links.spec.js.
-├── links-window.js ← the OPERATING WINDOW of a design, stored per design. Tested by links-window.test.mjs. See also links.spec.js.
-├── links-window-editor.js ← the staffed-window editor on the Coverage card; an edit goes back to the coordinator, which marks it dirty. Tested by links-window-editor.test.mjs and e2e/links.spec.js
-├── links-deletion.js ← the PURE rules behind "Recently deleted". **The bin is PERMANENT** (owner decision; its header). Tested by links-deletion.test.mjs. See also doc-parity.test.mjs.
-├── links-generator-targets.js ← the generator's target table on screen, its memory and provenance. Rule 4 in its header. Tested by links-generator-targets.test.mjs. See also links.spec.js.
-├── links-design.js ← pure link-design maths, including `ROTATING_LINES` — the ONE declaration of the rotation length, and `restBetween`, the one reading of a turnaround. Imports nothing. **Read its header before touching the hours maths.** Tested by links-design.test.mjs
-├── links-generate.js ← the link GENERATOR: `generateLink`, its two constructions, the contract gate and the minimum-rest repair; imports its constants from links-design.js. **Read its header before touching the generator.** Tested by links-design.test.mjs and links-contract.test.mjs
-├── links-design-doc.js ← the SHAPE of a link design in memory and in Firestore, and every conversion between them. Its header. Tested by links-design-doc.test.mjs
-├── links-design-load.js ← PURE: what a read of the design collection means, for the page load and the list refresh. Tested by links-design-load.test.mjs
-├── links-design-naming.js ← what a design or staffing setup may be CALLED; a name clash is refused, never renamed silently. Tested by links-design-naming.test.mjs
-├── links-proposals.js ← the SHORTLISTED designs, built in as read-only proposals, copied cell for cell from docs/links-26/30-days-off/ (and its balanced/ subfolder). Tested by links-proposals.test.mjs
-├── links-shortlist.js ← "Keep only the shortlist": the admin's one-off bin of every older design. Pure; tested by links-shortlist.test.mjs and e2e/links-shortlist.spec.js
-├── links-design-header.js ← the design MASTHEAD on links.html. Its header. Tested by links-design-header.test.mjs
-├── links-seed.js ← the generator's ROSTER SEED: it MEASURES, `links-default-targets.js` DESIGNS. Tested by links-seed.test.mjs
-├── links-target-sets.js ← SAVED SETS of generator targets; a corrupt document is refused whole. Tested by links-target-sets.test.mjs and firestore.rules.test.mjs. See also links.spec.js.
-├── links-target-sets-store.js ← the Firestore half of the saved staffing sets. **A read that FAILS is not an empty collection.** Tested by links-target-sets-store.test.mjs
-├── links-target-hours.js ← whether a generator target table pays the contract. Tested by links-target-hours.test.mjs
-├── links-default-targets.js ← the table the generator STARTS from, against the December 2026 service. Its header. Tested by links-default-targets.test.mjs
-├── links-import.js ← turning somebody else's roster proposal into a design — a TRUST BOUNDARY: a design or a refusal, never a half-design. Tested by links-import.test.mjs
-├── links-analysis.js ← links.html's read-only analysis panels. Tested by links-analysis.test.mjs
-├── links-compare-analysis.js ← compare mode's analysis for two designs. Pure; rendered by links-compare.js. See also links-compare.test.mjs.
-├── links-compare.js        ← links.html compare mode; single source of truth for the compare state. Tested by links-compare.test.mjs
-├── links-grid-input.js ← how the design grid is operated (keyboard, mouse strokes); what a cell means is links-grid.js's. Tested by links-grid-input.test.mjs and e2e/links.spec.js
-├── links-print.js ← preparing the Links page for paper and putting it back (iOS sends no `afterprint`). Tested by links-print.test.mjs
-├── links-analyse.js ← ONE reading of a Links design for every panel that reports on it. Pure; tested by links-analyse.test.mjs
-├── links-grid-cells.js ← what one cell of a Links grid SAYS, and the cell markup. Pure; tested by links-grid-cells.test.mjs
-├── links-grid.js ← the design grid on screen: drawing it or its empty state, what a cell press MEANS, the totals and the Cover footer. Tested by links-grid.test.mjs and e2e/links.spec.js
-├── links-brush-bar.js ← the paint bar and the armed brush: its chips are the design's own times. Tested by links-brush-bar.test.mjs and e2e/links.spec.js
-├── links-today.js ← what the Links workspace reads from today's roster. Pure; tested by links-today.test.mjs
-├── links-build-press.js ← what the "Build the link" press says and remembers. Pure; tested by links-build-press.test.mjs
-├── links-build-button.js ← the "Build the link" press end to end: generate, reorder, hand the design to the coordinator, hold the button still. Tested by links-build-button.test.mjs and e2e/links.spec.js
-├── links-tips.js ← CARD_TIPS for links.html's `?` panels; its "The default table" section has to change with `links-default-targets.js`'s header
+├── link-designer.html              ← the link design workspace (visible to `CONFIG.LINKS_DESIGNERS` only)
+├── link-designer.css               ← CSS for link-designer.html
+├── link-designer-app.js            ← coordinator for link-designer.html: the working copy and `dirty`, the save conversation and the wiring; no Firestore I/O of its own. Body is `init()`, run by link-designer-boot.js. See also coordinator-ratchet.test.mjs.
+├── link-designer-boot.js           ← two-line bootstrap for link-designer.html (CSP blocks inline module scripts)
+├── link-designer-design-library.js ← the design library's panels: import and the Recently deleted bin. Its header. See also link-designer-design-library.test.mjs.
+├── link-designer-design-store.js ← the design collection's persistence lifecycle and concurrency protocol; the four rules it makes unwritable: its header. Tested by link-designer-design-store.test.mjs
+├── link-designer-queued-saves.js ← the Link Designer saves only this browser's queue holds until the server answers. Pure; the seven rules are its header
+├── link-designer-concurrency.js    ← the PURE co-editing rules for the Link Designer. Every bug here was a SILENT overwrite of a colleague's work. Tested by link-designer-concurrency.test.mjs. See also link-designer-design-store.test.mjs.
+├── link-designer-fatigue.js ← the ORR fatigue factors assessed against a design. **It reports factors PRESENT and never passes or fails a design.** Tested by link-designer-fatigue.test.mjs
+├── link-designer-limits.js ← the HARD limits a design meets or does not — kept apart from link-designer-fatigue.js on purpose (its header). Tested by link-designer-limits.test.mjs
+├── link-designer-adjacency.js ← the ORDER the lines sit in, and its scoring. Its header. Tested by link-designer-adjacency.test.mjs
+├── link-designer-demand.js ← the service a design has to cover (trains per hour at Marylebone); never scores a design. Tested by link-designer-demand.test.mjs. See also link-designer.spec.js.
+├── link-designer-window.js ← the OPERATING WINDOW of a design, stored per design. Tested by link-designer-window.test.mjs. See also link-designer.spec.js.
+├── link-designer-window-editor.js ← the staffed-window editor on the Coverage card; an edit goes back to the coordinator, which marks it dirty. Tested by link-designer-window-editor.test.mjs and e2e/link-designer.spec.js
+├── link-designer-deletion.js ← the PURE rules behind "Recently deleted". **The bin is PERMANENT** (owner decision; its header). Tested by link-designer-deletion.test.mjs. See also doc-parity.test.mjs.
+├── link-designer-generator-targets.js ← the generator's target table on screen, its memory and provenance. Rule 4 in its header. Tested by link-designer-generator-targets.test.mjs. See also link-designer.spec.js.
+├── link-designer-design.js ← pure link-design maths, including `ROTATING_LINES` — the ONE declaration of the rotation length, and `restBetween`, the one reading of a turnaround. Imports nothing. **Read its header before touching the hours maths.** Tested by link-designer-design.test.mjs
+├── link-designer-generate.js ← the link GENERATOR: `generateLink`, its two constructions, the contract gate and the minimum-rest repair; imports its constants from link-designer-design.js. **Read its header before touching the generator.** Tested by link-designer-design.test.mjs and link-designer-contract.test.mjs
+├── link-designer-design-doc.js ← the SHAPE of a link design in memory and in Firestore, and every conversion between them. Its header. Tested by link-designer-design-doc.test.mjs
+├── link-designer-design-load.js ← PURE: what a read of the design collection means, for the page load and the list refresh. Tested by link-designer-design-load.test.mjs
+├── link-designer-design-naming.js ← what a design or staffing setup may be CALLED; a name clash is refused, never renamed silently. Tested by link-designer-design-naming.test.mjs
+├── link-designer-proposals.js ← the SHORTLISTED designs, built in as read-only proposals, copied cell for cell from docs/links-26/30-days-off/ (and its balanced/ subfolder). Tested by link-designer-proposals.test.mjs
+├── link-designer-shortlist.js ← "Keep only the shortlist": the admin's one-off bin of every older design. Pure; tested by link-designer-shortlist.test.mjs and e2e/link-designer-shortlist.spec.js
+├── link-designer-design-header.js ← the design MASTHEAD on link-designer.html. Its header. Tested by link-designer-design-header.test.mjs
+├── link-designer-seed.js ← the generator's ROSTER SEED: it MEASURES, `link-designer-default-targets.js` DESIGNS. Tested by link-designer-seed.test.mjs
+├── link-designer-target-sets.js ← SAVED SETS of generator targets; a corrupt document is refused whole. Tested by link-designer-target-sets.test.mjs and firestore.rules.test.mjs. See also link-designer.spec.js.
+├── link-designer-target-sets-store.js ← the Firestore half of the saved staffing sets. **A read that FAILS is not an empty collection.** Tested by link-designer-target-sets-store.test.mjs
+├── link-designer-target-hours.js ← whether a generator target table pays the contract. Tested by link-designer-target-hours.test.mjs
+├── link-designer-default-targets.js ← the table the generator STARTS from, against the December 2026 service. Its header. Tested by link-designer-default-targets.test.mjs
+├── link-designer-import.js ← turning somebody else's roster proposal into a design — a TRUST BOUNDARY: a design or a refusal, never a half-design. Tested by link-designer-import.test.mjs
+├── link-designer-analysis.js ← link-designer.html's read-only analysis panels. Tested by link-designer-analysis.test.mjs
+├── link-designer-compare-analysis.js ← compare mode's analysis for two designs. Pure; rendered by link-designer-compare.js. See also link-designer-compare.test.mjs.
+├── link-designer-compare.js        ← link-designer.html compare mode; single source of truth for the compare state. Tested by link-designer-compare.test.mjs
+├── link-designer-grid-input.js ← how the design grid is operated (keyboard, mouse strokes); what a cell means is link-designer-grid.js's. Tested by link-designer-grid-input.test.mjs and e2e/link-designer.spec.js
+├── link-designer-print.js ← preparing the Link Designer for paper and putting it back (iOS sends no `afterprint`). Tested by link-designer-print.test.mjs
+├── link-designer-analyse.js ← ONE reading of a Link Designer design for every panel that reports on it. Pure; tested by link-designer-analyse.test.mjs
+├── link-designer-grid-cells.js ← what one cell of a Link Designer grid SAYS, and the cell markup. Pure; tested by link-designer-grid-cells.test.mjs
+├── link-designer-grid.js ← the design grid on screen: drawing it or its empty state, what a cell press MEANS, the totals and the Cover footer. Tested by link-designer-grid.test.mjs and e2e/link-designer.spec.js
+├── link-designer-brush-bar.js ← the paint bar and the armed brush: its chips are the design's own times. Tested by link-designer-brush-bar.test.mjs and e2e/link-designer.spec.js
+├── link-designer-today.js ← what the Link Designer reads from today's roster. Pure; tested by link-designer-today.test.mjs
+├── link-designer-build-press.js ← what the "Build the link" press says and remembers. Pure; tested by link-designer-build-press.test.mjs
+├── link-designer-build-button.js ← the "Build the link" press end to end: generate, reorder, hand the design to the coordinator, hold the button still. Tested by link-designer-build-button.test.mjs and e2e/link-designer.spec.js
+├── link-designer-tips.js ← CARD_TIPS for link-designer.html's `?` panels; its "The default table" section has to change with `link-designer-default-targets.js`'s header
 ├── shared.css              ← CSS shared by every app page — NOT the guides
 ├── guide-shell.css         ← shared chrome for every guide page, including the Inter @font-face and `--font-sans`
 ├── guide-doc.css           ← shared styles for the two document-style guides (staff-guide.html, paycalc-guide.html)
@@ -334,7 +334,7 @@ roster-app/
 ├── pdfjs/                  ← PDF.js, the legacy build, vendored for pdf-viewer.js in a folder named for its version; an upgrade is a NEW folder. dependency-pin-parity.test.mjs has the steps
 ├── service-worker.js       ← the single service worker for all pages; the cache name includes `APP_VERSION`. See also coordinator-ratchet.test.mjs.
 ├── manifest.json           ← PWA manifest for all pages
-├── guide.html · fip.html ← the two LEGACY guide URLs, kept as redirect stubs (the Pages mirror serves no redirects); they go when the mirror does
+├── guide.html · fip.html · links.html ← LEGACY URLs, kept as redirect stubs (the Pages mirror serves no redirects): the two old guide addresses, and links.html → link-designer.html (the page was renamed Link Designer); they go when the mirror does
 ├── legacy-redirect.js      ← the one script those stubs carry, keeping the #fragment and ?query. See also page-contract-parity.test.mjs, guides.spec.js.
 ├── staff-guide.html / paycalc-guide.html / railcard-guide.html / fip-guide.html / rangers-guide.html ← printable guides (via nav panel)
 ├── rangers-guide.css ← the Rangers & Rovers guide's stylesheet. **Neither validity attribute may be inferred from the other.** `.claude/rules/guide-pages.md`; evidence: GUIDE_SOURCES.md
@@ -364,7 +364,7 @@ roster-app/
 │   ├── AUTH_AND_SESSIONS.md ← the authentication feature CONTRACT: session, identity and claim, the invariants across them, the architecture (two pure layers and a store), and the shipped design decisions ("Why it is this way"); what is still to do lives in SECURITY_RELEASE_PLAN.md
 │   ├── SECURITY_RELEASE_PLAN.md ← the security tracks' status: **the CANONICAL TRACK STATUS table** (update a stage there and nowhere else; `auth-plan-parity.test.mjs`), and the design and order of the security work NOT yet built (C6, F, C2, C5 and its **OPEN owner decision**, App Check, the rest of Track E)
 │   ├── RECOVERY_RUNBOOK.md      ← the "break glass" backup, rollback and disaster-recovery runbook, and the deploy identity (Workload Identity Federation)
-│   ├── LINKS_REFERENCE.md ← the Links workspace in full: how each part works and the measurements behind its rules. The invariants are `.claude/rules/links-design.md`
+│   ├── LINK_DESIGNER_REFERENCE.md ← the Link Designer in full: how each part works and the measurements behind its rules. The invariants are `.claude/rules/link-designer.md`
 │   ├── PAYCALC_REFERENCE.md ← the Pay Calculator in full: the pay FIGURES (their one home), the payroll mechanics, state and layout. The invariants are `.claude/rules/paycalc.md`
 │   ├── BRASS_PLAN.md ← modelling BRASS (the RPS pension top-up) in the pay calculator; nothing ships until its owner questions are answered
 │   ├── OVERTIME_AVAILABILITY.md ← the design record for Overtime Availability, holding only what no module header owns
@@ -380,7 +380,7 @@ roster-app/
 │   └── viewer-persistence-proof/ ← did the retired PIN's Calendar viewer die with the browser session? It did not; proven in real Chromium. Historical since the PIN's cleanup release; not a CI gate
 ├── test-fixtures/
 │   ├── firebase-sdk/ ← a RECORDING fake of the three Firebase SDK modules and the resolve hook that answers the CDN URLs with them; `state.mjs` records every write
-│   ├── links-designs/ ← real Links grids kept UNCHANGED as fixtures for the compare tests, because the asserted figures are theirs
+│   ├── link-designer-designs/ ← real Link Designer grids kept UNCHANGED as fixtures for the compare tests, because the asserted figures are theirs
 │   ├── xlsx-write.mjs ← a real .xlsx built at test time for the leave file's session script. Invented people only
 │   ├── roster-pdf.mjs ← a real roster PDF built by hand, shared by roster-geometry.test.mjs and index-endpoints.test.mjs (its header says why one)
 │   └── payslip-actuals.example.js ← the SHAPE of the pay-maths regression fixture, invented figures, never imported (a fallback would turn a skip into a green run)
@@ -398,11 +398,11 @@ roster-app/
 │   ├── admin-own-write.test.mjs ← the rule, the words and the sync over a fake grid. Part of test:hygiene
 │   ├── admin-bulk-apply.test.mjs ← each reason, read off `SUNDAY_FORBIDDEN_TYPES` and `PILL_TYPES`. Part of test:hygiene
 │   ├── overflow-hint.test.mjs  ← the overflow rule, the re-measure after a resize, and the no-ResizeObserver path. Part of test:hygiene
-│   ├── links-design-doc.test.mjs ← the design-shape invariants, across every producer. Part of test:hygiene
-│   ├── links-design-load.test.mjs ← the two design readers in sequence, the legacy migration and which design opens. Part of test:hygiene
-│   ├── links-compare-analysis.test.mjs ← compare analysis on two real proposal sheets. Part of test:hygiene
-│   ├── links-grid-input.test.mjs ← the grid's keyboard rule and a mouse stroke's bookkeeping. Part of test:hygiene
-│   ├── links-grid.test.mjs / links-brush-bar.test.mjs / links-build-button.test.mjs / links-window-editor.test.mjs ← the grid's shift list, totals and footer; the paint bar's times; the Build press's box reading; the window editor through its listeners. Part of test:hygiene
+│   ├── link-designer-design-doc.test.mjs ← the design-shape invariants, across every producer. Part of test:hygiene
+│   ├── link-designer-design-load.test.mjs ← the two design readers in sequence, the legacy migration and which design opens. Part of test:hygiene
+│   ├── link-designer-compare-analysis.test.mjs ← compare analysis on two real proposal sheets. Part of test:hygiene
+│   ├── link-designer-grid-input.test.mjs ← the grid's keyboard rule and a mouse stroke's bookkeeping. Part of test:hygiene
+│   ├── link-designer-grid.test.mjs / link-designer-brush-bar.test.mjs / link-designer-build-button.test.mjs / link-designer-window-editor.test.mjs ← the grid's shift list, totals and footer; the paint bar's times; the Build press's box reading; the window editor through its listeners. Part of test:hygiene
 │   ├── operations-attention.test.mjs ← the strip's pure decision, against claiming too little or too much. Part of test:hygiene
 │   ├── operations-doc-links.test.mjs ← what Document links says and sends. Part of test:hygiene
 │   ├── operations-reset.test.mjs ← every sentence Account status's Reset says, held to what the answer reports. Part of test:hygiene
@@ -414,7 +414,7 @@ roster-app/
 │   ├── roster-data.test.mjs    ← tests for roster-data.js
 │   ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 │   ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
-│   ├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / perf-stats.test.mjs
+│   ├── roster-parse-helpers.test.mjs / link-designer-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / perf-stats.test.mjs
 │   ├── functions-surface.test.mjs ← pins functions/index.js's exports (the DEPLOY surface — a dropped re-export deletes a function). Runs in test:functions
 │   ├── fetch-timeout.test.mjs ← the Cloud Function call bound, including somebody else's abort. Part of test:hygiene
 │   ├── error-reporter.test.mjs ← the Error Log noise filters, each pinned from both sides. Part of test:hygiene
@@ -534,18 +534,18 @@ roster-app/
 │   ├── paycalc-notice-order.test.mjs ← the Year to Date notice opens last, through `openNoticeIfClear`. Part of test:hygiene
 │   ├── paycalc-current-year.test.mjs ← **the tax year staff are actually being paid in**; fails loudly when a new tax year arrives, on purpose. Part of test:hygiene
 │   ├── paycalc-key-parity.test.mjs ← localStorage key SHAPE, so the pay-data transfer stays complete. Part of test:hygiene
-│   ├── links-design-library.test.mjs ← the Links import panel and bin through their listeners. Part of test:unit
-│   ├── links-design-store.test.mjs ← the design store's concurrency protocol with a competing writer. Part of test:hygiene
-│   ├── links-queued-saves.test.mjs ← which copy of a queued Links save is kept. Part of test:hygiene
-│   ├── links-design-header.test.mjs ← the Links masthead: never "saved" over unseen edits. Part of test:hygiene
-│   ├── links-import.test.mjs ← the design importer: a wrong claim is refused, never quietly shrunk. Part of test:hygiene
-│   ├── links-contract.test.mjs ← the generator never produces a link that UNDERPAYS. Part of test:hygiene
-│   ├── links-default-targets.test.mjs ← the default target table's literal against every claim made about it. Part of test:hygiene
-│   ├── links-generator-targets.test.mjs ← the generator card's target table through its real listeners. Part of test:unit
-│   ├── links-target-sets-store.test.mjs ← the saved sets' Firestore half: a failed read is never an empty collection. Part of test:hygiene
-│   ├── links-target-sets.test.mjs ← saved target sets refused whole when corrupt, and the ownership answer; twins in firestore.rules.test.mjs. Part of test:hygiene
-│   ├── links-target-hours.test.mjs ← the generator card's verdict, too kind or too harsh. Part of test:hygiene
-│   ├── links-rotation-parity.test.mjs ← the rotation LENGTH is declared once and stated nowhere. Part of test:hygiene
+│   ├── link-designer-design-library.test.mjs ← the Link Designer import panel and bin through their listeners. Part of test:unit
+│   ├── link-designer-design-store.test.mjs ← the design store's concurrency protocol with a competing writer. Part of test:hygiene
+│   ├── link-designer-queued-saves.test.mjs ← which copy of a queued Link Designer save is kept. Part of test:hygiene
+│   ├── link-designer-design-header.test.mjs ← the Link Designer masthead: never "saved" over unseen edits. Part of test:hygiene
+│   ├── link-designer-import.test.mjs ← the design importer: a wrong claim is refused, never quietly shrunk. Part of test:hygiene
+│   ├── link-designer-contract.test.mjs ← the generator never produces a link that UNDERPAYS. Part of test:hygiene
+│   ├── link-designer-default-targets.test.mjs ← the default target table's literal against every claim made about it. Part of test:hygiene
+│   ├── link-designer-generator-targets.test.mjs ← the generator card's target table through its real listeners. Part of test:unit
+│   ├── link-designer-target-sets-store.test.mjs ← the saved sets' Firestore half: a failed read is never an empty collection. Part of test:hygiene
+│   ├── link-designer-target-sets.test.mjs ← saved target sets refused whole when corrupt, and the ownership answer; twins in firestore.rules.test.mjs. Part of test:hygiene
+│   ├── link-designer-target-hours.test.mjs ← the generator card's verdict, too kind or too harsh. Part of test:hygiene
+│   ├── link-designer-rotation-parity.test.mjs ← the rotation LENGTH is declared once and stated nowhere. Part of test:hygiene
 │   ├── roster-prompt-parity.test.mjs ← the roster-parse PROMPT checked as code. Part of test:hygiene
 │   ├── paycalc-inputs.test.mjs ← the pay form's input helpers. Part of test:hygiene
 │   ├── paycalc-settings.test.mjs ← the money-critical rate and pension wrappers delegate correctly (--experimental-test-module-mocks)
@@ -706,7 +706,7 @@ roster-app/
 │   ├── admin-layout.spec.js ← how Admin is drawn: readable chips, the Unsaved bar, the desktop audit
 │   ├── admin-helpers.js ← what more than one admin-*.spec.js needs (not a spec)
 │   ├── clock-box-properties.spec.js ← a real text clock box under seeded random edit sequences: never a time nobody typed, never a caret thrown past a digit. Desktop projects only; its header
-│   ├── links.spec.js       ← the Links workspace in a real browser (the shortlist's own row is links-shortlist.spec.js)
+│   ├── link-designer.spec.js       ← the Link Designer in a real browser (the shortlist's own row is link-designer-shortlist.spec.js)
 │   ├── operations.spec.js  ← Operations in a real browser
 │   ├── al-sheet-fixture.js ← a sealed leave file built at test time; members chosen BY RULE, never typed by name
 │   ├── settings.spec.js    ← Settings in a real browser
@@ -715,7 +715,7 @@ roster-app/
 │   ├── overtime.spec.js ← the Overtime page in a real browser: it boots, a reviewer gets no personal form, and the member form's three rules through the real submit path
 │   ├── trains.spec.js ← the Trains page through its real coordinator — the wiring half of the trains-change and trains-stations tests
 │   ├── newlink.spec.js ← the new link page through its real coordinator, including who is sent back
-│   ├── links-shortlist.spec.js ← the Links "Keep only the shortlist" row pressed for real
+│   ├── link-designer-shortlist.spec.js ← the Link Designer "Keep only the shortlist" row pressed for real
 │   ├── responsive.spec.js  ← desktop geometry at 1024–1440px, no horizontal overflow
 │   ├── axe.spec.js         ← the accessibility gate (axe-core, WCAG A/AA), tagged `@a11y`, BLOCKING inside `npm run test:e2e`; baseline in A11Y_BASELINE.md
 │   ├── csp.spec.js         ← the deployed-CSP proof (`npm run test:csp`): the Hosting emulator serves the real header and any violation fails. Excluded from the smoke run

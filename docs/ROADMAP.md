@@ -1,6 +1,6 @@
 # Marylebone Roster — Product Roadmap
 
-*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -37,7 +37,7 @@ that is information, not an omission.
 
 ### Evidence class — required on operational rules
 
-Adopted after the v19.94 review, where the Links panel printed a hard limit in red on a sheet for an
+Adopted after the v19.94 review, where the Link Designer panel printed a hard limit in red on a sheet for an
 assessing manager, sourced to a conversation. **Code can be mathematically perfect while its premise
 is wrong**, and no amount of unit testing detects that.
 
@@ -50,9 +50,9 @@ is wrong**, and no amount of unit testing detects that.
 
 **Anything rendered to a manager as "must be met", or to staff as a rule they could be refused
 travel or pay by, requires A or B.** C and D may inform a tool; they may not be printed as a
-requirement. The 13-day Links limit would have been flagged as *hard limit → evidence C* and failed
+requirement. The 13-day Link Designer limit would have been flagged as *hard limit → evidence C* and failed
 this gate before it was coded, which is stronger than adding another test after the fact.
-(`links-limits.test.mjs` and `links-analysis.test.mjs` now enforce the rendered half of this.)
+(`link-designer-limits.test.mjs` and `link-designer-analysis.test.mjs` now enforce the rendered half of this.)
 
 ---
 
@@ -67,7 +67,7 @@ built. Until it is answered, the answer is assumed to be "informal staff utility
 **If Marylebone Roster remains an informal staff utility** — the position today — then it must not become
 the authoritative system for annual-leave approval, payroll, mandatory safety decisions, or official
 staffing approval. It may *assist* all of those. That is the current boundary, and it is why the
-Links panel reports a design against a limit rather than approving it, and why the pay calculator
+Link Designer panel reports a design against a limit rather than approving it, and why the pay calculator
 is an estimator.
 
 **If Chiltern adopts it formally**, then a body of work starts that is currently in nobody's plan: a
@@ -100,7 +100,7 @@ builds toward it, and so that nobody is surprised later that the custom work was
 the link follows, and today's link carries on until then; 8 Nov 2026: the day is not yet known). It is for everyone on the
 normal CEA contract; those on a CEA bilingual contract keep their own links (owner, 8 Nov 2026). It is 26 weeks with five cover weeks
 (`docs/links-26/RULES.md`), and the shortlist is three — **Balanced V6**, **Level Crossing** and **Middle Ground**, A to
-Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks side by side) — built into the Links designer read-only (`links-proposals.js`) and drawn
+Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks side by side) — built into the link designer read-only (`link-designer-proposals.js`) and drawn
 in the pack (`docs/links-26/`). The new link page (`newlink.html`) presents them evenly to everyone on the normal CEA
 contract and the managers — **open since v25.60** (owner, 9 Nov 2026).
 
@@ -111,11 +111,11 @@ contract and the managers — **open since v25.60** (owner, 9 Nov 2026).
 - **The management review meeting** is not scheduled. The plan's backwards dates, counted from the
   timetable change (the review at T−6 weeks), have passed; the link's start day in January 2027 is not set.
 - **A controlled source for the company hard limits** — Gareth: the policy's title, clause, staff group
-  and effective date (`KNOWN_LIMITATIONS.md` → Links design workspace; `POLICY_SOURCE_CONFIRMED`).
+  and effective date (`KNOWN_LIMITATIONS.md` → Link Designer design workspace; `POLICY_SOURCE_CONFIRMED`).
   Then, whether the other limits in that family (turn length, rest between turns, weekly hours) become
   hard limits rather than advisory rows.
 - **The run cap's weight** — a shorter longest run against fewer full weekends off, a question for the
-  room (`KNOWN_LIMITATIONS.md` → Links design workspace).
+  room (`KNOWN_LIMITATIONS.md` → Link Designer design workspace).
 - Smaller, with no trigger yet: Saturday's window could split from Mon–Fri's (the setting allows it);
   the generator's table of near-identical rows could be redesigned (its reason for waiting, the uplift
   control, lapsed when that was declined); and nobody has said whether other grades cover the 05:55
@@ -272,7 +272,7 @@ chooses (the trigger, the page opening to staff, was met on 20 Oct 2026).
   15:45–23:55. Busiest spell 17:00–18:59. Last trains you'll see: …". No other tool can say this.
   It needs a member with a roster of their own — an Other Staff login has none.
 - **Busy times strip** — a 24-hour bar shaded by trains per hour with a "now" marker, reusing the
-  departure curve the Links work already holds (`links-demand.js`).
+  departure curve the Link Designer work already holds (`link-designer-demand.js`).
 - **Platform view for the next hour** — which train sits where, and which are joined. Needs the
   internal platform and join data, so it is the furthest out.
 
@@ -373,10 +373,10 @@ is written, not guessed at afterwards.
 **Read the signal correctly:** the MIRROR count going DOWN, not web.app going up. People appear on the
 new address the moment they visit, but have only *moved* when they stop appearing on the old one.
 
-### Links generator — Recommended settings, with the five objectives behind Advanced
+### Link Designer generator — Recommended settings, with the five objectives behind Advanced
 
 **Raised twice by external review.** Nothing here is a defect: the card works, and the objectives
-are correctly implemented and tested (`links-adjacency.js`). The problem is the order it asks
+are correctly implemented and tested (`link-designer-adjacency.js`). The problem is the order it asks
 things in.
 
 The generator card opens with all five optimisation switches — *Vary the shift type · Most shifts in
@@ -398,11 +398,11 @@ names what is happening; the five switches are depth.
 
 **The trigger is the owner.** It is a visible change to the card a designer uses most, the new
 link's proposals are judged against its checks (drawn by the `docs/links-26/tooling` scripts
-running the Links modules under Node, or supplied as grids and imported — not in this card), and two
+running the Link Designer modules under Node, or supplied as grids and imported — not in this card), and two
 of this app's collapse decisions have been reverted after shipping (the admin task navigator, the
 drawer's notification row). It wants a
-decision, not a sweep. If it goes ahead, `links-tips.js`'s "The default table" section and the
-generator card's one `.links-desc` sentence move with it — the desktop left-edge e2e check counts
+decision, not a sweep. If it goes ahead, `link-designer-tips.js`'s "The default table" section and the
+generator card's one `.link-designer-desc` sentence move with it — the desktop left-edge e2e check counts
 that sentence.
 
 **A second, smaller item travels with it:** the generator's target table loses its day context on a
@@ -414,7 +414,7 @@ per-cell labels — **but note what that costs, because the obvious version cann
 768px the wrapper sets `overflow-x: auto`, and per spec the other axis then computes to `auto`
 too, so the wrapper is a vertical scroll container as tall as its own content and `position:
 sticky` sticks to a box that never scrolls. The declaration is already there and already inert
-(KNOWN_LIMITATIONS records it; `e2e/links.spec.js` pins both states). Making it stick needs a
+(KNOWN_LIMITATIONS records it; `e2e/link-designer.spec.js` pins both states). Making it stick needs a
 `max-height` and a NESTED SCROLLBOX around the primary creation path — which is precisely what
 the review said it would rather avoid. So the two candidate remedies are a nested scrollbox or
 per-cell labels, and the owner is choosing between them, not approving the cheaper-sounding one.
@@ -630,9 +630,9 @@ reached** — a 2026 implementation preference must not become a 2028 architectu
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
 ### Split the three largest page controllers — each when it is next changed
-**Status:** Conditional — the first seam is out of two of the three: `paycalc-app.js`'s pricing (`pricePayslip`, `paycalc-calc.js`, v26.42) and `admin-app.js`'s week-grid Save (`collectWeekRows`, `admin-week-collect.js`, v26.44); `links-app.js` was split in v26.50 (Progress, below) · **Trigger:** the next change to that page's rules (a wiring-only edit, like v26.16's to `paycalc-app.js` or v26.19's to `admin-app.js`, is not one) · **Owner:** the developer · **Review:** at that change, not before
+**Status:** Conditional — the first seam is out of two of the three: `paycalc-app.js`'s pricing (`pricePayslip`, `paycalc-calc.js`, v26.42) and `admin-app.js`'s week-grid Save (`collectWeekRows`, `admin-week-collect.js`, v26.44); `link-designer-app.js` was split in v26.50 (Progress, below) · **Trigger:** the next change to that page's rules (a wiring-only edit, like v26.16's to `paycalc-app.js` or v26.19's to `admin-app.js`, is not one) · **Owner:** the developer · **Review:** at that change, not before
 
-**Why:** an external review (10 Nov 2026) named `links-app.js`, `admin-app.js` and `paycalc-app.js`
+**Why:** an external review (10 Nov 2026) named `link-designer-app.js`, `admin-app.js` and `paycalc-app.js`
 (2,657, 1,729 and 1,597 lines when it measured them) as the files where one edit is hardest to
 review. Each mixes the page's wiring, its drawing and its rules, so a change to one part is read
 beside all the rest, and a rule can only be tested by standing the whole page up.
@@ -649,7 +649,7 @@ pre-commit hook enforces both).
 **Success:** the touched file is smaller, what moved has Node tests of its own, and no browser test
 had to change.
 
-**Progress:** `links-app.js` was split in v26.50, inside the Links review that changed its rules: 2,742
+**Progress:** `link-designer-app.js` was split in v26.50, inside the Link Designer review that changed its rules: 2,742
 lines to about 1,860, with the Build press, one shared analysis, the grid cells, today's link and print
 preparation each in a Node-tested module of its own (`FILE_INDEX.md`). Its ratchet cap moved down with it.
 `admin-app.js` and `paycalc-app.js` remain, each for its own next change.
@@ -706,7 +706,7 @@ conversation.
 Same reasoning, same gate.
 
 ### The app as the authoritative source for payroll or mandatory safety decisions
-The pay calculator is an **estimator** and says so. The Links hard-limit check reports against a
+The pay calculator is an **estimator** and says so. The Link Designer hard-limit check reports against a
 policy limit and does not approve a design. Both are correct as they stand for an informal utility;
 both would need the governance gate answered before that changed.
 

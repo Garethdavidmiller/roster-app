@@ -303,7 +303,7 @@ function pageHeader(html) {
 test('every app page\'s header is its banner landmark: before <main>, never inside it', () => {
     // CLAUDE.md → "Semantic elements": screen readers depend on the landmarks. Inside <main> the header
     // is no banner, so a screen reader lists none and reads the burger and the page's <h1> as main
-    // content. Admin, Operations and Links had it there until the whole-app check (Nov 2026), because
+    // content. Admin, Operations and Link Designer had it there until the whole-app check (Nov 2026), because
     // `.container` hid it until sign-in and placed it in its grid; their stylesheets do both now.
     for (const page of APP_PAGES) {
         const { mainAt, header } = pageHeader(read(`./${page}`));
@@ -1061,7 +1061,7 @@ test('a page with unsaved work warns through warnOnUnload AND asks before a sign
 // browser's own prompt, and a phone never shows it, so on an iPhone it protects nothing. Overtime called
 // it alone, and a half-filled availability form was dropped by any drawer pill or About-panel link
 // without a word. A page that tracks unsaved work for the unload prompt asks in the page as well.
-// (Links kept an older guard of its own, exempt here by name, until Nov 2026: it navigated by itself on
+// (Link Designer kept an older guard of its own, exempt here by name, until Nov 2026: it navigated by itself on
 // "Leave", so the drawer's own handling never ran. It uses the shared one now, and nothing is exempt.)
 test('a page that warns on unload also asks before a drawer or About-panel link leaves', () => {
     for (const p of APP_PAGE_ENTRIES) {
@@ -1174,7 +1174,7 @@ test('only about-lightbox.js wires the sub-page header logo', () => {
 // ── AN UNCONFIRMED WRITE HOLDS AN UPDATE'S RELOAD, ON EVERY PAGE THAT ASKS (v25.21, docs audit) ───────
 // AUTH_AND_SESSIONS invariant 22 said "the service worker does not reload the page while it stands",
 // and claim-retry.js and slow-save.js each have a test proving their half. The WIRING had none: Admin
-// and Settings counted the state in their busy checks, Operations and Links did not, and every suite
+// and Settings counted the state in their busy checks, Operations and Link Designer did not, and every suite
 // stayed green — the "rule tested, the wiring not" shape CLAUDE.md names. In a second tab Firestore
 // keeps a pending write in memory only, so the reload those two pages took could lose it.
 //

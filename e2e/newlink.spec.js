@@ -444,7 +444,7 @@ test.describe('new link', () => {
 
     // PAPER HAS NO TAP-TO-EXPAND (17 Nov 2026). The two folded cards — what has changed, and how the figures are worked
     // out, the method notes among them — printed as their headers alone. Asked through the cascade under print media, as
-    // the Links sheet is: a source scan would answer whether the rule is written, not whether it wins.
+    // the Link Designer sheet is: a source scan would answer whether the rule is written, not whether it wins.
     test('on paper the folded cards print open, and their chevrons do not print', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
@@ -691,8 +691,8 @@ test.describe('new link', () => {
 
     // WHO IT IS NOT FOR (owner, 8 Nov 2026: "This link will only apply to people with the normal CEA contract and NOT the
     // bilingual contract who will still have their own links"), nor a CES or a Dispatcher, who have links of their own. The
-    // bilingual contract is ALSO made a Links designer, on a designer list of its own (the real one is the admin alone),
-    // because being a designer must not be a way in either: the gate is the contract, not the Links role.
+    // bilingual contract is ALSO made a link designer, on a designer list of its own (the real one is the admin alone),
+    // because being a designer must not be a way in either: the gate is the contract, not the Link Designer role.
     //
     // TOLD, NOT SENT AWAY (sign-in audit B1, 13 Nov 2026): a link to this page travels in group chats, and a colleague it is
     // not for was sent to the Calendar with no word of why. They stay on newlink.html, with its header, drawer and sign-out,

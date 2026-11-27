@@ -22,7 +22,7 @@ rule there names its number here. The station's hours and the fatigue assessment
 | R3 | **The quarter-hour rule.** Every duty starts and finishes on :00, :15, :30 or :45, unless it opens the station (06:20, or 07:15 on a Sunday) or closes it (23:55, or 23:25 on a Sunday). A duty that opens or closes keeps the station's own times at both ends, as the CEAs' 06:20–14:20 does. |
 | R4 | **Duty times.** A duty starts at 07:00 or later (the wildcard's openings at 06:20, W1). A weekday duty finishes by 23:30: bilingual duties do not close on a weekday. Saturday may close, at 23:55. A Sunday duty is 8 to 9 hours (`../links-26/RULES.md`, S8) and finishes by the 23:25 close. |
 | R5 | **Weekends.** Each person works 1 Saturday in 2, as today, and 1 Sunday in 3: two bilingual colleagues on every Sunday, as today, one early and one late. With 6 people that is more Sundays each than today's 1 in 4, and the owner chose it over 1 in 6. |
-| R6 | **Fatigue.** No fatigue risk factor present in the app's assessment (`links-fatigue.js`, the CEA link's). At least 12 hours between duties, and no more than 13 days worked in a row in the worst case. |
+| R6 | **Fatigue.** No fatigue risk factor present in the app's assessment (`link-designer-fatigue.js`, the CEA link's). At least 12 hours between duties, and no more than 13 days worked in a row in the worst case. |
 | R7 | **Cover through the day.** Every day from Monday to Saturday has an early and a bilingual colleague until at least 23:30, as today. Monday to Friday each has 3 or 4 on, not counting cover. |
 
 ## The three options

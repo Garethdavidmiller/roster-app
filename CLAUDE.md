@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Documentation milestone | `27.00` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The stamp in every stamped doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each is reviewed and re-stamped. |
+| Documentation milestone | `27.10` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The stamp in every stamped doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` — canonical, the **primary install + notification target**. The GitHub Pages mirror `https://garethdavidmiller.github.io/roster-app/` (**note the `/roster-app/` path**; the bare origin 404s) still serves about **half the staff**: installed users are roughly level between the two (owner, 27 Nov 2026 — the gradual changeover is working; it was most staff in Sep 2026). It serves **no redirects and no HTTP headers**, so weigh any change that relies on Firebase Hosting against the mirror, not the canonical URL — which is why every page carries a `<meta>` CSP. ARCHITECTURE.md EXC-006; the API key note below. |
 | Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name. Each endpoint's header holds its rules; the two that are easy to get wrong are marked: |
@@ -152,7 +152,7 @@ discussion" decisions that bind only that area. A decision that binds more than 
 | `roster-data.md` | the member fields, `rosterChanges`, the cycles and fixed patterns, `APP_VERSION` | `roster-data.js` · `roster-cycle-data.js` · `roster-member-data.js` · `roster-roles.js` |
 | `roster-import.md` | the weekly roster import, and every defence against a week on the wrong days | the import modules and `functions/roster-*` |
 | `paycalc.md` | the Pay Calculator | `paycalc*` |
-| `links-design.md` | the Links workspace | `links*` |
+| `link-designer.md` | the Link Designer | `links*` |
 | `css-tokens.md` | surfaces, colour, type, motion, spacing, focus, the app-drawn controls | every `*.css` |
 | `guide-pages.md` | the guide pages | the guide pages |
 | `notifications.md` | the push notification language and the single builder | the push senders, `notif.js`, `notif-card*.js`, `service-worker.js` |
@@ -176,7 +176,7 @@ tables, each row pointing at the module header that argues it:
 | Authentication | `AUTH_AND_SESSIONS.md` | session ↔ identity ↔ claim, the three ways they disagree, and a write whose account has gone |
 | Overtime | `OVERTIME_AVAILABILITY.md` → Invariants | the frozen population, the deadline clock, no-response ≠ not-available |
 | Pay calculator | `.claude/rules/paycalc.md` → Invariants | round trips, per-member keys, and never guessing a figure |
-| Links workspace | `.claude/rules/links-design.md` → Invariants | advisory vs hard limits, co-editing, refusing rather than half-loading |
+| Link Designer | `.claude/rules/link-designer.md` → Invariants | advisory vs hard limits, co-editing, refusing rather than half-loading |
 
 **When an invariant changes, the row changes in the same commit** — a contract nobody updates is
 worse than none, because it is believed.

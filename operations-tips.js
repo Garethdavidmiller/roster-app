@@ -3,7 +3,7 @@
  * operations-tips.js — CARD_TIPS for operations.html's `?` panels.
  *
  * Data, no DOM, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins — the split
- * Links, Overtime and Trains had already made. It left `operations-app.js` in Oct 2026: the App Speed
+ * Link Designer, Overtime and Trains had already made. It left `operations-app.js` in Oct 2026: the App Speed
  * review gave that card's panel the section it was missing ("A closer look"), the coordinator was at
  * its ratchet cap to the line, and content is not coordination.
  */

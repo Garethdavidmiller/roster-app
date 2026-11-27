@@ -67,13 +67,13 @@ export {
     // Firestore rules are evaluated server-side — no rule evaluation either. That is what lets the
     // calendar paint before an auth SESSION exists (AUTH_AND_SESSIONS.md → "The two-phase load (E1)") — but not before Auth has
     // initialised, which for a stored user is after `accounts:lookup` (CALENDAR_DATA.md 10). REJECTS on a miss.
-    // getDocFromCache is its single-document form, for the Links store's offline consult: offline,
+    // getDocFromCache is its single-document form, for the Link Designer store's offline consult: offline,
     // plain getDoc rejects for a document the cache KNOWS was deleted exactly as for one it never
     // held, and this one tells them apart — a recorded deletion resolves as not existing, a miss REJECTS.
     getDocs, getDocsFromCache, getDoc, getDocFromCache, onSnapshot,
     // writes
     addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
-    // `deleteField` for the Links soft-delete RESTORE: clearing deletedAt/deletedBy with a merge write
+    // `deleteField` for the Link Designer soft-delete RESTORE: clearing deletedAt/deletedBy with a merge write
     // leaves the rest of the document untouched, where a full setDoc would replace patterns with
     // whatever the restoring device happens to hold.
     deleteField,

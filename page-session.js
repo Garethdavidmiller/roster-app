@@ -7,16 +7,16 @@
  * every time. Reading the seven coordinators side by side is how the differences were found, and
  * three of them were defects rather than style:
  *
- *   1. UNSAVED WORK AT SIGN-OUT. Links asked "Sign out anyway?" before signing out. Admin (the week
+ *   1. UNSAVED WORK AT SIGN-OUT. Link Designer asked "Sign out anyway?" before signing out. Admin (the week
  *      grid) and Overtime (the availability form) did not: the drawer released the device's push
  *      record and cleared the session FIRST, and only the reload that followed met the page's
  *      `beforeunload` — so on a phone, where that dialog is suppressed, the edits were lost without
  *      a word, and on a desktop a "Cancel" left the edits on screen with no session behind them.
  *   2. BACK AFTER SIGN-OUT, ON A SHARED DEVICE. The Pay Calculator left with `location.replace` and
  *      re-checked the identity when the browser restored it from the back/forward cache. No other
- *      page did either, so Back could put the previous member's Operations, Links or Settings page
+ *      page did either, so Back could put the previous member's Operations, Link Designer or Settings page
  *      back on screen, data and all, for whoever picked the device up next.
- *   3. A SESSION REVOKED LATER. Admin, Operations, Settings and Links offered the sign-in again when
+ *   3. A SESSION REVOKED LATER. Admin, Operations, Settings and Link Designer offered the sign-in again when
  *      the account went mid-visit (`watchIdentityLoss`, v24.37–24.38). Overtime never did, so a
  *      revoked member was left on a page whose every save would fail.
  *

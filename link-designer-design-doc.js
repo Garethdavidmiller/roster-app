@@ -1,0 +1,317 @@
+// @ts-check
+/**
+ * link-designer-design-doc.js — the SHAPE of a link design, in memory and in Firestore, and every
+ * conversion between the two (extracted from link-designer-app.js, v19.94).
+ *
+ * ── WHY ────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Eleven sites in the coordinator hand-assembled a design object, in four different shapes, and two
+ * of them (the save transaction and its offline fallback) were near-identical copies of the same
+ * write payload. Nothing checked that they agreed, and the way they fail is silent: a field left
+ * out of one site is not an error, it is a design that quietly loses something.
+ *
+ * That has happened. v19.55: the bin kept `patterns` but not `window`, so a restore handed back a
+ * design wearing the app default — and the next save wrote that default straight over the moved
+ * boundary the design had actually been built to. The proposal still looked fine; it was simply no
+ * longer the proposal.
+ *
+ * The extraction found a second, older instance immediately, in the one path nobody looks at — the
+ * one-time `combined-28` legacy migration. See `LEGACY_DOC_ID` below.
+ *
+ * ── THE THREE RULES ────────────────────────────────────────────────────────────────────────────
+ *
+ * 1. **Every shape carries `window`.** It is not optional metadata; it is what the coverage heat map
+ *    measures gaps against, so a design that loses it is assessed against a span nobody chose.
+ *
+ * 2. **Everything arriving FROM Firestore is normalised; nothing already in memory is re-normalised.**
+ *    That asymmetry is deliberate and is why this is a design job rather than a sweep. Canonicalising
+ *    on the way in means exactly one time format exists in memory — a legacy unpadded `"6:00-14:00"`
+ *    classified as a worked early (so it counted in the day totals) while `startMinutes` returned
+ *    null, making it invisible in the heat map and exempt from every turnaround check. In-memory
+ *    values have already been through that gate.
+ *
+ * 3. **The live working copy DEEP COPIES its patterns.** The grid mutates it cell by cell; sharing
+ *    the row objects with the `designs[]` entry would mean the concurrency baseline is compared
+ *    against data that has already changed underneath it.
+ */
+
+import { formatDayMonth, formatDayMonthYear, formatClock } from './date-format.js';
+import { normalisePatterns, ROTATING_LINES } from './link-designer-design.js';
+import { normaliseWindow } from './link-designer-window.js';
+
+/**
+ * The pre-multi-design singleton (v12.46), migrated to a named design on first load and thereafter
+ * ignored. Named here because the migration is where this module's second defect lived.
+ *
+ * **It was the ONLY read path that skipped `normalisePatterns`** — both into memory and into the new
+ * Firestore document, so the un-canonicalised times were persisted permanently. Of every document in
+ * the collection this is the one guaranteed to be legacy: it predates multi-design, so it is the
+ * likeliest to hold the unpadded times `canonicaliseShift` exists for. It also wrote no `window`.
+ *
+ * Neither was reachable for a workspace that already has designs (the migration runs only when the
+ * collection holds none, live or binned), which is exactly why it survived — it runs once, for one
+ * document, on a visit nobody is watching.
+ */
+export const LEGACY_DOC_ID = 'combined-28';
+
+/** A design row read from Firestore, normalised for use in memory.
+ * @typedef {{id: string, name: string, patterns: Record<string, any>, window: any,
+ *            updatedAt: any, updatedBy: string, revision: number|null}} DesignEntry */
+
+/** A design in the Recently-deleted bin.
+ * @typedef {{id: string, name: string, patterns: Record<string, any>, window: any,
+ *            deletedAt: any, deletedBy: string}} BinEntry */
+
+/**
+ * THE 26-LINE RELEASE (v24.47). Designs last saved before this were drawn for the 24-line link;
+ * the owner's decision (3 Oct 2026) is that they go to Recently deleted, where they can still be
+ * restored. The START of the release day, UTC, and deliberately not its end: a design begun on the
+ * new page that day and painted only on lines 1–24 so far would otherwise be binned on its next
+ * open. The cost runs the safe way — a 24-line design saved that day by a not-yet-updated page stays
+ * in the list, where a designer can delete it.
+ */
+export const LINK_26_FROM = Date.UTC(2026, 9, 3);
+
+/** How long the link was before the release — history, not a setting (exported for the copy that names it). */
+export const PREVIOUS_LINK_LENGTH = 24;
+
+/**
+ * Was this live design drawn for the 24-line link? ALL THREE must hold, and each guards the others:
+ *
+ *   · last saved BEFORE the release — so a design anybody has saved since, including one RESTORED
+ *     from the bin (a restore stamps `updatedAt`), is never moved again: restoring is a decision,
+ *     and binning it on the next page open would undo it silently, forever;
+ *   · nothing on the lines past 24 — so a design drawn at the new length on the release day (a
+ *     generated one fills every line) is never mistaken for an old one by the clock alone;
+ *   · something ON the first 24 — so a BLANK design, which says nothing about its link, is left alone.
+ *
+ * A timestamp that has not resolved yet (`null`, the writer's own pending save) is NOT old: when in
+ * doubt, leave the design where it is — the safe direction for a move nobody pressed.
+ *
+ * @param {{ patterns?: Record<string, any>, updatedAt?: any }} entry
+ * @param {number} [lines=ROTATING_LINES]
+ */
+export function isPre26Design(entry, lines = ROTATING_LINES) {
+    const ms = entry?.updatedAt?.toMillis?.();
+    if (typeof ms !== 'number' || !Number.isFinite(ms) || ms >= LINK_26_FROM) return false;
+    const drawn = (/** @type {number} */ pos) => {
+        const row = entry?.patterns?.[String(pos)];
+        return !!row && Object.values(row).some(v => v && v !== 'RD');
+    };
+    for (let pos = PREVIOUS_LINK_LENGTH + 1; pos <= lines; pos++) if (drawn(pos)) return false;
+    // …and something WAS drawn on the old lines. A blank design (New blank design, or one nobody has
+    // painted yet) says nothing about which link it was for — and binning one created on the release
+    // day would take a designer's new design away on their next page open.
+    for (let pos = 1; pos <= PREVIOUS_LINK_LENGTH; pos++) if (drawn(pos)) return true;
+    return false;
+}
+
+/**
+ * Deep-copy a patterns map — one fresh row object per line.
+ *
+ * A shallow copy is not enough: the grid writes `patterns[pos][day]`, so sharing the ROW objects
+ * still lets an edit reach through into whatever the copy was made from.
+ * @param {Record<string, any>|null|undefined} patterns
+ * @returns {Record<string, any>}
+ */
+export function deepCopyPatterns(patterns) {
+    /** @type {Record<string, any>} */
+    const copy = {};
+    for (const [k, v] of Object.entries(patterns || {})) copy[k] = { ...(/** @type {any} */ (v)) };
+    return copy;
+}
+
+/**
+ * A LIVE design read from a Firestore document.
+ * @param {string} id
+ * @param {Record<string, any>} data
+ * @returns {DesignEntry}
+ */
+export function designFromDoc(id, data) {
+    return {
+        id,
+        name:      String(data?.name ?? '').trim(),
+        patterns:  normalisePatterns(data?.patterns || {}),
+        window:    normaliseWindow(data?.window),
+        updatedAt: data?.updatedAt ?? null,
+        updatedBy: data?.updatedBy || '',
+        // The CONCURRENCY IDENTITY (v22.18), carried through so the coordinator can arm its
+        // baseline from a load without a second read. Absent on every design nobody has saved since
+        // — `conflictOf` falls back to the timestamp for those, and `null` is what says so.
+        revision:  typeof data?.revision === 'number' ? data.revision : null,
+    };
+}
+
+/**
+ * A DELETED design read from a Firestore document.
+ *
+ * `deletedAt` is passed through as-is, INCLUDING the null a `serverTimestamp()` reads back as on the
+ * device that just wrote it. `link-designer-deletion.js` depends on that distinction: an unresolved
+ * `deletedAt` counts as deleted (so the design leaves the picker immediately) but never as
+ * purgeable (an age you cannot read is not an age that has expired). Coercing it here would collapse
+ * the two.
+ * @param {string} id
+ * @param {Record<string, any>} data
+ * @returns {BinEntry}
+ */
+export function binEntryFromDoc(id, data) {
+    return {
+        id,
+        name:      String(data?.name ?? '').trim(),
+        patterns:  normalisePatterns(data?.patterns || {}),
+        window:    normaliseWindow(data?.window),
+        deletedAt: data?.deletedAt ?? null,
+        deletedBy: data?.deletedBy || '',
+    };
+}
+
+/**
+ * The Firestore write body for a design.
+ *
+ * `updatedAt` is the CALLER's (a `serverTimestamp()` sentinel, or a preserved value on the legacy
+ * migration) because this module must not import the Firebase SDK — it is the one thing that would
+ * stop it loading in Node, which is the whole point of extracting it.
+ *
+ * `firestore.rules` allows exactly `['name','patterns','updatedAt','updatedBy']` plus the optional
+ * deleted pair, `window`, and the `revision` the store adds — so nothing else may be added here
+ * without the rules moving first, or every save permission-denies.
+ * @param {{name?: string, patterns?: Record<string, any>, window?: any}} design
+ * @param {{updatedBy: string, updatedAt: any}} meta
+ */
+export function docPayload(design, { updatedBy, updatedAt }) {
+    return {
+        name:      design?.name || 'Design 1',
+        patterns:  design?.patterns || {},
+        window:    normaliseWindow(design?.window),
+        updatedAt,
+        updatedBy,
+    };
+}
+
+/**
+ * The live, editable copy of a design — what the grid renders and mutates.
+ *
+ * Carries no `updatedAt`/`updatedBy`: those describe the SAVED document, and holding them on the
+ * working copy is how a sheet ends up printing somebody else's "Last saved by" over your unsaved
+ * edits. The coordinator reads them from the `designs[]` entry instead.
+ * @param {{id: string, name?: string, patterns?: Record<string, any>, window?: any, revision?: number|null}} entry
+ */
+export function workingCopy(entry) {
+    return {
+        id:       entry.id,
+        name:     entry.name ?? '',
+        patterns: deepCopyPatterns(entry.patterns),
+        window:   normaliseWindow(entry.window),
+    };
+}
+
+/**
+ * Move a live entry into the bin. Patterns are carried, not dropped: a restore is then a
+ * field-clearing merge and can never re-upload a stale copy of the design.
+ * @param {{id: string, name?: string, patterns?: Record<string, any>, window?: any, revision?: number|null}} entry
+ * @param {string} deletedBy
+ * @returns {BinEntry}
+ */
+export function binEntryFrom(entry, deletedBy) {
+    return {
+        id:        entry.id,
+        name:      entry.name ?? '',
+        patterns:  entry.patterns || {},
+        window:    normaliseWindow(entry.window),
+        deletedAt: null,
+        deletedBy,
+    };
+}
+
+/**
+ * Move a binned entry back to the live list. THIS is the v19.55 path — the window has to come with
+ * it, or the next save writes the app default over the boundary the design was built to.
+ * @param {BinEntry|{id: string, name?: string, patterns?: Record<string, any>, window?: any, revision?: number|null}} entry
+ * @param {{updatedAt: any, updatedBy: string, revision?: number|null}} meta
+ * @returns {DesignEntry}
+ */
+export function restoredEntryFrom(entry, { updatedAt, updatedBy, revision = null }) {
+    return {
+        id:        entry.id,
+        name:      entry.name ?? '',
+        patterns:  entry.patterns || {},
+        window:    normaliseWindow(entry.window),
+        updatedAt: updatedAt ?? null,
+        updatedBy,
+        // A restore is a WRITE, so the caller passes the revision it committed. Defaulting to null
+        // rather than carrying the bin entry's old one is deliberate: the design has just been
+        // written, and claiming the pre-deletion revision would be a baseline for a version that no
+        // longer exists (v22.18).
+        revision,
+    };
+}
+
+/**
+ * Refresh the live-list entry for the design a save WROTE, from the payload actually written.
+ * Moved out of `link-designer-app.js` (Sep 2026 re-review, against its line ratchet); it mutates the entry.
+ *
+ * UNCONDITIONAL on the saved patterns: they are authoritative whether or not the server
+ * timestamp came back. This used to sit inside the read-back's try, so a failed read left the
+ * entry holding STALE patterns while `design.patterns` held the new ones — switching away and
+ * back then reverted the grid to the pre-save state (v16.19). The WINDOW and the REVISION were
+ * still left behind until the Sep 2026 review: switching back rebuilt the working copy on the
+ * old window, which the next save wrote over the saved one, and on the old revision, which
+ * prompted "someone else saved" about your own save.
+ *
+ * THE SAVE'S TIME, FOR DISPLAY, IS A SEPARATE FIELD FROM THE SERVER STAMP (Sep 2026 polish).
+ * `updatedAt` is the server's stamp and is also read as a concurrency BASELINE (the rename path
+ * compares its millis), so it only ever takes a value the server returned — a local clock there
+ * would weaken, or falsely trip, the conflict guard. But a save whose read-back failed, and every
+ * QUEUED (offline) save, returns no stamp, and the masthead — which read `updatedAt` — went on
+ * saying "Saved 24 Jun at 16:40" beside a save row saying "Last saved … at 09:00". So a stampless
+ * save records `savedAt`, this device's time, which the DISPLAY reads (`lastSaveTime` in
+ * link-designer-design-header.js) — and `baselineFromEntry`, only to know there WAS an unconfirmed save, so
+ * the baseline reads unknown; it never compares its value. A stamped save clears it so the server's
+ * time is the one shown whenever there is one. It never reaches Firestore: `docPayload` names its keys.
+ * @param {{patterns?: any, window?: any, updatedBy?: string, updatedAt?: any, savedAt?: Date, revision?: number|null}|null|undefined} entry
+ * @param {{patterns: Record<string, any>, window: any}|null} written  the payload that went
+ * @param {string} by  whoever saved
+ * @param {any} updatedAt  the server stamp, or null (a queued write has none yet)
+ * @param {number|null} revision
+ * @param {Date} [savedAt]  when this device saw the save land — display only, injected for tests
+ */
+export function recordSave(entry, written, by, updatedAt, revision, savedAt = new Date()) {
+    if (!entry || !written) return;
+    entry.patterns  = written.patterns;
+    entry.window    = written.window;
+    entry.updatedBy = by;
+    if (updatedAt) { entry.updatedAt = updatedAt; delete entry.savedAt; }
+    else entry.savedAt = savedAt;
+    entry.revision  = revision;
+}
+
+/**
+ * "Last saved by …" for the sticky save row (v21.08).
+ *
+ * It used to print the TIME alone — "Last saved by G. Miller at 15:06" — which is right for the
+ * common case and quietly wrong for the one that matters: a design last touched three days ago says
+ * "at 15:06" and reads as today. The line exists so you can tell a design you have just been
+ * working on from one you opened out of the list, and without a date it cannot. The print header
+ * has always carried the full date; this is the same fact, on screen.
+ *
+ * TODAY is stated as a time, because that is what "today" means to somebody reading it — adding
+ * today's date to every save would be noise on every save. Anything older gains the day and month,
+ * and a different year gains the year, since a design proposed for December 2026 may well be read
+ * the following spring.
+ *
+ * @param {string|null|undefined} updatedBy
+ * @param {Date|null|undefined} when   the save time, or null if unknown
+ * @param {Date} [now]                 injected so the today/not-today boundary is testable
+ * @returns {string} the label, or '' when there is nothing to say
+ */
+export function lastSavedLabel(updatedBy, when, now = new Date()) {
+    if (!updatedBy) return '';
+    if (!when || Number.isNaN(when.getTime())) return `Last saved by ${updatedBy}`;
+    const sameDay = when.getFullYear() === now.getFullYear()
+        && when.getMonth() === now.getMonth()
+        && when.getDate() === now.getDate();
+    const time = formatClock(when);
+    if (sameDay) return `Last saved by ${updatedBy} at ${time}`;
+    const date = when.getFullYear() === now.getFullYear() ? formatDayMonth(when) : formatDayMonthYear(when);
+    return `Last saved by ${updatedBy} · ${date} at ${time}`;
+}

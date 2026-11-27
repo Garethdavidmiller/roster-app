@@ -63,7 +63,7 @@
 // Familiar Nine (F9-24-K31) is table K: HI=540 TODAY=1 NEWPEN=2, the office kept off the floor as for Right Away —
 // The links-24 README → "Familiar Nine" has the commands (`git show 924b9dbc:docs/links-24/README.md`).
 import { writeFileSync } from 'node:fs';
-import { DEC_2026_DEMAND } from '../../../links-demand.js';
+import { DEC_2026_DEMAND } from '../../../link-designer-demand.js';
 import { today, assess } from './report-data.mjs';
 import { HEADS, CONTRACT_MINUTES } from './link.mjs';
 

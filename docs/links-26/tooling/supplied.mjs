@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { assess, today, demand, startMinutes, endMinutes, weekdayFit, weekdayFloorFit } from './report-data.mjs';
 import { renderPdf } from './render.mjs';
-import { DAYS, calcHourlyCoverage } from '../../../links-design.js';
+import { DAYS, calcHourlyCoverage } from '../../../link-designer-design.js';
 import { LINES, COVER_WEEKS, WORKING_LINES } from './link.mjs';
 
 const [file, NAME, STRAP, CODE] = process.argv.slice(2);
@@ -89,7 +89,7 @@ const rules = [
         note: ok ? 'one short open turn, then every other early longer than every late' : 'the longest late is longer than the longest early' }; })(),
 ];
 
-const dm = (await import('../../../links-design.js')).dutyMinutes;
+const dm = (await import('../../../link-designer-design.js')).dutyMinutes;
 const dayMin = d => Object.values(P.patterns).reduce((a,r)=> a + (r[d]==='RD'||r[d]==='SPARE' ? 0 : dm(r[d])), 0);
 const WK = ['mon','tue','wed','thu','fri'].map(dayMin), SAT = dayMin('sat');
 const monSat = WK.reduce((a,b)=>a+b,0) + SAT;
@@ -119,7 +119,7 @@ const meta = {
   denseDuty: true,
   sub1: `A ${LINES}-line link supplied as a Word table and assessed here — weekday lates at 16:25, Saturdays left as they are, and every turn a time people already work`,
   coverNote: `gaps of ${P.adj.spareGaps.join(', ')} around the wheel — today's sit at 1, 7, 12, 17`,
-  intro2: `<p>It was not drawn by this app. It arrived as a Word table — a proposal from outside the workspace — and was read straight into the app's own shape, then judged by the same modules that judge a design the workspace generated itself: <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span> and <span class="tt">calcHourlyCoverage</span>. There is no search behind it and nothing to reproduce; what can be checked is every figure on these pages, each computed from the cells on page 8. Paste those cells into Links &rarr; Import and the workspace restates all of it.</p>`,
+  intro2: `<p>It was not drawn by this app. It arrived as a Word table — a proposal from outside the workspace — and was read straight into the app's own shape, then judged by the same modules that judge a design the workspace generated itself: <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span> and <span class="tt">calcHourlyCoverage</span>. There is no search behind it and nothing to reproduce; what can be checked is every figure on these pages, each computed from the cells on page 8. Paste those cells into Link Designer &rarr; Import and the workspace restates all of it.</p>`,
   eyebrow3: 'A supplied design, assessed',
   h3: 'Same feel, more people',
   sub3: 'What this design keeps of today, and where the December 2026 headcounts differ',

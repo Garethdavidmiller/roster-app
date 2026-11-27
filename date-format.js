@@ -3,7 +3,7 @@
  * date-format.js — ONE spelling of a date, everywhere the app writes one in words.
  *
  * Pure, and imports NOTHING — so any module can take a date vocabulary without taking the roster
- * with it. `paycalc-format.js`, `operations-reports.js` and `links-design-doc.js` were all
+ * with it. `paycalc-format.js`, `operations-reports.js` and `link-designer-design-doc.js` were all
  * roster-free before this, and five paycalc suites mock `roster-data.js` by name.
  *
  * ── WHY THIS IS ITS OWN MODULE (v24.06) ────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@
  * It had already been found twice and fixed twice LOCALLY: Team View built the string from
  * MONTH_ABB by hand (v22.86), Overtime formatted through ICU and then trimmed the result with
  * `.replace(/\bSept\b/, 'Sep')` (in two places). That left three strategies for one question, and
- * the Links print header, the Pay Calculator, Settings and the Operations error log still on
+ * the Link Designer print header, the Pay Calculator, Settings and the Operations error log still on
  * ICU's. These composers are the fourth strategy replacing all of them, and
  * `month-vocabulary-parity.test.mjs` fails on a fifth.
  *
@@ -127,7 +127,7 @@ export const formatWeekdayDate = (d, withYear = false) => (usable(d)
 /**
  * "Printed Fri 18 September 2026 · 14:23" — the provenance line every printable surface closes on.
  *
- * ONE SHAPE ACROSS FIVE SURFACES (v24.06). The Calendar, Team View, Overtime, Links and the Pay
+ * ONE SHAPE ACROSS FIVE SURFACES (v24.06). The Calendar, Team View, Overtime, Link Designer and the Pay
  * Calculator all print a "when", and each said it differently: a long month with "at" before the
  * time, a bare date with no time at all, and a weekday-led stamp with one. The print review listed four
  * of the five and called unifying them tidiness; the argument for it is stronger than that, and it

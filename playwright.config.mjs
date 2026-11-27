@@ -73,7 +73,7 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     // EVERY TEST IS ITS OWN GROUP (12 Nov 2026), so CI can shard each project and the Hosting deploy's
     // gate stops being the longest wait in a release. Playwright shards by test GROUP, and with this off
-    // a group is a whole FILE: links.spec.js or operations.spec.js would hold one shard for its full
+    // a group is a whole FILE: link-designer.spec.js or operations.spec.js would hold one shard for its full
     // serial time however many shards there were. playwright.webkit.mjs has run the same specs this
     // way since v22.23, which is the evidence it is safe — no spec here uses `beforeAll`, `afterAll`,
     // `describe.serial` or module-level mutable state. Set here, not as a CI flag, so a local run

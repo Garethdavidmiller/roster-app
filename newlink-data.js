@@ -7,7 +7,7 @@
  * one-page sheet, from the same module (what-it-means-data.mjs), and every sentence asserted against them when this was
  * written. newlink-data.test.mjs fails when this file is not what the generator would write now.
  *
- * The 26 weeks themselves are not here: the page draws them from links-proposals.js. Nor is a recommendation: the page shows
+ * The 26 weeks themselves are not here: the page draws them from link-designer-proposals.js. Nor is a recommendation: the page shows
  * the three evenly, A to Z.
  *
  * PUBLIC, like every file in this repository: it holds the proposals' published figures and nothing about any person.

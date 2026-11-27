@@ -48,7 +48,7 @@ import { markLoginStart, clearLoginStart, markAwaitingInput } from './perf-repor
 import { setStatus, speakAfterMount } from './status-text.js';
 import { mirrorCardLine } from './mirror-move.js';
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
-// (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
+// (admin-only Operations, designer-only Link Designer) is enforced by the caller after sign-in, not here.
 /** What the card says once a sign-in has been out for 8 seconds (owner's wording, 24 Nov 2026): slow, not
  *  failed — the attempt runs on to its answer or to `SIGN_IN_GIVE_UP_MS` (login-core.js). */
 export const SIGN_IN_SLOW_LINE = 'Sign-in is taking longer than usual…';
@@ -230,7 +230,7 @@ function fillAbout(overlay, about) {
  * @param {LoginAbout|null} [opts.about]  What the page IS, under the subtitle, with an optional link
  *   to its guide and a footnote at the foot (see `LoginAbout`). It also describes the dialog, so a
  *   screen reader announces it with the card. Absent, the page's entry in login-core.js's
- *   `signInAboutFor` is used (Settings, Operations, Links); with neither, nothing renders.
+ *   `signInAboutFor` is used (Settings, Operations, Link Designer); with neither, nothing renders.
  * @returns {void}
  */
 export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, showBackLink = true, notice = '', presetName = '', about: pageAbout = null }) {

@@ -11,7 +11,7 @@
 //   a cover week's four duties not counted in the run 1   the cause: spacing pushes each full weekend up against a cover
 //   cover-week worst case allowed to reach 7 · 8      3 · 1   week, and the run rule then leaves a lone rest day beside it
 //
-// THE RULES IT CARRIES, each learned from a rota that failed on exactly it (links-fatigue.js is the authority):
+// THE RULES IT CARRIES, each learned from a rota that failed on exactly it (link-designer-fatigue.js is the authority):
 //   · rows of 4 or 5 duties; 7 full weekends never more than GAP apart; no run over MAXRUN with a cover week's four duties
 //     placed as badly as they can be (COVER_RUN);
 //   · a rest day at every change of family between consecutive lines — late into early is a turnaround (23:55 → 06:20),

@@ -942,7 +942,7 @@
     .bp-mode-opt:has(input:focus-visible), .hpp-mode-opt:has(input:focus-visible) {
       outline: var(--focus-outline); outline-offset: 2px;
     }
-    /* The ring is on the ROW (above); the box's own is suppressed — see .gen-obj in links.css. */
+    /* The ring is on the ROW (above); the box's own is suppressed — see .gen-obj in link-designer.css. */
     .bp-mode-opt input[type="radio"]:focus-visible, .hpp-mode-opt input[type="radio"]:focus-visible { outline: none; box-shadow: none; }
     /* Manual entry is disabled while the paid-in payslip is still in the future — there is no printed
        figure to copy until it exists. calcBackPay owns the state. */
@@ -1821,7 +1821,7 @@
     border-radius: var(--radius-field);
     padding: 8px 12px;
     margin-bottom: 12px;
-    resize: none;            /* see .li-paste in links.css for the reasoning */
+    resize: none;            /* see .li-paste in link-designer.css for the reasoning */
     field-sizing: content;
     min-height: 3lh;
     max-height: 40vh;
@@ -1837,7 +1837,7 @@
    long blob into — the worst place to have the viewport jump. 12px is deliberate on
    desktop (it fits more of the backup on screen), so the bump is scoped to coarse pointers, and
    declared straight after the base rule on purpose: before it, at equal specificity, it would
-   silently lose (as links.css's once did). The cross-page scan in e2e/pages.spec.js measures it. */
+   silently lose (as link-designer.css's once did). The cross-page scan in e2e/pages.spec.js measures it. */
 @media (pointer: coarse) {
     .pt-paste { font-size: var(--type-medium); }
 }

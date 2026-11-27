@@ -11,7 +11,7 @@
  * fault "in web app support code outside WebKit", tracked by Apple internally; it is not fixed in
  * 27.0.1 and there is no page-side workaround. This app has FIVE print controls — the Calendar's
  * About panel and its `p` key, the five guides' ⤓ PDF buttons (and the FIP guide's per-country
- * ones), and the Links print — and every one of them was a dead button on an installed iPhone.
+ * ones), and the Link Designer print — and every one of them was a dead button on an installed iPhone.
  *
  * ── THE RULE ────────────────────────────────────────────────────────────────────────────────────
  *

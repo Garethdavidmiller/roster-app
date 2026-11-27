@@ -18,14 +18,14 @@
 //
 // So a single number was answering a question nobody asked. A sheet that prints only the ceiling
 // flags designs that are clear as rostered; one that prints only the block reading is the
-// false-assurance failure `links-fatigue.js` names as its dominant risk. Both, labelled, is the
+// false-assurance failure `link-designer-fatigue.js` names as its dominant risk. Both, labelled, is the
 // only honest shape — and the GAP between them is itself the finding, because it says how much of
 // a design's fatigue exposure is a property of the link and how much is a question for the roster
 // office.
 //
 // ── WHAT "AS ROSTERED" MEANS HERE ───────────────────────────────────────────────────────────────
 // The four duties worked as one consecutive block, on Monday to Saturday — the contracted days, and
-// the only days the four can be (owner, 31 Oct 2026; `spareDrawsOnFour` in links-design.js). That is
+// the only days the four can be (owner, 31 Oct 2026; `spareDrawsOnFour` in link-designer-design.js). That is
 // three placements (the block starting Mon, Tue or Wed). The Sunday is not one of the four, but it
 // can be worked on top as overtime, so each cover week has six arrangements and a rotation with k
 // cover weeks has 6^k. This returns the WORST of them — still a ceiling, but the worst ceiling
@@ -51,9 +51,9 @@
 // question, so a row could not go quiet on the cover week — which the scanners could not tell from a
 // real duty. That let a cover week alone make a run, and once its Sunday could be worked that run
 // was five early starts, over FF15's four, on designs whose early starts never run past four.
-import { DAYS, SPARE_WORKED_DAYS, spareDrawsOnFour, runLengthsWhere, worstCaseWorkedRun, dutyMinutes } from '../../../links-design.js';
+import { DAYS, SPARE_WORKED_DAYS, spareDrawsOnFour, runLengthsWhere, worstCaseWorkedRun, dutyMinutes } from '../../../link-designer-design.js';
 import { LINES } from './link.mjs';   // 26 lines: the app's ROTATING_LINES is still 24
-import { longestRunBetween48hBreaks, isEarlyStart, toSequence } from '../../../links-fatigue.js';
+import { longestRunBetween48hBreaks, isEarlyStart, toSequence } from '../../../link-designer-fatigue.js';
 
 /** The days of a week, by index, that can hold one of a cover week's four duties: Monday to Saturday. */
 const FOUR_DAYS = DAYS.map((_, i) => i).filter(spareDrawsOnFour);

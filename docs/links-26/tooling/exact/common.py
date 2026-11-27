@@ -20,7 +20,7 @@ def times_of(p): return {p[k][d] for k in p for d in DAYS if p[k][d] not in ('RD
 def spare_lines(p): return {int(k) for k in p if all(p[k][d] == 'SPARE' for d in DAYS)}
 OPEN = {'wk': 380, 'sat': 380, 'sun': 435}; CLOSE = {'wk': 1435, 'sat': 1435, 'sun': 1405}
 def cls(d): return 'sun' if d == 'sun' else 'sat' if d == 'sat' else 'wk'
-EARLY = lambda v: 300 <= st(v) < 420           # links-fatigue.js isEarlyStart: 05:00-07:00
+EARLY = lambda v: 300 <= st(v) < 420           # link-designer-fatigue.js isEarlyStart: 05:00-07:00
 # the plan's ticket office (report-data.mjs OFFICE.plan): Mon-Fri and Saturday are fixed pairs; Sunday is any two
 # identical 07:15 earlies and two identical lates to 22:30 (rosteredPairs)
 PAIRS_FIXED = {'wk': ('06:20-14:20', '14:00-22:30'), 'sat': ('06:20-14:50', '14:30-22:30')}   # Saturday's late to 22:30 since 6 Nov 2026

@@ -103,6 +103,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { REDIRECT_PAGES } from '../scripts/app-pages.mjs';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -361,7 +362,7 @@ test('every textarea the app ships has a `resize: none` rule that reaches it', (
         || h.classes.some(c => new RegExp(`\\.${c}(?![\\w-])`).test(sel)));
     assert.ok(handles.length >= 1, 'no textarea found — the markup scan is wrong');   // three on 7 Nov 2026
     assert.deepEqual(handles.filter(h => !reaches(h)).map(h => h.where), [],
-        'these textareas keep the OS resize grip: give each a `resize: none` rule (see .li-paste in links.css)');
+        'these textareas keep the OS resize grip: give each a `resize: none` rule (see .li-paste in link-designer.css)');
 });
 
 // ── 6. no time input ────────────────────────────────────────────────────────────────────────────
@@ -515,9 +516,10 @@ test('::selection, ::placeholder and caret-color are declared for the app AND th
 
 // ── 12. no dictionary underlines on data ────────────────────────────────────────────────────────
 test('every served page turns spellcheck off at the body', () => {
-    // The two legacy redirect stubs (v22.48) carry no fields at all — they are a <meta refresh>
-    // and a link. page-contract-parity gives them their own contract for the same reason.
-    const LEGACY = ['guide.html', 'fip.html'];
+    // The legacy redirect stubs (v22.48; the Link Designer's old address since v27.09) carry no
+    // fields at all — they are a <meta refresh> and a link. page-contract-parity gives them their own
+    // contract for the same reason, and the list is REDIRECT_PAGES's, never a copy.
+    const LEGACY = REDIRECT_PAGES.map(p => p.file);
     const offenders = [];
     for (const f of HTML) {
         if (LEGACY.includes(f)) continue;

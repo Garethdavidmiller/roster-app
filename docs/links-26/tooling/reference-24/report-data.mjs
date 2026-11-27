@@ -7,11 +7,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { asRosteredRuns, materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs';
-import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../../links-design.js';
-import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../../links-fatigue.js';
-import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../../links-limits.js';
-import { scoreOrder, reorderLines, applyOrder, OBJECTIVES } from '../../../../links-adjacency.js';
-import { DEC_2026_DEMAND, demandBucket, peakCars, movementsOutside, DEC_2026_MOVEMENTS } from '../../../../links-demand.js';
+import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../../link-designer-design.js';
+import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../../link-designer-fatigue.js';
+import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../../link-designer-limits.js';
+import { scoreOrder, reorderLines, applyOrder, OBJECTIVES } from '../../../../link-designer-adjacency.js';
+import { DEC_2026_DEMAND, demandBucket, peakCars, movementsOutside, DEC_2026_MOVEMENTS } from '../../../../link-designer-demand.js';
 import { weeklyRoster } from '../../../../roster-cycle-data.js';
 
 // Early / late for the one-turn and mixing counts. The managers' edition splits at 11:00, as every sheet defines an

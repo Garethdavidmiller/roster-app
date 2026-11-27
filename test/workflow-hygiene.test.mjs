@@ -920,7 +920,7 @@ describe('a few Safari tests gate the Hosting release', () => {
         // The iPhone project runs every spec whose name does not start with "links" (playwright.webkit.mjs).
         assert.match(readFileSync('playwright.webkit.mjs', 'utf8'), /name: 'mobile-safari', testMatch: NOT_LINKS_SPECS\b/,
             'the mobile-safari project no longer selects its specs by NOT_LINKS_SPECS, so check it still runs ' + SPEC);
-        assert.ok(!/^links/.test(SPEC.split('/').pop() ?? ''), `${SPEC} would fall to the Links projects, and the gate's step would find no tests`);
+        assert.ok(!/^links/.test(SPEC.split('/').pop() ?? ''), `${SPEC} would fall to the Link Designer projects, and the gate's step would find no tests`);
     });
 
     test('and WebKit runs in no other gate job', () => {
@@ -1161,7 +1161,7 @@ describe('no workflow grants id-token at the workflow level', () => {
 // ── THE WEBKIT LANE RUNS EVERY PROJECT, AND EVERY SHARD OF EACH (3 Nov 2026) ─────────────────────
 //
 // The webkit job lists its jobs one by one, each project cut its own number of ways — since 12 Nov
-// 2026 each device is two projects, the Links specs apart (e2e.yml says why). So the hazard the
+// 2026 each device is two projects, the Link Designer specs apart (e2e.yml says why). So the hazard the
 // Chromium guard above names has a second form here, a shard left out of the list. List shards 1
 // and 3 of 3 and a third of the iPhone tests never run, while both jobs go green; leave a project
 // out and none of its tests run at all. The list is held to playwright.webkit.mjs's projects, and
@@ -2321,7 +2321,7 @@ describe('the smoke config retries in CI and nowhere else', () => {
     // the setting cites `playwright.webkit.mjs` as precedent and QUOTES the expression, so the
     // regex matched prose about the rule while the rule itself said `retries: 0`. Reverting the
     // line left this suite green — a guard satisfied by its own justification. Same stripping, and
-    // same reason, as card-header-parity and links-rotation-parity.
+    // same reason, as card-header-parity and link-designer-rotation-parity.
     const code = cfg.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
     test('one retry under CI', () => {

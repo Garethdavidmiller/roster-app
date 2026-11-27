@@ -17,7 +17,7 @@ import {
     renderPersonas, renderPersonaChips, renderWeeks, renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, fileRow, figuresKey,
     statusPhase, statusHint, glanceFile, personaStatus, weeksStatus, weeksTitle, aToZ,
 } from '../newlink-render.js';
-import { PROPOSALS } from '../links-proposals.js';
+import { PROPOSALS } from '../link-designer-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from '../newlink-data.js';
 import { HAVE_YOUR_SAY, CONTACT } from '../newlink-config.js';
 
@@ -153,7 +153,7 @@ test('NOT YOUR ROSTER: each proposal\'s weeks are flagged, numbered 1 to 26, and
 });
 
 // A COVER WEEK IS SPARE MONDAY TO SATURDAY; ITS SUNDAY IS NOT ASKED ABOUT (25 Nov 2026). This page counted one only when all
-// SEVEN days were SPARE, while `isCoverWeek` (links-design.js) — the hours, the contracted-days ceiling, the spare spread —
+// SEVEN days were SPARE, while `isCoverWeek` (link-designer-design.js) — the hours, the contracted-days ceiling, the spare spread —
 // ignores Sunday on purpose. So a cover week written with a rest-day Sunday was drawn as six loose "Cover" cells and left
 // out of the count at the top of the page. The shortlist writes every cover Sunday SPARE, so it is rewritten here.
 test('a cover week with a rest-day Sunday is drawn as a cover week, and counted', () => {

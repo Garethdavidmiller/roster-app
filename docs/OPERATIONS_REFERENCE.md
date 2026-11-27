@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v27.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.10 · Updated every 0.10 version*
 
 How the app is run day to day: the steps and facts an operator or an editor needs. Referenced from
 `CLAUDE.md`. What changed at which version is in git, not here.
@@ -768,7 +768,7 @@ stands down. The root `.nojekyll` file is what the branch build needs, so it sta
 For somebody who needs the roster but has none of their own and no manager rights (owner, 23 Nov 2026).
 They sign in under their own name and see everyone's roster read-only, Trains, and the Huddle, Circular
 and Newsletter, plus their own Settings (password, notifications). No Admin, Pay Calculator, Overtime,
-Links or New link: the drawer hides those pills, and Admin and the Pay Calculator each show a card saying
+Link Designer or New link: the drawer hides those pills, and Admin and the Pay Calculator each show a card saying
 why if reached another way (owner, 24 Nov 2026).
 
 1. **One row** in `teamMembers` (`roster-member-data.js`), in the shape at the foot of the array:
@@ -855,7 +855,7 @@ an account list the server could not see, an unreadable answer) is not a pass �
   session, removes a disabled account's push records and enables it, and stamps the claims last. Tell
   the member their password is their surname. The card names who a run will reset before you press it
   (the audit's *no permissions* and *account disabled* reasons).
-- **"Access reduced and signed out of every device"** — anyone a run took admin, manager or Links
+- **"Access reduced and signed out of every device"** — anyone a run took admin, manager or Link Designer
   designer from (`demoted`); their sessions are revoked at once, their password untouched.
 - **Failures:** `reclaim-failed` or `re-enable-failed` (the latter stays disabled), `lookup-failed` or
   `stamp-failed` — nothing was done or no claims stamped for that name. Run Set up accounts again.
@@ -1396,7 +1396,7 @@ instead.
 `rosterChanges` entry**, in one release:
 
 1. **The table.** Add the chosen design's weeks to `roster-cycle-data.js` as a NEW export, copied cell for
-   cell from `links-proposals.js`. Add it to `validateRosterPatterns`' default list (`roster-data.js`), or
+   cell from `link-designer-proposals.js`. Add it to `validateRosterPatterns`' default list (`roster-data.js`), or
    nothing checks it; every cell must pass (RD, OFF, SPARE, a real `HH:MM-HH:MM` whose ends differ, or a
    bare Other flavour Monday to Saturday). Classify it in `public-data-classification.test.mjs` (a shift
    pattern, public).
@@ -1413,8 +1413,8 @@ instead.
    With the reference Sunday set to the start Sunday, `currentWeek` is simply their starting line (it is
    REFERENCE-ANCHORED: `.claude/rules/roster-data.md`). Leave each member's base fields and `weeklyRoster`
    untouched: they draw every date before the start.
-5. **What reads the main link by name:** the Links workspace seeds from `weeklyRoster` (`links-seed.js`,
-   `links-app.js`). Decide whether it should seed from the new table; leave `weeklyRoster` in place either
+5. **What reads the main link by name:** the Link Designer seeds from `weeklyRoster` (`link-designer-seed.js`,
+   `link-designer-app.js`). Decide whether it should seed from the new table; leave `weeklyRoster` in place either
    way.
 6. **Before releasing:** check every member's base shift on every date before the start Sunday is
    unchanged (snapshot and compare), that each mover's first week reads their line, and that the new type
@@ -1422,10 +1422,10 @@ instead.
    the suite must pass. No `npm run generate:roster-members`: the server copy carries no `rosterChanges`
    and no pattern.
 
-### Keep only the shortlist (Links)
+### Keep only the shortlist (Link Designer)
 
-A one-off for the admin, in the Links workspace's ··· menu: **Keep only the shortlist** moves every design
+A one-off for the admin, in the Link Designer's ··· menu: **Keep only the shortlist** moves every design
 last saved before 2 Nov 2026 to Recently deleted, so the picker offers the three built-in, read-only
 proposals. The dialog lists each design and who last saved it before anything moves. To undo one, restore
 it from Recently deleted (a restored design carries a new save time, so it is never offered again). The
-row disappears once nothing older is left. Why it is a press and not automatic: `links-shortlist.js`.
+row disappears once nothing older is left. Why it is a press and not automatic: `link-designer-shortlist.js`.

@@ -125,7 +125,7 @@ function _showUnsupportedRole(member) {
 }
 
 export function init() {
-    registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Links: a signed-out view must still take an update
+    registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Link Designer: a signed-out view must still take an update
     // Tear down a lingering privileged Firebase identity whose local session has expired — BEFORE the
     // session guard's early return, as the expired path is exactly where one lingers. Fire-and-forget
     // and login-safe: a no-op on a valid session, and it stands down if a sign-in supersedes it.

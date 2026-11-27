@@ -35,7 +35,7 @@
  * design and this module owns only the popup — the part that was never ours before.
  *
  * TWO ENTRY POINTS, ONE SHEET (v23.38): `enhanceSelect` for a control backed by a real
- * `<select>`, `openOptionSheet` for a caller that holds the value itself — the Links grid's
+ * `<select>`, `openOptionSheet` for a caller that holds the value itself — the Link Designer grid's
  * cell editor, whose control is a grid cell. The second is the first's own popup, lifted out
  * rather than copied, so there is still exactly one dropdown in this app.
  *
@@ -44,7 +44,7 @@
  * reasons — including why it is deliberately not `guide-search.js`, and why it never takes focus —
  * are in the block above `SEARCH_FROM`, beside the code.
  *
- * `createLightbox` is INJECTED rather than imported, for the reason links-design-header.js
+ * `createLightbox` is INJECTED rather than imported, for the reason link-designer-design-header.js
  * injects it: `overlay.js` touches `window` at import, and a module that cannot load in Node
  * cannot have its readers unit-tested. The first caller to supply it wins and it is remembered,
  * so the second and third enhanced select on a page need not repeat themselves.
@@ -136,7 +136,7 @@ export function widestOptionLabel(select, placeholder = 'Choose…') {
     return widest || placeholder;
 }
 
-/** Build one option row. Mirrors the Links picker's rows so the two read as one control. */
+/** Build one option row. Mirrors the Link Designer picker's rows so the two read as one control. */
 function optionRow(/** @type {SheetOption} */ o, /** @type {boolean} */ current) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -213,7 +213,7 @@ export function shouldOfferSearch(count) { return count >= SEARCH_FROM; }
  * fires on a recognised opener, because inventing a name is worse than repeating one.
  *
  * AND ONLY A NOUN IS WELDED ON (whole-app check, Nov 2026). The titles the app really passes are
- * mostly QUESTIONS, and "Search whose roster are you reading?" is the same defect again; the Links
+ * mostly QUESTIONS, and "Search whose roster are you reading?" is the same defect again; the Link Designer
  * cell editor's "Line 3 · Mon" is no better. A title that is not plain words has no noun to keep, so
  * its box is called "Search" — and a caller that can say what the list holds passes `searchLabel`
  * ("Search pay periods") to `enhanceSelect`, `openOptionSheet` or an `initSelectSheets` spec.
@@ -476,7 +476,7 @@ export function enhanceSelect(select, opts = {}) {
 /**
  * Open the shared sheet over an arbitrary set of options and report the pick.
  *
- * Exported (v23.38) for the caller that has NO persistent `<select>` to enhance — the Links
+ * Exported (v23.38) for the caller that has NO persistent `<select>` to enhance — the Link Designer
  * grid's cell editor, where the control is a grid cell and the old dropdown was created,
  * focused and destroyed per edit. `enhanceSelect` is the case where a select exists and holds
  * the value; this is the case where the caller holds it. Both draw the same sheet, which is the
@@ -485,7 +485,7 @@ export function enhanceSelect(select, opts = {}) {
  *
  * `onPick` fires once the sheet's close has LANDED — the fade finished and the popstate echo of
  * its `history.back()` arrived — for the reason every sheet action in this app waits: a dialog
- * opened from the callback before that echo would race the traversal and pop itself (the Links
+ * opened from the callback before that echo would race the traversal and pop itself (the Link Designer
  * grid editor opens `promptDialog` from exactly this callback). Until v23.61 that wait was a fixed
  * 320 ms timer, 120 ms past a 200 ms fade and no guarantee of the echo at all; it is now
  * `createLightbox`'s own `close()` promise, so under reduced motion it is a frame rather than a

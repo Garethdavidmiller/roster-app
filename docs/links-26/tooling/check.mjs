@@ -13,7 +13,7 @@
 //    rule that stays green when its condition is broken is documented, not checked (CLAUDE.md → "the rule tested,
 //    the wiring not").
 import { readFileSync } from 'node:fs';
-import { DAYS } from '../../../links-design.js';
+import { DAYS } from '../../../link-designer-design.js';
 import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, COVER_LINES, HEADS, daysAYear, coverSpread, monSatMinutes } from './link.mjs';
 import { assess, today, sheetRules, flexibleRules } from './report-data.mjs';
 
@@ -62,7 +62,7 @@ ok(!ceilOf(TA), "today's 20-line link is measured, not held to the ceiling");
 { const q = clone(p); const k = keys.find(k => !own.cover.includes(+k) && q[k].wed === 'RD'); q[k].wed = '07:00-15:30';
   const B = assess(q, LINES);
   ok(ceilOf(B)?.status === 'over' && B.hard.checks.some(c => c.status === 'over'), `one extra duty (line ${k} Wednesday): ${daysAYear(q).toFixed(1)} days, ceiling ${ceilOf(B)?.status} — counted as a hard-limit breach`);
-  // the result stays one shape: its breach count is the number of failed checks, as the app's own Links page reads it
+  // the result stays one shape: its breach count is the number of failed checks, as the app's own Link Designer page reads it
   ok(B.hard.breaches === B.hard.checks.filter(c => c.status === 'breach' || c.status === 'over').length, `breach count ${B.hard.breaches} matches the failed checks`); }
 // 3d · one more duty with the contract still exact (34 other duties 15 minutes shorter): over the ceiling all the same
 { const q = clone(p); const k = keys.find(k => !own.cover.includes(+k) && q[k].wed === 'RD'); q[k].wed = '07:00-15:30';

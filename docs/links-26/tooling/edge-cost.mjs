@@ -15,7 +15,7 @@
 import { TC, C, BV, LC, MG, H, first, mins, perYear, claim } from './what-it-means-data.mjs';
 import { h55Worst, assess } from './report-data.mjs';
 import { leaveRuns } from './leave.mjs';
-import { DAYS as GRID_DAYS } from '../../../links-design.js';
+import { DAYS as GRID_DAYS } from '../../../link-designer-design.js';
 
 /** The margin, named once: the page states it beside the points (newlink-data.mjs → DIFFER_RULE), so it cannot name another. */
 export const MARGIN = 0.05;
@@ -36,7 +36,7 @@ for (const c of [TC, ...C]) {
   const w = h55Worst(c.p, L); c.most7 = w.hiMin; c.most7Long = w.hi35Min; c.set7 = w.tableMin;
   c.longAny = Math.round(perYear(c.p, s => mins(s) > 510));                       // shifts over 8h 30m on any day, Sunday included
   c.oneYear = Math.round(first(c.f.oneTurn) * 52 / L);                            // weeks on one shift time a year, as the shortlist's page 2
-  c.assessed = assess(c.p, L);                                                    // the Links workspace's own reading of the rotation
+  c.assessed = assess(c.p, L);                                                    // the Link Designer's own reading of the rotation
   c.mixed = c.assessed.feel.hybrid;                                               // weeks mixing earlies and lates, in the rotation
   // the rostered Sundays inside the best stretch: leave.mjs's runs, the fewest over the first days that reach the best. Counted
   // HERE since 22 Nov 2026 (it was glance-sheet.mjs's), because the page's Balanced V6 edge `fewestSundaysLost` needs it

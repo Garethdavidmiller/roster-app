@@ -38,7 +38,7 @@ function reach(entry) {
 }
 
 /** The proposals, and everything that exists only to show them. */
-const PROPOSAL_MODULES = ['links-proposals.js', 'newlink-data.js', 'newlink-render.js', 'newlink-config.js', 'newlink-app.js'];
+const PROPOSAL_MODULES = ['link-designer-proposals.js', 'newlink-data.js', 'newlink-render.js', 'newlink-config.js', 'newlink-app.js'];
 
 /** Each roster page, and the surfaces in it a member reads as their own roster — named so the walk is checked to cover them. */
 const ROSTER_PAGES = {
@@ -63,7 +63,7 @@ for (const [page, surfaces] of Object.entries(ROSTER_PAGES)) {
 
 test('the page\'s own modules are loaded by the page alone', () => {
     // A module beside the coordinator that something else starts importing is the first step of the leak above, taken
-    // somewhere this file does not walk. links-proposals.js is the Links workspace's too, which is where it began.
+    // somewhere this file does not walk. link-designer-proposals.js is the Link Designer's too, which is where it began.
     const own = ['newlink-data.js', 'newlink-render.js', 'newlink-config.js', 'newlink-app.js'];
     const importers = /** @type {Record<string, string[]>} */ ({});
     for (const f of readFileSync(new URL('./service-worker.js', REPO_ROOT_URL), 'utf8').match(/'[\w.-]+\.js'/g) ?? []) {

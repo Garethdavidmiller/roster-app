@@ -70,7 +70,7 @@ test('the scan reads the chip rules, and sees a chip on the panel corner — gua
 });
 
 // ── THE CORNER BELONGS TO DIALOGS, WHATEVER A RULE IS CALLED (whole-app check, 10 Nov 2026) ──────
-// The scan above reads a rule only when its NAME says badge, chip, pill or tag, so Links' `.btn-set`
+// The scan above reads a rule only when its NAME says badge, chip, pill or tag, so Link Designer's `.btn-set`
 // buttons wore the panel corner unseen. css-tokens.md gives `--radius-xl` to one family, the compact
 // white dialogs, so this asks the question the other way round: every rule wearing it must be one of
 // them. A new dialog joins the list; a button takes `--radius-button`, a chip `--radius-pill`.

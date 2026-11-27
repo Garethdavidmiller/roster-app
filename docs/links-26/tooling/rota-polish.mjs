@@ -7,9 +7,9 @@
 //   REST_CAP=1 node rota-polish.mjs <start.json> <out.json> <seed> <iters> <reference.json>
 // REST_CAP=1 also holds the shortest rest to the reference's. ISO_W=<points> rewards fewer single rest days (below).
 import { readFileSync, writeFileSync } from 'node:fs';
-import { runDesignChecks, DAYS } from '../../../links-design.js';
-import { assessFatigue } from '../../../links-fatigue.js';
-import { scoreOrder } from '../../../links-adjacency.js';
+import { runDesignChecks, DAYS } from '../../../link-designer-design.js';
+import { assessFatigue } from '../../../link-designer-fatigue.js';
+import { scoreOrder } from '../../../link-designer-adjacency.js';
 import { feel, dutyMinutes, tightestRest } from './report-data.mjs';
 
 const [SRC, OUT, SEED_, ITERS_, REF_] = process.argv.slice(2);

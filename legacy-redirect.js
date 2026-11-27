@@ -1,8 +1,8 @@
 // @ts-check
 /**
- * Marylebone Roster — the one script the two legacy guide addresses carry (owner, 10 Nov 2026).
+ * Marylebone Roster — the one script the legacy addresses carry (owner, 10 Nov 2026).
  *
- * `guide.html` and `fip.html` are redirect stubs (`REDIRECT_PAGES` in scripts/app-pages.mjs). On
+ * `guide.html`, `fip.html` and, since v27.09, `links.html` (the Link Designer's old address) are redirect stubs (`REDIRECT_PAGES` in scripts/app-pages.mjs). On
  * Firebase Hosting a 301 in firebase.json answers them before they load, and keeps the #fragment and
  * the ?query. The GitHub Pages mirror — where most staff still open the app — serves no redirects, so
  * there the stub IS the redirect, and a meta refresh can only go to a fixed address: an old bookmark
