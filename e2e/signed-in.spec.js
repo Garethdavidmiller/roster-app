@@ -571,9 +571,30 @@ test('another account\'s leftover write: a checked save and delete go straight t
     // signed-in account's — and the SDK's own wait never sees past it: the fault.
     await signInFirstTime(page, signedIn);
     await ownPasswordRecorded(signedIn);
-    expect(await page.evaluate(() => import('/firebase-client.js').then((m) => m.whenOwnWritesSent(3_000))),
-        'the SDK\'s wait drained: this browser no longer reproduces the leftover fault, so this journey proves nothing — read KNOWN_LIMITATIONS "Admin saves are slow on iPhones"').toBe(false);
+    // The save must NOT have left first: a wait that drains because the save was sent is a broken premise,
+    // not the fault gone. Asked BEFORE the wait, so a failure says which of the two it was (27 Nov 2026,
+    // when the wait first drained on WebKit with Firebase 13.4.0). And what the SDK's own store holds is
+    // named in the message — a queue that did not survive the reload is the case that would matter.
     expect(await overridesFor(leftBehind, theirDay), 'the first member\'s save left this browser').toHaveLength(0);
+    const drained = await page.evaluate(() => import('/firebase-client.js').then((m) => m.whenOwnWritesSent(3_000)));
+    const store = drained ? await page.evaluate(async () => {
+        try {
+            const names = (await indexedDB.databases()).map((d) => d.name).filter((n) => /firestore/i.test(String(n)));
+            const counts = await Promise.all(names.map((name) => new Promise((resolve) => {
+                const open = indexedDB.open(String(name));
+                open.onerror = () => resolve(`${name}: unopenable`);
+                open.onsuccess = () => {
+                    const idb = open.result;
+                    if (!idb.objectStoreNames.contains('mutations')) { idb.close(); resolve(`${name}: no mutations store`); return; }
+                    const req = idb.transaction('mutations', 'readonly').objectStore('mutations').count();
+                    req.onsuccess = () => { idb.close(); resolve(`${name}: ${req.result} queued`); };
+                    req.onerror = () => { idb.close(); resolve(`${name}: count failed`); };
+                };
+            })));
+            return counts.join('; ') || 'no Firestore database at all';
+        } catch (e) { return `unreadable: ${e}`; }
+    }) : '';
+    expect(drained, `the SDK's wait drained: this browser no longer reproduces the leftover fault, so this journey proves nothing — read KNOWN_LIMITATIONS "Admin saves are slow on iPhones". On-device store: ${store}`).toBe(false);
 
     // 3 · A save, then a delete of it. Both are checked; the delete is the one that used to be refused,
     // and both used to spend eight seconds first. Online, each asks its own record first (claim-retry.js
