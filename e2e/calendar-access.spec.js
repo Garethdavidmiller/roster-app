@@ -18,7 +18,7 @@
  */
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
-import { seedMember, seedMemberSession, seedSession, signInThroughOverlay, collectFatalErrors, clearNoticeFlags, isTouchProject, recordFirstFrameText, firstFrameText } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, signInThroughOverlay, collectFatalErrors, clearNoticeFlags, suppressCalendarNotices, isTouchProject, recordFirstFrameText, firstFrameText } from './helpers.js';
 import { forcePasswordSet } from './fixtures.js';
 
 // (Until v24.34 every test here pinned `CONFIG.CALENDAR_PIN_ACCESS` on, and four more proved the
@@ -96,6 +96,7 @@ test('signing in from the front door SAVES the session and lands on the roster â
     // code path, and since v26.40 no reload: the page the member typed on is the page they read.
     const errors = collectFatalErrors(page);
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
+    await suppressCalendarNotices(page);   // nothing seeds a session here, so nothing else keeps a notice off the menu
     await page.goto('/index.html');
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
     await markThisPage(page);

@@ -35,6 +35,31 @@ export function collectFatalErrors(page) {
     });
     return errors;
 }
+/**
+ * The Calendar's one-time notices, flagged done by every seeder below — ONE list (27 Nov 2026). It was five
+ * hand-kept copies (the four seeders' and `clearNoticeFlags`' default), changed together each time a notice
+ * went up; and a spec that signs in at the front door had none, so the New link vote notice opened over its menu
+ * button 1.5s after the sign-in. Each key is a notice's own DONE key in calendar-notices.js; a spec ABOUT a
+ * notice re-enables it with `clearNoticeFlags`.
+ */
+export const CALENDAR_NOTICE_FLAGS = Object.freeze([
+    'myb_notice_timetable_2026_done',
+    'myb_notice_ytd_figures_2026_done',
+    'myb_notice_install_app_2026_done',
+    'myb_notice_timetable_soon_2026_done',    // 16 Nov – 12 Dec 2026 (v26.21): left out until the 72-hour review (v24.96)
+    'myb_notice_newlink_vote_2026_done',      // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
+    'myb_notice_move_to_main_2026_done',      // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
+    'myb_notice_team_view_2026_done',         // the Team View notice, from 27 Nov 2026 for 90 days
+]);
+
+/**
+ * Flag every Calendar notice done, and nothing else — for a spec that reaches the Calendar without a seeded
+ * session or member (a sign-in at the front door), which no seeder's suppression covers.
+ * @param {import('@playwright/test').Page} page
+ */
+export function suppressCalendarNotices(page) {
+    return page.addInitScript((keys) => { for (const k of keys) localStorage.setItem(k, '1'); }, [...CALENDAR_NOTICE_FLAGS]);
+}
 
 // Seed a valid signed-in session before any page script runs. Shape must match
 // session.js getSession(): { name, ver: SESSION_VER (2), expiry }. There is no idle timestamp —
@@ -64,19 +89,13 @@ export function collectFatalErrors(page) {
 // only exercised when a notice happens to be live is not a list anybody maintains. It belongs here,
 // once, with the other two.
 export function seedSession(page, name = 'G. Miller') {
-    return page.addInitScript((n) => {
+    return page.addInitScript(([n, flags]) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
             name: n,
             ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
-        localStorage.setItem('myb_notice_timetable_2026_done', '1');
-        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
-        localStorage.setItem('myb_notice_install_app_2026_done', '1');
-        localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 16 Nov – 12 Dec 2026 (v26.21): left out until the 72-hour review (v24.96)
-        localStorage.setItem('myb_notice_newlink_vote_2026_done', '1');   // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
-        localStorage.setItem('myb_notice_move_to_main_2026_done', '1');   // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
-        localStorage.setItem('myb_notice_team_view_2026_done', '1');   // the Team View notice, from 27 Nov 2026 for 90 days
+        for (const k of flags) localStorage.setItem(k, '1');
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
         localStorage.setItem('myb_pc_hpp_notice_2526_shown', '1');   // the Pay page's premium notice, 16 Nov 2026 – 8 Jan 2027 (v26.22)
         // The Link Designer first-visit panel ("How the Link Designer works") joined them at the 1.63 upgrade, for the
@@ -85,7 +104,7 @@ export function seedSession(page, name = 'G. Miller') {
         // time. The Link Designer specs set this key themselves, which is why only a sweep passing THROUGH
         // Link Designer met the panel; the one spec ABOUT it re-enables it with clearNoticeFlags.
         localStorage.setItem('myb_links_welcome_seen', '1');
-    }, name);
+    }, [name, [...CALENDAR_NOTICE_FLAGS]]);
 }
 
 /**
@@ -104,10 +123,7 @@ export function seedSession(page, name = 'G. Miller') {
  * @param {import('@playwright/test').Page} page
  * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
  */
-export function clearNoticeFlags(page, keys = ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done',
-                                               'myb_notice_install_app_2026_done', 'myb_notice_timetable_soon_2026_done',
-                                               'myb_notice_newlink_vote_2026_done', 'myb_notice_move_to_main_2026_done',
-                                               'myb_notice_team_view_2026_done']) {
+export function clearNoticeFlags(page, keys = [...CALENDAR_NOTICE_FLAGS]) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 
@@ -146,16 +162,10 @@ export function seedSessionOnce(page, name = 'G. Miller') {
 // and the axe suite hit the same race from the other side. A spec that is ABOUT a notice re-enables
 // it with `clearNoticeFlags`, which runs later and so wins.
 export function seedMember(page, name = 'G. Miller') {
-    return page.addInitScript((n) => {
+    return page.addInitScript(([n, flags]) => {
         localStorage.setItem('myb_roster_selected_member', n);
-        localStorage.setItem('myb_notice_timetable_2026_done', '1');
-        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
-        localStorage.setItem('myb_notice_install_app_2026_done', '1');
-        localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 16 Nov – 12 Dec 2026 (v26.21): left out until the 72-hour review (v24.96)
-        localStorage.setItem('myb_notice_newlink_vote_2026_done', '1');   // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
-        localStorage.setItem('myb_notice_move_to_main_2026_done', '1');   // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
-        localStorage.setItem('myb_notice_team_view_2026_done', '1');   // the Team View notice, from 27 Nov 2026 for 90 days
-    }, name);
+        for (const k of flags) localStorage.setItem(k, '1');
+    }, [name, [...CALENDAR_NOTICE_FLAGS]]);
 }
 
 // Select the first real grade, then its first member, and return that member's expected
@@ -343,22 +353,16 @@ export async function openReference(page) {
  * gate gets the roster on screen.
  */
 export function seedMemberSession(page, name = 'G. Miller') {
-    return page.addInitScript((n) => {
+    return page.addInitScript(([n, flags]) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
             name: n, ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
         localStorage.setItem('myb_roster_selected_member', n);
         // Same notice suppression as seedMember, same reason — see the note there.
-        localStorage.setItem('myb_notice_timetable_2026_done', '1');
-        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
-        localStorage.setItem('myb_notice_install_app_2026_done', '1');
-        localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 16 Nov – 12 Dec 2026 (v26.21): left out until the 72-hour review (v24.96)
-        localStorage.setItem('myb_notice_newlink_vote_2026_done', '1');   // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
-        localStorage.setItem('myb_notice_move_to_main_2026_done', '1');   // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
-        localStorage.setItem('myb_notice_team_view_2026_done', '1');   // the Team View notice, from 27 Nov 2026 for 90 days
+        for (const k of flags) localStorage.setItem(k, '1');
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
-    }, name);
+    }, [name, [...CALENDAR_NOTICE_FLAGS]]);
 }
 
 /**
@@ -373,7 +377,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
  * `window.__E2E.authUser = false` in an init script of its own.
  */
 export function seedCalendarMember(page, name = 'G. Miller') {
-    return page.addInitScript((n) => {
+    return page.addInitScript(([n, flags]) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
             name: n, ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
@@ -388,11 +392,8 @@ export function seedCalendarMember(page, name = 'G. Miller') {
             if (sessionStorage.getItem('__e2e_member_flags_seeded')) return;
             sessionStorage.setItem('__e2e_member_flags_seeded', '1');
         } catch (_) { /* private mode: seed every load, as seedSession does */ }
-        for (const k of ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done', 'myb_notice_install_app_2026_done',
-                         'myb_notice_timetable_soon_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_move_to_main_2026_done',
-                         'myb_notice_team_view_2026_done', 'myb_pc_ytd_notice_2_shown',
-                         'myb_pc_hpp_notice_2526_shown', 'myb_links_welcome_seen']) localStorage.setItem(k, '1');
-    }, name);
+        for (const k of [...flags, 'myb_pc_ytd_notice_2_shown', 'myb_pc_hpp_notice_2526_shown', 'myb_links_welcome_seen']) localStorage.setItem(k, '1');
+    }, [name, [...CALENDAR_NOTICE_FLAGS]]);
 }
 
 /**

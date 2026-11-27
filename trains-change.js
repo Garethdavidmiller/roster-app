@@ -636,7 +636,17 @@ export function daysLabel(days) {
  */
 export function routeName(stations, station, via) {
     const name = stations[station] ?? station;
-    return via === 'H' ? `${name} via High Wycombe` : via === 'A' ? `${name} via Amersham` : name;
+    return via ? `${name} ${viaWords(via)}` : name;
+}
+
+/**
+ * An Aylesbury route in words — "via High Wycombe", "via Amersham" — or '' for a train with none. One copy, for
+ * the route's name here and the journey answer's route beside a train (trains-render.js → `renderJourney`).
+ * @param {string} via  'H', 'A' or ''
+ * @returns {string}
+ */
+export function viaWords(via) {
+    return via === 'H' ? 'via High Wycombe' : via === 'A' ? 'via Amersham' : '';
 }
 
 /**

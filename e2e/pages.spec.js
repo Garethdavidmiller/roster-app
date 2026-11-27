@@ -2372,3 +2372,28 @@ test('select-sheet: a hidden select gets a hidden trigger, and revealing it reve
     expect(states.whileHidden, 'a hidden select must not produce a visible control').toBe(false);
     expect(states.afterReveal, 'revealing the select must reveal its trigger').toBe(true);
 });
+
+// ── THE APP'S NAME IS NEVER CUT FOR THE PAGE BADGE (owner, 27 Nov 2026) ───────────────────────────────
+// "Marylebone Ro…" beside "NEW CEA LINK" on an Android phone with larger text. The header is measured
+// (`fitHeaderBadge`, about-lightbox.js): where the name would be cut, the badge shows its emoji alone. A
+// 360px phone at the normal size already cut the name on New CEA Link, so the narrow widths stand in for
+// larger text (the suite's `scaleText` sets every size inline, which a stylesheet rule cannot answer).
+for (const width of [320, 360, 430]) {
+    test(`every sub-page header keeps the app's name whole at ${width}px, its badge shrinking to its emoji when it must @layout`, async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.setViewportSize({ width, height: 800 });
+        const cut = [];
+        for (const { file } of APP_PAGES_LIST.filter(p => p.file !== 'index.html')) {
+            await page.goto(`/${file}`);
+            const h1 = page.locator('.app-header h1');
+            if (!(await h1.count())) continue;
+            await expect(h1).toBeVisible();
+            await page.waitForTimeout(100);   // the ResizeObserver's answer
+            const m = await h1.evaluate(el => ({ cut: el.scrollWidth > el.clientWidth + 1,
+                tight: !!el.closest('.app-header')?.classList.contains('app-header--tight') }));
+            if (m.cut) cut.push(file);
+            if (width >= 430) expect(m.tight, `${file}: the badge lost its words with room to spare`).toBe(false);
+        }
+        expect(cut, 'pages whose header cut the app\'s name').toEqual([]);
+    });
+}

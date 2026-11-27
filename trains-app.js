@@ -35,8 +35,18 @@
  * says everything it still needs to, and the one caveat a member must not miss — Christmas,
  * `#trFestive` — sits OUTSIDE the fold, so a folded card still shows it: inside it, nobody on a
  * second visit saw it), the station picker folds away once a station is chosen (`pickerOpen`), and
- * the lookup comes first — collapsed on a phone, so the list is still the first thing read, and
- * opening it puts the cursor in the box. A grid column tap shows one train's stops alone (`gridCol`).
+ * a grid column tap shows one train's stops alone (`gridCol`).
+ *
+ * ── FIND A TRAIN COMES FIRST (owner, Nov 2026) ─────────────────────────────────────────────────
+ *
+ * "Bring the existing time and station lookups together … once they're using the page at the
+ * gateline, the lookup should come first." So "Look up a time" and the desktop's "Jump to a station"
+ * became one card, "Find a train", OPEN, above the tabs, on every view and at every width: one box for
+ * "Aylesbury, after 17:15" (the first train there and the next two) or a time alone, answered as before
+ * (trains-cards.js → `renderLookup`). It follows the day tabs, it follows the clock — a station with no
+ * time is "the next train", redrawn as the minute turns (`lookupFollowsClock`) — and an "Or did you
+ * mean" chip puts that station in the box (`chooseJourneyStation`). "What's changing" stays below it, for
+ * briefing. Opening the card by its chevron puts the cursor in the box.
  *
  * ── ON AND AFTER THE CHANGE ─────────────────────────────────────────────────────────────────────
  *
@@ -74,7 +84,8 @@ import { CARD_TIPS, tipsOn } from './trains-tips.js';
 import { railwayToday } from './trains-change.js';
 import { changesTitle, SIGN_IN_ABOUT, HEADLINES_SHOWN } from './trains-render.js';
 import { DEC_STOPS_KNOWN, LAST_STATION_KEY, phase, renderOverview, renderChanges, renderPattern, renderStationPicks, renderLast,
-    renderStationCard, renderLookup, setText, el } from './trains-cards.js';
+    renderStationCard, renderLookup, renderJump, lookupFollowsClock, chooseJourneyStation, setText, el } from './trains-cards.js';
+import { dayKindOf } from './trains-journey.js';
 import { syncGridMirror } from './trains-grid-mirror.js';
 import { announce, statusLine, matchesLine } from './trains-status.js';
 
@@ -86,7 +97,7 @@ import { announce, statusLine, matchesLine } from './trains-status.js';
 /** Set once the overview card has been on screen on this device: it opens collapsed from then on. */
 const OVERVIEW_SEEN_KEY = 'myb_trains_overview_seen';
 /** Today's kind of day, as the day tabs name it — the RAILWAY day, which runs to 03:00. @returns {Day} */
-const todayDay = () => { const dow = railwayToday().getDay(); return dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX'; };
+const todayDay = () => dayKindOf(railwayToday());
 let dayPinned = false;   // set once a day tab is pressed: the chosen day then survives the tab's sleep
 /** The railway day and the phase the page last drew (`render`) — how a page left open notices either turn. */
 const drawn = { day: '', phase: '' };
@@ -153,7 +164,7 @@ function start(member) {
     // title turns at the change, and a line about weeks that have ended goes, on a page left open too.
     initTipsLightbox(Object.defineProperties({}, Object.fromEntries(Object.keys(CARD_TIPS).map(key =>
         [key, { enumerable: true, get: () => tipsOn(railwayToday())[key] }]))), { getIsAdmin: () => isAdmin });
-    const cards = Object.fromEntries(['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern', 'trLast', 'trJump'].map(id => [id,
+    const cards = Object.fromEntries(['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern', 'trLast'].map(id => [id,
         // Opening the lookup — by its chevron or its header — puts the cursor in the box: that is what
         // a member opened it to do. `setOpen` runs the same callback, but only ever with `false` here.
         initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`, id === 'trLookup' ? (/** @type {boolean} */ open) => { if (open) el('trLookupInput')?.focus(); } : undefined)]));
@@ -165,10 +176,8 @@ function start(member) {
     overviewCard = cards.trOverview;
     if (lsGet(OVERVIEW_SEEN_KEY)) cards.trOverview.setOpen(false);
     lsSet(OVERVIEW_SEEN_KEY, '1');
-    // On a phone the lookup sits above the changes list and starts collapsed: its header says what it
-    // is for, the list stays the first thing read, and the box is one tap away rather than two
-    // screens. A desktop has the room, and keeps it open in its own column.
-    if (window.matchMedia('(max-width: 1023px)').matches) cards.trLookup.setOpen(false);
+    // Find a train opens OPEN at every width (the header): until the two lookups became one it started folded on a
+    // phone, so the changes list was the first thing read — now the box is.
     // Last trains starts folded: its header says it exists, and one tap opens the whole network.
     cards.trLast.setOpen(false);
 
@@ -193,7 +202,8 @@ function start(member) {
     // kind of day unless somebody chose one; the labels and the phase re-read too (`render`).
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(state); });
     // …and one that is never hidden is asked each minute (the header's "On and after the change").
-    setInterval(() => { if (document.visibilityState === 'visible') turnIfNewDay(state); }, 60_000);
+    // A station asked about with no time is "the next train", so its answer follows the minute too.
+    setInterval(() => { if (document.visibilityState === 'visible' && !turnIfNewDay(state) && lookupFollowsClock()) renderLookup(state); }, 60_000);
     // The error reporter, the usage and latency counts and the forced set-password step are the start-up's.
 }
 
@@ -210,6 +220,9 @@ function render(state) {
     drawn.day = dayDrawn();
     drawn.phase = p.phase;
     renderOverview(p);
+    // Find a train is on every view (trains.html), so it is drawn on every render, for the day chosen.
+    renderLookup(state);
+    renderJump(state, p);
     for (const b of /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('[data-day],[data-view],[data-sdir],[data-grid]')])) {
         const on = b.dataset.day ? b.dataset.day === state.day : b.dataset.view ? b.dataset.view === state.view
             : b.dataset.sdir ? b.dataset.sdir === state.sdir : b.dataset.grid === state.grid;
@@ -225,7 +238,7 @@ function render(state) {
     for (const id of ['trChangesTab', 'trChangesTitle']) setText(id, words);
     for (const [id, name] of [['trViewChanges', words], ['trChangesChevron', `Toggle ${words}`], ['trChangesTips', `Tips for ${words.toLowerCase()}`]]) el(id)?.setAttribute('aria-label', name);
     // Only the view on screen is painted (trains-cards.js).
-    if (state.view === 'changes') renderChanges(state, p);
+    if (state.view === 'changes') renderChanges(state);
     else if (state.view === 'stations') {
         renderStationPicks(state);
         renderStationCard(state);
@@ -257,7 +270,7 @@ function wire(state) {
     let pushed = false;     // the history entry the page is on is a station's (Android Back returns to the list)
     el('trainsMain')?.addEventListener('click', (e) => {
         const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest(
-            'button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],button[data-col],#trHeadsMore,#trAllTrains,#trGridAll,#trStationChange'));
+            'button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],button[data-col],button[data-journey],#trHeadsMore,#trAllTrains,#trGridAll,#trStationChange'));
         if (!b) return;
         const was = state.view, scope = b.parentElement?.closest('[id]')?.id ?? '';
         // A column index names a train of one day's grid, so another day or the other timetable lets it go.
@@ -267,6 +280,7 @@ function wire(state) {
         if (b.dataset.grid) { state.grid = /** @type {'now'|'dec'} */ (b.dataset.grid); state.gridCol = null; }
         if (b.dataset.col) { const i = Number(b.dataset.col); state.gridCol = state.gridCol === i ? null : i; }
         if (b.id === 'trGridAll') state.gridCol = null;
+        if (b.dataset.journey) chooseJourneyStation(b.dataset.journey);   // "Or did you mean": that station, in the box
         if (b.id === 'trHeadsMore') state.allHeads = true;
         if (b.id === 'trAllTrains') state.allTrains = true;
         if (b.id === 'trStationChange') {
@@ -293,8 +307,9 @@ function wire(state) {
             // the answer to what was pressed — and the card comes into view when the list was on screen.
             if (was !== 'stations') el('trViewStations')?.scrollIntoView({ block: 'nearest' });
             el('trStationTitle')?.focus();
-        } else if (b.id === 'trStationChange') {
-            el('trStationInput')?.focus();
+        } else if (b.id === 'trStationChange' || b.dataset.journey) {
+            // The chip pressed went with the answer it was in; the box now holds its station.
+            el(b.dataset.journey ? 'trLookupInput' : 'trStationInput')?.focus();
         } else refocus(b, scope);
     });
     window.addEventListener('popstate', (e) => {

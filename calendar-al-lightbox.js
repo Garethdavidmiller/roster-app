@@ -34,13 +34,16 @@ import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './cal
  * Initialise the Annual Leave lightbox and the day-detail lightbox.
  * Returns handles that the coordinator needs to pass to other modules.
  *
- * @param {{ navigateToPaycalc?: (paydayIso: string) => void, isTeamView?: () => boolean }} [deps]
+ * @param {{ navigateToPaycalc?: (paydayIso: string) => void, isTeamView?: () => boolean,
+ *           openWhoIsOn?: (who: { name: string, iso: string }) => void }} [deps]
  *   navigateToPaycalc — wired to the day-detail "Pay estimate" button on pay-marked days.
+ *   openWhoIsOn — wired to "Who’s on with me" on a day worked with times: Team Week View on that date's
+ *   week, with the colleagues whose duties overlap the member's shift (calendar-team-view.js).
  *   isTeamView — whether Team Week View is on screen, where the name picker is not (the leave panel's
  *   first-run hint says where to choose a name).
  * @returns {{ openDayDetail: (cell: HTMLElement) => void, closeALLightbox: () => void }}
  */
-export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
+export function initCalendarLightboxes({ navigateToPaycalc, isTeamView, openWhoIsOn } = {}) {
   // ── ANNUAL LEAVE LIGHTBOX ───────────────────────────────────────────────────
   const lb          = document.getElementById('alLightbox');
   const takenEl     = /** @type {HTMLElement} */ (document.getElementById('alLbTaken'));
@@ -377,6 +380,8 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
   const extrasEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailExtras'));
   const payBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('dayDetailPayBtn'));
   const leaveBtn = /** @type {HTMLAnchorElement|null} */ (document.getElementById('dayDetailLeaveBtn'));
+  const teamBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('dayDetailTeamBtn'));
+  const teamLabel = document.getElementById('dayDetailTeamLabel');
 
   /**
    * One shift badge, built as elements. Same class, emoji and word as every other badge in the app.
@@ -644,6 +649,23 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
       } else {
         payBtn.hidden = true;
         payBtn.onclick = null;
+      }
+    }
+    // WHO'S ON WITH ME (owner, 27 Nov 2026) — a day worked WITH times, the renderer's call
+    // (`detailWorkedTimes`), on a Calendar the reader is admitted to: Team View is everybody's who is,
+    // so this is not a personal action — it names whose shift it asks about instead. The same wait for
+    // the close's Back as the pay jump above: Team View pushes its own history entry, and pushed before
+    // the panel's `history.back()` had landed, that Back took Team View's entry instead of the panel's.
+    if (teamBtn) {
+      const name = d.detailWho || '';
+      if (openWhoIsOn && d.detailWorkedTimes && d.detailIso && name && getAccessType() === 'named') {
+        teamBtn.hidden = false;
+        if (teamLabel) teamLabel.textContent = name === getSession()?.name ? 'Who’s on with me' : `Who’s on with ${name}`;
+        const iso = d.detailIso;
+        teamBtn.onclick = () => { detailLb.close(); whenHistorySettled(() => openWhoIsOn({ name, iso })); };
+      } else {
+        teamBtn.hidden = true;
+        teamBtn.onclick = null;
       }
     }
     detailLb.open();

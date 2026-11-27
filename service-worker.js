@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '27.20';
+const APP_VERSION = '27.21';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -187,6 +187,7 @@ const APP_FILES = [
     'calendar-snapshot.js',
     'calendar-state.js',
     'calendar-swipe.js',
+    'calendar-team-onwith.js',
     'calendar-team-view.js',
     'calendar-tips.js',
     'card-collapse.js',
@@ -388,6 +389,7 @@ const APP_FILES = [
     'storage-keys.js',
     'storage-utils.js',
     'sw-register.js',
+    'team-overlap.js',
     'text-scale.js',
     'tips-lightbox.js',
     'trains-app.js',
@@ -397,6 +399,7 @@ const APP_FILES = [
     'trains-data.js',
     'trains-grid-mirror.js',
     'trains-headlines.js',
+    'trains-journey.js',
     'trains-render.js',
     'trains-stations.js',
     'trains-status.js',

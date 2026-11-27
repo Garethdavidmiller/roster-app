@@ -477,6 +477,21 @@ test('documents: the ☰ menu dates each latest document, and leaves out a date 
     await expect(page.locator('#navPanel .nav-panel-link--circular')).toHaveText(/^\S+\s*Weekly Retail Circular$/);
 });
 
+// A HUDDLE THAT ARRIVES AFTER MIDDAY IS TOMORROW'S (owner, 27 Nov 2026): the flow files it under the day its email
+// arrived, so the evening's Huddle is on file a day early. Through the real listener, the real record and the menu.
+for (const [arrived, expected] of /** @type {const} */ ([['19:05', 'for Sat 28 Nov'], ['07:40', 'for Fri 27 Nov']])) {
+    test(`documents: a Huddle that arrived at ${arrived} is named ${expected} in the ☰ menu`, async ({ page }) => {
+        const [h, m] = arrived.split(':').map(Number);
+        await page.clock.install({ time: new Date(Date.UTC(2026, 10, 27, 20, 0)) });
+        await calendarWithHuddle(page, { date: '2026-11-27', storageUrl: 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-11-27.pdf?alt=media&token=e2e',
+            fileType: 'pdf', uploadedAt: Date.UTC(2026, 10, 27, h, m) });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('#navPanel a.nav-panel-link[href="./#huddle"] .nav-doc-date')).toHaveText(expected);
+    });
+}
+
 test('newsletter: an issue that turns six weeks old with the page open leaves the ☰ menu at the next open', async ({ page }) => {
     await page.clock.install({ time: new Date(2026, 10, 14, 12, 0, 0) });
     await withKnownNewsletter(page, '2026-10-04');   // 41 days before 14 Nov

@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * glossary.js — "Words used in the app": the roster words a newcomer meets before anybody explains them, one
+ * glossary.js — "Glossary": the roster words a newcomer meets before anybody explains them, one
  * line each, and the one test of whether a piece of help text uses one.
  *
  * WHY (owner, 26 Nov 2026). The app's words are the railway's: RDW, AL, Spare, a pay cut-off, a lieu day, Year
@@ -33,7 +33,7 @@ export const GLOSSARY = Object.freeze([
 ].map(e => Object.freeze(e)));
 
 /** The panel's own title — the drawer row's words, and with no emoji: it is the dialog's name, read out (tips-content.test.mjs). */
-export const GLOSSARY_TITLE = 'Words used in the app';
+export const GLOSSARY_TITLE = 'Glossary';
 
 /**
  * How each word is written where it is used. The short forms count only in capitals, as whole words: "al" inside
