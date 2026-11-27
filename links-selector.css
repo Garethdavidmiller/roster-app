@@ -1,0 +1,85 @@
+/*
+ * links-selector.css — the Links Selector's own rules (links-selector.html), on top of shared.css and index.css.
+ *
+ * The page is the Calendar's: index.css draws its header, controls, grid, cells, key and day panel, so a proposal's day
+ * looks exactly like a day on the Calendar. These are the only things the Calendar has no rule for.
+ */
+
+/* The page's colour (shared.css → "Page identity"): its drawer pill's sky blue, worn by the header and About badges and by
+   a picker's chosen row. */
+:root {
+    --page-accent:      var(--blue-sky);
+    --page-accent-ink:  white;
+    --page-accent-text: color-mix(in oklch, var(--blue-sky) 70%, black);
+}
+
+/* The month name is the Calendar's, without the chevron that there opens its month picker: this page has none. */
+.month-year::after { content: none; }
+.month-year { cursor: default; }
+@media (hover: hover) { .month-year:hover { background: none; } }
+
+/* The sub-pages' header sits in the Calendar's column, with the Calendar's gap below it. */
+.container > .app-header { margin-bottom: 8px; }
+
+/* WHAT THIS IS, between the controls and the month, in the band the Calendar puts there (index.css → .top-prompt: the
+   raised on-navy surface, light words on the navy canvas) — so it reads as the Calendar's own strip, not a new kind of box.
+   Left-aligned: it runs to three or four lines on a phone, and centred text past two works against the reader (the notice
+   rule, /new-notice). Shown at every width, where the Calendar's prompts are phone-only: this one is not an offer. */
+.selector-note {
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    border-radius: var(--radius-lg);
+    background: var(--on-navy-raised);
+    border: 1px solid var(--on-navy-hairline);
+    color: rgba(255, 255, 255, 0.88);
+    font-size: var(--type-small);
+    line-height: 1.45;
+}
+.selector-note strong { color: white; }
+
+/* A day before the new link starts: the date alone, on the filler days' quiet ground — inert, so no lift and no hand. */
+.calendar-day.selector-blank {
+    background: var(--bg-faint);
+    cursor: default;
+}
+.calendar-day.selector-blank .day-number { color: var(--text-light); }
+@media (hover: hover) and (pointer: fine) {
+    .calendar-day.selector-blank:hover { transform: none; box-shadow: none; }
+}
+/* …and its swatch in the key, beside the Calendar's own (index.css → .legend-color). */
+.legend-color.selector-blank-key { background: var(--bg-faint); border-color: var(--border-mid); }
+
+/* The day panel's last line: the same reminder as the note above the month, for a panel that covers it. On the panel's
+   dark glass, in the week line's own white (index.css → .day-detail-week: 4.5:1 over a light page under the glass). */
+.selector-day-note {
+    margin: 0;
+    width: 100%;
+    text-align: center;
+    font-size: var(--type-label);
+    color: rgba(255, 255, 255, 0.65);
+}
+
+/* The printed heading: nothing on screen, where the controls already say it. */
+.selector-print-head { display: none; }
+
+@media print {
+    /* The sub-pages' header is navy with white words, which print as a logo and a badge on blank paper: the heading below
+       takes its place, as the Calendar's printed header does. */
+    .container > .app-header { display: none !important; }
+    .selector-print-head {
+        display: block;
+        border: 1px solid var(--primary-blue);
+        border-radius: var(--radius-lg);
+        padding: 8px;
+        margin: 0 0 8px;
+        text-align: center;
+        color: var(--primary-blue);
+        break-after: avoid;
+    }
+    .selector-print-title { margin: 0; font-size: var(--type-medium); font-weight: 700; }
+    .selector-print-choice { margin: 4px 0 0; font-size: var(--type-badge); font-weight: 700; }
+    /* The note is how to use the screen; the heading above already says on paper that it is a proposal. */
+    .selector-note { display: none; }
+    .calendar-day.selector-blank { background: none; }
+    .legend-color.selector-blank-key { background: none; }
+}

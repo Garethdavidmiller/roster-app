@@ -36,6 +36,20 @@ import { CONFIG, teamMembers, isOtherStaff } from './roster-data.js';
 /** The possible decisions (for callers/tests to reference). */
 export const DECISIONS = Object.freeze(['allow', 'soft-allow', 'login', 'forbidden', 'pending']);
 
+/** Who may open the New link page — and, once it opens, the Links Selector: ONE list, so the two can never drift. */
+const NEWLINK_ROLES = /** @type {string[]} */ (Object.freeze(['admin', 'newlinkPreview', 'newlinkAudience']));
+
+/**
+ * The Links Selector's roles for either position of its switch (CONFIG.LINKS_SELECTOR_OPEN): the admin during the beta,
+ * the New link page's own list once open. A function so the OPEN answer can be tested before anybody flips the switch
+ * (nav-gates.test.mjs) — the policy below is fixed when this module loads.
+ * @param {boolean} open
+ * @returns {string[]}
+ */
+export function selectorRoles(open) {
+    return open ? NEWLINK_ROLES : ['admin'];
+}
+
 /**
  * Per-page access policy — the single home for "what does this page require?". GROUNDED in the
  * coordinators' actual gates (v14.60):
@@ -87,7 +101,10 @@ export const PAGE_POLICIES = Object.freeze({
     // normal CEA contract, and the managers. newlink-config.js → PHASE says 'open' — or 'decided', which follows
     // CHOSEN — with it, and newlink-config.test.mjs fails if the two part. Signed-in only (owner, 2 Nov 2026:
     // "No, signed-in only").
-    newlink:    { requireNamed: true,  role: ['admin', 'newlinkPreview', 'newlinkAudience'] },
+    newlink:    { requireNamed: true,  role: NEWLINK_ROLES },
+    // The Links Selector (owner, 27 Nov 2026): a beta for the admin until CONFIG.LINKS_SELECTOR_OPEN, then exactly the New
+    // link page's audience (owner: "Same as new link page"). Read once, here, so the page and `canOpenSelector` agree.
+    selector:   { requireNamed: true,  role: selectorRoles(CONFIG.LINKS_SELECTOR_OPEN === true) },
 });
 
 /** @returns {AuthDecision} */
@@ -257,6 +274,17 @@ export function canOpenNewlink(member) {
 }
 
 /**
+ * May this member open the Links Selector? The admin during its beta; from `CONFIG.LINKS_SELECTOR_OPEN`, whoever may open
+ * the New link page. Read from `PAGE_POLICIES.selector` itself, and nav-gates.test.mjs holds the two together. UX only.
+ * @param {string|null|undefined} member
+ */
+export function canOpenSelector(member) {
+    // Asked of the policy's own role list, so the pill cannot read the switch one way and the page the other.
+    const r = /** @type {Record<string, boolean>} */ (rolesFor(member));
+    return (PAGE_POLICIES.selector.role || []).some(role => r[role] === true);
+}
+
+/**
  * The drawer's pill gates for this member — the five `initNavPanel` options `PILL_GATES`
  * (nav-destinations.js) reads. EVERY page spreads this rather than building its own: ten pages built
  * the four by hand in four styles, which is how one page once passed `canOpenOvertime: !!member` and
@@ -264,7 +292,7 @@ export function canOpenNewlink(member) {
  * agree with — `nav-gates.test.mjs` holds the pills it draws to what `requirePage` admits, for every
  * member and both directions. `null` (signed out) gets every gate false but `isNotOtherStaff`. UX only.
  * @param {string|null|undefined} member
- * @returns {{ isAdmin: boolean, isLinksDesigner: boolean, canOpenOvertime: boolean, canOpenNewlink: boolean, isNotOtherStaff: boolean }}
+ * @returns {{ isAdmin: boolean, isLinksDesigner: boolean, canOpenOvertime: boolean, canOpenNewlink: boolean, canOpenSelector: boolean, isNotOtherStaff: boolean }}
  */
 export function navGatesFor(member) {
     const r = rolesFor(member);
@@ -273,6 +301,7 @@ export function navGatesFor(member) {
         isLinksDesigner: r.designer && linkDesignerEnabled(),   // paused, the pill leaves every menu (the switch, below)
         canOpenOvertime: canOpenOvertime(member),
         canOpenNewlink:  canOpenNewlink(member),
+        canOpenSelector: canOpenSelector(member),
         // TRUE for nobody signed in, deliberately: their drawer keeps every ungated pill
         // (nav-gates.test.mjs says why). Only an Other Staff login loses Admin and Pay (`otherStaffHidden`).
         isNotOtherStaff: !r.otherStaff,

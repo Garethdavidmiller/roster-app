@@ -25,7 +25,7 @@
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { NAV_PAGES, PILL_GATES, visiblePills } from '../nav-destinations.js';
-import { navGatesFor, requirePage, overtimeEnabled, linkDesignerEnabled, PAGE_POLICIES } from '../auth-policy.js';
+import { navGatesFor, requirePage, overtimeEnabled, linkDesignerEnabled, PAGE_POLICIES, selectorRoles, requirePageAuth, rolesFor } from '../auth-policy.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 
 const g = /** @type {any} */ (globalThis);
@@ -131,13 +131,17 @@ for (const paused of [true, false]) {
             assert.equal(drawn(manager).includes('overtime'), !paused, 'and so does a reviewer');
             assert.equal(drawn(plain).includes('overtime'), false, 'never a member with neither');
             assert.ok(!drawn(plain).includes('newlink'), 'a Dispatcher is not the new link\'s audience');
+            // The Links Selector is a beta for the admin (CONFIG.LINKS_SELECTOR_OPEN false): nobody else has its pill yet.
+            assert.equal(CONFIG.LINKS_SELECTOR_OPEN, false, 'the Links Selector has opened — this line and the two below move with it');
+            assert.ok(drawn(admin).includes('selector'), 'the admin has the Links Selector during its beta');
+            for (const member of [manager, designer, beta, plain]) assert.ok(!drawn(member).includes('selector'), `${member} has the Links Selector before it opens`);
         });
 
         test('nobody signed in: every ungated pill drawn, every gated one hidden', () => {
             seam();
             assert.deepEqual(drawn(null), PILL_IDS.filter(id => !GATED.includes(id)),
                 'a signed-out drawer shows Admin, Pay and Settings on purpose (each asks for a sign-in), and no role-gated page');
-            assert.deepEqual(navGatesFor(null), { isAdmin: false, isLinksDesigner: false, canOpenOvertime: false, canOpenNewlink: false, isNotOtherStaff: true });
+            assert.deepEqual(navGatesFor(null), { isAdmin: false, isLinksDesigner: false, canOpenOvertime: false, canOpenNewlink: false, canOpenSelector: false, isNotOtherStaff: true });
             assert.deepEqual(navGatesFor(undefined), navGatesFor(null));
         });
     });
@@ -158,4 +162,18 @@ describe('visiblePills — the one filter', () => {
             assert.ok(!visiblePills(NAV_PAGES, others, '').some(p => p.id === page.id), `${flag} stays shut on every other gate`);
         }
     });
+});
+
+test('the Links Selector\'s switch: admin alone now, and once open exactly the New CEA Link page\'s audience', () => {
+    // The policy is fixed when auth-policy.js loads, so the OPEN state is asked of `selectorRoles` — the function the policy
+    // itself is built from — rather than by flipping CONFIG under a module that has already read it.
+    assert.deepEqual(PAGE_POLICIES.selector.role, selectorRoles(CONFIG.LINKS_SELECTOR_OPEN === true), 'the policy is not selectorRoles');
+    assert.deepEqual(selectorRoles(false), ['admin']);
+    assert.equal(selectorRoles(true), PAGE_POLICIES.newlink.role, 'open, it must be the New link page\'s own list, not a copy');
+    // and through the real decision, for every name on the roster: opened, it admits exactly whom the New link page admits
+    const open = { requireNamed: true, role: selectorRoles(true) };
+    for (const member of everyone()) {
+        const snapshot = { status: 'named', member };
+        assert.equal(requirePageAuth(snapshot, open, rolesFor(member)).decision, requirePage(snapshot, 'newlink').decision, member);
+    }
 });

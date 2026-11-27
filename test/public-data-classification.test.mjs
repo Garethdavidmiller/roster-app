@@ -208,6 +208,7 @@ const PUBLIC_CONFIG_KEYS = /** @type {const} */ ({
         + '`linksDesigner` claim is set server-side and is the control.',
     OVERTIME_ENABLED:                 'Whether the Overtime page is open. A switch.',
     LINK_DESIGNER_ENABLED:            'Whether the Link Designer page is open. A switch.',
+    LINKS_SELECTOR_OPEN:              'Whether the Links Selector is open beyond the admin. A switch.',
     NEWLINK_PREVIEW:                  'Who may open the New link besides its audience (its preview until '
         + 'v25.60). Page access only, over files that are public anyway.',
     OVERTIME_BETA:                    'Who answers the Overtime beta. The server keeps its own copy and '

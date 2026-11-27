@@ -61,7 +61,9 @@ border keep the badge's identity; **never `opacity`** to mute text — it cannot
 
 - **Documented exclusion:** the calendar's faint **other-month day numbers** are `aria-hidden`
   decorative context (darkening them defeats the "not this month" cue for zero SR benefit), so they
-  are `.exclude('.other-month')`d in the calendar scan — a targeted exclusion, not a rule waiver.
+  are `.exclude('.other-month')`d in the calendar scan — a targeted exclusion, not a rule waiver. The
+  **Links Selector** draws the same grid with the same filler days (it builds the Calendar's cells), so
+  its two scans take the same exclusion and nothing more (27 Nov 2026).
 
 ## Functional-emoji screen-reader treatment (H1)
 
@@ -198,7 +200,7 @@ every state.
 ## Waived rules
 
 No blanket rule waivers. One targeted per-page **element exclusion**: calendar `.other-month` (faint,
-`aria-hidden` adjacent-month day numbers — see #2). When accepting anything else, add a `GLOBAL_WAIVERS`
+`aria-hidden` adjacent-month day numbers — see #2), on the Calendar and on the Links Selector, which draws its grid. When accepting anything else, add a `GLOBAL_WAIVERS`
 entry or a page `exclude` in `axe.spec.js` **with a one-line reason**, and record it here.
 
 ## Promotion path — ✅ COMPLETE

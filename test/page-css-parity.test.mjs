@@ -34,7 +34,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { pageStylesheets } from '../scripts/app-pages.mjs';
+import { pageStylesheets, APP_PAGES } from '../scripts/app-pages.mjs';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -83,6 +83,9 @@ const SHARED = definedClasses(read('./shared.css'));
 /** @type {Record<string, Set<string>>} */
 const PAGE_CSS = {};
 for (const css of Object.values(PAGES)) PAGE_CSS[css] = definedClasses(read(css));
+/** Another page's stylesheet a page ALSO loads, by decision (`alsoCss` in scripts/app-pages.mjs) — the Links Selector
+ *  draws the Calendar's grid with index.css. Its classes count as loaded for that page alone. @type {Record<string, Set<string>>} */
+const ALSO = Object.fromEntries(APP_PAGES.map(p => [p.file, new Set((p.alsoCss ?? []).flatMap(c => [...definedClasses(read(c))]))]));
 
 test('no page uses a class defined only in ANOTHER page\'s stylesheet', () => {
     /** @type {string[]} */
@@ -91,7 +94,7 @@ test('no page uses a class defined only in ANOTHER page\'s stylesheet', () => {
     for (const [html, ownCss] of Object.entries(PAGES)) {
         const used = usedClasses(read(html));
         for (const cls of used) {
-            if (SHARED.has(cls) || PAGE_CSS[ownCss].has(cls)) continue;
+            if (SHARED.has(cls) || PAGE_CSS[ownCss].has(cls) || ALSO[html]?.has(cls)) continue;
             // Not defined anywhere this page loads. Is it defined in some OTHER page's CSS?
             const elsewhere = Object.entries(PAGE_CSS)
                 .filter(([css, set]) => css !== ownCss && set.has(cls))
@@ -115,7 +118,10 @@ test('no page uses a class defined only in ANOTHER page\'s stylesheet', () => {
 test('the extraction actually found selectors and classes', () => {
     assert.ok(SHARED.size > 120, `shared.css yielded only ${SHARED.size} classes — the selector scan is broken`);
     for (const [css, set] of Object.entries(PAGE_CSS)) {
-        assert.ok(set.size > 10, `${css} yielded only ${set.size} classes`);
+        // A page that also loads another page's sheet by decision (`alsoCss`) keeps only a few rules of its own — the Links
+        // Selector's is a handful on top of index.css — so its floor is "not empty", not "a page's worth".
+        const small = APP_PAGES.some(p => p.css === css && (p.alsoCss ?? []).length);
+        assert.ok(set.size > (small ? 2 : 10), `${css} yielded only ${set.size} classes`);
     }
     for (const html of Object.keys(PAGES)) {
         assert.ok(usedClasses(read(html)).size > 20, `${html} yielded too few used classes`);

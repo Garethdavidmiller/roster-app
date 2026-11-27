@@ -1727,3 +1727,21 @@ phone, and a lost one is wiped remotely — and an admin reset of the admin's ow
 every device out (AUTH_AND_SESSIONS.md 23). Not to be re-proposed on the same argument. If it is ever
 reopened (for example a shared admin device), AUTH_AND_SESSIONS.md 16 holds the one rule: the server
 reading the token's `auth_time`, never a client timer.
+
+## The Links Selector puts a proposal on dates (owner, 27 Nov 2026)
+
+Colleagues asked to see a proposal as a calendar: choose a shortlisted proposal and the line you would start on, and see
+your months as the Calendar shows them, with its swipe. The New CEA Link page deliberately shows the same proposals as
+WEEK NUMBERS, so a proposal is never read as somebody's roster (`newlink-boundary.test.mjs`); this page does the
+opposite on purpose, and is made unmistakable instead — its own name and colour, a "A proposal, not your roster" line
+above every month and in every day's panel, and no recorded change, leave or absence drawn on any day ("Leave out").
+The owner's calls: the name **Links Selector**; a provisional start of **Sunday 17 January 2027**, with every day before
+it **blank** rather than today's link; reached from the drawer; a **beta for the admin alone** until it is right, then
+**the New CEA Link page's audience** — one switch, `CONFIG.LINKS_SELECTOR_OPEN`.
+
+How it is built, so it is not rebuilt another way: the month is assembled from the Calendar's own cell builders and
+drawn by `index.css`, so it looks exactly like the Calendar and follows any change to it; it does NOT go through
+`buildCalendarContainer`, which draws a member and their recorded changes (`links-selector-render.js` says why). The
+swipe is the Calendar's own module, handed the page's months through its `months` option, which the Calendar leaves
+unset. The rotation is the app's: the line chosen in the week of the start, one line down each Sunday, back to line 1
+after line 26 (`links-selector-core.js`). Nothing reads or writes Firestore for the roster.

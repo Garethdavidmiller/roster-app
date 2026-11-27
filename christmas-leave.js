@@ -72,9 +72,20 @@ export const CHRISTMAS_LEAVE_FROM_YEAR = 2026;
  */
 export function isChristmasLeaveDay(member, date) {
     if (!member || !date || !isChristmasRD(date)) return false;
+    return isChristmasDueByPattern(date, getPatternShift(member, date));
+}
+
+/**
+ * The same rule, asked of a pattern's value for `date` rather than of a member — for a page that draws a pattern nobody
+ * is on yet (the Links Selector draws a PROPOSAL's line). `isChristmasLeaveDay` asks this, so the two cannot differ.
+ * @param {Date} date
+ * @param {string} pattern the pattern's value for that date
+ * @returns {boolean}
+ */
+export function isChristmasDueByPattern(date, pattern) {
+    if (!date || !isChristmasRD(date)) return false;
     if (date.getFullYear() < CHRISTMAS_LEAVE_FROM_YEAR) return false;
     if (date.getDay() === 0) return false;               // rule 2: Sundays are uncontracted
-    const pattern = getPatternShift(member, date);
     // A shift is due at work; a rest day and a spare day are not — 25 and 26 December cannot be spare
     // days, even in a spare week (owner, 19 Nov 2026).
     return pattern !== 'RD' && pattern !== 'OFF' && pattern !== 'SPARE';

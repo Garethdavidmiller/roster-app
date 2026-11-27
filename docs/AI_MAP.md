@@ -72,6 +72,7 @@ below, and run `npm run generate:ai-map`.
 | Document links card (ops page) — a new key for every stored Huddle, Circular and Newsletter file, so every old copy of a link stops working | `operations-doc-links.js` (the card) · `functions/documents.js` (`rotateDocumentLinks`, the endpoint) · `functions/doc-link-rotation.js` (the rules) |
 | Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · decisions `docs/DECISIONS.md` → The annual leave uploader |
 | Link Designer design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `link-designer-app.js` + `link-designer.html` + `link-designer.css`; the grid `link-designer-grid.js`, the paint bar `link-designer-brush-bar.js`, the window editor `link-designer-window-editor.js`, the Build press `link-designer-build-button.js` |
+| Links Selector — a shortlisted proposal and a start line as the Calendar's months, with its swipe (admin beta, `CONFIG.LINKS_SELECTOR_OPEN`) | the rules `links-selector-core.js`; the month `links-selector-render.js` (the Calendar's own cells); the page `links-selector-app.js` + `links-selector.html` + `links-selector.css` (with `index.css`); the swipe is `calendar-swipe.js`'s `months` option |
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), the rest between two duties, design quality checks | `link-designer-design.js` (pure — no DOM/Firebase, imports nothing; tested by `link-designer-design.test.mjs`) |
 | The link generator — the two constructions, the contract gate, the minimum-rest repair | `link-designer-generate.js` (pure; imports its constants from `link-designer-design.js`; tested by `link-designer-design.test.mjs` and `link-designer-contract.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |
@@ -324,7 +325,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `getAuthSnapshot` · `subscribeAuth` · `dispatchAuth` · `_resetAuthStateForTest`
 
 ### `auth-policy.js`
-- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `navGatesFor` · `overtimeEnabled` · `linkDesignerEnabled` · `requirePage`
+- **Exports:** `DECISIONS` · `selectorRoles` · `PAGE_POLICIES` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `canOpenSelector` · `navGatesFor` · `overtimeEnabled` · `linkDesignerEnabled` · `requirePage`
 
 ### `operations-app.js`
 - **Exports:** `init`
@@ -492,7 +493,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `dayLabel` · `sheetWords` · `patternWords` · `drawnWords` · `appWords` · `figuresLine` · `personNotes` · `chipsFor` · `totalsEntries` · `reasonWords` · `CARD_WORDS` · `beyondHeadWords` · `checkedWords` · `overallWords` · `oldWords` · `unplacedWords` · `appOnlyWords` · `moreDaysWords` · `notComparedWords` · `ageWords` · `SAVE_WORDS` · `questionWords` · `confirmWords` · `afterWords` · `stillDiffersWords` · `unansweredWords` · `saveButtonWords` · `savingWords` · `refusalWords` · `receiptWords` · `leftFreeWords` · `lastSaveWords` · `undoConfirmWords` · `undoneWords`
 
 ### `christmas-leave.js`
-- **Exports:** `CHRISTMAS_LEAVE_FROM_YEAR` · `isChristmasLeaveDay` · `isChristmasClosureDate` · `isUncountedChristmasLeave` · `allowanceForBoxingDay` · `boxingDayForAllowance` · `allowanceYearsOf` · `boxingDayLieuDays` · `resolveDayShift` · `christmasLeaveDates` · `christmasLeaveByYear` · `christmasLeaveLine`
+- **Exports:** `CHRISTMAS_LEAVE_FROM_YEAR` · `isChristmasLeaveDay` · `isChristmasDueByPattern` · `isChristmasClosureDate` · `isUncountedChristmasLeave` · `allowanceForBoxingDay` · `boxingDayForAllowance` · `allowanceYearsOf` · `boxingDayLieuDays` · `resolveDayShift` · `christmasLeaveDates` · `christmasLeaveByYear` · `christmasLeaveLine`
 
 ### `leave-year.js`
 - **Exports:** `LEAVE_YEAR_CHOICE` · `LEAVE_YEAR_FROM` · `leaveYearChoiceEnabled` · `isValidLeaveYear` · `carriedFrom` · `leaveYearOf` · `nextLeaveYear` · `canChooseLeaveYear` · `offeredJanuaries` · `carryLine`
@@ -528,6 +529,12 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports of `newlink-config.js`:** `STARTS` · `TIMETABLE_STARTS` · `CONTACT` · `CONTACT_ROLE` · `CHOSEN` · `PHASE` · `CLOSES` · `AUDIENCE` · `audienceNames` · `PACK_BASE` · `HAVE_YOUR_SAY`
 - **Exports of `newlink-data.js`:** `COLUMNS` · `CHANGES` · `GAINS` · `COSTS` · `DIFFERS` · `DIFFER_RULE` · `PERSONAS` · `NOTES` · `PACK`
 - **Exports of `newlink-render.js`:** `designName` · `aToZ` · `closesWords` · `startsWords` · `statusPhase` · `statusHint` · `renderStatus` · `renderList` · `renderCommon` · `renderDiffers` · `ifYou` · `renderFigures` · `figuresKey` · `renderPersonas` · `renderPersonaChips` · `dutyKind` · `renderWeeks` · `renderAllWeeks` · `renderWeeksKey` · `renderWeeksTabs` · `fileRow` · `renderPack` · `glanceFile` · `personaStatus` · `weeksStatus` · `weeksTitle`
+
+### `links-selector-app.js` / `links-selector-boot.js` / `links-selector-core.js` / `links-selector-render.js`
+- **Exports of `links-selector-app.js`:** `STORE_KEY` · `init`
+- **Exports of `links-selector-boot.js`:** none
+- **Exports of `links-selector-core.js`:** `STARTS` · `FIRST_MONTH` · `LAST_MONTH` · `startDate` · `lineOn` · `dayOn` · `proposalsAtoZ` · `isCoverLine` · `lineOptions` · `monthLines` · `inRange` · `openingMonth` · `initialChoice` · `choiceQuery`
+- **Exports of `links-selector-render.js`:** `buildSelectorMonth`
 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`
 - **Exports of `pdf-viewer.js`:** `initPdfViewer`
@@ -967,8 +974,8 @@ The server-side Firestore security rules, and the authority on access (what the 
 ### `storage.rules`
 The Firebase Storage rules for the three document folders — `huddles/`, `circulars/`, `newsletters/` — admin-only to read, write and delete, at most 20 MB (`MAX_FILE_BYTES` in `functions/index.js` must match) and PDF or Word only; every other path is denied. Staff never open a file through these rules: the short-lived signed url and the stored url both bypass them. Verify with `npm run test:rules`.
 
-### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `link-designer.css` / `overtime.css` / `trains.css` / `newlink.css`
-Each app page's own stylesheet, linked after `shared.css`: a visual change specific to one page goes here, and anything two pages share goes in `shared.css`. Served from the service worker's version cache like the app's JS. Tokens, surfaces and the recipes are `.claude/rules/css-tokens.md`; a raw hex colour fails `css-hex-parity.test.mjs`.
+### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `link-designer.css` / `overtime.css` / `trains.css` / `newlink.css` / `links-selector.css`
+Each app page's own stylesheet, linked after `shared.css`: a visual change specific to one page goes here, and anything two pages share goes in `shared.css`. The Links Selector also loads `index.css`, so a change to the Calendar's grid reaches it too. Served from the service worker's version cache like the app's JS. Tokens, surfaces and the recipes are `.claude/rules/css-tokens.md`; a raw hex colour fails `css-hex-parity.test.mjs`.
 
 ### `guide-shell.css`
 The shared chrome of the five guide pages, linked first on each: the sticky header, the chip bar, the section heading and link style, the footer, the print rules, the Inter `@font-face` and the guides' palette tokens. Change guide chrome here once. The guides do not load `shared.css`, so a rule added only there never reaches them. Full specification: `.claude/rules/guide-pages.md`.

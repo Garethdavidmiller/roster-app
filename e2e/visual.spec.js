@@ -1193,6 +1193,25 @@ test('newlink — the top of the page (desktop 1280)', async ({ page }) => {
     await expect(page).toHaveScreenshot('newlink-desktop-1280.png');
 });
 
+// The Links Selector (27 Nov 2026): a proposal on the Calendar's grid. Its first month on a phone — sixteen blank days, then the
+// proposal's — and a later month on a desktop, a whole month of shifts with a cover week in it.
+test('links selector — January 2027 (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 1400 });
+    // No choice in the address and none on the device: the page's own opening — the first proposal A to Z, on line 1.
+    await page.goto('/links-selector.html');
+    await settle(page, '.calendar-grid');
+    await expect(page).toHaveScreenshot('links-selector-mobile-390.png');
+});
+
+test('links selector — February 2027 (desktop 1280)', async ({ page }) => {
+    await prep(page, { width: 1280, height: 1300 });
+    await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
+    await settle(page, '.calendar-grid');
+    await page.locator('#nextMonth').click();
+    await settle(page, '.calendar-day[data-detail-day="Monday 1 February 2027"]');
+    await expect(page).toHaveScreenshot('links-selector-desktop-1280.png');
+});
+
 test('overtime — the member form, seven days unanswered (mobile 390)', async ({ page }) => {
     await prep(page, { width: 390, height: 1800 });
     await stubOvertime(page, {

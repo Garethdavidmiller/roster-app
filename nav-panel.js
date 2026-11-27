@@ -188,7 +188,7 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains'|'newlink', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, isNotOtherStaff?: boolean, onLogoClick?: (() => void)|null, authReady?: Promise<any>, canReadDocuments?: () => boolean }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains'|'newlink'|'selector', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, canOpenSelector?: boolean, isNotOtherStaff?: boolean, onLogoClick?: (() => void)|null, authReady?: Promise<any>, canReadDocuments?: () => boolean }} opts
  *   canReadDocuments — a THUNK: may the two document links read? Calendar, Overtime, Pay and Trains pass
  *   their own; with none it is `!!memberName`, never "yes" (22 Nov 2026): offline the cache answers with no
  *   rule asked (calendar-doc-access.js), so a drawer wired for nobody opened an earlier visitor's document.
@@ -199,7 +199,7 @@ export function resetNavPanel() {
  *   header logo goes back to the calendar, so About lives here).
  *   isNotOtherStaff — the one gate that defaults to TRUE (nav-destinations.js → `otherStaffHidden` says why).
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, canOpenNewlink = false, isNotOtherStaff = true, onLogoClick = null, authReady = Promise.resolve(), canReadDocuments = () => !!memberName } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, canOpenNewlink = false, canOpenSelector = false, isNotOtherStaff = true, onLogoClick = null, authReady = Promise.resolve(), canReadDocuments = () => !!memberName } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion: the SIGNED-IN name, never a selected
     // member (on the station PC that is whichever row was picked last). Never stored — only compared
     // against CONFIG.ADMIN_NAMES; usage-reporter.js has the reasoning.
@@ -212,7 +212,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     burger.setAttribute('aria-controls', 'navPanel');
     burger.setAttribute('aria-expanded', 'false');
 
-    injectNavPanel(currentPage, memberName, onSignOut, { isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink, isNotOtherStaff });
+    injectNavPanel(currentPage, memberName, onSignOut, { isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink, canOpenSelector, isNotOtherStaff });
 
     const panel    = /** @type {HTMLElement} */ (document.getElementById('navPanel'));
     const overlay  = /** @type {HTMLElement} */ (document.getElementById('navPanelOverlay'));
