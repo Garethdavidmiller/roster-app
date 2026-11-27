@@ -449,7 +449,8 @@ for (const [width, height] of [[1366, 650], [1280, 593]]) {
         await page.waitForSelector('.day-row', { timeout: 10000 });
         await page.locator('#navMenuBtn').click();
         await expect(page.locator('#navPanel')).toHaveClass(/\bopen\b/);
-        expect(await page.locator('.nav-panel-pill').count(), 'premise: the owner\'s eight pages').toBe(8);
+        // Nine since the Links Selector's pill (27 Nov 2026), which the admin alone has during its beta.
+        expect(await page.locator('.nav-panel-pill').count(), 'premise: the owner\'s nine pages').toBe(9);
         const at = await page.evaluate(() => ({
             reference: Math.round(/** @type {Element} */ (document.getElementById('navGuidesToggle')).getBoundingClientRect().bottom),
             fold: Math.round(/** @type {Element} */ (document.querySelector('.nav-panel-body')).getBoundingClientRect().bottom) }));
