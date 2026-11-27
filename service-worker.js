@@ -374,7 +374,6 @@ const APP_FILES = [
     'silent-sign-in.js',
     'slow-save.js',
     'splash-watchdog.js',
-    'staff-pin-ended.js',
     'status-text.js',
     'storage-keys.js',
     'storage-utils.js',
@@ -399,7 +398,6 @@ const APP_FILES = [
     'upload-commit.js',
     'usage-reporter.js',
     'usage-stats.js',
-    'viewer-shed.js',
 ];
 // END GENERATED app files
 // The "managed" same-origin app files: HTML pages, JS modules, and CSS — all served from this

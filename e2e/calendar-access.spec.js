@@ -20,8 +20,7 @@
  */
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
-import { seedMember, seedMemberSession, seedSession, signInThroughOverlay, collectFatalErrors, seedLegacyViewerSession, clearNoticeFlags, isTouchProject, recordFirstFrameText, firstFrameText } from './helpers.js';
-import { STAFF_PIN_ENDED_NOTICE } from '../staff-pin-ended.js';
+import { seedMember, seedMemberSession, seedSession, signInThroughOverlay, collectFatalErrors, clearNoticeFlags, isTouchProject, recordFirstFrameText, firstFrameText } from './helpers.js';
 import { forcePasswordSet } from './fixtures.js';
 
 // (Until v24.34 every test here pinned `CONFIG.CALENDAR_PIN_ACCESS` on, and four more proved the
@@ -763,151 +762,13 @@ test('a normal boot never shows the skeleton at all', async ({ page }) => {
     expect(await page.evaluate(() => window.__sawSkeleton)).toBe(false);
 });
 
-// ── A LEFTOVER STAFF-PIN SESSION (the PIN retired, owner, 23 Nov 2026) ─────────────────────────────
-//
-// A browser that opened the Calendar with the PIN before it was retired can still hold its session —
-// the shared `calendar-viewer` identity, kept in sessionStorage. Every page signs it out on arrival
-// (session.js → `reconcileExpiredIdentity`, which no page asks to keep it any more), and the card says
-// why in ONE line (staff-pin-ended.js). Silent, a station that used the code yesterday would meet a
-// sign-in today with nothing to say what changed.
-
-/** Whether this tab still holds the leftover PIN session (the stub keeps it in sessionStorage). */
-const holdsViewer = (/** @type {import('@playwright/test').Page} */ page) =>
-    page.evaluate(() => sessionStorage.getItem('__e2e_viewer'));
-
-test('a leftover PIN session on the Calendar is signed out on load: the sign-in card, the retired line, and no PIN box', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await seedLegacyViewerSession(page);
-    await seedMember(page);   // a calendar chosen on this machine before — no roster for it either
-    await recordFirstFrameText(page, '#loginNotice');
-    await page.goto('/index.html');
-
-    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE);
-    // SIGNED OUT, not merely refused: the identity itself is gone, so no later page meets it.
-    await expect.poll(() => holdsViewer(page), { message: 'the leftover PIN session survived the load' }).toBeNull();
-    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.signOutCount || 0), 'the teardown never signed out').toBeGreaterThan(0);
-    // Spoken, not only shown: the line arrived after the card was drawn (`speakAfterMount`).
-    const atFirstFrame = await firstFrameText(page, '#loginNotice');
-    expect(atFirstFrame.length, 'premise: the card\'s notice line was seen arriving').toBeGreaterThan(0);
-    expect(atFirstFrame.filter(Boolean), 'the line was already in the card at its first frame, so it was never announced').toEqual([]);
-    // Nothing of the PIN is left to type into or to tap.
-    await expect(page.locator('#calLockPin')).toHaveCount(0);
-    await expect(page.locator('input[inputmode="numeric"]'), 'a PIN box by any other id').toHaveCount(0);
-    await expect(page.locator('#loginAlternative')).toHaveCount(0);
-    await expect(page.locator('#calLockPinInstead')).toHaveCount(0);
-    // …and no roster: the viewer it held used to open one.
-    await expect(page.locator('#calendarDisplay')).toBeHidden();
-    expect(await page.locator('#calendarDisplay').innerHTML()).toBe('');
-    expect(await page.locator('#teamMemberSelect option').count()).toBe(0);
-    // The drawer is a locked visitor's: no footer, so no End staff PIN and no bell.
-    await page.locator('#navMenuBtn').click();
-    await expect(page.locator('#navPanel')).toBeVisible();
-    await expect(page.locator('.nav-panel-footer')).toBeHidden();
-    await expect(page.locator('#navLockCalendarBtn')).toHaveCount(0);
-    await page.keyboard.press('Escape');
-
-    // A reload does not bring it back, and is not told twice: the session has gone.
-    await page.reload();
-    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    await page.waitForTimeout(1000);   // the teardown lands in well under that when there is one
-    await expect(page.locator('#loginNotice'), 'the line outlived the session it was about').toBeEmpty();
-    expect(errors, errors.join('\n')).toEqual([]);
-});
-
-test('a leftover PIN session that restores LATE is still signed out — never granted', async ({ page }) => {
-    // The late-identity watcher grants only a NAMED identity now (calendar-access.js); until the PIN
-    // was retired it granted a late viewer too, which is the cliff this guards against coming back.
-    // 7.5s: past the access decision's 6.5s budget (so the front door is already up when the session
-    // lands, and the watcher hears it), inside the teardown's own 8s restore wait (so the teardown does
-    // too). A restore later than THAT is not torn down on this load — it is still never granted, and
-    // the next load's teardown takes it.
-    test.setTimeout(60_000);
-    await seedLegacyViewerSession(page);
-    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 7500 }); });
-    await page.goto('/index.html');
-    await expect(page.locator('#calendarLock #loginCard')).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE, { timeout: 15_000 });
-    await expect.poll(() => holdsViewer(page)).toBeNull();
-    await page.waitForTimeout(1000);   // a grant from the watcher would have landed by now
-    await expect(page.locator('#calendarDisplay')).toBeHidden();
-    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-});
-
-test('a member who signs in on that card is not told about the PIN again', async ({ page }) => {
-    // The line is old news once a member signs in on the page (`forgetStaffPinEnded`).
-    await seedLegacyViewerSession(page);
-    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
-    await page.goto('/index.html');
-    await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE);
-    await signInThroughOverlay(page, 'G. Miller');
-    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
-    await page.evaluate(async () => { (await import('./calendar-access.js')).handleAccessLost(); });
-    await expect(page.locator('#calLockWhy')).toContainText(/expired/i);
-    await expect(page.getByText(STAFF_PIN_ENDED_NOTICE)).toHaveCount(0);
-});
-
-// The PROTECTED pages never admitted the PIN, and sign it out on arrival exactly as the Calendar now
-// does — and say the same line. (Until 23 Nov 2026 they said the PIN only opened the Calendar and
-// Trains, and their way back opened the PIN box.) Both ways back are covered, one per page: the link
-// (Admin) and Escape (Pay), which follows wherever the link goes — to the roster's front door.
-for (const [label, url, way] of [['Admin', '/admin.html', 'link'], ['Pay', '/paycalc.html', 'Escape']]) {
-    test(`a leftover PIN session arriving at ${label} is signed out and told the PIN has been retired; the way back (${way}) is the roster`, async ({ page }) => {
-        const errors = collectFatalErrors(page);
-        await seedLegacyViewerSession(page);
-        await recordFirstFrameText(page, '#loginNotice');
-        await page.goto(url);
-        await expect(page.locator('#loginOverlay')).toBeVisible();
-        await expect(page.locator('#loginNotice')).toHaveText(STAFF_PIN_ENDED_NOTICE);
-        const atFirstFrame = await firstFrameText(page, '#loginNotice');
-        expect(atFirstFrame.length, 'premise: the card\'s notice line was seen arriving').toBeGreaterThan(0);
-        expect(atFirstFrame.filter(Boolean), 'the notice was already in the card at its first frame, so it was never announced').toEqual([]);
-        await expect.poll(() => holdsViewer(page), { message: 'the leftover PIN session survived the page' }).toBeNull();
-        await expect(page.locator('#loginCard a.login-back')).toHaveAttribute('href', './');
-
-        if (way === 'link') await page.locator('#loginCard a.login-back').click();
-        else await page.locator('#loginPassword').press('Escape');
-        await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-        await expect(page.locator('#calLockPin')).toHaveCount(0);
-        expect(errors, errors.join('\n')).toEqual([]);
-    });
-}
-
-// PAUSED OVERTIME SAYS IT TOO (audit C1; AUTH_AND_SESSIONS 24 — the sign-out is never silent). Paused, the
-// page signs the leftover session out like every page, but offers no sign-in, so it says the card's
-// sentence itself, with the way back. Its own `overtimeEnabled` seam holds it paused whichever way the
-// committed switch sits.
-test('a leftover PIN session arriving at paused Overtime is told the PIN has been retired, with the way back to the roster', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: false }; });
-    await page.goto('/overtime.html');   // first, with no PIN session held: the guard on the other side
-    await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
-    await page.waitForTimeout(1000);     // the teardown that would fill it lands in well under that
-    await expect(page.locator('#otMineContent [role="status"]')).toBeEmpty();
-
-    await seedLegacyViewerSession(page);
-    await recordFirstFrameText(page, '#otMineContent [role="status"]');
-    await page.reload();
-    await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
-    const said = page.locator('#otMineContent [role="status"]');
-    await expect(said).toContainText(STAFF_PIN_ENDED_NOTICE);
-    // Spoken, not just shown: the region was drawn empty first (`speakAfterMount`, status-text.js).
-    const atFirstFrame = await firstFrameText(page, '#otMineContent [role="status"]');
-    expect(atFirstFrame.length, 'premise: the page\'s status region was seen arriving').toBeGreaterThan(0);
-    expect(atFirstFrame.filter(Boolean), 'the line was already in the region at its first frame, so it was never announced').toEqual([]);
-    await expect(said.locator('a')).toHaveAttribute('href', './');
-    await said.locator('a').click();
-    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    expect(errors, errors.join('\n')).toEqual([]);
-});
-
-test('a visitor who never held the PIN is told nothing about it, and the way back is the roster', async ({ page }) => {
-    // The guard on the line above's other side: a card that always said it would pass every test there.
+// The line a leftover staff-PIN session's sign-out used to put on this card went with the PIN's cleanup
+// release (27 Nov 2026), and the tests of it with the account. What stays: a card nobody gave a reason
+// to says nothing.
+test('a signed-out visitor is told nothing on the card, and the way back is the roster', async ({ page }) => {
     await page.goto('/admin.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
-    // The teardown that would set the line waits for the boot restore; the leftover session's case
-    // shows it in well under a second here, so two seconds of nothing is the answer, not a race.
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(2000);   // the boot's teardown has run by now; nothing it does may fill the line
     await expect(page.locator('#loginNotice')).toBeEmpty();
     await expect(page.locator('#loginCard a.login-back')).toHaveAttribute('href', './');
 });

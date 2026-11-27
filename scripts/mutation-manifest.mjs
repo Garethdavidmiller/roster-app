@@ -542,8 +542,8 @@ export const MUTATIONS = [
     {
         id: 'expired-identity-releases-push',
         file: 'session.js',
-        find: 'if (!isViewerUser(u)) await releasePushForEndingHold();',
-        replace: 'if (false) await releasePushForEndingHold();',
+        find: '    await releasePushForEndingHold();\n    // …or anybody else did',
+        replace: '    // …or anybody else did',
         test: unit('session.test.mjs'),
         breaks: 'an expired session leaves the member\'s notices going to a device nobody is signed in on',
     },

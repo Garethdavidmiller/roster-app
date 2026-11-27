@@ -27,11 +27,10 @@
  */
 
 const { nameToEmail } = require('./roster-parse-helpers');
-const { isViewerAccount } = require('./retired-viewer-account');
 const { fieldsOf } = require('./caught');
 
 /**
- * Is this the member's OWN account — enabled, not the retired shared viewer, and carrying the `member`
+ * Is this the member's OWN account — enabled, and carrying the `member`
  * claim Set up accounts stamps with their roster name? The same strictness as `enabledAdminUids`, for
  * the notices addressed to a member (the pay reminder, both Overtime notices): an account that merely
  * sits at the derived address is not the member (whole-app review, 24 Nov 2026).
@@ -40,7 +39,7 @@ const { fieldsOf } = require('./caught');
  * @returns {boolean}
  */
 function isMembersOwnAccount(user, name) {
-    return !!(user && user.uid && !user.disabled && !isViewerAccount(user)
+    return !!(user && user.uid && !user.disabled
         && user.customClaims && user.customClaims.member === name);
 }
 

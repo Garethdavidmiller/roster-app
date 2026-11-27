@@ -18,9 +18,7 @@
  * `trains-data.js` is served to anyone, like every module. Narrowing it again is one line in
  * `auth-policy.js` and one flag in `nav-panel.js`, which page-contract-parity requires to move together.
  *
- * The station PIN read it too from 22 Oct 2026 until the PIN was retired (owner, 23 Nov 2026): a leftover
- * PIN session is now signed out here on arrival, as on every protected page (session.js →
- * `reconcileExpiredIdentity`), and the sign-in card says why (staff-pin-ended.js).
+ * The station PIN read it too from 22 Oct 2026 until the PIN was retired (owner, 23 Nov 2026).
  *
  * ── TEACH THE CHANGE, NOT THE TIMETABLE ────────────────────────────────────────────────────────
  *
@@ -113,13 +111,11 @@ export function init() {
     // "pending" as "allowed".
     // The shared-screen line every sign-in card carries (polish review, 26 Nov 2026: this one stopped without it).
     startPage({ page: 'trains', label: 'Trains', about: { ...SIGN_IN_ABOUT, footnote: SHARED_SCREEN },
-        // No member: the sign-in. The teardown runs FIRST — it is what signs out a leftover session of the
-        // retired staff PIN (owner, 23 Nov 2026) — but for no longer than the Calendar gives it
-        // (`ACCESS_DECISION_BUDGET_MS`, calendar-access.js). It begins by awaiting `authReady`, which never
-        // settles when the auth store is wedged (an iPhone's stuck IndexedDB), and an unbounded wait here
-        // left the placeholder up for good with no way to sign in (72-hour check, 24 Nov 2026). Past the
-        // budget the card goes up and the teardown runs on: the card hears the retired-PIN line whenever
-        // it lands (`onStaffPinEnded`, staff-pin-ended.js), as the Calendar's does.
+        // No member: the sign-in. The teardown of an expired identity runs FIRST, but for no longer than
+        // the Calendar gives it (`ACCESS_DECISION_BUDGET_MS`, calendar-access.js). It begins by awaiting
+        // `authReady`, which never settles when the auth store is wedged (an iPhone's stuck IndexedDB),
+        // and an unbounded wait here left the placeholder up for good with no way to sign in (72-hour
+        // check, 24 Nov 2026). Past the budget the card goes up and the teardown runs on.
         beforeCard: () => Promise.race([
             teardown,
             new Promise(resolve => setTimeout(resolve, ACCESS_DECISION_BUDGET_MS)),

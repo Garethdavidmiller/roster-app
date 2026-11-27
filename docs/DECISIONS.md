@@ -1458,7 +1458,10 @@ tightens a read rule — RECOVERY_RUNBOOK.md → "Tightening a read rule — the
    `viewerAttempts`, consider switching off Anonymous sign-in, and KEEP the token-creator grant
    (`getDocumentUrl` needs it): OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
 3. **Cleanup**, once the account is deleted: the transition code goes, and the server's account
-   guard with it, because no PIN session can exist any more.
+   guard with it, because no PIN session can exist any more. **Shipped** (27 Nov 2026), the day after
+   the owner deleted the account, destroyed the secret and purged `viewerAttempts` — not a week or two
+   later as first planned: with the account gone no device can renew a PIN session, so the wait would
+   only have kept the one line telling a station the PIN had been retired. That line went with it.
 
 **Between releases 1 and 2 the PIN still worked at the endpoint** — a person holding it could read the
 roster by calling it directly — so release 2 was not to wait long. Rotating the PIN in that window was

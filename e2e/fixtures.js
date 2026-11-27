@@ -618,25 +618,6 @@ const _e2eAuth = (code, establishes) => (_auth, email, password) => {
 // needs one, so without it a password change under the stub could never succeed; and session.js treats a
 // user whose email is the member's own as that member's account, which is why it is not on by default.
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
-// ONE object per LEFTOVER staff-PIN viewer, as the real SDK keeps one User instance: auth.currentUser is
-// a stored field, and onAuthStateChanged hands out that same instance. The staff PIN was retired on
-// 23 Nov 2026, so nothing here signs a viewer IN any more — a spec seeds the session a browser may
-// still hold from before (helpers.js → seedLegacyViewerSession), and the app's teardown must sign it
-// out. One instance matters for that teardown: it stands down if the user changed while it ran
-// (session.js), and a fresh object on every read made every comparison by identity false. signOut
-// drops it. The MEMBER object below is still built fresh on every read: nothing compares a member by
-// identity yet.
-// NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
-let _viewerInstance = null;
-const _viewerUser = () => _viewerInstance || (_viewerInstance = _newViewerUser());
-const _newViewerUser = () => ({
-    uid: 'calendar-viewer',
-    isAnonymous: false,
-    getIdTokenResult: () => Promise.resolve({
-        token: 'e2e-viewer-token',
-        claims: { calendarViewer: true },
-    }),
-});
 // ---- the auth RESTORE clock ----
 // window.__E2E.authRestoreDelayMs holds the persisted-user restore open for N ms: currentUser reads
 // null and onAuthStateChanged does not emit the user until then.
@@ -656,9 +637,6 @@ const _restored = () => Date.now() >= _restoreDue;
 const _currentUser = () => {
     const e2e = globalThis.__E2E || {};
     if (!_restored()) return null;
-    // The leftover viewer lives in sessionStorage, as the real one did (browserSessionPersistence):
-    // it survives a reload until the app's teardown signs it out, and signOut below removes it.
-    // A MEMBER outranks it, so a spec that seeds both gets the member.
     // getIdToken as well as getIdTokenResult (v20.12). The admin Cloud-Function callers are split
     // between the two — operations' roster upload uses getIdToken(), the sign-in stats card uses
     // getIdTokenResult() — and a stub with only one of them fails whichever path it does not cover
@@ -668,9 +646,6 @@ const _currentUser = () => {
         getIdToken: () => Promise.resolve('e2e-token'),
         getIdTokenResult: () => Promise.resolve({ token: 'e2e-token', claims: { admin: true } }),
     };
-    let stored = false;
-    try { stored = sessionStorage.getItem('__e2e_viewer') === '1'; } catch (_) { stored = false; }
-    if (e2e.viewerUser || stored) return _viewerUser();
     return null;
 };
 // WEDGED-START SEAM (v26.60): window.__E2E.authStartHangs makes authStateReady never answer, as it can on
@@ -722,9 +697,6 @@ export const signInWithEmailAndPassword = _e2eAuth('auth/invalid-credential', tr
 export const signOut = () => {
     const e2e = globalThis.__E2E || (globalThis.__E2E = {});
     e2e.signOutCount = (e2e.signOutCount || 0) + 1;
-    e2e.viewerUser = false;
-    _viewerInstance = null;
-    try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* private mode */ }
     return Promise.resolve();
 };
 export const setPersistence = () => Promise.resolve();

@@ -834,27 +834,19 @@ describe('a read the offline cache answered is a failed load (settings-ops-1)', 
     });
 });
 
-// ── WHERE A RESTORED SESSION IS KEPT IS DECIDED BY WHO IT IS (sign-in check, 11 Nov 2026) ───────────
-// `authBootstrap` migrates whoever this browser restored: the shared PIN account to THIS TAB
-// (sessionStorage, so it goes when the browser closes — AUTH_AND_SESSIONS 12) and a member to this
-// DEVICE (IndexedDB). Inverting that one condition survived thirteen suites: the PIN would have outlived
-// the browser on a station PC, and a member would have been signed out with the tab. A fresh copy of the
-// module boots against each user, because the copy the file imported booted with nobody signed in.
-describe('authBootstrap — who was restored decides where the session lives', () => {
+// ── A RESTORED MEMBER IS KEPT ON THIS DEVICE (sign-in check, 11 Nov 2026) ───────────────────────────
+// `authBootstrap` migrates whoever this browser restored onto the member chain (IndexedDB first). Until
+// the staff PIN's cleanup release (27 Nov 2026) a restored PIN account was kept to the tab instead; that
+// branch went with the account. A fresh copy of the module boots against the user, because the copy the
+// file imported booted with nobody signed in.
+describe('authBootstrap — a restored member is kept on this device', () => {
     const persistenceCalls = () => state.authOps.filter((o) => o.op === 'setPersistence').map((o) => o.type);
-
-    test('the PIN account is kept to this tab', async () => {
-        state.currentUser = { uid: 'calendar-viewer' };   // the uid isViewerUser recognises
-        const boot = await (await import('../firebase-client.js?boot-viewer')).authBootstrap;
-        assert.equal(boot.persistence, 'session');
-        assert.equal(boot.user, state.currentUser, 'and the restored user is handed on, not re-asked');
-        assert.deepEqual(persistenceCalls(), ['session']);
-    });
 
     test('a member is kept on this device', async () => {
         signIn();
         const boot = await (await import('../firebase-client.js?boot-member')).authBootstrap;
         assert.equal(boot.persistence, 'indexeddb');
+        assert.equal(boot.user, state.currentUser, 'and the restored user is handed on, not re-asked');
         assert.deepEqual(persistenceCalls(), ['indexeddb']);
     });
 });
@@ -958,62 +950,5 @@ describe('whenOwnWritesSentFor — the wait, then the records from this device\'
         state.docs.set('overrides/a', { memberName: 'G. Miller' });
         state.queued.add('overrides/a');
         assert.equal(await fc.whenOwnWritesSentFor([fc.doc(fc.db, 'overrides', 'a')], 20), false);
-    });
-});
-
-// ── the staff PIN's queued writes leave before it is signed out (22 Nov 2026) ─────────────────────
-// A viewer write still queued at its sign-out stayed in the on-device queue, and the SDK's wait for
-// the NEXT member's own writes waited on it (its IndexedDB queue does not bound the lookup to the
-// signed-in account) — every checked save on that device then ran out its eight seconds. Each
-// viewer sign-out awaits `letViewerWritesGo` first; its callers are tested in session.test.mjs and
-// calendar-access.test.mjs. Here: that it asks the app's own Firestore, only for the viewer, only
-// online, within its bound, and never makes the slow-save diagnostic think a save waited.
-describe('letViewerWritesGo — the PIN viewer\'s writes get a moment before it is signed out', () => {
-    const waits = () => state.ops.filter((o) => o.op === 'waitForPendingWrites');
-    const online = (v) => Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: v } });
-
-    test('the viewer, online: waits on the app\'s own Firestore, and says it drained', async () => {
-        signIn({ uid: 'calendar-viewer' });
-        online(true);
-        assert.equal(await fc.letViewerWritesGo(50), true);
-        assert.equal(waits().length, 1);
-        assert.equal(waits()[0].db, fc.db);
-    });
-    test('a member, or nobody: no wait at all — they own no viewer queue', async () => {
-        online(true);
-        signIn({ uid: 'uid_springer' });
-        assert.equal(await fc.letViewerWritesGo(50), false);
-        state.currentUser = null;
-        assert.equal(await fc.letViewerWritesGo(50), false);
-        assert.equal(waits().length, 0);
-    });
-    test('offline: no wait — nothing could leave, and the sign-out must not be held for it', async () => {
-        signIn({ uid: 'calendar-viewer' });
-        online(false);
-        try { assert.equal(await fc.letViewerWritesGo(50), false); } finally { online(true); }
-        assert.equal(waits().length, 0);
-    });
-    test('a queue that will not drain is let go within the bound, and never throws', async () => {
-        signIn({ uid: 'calendar-viewer' });
-        online(true);
-        state.pendingWrites = new Promise(() => {});
-        const started = Date.now();
-        assert.equal(await fc.letViewerWritesGo(20), false);
-        assert.ok(Date.now() - started < 1_000, 'the sign-out was held past its bound');
-        state.pendingWrites = Promise.reject(Object.assign(new Error('cancelled'), { code: 'cancelled' }));
-        state.pendingWrites.catch(() => {});
-        assert.equal(await fc.letViewerWritesGo(50), false, 'a rejected wait threw into the sign-out');
-    });
-    test('the bound defaults to VIEWER_WRITES_GRACE_MS, and the slow-save diagnostic hears nothing', async () => {
-        assert.equal(fc.VIEWER_WRITES_GRACE_MS, 2000);
-        const { watchOwnWritesWaits } = await import('../claim-retry.js');
-        /** @type {any[]} */ const heard = [];
-        const stop = watchOwnWritesWaits((w) => heard.push(w));
-        try {
-            signIn({ uid: 'calendar-viewer' });
-            online(true);
-            await fc.letViewerWritesGo(50);
-        } finally { stop(); }
-        assert.deepEqual(heard, [], 'a sign-out\'s wait was reported as a save\'s');
     });
 });

@@ -33,14 +33,9 @@
  * `login-overlay.js` card, mounted inline), and a browser holding a member's session whose identity
  * did not restore is shown that member's own way back (`showMemberPanel`). There is no second door.
  *
- * A browser can still hold a session of the shared staff-PIN viewer from before the retirement. The
- * decision's first step, `reconcileExpiredIdentity()` (session.js), signs it out — the same teardown
- * every other page has always run, now run here without the flag that used to keep the viewer — and
- * the sign-in card then says ONE line about why (staff-pin-ended.js). `decideAccess` never grants a
- * viewer either, so a teardown that has not landed yet still opens nothing. The viewer's remaining
- * plumbing (`isViewerUser`, viewer-shed.js, the viewer branch of `authReady`, `letViewerWritesGo`) is
- * kept until the cleanup release, which deletes the account. A `#staff-pin` left in an address or a
- * bookmark means nothing: nothing reads it, and the page opens on the sign-in card as it would anyway.
+ * The shared staff-PIN viewer's account is deleted, and the code that signed a leftover viewer
+ * session out went with it in the cleanup release (27 Nov 2026). A `#staff-pin` left in an address or
+ * a bookmark means nothing: nothing reads it, and the page opens on the sign-in card as it would anyway.
  *
  * The cards share ONE slot (`calendar-lock-slot.js`) so at most one of them can exist at a time.
  */
@@ -134,12 +129,7 @@ export function getAccessType() { return _grantedAs !== null && hasCalendarAcces
 /**
  * Resolve what access this browser has, tearing down anything stale first.
  *
- * THE TEARDOWN IS THE PLAIN `reconcileExpiredIdentity()` — the one every protected page runs. Until the
- * staff PIN was retired (23 Nov 2026) this page passed `preserveCalendarViewer`, because the shared
- * viewer is a non-anonymous identity with no local session, exactly the shape the teardown ends. Now
- * ending it is the point: a browser still holding a viewer session is signed out HERE, on its next
- * Calendar load, and the sign-in card says why (staff-pin-ended.js). `decideAccess` refuses a viewer
- * too, so a teardown still in flight past the budget opens nothing meanwhile.
+ * THE TEARDOWN IS THE PLAIN `reconcileExpiredIdentity()` — the one every protected page runs.
  *
  * @returns {Promise<'named'|'none'>}
  */
@@ -421,8 +411,7 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     watchForLateNamedIdentity();
     const held = getSession();
     if (!held?.name) {
-        // Nothing held: the front door, the sign-in card — the only one there is. A device the
-        // teardown has just taken a leftover staff-PIN session from is told why on it (staff-pin-ended.js).
+        // Nothing held: the front door, the sign-in card — the only one there is.
         await showSignInPanel();
         return 'none';
     }

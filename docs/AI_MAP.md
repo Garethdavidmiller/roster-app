@@ -110,7 +110,7 @@ below, and run `npm run generate:ai-map`.
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers | `ls.js` |
 | Cross-file localStorage key constants | `storage-keys.js` |
-| Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts (`functions/auth-endpoints.js` with `functions/account-lifecycle.js` and the account rules `functions/account-rules.js`, the reset-request doorbell `functions/reset-request.js` and its rules `functions/reset-request-rules.js`, and the retired PIN's shared account, `functions/retired-viewer-account.js`); push (`functions/push.js`, its transport guards `functions/push-guards.js`, and what every payload looks like, `functions/push-notices.js`); the deploy region (`functions/region.js`, and the browser's address of every function, `function-url.js`); the pay reminder's audience (`functions/pay-reminder.js`), the one-off New link push (`functions/newlink-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
+| Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts (`functions/auth-endpoints.js` with `functions/account-lifecycle.js` and the account rules `functions/account-rules.js`, the reset-request doorbell `functions/reset-request.js` and its rules `functions/reset-request-rules.js`); push (`functions/push.js`, its transport guards `functions/push-guards.js`, and what every payload looks like, `functions/push-notices.js`); the deploy region (`functions/region.js`, and the browser's address of every function, `function-url.js`); the pay reminder's audience (`functions/pay-reminder.js`), the one-off New link push (`functions/newlink-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, every guide) | `guide-back.js` |
@@ -166,7 +166,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `ownCopyWindow` · `ownMonthsToStore` · `createOwnCopy`
 
 ### `calendar-access-core.js`
-- **Exports:** `CALENDAR_VIEWER_UID` · `CALENDAR_VIEWER_CLAIM` · `isViewerUser` · `noticeAudienceAllows` · `personalActionsAllowed` · `decideAccess`
+- **Exports:** `noticeAudienceAllows` · `personalActionsAllowed` · `decideAccess`
 
 ### `calendar-overrides.js`
 - **Exports:** `SERVED_FROM_CACHE` · `READ_SUPERSEDED` · `rosterOverridesCache` · `hasOverrideAccess` · `setOverrideAccessLostHandler` · `_initialFetchInProgress` · `setInitialFetchInProgress` · `addFetchedMonths` · `clearFetchedMonth` · `releaseStaleMonths` · `oweRecheck` · `monthKey` · `issueReadTicket` · `answerStillWanted` · `_monthSlices` · `fetchOverridesForRange` · `fetchOverridesForRangeFromCache` · `ensureOverridesCached` · `getShiftTypesInMonth`
@@ -292,7 +292,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `holdPasswordMarker` · `releasePasswordMarker` · `SHARED_SCREEN` · `signInAboutFor`
 
 ### `login-overlay.js`
-- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `sayStaffPinEndedIn` · `SIGN_IN_SLOW_LINE` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
+- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `SIGN_IN_SLOW_LINE` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
 
 ### `sw-register.js`
 - **Exports:** `_resetForTest` · `hasPendingUpdate` · `lazyImport` · `reloadWhileHidden` · `reloadWhenNotBusy` · `reloadForUpdate` · `registerServiceWorker`
@@ -311,13 +311,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `withTimeout` · `settleOrTimeout` · `shouldForcePasswordSet` · `passwordStepMayBeDue` · `initPasswordForce`
 
 ### `session.js`
-- **Exports:** `shedCalendarViewer` · `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `signedInAs` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `renewWhenServerVouches` · `renewInstalledSession` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS`
-
-### `viewer-shed.js`
-- **Exports:** `shedCalendarViewer`
-
-### `staff-pin-ended.js`
-- **Exports:** `STAFF_PIN_ENDED_NOTICE` · `noteStaffPinEnded` · `forgetStaffPinEnded` · `sayStaffPinEndedIn` · `onStaffPinEnded`
+- **Exports:** `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `signedInAs` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `renewWhenServerVouches` · `renewInstalledSession` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS`
 
 ### `silent-sign-in.js`
 - **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs` · `RENEW_STEP_MS` · `renewedExpiry`
@@ -777,7 +771,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `_setOverridesForTest` · `_addBhDateForTest` · `_removeBhDateForTest` · `resetOverrides` · `getOverridesFetchState` · `fetchOverridesForPeriod` · `getRosterSuggestion`
 
 ### `firebase-client.js`
-- **Exports:** `db` · `collection` · `query` · `where` · `orderBy` · `limit` · `getDocs` · `getDocsFromCache` · `getDoc` · `getDocFromCache` · `onSnapshot` · `addDoc` · `setDoc` · `deleteDoc` · `doc` · `serverTimestamp` · `writeBatch` · `runTransaction` · `deleteField` · `COLLECTIONS` · `isSafeStorageUrl` · `resolveDocumentOpenUrl` · `auth` · `authBootstrap` · `authReady` · `currentUserAfterBoot` · `restoreMemberPersistence` · `signInWithEmailAndPassword` · `signOut` · `onAuthStateChanged` · `withClaimRetry` · `writeWithClaimRetry` · `whenOwnWritesSent` · `whenOwnWritesSentFor` · `VIEWER_WRITES_GRACE_MS` · `letViewerWritesGo` · `normaliseSurname` · `nameToEmail` · `uploadHuddle` · `uploadCircular` · `uploadNewsletter` · `getLatestCircular` · `getLatestNewsletter` · `getLatestHuddle` · `subscribeToLatestHuddle` · `currentAuthUid` · `savePushSubscription` · `deletePushSubscription` · `getStaffContact` · `saveStaffContact` · `deleteStaffContact` · `getAllStaffContacts` · `getPasswordStatus` · `probeResetAtMs` · `savePasswordSetAt` · `getAllPasswordStatus` · `reauthenticateWithPassword` · `changeOwnPassword` · `resetMemberPassword` · `getAccountSetupGaps` · `requestPasswordReset` · `fetchSignedDocumentUrl` · `getSignInStats` · `getResetRequests` · `clearResetRequest` · `logClientError` · `getClientErrors` · `resolveClientError` · `recordPageView` · `recordActiveAccount` · `recordOriginUse` · `recordPerfSample` · `getPerfStats` · `getUsageStats`
+- **Exports:** `db` · `collection` · `query` · `where` · `orderBy` · `limit` · `getDocs` · `getDocsFromCache` · `getDoc` · `getDocFromCache` · `onSnapshot` · `addDoc` · `setDoc` · `deleteDoc` · `doc` · `serverTimestamp` · `writeBatch` · `runTransaction` · `deleteField` · `COLLECTIONS` · `isSafeStorageUrl` · `resolveDocumentOpenUrl` · `auth` · `authBootstrap` · `authReady` · `currentUserAfterBoot` · `signInWithEmailAndPassword` · `signOut` · `onAuthStateChanged` · `withClaimRetry` · `writeWithClaimRetry` · `whenOwnWritesSent` · `whenOwnWritesSentFor` · `normaliseSurname` · `nameToEmail` · `uploadHuddle` · `uploadCircular` · `uploadNewsletter` · `getLatestCircular` · `getLatestNewsletter` · `getLatestHuddle` · `subscribeToLatestHuddle` · `currentAuthUid` · `savePushSubscription` · `deletePushSubscription` · `getStaffContact` · `saveStaffContact` · `deleteStaffContact` · `getAllStaffContacts` · `getPasswordStatus` · `probeResetAtMs` · `savePasswordSetAt` · `getAllPasswordStatus` · `reauthenticateWithPassword` · `changeOwnPassword` · `resetMemberPassword` · `getAccountSetupGaps` · `requestPasswordReset` · `fetchSignedDocumentUrl` · `getSignInStats` · `getResetRequests` · `clearResetRequest` · `logClientError` · `getClientErrors` · `resolveClientError` · `recordPageView` · `recordActiveAccount` · `recordOriginUse` · `recordPerfSample` · `getPerfStats` · `getUsageStats`
 
 ### `fetch-timeout.js`
 - **Exports:** `FETCH_TIMEOUT_CODE` · `FETCH_ABORTED_CODE` · `DEFAULT_FETCH_TIMEOUT_MS` · `fetchWithTimeout` · `fetchBytesWhileArriving` · `isFetchTimeout` · `isFetchAborted` · `serverRefusal`
@@ -1042,9 +1036,6 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 
 ### `functions/reset-request-rules.js`
 - **Exports:** `shouldRecordResetRequest` · `shouldNotifyAdmin` · `buildResetRequestNotice`
-
-### `functions/retired-viewer-account.js`
-- **Exports:** `CALENDAR_VIEWER_UID` · `isViewerAccount`
 
 ### `functions/push.js`
 - **Exports:** `getWebPush` · `setupWebPush` · `sendTargetedPush` · `fanOutPush` · `releasePushForOwner` · `pushSendOptions` · `PUSH_TTL_BY_TAG`

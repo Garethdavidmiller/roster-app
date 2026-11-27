@@ -82,9 +82,7 @@ roster-app/
 ├── login-core.js           ← the sign-in card's DOM-free rules, including the 30-second typed sign-in deadline (`SIGN_IN_GIVE_UP_MS`) and the set-password marker's hold; login-overlay.js re-exports them. Tested by login-overlay.test.mjs
 ├── password-force.js ← the MANDATORY "set your own password" overlay (AUTH_AND_SESSIONS.md → "The forced password overlay"). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs. See also page-contract-parity.test.mjs.
 ├── session.js              ← shared auth/session: re-establishing the Firebase session, the pre-warm, the local session, and the named-vs-anonymous identity signals. See also coordinator-ratchet.test.mjs.
-├── staff-pin-ended.js      ← whether arriving on this page signed out a leftover session of the retired staff PIN, and the one sentence that says so; transition plumbing. Its header. Tested by session.test.mjs and login-overlay.test.mjs. See also calendar-access.spec.js.
 ├── silent-sign-in.js      ← the RULES of the sign-in nobody typed (pure); session.js keeps the memory. Its header. Tested by session.test.mjs. See also AUTH_AND_SESSIONS.md.
-├── viewer-shed.js         ← signs a leftover staff-PIN viewer out before a member signs in, in the order that keeps it out of long-lived storage. Its header. Tested by session.test.mjs
 ├── auth-state-core.js      ← the PURE identity state machine (AUTH_AND_SESSIONS.md → Architecture). Tested by auth-state-core.test.mjs
 ├── auth-state.js           ← the auth STORE over that reducer; session.js feeds it. AUTH_AND_SESSIONS.md → Architecture. See also auth-state.test.mjs, session.test.mjs.
 ├── auth-policy.js          ← page AUTHORISATION: the page policies and the drawer's pill gates. CLIENT UX only — the server rules are the boundary. See also AUTH_AND_SESSIONS.md, auth-policy.test.mjs, page-contract-parity.test.mjs.
@@ -376,7 +374,7 @@ roster-app/
 │   ├── firestore-offline-proof/ ← the proof AUTH_AND_SESSIONS.md → "The local cache does not ask the rules" asked for: the local Firestore cache serves reads the rules would deny. Not a CI gate
 │   ├── auth-firestore-split-proof/ ← does taking Firestore off the auth path speed a saved sign-in? **No** — the wall is network. Not a CI gate
 │   ├── roster-pdf-geometry/ ← does the roster PDF already contain the grid the AI reconstructs? **Yes**. Not a CI gate; needs `pdfjs-dist` pinned to v4
-│   └── viewer-persistence-proof/ ← does the Calendar viewer die with the browser session? It did not; proven in real Chromium. Not a CI gate; pinned by calendar-viewer-parity Contract C
+│   └── viewer-persistence-proof/ ← did the retired PIN's Calendar viewer die with the browser session? It did not; proven in real Chromium. Historical since the PIN's cleanup release; not a CI gate
 ├── test-fixtures/
 │   ├── firebase-sdk/ ← a RECORDING fake of the three Firebase SDK modules and the resolve hook that answers the CDN URLs with them; `state.mjs` records every write
 │   ├── links-designs/ ← real Links grids kept UNCHANGED as fixtures for the compare tests, because the asserted figures are theirs
@@ -640,7 +638,7 @@ roster-app/
 │   ├── calendar-access-core.test.mjs ← the Calendar access decision as states the app can really be in. Part of test:hygiene
 │   ├── calendar-access.test.mjs ← the gate's decision, cards, grant and loss, asserting ORDER; a leftover viewer session is never granted (--experimental-test-module-mocks)
 │   ├── calendar-access-gate.test.mjs ← **no access, no override data** — the cache never consults the rules (--experimental-test-module-mocks)
-│   ├── calendar-viewer-parity.test.mjs ← the retired PIN's static contracts: one viewer uid and claim across the boundary, no grant in the rules, no exchange or secret on the server, and the PIN never in the repository. Part of test:hygiene
+│   ├── calendar-viewer-parity.test.mjs ← the retired PIN stays retired: no grant in the rules, no exchange, secret or account guard on the server, one boot persistence path, nothing in the client that mints or recognises a PIN session, and the PIN never in the repository. Part of test:hygiene
 │   ├── calendar-notices.test.mjs ← who a Calendar notice is addressed to, and whether it asks (--experimental-test-module-mocks)
 │   ├── install-route.test.mjs ← the install notice's route through the real `installRoute()`
 │   ├── calendar-doc-viewer.test.mjs ← the Circular/Newsletter in-app viewer (--experimental-test-module-mocks)
@@ -811,7 +809,6 @@ roster-app/
     ├── doc-link-rotation.js       ← a new key for the permanent link of every stored document file, so old copies stop opening it (ARCHITECTURE.md EXC-007). Its header. See also doc-link-rotation.test.mjs.
     ├── london-clock.js            ← an ISO date and the instant it names in London. **Requires nothing**, which keeps overtime-core.test.mjs in the every-branch lane
     ├── overtime-core.js           ← every RULE Overtime Availability has, with no I/O. **The deadline hours are the highest-risk thing in the feature.** Design: OVERTIME_AVAILABILITY.md
-    ├── retired-viewer-account.js  ← the retired staff PIN's shared account, recognised so Set up accounts, the leaver sweep, a reset and the notices never adopt it; deleted in the cleanup release. Its header
     ├── roster-members.json       ← generated from roster-data.js — do NOT hand-edit; `npm run generate:roster-members`. The server-owned name and role lists. CI-locked by sw-asset-check.test.mjs
     └── package.json
 ```

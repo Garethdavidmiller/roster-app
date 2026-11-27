@@ -137,8 +137,9 @@ depends on how their account id sorts, which is why it looked like a few people'
 
 **What the app does** (the reasoning is in the headers of `claim-retry.js` and `firebase-client.js`):
 
-- Ending a leftover PIN session first gives its queued writes up to `VIEWER_WRITES_GRACE_MS` to leave
-  (`letViewerWritesGo` — transition code, kept until the PIN's cleanup release).
+- Until the PIN's cleanup release (27 Nov 2026), ending a leftover PIN session first gave its queued
+  writes two seconds to leave. With the account deleted they never can, so that went too; the two
+  points below are what answers a leftover now.
 - When the wait runs out, the save's own records are asked (v26.63, owner's choice of fix, 24 Nov 2026 —
   `ownWritesSentFor`): if none still has a write of THIS account's pending, the transaction goes ahead.
   **The price:** a phone with full bars and no data spends about sixteen seconds before a save is

@@ -39,10 +39,6 @@ import { isCredentialRejection } from './auth-identity.js';
 // reset request says — are login-core.js's, re-exported so every caller and test keeps importing them here.
 import { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine, signInAboutFor, holdPasswordMarker, releasePasswordMarker } from './login-core.js';
 export { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine };
-// Already loaded wherever this card is: session.js imports it. The words are its own, shared with a
-// page that has no card (paused Overtime, which imports `sayStaffPinEndedIn` from here).
-import { onStaffPinEnded, forgetStaffPinEnded, STAFF_PIN_ENDED_NOTICE } from './staff-pin-ended.js';
-export { sayStaffPinEndedIn } from './staff-pin-ended.js';
 import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './overlay.js';
@@ -84,7 +80,6 @@ export function signInDeps(name, typedPw) {
         keepsLocalSession:  () => getSession()?.name === name,
         // A session this failure clears is ANOTHER member's: their targeted notices stop here too.
         releaseEndedHold:   () => { if (getSession()) releasePushForEndingHold(); },
-        forgetStaffPinEnded,
     };
 }
 
@@ -107,33 +102,12 @@ export function dismissLoginOverlay() {
     if (lockedScroll) unlockBodyScroll();
 }
 
-// ── WHEN ARRIVING SIGNED OUT A LEFTOVER STAFF-PIN SESSION (the PIN retired, 23 Nov 2026) ───────────
-//
-// Every page signs a leftover viewer session out on arrival (session.js → `reconcileExpiredIdentity`;
-// staff-pin-ended.js tells us). The sign-out is the rule; its silence would be the fault: a station
-// computer that used the PIN would meet this card with nothing to say why the code no longer works.
-// So the card says ONE line (`STAFF_PIN_ENDED_NOTICE`), on BOTH mounts. Transition plumbing, removed
-// with the rest of the viewer's in the cleanup release.
-
-/**
- * Say on this card that arriving signed out a leftover staff-PIN session. The notice line is in the
- * card from the start (`overlayHtml`), empty, and the words wait for the card to have been DRAWN
- * (`speakAfterMount`, status-text.js): a live region filled in the task that created it is read by
- * nobody.
- * @param {HTMLElement} overlay
- */
-function sayStaffPinEnded(overlay) {
-    if (!overlay.isConnected) return;   // signed in past it, or rebuilt — a rebuilt card is told itself
-    const notice = overlay.querySelector('#loginNotice');
-    speakAfterMount(notice, () => { if (notice) notice.textContent = STAFF_PIN_ENDED_NOTICE; });
-}
-
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in".
  *  `alternative` replaces the back link with a button the caller wires; `about` reserves the page's
  *  own explanation under the subtitle and a footnote at the foot — both filled with textContent by
  *  `fillAbout`, never interpolated. EVERY card carries the notice line (WHY the card is up, when that
- *  is not obvious — "access has expired"), empty unless there is one, so the line about a retired
- *  staff PIN can arrive after the card is up; an empty one takes no room (shared.css).
+ *  is not obvious — "access has expired"), empty unless there is one; an empty one takes no room
+ *  (shared.css).
  *  @param {string} pageLabel
  *  @param {{ label: string, hint?: string }|null} alternative
  *  @param {LoginAbout|null} about
@@ -246,9 +220,7 @@ function fillAbout(overlay, about) {
  * @param {boolean} [opts.showBackLink]  false hides the "← Back to roster" link: for the Calendar's own
  *   front door, where the roster IS the page and the link would only reload the card. Default true.
  * @param {string} [opts.notice]  One line under the subtitle saying why the card is up, when it is
- *   not obvious — an expired session, say. Empty leaves the card's notice line empty (it takes no room),
- *   which the retired staff PIN's line may fill later (`sayStaffPinEnded`; it replaces a
- *   caller's, being the more specific).
+ *   not obvious — an expired session, say. Empty leaves the card's notice line empty (it takes no room).
  * @param {string} [opts.presetName]  The member this card is FOR, where the caller already knows —
  *   the Calendar's come-back card names them in its heading. Pre-selects their grade and name and
  *   lands focus on the password field, so the only thing left to do is the one thing only they can
@@ -300,9 +272,6 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // tree — and that catches up between tasks. Written in the mounting task, it is read by nobody.
     // `speakAfterMount` (status-text.js) waits a frame and a task; the Calendar's own cards do the same.
     if (notice) { const n = overlay.querySelector('#loginNotice'); speakAfterMount(n, () => { if (n) n.textContent = notice; }); }
-    // Did arriving on this page sign out a leftover staff-PIN session? Then say so — now if it has, or when the
-    // teardown lands, which can be after the card is up (see `sayStaffPinEnded`).
-    onStaffPinEnded(() => sayStaffPinEnded(overlay));
 
     const gradeSelect   = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginGrade'));
     const nameSelect    = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginName'));
