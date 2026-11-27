@@ -1084,7 +1084,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `showMirrorBanner` · `mirrorCardLine`
 
 ### `mirror-move-words.js`
-- **Exports:** `MIRROR_LEAD` · `MIRROR_TAIL` · `MIRROR_PAY` · `mirrorLineDue` · `mainAddressFor` · `buildMirrorLine`
+- **Exports:** `MIRROR_HEAD` · `MIRROR_LEAD` · `MIRROR_TAIL` · `MIRROR_PAY` · `MIRROR_PAY_LINK` · `mirrorLineDue` · `mainAddressFor` · `buildMirrorLine`
 
 ### `text-scale.js`
 - **Exports:** `LARGE_FROM` · `COMPACT_FROM` · `LARGE_VALUE` · `COMPACT_VALUE` · `tierFor` · `measureTextScale` · `applyTextScale`

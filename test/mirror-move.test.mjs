@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mirrorLineDue, mainAddressFor, buildMirrorLine, MIRROR_LEAD, MIRROR_TAIL, MIRROR_PAY } from '../mirror-move-words.js';
+import { mirrorLineDue, mainAddressFor, buildMirrorLine, MIRROR_HEAD, MIRROR_LEAD, MIRROR_TAIL, MIRROR_PAY, MIRROR_PAY_LINK } from '../mirror-move-words.js';
 
 const REPO_ROOT_URL = new URL('../', import.meta.url);
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, REPO_ROOT_URL), 'utf8');
@@ -44,24 +44,29 @@ function fakeDoc() {
     const el = (/** @type {string} */ tag) => {
         /** @type {any} */ const node = { tag, className: '', href: '', textContent: '', children: /** @type {any[]} */ ([]) };
         node.append = (/** @type {any[]} */ ...xs) => { node.children.push(...xs); };
-        node.text = () => node.children.map((/** @type {any} */ c) => typeof c === 'string' ? c : c.textContent).join('');
+        node.text = () => node.textContent || node.children.map((/** @type {any} */ c) => typeof c === 'string' ? c : c.text()).join('');
         return node;
     };
     return /** @type {any} */ ({ createElement: el });
 }
 
-test('the words: where it lives, the link, and the pay sentence only on the Pay page', () => {
+test('the words: the news in bold, where it lives, and the pay sentence only on the Pay page', () => {
     const plain = /** @type {any} */ (buildMirrorLine(fakeDoc(), { className: 'login-mirror', href: 'https://myb-roster.web.app/' }));
     assert.equal(plain.tag, 'p');
-    assert.equal(plain.text(), MIRROR_LEAD + 'myb-roster.web.app' + MIRROR_TAIL);
-    const link = plain.children.find((/** @type {any} */ c) => typeof c !== 'string');
+    assert.equal(plain.text(), MIRROR_HEAD + ' ' + MIRROR_LEAD + 'myb-roster.web.app' + MIRROR_TAIL);
+    const [head, , , link] = plain.children;
+    assert.equal(head.tag, 'strong', 'the news leads, in bold');
     assert.equal(link.tag, 'a');
     assert.equal(link.href, 'https://myb-roster.web.app/');
 
     const pay = /** @type {any} */ (buildMirrorLine(fakeDoc(), { tag: 'div', className: 'mirror-move', pay: true, href: 'x' }));
-    assert.ok(pay.text().endsWith(' ' + MIRROR_PAY));
+    const more = pay.children.at(-1);
+    assert.equal(more.className, 'mirror-move-pay');
+    assert.equal(more.text(), MIRROR_PAY + MIRROR_PAY_LINK + '.');
+    const cardLink = more.children.find((/** @type {any} */ c) => typeof c !== 'string');
+    assert.equal(cardLink.href, '#payTransferCard', 'the link the first-run banner uses, which opens the card');
     assert.ok(!plain.text().includes('Pay Calculator'));
-    for (const w of [MIRROR_LEAD, MIRROR_TAIL, MIRROR_PAY]) assert.ok(!/!|'/.test(w), `calm, curly: ${w}`);
+    for (const w of [MIRROR_HEAD, MIRROR_LEAD, MIRROR_TAIL, MIRROR_PAY]) assert.ok(!/!|'/.test(w), `calm, curly: ${w}`);
 });
 
 test('wired where every page starts, and on the sign-in card', () => {

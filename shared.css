@@ -3096,12 +3096,14 @@ button.nav-panel-link--notices {
     color: var(--text-light);
     margin-bottom: 24px;
 }
-/* The Pages mirror's line on a desktop (mirror-move.js) in the gold wash, "something here wants doing":
-   under the sign-in card's title, taking the title's gap, and as a strip under a page's header. */
-.login-mirror, .mirror-move { background: var(--gold-wash-bg); border: 1px solid var(--gold-wash-border); color: var(--text-dark); font-size: var(--type-label); line-height: 1.45; text-align: left; }
-.login-mirror { border-radius: var(--radius-field); padding: 10px 14px; margin: -12px 0 20px; }
-.mirror-move { border-width: 0 0 1px; padding: 10px 16px; margin: 0 auto var(--space-4); max-width: var(--content-max-width); text-align: center; }
-.mirror-move-link { font-weight: 700; color: var(--primary-blue); text-decoration: underline; }
+/* The Pages mirror's line on a desktop (mirror-move.js), in the gold wash's own recipe (Pay's first-run
+   banner, Settings' "things to finish"): rounded, bordered, left-aligned, the news in bold amber first. */
+.login-mirror, .mirror-move { background: var(--gold-wash-bg); border: 1px solid var(--gold-wash-border); color: var(--text-mid); font-size: var(--type-label); line-height: 1.45; text-align: left; text-wrap: pretty; }
+.login-mirror { border-radius: var(--radius-field); padding: 12px 14px; margin: 0 0 20px; }
+.mirror-move { border-radius: var(--radius-lg); box-shadow: var(--shadow-1); padding: 12px 16px; margin: 0 auto var(--space-4); max-width: var(--content-max-width); }
+.mirror-move-head { font-weight: 700; color: var(--warning-amber); }
+.mirror-move-pay { display: block; margin-top: 4px; }
+.mirror-move-link { font-weight: 700; color: var(--primary-blue); text-decoration: underline; text-underline-offset: 2px; }
 .mirror-move-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
 @media print { .mirror-move { display: none; } }
 .login-field {

@@ -6,6 +6,7 @@
  * nothing at the main address.
  */
 import { test, expect } from './fixtures.js';
+import AxeBuilder from '@axe-core/playwright';
 import { seedMemberSession, isTouchProject, asMirror } from './helpers.js';
 
 test.describe('a desktop at the Pages mirror', () => {
@@ -40,7 +41,7 @@ test.describe('a desktop at the Pages mirror', () => {
         await expect(banner).toBeVisible();
         await expect(banner).toHaveAttribute('role', 'note');
         await expect(banner).toContainText('Move your Pay Calculator figures first');
-        await expect(banner.locator('a')).toHaveAttribute('href', 'https://myb-roster.web.app/paycalc.html?payday=2026-12-11#x');
+        await expect(banner.getByRole('link', { name: 'myb-roster.web.app' })).toHaveAttribute('href', 'https://myb-roster.web.app/paycalc.html?payday=2026-12-11#x');
         // Under the header, once: a page start that runs twice does not stack a second.
         await expect(page.locator('header + #mirrorMoveBanner')).toHaveCount(1);
         await expect(page.locator('.mirror-move')).toHaveCount(1);
@@ -57,6 +58,31 @@ test.describe('a desktop at the Pages mirror', () => {
         expect(fit.gap).toBeGreaterThanOrEqual(12);
         expect(Math.abs(fit.left)).toBeLessThanOrEqual(1);
         expect(Math.abs(fit.right)).toBeLessThanOrEqual(1);
+        // Its Move Your Pay Data link is the first-run banner's, and opens that card on the way.
+        await banner.getByRole('link', { name: '💾 Move Your Pay Data' }).click();
+        await expect(page.locator('#payTransferBody')).toBeVisible();
+    });
+
+    test('both surfaces pass the accessibility scan: the strip on a page, the line on a sign-in card', async ({ page }) => {
+        // axe's contrast and naming rules on the two surfaces alone (each page's own scan is axe.spec.js's).
+        const check = async (/** @type {import('@playwright/test').Page} */ p, /** @type {string} */ sel) => {
+            const { violations } = await new AxeBuilder({ page: p }).include(sel).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+            expect(violations.map(v => `${v.id}: ${v.nodes.map(n => n.target).join(', ')}`), sel).toEqual([]);
+        };
+        await asMirror(page);
+        await seedMemberSession(page);
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#mirrorMoveBanner')).toBeVisible();
+        await check(page, '#mirrorMoveBanner');
+        const signedOut = await page.context().newPage();
+        await asMirror(signedOut);
+        await signedOut.addInitScript(() => {
+            localStorage.removeItem('myb_admin_session');
+            window.__E2E = Object.assign(window.__E2E || {}, { authUser: false });
+        });
+        await signedOut.goto('/settings.html');
+        await expect(signedOut.locator('.login-mirror')).toBeVisible();
+        await check(signedOut, '.login-mirror');
     });
 
     test('every other page\'s strip says nothing about pay', async ({ page }) => {
