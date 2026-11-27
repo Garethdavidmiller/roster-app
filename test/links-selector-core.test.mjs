@@ -11,7 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STARTS, FIRST_MONTH, LAST_MONTH, startDate, lineOn, dayOn, proposalsAtoZ, isCoverLine, lineOptions,
-    monthLines, inRange, openingMonth, initialChoice, choiceQuery } from '../links-selector-core.js';
+    monthLines, inRange, openingMonth, initialChoice, choiceQuery, shiftTypesInMonth, hasBlankDays } from '../links-selector-core.js';
 import { STARTS as NEWLINK_STARTS } from '../newlink-config.js';
 import { PROPOSALS, proposalDisplayName } from '../link-designer-proposals.js';
 import { DAYS, ROTATING_LINES } from '../link-designer-design.js';
@@ -130,4 +130,25 @@ test('the opening choice: the address, then this device, then the first proposal
     }
     assert.deepEqual(initialChoice('', { proposal: 42, line: '12' }), { proposalId: first.id, line: 12 });
     assert.equal(choiceQuery(/** @type {any} */ (PROPOSALS[0]), 9), `?proposal=${PROPOSALS[0].code}&line=9`);
+});
+
+test('the key\'s month: the kinds of day drawn, read through dayOn, and the blank days before the start', () => {
+    // every month in range, every proposal and line: the types are exactly the kinds of day the grid draws
+    for (const p of PROPOSALS) for (const line of [1, 2, 7, 26]) for (let n = 0; n < 24; n++) {
+        const year = 2027 + Math.floor(n / 12), month = n % 12;
+        const want = new Set();
+        for (let d = 1; d <= new Date(year, month + 1, 0).getDate(); d++) {
+            const day = /** @type {any} */ (dayOn(p, line, new Date(year, month, d)));
+            if (!day.blank && (day.shift === 'SPARE' || day.shift === 'AL')) want.add(day.shift);
+        }
+        assert.deepEqual([...shiftTypesInMonth(p, line, year, month)].sort(), [...want].sort(), `${p.code} line ${line}, ${year}-${month + 1}`);
+    }
+    // line 1 is a cover week from the start, so January has spare days and February (lines 3 to 7) depends on the line
+    assert.ok(shiftTypesInMonth(PROPOSALS[0], 1, 2027, 0).has('SPARE'));
+    // AL only ever at Christmas
+    for (const p of PROPOSALS) for (let m = 0; m < 11; m++) assert.ok(!shiftTypesInMonth(p, 3, 2027, m).has('AL'));
+    // blank days: January 2027 only
+    assert.equal(hasBlankDays(2027, 0), true);
+    assert.equal(hasBlankDays(2027, 1), false);
+    assert.equal(hasBlankDays(2028, 0), false);
 });

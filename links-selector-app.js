@@ -20,7 +20,8 @@
  */
 
 import { SHARED_SCREEN } from './login-core.js';
-import { CONFIG, MONTH_NAMES, shiftBadgeParts, escapeHtml, teamMembers } from './roster-data.js';
+import { CONFIG, MONTH_NAMES, shiftBadgeParts, escapeHtml, teamMembers, computeEaster } from './roster-data.js';
+import { createLegend } from './calendar-legend.js';
 import { initNavPanel } from './nav-panel.js';
 import { sessionReady, reconcileExpiredIdentity } from './session.js';
 import { signOutAndLeave, onReturnToPage } from './page-session.js';
@@ -39,7 +40,7 @@ import { lsGet, lsSet } from './ls.js';
 import { formatDayMonth, formatDayMonthYear, formatClock, printedStamp, DAY_NAMES_FULL } from './date-format.js';
 import { proposalById, proposalDisplayName } from './link-designer-proposals.js';
 import { buildSelectorMonth } from './links-selector-render.js';
-import { FIRST_MONTH, inRange, openingMonth, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate } from './links-selector-core.js';
+import { FIRST_MONTH, inRange, openingMonth, shiftTypesInMonth, hasBlankDays, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate } from './links-selector-core.js';
 
 /** Where this device keeps the last choice — a proposal code and a line, nothing about the person. */
 export const STORE_KEY = 'myb_links_selector_choice';
@@ -224,6 +225,23 @@ function runSelector() {
         el('selectorPrintChoice').textContent = `${proposalDisplayName(proposal)} (${proposal.ref}) · starting on line ${line}`
             + ` · a proposal, not a roster · ${printedStamp(now, formatClock(now))}`;
     }
+    // THE CALENDAR'S KEY RULE (calendar-legend.js), handed this page's month: an item shows only in a month that has it.
+    // No member is drawn, so its "member" is an empty one — never on the Dispatcher roster, so no Night key — and its month
+    // is always a drawn grid ('render'). The one item of this page's own follows its own month: the blank days.
+    const legend = createLegend({
+        getCurrentMember: () => ({}),
+        getShiftTypesInMonth: (_m, y, mo) => shiftTypesInMonth(proposal, line, y, mo),
+        getDisplayYear: () => year,
+        getDisplayMonth: () => month,
+        computeEaster,
+        displayVerdict: () => 'render',
+        isTeamViewMode: () => false,
+    });
+    function updateLegend() {
+        legend.update();
+        const blankKey = document.getElementById('selectorLegendBlank');
+        if (blankKey) blankKey.style.display = hasBlankDays(year, month) ? '' : 'none';
+    }
     function render() {
         // KEEP THE KEYBOARD ON THE GRID, as the Calendar's renderCalendar does: replacing the month drops a focused day to
         // <body>, and then ← → change the month instead of moving between days. The new grid's entry day takes it.
@@ -234,6 +252,7 @@ function runSelector() {
         if (onCell) rovingCellFor(container, null)?.focus({ preventScroll: true });
         document.title = title();
         updateNav();
+        updateLegend();
         stampPrint();
     }
     const announce = () => { if (announcer) announcer.textContent = `${MONTH_NAMES[month]} ${year}`; };
@@ -294,14 +313,14 @@ function runSelector() {
     initCalendarKeyboard({ navigateToPaycalc: () => false, openDayDetail: /** @type {any} */ (openDayDetail) });
     initCalendarTooltip();
 
-    // With `months` given the swipe builds, bounds, titles and settles through the page's own months, so its Calendar-only
-    // deps — the month read's repaint, the legend, the day panel for its adjacent panels — are never called here; they are
-    // passed because the signature is the Calendar's.
+    // With `months` given the swipe builds, bounds, titles and settles through the page's own months, so two of its
+    // Calendar-only deps — the month read's repaint and the day panel for its adjacent panels — are never called here;
+    // they are passed because the signature is the Calendar's. The key IS updated on a commit.
     initSwipeHandler({
         isTeamViewMode: () => false,
         changeMonth,
         renderCalendar: render,
-        updateLegend: () => {},
+        updateLegend,            // a swipe's commit updates the key, as the Calendar's does: it never calls render()
         updateNavButtonState: updateNav,
         openDayDetail: null,
         announceMonthChange: announce,
