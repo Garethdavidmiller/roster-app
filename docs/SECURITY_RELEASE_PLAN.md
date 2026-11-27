@@ -25,7 +25,7 @@ reconciled across five files, and two had drifted — `auth-plan-parity.test.mjs
 | **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never signed in, so the metric could not converge — a premise gone since the staff PIN was retired (23 Nov 2026); what that does to the gate is part of the open decision. **⚠️ A SECOND ROUTE is on the table and NOT adopted** — C6 (below) would let the remaining surname credentials be replaced server-side with unknown random ones, which answers the CREDENTIAL question without touching the READ question. The two routes and what the second costs: "C5 — the open decision", below. Until the owner decides, this row stands as written | ≥90% migrated **and** a proven recovery route for the remainder |
 | **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it. **A saved address is not a credential** — possession must be proven and recorded (`verifiedAt`) before it can recover an account; design under C2, below |
 | **C6 — one-time recovery/activation codes** | Proposed, not started | Owner decision | — | Design under C6, below. Supersedes C4′ (the admin reset) as the recovery path: today's reset makes the SURNAME valid again, so the migration's own repair mechanism undoes the migration. C4′ stays live until C6 does — break-glass may not have a gap |
-| **F — step-up for sensitive admin actions** | Proposed, not started | — | — | Design under F, below. **No prerequisites** — the only open item with none. Server-enforced from the token's `auth_time`, never a client timer |
+| **F — step-up for sensitive admin actions** | **Declined** (owner, 27 Nov 2026) | — | — | Not to be built: DECISIONS.md → "No password check before admin actions". If it is ever reopened, invariant 16 (AUTH_AND_SESSIONS.md) still says how |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
 | **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session (the staff PIN was retired on 23 Nov 2026 — DECISIONS.md → "The staff PIN retired"), and the server refuses anything without a verified member (`isMember()`) or `admin` (the retired PIN's `calendarViewer` grants nothing since its server release). RECOVERY_RUNBOOK → "The staff PIN (retired)" has the read-tightening order | **E3** — INDIVIDUAL authentication as designed, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
 | **E6 — document files** | Short-lived signed links live (`getDocumentUrl`: server v24.16–18, client v24.19); the stored permanent link kept as the fallback (owner, 7 Oct 2026); rotation built (12 Nov 2026), not yet run | — | Owner — the first rotation run; revisit the fallback on DECISIONS.md's trigger (a leaked link, or `getDocumentUrl` failures making the fallback usual) | ARCHITECTURE.md EXC-007 closes: the links already in circulation no longer open |
@@ -79,7 +79,7 @@ does (nothing here is scheduled; the owner decides what is worth doing and when)
 |---|---|---|---|
 | 1 | **C6 — one-time recovery/activation codes** | The biggest remaining weakness: recovery makes the surname valid again | The C5 decision; activating a new starter with no seeded surname |
 | 2 | **Keep converting personal devices** | Everything needed exists; it is a campaign, not a build | Moves the migration figure toward whatever C5 needs |
-| 3 | **F — step-up for sensitive admin actions** | A 60-day session is right for ordinary work and wrong for account administration | Nothing — independent, cheap, no prerequisite |
+| 3 | ~~**F — step-up for sensitive admin actions**~~ | **Declined** (owner, 27 Nov 2026) — DECISIONS.md → "No password check before admin actions" | — |
 | 4 | **C5 — retire the surname entirely** | The milestone; two routes, an **open owner decision** | Removes a whole credential class |
 | 5 | **C2 — verified work-email recovery** | Needs a mail relay, and C6 first, so it is a SECOND route | The admin route becomes true break-glass |
 | 6 | **Passkeys** | Excellent fit, blocked on serving from one origin | — |
@@ -128,21 +128,6 @@ attended.
 - **What stays**: the member's end of the queue. Only the admin's ANSWER changes — from "make the
   surname valid again" to "issue a code"; the admin never learns a working credential at all.
 
-### F — step-up for sensitive admin actions
-
-The risk a 60-day session carries is not a member's phone left unattended; it is an **admin's**,
-where picking it up is enough to reset somebody else's password. Shortening every session would make
-the app worse for everybody to address one account.
-
-- **The sensitive set**: `resetMemberPassword` (and `issueRecoveryCode`), `setupRosterAuth` (create,
-  disable), and any future operation that changes a member's identity or claims.
-- **The rule, on the server**: `verifyIdToken` returns `auth_time`, when the credential was last
-  presented; older than 15–30 minutes → refuse with a distinct code. **It must be `auth_time`, never a
-  client timer** (invariant 16), and it **fails closed**: no `auth_time`, no elevated operation.
-- **The client half exists** — `reauthenticateWithPassword`: refuse → "Confirm your password to
-  continue" → reauthenticate → force a token refresh → retry once, reusing `claim-retry.js`'s shape
-  rather than a second retry idiom.
-
 ### C5 — the open decision
 
 ⚠️ **This section describes two routes. Neither is adopted. The choice is the owner's, and the
@@ -178,6 +163,13 @@ work email may recover an account only after possession is proven — a code or 
 — recorded as a server-written `verifiedAt`. Gated on a mail relay that does not exist (Power
 Automate, Graph, or whatever is approved), and **sequenced after C6**, so it arrives as a second route
 rather than the only one.
+
+### F — step-up for sensitive admin actions — declined, and not to be built
+
+Declined by the owner on 27 Nov 2026: the admin's phone locks itself and can be wiped remotely
+(DECISIONS.md → "No password check before admin actions"). Kept here only so invariant 16 has
+something to route to: **if it is ever reopened, the check is the server reading `auth_time`, never a
+client timer.**
 
 ### Passkeys — possible, not planned
 
@@ -388,8 +380,8 @@ only conclude "proceed".
 
 - **Do not** retire the surname (C5) before the ≥90% metric, and do not build to either C5 route on
   the strength of this file — the owner decides.
-- **Do not** wire a reset to an unverified work email (invariant 15), or build step-up on a client
-  timer (invariant 16).
+- **Do not** wire a reset to an unverified work email (invariant 15). Step-up for admin actions was
+  declined (DECISIONS.md); if it is ever reopened, never on a client timer (invariant 16).
 - **Do not** ship E3 as if it were security — without the read rule the data is unchanged — and do
   not flip the front door and the rules in one step.
 - **Do not** bundle client preparation into the rules change it prepares for; it soaks on its own.
