@@ -1854,6 +1854,9 @@ test.describe('trains — the totals and the header, measured', () => {
             await page.locator(`[data-view="${view}"]`).click();
             const pill = page.locator(sel);
             await expect(pill).toBeVisible();
+            // To the middle of the screen first, as a thumb would have it: `elementFromPoint` sees only the window, and
+            // with Find a train above the grid the iPhone's window ended above this pill (27 Nov 2026).
+            await pill.evaluate(el => el.scrollIntoView({ block: 'center' }));
             const b = /** @type {{ x: number, y: number, width: number, height: number }} */ (await pill.boundingBox());
             expect(b.height, `${name}: drawn as a capsule twice the height of its words`).toBeLessThanOrEqual(38);
             // 44px of target: a touch 3.5px above or below the pill's drawn edge still lands on it.
