@@ -44,9 +44,9 @@
  * queued save then landed on top — older work over newer, silently (a rename undone, a binned design
  * back). So every transaction starts only once this device has nothing of its own on the way to the
  * design it touches (`runTx`, through the injected `ownWritesSent` — firebase-client.js →
- * `whenOwnWritesSentFor`, whose reasoning is claim-retry.js → `ownWritesSentFor`): the whole queue
- * drained, or that design's own record clear of this account's unsent writes (so another account's
- * leftover write cannot hold every transaction). A design of ours still on its way ends as
+ * `whenOwnWritesSentFor`, whose reasoning is claim-retry.js → `ownWritesSentFor`): that design's own
+ * record clear of this account's unsent writes, asked first while online (so another account's
+ * leftover write holds up no transaction), or the whole queue drained. A design of ours still on its way ends as
  * `unavailable`: a save, a rename and a delete then queue BEHIND what is waiting, so the writes land
  * in the order they were made; a restore, a purge and the automatic bin fail, as they do offline.
  *

@@ -219,8 +219,8 @@ describe('the design protocol has exactly one owner', () => {
         const calls = [...store.matchAll(/\brunTransaction\s*\(/g)];
         assert.equal(calls.length, 1, 'a transaction opened outside runTx skips the wait for this device\'s queued saves');
         const wrapper = store.slice(store.indexOf('const runTx'), calls[0].index);
-        // …about the records the transaction reads (25 Nov 2026), so a phone known to hold another
-        // account's leftover write can ask those records instead of waiting for a queue that never drains.
+        // …about the records the transaction reads (25 Nov 2026), which are asked first while online
+        // (27 Nov 2026), so another account's leftover write cannot hold the transaction up.
         assert.match(wrapper, /await\s+ownWritesSent\s*\(\s*refs\s*\)/, 'runTx no longer waits for ownWritesSent, with its records, before the transaction');
     });
 

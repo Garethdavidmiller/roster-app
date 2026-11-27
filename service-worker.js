@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '27.07';
+const APP_VERSION = '27.08';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -81,7 +81,7 @@ async function matchNewestManagedCache(request, opts) {
 // on budget Androids). Served cache-first from a dedicated SDK-versioned cache — NOT the app cache,
 // so an app bump never refetches the SDK — swept only when the SDK version changes. The constant is
 // WRITTEN from firebase-client.js's imports: move the SDK there, then run npm run generate:copies.
-const FIREBASE_SDK_VERSION = '13.2.0'; // GENERATED from firebase-client.js by npm run generate:copies
+const FIREBASE_SDK_VERSION = '13.4.0'; // GENERATED from firebase-client.js by npm run generate:copies
 const SDK_CACHE_NAME = `myb-roster-sdk-v${FIREBASE_SDK_VERSION}`;
 const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/`;
 const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js']

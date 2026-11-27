@@ -6,7 +6,7 @@ import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss,
     runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, UNCONFIRMED_LINE, unconfirmedWriteLine,
-    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, ownWritesSentFor, recordsClearOfOwnWrites, OWN_WRITES_WAIT_MS, leftoverNote, LEFTOVER_NOTE_MS, watchOwnWritesWaits, runWatchedClaimRetry } from '../claim-retry.js';
+    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, ownWritesSentFor, recordsClearOfOwnWrites, OWN_WRITES_WAIT_MS, watchOwnWritesWaits, runWatchedClaimRetry } from '../claim-retry.js';
 
 // Tests live in test/ but address files from the repository root (moved 24 Nov 2026).
 const REPO_ROOT_URL = new URL('../', import.meta.url);
@@ -651,172 +651,129 @@ describe('recordsClearOfOwnWrites — is any record this save touches still on i
     });
 });
 
-describe('ownWritesSentFor — the wait, and the records asked when it runs out', () => {
-    const neverDrains = () => new Promise(() => {});
-    const clearReads = async () => ({ metadata: { hasPendingWrites: false } });
-    test('a queue that drains: true, and no record is read', async () => {
-        let reads = 0;
-        assert.equal(await ownWritesSentFor(async () => {}, async () => { reads++; return {}; }, [{ id: 'a' }], 1_000, { onSettled: () => {} }), true);
-        assert.equal(reads, 0);
-    });
-    test('runs out, its records clear → true: the save goes on to ask the server', async () => {
-        assert.equal(await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, { onSettled: () => {} }), true);
-    });
-    test('runs out, a record still queued → false: held or refused as before', async () => {
-        const reads = async (/** @type {any} */ ref) => ({ metadata: { hasPendingWrites: ref.id === 'b' } });
-        assert.equal(await ownWritesSentFor(neverDrains, reads, [{ id: 'a' }, { id: 'b' }], 10, { onSettled: () => {} }), false);
-    });
-    test('runs out, a record unreadable → false', async () => {
-        const reads = async () => { throw Object.assign(new Error('x'), { code: 'internal' }); };
-        assert.equal(await ownWritesSentFor(neverDrains, reads, [{ id: 'a' }], 10, { onSettled: () => {} }), false);
-    });
-    test('the wait is told ONCE, with what the records said — the slow-save line\'s words', async () => {
-        /** @type {any[]} */ const told = [];
-        const onSettled = (/** @type {any} */ w) => told.push(w.outcome);
-        await ownWritesSentFor(async () => {}, clearReads, [{ id: 'a' }], 1_000, { onSettled });
-        await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, { onSettled });
-        await ownWritesSentFor(neverDrains, async () => ({ metadata: { hasPendingWrites: true } }), [{ id: 'a' }], 10, { onSettled });
-        await ownWritesSentFor(neverDrains, async () => { throw new Error('x'); }, [{ id: 'a' }], 10, { onSettled });
-        assert.deepEqual(told, ['drained', 'ran out, its records clear', 'ran out, a record still queued', 'ran out, records unreadable']);
-    });
-    test('a wait the SDK abandons (the account changed) is passed on, told as failed, and reads nothing', async () => {
-        const cancelled = Object.assign(new Error('cancelled'), { code: 'cancelled' });
-        /** @type {any[]} */ const told = [];
-        let reads = 0;
-        await assert.rejects(ownWritesSentFor(() => Promise.reject(cancelled), async () => { reads++; return {}; }, [{ id: 'a' }], 1_000,
-            { onSettled: (/** @type {any} */ w) => told.push(w.outcome) }), (/** @type {any} */ e) => e === cancelled);
-        assert.deepEqual(told, ['failed']);
-        assert.equal(reads, 0);
-    });
-    test('by default every watcher hears it, as for the plain wait', async () => {
-        /** @type {any[]} */ const heard = [];
-        const stop = watchOwnWritesWaits((w) => heard.push(w.outcome));
-        try { await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10); } finally { stop(); }
-        assert.deepEqual(heard, ['ran out, its records clear']);
-    });
-});
-
-// ── A PHONE KNOWN TO HOLD A LEFTOVER ASKS THE RECORDS FIRST (25 Nov 2026) ──────────────────────────
-// The fallback rescued the save but every save still waited eight seconds first. The note lets a phone
-// that has seen its queue stuck — online, with its records clear — ask the records first next time.
-describe('leftoverNote — this phone\'s note that its queue holds a write it can never send', () => {
-    const mem = () => {
-        /** @type {Map<string, string>} */ const m = new Map();
-        return { m, store: { get: (/** @type {string} */ k) => m.get(k) ?? null, set: (/** @type {string} */ k, /** @type {string} */ v) => { m.set(k, v); }, del: (/** @type {string} */ k) => { m.delete(k); } } };
-    };
-    test('remembered → known until LEFTOVER_NOTE_MS has passed, then not', () => {
-        const { store } = mem();
-        const note = leftoverNote(store, 'k');
-        assert.equal(note.known(1_000), false, 'no note yet');
-        note.remember(1_000);
-        assert.equal(note.known(1_000), true);
-        assert.equal(note.known(1_000 + LEFTOVER_NOTE_MS - 1), true);
-        assert.equal(note.known(1_000 + LEFTOVER_NOTE_MS), false, 'a week on, it waits again to check');
-    });
-    test('the expiry is a WEEK — long enough to matter, short enough to notice a leftover has gone', () => {
-        assert.equal(LEFTOVER_NOTE_MS, 7 * 24 * 60 * 60 * 1000);
-    });
-    test('forget → no note', () => {
-        const { store, m } = mem();
-        const note = leftoverNote(store, 'k');
-        note.remember(5);
-        note.forget();
-        assert.equal(m.has('k'), false);
-        assert.equal(note.known(5), false);
-    });
-    test('a value it cannot read as a time is no note: junk, zero, negative, or a time AHEAD of the clock', () => {
-        for (const junk of ['', 'yes', '0', '-5', 'NaN', 'Infinity']) {
-            const { store, m } = mem();
-            m.set('k', junk);
-            assert.equal(leftoverNote(store, 'k').known(1_000), false, `"${junk}"`);
-        }
-        const { store, m } = mem();
-        m.set('k', '2000');
-        assert.equal(leftoverNote(store, 'k').known(1_000), false, 'a note from the future (a clock moved back) is not trusted');
-    });
-});
-
-describe('ownWritesSentFor with the note — online, records clear: no second eight seconds', () => {
+// ── ONLINE, THE RECORDS ARE ASKED FIRST — ON EVERY PHONE (27 Nov 2026) ───────────────────────────
+// What a checked save needs is that none of ITS records still has this account's write on its way. The
+// records answer that directly, so online they are asked first and the SDK's whole-queue wait — which
+// another account's leftover holds up for good — is only for a record that IS still queued, or one the
+// cache cannot answer. Offline the wait comes first, as it always did: a save held as a batch must join
+// the queue behind what is there. These replaced the per-phone leftover NOTE (25 Nov 2026), which made
+// every affected phone spend eight seconds on its first checked save, and again once a week.
+describe('ownWritesSentFor — online: the records first, and the wait only for a record still on its way', () => {
     const neverDrains = () => new Promise(() => {});
     const clearReads = async () => ({ metadata: { hasPendingWrites: false } });
     const queuedReads = async () => ({ metadata: { hasPendingWrites: true } });
-    /** A note that records what was asked of it. */
-    const fakeNote = (/** @type {boolean} */ known) => {
-        const calls = /** @type {string[]} */ ([]);
-        return { calls, note: { known: () => { calls.push('known'); return known; }, remember: () => { calls.push('remember'); }, forget: () => { calls.push('forget'); } } };
-    };
-    test('ran out ONLINE with its records clear → the phone notes it', async () => {
-        const { calls, note } = fakeNote(false);
-        assert.equal(await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, { onSettled: () => {}, leftover: note, online: () => true }), true);
-        assert.ok(calls.includes('remember'));
-    });
-    test('ran out OFFLINE → never noted: offline, the queue is this account\'s own, and the signal will send it', async () => {
-        const { calls, note } = fakeNote(false);
-        await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, { onSettled: () => {}, leftover: note, online: () => false });
-        assert.ok(!calls.includes('remember'));
-    });
-    test('ran out with a record still queued, or unreadable → never noted', async () => {
-        for (const reads of [queuedReads, async () => { throw Object.assign(new Error('x'), { code: 'internal' }); }]) {
-            const { calls, note } = fakeNote(false);
-            assert.equal(await ownWritesSentFor(neverDrains, reads, [{ id: 'a' }], 10, { onSettled: () => {}, leftover: note }), false);
-            assert.ok(!calls.includes('remember'));
-        }
-    });
-    test('noted + online + records clear → no wait at all, true, told "skipped, its records clear"', async () => {
-        const { note } = fakeNote(true);
+    const brokenReads = async () => { throw Object.assign(new Error('x'), { code: 'internal' }); };
+    const online = () => true;
+    test('records clear → true at once: the SDK wait is never started, told "skipped, its records clear"', async () => {
         let waited = 0;
         /** @type {any[]} */ const told = [];
-        const ok = await ownWritesSentFor(() => { waited++; return new Promise(() => {}); }, clearReads, [{ id: 'a' }, { id: 'b' }], 60_000,
-            { onSettled: (/** @type {any} */ w) => told.push(w.outcome), leftover: note, online: () => true });
+        const ok = await ownWritesSentFor(() => { waited++; return neverDrains(); }, clearReads, [{ id: 'a' }, { id: 'b' }], 60_000,
+            { onSettled: (/** @type {any} */ w) => told.push(w.outcome), online });
         assert.equal(ok, true);
-        assert.equal(waited, 0, 'the SDK wait is never started');
+        assert.equal(waited, 0, 'a phone holding another account\'s leftover would sit here for the whole wait');
         assert.deepEqual(told, ['skipped, its records clear']);
     });
-    test('noted, but a record of ours is still queued → it WAITS, exactly as before', async () => {
-        const { note } = fakeNote(true);
+    test('online is the DEFAULT — a caller that says nothing gets records-first', async () => {
+        let waited = 0;
+        assert.equal(await ownWritesSentFor(() => { waited++; return neverDrains(); }, clearReads, [{ id: 'a' }], 60_000, { onSettled: () => {} }), true);
+        assert.equal(waited, 0);
+    });
+    test('a record of ours still queued → it WAITS; the queue drains → true, told "drained"', async () => {
         let waited = 0;
         /** @type {any[]} */ const told = [];
-        const ok = await ownWritesSentFor(() => { waited++; return new Promise(() => {}); }, queuedReads, [{ id: 'a' }], 10,
-            { onSettled: (/** @type {any} */ w) => told.push(w.outcome), leftover: note, online: () => true });
-        assert.equal(ok, false);
+        const ok = await ownWritesSentFor(async () => { waited++; }, queuedReads, [{ id: 'a' }], 1_000,
+            { onSettled: (/** @type {any} */ w) => told.push(w.outcome), online });
+        assert.equal(ok, true);
         assert.equal(waited, 1);
+        assert.deepEqual(told, ['drained']);
+    });
+    test('a record of ours still queued, and the wait runs out → false: held or refused, writing nothing', async () => {
+        /** @type {any[]} */ const told = [];
+        assert.equal(await ownWritesSentFor(neverDrains, queuedReads, [{ id: 'a' }], 10,
+            { onSettled: (/** @type {any} */ w) => told.push(w.outcome), online }), false);
         assert.deepEqual(told, ['ran out, a record still queued']);
     });
-    test('noted, but OFFLINE → it waits: an offline save is held or refused as before, never skipped', async () => {
-        const { note } = fakeNote(true);
+    test('one record queued among several is enough to wait', async () => {
         let waited = 0;
-        await ownWritesSentFor(() => { waited++; return new Promise(() => {}); }, clearReads, [{ id: 'a' }], 10,
-            { onSettled: () => {}, leftover: note, online: () => false });
+        const reads = async (/** @type {any} */ ref) => ({ metadata: { hasPendingWrites: ref.id === 'b' } });
+        await ownWritesSentFor(() => { waited++; return neverDrains(); }, reads, [{ id: 'a' }, { id: 'b' }], 10, { onSettled: () => {}, online });
         assert.equal(waited, 1);
     });
-    test('the wait drains → the note is forgotten: the leftover has gone', async () => {
-        for (const known of [false, true]) {
-            const { calls, note } = fakeNote(known);
-            // A record queued, so even a noted phone waits — and this time the queue empties.
-            assert.equal(await ownWritesSentFor(async () => {}, queuedReads, [{ id: 'a' }], 1_000, { onSettled: () => {}, leftover: note }), true);
-            assert.ok(calls.includes('forget'), `known=${known}`);
-            assert.ok(!calls.includes('remember'));
-        }
+    test('a record the cache cannot answer → it waits, and a wait that runs out is false', async () => {
+        let waited = 0;
+        assert.equal(await ownWritesSentFor(() => { waited++; return neverDrains(); }, brokenReads, [{ id: 'a' }], 10, { onSettled: () => {}, online }), false);
+        assert.equal(waited, 1, 'a check the device cannot answer never lets a transaction through unwaited');
     });
-    test('a note that throws costs the speed-up, never the save', async () => {
-        const broken = { known: () => { throw new Error('x'); }, remember: () => { throw new Error('x'); }, forget: () => { throw new Error('x'); } };
-        assert.equal(await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, { onSettled: () => {}, leftover: broken }), true);
-        assert.equal(await ownWritesSentFor(async () => {}, clearReads, [{ id: 'a' }], 1_000, { onSettled: () => {}, leftover: broken }), true);
+    test('the records were queued, the wait ran out, and they are clear by then → true', async () => {
+        let asked = 0;
+        const reads = async () => ({ metadata: { hasPendingWrites: ++asked === 1 } });
+        assert.equal(await ownWritesSentFor(neverDrains, reads, [{ id: 'a' }], 10, { onSettled: () => {}, online }), true);
+        assert.equal(asked, 2, 'asked first, and again once the wait had run out');
     });
-    test('end to end with a real note: the first save waits and notes; the second skips; a week on it waits again', async () => {
-        /** @type {Map<string, string>} */ const m = new Map();
-        const note = leftoverNote({ get: k => m.get(k) ?? null, set: (k, v) => { m.set(k, v); }, del: k => { m.delete(k); } }, 'k');
-        let clock = 1_000_000;
-        let waits = 0;
-        const wait = () => { waits++; return new Promise(() => {}); };
+    test('an online that throws reads as online — the same as navigator.onLine being unknown', async () => {
+        let waited = 0;
+        await ownWritesSentFor(() => { waited++; return neverDrains(); }, clearReads, [{ id: 'a' }], 10,
+            { onSettled: () => {}, online: () => { throw new Error('x'); } });
+        assert.equal(waited, 0);
+    });
+});
+
+describe('ownWritesSentFor — offline: the wait first, as before', () => {
+    const neverDrains = () => new Promise(() => {});
+    const clearReads = async () => ({ metadata: { hasPendingWrites: false } });
+    const offline = () => false;
+    test('a queue that drains: true, and no record is read', async () => {
+        let reads = 0;
+        assert.equal(await ownWritesSentFor(async () => {}, async () => { reads++; return {}; }, [{ id: 'a' }], 1_000, { onSettled: () => {}, online: offline }), true);
+        assert.equal(reads, 0);
+    });
+    test('records clear but OFFLINE → it still waits: an offline save is held behind the queue, never sent ahead of it', async () => {
+        let waited = 0;
+        await ownWritesSentFor(() => { waited++; return neverDrains(); }, clearReads, [{ id: 'a' }], 10, { onSettled: () => {}, online: offline });
+        assert.equal(waited, 1);
+    });
+    test('runs out, its records clear → true: the save goes on to ask the server', async () => {
+        assert.equal(await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, { onSettled: () => {}, online: offline }), true);
+    });
+    test('runs out, a record still queued → false', async () => {
+        const reads = async (/** @type {any} */ ref) => ({ metadata: { hasPendingWrites: ref.id === 'b' } });
+        assert.equal(await ownWritesSentFor(neverDrains, reads, [{ id: 'a' }, { id: 'b' }], 10, { onSettled: () => {}, online: offline }), false);
+    });
+    test('runs out, a record unreadable → false', async () => {
+        const reads = async () => { throw Object.assign(new Error('x'), { code: 'internal' }); };
+        assert.equal(await ownWritesSentFor(neverDrains, reads, [{ id: 'a' }], 10, { onSettled: () => {}, online: offline }), false);
+    });
+    test('the wait is told ONCE, with what the records said — the slow-save line\'s words', async () => {
         /** @type {any[]} */ const told = [];
-        const opts = { onSettled: (/** @type {any} */ w) => told.push(w.outcome), leftover: note, online: () => true, now: () => clock };
-        await ownWritesSentFor(wait, clearReads, [{ id: 'a' }], 10, opts);
-        clock += 60_000;
-        await ownWritesSentFor(wait, clearReads, [{ id: 'a' }], 10, opts);
-        clock += LEFTOVER_NOTE_MS;
-        await ownWritesSentFor(wait, clearReads, [{ id: 'a' }], 10, opts);
-        assert.deepEqual(told, ['ran out, its records clear', 'skipped, its records clear', 'ran out, its records clear']);
-        assert.equal(waits, 2);
+        const opts = { onSettled: (/** @type {any} */ w) => told.push(w.outcome), online: offline };
+        await ownWritesSentFor(async () => {}, clearReads, [{ id: 'a' }], 1_000, opts);
+        await ownWritesSentFor(neverDrains, clearReads, [{ id: 'a' }], 10, opts);
+        await ownWritesSentFor(neverDrains, async () => ({ metadata: { hasPendingWrites: true } }), [{ id: 'a' }], 10, opts);
+        await ownWritesSentFor(neverDrains, async () => { throw new Error('x'); }, [{ id: 'a' }], 10, opts);
+        assert.deepEqual(told, ['drained', 'ran out, its records clear', 'ran out, a record still queued', 'ran out, records unreadable']);
+    });
+});
+
+describe('ownWritesSentFor — what it tells, and an abandoned wait', () => {
+    const neverDrains = () => new Promise(() => {});
+    test('a wait the SDK abandons (the account changed) is passed on and told as failed', async () => {
+        const cancelled = Object.assign(new Error('cancelled'), { code: 'cancelled' });
+        /** @type {any[]} */ const told = [];
+        await assert.rejects(ownWritesSentFor(() => Promise.reject(cancelled), async () => ({ metadata: { hasPendingWrites: true } }), [{ id: 'a' }], 1_000,
+            { onSettled: (/** @type {any} */ w) => told.push(w.outcome) }), (/** @type {any} */ e) => e === cancelled);
+        assert.deepEqual(told, ['failed']);
+    });
+    test('by default every watcher hears it, once', async () => {
+        /** @type {any[]} */ const heard = [];
+        const stop = watchOwnWritesWaits((w) => heard.push(w.outcome));
+        try {
+            await ownWritesSentFor(neverDrains, async () => ({ metadata: { hasPendingWrites: false } }), [{ id: 'a' }], 10);
+            await ownWritesSentFor(neverDrains, async () => ({ metadata: { hasPendingWrites: true } }), [{ id: 'a' }], 10);
+        } finally { stop(); }
+        assert.deepEqual(heard, ['skipped, its records clear', 'ran out, a record still queued']);
+    });
+    test('a watcher that throws never disturbs the save', async () => {
+        assert.equal(await ownWritesSentFor(neverDrains, async () => ({ metadata: { hasPendingWrites: false } }), [{ id: 'a' }], 10,
+            { onSettled: () => { throw new Error('x'); } }), true);
     });
 });
