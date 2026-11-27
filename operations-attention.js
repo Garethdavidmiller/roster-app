@@ -9,10 +9,11 @@
  *  - IT RUNS NO READS. Every count arrives from the card that owns the data, via `report()`, on
  *    the same load the card paints from — a parallel query set here could disagree with the card
  *    it points at, and an index that contradicts its target is worse than none.
- *  - IT DISAPPEARS WHEN CLEAN. No "all clear" state, no empty frame: when nothing needs attention
- *    the strip does not exist, so its mere presence is the signal. (An item a card has not
- *    reported yet is likewise simply absent — the strip only ever claims what it has been told,
- *    and a failed card load reports nothing rather than a reassuring zero.) ONE exception, the
+ *  - IT IS QUIET WHEN CLEAN, AND ONLY WHEN IT KNOWS. Once EVERY item has reported a definite zero, one
+ *    quiet line says nothing needs attention (owner, 27 Nov 2026: the admin should not have to open
+ *    the cards to learn there is no job). Until every item has answered — a card still loading, one
+ *    that failed and reports nothing, a withdrawn count — the strip is absent, exactly as before: it
+ *    only ever claims what it has been told, and a failed load is never a reassuring zero (`allClear`). ONE exception, the
  *    owner's (10 Nov 2026): a reset queue that could not be read says "couldn't check"
  *    (`unchecked()`). Its card stays closed, so an absent item read from outside exactly like
  *    "nothing outstanding" — a member waiting on a reset is the one backlog the admin cannot
@@ -130,6 +131,20 @@ export function buildAttentionItems(reports) {
 }
 
 /**
+ * Has EVERY item answered, with nothing to show? Only then may the strip say so. An item not yet
+ * reported (still loading, failed, withdrawn) or one that could not be checked is not a zero.
+ * @param {Record<string, {count: number, truncated?: boolean, unchecked?: boolean}>} reports
+ * @returns {boolean}
+ */
+export function allClear(reports) {
+    return Object.keys(ATTENTION_CATALOGUE).every(id => reports[id] && !reports[id].unchecked)
+        && buildAttentionItems(reports).length === 0;
+}
+
+/** What the strip says once every item has answered with nothing to do. */
+export const ALL_CLEAR_LINE = 'Nothing needs your attention';
+
+/**
  * The Staff Login Accounts card's two items, reported from ONE answer of its audit — or withdrawn
  * together when a check could not answer.
  * @param {{ report: (id: string, count: number) => void, withdraw: (id: string) => void }} strip
@@ -178,6 +193,9 @@ export function createAttentionStrip({ container, onJump }) {
     // shown and only its words change, and a new item is INSERTED in catalogue order: an existing link
     // is never moved, because moving a node drops its focus as surely as removing it.
     /** @type {HTMLUListElement|null} */ let list = null;
+    /** @type {HTMLHeadingElement|null} */ let head = null;
+    /** The quiet line shown once every item has answered with nothing to do. @type {HTMLParagraphElement|null} */
+    let clearLine = null;
     /** @type {Map<string, { li: HTMLLIElement, a: HTMLAnchorElement, count: HTMLSpanElement }>} */
     const shown = new Map();
 
@@ -186,12 +204,28 @@ export function createAttentionStrip({ container, onJump }) {
         for (const [id, row] of shown) {
             if (!items.some(i => i.id === id)) { row.li.remove(); shown.delete(id); }
         }
-        if (!items.length) { host.hidden = true; return; }
+        if (!items.length) {
+            list?.remove(); head?.remove(); list = null; head = null;
+            if (allClear(reports)) {
+                if (!clearLine) {
+                    clearLine = document.createElement('p');
+                    clearLine.className = 'attn-clear';
+                    const tick = document.createElement('span');
+                    tick.setAttribute('aria-hidden', 'true');
+                    tick.textContent = '✓';
+                    clearLine.append(tick, ` ${ALL_CLEAR_LINE}`);
+                    host.append(clearLine);
+                }
+                host.hidden = false;
+            } else { clearLine?.remove(); clearLine = null; host.hidden = true; }
+            return;
+        }
+        clearLine?.remove(); clearLine = null;
 
         if (!list) {
             // The heading speaks in the page's group-label voice (PUBLISH · MONITORING · …) — the
             // strip is a fourth, CONDITIONAL group at the top, not a banner over the page.
-            const head = document.createElement('h2');
+            head = document.createElement('h2');
             head.className = 'attn-head';
             const glyph = document.createElement('span');
             glyph.setAttribute('aria-hidden', 'true');

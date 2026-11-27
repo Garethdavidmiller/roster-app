@@ -640,7 +640,8 @@ const CAPS = {
     // `paycalc-period-merge.js`, the two-tab merge rule that went into a module of its own rather than
     // into paycalc-app.js. Nothing else in the worker grew.
     // 1066 → 1068 (27 Nov 2026), two generated precache lines: `mirror-move.js` and `mirror-move-words.js`.
-    'service-worker.js':       1068,
+    // 1068 → 1070 (27 Nov 2026), two generated precache lines: `doc-dates.js` and `admin-day-change.js`.
+    'service-worker.js':       1070,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

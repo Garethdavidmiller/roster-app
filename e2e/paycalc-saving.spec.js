@@ -246,6 +246,27 @@ test('paycalc: a read that fails before a save writes nothing over another tab\'
     expect(await stored(page)).toMatchObject({ satH: 3, sunH: 5, sunM: 15 });
 });
 
+test('paycalc: Retry beside "Not saved" saves the figure again, with nothing else typed', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0 });
+    const retry = page.locator('#saveRetryBtn');
+    await expect(retry, 'no Retry while nothing has failed').toBeHidden();
+    await page.evaluate((k) => {   // the next write of the payslip is refused, then storage recovers
+        const set = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, v) {
+            if (key === k) { Storage.prototype.setItem = set; throw new DOMException('quota', 'QuotaExceededError'); }
+            return set.call(this, key, v);
+        };
+    }, KEY);
+    await page.locator('#sunH').fill('5');
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    await expect(retry).toBeVisible();
+    await retry.click();
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+    await expect(retry).toBeHidden();
+    expect(await stored(page)).toMatchObject({ satH: 3, sunH: 5 });
+});
+
 test('paycalc: a clear that landed, whose check read failed, says the payslip is cleared', async ({ page }) => {
     await page.clock.install({ time: DAY });
     await openOctober(page, { satH: 3, satM: 0 });
@@ -300,7 +321,7 @@ test('paycalc: a setting that saves after a refused one ends ITS warning, and ne
     expect((await stored(page)).satH, 'and storage still holds 3h').toBe(3);
 });
 
-test('paycalc: a take-home typed on a payslip with no hours is saved, and the receipt says so — £0 included', async ({ page }) => {
+test('paycalc: a take-home typed on a payslip with no hours is saved, and the receipt names it — £0 included', async ({ page }) => {
     await page.clock.install({ time: DAY });
     await openOctober(page, { satH: 3, satM: 0 });
     await page.clock.pauseAt(new Date(DAY.getTime() + 60_000));
@@ -312,11 +333,11 @@ test('paycalc: a take-home typed on a payslip with no hours is saved, and the re
     for (const amount of ['1750', '0']) {
         await page.locator('#actualNetInput').fill(amount);
         await expect.poll(async () => (await stored(page))?.actualNet).toBe(Number(amount));
-        await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+        await expect(page.locator('#saveStatus'), 'saved, and named as the comparison it is').toHaveText('✓ Take-home comparison saved');
     }
     await page.reload();
     await expect(page.locator('#actualNetInput')).toHaveValue('0');
-    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Take-home comparison saved');
 });
 
 test('paycalc: one tab saving as it always has — no question, saved as typed', async ({ page }) => {

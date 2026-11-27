@@ -83,7 +83,9 @@ const CAPS = {
     // 3772 → 3776 (26 Nov 2026, at 3,776), a RAISE of four lines from the polish review: the picker chevron's own
     // size on the sign-in card, the refusal footer's even wrap, the tips' even wrap —
     // each a rule on a shared surface (the sign-in card, the Tips panel, the card header), so it can live nowhere else.
-    'shared.css':     3786,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
+    // 3786 → 3789 (27 Nov 2026, at 3,789), a RAISE of three lines: the drawer's document rows' latest date
+    // (doc-dates.js), which every page's drawer draws, so it can live nowhere else.
+    'shared.css':     3789,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     // 3776 → 3786 (27 Nov 2026): the Pages mirror's desktop line, a new surface on every page and the sign-in card.
     // 2700 → 2650 (Nov 2026, at 2,574): the week grid's five-column template and the two blocks that
     // restated the stacked one over it became one rule; dead and inert rules out (css-admin-ops-15).

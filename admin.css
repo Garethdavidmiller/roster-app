@@ -1084,6 +1084,11 @@
         /* nowrap (polish pass): the two figures are "N days" and a member's name, and a name broke
            across lines at its initial — "for L." / "Springer." — at 390px. */
         .grid-preview strong { color: var(--text-dark); font-weight: 700; white-space: nowrap; }
+        /* What each staged day becomes (owner, 27 Nov 2026): under the sentence, one day a line, the time
+           pair kept whole. The emoji stays at the top of a preview that grows to more than one line. */
+        .grid-preview:has(.grid-preview-days) { align-items: flex-start; }
+        .grid-preview-days { list-style: none; margin: 4px 0 0; padding: 0; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+        .grid-preview-days li { overflow-wrap: anywhere; }
 
         /* ---- Feedback ---- */
         .feedback {

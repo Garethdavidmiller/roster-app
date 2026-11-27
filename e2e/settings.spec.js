@@ -1421,8 +1421,8 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
         expect(name, `premise: the roster has a current ${grade} member`).toBeTruthy();
         await settingsWithPush(page, /** @type {string} */ (name));
         await expect(page.locator('#notifToggleHeader .hint')).toHaveText(
-            gets ? 'Get a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter, and the pay reminder'
-                : 'Get a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter', { useInnerText: true });
+            gets ? 'For this device only: a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter, and the pay reminder'
+                : 'For this device only: a notification for each new Daily Huddle, Weekly Retail Circular and Marylebone Newsletter', { useInnerText: true });
         await expect(page.locator('#notifKindPay')).toBeVisible({ visible: gets });
         // The status line points at the list, which is the member's own — so it never names the pay reminder.
         await expect(page.locator('#notifStatusMsg')).toHaveText('Select “Turn on notifications” to get the ones listed above.');
