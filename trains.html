@@ -148,6 +148,45 @@
         </div>
     </div>
 
+    <!-- FIND A TRAIN (owner, Nov 2026: "bring the existing time and station lookups together … once they're using
+         the page at the gateline, the lookup should come first"). ONE box for where the customer is going and when —
+         "Aylesbury, after 17:15" answers with the first train there, its route and the next two; a time alone,
+         "17:15", compares that train in both timetables, as "Look up a time" did. It sits above the views, so it is
+         the same box whichever is open, and below the overview, whose Christmas line a folded card still shows
+         first. The busiest stations under the box open a station's card on a wide screen, as the desktop's "Jump
+         to a station" card did (trains.css shows them from 1024px). trains-cards.js → `renderLookup` answers. -->
+    <div class="card" id="trLookupCard">
+        <div class="card-header card-header-toggle" id="trLookupToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🔎</span> Find a train</h2>
+                <span class="hint">The next train to a station, or what happens to “the 17:15”</span>
+            </div>
+            <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="lookup"
+                        aria-label="Tips for finding a train">?</button>
+                <span class="collapse-chevron open" id="trLookupChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="trLookupBody">
+            <div class="card-body tr-find">
+                <div class="tr-find-ask">
+                    <label class="field-eyebrow tr-label" for="trLookupInput">Where to, and when</label>
+                    <!-- A full keyboard, not the numeric pad: "5.15pm" needs letters (v24.79), and so does a station.
+                         A SEARCH as the station box is, so no autocorrect and no capital (iPhone audit, 7 Nov 2026). -->
+                    <input type="text" class="tr-input tr-input--wide" id="trLookupInput" autocomplete="off"
+                           autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go"
+                           placeholder="Aylesbury, after 17:15" maxlength="60">
+                    <p class="card-explainer tr-note tr-find-eg">A station, and a time if the customer gives one. A time alone, like 17:15, compares that train in both timetables.</p>
+                    <div class="tr-jump" id="trJump">
+                        <p class="card-explainer tr-note">Or open a station’s card:</p>
+                        <div class="tr-picks" id="trJumpPicks"></div>
+                    </div>
+                </div>
+                <div id="trLookupResult" class="tr-find-result" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- WHICH QUESTION, AND WHICH DAY. Two choices, drawn differently so they never read as one
          six-button grid: the three views are the app's on-canvas tabs (Overtime's), each carrying the
          emoji of the card it opens; the day is one segmented track beneath them, quieter, because it
@@ -178,70 +217,22 @@
          (JOURNEY_PLANNER_URL) has why it went in all of them and where each warning still is. -->
 
     <!-- ── WHAT'S CHANGING ──────────────────────────────────────────────────────────────────── -->
-    <!-- THE LOOKUP COMES FIRST (v24.92). It is the one thing a member needs with a customer waiting,
-         and on a phone it sat at 1,450px, below the whole changes list. In the DOM it now precedes the
-         list, so the reading order and the tab order are the order on screen: first on a phone, where
-         trains-app.js starts it collapsed so the list is still the first thing read, and the right-hand
-         column on a desktop (trains.css places the two columns explicitly). -->
-    <section class="tr-view tr-cols" id="trViewChanges" aria-label="What’s changing">
-        <div class="tr-col-side">
-            <div class="card" id="trLookupCard">
-                <div class="card-header card-header-toggle" id="trLookupToggleHeader">
-                    <div>
-                        <h2><span aria-hidden="true">🔎</span> Look up a time</h2>
-                        <span class="hint">A customer asks about “the 17:15”? Type it in</span>
-                    </div>
-                    <div class="card-header-actions">
-                        <button type="button" class="btn-card-tips" data-card="lookup"
-                                aria-label="Tips for looking up a time">?</button>
-                        <span class="collapse-chevron open" id="trLookupChevron">▾</span>
-                    </div>
-                </div>
-                <div class="card-collapsible-body open" id="trLookupBody">
-                    <div class="card-body">
-                        <label class="field-eyebrow tr-label" for="trLookupInput">Time</label>
-                        <!-- A full keyboard, not the numeric pad: "5.15pm" needs letters (v24.79). -->
-                        <input type="text" class="tr-input" id="trLookupInput" autocomplete="off"
-                               autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="17:15 or 5.15pm" maxlength="9">
-                        <div id="trLookupResult" aria-live="polite"></div>
-                    </div>
-                </div>
-            </div>
-        <!-- JUMP TO A STATION (v24.94). A desktop's right column held the lookup and nothing under it, and
-             a station PC is a desktop reader: the busiest stations
-             here answer a barrier question in one click. trains.css shows it from 1024px only — on a phone
-             the Stations tab is one tap away, and a second copy of its chips would push the list down. -->
-        <div class="card" id="trJumpCard">
-            <div class="card-header card-header-toggle" id="trJumpToggleHeader">
+    <!-- For briefing: the lookup that sat beside it is "Find a train", above the tabs (Nov 2026). -->
+    <section class="tr-view" id="trViewChanges" aria-label="What’s changing">
+        <div class="card" id="trChangesCard">
+            <div class="card-header card-header-toggle" id="trChangesToggleHeader">
                 <div>
-                    <h2><span aria-hidden="true">🚉</span> Jump to a station</h2>
-                    <span class="hint">The busiest first — or search on the Stations tab</span>
+                    <h2><span aria-hidden="true">🔔</span> <span id="trChangesTitle">What’s changing</span></h2>
+                    <span class="hint" id="trChangesHint">Trains leaving Marylebone — biggest change first</span>
                 </div>
                 <div class="card-header-actions">
-                    <span class="collapse-chevron open" id="trJumpChevron">▾</span>
+                    <button type="button" class="btn-card-tips" data-card="changes" id="trChangesTips"
+                            aria-label="Tips for what’s changing">?</button>
+                    <span class="collapse-chevron open" id="trChangesChevron">▾</span>
                 </div>
             </div>
-            <div class="card-collapsible-body open" id="trJumpBody">
-                <div class="card-body"><div class="tr-picks" id="trJumpPicks"></div></div>
-            </div>
-        </div>
-        </div>
-        <div class="tr-col-main">
-            <div class="card" id="trChangesCard">
-                <div class="card-header card-header-toggle" id="trChangesToggleHeader">
-                    <div>
-                        <h2><span aria-hidden="true">🔔</span> <span id="trChangesTitle">What’s changing</span></h2>
-                        <span class="hint" id="trChangesHint">Trains leaving Marylebone — biggest change first</span>
-                    </div>
-                    <div class="card-header-actions">
-                        <button type="button" class="btn-card-tips" data-card="changes" id="trChangesTips"
-                                aria-label="Tips for what’s changing">?</button>
-                        <span class="collapse-chevron open" id="trChangesChevron">▾</span>
-                    </div>
-                </div>
-                <div class="card-collapsible-body open" id="trChangesBody">
-                    <div class="card-body"><div id="trChanges"></div></div>
-                </div>
+            <div class="card-collapsible-body open" id="trChangesBody">
+                <div class="card-body"><div id="trChanges"></div></div>
             </div>
         </div>
     </section>

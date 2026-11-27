@@ -66,7 +66,7 @@ export function injectNavPanel(currentPage, memberName, onSignOut, gates) {
         // both are "look something up", never a document you open on a shift. It goes LAST — it is the
         // rarest thing in the drawer.
         // The glossary (glossary.js): the roster's words, one line each, shown in the page's own ? panel.
-        + `<li><button type="button" class="nav-panel-link nav-panel-link--glossary nav-panel-link--stacked"><span aria-hidden="true">📖</span><span class="nav-link-text"><span class="nav-link-title">Words used in the app</span><span class="nav-link-sub">What RDW, AL, Spare and the rest mean</span></span></button></li>`
+        + `<li><button type="button" class="nav-panel-link nav-panel-link--glossary nav-panel-link--stacked"><span aria-hidden="true">📖</span><span class="nav-link-text"><span class="nav-link-title">Glossary</span><span class="nav-link-sub">What RDW, AL, Spare and the rest mean</span></span></button></li>`
         + `<li><button type="button" class="nav-panel-link nav-panel-link--notices"><span aria-hidden="true">📣</span> App Notices</button></li>`;
 
     // Member name is set via textContent (not innerHTML) after injection to avoid XSS.

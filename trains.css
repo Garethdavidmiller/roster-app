@@ -256,20 +256,42 @@ white, a third recipe for one job. */
 /* `display` on a section out-specifies the `hidden` attribute (page-visibility-parity). */
 .tr-view[hidden] { display: none !important; }
 
-/* ── Columns ────────────────────────────────────────────────────────────────── */
-/* The lookup is FIRST in the DOM (v24.92 — first on a phone, where it matters with a customer
-   waiting), so the desktop places the two columns explicitly rather than by source order: the list
-   left, the lookup right, as before. Placement, not `order`, so the tab order is the reading order. */
+/* ── Find a train: the time lookup and the desktop's jump card, made one (Nov 2026). From 1024px the box takes the side
+   column's width on the LEFT and its answer the rest. Its station chips are a desktop's: a phone has the Stations tab. */
+.tr-find { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+.tr-find-ask, .tr-find-result { min-width: 0; }
+.tr-find-result:empty, .tr-jump { display: none; }
 @media (min-width: 1024px) {
-    .tr-cols {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) var(--tr-side);
-        column-gap: var(--tr-gap);
-        align-items: start;
-    }
-    .tr-col-main { grid-column: 1; grid-row: 1; }
-    .tr-col-side { grid-column: 2; grid-row: 1; }
+    .tr-find { grid-template-columns: var(--tr-side) minmax(0, 1fr); column-gap: var(--tr-gap); align-items: start; }
+    .tr-find .tr-input.tr-input--wide { max-width: none; }
+    .tr-jump { display: block; }
 }
+.tr-find-eg { margin-top: 8px; }
+.tr-jump .tr-picks, .tr-jr-others { margin-bottom: 0; }
+/* The date, the timetable and "Scheduled" (the plan, not live running): a quiet-status chip, the 600 tier. */
+.tr-jr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
+.tr-jr-sched { padding: 1px 8px; border: 1px solid var(--border-mid); border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--text-mid); font-size: var(--type-badge); font-weight: 600; }
+.tr-jr-ask { margin: 0 0 4px; font-weight: 700; }
+/* The first train is the answer box (.tr-answer); the next ones a quiet list beneath it. */
+.tr-jr-first { margin: 0 0 12px; }
+.tr-jr-line, .tr-jr-arr { margin: 0; }
+.tr-jr-time { font-weight: 800; font-variant-numeric: tabular-nums; }
+.tr-jr-first .tr-jr-time { font-size: var(--type-large); }
+.tr-jr-via { color: var(--text-mid); font-weight: 600; }
+.tr-jr-arr { color: var(--text-mid); font-size: var(--type-label); font-variant-numeric: tabular-nums; }
+.tr-jr-list, .tr-jr-stoplist { margin: 0; padding: 0; list-style: none; }
+.tr-jr-list > li { padding: 8px 0; border-bottom: 1px solid var(--border-light); }
+/* Where one train stops, on tap: its arrow drawn as Train by train's is. */
+.tr-jr-stops { margin-top: 4px; }
+.tr-jr-stops > summary { display: inline-flex; align-items: center; gap: 6px; color: var(--primary-blue); font-size: var(--type-small); font-weight: 700; cursor: pointer; list-style: none; }
+.tr-jr-stops > summary::after { content: '▾'; font-size: var(--type-micro); transition: transform var(--dur-fast) var(--ease-standard); }
+.tr-jr-stops[open] > summary::after { transform: rotate(180deg); }
+.tr-jr-stops > summary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
+.tr-jr-stoplist { margin-top: 6px; font-size: var(--type-label); }
+.tr-jr-stoplist li { padding: 3px 0; border-bottom: 1px solid var(--border-light); }
+.tr-jr-stoplist li:last-child { border-bottom: 0; }
+/* The station's own card, a press away: a changes row with no chip. */
+.tr-head--plain { grid-template-columns: minmax(0, 1fr) auto; margin-top: 12px; }
 
 /* ── Chips ──────────────────────────────────────────────────────────────────── */
 .tr-chip {
@@ -322,7 +344,7 @@ white, a third recipe for one job. */
     cursor: pointer;
     list-style: none;
 }
-.tr-route-sum::-webkit-details-marker { display: none; }
+.tr-route-sum::-webkit-details-marker, .tr-jr-stops > summary::-webkit-details-marker { display: none; }
 .tr-route-sum::after {
     content: '▾';
     grid-column: 3;
@@ -887,11 +909,6 @@ uppercase. */
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
-/* The desktop's jump card: a second copy of the Stations tab's chips earns its place only where there
-   is a column with nothing in it. Below 1024px it does not exist. */
-#trJumpCard { display: none; }
-@media (min-width: 1024px) { #trJumpCard { display: block; } }
-#trJumpCard[hidden] { display: none !important; }
 
 /* ── A phone's larger text ─────────────────────────────────────────────────────
    Android scales every font and leaves the screen as wide as it was, so no width query can see it.
@@ -932,6 +949,7 @@ uppercase. */
    27–31px tall. After the base rules, so it wins. */
 @media (pointer: coarse) {
     .tr-tab, .tr-pick, .tr-more, .tr-grid-colbtn { min-height: 44px; }
+    .tr-jr-stops > summary { min-height: 44px; }
     /* …except the two small pills that ACT (above): at 44px, with badge type, they were capsules twice the height of
        their words (Trains review, 22 Nov 2026). They take Overtime's touch height for the same pill (36px) and an
        invisible band above and below for a thumb's 44px, as the ? button keeps its target (shared.css). */
@@ -941,7 +959,7 @@ uppercase. */
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .tr-tab, .tr-pick, .tr-more, .tr-route, .tr-route-sum::after { transition: none; }
+    .tr-tab, .tr-pick, .tr-more, .tr-route, .tr-route-sum::after, .tr-jr-stops > summary::after { transition: none; }
 }
 
 @media print {
@@ -953,6 +971,9 @@ uppercase. */
     .app-header h1 { color: var(--primary-blue); }
     .badge-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-grid-swipe, .tr-change-station { display: none; }
+    /* Find a train prints its question and its answer; what only a press can use goes, and "Scheduled" keeps its edge. */
+    .tr-jump, .tr-find-eg, .tr-jr-others, .tr-jr-card { display: none; }
+    .tr-jr-sched { background: none; border-color: var(--text-dark); color: var(--text-dark); }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
     /* An in-card choice (Now / From 13 Dec, Going there / Coming back) prints as the ONE it is: the chosen tab's words
        are white for its raspberry fill, which paper drops, so the sheet showed the chosen one faint and the other bold

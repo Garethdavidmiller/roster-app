@@ -23,6 +23,7 @@ import {
 import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, isChristmasOrBoxingDay } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave, allowanceForBoxingDay } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
+import { workedTimes } from './team-overlap.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache, monthKey } from './calendar-overrides.js';
 import { knowledgeOf, decideDisplay } from './calendar-data-state.js';
@@ -617,6 +618,12 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // `shiftBadgeParts`. Written on every day, changed or not, so the colour is a property of the
         // shift, not of "something happened".
         dayCell.dataset.detailShiftValue = shift;
+        // THE DATE AND THE TIMES WORKED, for the panel's "Who's on with me" (team-overlap.js): offered only
+        // on a day worked WITH times, and read from the same resolved value the cell draws, so the button
+        // cannot appear on a rest day, leave or an absence. The date is ISO, never parsed out of the words.
+        dayCell.dataset.detailIso = dateStr;
+        const timesWorked = workedTimes({ shift, rdwTime });
+        if (timesWorked) dayCell.dataset.detailWorkedTimes = timesWorked;
         // A member whose worked turns all wear one kind (`permanentShift`): the cell's badge says that
         // kind whatever the time, so the panel is told too, or its glyph and pair would name the time's.
         if (member.permanentShift === 'early' || member.permanentShift === 'late') dayCell.dataset.detailPermanentShift = member.permanentShift;

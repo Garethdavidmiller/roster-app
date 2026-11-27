@@ -147,6 +147,27 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', getUserName,
 }
 
 /**
+ * THE APP'S NAME IS NEVER CUT FOR THE PAGE BADGE (owner, 27 Nov 2026: "Marylebone Ro…" beside "NEW CEA LINK" on
+ * an Android phone with larger text). The header gives the name what the badge leaves, and a long badge under
+ * larger text left too little. A width rule cannot see text size, so the header is MEASURED: when the name would
+ * be cut, the badge shows its emoji alone (`.app-header--tight`, shared.css) — its colour still says which page,
+ * and the words stay in the page for a screen reader. Re-measured whenever the header's size changes (a rotation,
+ * a text-size change). Every sub-page reaches it through `wireHeaderLogo`; the Calendar has its own header.
+ */
+function fitHeaderBadge() {
+    const header = document.querySelector('.app-header');
+    const name = header?.querySelector('h1');
+    if (!(header instanceof HTMLElement) || !name || !header.querySelector('.badge-page') || header.dataset.badgeFit) return;
+    header.dataset.badgeFit = '1';
+    const fit = () => {
+        header.classList.remove('app-header--tight');
+        if (name.scrollWidth > name.clientWidth + 1) header.classList.add('app-header--tight');
+    };
+    fit();
+    if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(header);
+}
+
+/**
  * The sub-page header logo is a BACK-TO-CALENDAR control (v11.21 — About lives on the drawer logo).
  *
  * ONE copy, because the copies were the bug (whole-app review, Nov 2026): five pages each carried
@@ -158,6 +179,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', getUserName,
  *   unsaved work passes its own confirm-then-go here, exactly as its other exits do.
  */
 export function wireHeaderLogo(onActivate = () => { window.location.href = './'; }) {
+    fitHeaderBadge();
     const icon = document.getElementById('appIcon');
     if (!icon || icon.dataset.wired) return;
     icon.dataset.wired = '1';

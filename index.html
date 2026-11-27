@@ -94,6 +94,7 @@
     <link rel="modulepreload" href="./calendar-snapshot.js">
     <link rel="modulepreload" href="./calendar-state.js">
     <link rel="modulepreload" href="./calendar-swipe.js">
+    <link rel="modulepreload" href="./calendar-team-onwith.js">
     <link rel="modulepreload" href="./calendar-team-view.js">
     <link rel="modulepreload" href="./calendar-tips.js">
     <link rel="modulepreload" href="./card-collapse.js">
@@ -155,6 +156,7 @@
     <link rel="modulepreload" href="./storage-keys.js">
     <link rel="modulepreload" href="./storage-utils.js">
     <link rel="modulepreload" href="./sw-register.js">
+    <link rel="modulepreload" href="./team-overlap.js">
     <link rel="modulepreload" href="./text-scale.js">
     <link rel="modulepreload" href="./tips-lightbox.js">
     <link rel="modulepreload" href="./upload-commit.js">
@@ -527,6 +529,12 @@
             <div class="day-detail-actions" id="dayDetailActions">
                 <a class="day-detail-leave-btn" id="dayDetailLeaveBtn" href="admin.html#alBookedBox" hidden>Leave dates</a>
                 <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden>Pay estimate</button>
+                <!-- WHO'S ON WITH ME (owner, 27 Nov 2026) — only on a day worked WITH times
+                     (`data-detail-worked-times`, the renderer's call). It opens Team Week View on this
+                     date's week with the colleagues whose duties overlap listed first, and the full week
+                     grid beneath. Not a personal action: it names whose shift it asks about, "me" on the
+                     reader's own calendar and the colleague's name on theirs (calendar-al-lightbox.js). -->
+                <button type="button" class="day-detail-team-btn" id="dayDetailTeamBtn" hidden><span aria-hidden="true">👥</span> <span id="dayDetailTeamLabel">Who’s on with me</span></button>
             </div>
         </div>
     </div>

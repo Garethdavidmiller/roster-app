@@ -151,13 +151,24 @@ export const CARD_TIPS = {
     },
 
     'lookup': {
-        title: 'Look up a time',
+        title: 'Find a train',
         sections: [
             {
                 items: [
+                    { icon: '⌨️', html: 'Type where the customer is going, and a time if they give one: <strong>Aylesbury, after 17:15</strong>, <strong>aylesbury 5.15pm</strong> or just <strong>High Wycombe</strong>. Short forms work, as on Stations: <strong>Gerrards X</strong>, <strong>Moor St</strong>, or the three-letter code. With no time, it is the next train from now.' },
+                    { icon: '🚆', html: 'The answer is the first train from Marylebone that stops there, at or after that time, then the next two: when each leaves, where it ends and when it gets there. <strong>Where it stops</strong> under a train lists every stop with its time.' },
+                    { icon: '🔀', html: 'Aylesbury is reached two ways, so its trains say <strong>via Amersham</strong> or <strong>via High Wycombe</strong>. The two take different times: when a later train gets there first, it says <strong>before the</strong> earlier one.' },
+                    { icon: '🗓️', html: `It answers for today, or, with another day chosen under <strong>Weekdays</strong>, <strong>Saturdays</strong> or <strong>Sundays</strong>, the next one of those, and from the timetable that runs on that date: the line above the answer names it, such as <strong>Timetable from ${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>. <strong>Scheduled</strong> means the published time, not live running.` },
+                    { icon: '🌙', html: 'After the last train of the day, it says so and gives the first train the next day.' },
+                ],
+            },
+            {
+                heading: 'A time on its own',
+                items: [
                     { icon: '⌨️', html: 'Type a time the way you would say it: <strong>17:15</strong>, <strong>1715</strong>, <strong>5.15pm</strong> or <strong>515pm</strong> all work. Without am or pm, <strong>515</strong> means 05:15.' },
-                    { icon: '💬', html: `If a train leaves at exactly that time on the day chosen above, the answer says what happens to it from ${dateWords(CHANGE_DATE)} — and, once the new timetable has started, what it used to be. If no train leaves then but one does in the other timetable, it says what that train is.` },
-                    { icon: '↔️', html: `Underneath, every train leaving Marylebone within ${NEAR_WINDOW_MIN} minutes either side, in both timetables, for the day chosen above. Where the two lists differ, a <strong>bar at the left</strong> marks a train in only one of them: a new train, one that stops running, or one whose time or destination is different.` },
+                    { icon: '💬', html: `If a train leaves at exactly that time on the day chosen, the answer says what happens to it from ${dateWords(CHANGE_DATE)} — and, once the new timetable has started, what it used to be. If no train leaves then but one does in the other timetable, it says what that train is.` },
+                    { icon: '↔️', html: `Underneath, every train leaving Marylebone within ${NEAR_WINDOW_MIN} minutes either side, in both timetables, for the day chosen. Where the two lists differ, a <strong>bar at the left</strong> marks a train in only one of them: a new train, one that stops running, or one whose time or destination is different.` },
+                    { icon: '🖥️', html: 'On a wide screen, the busiest stations under the box open that station’s card.' },
                 ],
             },
         ],

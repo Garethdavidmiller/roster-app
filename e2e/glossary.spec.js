@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * glossary.spec.js — "Words used in the app" (glossary.js): opened from the drawer's Reference zone, and from the foot of
+ * glossary.spec.js — "Glossary" (glossary.js): opened from the drawer's Reference zone, and from the foot of
  * a `?` panel that uses one of its words, in the page's own `?` panel (tips-lightbox.js).
  *
  * What only a browser can show: the drawer hands over to the panel without a stray history entry, so Back closes the

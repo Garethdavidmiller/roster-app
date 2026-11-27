@@ -16,7 +16,7 @@
  * adminOnly/staffOnly filtering only applies when getIsAdmin is supplied
  * (admin.html shows different tips to admins and staff).
  *
- * THE GLOSSARY OPENS IN THE SAME PANEL (26 Nov 2026). "Words used in the app" (glossary.js) is one more set of
+ * THE GLOSSARY OPENS IN THE SAME PANEL (26 Nov 2026). "Glossary" (glossary.js) is one more set of
  * tips, keyed `GLOSSARY_KEY`, so it needs no overlay of its own: a panel whose text uses one of its words ends
  * with a "What these words mean" button that redraws THIS panel as the glossary — no second overlay, so no
  * shared Escape and no second history entry — and the drawer's Reference row opens it through `openGlossary`,
@@ -47,7 +47,7 @@ const GLOSSARY_TIPS = Object.freeze({
 let built = null;
 
 /**
- * Open the page's `?` panel as the glossary — the drawer's "Words used in the app". A page that has not built its panel
+ * Open the page's `?` panel as the glossary — the drawer's "Glossary". A page that has not built its panel
  * yet (Overtime while paused, Pay's refusal card: no card is drawn, so nothing asked) has it built here, with no cards;
  * the page's own later call fills them in. False only on a page with no `#tipsLightbox` at all.
  * @returns {boolean}

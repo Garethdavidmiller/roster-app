@@ -81,7 +81,7 @@ roster-app/
 ├── date-format.js          ← the app's OWN date vocabulary and month/day tables (roster-data.js re-exports `DAY_NAMES`, `MONTH_ABB` and `MONTH_NAMES`). Pure. Tested by date-format.test.mjs and month-vocabulary-parity.test.mjs
 ├── about-lightbox.js       ← the shared About panel, plus `wireHeaderLogo` — the only wiring of a sub-page's header logo. Used by every app page
 ├── tips-lightbox.js        ← the shared per-card Tips panel. See also tips-content.test.mjs.
-├── glossary.js            ← "Words used in the app": the roster words, one line each, and which `?` panels link to them; shown in the page's Tips panel. See also glossary.test.mjs, e2e/glossary.spec.js.
+├── glossary.js            ← "Glossary": the roster words, one line each, and which `?` panels link to them; shown in the page's Tips panel. See also glossary.test.mjs, e2e/glossary.spec.js.
 ├── login-overlay.js        ← the shared in-place sign-in overlay for every page that signs in, as a modal or inline (the Calendar's front door). Its header. See also auth.spec.js, calendar-access.spec.js.
 ├── login-core.js           ← the sign-in card's DOM-free rules, including the 30-second typed sign-in deadline (`SIGN_IN_GIVE_UP_MS`) and the set-password marker's hold; login-overlay.js re-exports them. Tested by login-overlay.test.mjs
 ├── password-force.js ← the MANDATORY "set your own password" overlay (AUTH_AND_SESSIONS.md → "The forced password overlay"). **It FAILS OPEN** — its header says why. Tested by password-force.test.mjs and password-force-wiring.test.mjs. See also page-contract-parity.test.mjs.
@@ -99,6 +99,8 @@ roster-app/
 ├── perf-reporter.js        ← the shared anonymous latency recorder behind the App Speed card; only time somebody spent waiting is counted. See also perf-reporter.test.mjs.
 ├── perf-stats.js           ← pure latency maths behind the App Speed card
 ├── calendar-team-view.js        ← Team Week View; its overrides come from the SHARED month fetch, with no Firestore read of its own. See also CALENDAR_DATA.md, team-week-start.test.mjs, calendar-team-view.spec.js.
+├── calendar-team-onwith.js      ← Team View's "On with" card: the colleagues whose duties overlap a member's shift, above the week grid. See also team-overlap.js, calendar-team-onwith.test.mjs, calendar-team-view.spec.js.
+├── team-overlap.js              ← PURE: which shifts overlap and for how long, across midnight and the days either side. Tested by team-overlap.test.mjs
 ├── calendar-tips.js             ← CARD_TIPS for Team Week View's `?`, in the shared Tips panel (tips-lightbox.js). See also tips-content.test.mjs.
 ├── al-contract.js ← a member's CONTRACT leave allowance for a year; read it through `entitlementFor`. Pure; tested by al-entitlement.test.mjs
 ├── al-entitlement.js ← which annual-leave days consume entitlement and where that leaves a member — the ONE answer every surface asks. Its header. Pure; tested by al-entitlement.test.mjs
@@ -274,6 +276,7 @@ roster-app/
 ├── trains-weekdays.js      ← PURE: which weekdays a figure is true of. Tested by trains-stations.test.mjs
 ├── trains-verdict.js       ← PURE: a station's change in words. Tested by trains-stations.test.mjs
 ├── trains-headlines.js     ← PURE: the "what's changing" headlines. Tested by trains-stations.test.mjs
+├── trains-journey.js       ← PURE: "Aylesbury, after 17:15" — the lookup box read as a station and a time, and the first train there and the next two on one date. Tested by trains-journey.test.mjs
 ├── trains-tips.js          ← CARD_TIPS for trains.html's `?` panels, with the page's caveats and sources
 ├── newlink.html            ← the new link page: the three shortlisted proposals for the new CEA link (from January 2027), presented evenly, and the pack. Signed-in only, never the staff PIN
 ├── newlink.css             ← CSS for newlink.html
@@ -470,6 +473,8 @@ roster-app/
 │   ├── touch-gate-parity.test.mjs ← **a touch-only test must run on every touch engine** (a skip is green). Part of test:hygiene
 │   ├── hidden-member-visibility.test.mjs ← **a leaver is off the roster everywhere it is listed**, and every copy agrees. Part of test:hygiene
 │   ├── team-week-start.test.mjs ← which week the team grid opens on. Part of test:hygiene
+│   ├── team-overlap.test.mjs ← "Who's on with me": midnight, the overnights either side, touching ends, the order. Part of test:hygiene
+│   ├── calendar-team-onwith.test.mjs ← the "On with" card executed: who is listed, in what order, who never is, and its wait. Part of test:hygiene
 │   ├── admin-deep-link.test.mjs ← where an admin.html hash lands, and never throwing on a malformed one. Part of test:hygiene
 │   ├── admin-shift-rules.test.mjs ← the maximum-length and minimum-rest checks at their boundaries. Part of test:hygiene
 │   ├── admin-auth.test.mjs ← the provisioning audit as the card runs it: never a false all-clear
@@ -624,6 +629,7 @@ roster-app/
 │   ├── overtime-clock.test.mjs ← overtime-clock.js's extraction: the same objects re-exported, no imports. Part of test:hygiene
 │   ├── trains-assemble.test.mjs ← the timetable builder (`assemble.py`) joins a continued train only to its ONE continuation, run on synthetic books. Part of test:hygiene; skipped without python3
 │   ├── trains-change.test.mjs ← what the Trains page says changes, against hand-checked facts from the printed books. Part of test:hygiene
+│   ├── trains-journey.test.mjs ← the Trains lookup box: "Aylesbury, after 17:15" read, and the first and next trains, the last train and the 13 December switch, on the real timetables. Part of test:hygiene
 │   ├── trains-stations.test.mjs ← the Trains page from a station, and its words. Part of test:hygiene
 │   ├── newlink-data.test.mjs ← the new link page says what the pack says (the generator in `--check` mode)
 │   ├── newlink-config.test.mjs ← the new link page's switch held to its gate and audience

@@ -865,7 +865,7 @@ test('a trigger with a display rule still honours `hidden`', () => {
 //
 // "A search box" is every `type="search"` input, plus the boxes that are searches in all but their
 // type — named, because nothing in the markup can say so for them.
-const SEARCH_LIKE_IDS = ['trStationInput'];   // Trains: type to find a station; Enter opens the first
+const SEARCH_LIKE_IDS = ['trStationInput', 'trLookupInput'];   // Trains: type to find a station (Enter opens the first), and Find a train's box, which finds one too
 
 test('every search box turns autocorrect off and does not capitalise', () => {
     const misses = /** @type {string[]} */ ([]);

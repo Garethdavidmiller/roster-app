@@ -370,6 +370,28 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // "WHO’S ON WITH ME" (27 Nov 2026): the gold button on the day panel's navy glass, and the "On with"
+    // card above the week grid, each scanned the way a member reaches it.
+    test('calendar — "Who’s on with me": the button on the day panel, and the card it opens', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+        await seedMemberSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+                docs: [{ id: 'w1', memberName: 'G. Miller', date: '2026-09-16', type: 'shift', value: '14:00-22:30', note: '' }],
+            });
+        });
+        await page.goto('/');
+        await page.locator('.calendar-day[data-detail-iso="2026-09-16"]').click();
+        await expect(page.locator('#dayDetailTeamBtn')).toBeVisible();
+        await expect(page.locator('#dayDetailLightbox')).toHaveClass(/\bopen\b/);
+        let v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, `day panel — ${report(v)}`).toBe(0);
+        await page.locator('#dayDetailTeamBtn').click();
+        await expect(page.locator('#tvOnWith')).toBeVisible();
+        v = await scan(page);
+        expect(v.length, `On with card — ${report(v)}`).toBe(0);
+    });
+
     test('admin — Saved Changes with both deletes ARMED (forced open)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.addInitScript(() => {

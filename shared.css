@@ -2127,6 +2127,8 @@ button.lightbox-bug-link {
     }
 }
 
+/* The name would be cut: the badge keeps its emoji alone (`fitHeaderBadge`, about-lightbox.js, owner, 27 Nov 2026). */
+.app-header--tight .badge-page { font-size: 0; gap: 0; padding-inline: 7px; } .app-header--tight .badge-glyph { font-size: var(--type-body); }
 @media (max-width: 340px) { .app-header { padding-inline: 10px; gap: 0; } .app-header-brand { gap: 4px; margin-inline-end: 6px; } }   /* gap 0: the brand's own 6px is the clearance here, and the 8px gap beside it squeezed Trains' name to an ellipsis */   /* 320px: the name ran into the badge (0–2px); 6px clear, whole beside Trains' (Trains review, 22 Nov 2026) */
 /* ── Shared header: desktop (≥ 768px) ── */
 @media (min-width: 768px) {

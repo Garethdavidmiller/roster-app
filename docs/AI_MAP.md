@@ -56,11 +56,12 @@ below, and run `npm run generate:ai-map`.
 | Which Huddle cells are physically in column 1 (`firstColumnMask`), for the sticky job column | `huddle-table-grid.js` |
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
 | Team Week View, and which week it opens on | `calendar-team-view.js` |
+| "Who’s on with me": the overlap card, and the overlap arithmetic | `calendar-team-onwith.js` · `team-overlap.js` |
 | Override priority, member start, rest shifts, the shared display ladder (`resolveEffectiveShift`), the Sunday rule, the training value grammar and its pay resolver | `override-utils.js` (the grammar and its pay resolver: `other-day.js`, re-exported) |
 | Body scroll lock, overlay history, focus trap, the lightbox lifecycle, the in-app dialogs, card collapse | `overlay.js` (the Back stack: `overlay-history.js`; the Tab trap: `overlay-focus.js`; the scroll fade and pinned ✕: `overlay-panel-scroll.js`) |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
-| The roster words, one line each ("Words used in the app"), and which ? panels link to them | `glossary.js` (shown by `tips-lightbox.js`) |
+| The roster words, one line each ("Glossary"), and which ? panels link to them | `glossary.js` (shown by `tips-lightbox.js`) |
 | Service worker registration + update lifecycle (every app page) | `sw-register.js` |
 | Auth/session helpers — the local session and re-establishing Firebase on load | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` (+ `admin-boot.js`) + `admin.html` |
@@ -244,6 +245,12 @@ below, and run `npm run generate:ai-map`.
 
 ### `calendar-team-view.js`
 - **Exports:** `weekStartForMonth` · `weekAfterDateChange` · `initTeamView`
+
+### `calendar-team-onwith.js`
+- **Exports:** `dayOf` · `cardDate` · `colleaguesOf` · `buildOnWithCard`
+
+### `team-overlap.js`
+- **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `rangeText` · `whoIsOnWith`
 
 ### `calendar-tips.js`
 - **Exports:** `CARD_TIPS`
@@ -505,20 +512,21 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `admin-al-year.js`
 - **Exports:** `alFigureYear`
 
-### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js` / `trains-status.js`
+### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js` / `trains-status.js` / `trains-journey.js`
 - **Exports of `trains-app.js`:** `init`
 - **Exports of `trains-boot.js`:** none
-- **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `amPmPending` · `renderLookup` · `setText` · `el`
-- **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `restatePair` · `foldVariantsAt` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `minsWords` · `changeLabel` · `timetablePhase` · `dateWords` · `monthWords` · `holidaysWithin` · `daysLabel` · `routeName` · `JOURNEY_PLANNER_URL`
+- **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderJump` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `amPmPending` · `renderLookup` · `lookupFollowsClock` · `chooseJourneyStation` · `setText` · `el`
+- **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `restatePair` · `foldVariantsAt` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `minsWords` · `changeLabel` · `timetablePhase` · `dateWords` · `monthWords` · `holidaysWithin` · `daysLabel` · `routeName` · `viaWords` · `JOURNEY_PLANNER_URL`
 - **Exports of `trains-stations.js`:** `boardingTime` · `parseStops` · `stopsKnown` · `callsOf` · `lineOf` · `callingAt` · `endingAt` · `knowableWithoutStops` · `decemberKnown` · `summarise` · `stationView` · `stationTrains` · `stopChanges` · `busiestStations` · `matchStations` · `stationBands` · `stoppingGrid` · `orderStations` · `pairColumns` · `lastTrains`
 - **Exports of `trains-weekdays.js`:** `WEEKDAYS` · `REAL_DAY` · `runsOn` · `daysCode` · `aRealDay` · `onWeekday` · `weekdayGroups` · `weekdayWords`
 - **Exports of `trains-verdict.js`:** `EDGE_SHIFT_MIN` · `JOURNEY_SHIFT_MIN` · `verdictFor` · `balanceFacts` · `hourChanged` · `rateWords` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList`
 - **Exports of `trains-headlines.js`:** `headlineChanges`
-- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `HEADLINES_SHOWN` · `partialStopsNote` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `renderLastTrains`
+- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `HEADLINES_SHOWN` · `partialStopsNote` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `JOURNEY_HINT` · `renderJourney` · `renderNoStation` · `renderLastTrains`
 - **Exports of `trains-data.js`:** `CHANGE_DATE` · `FURTHER_CHANGES_UNTIL` · `DEC_VALID_UNTIL` · `LEAF_FALL` · `STATIONS` · `STATION_ORDER` · `TIMETABLES`
 - **Exports of `trains-tips.js`:** `CARD_TIPS` · `tipsOn`
 - **Exports of `trains-grid-mirror.js`:** `syncGridMirror`
 - **Exports of `trains-status.js`:** `announce` · `statusLine` · `matchesLine`
+- **Exports of `trains-journey.js`:** `parseJourney` · `findStation` · `dayKindOf` · `isoDate` · `addDays` · `journeyDate` · `timetableOn` · `departures` · `viaMatters` · `JOURNEY_TRAINS` · `journey`
 
 ### `overflow-hint.js`
 - **Exports:** `watchOverflowHint`
@@ -878,7 +886,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `doc-dates.js`
 - **Exports:**
-- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
+- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `HUDDLE_NEXT_DAY_FROM_HOUR` · `huddleForDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
 
 ### `admin-day-change.js`
 - **Exports:**

@@ -1371,6 +1371,116 @@
            both engines draw `hidden` as a presentational hint, which `.touch-only`'s `display: revert`
            rolls back past, so without this the line shows anyway (measured — page-visibility's trap). */
         .tv-scroll-hint[hidden] { display: none; }
+        /* THE "ON WITH" CARD (owner, 27 Nov 2026: "Who's on with me?") — above the week grid, opened from the
+           day panel's "Who’s on with me" (calendar-team-view.js → buildOnWithCard). A RECESSED block on the
+           Team View card, the sunken surface, so it reads as part of this view and not a second card; the
+           grid stays where it was beneath it. Prose is left-aligned: it can run to several lines. */
+        .tv-onwith {
+            margin: 6px 8px 4px;
+            padding: 8px 12px 10px;
+            background: var(--surface-sunken);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            text-align: left;
+            color: var(--text-dark);
+        }
+        @media (min-width: 768px) {
+            /* The same 640px cluster as the tabs and the week row, so the card does not run the width
+               of a desktop grid with its names 1000px from their times. */
+            .tv-onwith { width: calc(100% - 16px); max-width: 640px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+        }
+        .tv-onwith-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .tv-onwith-title {
+            margin: 0;
+            font-size: var(--type-body);
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            color: var(--primary-blue);
+            text-wrap: balance;
+        }
+        /* Focus is PUT here when the card opens; the ring is still drawn, for a keyboard user to see where
+           they are. */
+        .tv-onwith-title:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
+        .tv-onwith-hide {
+            position: relative;              /* for the tap expander below */
+            flex: none;
+            background: none;
+            border: 0;
+            padding: 2px 6px;
+            margin: -2px -6px;
+            border-radius: 6px;
+            color: var(--primary-blue);
+            font-family: inherit;
+            font-size: var(--type-small);
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-color: var(--border-mid);
+            text-underline-offset: 3px;
+            touch-action: manipulation;
+            transition: text-decoration-color var(--dur-med), background var(--dur-med);
+        }
+        /* A small text button: the same invisible vertical expander "Back to this week" uses. */
+        .tv-onwith-hide::before { content: ''; position: absolute; inset: -12px 0; }
+        @media (hover: hover) and (pointer: fine) {
+            .tv-onwith-hide:hover { text-decoration-color: var(--primary-blue); background: var(--bg-faint); }
+        }
+        .tv-onwith-hide:active { opacity: 0.75; }
+        .tv-onwith-hide:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+        .tv-onwith-mine, .tv-onwith-note {
+            margin: 4px 0 0;
+            font-size: var(--type-label);
+            color: var(--text-mid);
+        }
+        .tv-onwith-list {
+            list-style: none;
+            margin: 6px 0 0;
+            padding: 0;
+        }
+        /* One colleague per row: the name, then each stretch together — their shift and the shared hours.
+           The hours are what was asked, so they carry the weight; tabular figures stop the times jittering
+           down the list. */
+        .tv-onwith-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            column-gap: 10px;
+            row-gap: 1px;
+            padding: 5px 0;
+            border-top: 1px solid var(--border-light);
+            font-size: var(--type-label);
+            font-variant-numeric: tabular-nums;
+        }
+        .tv-onwith-row:first-child { border-top: 0; }
+        .tv-onwith-name { font-weight: 700; color: var(--text-dark); min-width: 0; }
+        .tv-onwith-grade {
+            margin-left: 6px;
+            font-size: var(--type-badge);
+            font-weight: 600;
+            color: var(--text-mid);
+        }
+        .tv-onwith-pair { display: inline-flex; flex-wrap: wrap; column-gap: 8px; align-items: baseline; }
+        .tv-onwith-shift { color: var(--text-mid); }
+        .tv-onwith-when { color: var(--text-light); }
+        .tv-onwith-together { font-weight: 700; color: var(--primary-blue); white-space: nowrap; }
+        .tv-onwith-also {
+            margin: 6px 0 0;
+            padding-top: 6px;
+            border-top: 1px solid var(--border-light);
+            font-size: var(--type-small);
+            color: var(--text-mid);
+            font-variant-numeric: tabular-nums;
+        }
+        .tv-onwith-also-label { font-weight: 600; }
+        .tv-onwith-also-item { white-space: nowrap; }
+        /* NOT ON PAPER. Team View prints one landscape sheet a grade (print.spec.js counts them), and the card
+           is a question asked on screen, not part of the week's roster; the sheet stays the grid alone. */
+        @media print { .tv-onwith { display: none !important; } }
         .tv-empty {
             text-align: center;
             padding: 24px 10px;
@@ -2495,7 +2605,8 @@
         .day-detail-actions:not(:has(> :not([hidden]))) { display: none; }
 
         .day-detail-pay-btn,
-        .day-detail-leave-btn {
+        .day-detail-leave-btn,
+        .day-detail-team-btn {
             /* SMALLER, WHICH IS WHAT THE COMPLAINT WAS ABOUT (owner). 44px is the platform
                RECOMMENDATION, not a floor: the app's own floor for a coarse pointer is 30px, and WCAG
                2.5.8 AA asks 24px. 34px keeps 4px in hand for a future text-scale tier to eat. The min-
@@ -2526,27 +2637,35 @@
         /* `display: inline-flex` out-specifies the `hidden` attribute — the page-visibility-parity
            trap, and on a BUTTON it is worse than a stray row: an action for a day that has none. */
         .day-detail-pay-btn[hidden],
-        .day-detail-leave-btn[hidden] { display: none !important; }
+        .day-detail-leave-btn[hidden],
+        .day-detail-team-btn[hidden] { display: none !important; }
         /* Two tokens — the fill and its pressed/hover rung — set per class, because every other
            declaration above is shared and colour is the only thing the two actions may differ in. */
         .day-detail-pay-btn   { --ddb: var(--green); --ddb-hover: var(--green-hover); }
         .day-detail-leave-btn { --ddb: var(--al);    --ddb-hover: var(--al-hover); }
+        /* "Who's on with me" goes to Team Week View, which is part of the Calendar, so it wears the
+           Calendar's gold, with navy ink: white on gold fails AA. Colour, and its ink with it, is the
+           only thing this button may differ in from the other two. */
+        .day-detail-team-btn  { --ddb: var(--accent-gold); --ddb-hover: var(--accent-gold-dark); color: var(--primary-blue); gap: 6px; }
         /* Their own ring, GOLD, not `--focus-outline`: that token is navy, and this panel's ground is
            navy glass (the calendar CELLS sit on the light card and take the navy one). The 2px offset
            puts the ring on the navy behind the button, not on its fill, so one token serves both. */
         .day-detail-pay-btn:focus-visible,
-        .day-detail-leave-btn:focus-visible {
+        .day-detail-leave-btn:focus-visible,
+        .day-detail-team-btn:focus-visible {
             outline: var(--focus-outline-gold);
             outline-offset: 2px;
         }
         .day-detail-pay-btn:active,
-        .day-detail-leave-btn:active {
+        .day-detail-leave-btn:active,
+        .day-detail-team-btn:active {
             transform: scale(var(--press-scale));
             background: var(--ddb-hover);
         }
         @media (hover: hover) and (pointer: fine) {
             .day-detail-pay-btn:hover,
-            .day-detail-leave-btn:hover { background: var(--ddb-hover); }
+            .day-detail-leave-btn:hover,
+            .day-detail-team-btn:hover { background: var(--ddb-hover); }
         }
         /* Both at once (an annual-leave day that is also a payday) shares one line and the row's one
            8px gap, so neither button carries spacing of its own. */
