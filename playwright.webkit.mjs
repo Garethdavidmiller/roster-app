@@ -158,15 +158,15 @@ export const IPHONE_PRO_VIEWPORT = { width: 402, height: 874 };
 // --project=webkit-links` is the whole desktop set.
 //
 // Two traps, one avoided by construction and one guarded. "Everything else" is chosen by a PATTERN
-// — `!(links*)` is glob for a name that does not start with "links" — and not by an ignore list of
+// — `!(link-designer*)` is glob for a name that does not start with "link-designer" — and not by an ignore list of
 // its own, because a project's `testIgnore` REPLACES the shared config's list instead of adding to
 // it, and the CSP, visual, offline, live and signed-in specs would start running here. Chosen this
 // way, the shared list is inherited and cannot be lost. And the touch helpers decide "is this a
 // phone?" from the project's NAME, so the iPhone twin is `mobile-…` and listed in
 // e2e/touch-projects.js, which touch-gate-parity.test.mjs requires; under any other name the 14
 // touch gates in link-designer.spec.js would quietly take the desktop branch on an iPhone.
-const LINKS_SPECS = 'links*.spec.js';
-const NOT_LINKS_SPECS = '!(links*).spec.js';
+const LINKS_SPECS = 'link-designer*.spec.js';
+const NOT_LINKS_SPECS = '!(link-designer*).spec.js';
 
 // THE IPHONE'S LINKS PROJECT DRAWS AT 2x, NOT THE DESCRIPTOR'S 3x (12 Nov 2026) — the one place this
 // lane departs from "the DPR stays the descriptor's" (the note above IPHONE_PRO_VIEWPORT), and why.
