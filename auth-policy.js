@@ -36,6 +36,9 @@ import { CONFIG, teamMembers, isOtherStaff } from './roster-data.js';
 /** The possible decisions (for callers/tests to reference). */
 export const DECISIONS = Object.freeze(['allow', 'soft-allow', 'login', 'forbidden', 'pending']);
 
+/** Who may open the New link page — and, once it opens, the Links Selector: ONE list, so the two can never drift. */
+const NEWLINK_ROLES = /** @type {string[]} */ (Object.freeze(['admin', 'newlinkPreview', 'newlinkAudience']));
+
 /**
  * Per-page access policy — the single home for "what does this page require?". GROUNDED in the
  * coordinators' actual gates (v14.60):
@@ -87,10 +90,10 @@ export const PAGE_POLICIES = Object.freeze({
     // normal CEA contract, and the managers. newlink-config.js → PHASE says 'open' — or 'decided', which follows
     // CHOSEN — with it, and newlink-config.test.mjs fails if the two part. Signed-in only (owner, 2 Nov 2026:
     // "No, signed-in only").
-    newlink:    { requireNamed: true,  role: ['admin', 'newlinkPreview', 'newlinkAudience'] },
+    newlink:    { requireNamed: true,  role: NEWLINK_ROLES },
     // The Links Selector (owner, 27 Nov 2026): a beta for the admin until CONFIG.LINKS_SELECTOR_OPEN, then exactly the New
     // link page's audience (owner: "Same as new link page"). Read once, here, so the page and `canOpenSelector` agree.
-    selector:   { requireNamed: true,  role: CONFIG.LINKS_SELECTOR_OPEN === true ? ['admin', 'newlinkPreview', 'newlinkAudience'] : ['admin'] },
+    selector:   { requireNamed: true,  role: CONFIG.LINKS_SELECTOR_OPEN === true ? NEWLINK_ROLES : ['admin'] },
 });
 
 /** @returns {AuthDecision} */

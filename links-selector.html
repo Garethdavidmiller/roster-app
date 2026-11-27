@@ -65,7 +65,18 @@
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-        <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">📆</span> Links Selector</div>
+        <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">🗓️</span> Links Selector</div>
+        <!-- The Calendar's tips, for the Calendar's gestures and keys (calendar-keyboard.js runs here too), and the one
+             thing this page adds: what a line is. -->
+        <div class="lightbox-tips" id="selectorTips">
+            <div class="lightbox-tips-title">Tips</div>
+            <div class="lightbox-tip"><span>Each Sunday you move down one line, and after line 26 comes line 1</span></div>
+            <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
+            <div class="lightbox-tip"><span>Select a day to see its details</span></div>
+            <div class="lightbox-tip keyboard-only"><span>Change month (in the grid: PgUp PgDn)</span><span class="lightbox-tip-key">← →</span></div>
+            <div class="lightbox-tip keyboard-only"><span>Go to this month</span><span class="lightbox-tip-key">T</span></div>
+            <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
+        </div>
         <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> Calendar</a>
         <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>
@@ -88,6 +99,8 @@
             <span class="dds-time" id="dayDetailShiftTime" hidden></span>
         </div>
         <div class="day-detail-leaveyear" id="dayDetailChristmas" hidden></div>
+        <!-- WHAT A COVER WEEK IS, on a spare day of one — the New CEA Link page's own words (newlink-tips.js). -->
+        <div class="day-detail-leaveyear" id="selectorCoverLine" hidden></div>
         <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
         <p class="selector-day-note">A proposal, not your roster.</p>
     </div>
@@ -103,7 +116,9 @@
             <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
             <h1>Marylebone Roster</h1>
         </div>
-        <span class="badge-page" id="selectorBadge"><span class="badge-glyph" aria-hidden="true">📆</span> Links Selector</span>
+        <!-- Short on a phone, as Operations' "Ops" (shared.css → .badge-name-short): the full name left the app's own name
+             cut to "Marylebon…" at 320px. The drawer and About say it in full. -->
+        <span class="badge-page" id="selectorBadge"><span class="badge-glyph" aria-hidden="true">🗓️</span> <span class="badge-name-short">Selector</span><span class="badge-name-full">Links Selector</span></span>
     </header>
 
     <!-- The Calendar's controls, with the two choices where its name picker and quick actions are: which proposal, and the
@@ -126,28 +141,40 @@
                 <label for="selectorLine" class="visually-hidden">The line you start on</label>
                 <select id="selectorLine"></select>
             </div>
+            <!-- The Calendar's gold 📍 Today button, for this page's anchor: the week the new link starts. Its date is written
+                 by links-selector-app.js from links-selector-core.js → STARTS, so it cannot disagree with the grid. -->
             <div class="control-group">
-                <button type="button" id="selectorStartBtn" aria-label="Start: the first month of the new link"><span aria-hidden="true">🚩</span> Start</button>
+                <button type="button" id="selectorStartBtn" class="today-btn"><span aria-hidden="true">🚩</span> <span id="selectorStartDate">Start</span></button>
             </div>
         </div>
     </nav>
 
     <!-- WHAT THIS IS, above every month and never swiped away: a proposal on dates is the one thing on this page that
          could be read as somebody's real roster (links-selector-core.js). -->
+    <!-- ON PAPER, WHAT IS ON IT: the controls do not print, so a printout would not say which proposal or line it shows. The
+         Calendar prints its title, the date and the member (index.css → .header::before/::after); this is the same, written
+         by links-selector-app.js and shown only in print. The ref is the pack sheet's, so the paper can be matched to it. -->
+    <div class="selector-print-head" id="selectorPrintHead" aria-hidden="true">
+        <p class="selector-print-title">Marylebone Roster — Links Selector</p>
+        <p class="selector-print-choice" id="selectorPrintChoice"></p>
+    </div>
+
     <p class="selector-note" id="selectorNote"></p>
 
     <main id="calendarDisplay" aria-label="A proposed roster, month by month"></main>
 
-    <!-- The Calendar's key, with only what a proposal can show: no Rest Day Working, absence or Other day is ever drawn. -->
+    <!-- The Calendar's key, with only what a proposal can show — no Rest Day Working, absence or Other day is ever drawn — and
+         the two things only this page has: a cover week's spare days, and the blank days before the link starts. -->
     <div class="legend" id="calendarLegend" role="group" aria-label="Colour legend">
         <div class="legend-row">
             <div class="legend-item"><div class="legend-color rest"></div><span class="legend-text">Rest</span></div>
             <div class="legend-item"><div class="legend-color early"></div><span class="legend-text">Early</span></div>
             <div class="legend-item"><div class="legend-color late"></div><span class="legend-text">Late</span></div>
-            <div class="legend-item"><div class="legend-color spare"></div><span class="legend-text">Spare</span></div>
+            <div class="legend-item"><div class="legend-color spare"></div><span class="legend-text">Spare (cover week)</span></div>
             <div class="legend-item"><div class="legend-color today"></div><span class="legend-text">Today</span></div>
         </div>
         <div class="legend-row">
+            <div class="legend-item"><div class="legend-color selector-blank-key"></div><span class="legend-text">Before the new link</span></div>
             <div class="legend-item"><div class="legend-color al"></div><span class="legend-text">Annual Leave (Christmas)</span></div>
             <div class="legend-item"><span class="legend-text"><span aria-hidden="true">⭐</span> Bank Holiday</span></div>
             <div class="legend-item"><span class="legend-text"><span aria-hidden="true">✂️</span> Pay cut-off</span></div>

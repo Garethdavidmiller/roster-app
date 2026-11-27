@@ -43,6 +43,8 @@
 @media (hover: hover) and (pointer: fine) {
     .calendar-day.selector-blank:hover { transform: none; box-shadow: none; }
 }
+/* …and its swatch in the key, beside the Calendar's own (index.css → .legend-color). */
+.legend-color.selector-blank-key { background: var(--bg-faint); border-color: var(--border-mid); }
 
 /* The day panel's last line: the same reminder as the note above the month, for a panel that covers it. On the panel's
    dark glass, in the week line's own white (index.css → .day-detail-week: 4.5:1 over a light page under the glass). */
@@ -54,7 +56,27 @@
     color: rgba(255, 255, 255, 0.65);
 }
 
+/* The printed heading: nothing on screen, where the controls already say it. */
+.selector-print-head { display: none; }
+
 @media print {
-    .selector-note { background: none; padding: 0 0 6px; }
+    /* The sub-pages' header is navy with white words, which print as a logo and a badge on blank paper: the heading below
+       takes its place, as the Calendar's printed header does. */
+    .container > .app-header { display: none !important; }
+    .selector-print-head {
+        display: block;
+        border: 1px solid var(--primary-blue);
+        border-radius: var(--radius-lg);
+        padding: 8px;
+        margin: 0 0 8px;
+        text-align: center;
+        color: var(--primary-blue);
+        break-after: avoid;
+    }
+    .selector-print-title { margin: 0; font-size: var(--type-medium); font-weight: 700; }
+    .selector-print-choice { margin: 4px 0 0; font-size: var(--type-badge); font-weight: 700; }
+    /* The note is how to use the screen; the heading above already says on paper that it is a proposal. */
+    .selector-note { display: none; }
     .calendar-day.selector-blank { background: none; }
+    .legend-color.selector-blank-key { background: none; }
 }

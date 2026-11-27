@@ -52,7 +52,7 @@ export const NAV_PAGES = Object.freeze([
     { id: 'newlink',    label: '🔁 New CEA Link', url: './newlink.html',    colorClass: 'nav-panel-pill--newlink',    newlinkAudienceOnly: true },
     // A proposal as a calendar (owner, 27 Nov 2026), beside the page that sets the proposals out: the admin's during its
     // beta, then the New link page's audience (`canOpenSelector`, CONFIG.LINKS_SELECTOR_OPEN) — nav-gates.test.mjs.
-    { id: 'selector',   label: '📆 Links Selector', url: './links-selector.html', colorClass: 'nav-panel-pill--selector', selectorAudienceOnly: true },
+    { id: 'selector',   label: '🗓️ Links Selector', url: './links-selector.html', colorClass: 'nav-panel-pill--selector', selectorAudienceOnly: true },
     // SETTINGS IS A PAGE, SO IT IS A PILL (nav-panel.js's header has why); its badges' indigo (shared.css
     // has why). It comes last, so "work pages first" holds by position.
     { id: 'settings',   label: '⚙️ Settings',      url: './settings.html',   colorClass: 'nav-panel-pill--settings'   },

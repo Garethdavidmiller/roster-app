@@ -119,6 +119,51 @@ test.describe('links selector', () => {
         await expect(page.locator('#dayDetailChristmas')).toContainText('Christmas Day: due at work, so this is annual leave');
     });
 
+    test('the keyboard is the Calendar\'s: arrows walk the days, PgDn changes month, Enter opens a day, T comes back', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=2');
+        await expect(page.locator('#selectorStartDate')).toHaveText('17 Jan');
+        // ← → change the month while no day has focus
+        await page.locator('h1').click();
+        await page.keyboard.press('ArrowRight');
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        await page.keyboard.press('ArrowLeft');
+        await expect(page.locator('.month-year')).toHaveText('January 2027');
+        // the grid's entry is its first day with a shift; the arrows then walk every day, blank ones included
+        const entry = page.locator('.calendar-day[tabindex="0"]');
+        await expect(entry).toHaveAttribute('data-detail-day', 'Sunday 17 January 2027');
+        await entry.focus();
+        await page.keyboard.press('ArrowLeft');
+        await expect(page.locator(':focus')).toHaveAttribute('aria-label', /^Saturday 16 — before the new link starts/);
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#dayDetailLightbox')).toBeHidden();   // a blank day opens nothing
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#dayDetailDate')).toHaveText('Sunday 17 January 2027');
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#dayDetailLightbox')).toBeHidden();
+        await page.locator('.calendar-day[tabindex="0"]').focus();
+        await page.keyboard.press('PageDown');
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        await page.locator('h1').click();
+        await page.keyboard.press('t');
+        await expect(page.locator('.month-year')).toHaveText('January 2027');
+    });
+
+    test('a spare day in a cover week says what a cover week is', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        // line 1 is a cover week in every proposal, so the start week is spare from Monday to Saturday
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=1');
+        await expect(page.locator('#selectorLine option').first()).toHaveText('Line 1 · cover week');
+        await page.locator('.calendar-day[data-detail-day="Tuesday 19 January 2027"]').click();
+        await expect(page.locator('#dayDetailShiftWords')).toHaveText('Spare day');
+        await expect(page.locator('#selectorCoverLine')).toHaveText('A cover week: four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.');
+        await page.locator('#dayDetailClose').click();
+        // a day that is not spare says nothing about cover
+        await page.locator('.calendar-day[data-detail-day="Tuesday 26 January 2027"]').click();
+        await expect(page.locator('#selectorCoverLine')).toBeHidden();
+    });
+
     test('during the beta a colleague is refused with the app\'s card, and no menu offers them the page', async ({ page }) => {
         const colleague = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.bilingualContract && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
         await seedSession(page, colleague);

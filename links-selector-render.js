@@ -27,7 +27,7 @@
 import { MONTH_NAMES, isSameDay, isBankHoliday, isChristmasDay, isEasterSunday, isPayday, isCutoffDate, isWorkedShift, getShiftClass } from './roster-data.js';
 import { createCalendarHeader, createDayCell, dayCellParts, dayCellName, dayMarkers, shiftWords, splitShiftLine } from './calendar-renderer.js';
 import { ROTATING_LINES } from './link-designer-design.js';
-import { dayOn, monthLines } from './links-selector-core.js';
+import { dayOn, monthLines, isCoverLine } from './links-selector-core.js';
 
 const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SHORT_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -109,10 +109,14 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
         const monthYear = `${MONTH_NAMES[month]} ${year}`;
 
         if (day.blank) {
-            // A date and nothing else: today's link still runs, and this page does not draw it.
+            // A date and nothing else: today's link still runs, and this page does not draw it. Still a stop for the
+            // Calendar's arrow keys (calendar-keyboard.js), which walk every day of the month, so it can be focused and says
+            // why it is empty; Enter on it opens nothing.
             cell.className = 'calendar-day selector-blank';
             cell.setAttribute('aria-label', `${FULL_DAY_NAMES[date.getDay()]} ${d} — before the new link starts — ${monthYear}`);
             cell.setAttribute('role', 'img');
+            cell.setAttribute('tabindex', '-1');
+            cell.dataset.tooltip = 'Before the new link starts';
             cell.innerHTML = `<div class="day-number">${d}</div>`;
             grid.appendChild(cell);
             continue;
@@ -135,6 +139,10 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
         cell.dataset.detailWeek = `Line ${line}`;
         cell.dataset.detailWho = proposalName;
         cell.dataset.detailShiftValue = shift;
+        // The Calendar's desktop hover line (calendar-keyboard.js → initCalendarTooltip): the day's words, then its markers.
+        cell.dataset.tooltip = [christmasLeave ? 'Annual leave (Christmas, not counted)' : words, extras].filter(Boolean).join(' · ');
+        // A spare day in a cover week says what a cover week IS, in the day panel — the word "Spare" alone teaches nothing.
+        if (shift === 'SPARE' && isCoverLine(proposal, line)) cell.dataset.detailCover = date.getDay() === 0 ? 'sunday' : 'week';
         const split = splitShiftLine(words);
         cell.dataset.detailShiftWords = split.words;
         if (split.time) cell.dataset.detailShiftTime = split.time;
@@ -153,9 +161,9 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
     const used = first.getDay() + daysInMonth;
     for (let i = 1; i <= (7 - (used % 7)) % 7; i++) grid.appendChild(filler(i));
 
-    // Roving tabindex, as the Calendar's: today where it is in the month, else the first day that has a shift.
-    const cells = [...grid.querySelectorAll('.calendar-day[role="button"]')];
-    const anchor = cells.find(c => c.classList.contains('today')) ?? cells[0];
+    // Roving tabindex, as the Calendar's: today where it is in the month, else the first day that has a shift, else the 1st.
+    const cells = [...grid.querySelectorAll('.calendar-day:not(.other-month)')];
+    const anchor = cells.find(c => c.classList.contains('today')) ?? cells.find(c => c.getAttribute('role') === 'button') ?? cells[0];
     anchor?.setAttribute('tabindex', '0');
 
     container.appendChild(grid);

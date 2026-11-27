@@ -20,7 +20,7 @@
  */
 
 import { SHARED_SCREEN } from './login-core.js';
-import { MONTH_NAMES, shiftBadgeParts, escapeHtml, teamMembers } from './roster-data.js';
+import { CONFIG, MONTH_NAMES, shiftBadgeParts, escapeHtml, teamMembers } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { sessionReady, reconcileExpiredIdentity } from './session.js';
 import { signOutAndLeave } from './page-session.js';
@@ -33,7 +33,9 @@ import { registerServiceWorker } from './sw-register.js';
 import { markPageReady, clearLoginStart } from './perf-reporter.js';
 import { enhanceSelect } from './select-sheet.js';
 import { initSwipeHandler } from './calendar-swipe.js';
+import { initCalendarTooltip, initCalendarKeyboard, initCalendarShortcuts } from './calendar-keyboard.js';
 import { lsGet, lsSet } from './ls.js';
+import { formatDayMonth, formatDayMonthYear, formatClock, printedStamp, DAY_NAMES_FULL } from './date-format.js';
 import { proposalById, proposalDisplayName } from './link-designer-proposals.js';
 import { buildSelectorMonth } from './links-selector-render.js';
 import { FIRST_MONTH, inRange, openingMonth, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate } from './links-selector-core.js';
@@ -90,11 +92,18 @@ function showNotForYou(member) {
     const card = document.createElement('div');
     card.className = 'role-card';
     card.id = 'selectorNotForYou';
-    card.innerHTML = `<div class="role-card-icon" aria-hidden="true">📆</div>
-        <h2 class="role-card-title">The Links Selector isn’t open to you yet</h2>
-        <p class="role-card-why">${other
-            ? 'It shows the proposed new rota for colleagues on a normal CEA contract. An Other Staff login has no roster line, so there is nothing here for it.'
-            : 'It is being tried out before it opens. The three proposals are on the New CEA Link page in the meantime.'}</p>
+    // Two answers, and the switch decides which is true: during the beta it will open to them (unless they have no roster
+    // line at all); once it is open, a colleague still refused is outside the New CEA Link page's audience for good.
+    const open = CONFIG.LINKS_SELECTOR_OPEN === true;
+    const title = other ? 'The Links Selector is for the CEA roster'
+        : open ? 'The Links Selector doesn’t apply to your contract'
+        : 'The Links Selector isn’t open to you yet';
+    const why = other ? 'It shows the proposed new rota for colleagues on a normal CEA contract. An Other Staff login has no roster line, so there is nothing here for it.'
+        : open ? 'It shows the proposed new rota for colleagues on a normal CEA contract, and yours keeps its own link.'
+        : 'It is being tried out before it opens. The three proposals are on the New CEA Link page in the meantime.';
+    card.innerHTML = `<div class="role-card-icon" aria-hidden="true">🗓️</div>
+        <h2 class="role-card-title">${title}</h2>
+        <p class="role-card-why">${why}</p>
         <div class="login-about">
             <p class="field-eyebrow">What it does</p>
             ${ABOUT.lines.map(line => `<p class="login-about-line">${escapeHtml(line)}</p>`).join('')}
@@ -134,7 +143,14 @@ function runSelector() {
     const paintProposal = enhanceSelect(proposalSel, { title: 'Which proposal?', placeholder: 'Choose a proposal', createLightbox });
     const paintLine = enhanceSelect(lineSel, { title: 'Which line do you start on?', placeholder: 'Choose a line', searchLabel: 'Search lines', createLightbox });
 
-    el('selectorNote').textContent = `A proposal, not your roster. The new link starts on Sunday ${startDate().getDate()} ${MONTH_NAMES[startDate().getMonth()]} ${startDate().getFullYear()} (provisional): days before it are blank.`;
+    // WHAT THIS IS AND HOW TO READ IT, in the order a colleague needs it (staff-copy.md: discover, understand, act): not
+    // their roster; what the two choices mean; what happens each week; and why January starts blank. "Date not final"
+    // rather than "provisional", which is the word nobody uses out loud.
+    const start = startDate();
+    el('selectorNote').textContent = `A proposal, not your roster. Choose a proposal and the line you’d be on in its first week, `
+        + `from ${DAY_NAMES_FULL[start.getDay()]} ${formatDayMonthYear(start)} (date not final). Each Sunday you move down one line.`;
+    el('selectorStartDate').textContent = formatDayMonth(start);
+    el('selectorStartBtn').setAttribute('aria-label', `${formatDayMonth(start)}: go to the week the new link starts`);
 
     // ── the day panel ───────────────────────────────────────────────────────────────────────────
     const dayLb = createLightbox({
@@ -143,6 +159,7 @@ function runSelector() {
     /** @param {HTMLElement} cell */
     function openDayDetail(cell) {
         const d = cell.dataset;
+        if (!d.detailDay) return;   // a blank day before the start: nothing to show, and Enter on one opens nothing
         el('dayDetailDate').textContent = d.detailDay || '';
         const week = el('dayDetailWeek'); week.textContent = d.detailWeek || ''; week.hidden = !d.detailWeek;
         const who = el('dayDetailWho'); who.textContent = d.detailWho || ''; who.hidden = !d.detailWho;
@@ -156,6 +173,11 @@ function runSelector() {
         const xmasDay = d.detailChristmas === '25' ? 'Christmas Day' : d.detailChristmas === '26' ? 'Boxing Day' : '';
         xmas.textContent = xmasDay ? `${xmasDay}: due at work, so this is annual leave. It does not come off the allowance.` : '';
         xmas.hidden = !xmasDay;
+        const cover = el('selectorCoverLine');
+        cover.textContent = d.detailCover === 'sunday' ? 'The Sunday of a cover week. Its four shifts fall between Monday and Saturday.'
+            : d.detailCover === 'week' ? 'A cover week: four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.'
+            : '';
+        cover.hidden = !cover.textContent;
         const extras = el('dayDetailExtras');
         /** @type {Array<{ icon: string, label: string }>} */
         let markers;
@@ -190,6 +212,10 @@ function runSelector() {
         display.replaceChildren(build(year, month));
         document.title = title();
         updateNav();
+        // The printed heading's second line (links-selector.html → #selectorPrintHead), kept true at every redraw.
+        const now = new Date();
+        el('selectorPrintChoice').textContent = `${proposalDisplayName(proposal)} (${proposal.ref}) · starting on line ${line}`
+            + ` · a proposal, not a roster · ${printedStamp(now, formatClock(now))}`;
     }
     const announce = () => { if (announcer) announcer.textContent = `${MONTH_NAMES[month]} ${year}`; };
     /** @param {number} delta */
@@ -228,16 +254,19 @@ function runSelector() {
         year = FIRST_MONTH.year; month = FIRST_MONTH.month;
         render(); announce();
     });
-    // ← and → change the month, as on the Calendar — but never while a field or a sheet has the keys.
-    document.addEventListener('keydown', (e) => {
-        if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
-        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-        const t = /** @type {HTMLElement|null} */ (e.target);
-        if (t && (t.closest('input, select, textarea, [contenteditable], .lb-overlay') || t.isContentEditable)) return;
-        if (document.querySelector('.lb-overlay.active, .lb-overlay.open')) return;
-        e.preventDefault();
-        step(e.key === 'ArrowLeft' ? -1 : 1);
+    // THE CALENDAR'S OWN KEYS AND HOVER LINE (calendar-keyboard.js), not a copy: ← → change the month until a day has focus,
+    // then the arrows walk the days, PgUp/PgDn change the month, Enter opens a day, T goes to this month (the opening one)
+    // and P prints — with the Calendar's guards (an open overlay, the drawer, a swipe in flight). Registered in the Calendar's
+    // order, the shortcuts first. There is no team view, first run or locked state here, so those three answer no; and no
+    // pay day leads to the calculator from a proposal, so Enter on a payday opens the day like any other.
+    initCalendarShortcuts({
+        getAccessType: () => 'named', isTeamViewMode: () => false, isFirstRun: () => false,
+        jumpToCurrentWeek: () => {},
+        goToToday: () => { ({ year, month } = openingMonth()); render(); announce(); },
+        print: () => window.print(),
     });
+    initCalendarKeyboard({ navigateToPaycalc: () => false, openDayDetail: /** @type {any} */ (openDayDetail) });
+    initCalendarTooltip();
 
     initSwipeHandler({
         isTeamViewMode: () => false,

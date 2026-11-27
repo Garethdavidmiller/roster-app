@@ -93,7 +93,8 @@ test('the proposals A to Z, as the New CEA Link page lists them; the cover weeks
         assert.equal(opts.length, ROTATING_LINES);
         assert.deepEqual(opts.map(o => o.value), Array.from({ length: ROTATING_LINES }, (_, i) => String(i + 1)));
         for (const [i, o] of opts.entries()) {
-            const cover = DAYS.every(d => p.patterns[String(i + 1)][d] === 'SPARE');
+            // the app's rule: spare Monday to Saturday, whatever the Sunday (link-designer-design.js → isCoverWeek)
+            const cover = DAYS.every(d => d === 'sun' || p.patterns[String(i + 1)][d] === 'SPARE');
             assert.equal(isCoverLine(p, i + 1), cover);
             assert.equal(o.label, cover ? `Line ${i + 1} · cover week` : `Line ${i + 1}`);
         }

@@ -33,7 +33,7 @@
  */
 
 import { PROPOSALS, proposalDisplayName } from './link-designer-proposals.js';
-import { DAYS, ROTATING_LINES } from './link-designer-design.js';
+import { DAYS, ROTATING_LINES, isCoverWeek } from './link-designer-design.js';
 import { isChristmasRD, isWorkedShift } from './roster-data.js';
 
 /**
@@ -105,10 +105,13 @@ export function proposalsAtoZ() {
     return [...PROPOSALS].sort((a, b) => proposalDisplayName(a).localeCompare(proposalDisplayName(b), 'en-GB'));
 }
 
-/** Is this line a cover week — spare on every day? @param {{ patterns: Record<string, Record<string, string>> }} proposal @param {number} line */
+/**
+ * Is this line a cover week? The Link Designer's own rule (`isCoverWeek`): spare Monday to Saturday, whatever the Sunday —
+ * the rule the New CEA Link page reads too, so the two pages cannot count a proposal's cover weeks differently.
+ * @param {{ patterns: Record<string, Record<string, string>> }} proposal @param {number} line
+ */
 export function isCoverLine(proposal, line) {
-    const week = proposal.patterns[String(line)];
-    return !!week && DAYS.every(d => week[d] === 'SPARE');
+    return isCoverWeek(proposal.patterns[String(line)]);
 }
 
 /**
