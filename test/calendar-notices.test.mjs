@@ -1177,8 +1177,24 @@ describe('9 · every notice key is pre-dismissed by the browser suites\' session
     // added later joins this contract by existing.
     const KEYS = [...SOURCE.matchAll(/const DONE_KEY\s*=\s*'([^']+)'/g)].map(m => m[1]);
     const here = new URL('.', REPO_ROOT_URL);
+    // helpers.js keeps the keys ONCE, in CALENDAR_NOTICE_FLAGS, which its seeders all read (27 Nov 2026): so a key
+    // must be in that list, and every seeder must read the list, rather than each spelling the key out.
+    const HELPERS = readFileSync(new URL('./e2e/helpers.js', here), 'utf8');
+    const FLAGS_LIST = /export const CALENDAR_NOTICE_FLAGS = Object\.freeze\(\[([\s\S]*?)\]\);/.exec(HELPERS)?.[1] ?? '';
+    test('e2e/helpers.js lists every notice key once, in CALENDAR_NOTICE_FLAGS', () => {
+        assert.ok(FLAGS_LIST, 'CALENDAR_NOTICE_FLAGS is not where this test reads it');
+        const missing = KEYS.filter(k => !new RegExp(`['"]${k}['"]`).test(FLAGS_LIST));
+        assert.deepEqual(missing, [], `CALENDAR_NOTICE_FLAGS (e2e/helpers.js) must list ${missing.join(', ')}, or the notice opens over every journey in its window`);
+    });
+    test('every seeder in e2e/helpers.js, and suppressCalendarNotices, writes the whole list', () => {
+        for (const fn of ['seedSession', 'seedMember', 'seedMemberSession', 'seedCalendarMember', 'suppressCalendarNotices']) {
+            const at = HELPERS.indexOf(`export function ${fn}(`);
+            assert.ok(at >= 0, `${fn} is not in e2e/helpers.js`);
+            const body = HELPERS.slice(at, HELPERS.indexOf('\n}\n', at));
+            assert.match(body, /\[\.\.\.CALENDAR_NOTICE_FLAGS\]/, `${fn} must hand its init script [...CALENDAR_NOTICE_FLAGS]`);
+        }
+    });
     const SEEDERS = {
-        'e2e/helpers.js':          { text: readFileSync(new URL('./e2e/helpers.js', here), 'utf8'),          atLeast: 3 },   // seedSession, seedMemberSession and the third seeder
         'e2e/visual-harness.js':   { text: readFileSync(new URL('./e2e/visual-harness.js', here), 'utf8'),   atLeast: 1 },
         'e2e/calendar-access.spec.js': { text: readFileSync(new URL('./e2e/calendar-access.spec.js', here), 'utf8'), atLeast: 1 },  // heldSessionWithReset
     };
