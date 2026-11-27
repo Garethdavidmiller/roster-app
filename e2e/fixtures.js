@@ -782,6 +782,33 @@ function _setConfigOverride(page, key, pattern, value) {
 }
 
 /**
+ * A SECOND TAB of the app in this test's browser — same storage, so a member signed in on the first is
+ * signed in here — under the suite's routes. Open every app tab through this, never a bare
+ * `context.newPage()`: one without the routes loaded the real SDK, which needs the network, and drew
+ * nothing (review of v27.14; runner-parity.test.mjs holds every spec to it).
+ * @param {import('@playwright/test').BrowserContext} context
+ */
+export async function appTab(context) {
+    const tab = await context.newPage();
+    await routeAppPage(tab);
+    return tab;
+}
+
+/**
+ * A FRESH BROWSER — its own storage, nobody signed in — under the suite's routes, for a test that needs
+ * a signed-out view beside a signed-in one. A second tab cannot be signed out by clearing one key: the
+ * Firebase identity lives in IndexedDB, which the tabs share. Close it when done.
+ * @param {import('@playwright/test').Browser} browser @param {import('@playwright/test').TestInfo} info
+ */
+export async function freshBrowser(browser, info) {
+    const { baseURL, viewport, isMobile, hasTouch, deviceScaleFactor, userAgent } = /** @type {any} */ (info.project.use);
+    const context = await browser.newContext({ baseURL, viewport, isMobile, hasTouch, deviceScaleFactor, userAgent, serviceWorkers: 'block' });
+    const page = await context.newPage();
+    await routeAppPage(page);
+    return { context, page };
+}
+
+/**
  * Every route the suite's pages run under: the Firebase SDK stub, the hermetic network defaults and
  * the roster-data overrides. The `page` fixture applies it; a test that opens a SECOND tab
  * (`context.newPage()`) applies it to that page too, or the tab loads the real SDK and draws nothing.

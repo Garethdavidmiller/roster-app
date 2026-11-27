@@ -12,7 +12,7 @@
  * hours. Storage is seeded ONCE per context (a marker key), because a reload re-runs every init script
  * and would otherwise put the seeded figures back over what the test saved.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, appTab } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
 
 const KEY = 'myb_pc_gmiller_p57';
@@ -43,7 +43,7 @@ test('paycalc: two tabs editing different days of one payslip both keep their fi
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(DAY);
     await openOctober(page, { satH: 8, satM: 0 });
-    const b = await page.context().newPage();
+    const b = await appTab(page.context());
     await openOctober(b, null);
     await expect(page.locator('#satH')).toHaveValue('8');
     await expect(b.locator('#satH')).toHaveValue('8');
@@ -154,7 +154,7 @@ test('paycalc: an old tab editing a payslip cleared in another tab asks, and res
 test('paycalc: a tab with nothing of its own follows a clear made in another tab', async ({ page }) => {
     await page.clock.install({ time: DAY });
     await openOctober(page, { satH: 8, satM: 0 });
-    const b = await page.context().newPage();
+    const b = await appTab(page.context());
     await openOctober(b, null);
     await expect(b.locator('#satH')).toHaveValue('8');
     await page.bringToFront();   // the two-tap Clear disarms in a hidden tab (paycalc-clear-confirm.js)
@@ -219,6 +219,104 @@ test('paycalc: a setting the payslip could not keep says "Not saved", never "Ent
     await page.locator('#pensionOptOutCheck').check();
     await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
     await expect(page.locator('#saveStatus')).not.toHaveClass(/\bsaved\b/);
+});
+
+// ── WHAT A SAVE OR A CLEAR REPORTS WHEN ONE READ OF STORAGE FAILS (review of v27.14) ─────────────────
+// Storage refuses ONE read of the payslip at the moment that matters, as a busy or failing device can.
+
+test('paycalc: a read that fails before a save writes nothing over another tab\'s figures, and the retry keeps both', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, null);
+    // Another tab saved Saturday 3h, and this tab missed the event; the next read of the payslip fails once.
+    await page.evaluate((k) => {
+        localStorage.setItem(k, JSON.stringify({ satH: 3 }));
+        const get = Storage.prototype.getItem;
+        let once = true;
+        Storage.prototype.getItem = function (key) {
+            if (key === k && once) { once = false; throw new DOMException('busy', 'UnknownError'); }
+            return get.call(this, key);
+        };
+    }, KEY);
+    await page.locator('#sunH').fill('5');
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    expect(await stored(page), 'nothing was written over the other tab\'s Saturday').toEqual({ satH: 3 });
+    await expect(page.locator('#sunH'), 'the typed Sunday stays on screen').toHaveValue('5');
+    await page.locator('#sunM').fill('15');                    // the retry: storage answers now
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+    expect(await stored(page)).toMatchObject({ satH: 3, sunH: 5, sunM: 15 });
+});
+
+test('paycalc: a clear that landed, whose check read failed, says the payslip is cleared', async ({ page }) => {
+    await page.clock.install({ time: DAY });
+    await openOctober(page, { satH: 3, satM: 0 });
+    await page.clock.pauseAt(new Date(DAY.getTime() + 60_000));
+    await page.evaluate((k) => {
+        const del = Storage.prototype.removeItem, get = Storage.prototype.getItem;
+        let fail = false;
+        Storage.prototype.removeItem = function (key) { del.call(this, key); if (key === k) fail = true; };
+        Storage.prototype.getItem = function (key) {
+            if (fail && key === k) { fail = false; throw new DOMException('busy', 'UnknownError'); }
+            return get.call(this, key);
+        };
+    }, KEY);
+    const btn = page.locator('#clearBtn');
+    await btn.click();
+    await page.clock.runFor(1000);
+    await btn.click();
+    expect(await stored(page), 'the payslip is gone').toBeNull();
+    await expect(page.locator('#saveStatus')).toHaveText('No entries saved for this payslip');
+    await expect(page.locator('#satH')).toHaveValue('');
+});
+
+test('paycalc: a setting that saves after a refused one ends ITS warning, and never a warning about typed figures', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0, pension: 50 });
+    await page.evaluate((k) => {   // the NEXT write of the payslip is refused, then storage recovers
+        const set = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, v) {
+            if (key === k) { Storage.prototype.setItem = set; throw new DOMException('quota', 'QuotaExceededError'); }
+            return set.call(this, key, v);
+        };
+    }, KEY);
+    const optOut = page.locator('#pensionOptOutCheck');
+    await optOut.check();
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    await optOut.uncheck();                                     // the setting saves this time
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+
+    // A refused TYPED figure is not ended by a setting that saves.
+    await page.evaluate((k) => {
+        const set = Storage.prototype.setItem;
+        /** @type {any} */ (window).__set = set;
+        Storage.prototype.setItem = function (key, v) { if (key === k) throw new DOMException('quota', 'QuotaExceededError'); return set.call(this, key, v); };
+    }, KEY);
+    await page.locator('#satH').fill('7');
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    await optOut.check();                                       // a setting refused too, while Saturday's warning stands
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    await page.evaluate(() => { Storage.prototype.setItem = /** @type {any} */ (window).__set; });
+    await optOut.uncheck();                                     // the setting saves now
+    await expect(page.locator('#saveStatus'), 'Saturday 7h is still not saved').toHaveText('⚠ Not saved — try again');
+    expect((await stored(page)).satH, 'and storage still holds 3h').toBe(3);
+});
+
+test('paycalc: a take-home typed on a payslip with no hours is saved, and the receipt says so — £0 included', async ({ page }) => {
+    await page.clock.install({ time: DAY });
+    await openOctober(page, { satH: 3, satM: 0 });
+    await page.clock.pauseAt(new Date(DAY.getTime() + 60_000));
+    const btn = page.locator('#clearBtn');                       // cleared: no hours, and no calendar suggestion saved with it
+    await btn.click();
+    await page.clock.runFor(1000);
+    await btn.click();
+    await expect.poll(() => stored(page)).toBeNull();
+    for (const amount of ['1750', '0']) {
+        await page.locator('#actualNetInput').fill(amount);
+        await expect.poll(async () => (await stored(page))?.actualNet).toBe(Number(amount));
+        await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+    }
+    await page.reload();
+    await expect(page.locator('#actualNetInput')).toHaveValue('0');
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
 });
 
 test('paycalc: one tab saving as it always has — no question, saved as typed', async ({ page }) => {

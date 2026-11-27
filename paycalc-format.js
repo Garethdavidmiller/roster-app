@@ -133,6 +133,17 @@ export const HM_PAIRS = [
 ];
 
 /**
+ * Does a saved payslip hold a figure typed from the real payslip, for "Check against your payslip"?
+ * Separate from `isDataEmpty`, which says whether a payslip COUNTS towards the estimates: a take-home
+ * typed on a payslip with no hours is saved, and the receipt must say so, while the year's figures
+ * still leave it out (review of v27.14, 27 Nov 2026). A figure is a number, 0 included; blank is null.
+ * @param {any} d @returns {boolean}
+ */
+export function hasSavedComparison(d) {
+    return ['actualNet', 'actualGross', 'actualTax', 'actualNi', 'actualPension'].some(k => d?.[k] != null);
+}
+
+/**
  * Is a saved period the empty shape — nothing the member (or a fill) has put there? The gate the
  * "Not entered yet" list and the fill-year eligibility share. Lived in paycalc-hpp.js until
  * v22.06; it sits here beside HM_PAIRS because the two together are the schema's field surface,
