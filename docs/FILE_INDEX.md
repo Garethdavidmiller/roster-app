@@ -350,6 +350,7 @@ roster-app/
 ├── README.md ← the FRONT DOOR: which commands need nothing installed and which lanes need an install. States no counts; checked by doc-parity.test.mjs
 ├── docs/ ← every document except README.md and CLAUDE.md. `docs/**` is excluded from Firebase Hosting; the Pages mirror still serves it. `ARCHITECTURE.md` is the index; start there
 │   ├── links-26/ ← the new CEA link, **26 lines**, from January 2027: `RULES.md`, `30-days-off/` (the shortlist's designs), `proposals/`, `presentations/` and `tooling/`; README.md is the current state, HISTORY.md the record. The New link page serves its pack PDFs live from here on the Pages mirror (`PACK_BASE`, newlink-config.js)
+│   ├── links-bilingual/ ← a shorter bilingual link: the 6-line options sheet (PDF), `RULES.md`, and `tooling/` (`options.json` the rosters; `check.mjs` checks them, `search.mjs` finds them, `sheet.mjs` builds the PDF). A discussion draft; served publicly by the Pages mirror, so it never names a colleague
 │   ├── timetable-dec26/ ← `tooling/` builds `trains-data.js` (the Trains page) from Chiltern's public December 2026 timetable PDFs, which are never committed; its README has the inputs and the method
 │   ├── DECISIONS.md ← what has already been DECIDED, and why, so it is not re-argued. A closed decision whose trigger fires MOVES back to ROADMAP.md
 │   ├── ARCHITECTURE.md ← the INDEX: which document is authoritative for each subject, the `EXC-*` table of current production exceptions, and the four status words
