@@ -25,6 +25,7 @@
  */
 import { formatDayMonth, formatClock } from './date-format.js';
 import { NAV_PAGES, pageName } from './nav-destinations.js';
+import { CONFIG } from './roster-data.js';
 
 /**
  * The privacy footer both reporting cards end on — ONE declaration, two consumers (v21.29).
@@ -55,6 +56,34 @@ const PRIVACY_FOOTER = 'Your own opens while signed in as admin are excluded. An
 const PAGE_META = Object.fromEntries(NAV_PAGES.map((page) => [page.id, {
     emoji: page.label.slice(0, page.label.indexOf(' ')), label: pageName(page),
 }]));
+
+/**
+ * The pages OPEN TO STAFF, whose row the Usage card shows even at 0 (owner, 28 Nov 2026: "Links Selector should appear
+ * on the usage page"). The card listed only a page somebody had opened, and the admin's own opens are never counted, so a
+ * page that had just opened — the Links Selector — was simply absent, which reads as "not counted" rather than "nobody
+ * yet". Every drawer page but two kinds: the admin's own (Operations: its every open is an admin's, never counted, so it
+ * would always say 0), and a page that is PAUSED or still the admin's beta, read from the switch its drawer pill obeys.
+ * @param {typeof CONFIG} [config]
+ * @returns {string[]}
+ */
+function staffPageIds(config = CONFIG) {
+    return NAV_PAGES.filter(p => !p.adminOnly
+        && !(p.linksDesignerOnly && !config.LINK_DESIGNER_ENABLED)
+        && !(p.overtimeAudienceOnly && !config.OVERTIME_ENABLED)
+        && !(p.selectorAudienceOnly && !config.LINKS_SELECTOR_OPEN)).map(p => p.id);
+}
+
+/**
+ * A month's page views with every page open to staff listed: the counted ones as they came (busiest first), then each
+ * one nobody has opened yet, at 0, in the drawer's order — so a quiet page reads as quiet, never as missing.
+ * @param {Array<{ page: string, count: number }>} counts busiest first
+ * @param {ReadonlyArray<string>} ids `staffPageIds()`
+ * @returns {Array<{ page: string, count: number }>}
+ */
+function withEveryStaffPage(counts, ids) {
+    const have = new Set(counts.map(c => c.page));
+    return [...counts, ...ids.filter(id => !have.has(id)).map(page => ({ page, count: 0 }))];
+}
 
 /** Document/guide OPEN counters (v18.20) — share the pv_ counts map with the page ids above but
  *  render as their own "opens" group (an open is a different act from a page view). Emojis match
@@ -124,4 +153,4 @@ function _relativeTime(/** @type {Date} */ date) {
     return `${rel} · ${exact}`;
 }
 
-export { PRIVACY_FOOTER, PAGE_META, OPEN_META, _cardLoadError, _usageMonthLabel, _relativeTime };
+export { PRIVACY_FOOTER, PAGE_META, OPEN_META, staffPageIds, withEveryStaffPage, _cardLoadError, _usageMonthLabel, _relativeTime };

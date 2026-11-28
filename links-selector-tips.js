@@ -51,9 +51,10 @@ export const CARD_TIPS = Object.freeze({
                 { icon: '🚫', html: 'No leave, absence or changed shift is shown: a proposal has none.' },
             ] },
             { heading: 'To compare them', items: [
-                { icon: '⚖️', html: '<strong>Compare all</strong>, under the pickers, sets every proposal side by side: a row for each day, a column for each proposal, all from the week you chose. <strong>One proposal</strong> goes back to the month.' },
-                { icon: '👤', html: '<strong>Compare with mine</strong> puts your roster today beside the proposal you chose: your current pattern on the same dates, without leave or changed shifts. Your roster carries on as it is until the new link starts.' },
-                { icon: '🔁', html: 'The New CEA Link page sets them out in words and figures. The link under the key opens it on the proposal you are looking at.' },
+                { icon: '📆', html: '<strong>Year</strong>, in the switch under the pickers, shows the proposal’s whole year, a small month at a time, each day coloured by what it is. Select a month to see it day by day. <strong>Month</strong> goes back.' },
+                { icon: '⚖️', html: '<strong>Compare all</strong> sets every proposal side by side: a row for each day, a column for each proposal, all from the week you chose. <strong>Month</strong> goes back.' },
+                { icon: '👤', html: '<strong>With my roster</strong> puts your roster today beside the proposal you chose: your current pattern on the same dates, without leave or changed shifts. Your roster carries on as it is until the new link starts.' },
+                { icon: '🔁', html: 'The New CEA Link page sets them out in words and figures. The 🔁 button at the top opens it on the proposal you are looking at.' },
             ] },
         ],
     },

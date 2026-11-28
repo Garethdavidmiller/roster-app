@@ -338,7 +338,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `init`
 
 ### `operations-reports.js` / `operations-errors.js` / `operations-usage.js` / `operations-speed.js`
-- **Exports of `operations-reports.js`:** `PRIVACY_FOOTER` · `PAGE_META` · `OPEN_META` · `_cardLoadError` · `_usageMonthLabel` · `_relativeTime`
+- **Exports of `operations-reports.js`:** `PRIVACY_FOOTER` · `PAGE_META` · `OPEN_META` · `staffPageIds` · `withEveryStaffPage` · `_cardLoadError` · `_usageMonthLabel` · `_relativeTime`
 - **Exports of `operations-errors.js`:** `initErrorLog`
 - **Exports of `operations-usage.js`:** `initUsageCard`
 - **Exports of `operations-speed.js`:** `initPageSpeedCard`
@@ -541,8 +541,8 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `links-selector-app.js` / `links-selector-boot.js` / `links-selector-core.js` / `links-selector-render.js` / `links-selector-tips.js`
 - **Exports of `links-selector-app.js`:** `STORE_KEY` · `WELCOME_KEY` · `init`
 - **Exports of `links-selector-boot.js`:** none
-- **Exports of `links-selector-core.js`:** `STARTS` · `FIRST_MONTH` · `LAST_MONTH` · `startDate` · `lineOn` · `dayOn` · `rosterDayOn` · `proposalsAtoZ` · `isCoverLine` · `lineOptions` · `monthLines` · `shiftTypesInMonth` · `shiftTypesInMonthAll` · `compareRows` · `hasBlankDays` · `inRange` · `openingMonth` · `initialChoice` · `ignoredWords` · `refusalWords` · `VIEW_PARAM` · `MONTH_VIEW` · `COMPARE_VIEW` · `MINE_VIEW` · `choiceQuery`
-- **Exports of `links-selector-render.js`:** `buildSelectorMonth` · `buildSelectorTable`
+- **Exports of `links-selector-core.js`:** `STARTS` · `FIRST_MONTH` · `LAST_MONTH` · `startDate` · `lineOn` · `dayOn` · `rosterDayOn` · `proposalsAtoZ` · `isCoverLine` · `lineOptions` · `monthLines` · `shiftTypesInMonth` · `shiftTypesInMonthAll` · `compareRows` · `shiftTypesInYear` · `hasBlankDays` · `inRange` · `openingMonth` · `initialChoice` · `ignoredWords` · `refusalWords` · `VIEW_PARAM` · `MONTH_VIEW` · `YEAR_VIEW` · `COMPARE_VIEW` · `MINE_VIEW` · `choiceQuery`
+- **Exports of `links-selector-render.js`:** `buildSelectorMonth` · `buildSelectorTable` · `buildSelectorYear`
 - **Exports of `links-selector-tips.js`:** `CARD_TIPS`
 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`

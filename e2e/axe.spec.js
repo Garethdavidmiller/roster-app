@@ -771,6 +771,16 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // 📆 Year (owner, 28 Nov 2026): twelve small months, each day a coloured square that says aloud what it is.
+    test('links selector — Year, 2027', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=7&view=year');
+        await expect(page.locator('.yr-month')).toHaveCount(12);
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // 👤 Compare with mine (owner, 28 Nov 2026): the reader's roster today beside a proposal, its heading in the Calendar's gold.
     test('links selector — Compare with mine, January and February 2027', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));

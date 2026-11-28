@@ -934,6 +934,22 @@ test('operations usage: with no last month on record, the row is this month and 
     await expect(card.locator('.usage-stat--context')).toHaveCount(0);
 });
 
+test('operations usage: a page open to staff that nobody has opened yet is listed at 0, with an empty bar', async ({ page }) => {
+    // Owner, 28 Nov 2026: "Links Selector should appear on the usage page on operations please." The card
+    // listed only a page with a count, and the admin's own opens are never counted, so a page nobody else
+    // had opened was ABSENT — read as "not counted". A 0 draws no sliver: a stub read as "a few".
+    const card = await openUsageCard(page);
+    const row = card.locator('.usage-bar-row', { hasText: 'Links Selector' });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.usage-bar-count')).toHaveText('0');
+    expect(await row.locator('.usage-bar-fill').evaluate(el => el.getBoundingClientRect().width)).toBe(0);
+    // A page somebody opened keeps its bar, and last month is listed as it was counted.
+    expect(await card.locator('.usage-bar-row', { hasText: 'Calendar' }).locator('.usage-bar-fill')
+        .evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThan(0);
+    await card.getByRole('button', { name: 'Last month' }).click();
+    await expect(card.locator('.usage-bar-row', { hasText: 'Links Selector' })).toHaveCount(0);
+});
+
 test('operations usage: the installed app is a number per address, and each legend swatch keeps its own label', async ({ page }) => {
     const card = await openUsageCard(page);
     await expect(card.locator('.usage-origin-installed-count'))

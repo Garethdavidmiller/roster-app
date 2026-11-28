@@ -429,7 +429,7 @@ roster-app/
 │   ├── roster-data.test.mjs    ← tests for roster-data.js
 │   ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 │   ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
-│   ├── roster-parse-helpers.test.mjs / link-designer-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / perf-stats.test.mjs
+│   ├── roster-parse-helpers.test.mjs / link-designer-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / usage-staff-pages.test.mjs / perf-stats.test.mjs
 │   ├── functions-surface.test.mjs ← pins functions/index.js's exports (the DEPLOY surface — a dropped re-export deletes a function). Runs in test:functions
 │   ├── fetch-timeout.test.mjs ← the Cloud Function call bound, including somebody else's abort. Part of test:hygiene
 │   ├── error-reporter.test.mjs ← the Error Log noise filters, each pinned from both sides. Part of test:hygiene

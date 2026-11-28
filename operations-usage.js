@@ -9,7 +9,7 @@
 import { sessionReady } from './session.js';
 import { withClaimRetry, getUsageStats, getSignInStats } from './firebase-client.js';
 import { escapeHtml } from './roster-data.js';
-import { PRIVACY_FOOTER, PAGE_META, OPEN_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
+import { PRIVACY_FOOTER, PAGE_META, OPEN_META, staffPageIds, withEveryStaffPage, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
 
 // ============================================
 // USAGE CARD
@@ -100,7 +100,9 @@ async function initUsageCard() {
                 // Known labels are static/safe; an unknown page key (a tampered client
                 // could write one) is escaped before it reaches innerHTML.
                 const label = meta ? meta.label : escapeHtml(page);
-                const pct   = Math.max(4, Math.round((count / max) * 100));
+                // A sliver keeps a page opened once visible beside a busy one; a 0 draws an EMPTY track
+                // (28 Nov 2026: every page open to staff is now listed, and a stub read as "a few").
+                const pct   = count > 0 ? Math.max(4, Math.round((count / max) * 100)) : 0;
                 const row = document.createElement('div');
                 row.className = 'usage-bar-row';
                 row.innerHTML =
@@ -121,7 +123,10 @@ async function initUsageCard() {
             const all   = popActive === 'this' ? stats.pageCounts : stats.prevPageCounts;
             const month = popActive === 'this' ? stats.month : stats.prevMonth;
             // Split the shared counts map: page views vs document/guide opens (v18.20).
-            const counts = all.filter(c => !OPEN_META[c.page]);
+            // THIS month lists every page open to staff, at 0 where nobody has opened it yet (owner, 28 Nov 2026); last
+            // month is left as it was counted — a page that opened since had no month to be quiet in.
+            const viewed = all.filter(c => !OPEN_META[c.page]);
+            const counts = popActive === 'this' ? withEveryStaffPage(viewed, staffPageIds()) : viewed;
             const opens  = all.filter(c => OPEN_META[c.page]);
             // Emoji + label on every section heading — the card had four different patterns
             // (none / bare / emoji / bare-with-date), which is what made the sections read as a

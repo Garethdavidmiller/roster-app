@@ -3,10 +3,11 @@
  * links-selector-app.js — coordinator for links-selector.html, the Links Selector.
  *
  * Choose a shortlisted proposal and the week you would start on, and see your months as the Calendar shows them, with
- * the Calendar's swipe — or press ⚖️ Compare all for every proposal side by side, the same month from the same week, or
- * 👤 Compare with mine for the reader's own roster today beside the chosen proposal (links-selector-render.js →
- * buildSelectorTable). Neither is ever where the page opens by itself (owner, 28 Nov 2026: "not as the default view"):
- * only its tab, or an address that asks for it (`?view=compare`, `?view=mine`), and this device never keeps either. The rules — which line a date falls on, blank days before the start, Christmas, what the address
+ * the Calendar's swipe — or press 📆 Year for the proposal's whole year in twelve small months (buildSelectorYear),
+ * ⚖️ Compare all for every proposal side by side, the same month from the same week, or 👤 Compare with mine for the
+ * reader's own roster today beside the chosen proposal (buildSelectorTable). None of the three is ever where the page
+ * opens by itself (owner, 28 Nov 2026: "not as the default view"): only its tab, or an address that asks for it
+ * (`?view=year`, `?view=compare`, `?view=mine`), and this device never keeps one. The rules — which line a date falls on, blank days before the start, Christmas, what the address
  * and this device remember — are links-selector-core.js; the month is links-selector-render.js; this file wires the
  * page: the sign-in gate, the two pickers, the month buttons and swipe, and the day panel.
  *
@@ -43,9 +44,9 @@ import { lsGet, lsSet, lsAvailable } from './ls.js';
 import { CARD_TIPS } from './links-selector-tips.js';
 import { formatDayMonth, formatDayMonthYear, formatClock, printedStamp, DAY_NAMES_FULL } from './date-format.js';
 import { proposalById, proposalDisplayName } from './link-designer-proposals.js';
-import { buildSelectorMonth, buildSelectorTable } from './links-selector-render.js';
+import { buildSelectorMonth, buildSelectorTable, buildSelectorYear } from './links-selector-render.js';
 import { FIRST_MONTH, LAST_MONTH, inRange, openingMonth, shiftTypesInMonth, shiftTypesInMonthAll, hasBlankDays, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate,
-    lineOn, ignoredWords, refusalWords, rosterDayOn, isCoverLine, dayOn, MONTH_VIEW, COMPARE_VIEW, MINE_VIEW } from './links-selector-core.js';
+    lineOn, ignoredWords, refusalWords, rosterDayOn, isCoverLine, dayOn, shiftTypesInYear, MONTH_VIEW, YEAR_VIEW, COMPARE_VIEW, MINE_VIEW } from './links-selector-core.js';
 
 /** New CEA Link, opened on one proposal's weeks: its `weeks` word (newlink-app.js → WEEKS_PARAM), then a sheet code. */
 const NEWLINK_WEEKS = './newlink.html?weeks=';
@@ -187,13 +188,15 @@ function runSelector(member) {
     // Each view says what its columns are, and the one thing a side-by-side could mislead about: the same week number is
     // not a promise of the same start in each proposal, and "your roster today" is the pattern without anything recorded.
     const NOTES = {
+        // SHORT, every one (owner, 28 Nov 2026: the top looked "messy"): what you are looking at, and the one thing it could
+        // mislead about. How the weeks turn over, and everything else, is the ? panel's.
         [MONTH_VIEW]: ['A proposal, not your roster.', ` Choose a proposal and the week you’d start on, from ${DAY_NAMES_FULL[start.getDay()]} `
-            + `${formatDayMonthYear(start)} (date not final). Each Sunday you move on to the next week. Who starts on which week is decided later.`],
-        [COMPARE_VIEW]: ['Proposals, not your roster.', ' Each column is a proposal and each row a day, all from the week you chose. '
-            + 'Who starts on which week is decided later, and it may not be the same week in each proposal, so try a few.'],
-        [MINE_VIEW]: ['Your roster beside a proposal.', ' On the left, your roster today: your current pattern on these dates, without leave '
-            + 'or changed shifts. On the right, the proposal from the week you chose. Nothing changes until the new link starts, and '
-            + 'who starts on which week is decided later, so try a few.'],
+            + `${formatDayMonthYear(start)} (date not final). Who starts on which week is decided later.`],
+        [YEAR_VIEW]: ['A proposal, not your roster.', ' The whole year, each day coloured by what it is. Select a month to see it day by day.'],
+        [COMPARE_VIEW]: ['Proposals, not your roster.', ' A column for each proposal, all from the week you chose. '
+            + 'Who starts on which week is decided later, and it may differ in each, so try a few.'],
+        [MINE_VIEW]: ['Your roster beside a proposal.', ' Left, your roster today, without leave or changed shifts. Right, the proposal, '
+            + 'from the week you chose. Who starts on which week is decided later, so try a few.'],
     };
     const writeNote = () => {
         const [lead, rest] = NOTES[/** @type {keyof typeof NOTES} */ (view)];
@@ -263,13 +266,17 @@ function runSelector(member) {
             { key: 'mine', name: 'Your roster today', kind: 'mine', dayAt: (d) => rosterDayOn(myRow, d) },
             { ...proposalColumn(proposal), chosen: true },
         ], line, y, m, { caption: `Your roster today beside ${proposalDisplayName(proposal)}` });
+        if (view === YEAR_VIEW) return buildSelectorYear(proposal, line, y,
+            { firstMonth: y === FIRST_MONTH.year ? FIRST_MONTH.month : 0, lastMonth: y === LAST_MONTH.year ? LAST_MONTH.month : 11 });
         return buildSelectorMonth(proposal, proposalDisplayName(proposal), line, y, m, { onDayDetail: openDayDetail });
     };
+    // A step is a month, or in the Year view a year — so Prev and Next, ← →, PgUp/PgDn and the swipe all move by what is
+    // shown, and the range check needs nothing new (a year on from December 2027 is December 2028, the last month).
     const shift = (/** @type {number} */ delta) => {
-        const n = year * 12 + month + delta;
+        const n = year * 12 + month + delta * (view === YEAR_VIEW ? 12 : 1);
         return { year: Math.floor(n / 12), month: n % 12 };
     };
-    const title = () => `${MONTH_NAMES[month]} ${year} — Links Selector — Marylebone Roster`;
+    const title = () => `${view === YEAR_VIEW ? year : `${MONTH_NAMES[month]} ${year}`} — Links Selector — Marylebone Roster`;
     const prevBtn = /** @type {HTMLButtonElement} */ (el('prevMonth'));
     const nextBtn = /** @type {HTMLButtonElement} */ (el('nextMonth'));
     // THE CALENDAR'S WAY AT THE ENDS (calendar-app.js → updateNavButtonState): `aria-disabled` and a faded button, never
@@ -281,12 +288,15 @@ function runSelector(member) {
             const end = !inRange(to.year, to.month);
             btn.setAttribute('aria-disabled', end ? 'true' : 'false');
             btn.style.opacity = end ? '0.4' : '';
+            // Said as what it moves: a month, or in the Year view a year.
+            btn.setAttribute('aria-label', `${delta < 0 ? 'Prev' : 'Next'} ${view === YEAR_VIEW ? 'year' : 'month'}`);
         }
     }
     /** The printed heading's second line (links-selector.html → #selectorPrintHead): the choice, and when it was printed. */
     function stampPrint() {
         const now = new Date();
         const what = view === COMPARE_VIEW ? 'Every proposal side by side'
+            : view === YEAR_VIEW ? `${proposalDisplayName(proposal)} (${proposal.ref}), the year ${year}`
             : view === MINE_VIEW ? `Your roster today beside ${proposalDisplayName(proposal)} (${proposal.ref})`
             : `${proposalDisplayName(proposal)} (${proposal.ref})`;
         el('selectorPrintChoice').textContent = `${what} · starting in week ${line}`
@@ -300,7 +310,9 @@ function runSelector(member) {
         getCurrentMember: () => ({}),
         // In Compare, what ANY column has: the key under the table explains every column.
         // Beside your roster, what either column has (a Spare on your own roster too).
-        getShiftTypesInMonth: (_m, y, mo) => view === COMPARE_VIEW ? shiftTypesInMonthAll(proposalsAtoZ(), line, y, mo)
+        // In the Year view, what any month of the year has.
+        getShiftTypesInMonth: (_m, y, mo) => view === YEAR_VIEW ? shiftTypesInYear(proposal, line, y)
+            : view === COMPARE_VIEW ? shiftTypesInMonthAll(proposalsAtoZ(), line, y, mo)
             : view === MINE_VIEW && myRow ? new Set([...shiftTypesInMonth(proposal, line, y, mo), ...rosterTypesInMonth(myRow, y, mo)])
             : shiftTypesInMonth(proposal, line, y, mo),
         getDisplayYear: () => year,
@@ -312,7 +324,7 @@ function runSelector(member) {
     function updateLegend() {
         legend.update();
         const blankKey = document.getElementById('selectorLegendBlank');
-        if (blankKey) blankKey.style.display = hasBlankDays(year, month) ? '' : 'none';
+        if (blankKey) blankKey.style.display = (view === YEAR_VIEW ? hasBlankDays(year, 0) : hasBlankDays(year, month)) ? '' : 'none';
         const todayKey = document.getElementById('selectorLegendToday');
         const now = new Date();
         if (todayKey) todayKey.style.display = now.getFullYear() === year && now.getMonth() === month && lineOn(1, now) !== null ? '' : 'none';
@@ -334,7 +346,7 @@ function runSelector(member) {
         updateLegend();
         stampPrint();
     }
-    const announce = () => { if (announcer) announcer.textContent = `${MONTH_NAMES[month]} ${year}`; };
+    const announce = () => { if (announcer) announcer.textContent = view === YEAR_VIEW ? `The year ${year}` : `${MONTH_NAMES[month]} ${year}`; };
     /** Move the shown month, inside the range; reports whether it moved. @param {number} delta */
     function changeMonth(delta) {
         const to = shift(delta);
@@ -362,15 +374,13 @@ function runSelector(member) {
     // The views, every one always named, the one shown pressed and in the page's colour (Team Week View's grade tabs). A
     // press on the one already shown does nothing, so nothing is redrawn or re-announced. "Compare with mine" is offered
     // only to a reader with a roster line.
-    const viewBtns = /** @type {Array<[HTMLElement, string]>} */ ([[el('selectorViewMonth'), MONTH_VIEW],
+    const viewBtns = /** @type {Array<[HTMLElement, string]>} */ ([[el('selectorViewMonth'), MONTH_VIEW], [el('selectorViewYear'), YEAR_VIEW],
         [el('selectorViewCompare'), COMPARE_VIEW], [el('selectorViewMine'), MINE_VIEW]]);
     el('selectorViewMine').hidden = !myRow;
     function paintCompare() {
-        for (const [btn, v] of viewBtns) {
-            btn.classList.toggle('active', v === view);
-            btn.setAttribute('aria-pressed', v === view ? 'true' : 'false');
-        }
-        document.body.classList.toggle('selector-compare-active', view !== MONTH_VIEW);
+        for (const [btn, v] of viewBtns) btn.setAttribute('aria-pressed', v === view ? 'true' : 'false');
+        document.body.classList.toggle('selector-compare-active', view === COMPARE_VIEW || view === MINE_VIEW);
+        document.body.classList.toggle('selector-year-active', view === YEAR_VIEW);
         writeNote();
     }
     for (const [btn, v] of viewBtns) btn.addEventListener('click', () => {
@@ -378,9 +388,22 @@ function runSelector(member) {
         view = v;
         paintCompare();
         chosen();
+        if (view === YEAR_VIEW) { announce(); return; }
         if (announcer) announcer.textContent = (view === COMPARE_VIEW ? 'Every proposal side by side'
             : view === MINE_VIEW ? `Your roster today beside ${proposalDisplayName(proposal)}`
             : proposalDisplayName(proposal)) + `, ${MONTH_NAMES[month]} ${year}`;
+    });
+
+    // A month's name in the Year view opens that month, day by day, where the day panel has what a small cell cannot say.
+    display.addEventListener('click', (e) => {
+        const open = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.yr-open'));
+        if (!open || isSwipeCooldown()) return;
+        year = Number(open.dataset.year); month = Number(open.dataset.month);
+        view = MONTH_VIEW;
+        paintCompare();
+        chosen();
+        announce();
+        el('selectorViewMonth').focus({ preventScroll: true });
     });
 
     /** Keep the choice in the address and on this device, then redraw. Compare stays in the ADDRESS only. */

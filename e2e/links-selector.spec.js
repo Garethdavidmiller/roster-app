@@ -579,6 +579,52 @@ test.describe('links selector', () => {
         }
     });
 
+    // 📆 YEAR (owner, 28 Nov 2026: "do exactly the same with year view"): the proposal's whole year, a small month at a time.
+    // What a wrong answer costs: a coloured square that is not that day's kind shows a false rhythm, and a year view that opened
+    // by itself would be the default view the owner said it must not be.
+    test('Year: never by itself; twelve small months, each day the proposal\'s own; Next is a year; a month\'s name opens it', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
+        await expect(page.locator('#selectorViewYear')).toHaveAttribute('aria-pressed', 'false');
+        await expect(page.locator('.yr-months')).toHaveCount(0);
+        await page.locator('#selectorViewYear').click();
+        await expect(page.locator('#selectorViewYear')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page).toHaveURL(/[?&]view=year\b/);
+        await expect(page.locator('.yr-title')).toHaveText('2027');
+        await expect(page).toHaveTitle(/^2027 — Links Selector/);
+        await expect(page.locator('.yr-month')).toHaveCount(12);
+        await expect(page.locator('#selectorNote')).toContainText('The whole year, each day coloured by what it is');
+        await expect(page.locator('#prevMonth')).toHaveAttribute('aria-label', 'Prev year');
+        await expect(page.locator('#prevMonth')).toHaveAttribute('aria-disabled', 'true');
+        // Every day of three months: the kind of day the proposal gives, by its colour class and its spoken words
+        const lc = /** @type {any} */ (proposalById('proposal:LC-26-T10'));
+        const kind = (/** @type {string} */ s) => s === 'RD' || s === 'OFF' ? 'tv-rest' : s === 'SPARE' ? 'tv-spare' : s === 'AL' ? 'tv-al' : null;
+        for (const m of [0, 6, 11]) {
+            const days = page.locator('.yr-month').nth(m).locator('.yr-day');
+            const n = new Date(2027, m + 1, 0).getDate();
+            await expect(days).toHaveCount(n);
+            for (let d = 1; d <= n; d += 3) {
+                const want = /** @type {any} */ (dayOn(lc, 7, new Date(2027, m, d)));
+                const cell = days.nth(d - 1);
+                if (want.blank) { await expect(cell).toHaveClass(/yr-blank/); continue; }
+                const k = kind(want.shift);
+                await expect(cell).toHaveClass(k ? new RegExp(k) : /tv-(early|late|night)/);
+                if (!k) await expect(cell).toHaveAttribute('aria-label', new RegExp(`${want.shift}`));
+            }
+        }
+        // Next is a year; at 2028 the end is faded
+        await page.locator('#nextMonth').click();
+        await expect(page.locator('.yr-title')).toHaveText('2028');
+        await expect(page.locator('#nextMonth')).toHaveAttribute('aria-disabled', 'true');
+        // A month's name opens that month, day by day
+        await page.locator('.yr-open', { hasText: 'March' }).click();
+        await expect(page.locator('.month-year')).toHaveText('March 2028');
+        await expect(page.locator('#selectorViewMonth')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page).not.toHaveURL(/view=/);
+        expect(errors).toEqual([]);
+    });
+
     test('Compare says what a cell cannot: Sunday shifts are overtime, and what a cover week is — only in a month that has them', async ({ page }) => {
         await seedSession(page, ADMIN);
         await page.goto('/links-selector.html?proposal=MB-26-V6&line=5&view=compare');
