@@ -182,7 +182,10 @@
                         <div class="tr-picks" id="trJumpPicks"></div>
                     </div>
                 </div>
-                <div id="trLookupResult" class="tr-find-result" aria-live="polite"></div>
+                <!-- The answer is not a live region: it was read out whole on each change, and each minute while it
+                     follows the clock. #trLookupStatus says its first lines instead (trains-status.js → `sayLookup`). -->
+                <div id="trLookupResult" class="tr-find-result"></div>
+                <p id="trLookupStatus" class="sr-only" role="status"></p>
             </div>
         </div>
     </div>

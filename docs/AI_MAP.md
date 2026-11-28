@@ -521,11 +521,11 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports of `trains-weekdays.js`:** `WEEKDAYS` · `REAL_DAY` · `runsOn` · `daysCode` · `aRealDay` · `onWeekday` · `weekdayGroups` · `weekdayWords`
 - **Exports of `trains-verdict.js`:** `EDGE_SHIFT_MIN` · `JOURNEY_SHIFT_MIN` · `verdictFor` · `balanceFacts` · `hourChanged` · `rateWords` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList`
 - **Exports of `trains-headlines.js`:** `headlineChanges`
-- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `HEADLINES_SHOWN` · `partialStopsNote` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `JOURNEY_HINT` · `renderJourney` · `renderNoStation` · `renderLastTrains`
+- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `HEADLINES_SHOWN` · `partialStopsNote` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `holidayOf` · `DAY_WORDS` · `timeHint` · `JOURNEY_HINT` · `renderJourney` · `renderNoStation` · `renderLastTrains`
 - **Exports of `trains-data.js`:** `CHANGE_DATE` · `FURTHER_CHANGES_UNTIL` · `DEC_VALID_UNTIL` · `LEAF_FALL` · `STATIONS` · `STATION_ORDER` · `TIMETABLES`
 - **Exports of `trains-tips.js`:** `CARD_TIPS` · `tipsOn`
 - **Exports of `trains-grid-mirror.js`:** `syncGridMirror`
-- **Exports of `trains-status.js`:** `announce` · `statusLine` · `matchesLine`
+- **Exports of `trains-status.js`:** `sayLookup` · `lookupLine` · `announce` · `statusLine` · `matchesLine`
 - **Exports of `trains-journey.js`:** `parseJourney` · `findStation` · `dayKindOf` · `isoDate` · `addDays` · `journeyDate` · `journeyDateAt` · `dayWord` · `timetableOn` · `departures` · `viaMatters` · `JOURNEY_TRAINS` · `journey`
 
 ### `overflow-hint.js`

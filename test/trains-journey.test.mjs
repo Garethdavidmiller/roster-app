@@ -17,7 +17,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseJourney, findStation, journey, journeyDate, journeyDateAt, dayWord, timetableOn, departures, viaMatters, dayKindOf, isoDate, addDays } from '../trains-journey.js';
-import { renderJourney, renderNoStation } from '../trains-render.js';
+import { renderJourney, renderNoStation, timeHint, holidayOf, DAY_WORDS } from '../trains-render.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from '../trains-data.js';
 
 const dates = { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL };
@@ -298,7 +298,63 @@ describe('parseJourney and findStation — the gaps', () => {
         assert.equal(findStation('west ruislop', STATIONS).crs, null, 'only a full name: a slip is not taken for a station');
         const j = ask('AYS', null, day(11, 27));
         const html = words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'day', now: day(11, 27), unused: 'tomorrow' }));
-        assert.match(html, /^This box reads a station and a time, so “tomorrow” is not part of this answer\. For another day, press Weekdays, Saturdays or Sundays\. Friday 27 November/);
+        assert.ok(html.startsWith('This box reads a station and a time, so “tomorrow” is not part of this answer. For another day, press Weekdays, Saturdays or Sundays. '
+            + 'Weekdays answers for today, or the next weekday at a weekend; Saturdays and Sundays for the next one. For any other date, check the journey planner . Friday 27 November'), html);
         assert.doesNotMatch(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'day', now: day(11, 27) }), /This box reads/);
+    });
+
+    test('the day sentences only for words that name a day; the route sentence only where each train says its route', () => {
+        const unread = (/** @type {string} */ crs, /** @type {string} */ unused) => {
+            const html = words(renderJourney(ask(crs, '17:15', day(11, 27)), { crs, stations: STATIONS, asked: 'time', now: day(11, 27), unused }));
+            return html.slice(0, html.indexOf('Friday 27 November'));
+        };
+        assert.equal(unread('AYS', 'via Amersham'), 'This box reads a station and a time, so “via Amersham” is not part of this answer. '
+            + 'This answer takes trains by either route, and each one says which it takes. ');
+        assert.equal(unread('GER', 'via Amersham'), 'This box reads a station and a time, so “via Amersham” is not part of this answer. ',
+            'Gerrards Cross\'s trains say no route, so the sentence would not be true');
+        assert.equal(unread('AYS', 'please hurry'), 'This box reads a station and a time, so “please hurry” is not part of this answer. ');
+        assert.match(unread('AYS', 'on Saturday'), /For another day, press/);
+        for (const w of ['tomorrow', 'Monday', 'sat', 'weekend', 'Sundays', 'thurs']) assert.match(w, DAY_WORDS, w);
+        for (const w of ['via Amersham', 'Sunbury', 'satnav', 'monument']) assert.doesNotMatch(w, DAY_WORDS, w);
+    });
+});
+
+describe('renderJourney — 25 and 26 December are an ordinary day\'s trains, never "Scheduled"', () => {
+    const html = (/** @type {Date} */ d) => renderJourney(ask('AYS', '08:00', d), { crs: 'AYS', stations: STATIONS, asked: 'time', now: d });
+    test('Christmas Day: no "Scheduled", and the ordinary Friday said first, with the planner', () => {
+        const h = html(day(12, 25));
+        assert.doesNotMatch(h, /Scheduled/);
+        assert.match(words(h), /^Friday 25 December · Timetable from Sunday 13 December Christmas Day’s trains are not on this page — these are an ordinary Friday’s\. Check the journey planner \. Christmas and New Year times are not on this page\.[^]* First train to Aylesbury after 08:00 08:27 /);
+        assert.match(h, /Check <a href="https:\/\/www\.nationalrail\.co\.uk\/journey-planner\/"/);
+    });
+    test('Boxing Day the same, as an ordinary Saturday; Christmas Eve and 27 December keep "Scheduled"', () => {
+        assert.match(words(html(day(12, 26))), /Boxing Day’s trains are not on this page — these are an ordinary Saturday’s\./);
+        assert.doesNotMatch(html(day(12, 26)), /Scheduled/);
+        for (const d of [day(12, 24), day(12, 27)]) {
+            assert.match(html(d), /<span class="tr-jr-sched">Scheduled<\/span>/, isoDate(d));
+            assert.doesNotMatch(html(d), /trains are not on this page —/, isoDate(d));
+        }
+        assert.equal(holidayOf(day(12, 25)), 'Christmas Day');
+        assert.equal(holidayOf(day(1, 25, 2027)), null);
+    });
+    test('the next day\'s first train, when it is Christmas Day, is said the same way', () => {
+        // A station with no train left after 23:00 on Christmas Eve, so the answer is the next day's first.
+        const crs = Object.keys(STATIONS).find(c => { const j = ask(c, '23:00', day(12, 24)); return !j.trains.length && j.next?.trains.length; });
+        assert.ok(crs, 'premise: some station has no train after 23:00');
+        const h = renderJourney(ask(/** @type {string} */ (crs), '23:00', day(12, 24)), { crs: /** @type {string} */ (crs), stations: STATIONS, asked: 'time', now: day(12, 24) });
+        assert.match(words(h), /First train tomorrow Friday 25 December · Timetable from Sunday 13 December Christmas Day’s trains are not on this page/);
+        assert.equal((h.match(/class="tr-jr-sched"/g) ?? []).length, 1, 'Christmas Eve\'s own line keeps it; the 25th\'s does not');
+        assert.equal((h.match(/Scheduled means/g) ?? []).length, 0, 'the note about the word goes with it');
+    });
+});
+
+describe('timeHint — a time the box cannot read', () => {
+    test('a bare hour says why, and the ways to write it; anything else, the example', () => {
+        const w = (/** @type {string} */ t) => words(timeHint(t));
+        assert.equal(w('9'), '“9” is not a time this box reads — add the minutes or am/pm: 09:00, 9am or 9pm.');
+        assert.equal(w('12'), '“12” is not a time this box reads — add the minutes or am/pm: 12:00, 12am or 12pm.');
+        assert.equal(w('17'), '“17” is not a time this box reads — add the minutes: 17:00.');
+        for (const t of ['25:00', '0', '24', '99', '5.7', '']) assert.equal(w(t), 'Type a time like 17:15, 1715 or 5.15pm.', t);
+        assert.equal(parseJourney('Gerrards Cross for 9').timeText, '9', 'the station\'s time, as the box passes it');
     });
 });

@@ -1,6 +1,7 @@
 // @ts-check
 /**
- * trains-status.js — what a screen reader is told on trains.html: ONE short line per press, in #trStatus.
+ * trains-status.js — what a screen reader is told on trains.html: ONE short line per press, in #trStatus — and Find
+ * a train's answer, its first lines only, in #trLookupStatus (`sayLookup`).
  *
  * ── ONE LINE, NOT THE CARDS (Trains review, 22 Nov 2026) ────────────────────────────────────────
  *
@@ -22,6 +23,52 @@
  */
 
 /** @typedef {import('./trains-cards.js').PageState} PageState */
+
+/** The lookup's line last given to #trLookupStatus. */
+let lookupSaid = '';
+
+/**
+ * Find a train's answer, said in its own line (#trLookupStatus) as the cards' is in #trStatus: the answer itself
+ * was a live region, read out whole — every train and stop — on each change, and each minute while "the next
+ * train" follows the clock. Called after every lookup (trains-cards.js → `renderLookup`); the same line again,
+ * as on a minute that moved nothing, is not said.
+ */
+export function sayLookup() {
+    const line = lookupLine();
+    if (line === lookupSaid) return;
+    lookupSaid = line;
+    const status = document.getElementById('trLookupStatus');
+    if (status) status.textContent = line;
+}
+
+/** A block's words as a sentence: a full stop added where it has no stop of its own. @param {string} s */
+const sentence = (s) => !s || /[.:?]$/.test(s) ? s : `${s}.`;
+
+/**
+ * The lookup's answer in a few sentences, from the words on screen: an ended timetable, words the box did not read,
+ * the Christmas lines, the question asked, and the answer — the first train's line and when it gets there, never its
+ * stops. With no train left that day, the next day's first is said too. With no answer, the box's first line
+ * ("No station matches…", how to type a time).
+ * @returns {string}
+ */
+export function lookupLine() {
+    const box = document.getElementById('trLookupResult');
+    if (!box) return '';
+    const kids = [...box.children];
+    const at = kids.findIndex(n => n.matches('.tr-answer'));
+    // A journey with no train left that day answers in a sentence, and the next day's first train (or "None tomorrow
+    // either") follows it: said too, as what the reader is waiting for.
+    const after = box.querySelector(':scope > .tr-jr-meta') ? kids[at + 1] : undefined;
+    const end = at < 0 || kids[at].matches('.tr-jr-first') ? at
+        : after?.matches('.tr-jr-ask') ? Math.max(at, kids.findIndex((n, k) => k > at && n.matches('.tr-jr-first')))
+        : after?.matches('.tr-lead') ? at + 1 : at;
+    const lines = at < 0 ? [...kids.filter(n => n.matches('.tr-ended')), kids.find(n => n.matches('p:not(.tr-ended)'))]
+        : kids.slice(0, end + 1).filter((n, k) => k === at || k === end || n.matches('.tr-lead, .tr-unread, .tr-festive, .tr-jr-ask'));
+    // A train's own lines, one sentence each — its stops are on tap, not read; of the Christmas line, its first sentence.
+    return lines.flatMap(n => !n ? [] : n.matches('.tr-jr-first') ? [...n.querySelectorAll('.tr-jr-line, .tr-jr-arr')]
+        : n.matches('.tr-festive') ? [n.querySelector('strong')] : [n])
+        .map(n => sentence(wordsOf(n, 'details, .sr-only'))).filter(Boolean).join(' ');
+}
 
 /** The line last given to #trStatus; null until the first draw, which is recorded and not said. @type {string|null} */
 let said = null;

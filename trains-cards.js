@@ -21,8 +21,9 @@ import { daysUntil, timetablePhase, dateWords, railwayToday, JOURNEY_PLANNER_URL
 import { parseJourney, findStation, journeyDateAt, journey, isoDate } from './trains-journey.js';
 import { stationView, busiestStations, matchStations, stoppingGrid, stopsKnown, stationBands, lastTrains } from './trains-stations.js';
 import { headlineChanges } from './trains-headlines.js';
+import { sayLookup } from './trains-status.js';
 import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME, DAY_NAMES,
-    leadWords, renderFurtherChanges, partialStopsNote, renderJourney, renderNoStation } from './trains-render.js';
+    leadWords, renderFurtherChanges, partialStopsNote, renderJourney, renderNoStation, timeHint } from './trains-render.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
 /** @typedef {'dep'|'arr'} Dir */
@@ -173,9 +174,6 @@ let lookupKey = '';
 /** The dates the page's timetable switch turns on (`timetablePhase`). */
 const DATES = Object.freeze({ change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL });
 
-/** A time the box cannot read — alone, or after a station it found. */
-const TIME_HINT = '<p class="card-explainer tr-lead">Type a time like 17:15, 1715 or 5.15pm.</p>';
-
 /** A clock time as 'HH:MM'. @param {Date} d */
 const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
@@ -194,6 +192,12 @@ const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinu
  * @param {PageState} state
  */
 export function renderLookup(state) {
+    answerLookup(state);
+    sayLookup();   // the answer's first lines, to a screen reader, when they changed (trains-status.js)
+}
+
+/** @param {PageState} state */
+function answerLookup(state) {
     const raw = /** @type {HTMLInputElement|null} */ (el('trLookupInput'))?.value ?? '';
     const typed = raw.trim();
     const result = el('trLookupResult');
@@ -213,7 +217,7 @@ export function renderLookup(state) {
     if (!typed) { setHTML(result, ''); return; }
     if (!ask.place) {
         const at = ask.time;
-        setHTML(result, !at ? TIME_HINT
+        setHTML(result, !at ? timeHint(ask.timeText)
             : lookupHtml({ at, day: state.day, nowRows: TIMETABLES.now[state.day].dep, decRows: TIMETABLES.dec[state.day].dep,
                 started: p.started, ended: p.phase === 'ended', labels: { old: p.oldLabel, new: p.newLabel }, change: CHANGE_DATE, stations: STATIONS }));
         return;
@@ -221,7 +225,7 @@ export function renderLookup(state) {
     // Equal matches go busiest first, on the timetable running, as the Stations tab's search orders them.
     const found = findStation(ask.place, STATIONS, busiestStations(TIMETABLES[p.started ? 'dec' : 'now'].SX.dep, Infinity));
     if (!found.crs) { setHTML(result, renderNoStation(ask.place, found.closest, STATIONS)); return; }
-    if (ask.timeText && !ask.time) { setHTML(result, TIME_HINT); return; }
+    if (ask.timeText && !ask.time) { setHTML(result, timeHint(ask.timeText)); return; }
     const at = ask.time ?? (isToday ? hhmm(now) : null);
     const j = journey({ crs: found.crs, at, date, timetables: TIMETABLES, dates: DATES });
     setHTML(result, renderJourney(j, { crs: found.crs, stations: STATIONS, asked: ask.time ? 'time' : isToday ? 'now' : 'day', now,
