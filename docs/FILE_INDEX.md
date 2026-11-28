@@ -293,6 +293,7 @@ roster-app/
 ├── links-selector-boot.js  ← 2-line bootstrap for links-selector.html (CSP blocks inline module scripts)
 ├── links-selector-core.js  ← the Links Selector's RULES: which line a date falls on, blank before `STARTS`, Christmas, what the address and device keep. Pure; links-selector-core.test.mjs
 ├── links-selector-render.js ← one proposal month from the Calendar's own cell builders (calendar-renderer.js); why not `buildCalendarContainer` is its header
+├── links-selector-tips.js  ← CARD_TIPS for the Links Selector's one `?` panel — what it is and how to read it — which is also its first-visit orientation
 ├── pdf-viewer.js           ← the in-app PDF viewer (`#pdfViewer`, newlink.html), drawing with PDF.js; why it exists is pdf-viewer-core.js's header. See also newlink.spec.js.
 ├── pdf-viewer-core.js      ← the PDF viewer's pure rules, including never offering to open a file inside an installed app's scope
 ├── link-designer.html              ← the link design workspace (visible to `CONFIG.LINKS_DESIGNERS` only)

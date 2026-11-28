@@ -12,12 +12,18 @@ import { collectFatalErrors, seedSession } from './helpers.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 import { proposalById } from '../link-designer-proposals.js';
 import { dayOn } from '../links-selector-core.js';
+// links-selector-app.js → WELCOME_KEY (the coordinator is not importable outside a page); the first-visit test fails if the two part.
+const WELCOME_KEY = 'myb_links_selector_welcome_seen';
 
 const ADMIN = CONFIG.ADMIN_NAMES[0];
 
 test.describe('links selector', () => {
     // Before the link starts, so the page opens on its first month, January 2027.
-    test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z')); });
+    test.beforeEach(async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
+        // Past the first visit, whose ? panel opens by itself (tested on its own, below).
+        await page.addInitScript((key) => localStorage.setItem(key, '1'), WELCOME_KEY);
+    });
 
     test('the admin sees January 2027: blank before the 17th, the proposal\'s days after it', async ({ page }) => {
         const errors = collectFatalErrors(page);
@@ -313,5 +319,49 @@ test.describe('links selector', () => {
         await expect(page.locator('#selectorNotForYou')).not.toContainText('yet');
         // New CEA Link is not theirs either, so the card offers no way there
         await expect(page.locator('#selectorNotForYouNewlink')).toHaveCount(0);
+    });
+});
+
+// A FIRST VISIT (owner, 28 Nov 2026: "nothing to say what it is and how to use it"): the ? panel opens by itself, once, and
+// the ? opens it again whenever it is wanted.
+test.describe('links selector — the first visit', () => {
+    /** A device that has never opened the page: the seeders mark the panel seen for every other spec (helpers.js), so it is
+     *  cleared ONCE, behind a sentinel — cleared on every load, a reload would be a first visit again. @param {import('@playwright/test').Page} page */
+    const firstVisit = (page) => page.addInitScript((key) => {
+        try { if (sessionStorage.getItem('__e2e_selector_first_visit')) return; sessionStorage.setItem('__e2e_selector_first_visit', '1'); } catch { /* private mode */ }
+        localStorage.removeItem(key);
+    }, WELCOME_KEY);
+
+    test('the ? panel opens by itself on a first visit, never again, and the ? reopens it', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
+        await seedSession(page, ADMIN);
+        await firstVisit(page);
+        await page.goto('/links-selector.html');
+        const panel = page.locator('#tipsLightbox');
+        await expect(panel).toBeVisible();
+        await expect(page.locator('#tipsLbTitle')).toHaveText('How to read the Links Selector');
+        await expect(panel).toContainText('A proposal, not your roster.');
+        await expect(panel).toContainText('Sunday 17 January 2027 (date not final)');
+        expect(await page.evaluate((key) => localStorage.getItem(key), WELCOME_KEY)).toBe('1');
+        await page.locator('#tipsLightboxClose').click();
+        await expect(panel).toBeHidden();
+        // the next visit opens on the month, not the panel
+        await page.reload();
+        await expect(page.locator('.calendar-grid')).toBeVisible();
+        await expect(panel).toBeHidden();
+        // and the ? beside the note opens it again
+        await page.locator('#selectorNoteBox .btn-card-tips').click();
+        await expect(panel).toBeVisible();
+        await expect(page.locator('#tipsLbTitle')).toHaveText('How to read the Links Selector');
+    });
+
+    test('a colleague the page refuses is not shown it', async ({ page }) => {
+        const colleague = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.bilingualContract && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
+        await seedSession(page, colleague);
+        await firstVisit(page);
+        await page.goto('/links-selector.html');
+        await expect(page.locator('#selectorNotForYou')).toBeVisible();
+        await expect(page.locator('#tipsLightbox')).toBeHidden();
+        await expect(page.locator('#selectorNoteBox')).toHaveCount(0);
     });
 });

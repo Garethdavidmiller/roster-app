@@ -27,7 +27,7 @@ import { sessionReady, reconcileExpiredIdentity } from './session.js';
 import { signOutAndLeave, onReturnToPage } from './page-session.js';
 import { startPage } from './page-start.js';
 import { navGatesFor, rolesFor, selectorRoles } from './auth-policy.js';
-import { createLightbox } from './overlay.js';
+import { createLightbox, openNoticeIfClear } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -36,7 +36,8 @@ import { enhanceSelect } from './select-sheet.js';
 import { initSwipeHandler, isSwipeCooldown } from './calendar-swipe.js';
 import { rovingCellFor } from './calendar-renderer.js';
 import { initCalendarTooltip, initCalendarKeyboard, initCalendarShortcuts } from './calendar-keyboard.js';
-import { lsGet, lsSet } from './ls.js';
+import { lsGet, lsSet, lsAvailable } from './ls.js';
+import { CARD_TIPS } from './links-selector-tips.js';
 import { formatDayMonth, formatDayMonthYear, formatClock, printedStamp, DAY_NAMES_FULL } from './date-format.js';
 import { proposalById, proposalDisplayName } from './link-designer-proposals.js';
 import { buildSelectorMonth } from './links-selector-render.js';
@@ -45,6 +46,9 @@ import { FIRST_MONTH, inRange, openingMonth, shiftTypesInMonth, hasBlankDays, in
 
 /** Where this device keeps the last choice — a proposal code and a line, nothing about the person. */
 export const STORE_KEY = 'myb_links_selector_choice';
+
+/** Set once the ? panel has opened by itself on a first visit, so it does not open by itself again. */
+export const WELCOME_KEY = 'myb_links_selector_welcome_seen';
 
 /** What the page is and who it is for, on the sign-in card and on the card a colleague it is not for is shown. */
 const ABOUT = Object.freeze({
@@ -114,7 +118,7 @@ function showNotForYou(member) {
         ${toNewlink}
         <a href="./" class="role-card-back">← Back to roster</a>`;
     document.querySelector('nav.controls')?.remove();
-    document.getElementById('selectorNote')?.remove();
+    document.getElementById('selectorNoteBox')?.remove();   // the note and its ?: nothing here to explain
     document.getElementById('calendarLegend')?.remove();
     document.getElementById('selectorPrintHead')?.remove();   // nothing chosen to print
     document.getElementById('calendarDisplay')?.replaceChildren(card);
@@ -361,4 +365,15 @@ function runSelector() {
     // The address says what is shown, from the first paint — a link copied straight away is the view on screen.
     try { history.replaceState(history.state, '', choiceQuery(proposal, line) + location.hash); } catch { /* a sandboxed frame */ }
     render();
+
+    // ── what it is and how to read it ─────────────────────────────────────────────────────────
+    // The app's own ? and Tips panel (tips-lightbox.js), and the FIRST-VISIT ORIENTATION is that same panel opened by
+    // itself (owner, 28 Nov 2026: "nothing to say what it is and how to use it") — the Link Designer's welcome, not a
+    // dated notice: a dated one expires and is then marked seen unshown, and this explanation never stops being needed.
+    // Flagged as it opens, so a colleague who leaves without closing it is not shown it again; never stacked on another
+    // overlay (`openNoticeIfClear` defers it, unflagged, to the next visit); and not where storage keeps no flag, where
+    // it would open on every visit.
+    const tips = initTipsLightbox(CARD_TIPS);
+    if (tips && !lsGet(WELCOME_KEY) && lsAvailable()
+        && openNoticeIfClear({ open: () => tips.open('selector') })) lsSet(WELCOME_KEY, '1');
 }

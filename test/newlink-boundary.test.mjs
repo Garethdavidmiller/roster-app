@@ -40,7 +40,7 @@ function reach(entry) {
 /** The proposals, and everything that exists only to show them — the Links Selector's modules too (27 Nov 2026), which put a
  *  proposal on DATES and so are the likelier of the two to be mistaken for a roster if one ever reached a roster page. */
 const PROPOSAL_MODULES = ['link-designer-proposals.js', 'newlink-data.js', 'newlink-render.js', 'newlink-config.js', 'newlink-app.js',
-    'links-selector-core.js', 'links-selector-render.js', 'links-selector-app.js'];
+    'links-selector-core.js', 'links-selector-render.js', 'links-selector-app.js', 'links-selector-tips.js'];
 
 /** Each roster page, and the surfaces in it a member reads as their own roster — named so the walk is checked to cover them. */
 const ROSTER_PAGES = {
@@ -82,7 +82,7 @@ test('the page\'s own modules are loaded by the page alone', () => {
 test('the Links Selector\'s modules are loaded by the Links Selector alone', () => {
     // It borrows the Calendar's cell builders and swipe (links-selector-render.js says why it does not borrow the Calendar's
     // month); the borrowing runs one way only. A roster module importing one of these is the leak above, a step early.
-    const own = ['links-selector-core.js', 'links-selector-render.js', 'links-selector-app.js'];
+    const own = ['links-selector-core.js', 'links-selector-render.js', 'links-selector-app.js', 'links-selector-tips.js'];
     /** @type {string[]} */ const strangers = [];
     for (const f of readFileSync(new URL('./service-worker.js', REPO_ROOT_URL), 'utf8').match(/'[\w.-]+\.js'/g) ?? []) {
         const file = f.slice(1, -1);

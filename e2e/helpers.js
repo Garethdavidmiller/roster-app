@@ -104,6 +104,9 @@ export function seedSession(page, name = 'G. Miller') {
         // time. The Link Designer specs set this key themselves, which is why only a sweep passing THROUGH
         // Link Designer met the panel; the one spec ABOUT it re-enables it with clearNoticeFlags.
         localStorage.setItem('myb_links_welcome_seen', '1');
+        // The Links Selector's ? panel opens by itself on a first visit too (v27.23), over the burger and the pickers, so
+        // every sweep through the page met it; the specs ABOUT it clear this once (`firstVisit`, links-selector.spec.js).
+        localStorage.setItem('myb_links_selector_welcome_seen', '1');
     }, [name, [...CALENDAR_NOTICE_FLAGS]]);
 }
 
@@ -392,7 +395,8 @@ export function seedCalendarMember(page, name = 'G. Miller') {
             if (sessionStorage.getItem('__e2e_member_flags_seeded')) return;
             sessionStorage.setItem('__e2e_member_flags_seeded', '1');
         } catch (_) { /* private mode: seed every load, as seedSession does */ }
-        for (const k of [...flags, 'myb_pc_ytd_notice_2_shown', 'myb_pc_hpp_notice_2526_shown', 'myb_links_welcome_seen']) localStorage.setItem(k, '1');
+        for (const k of [...flags, 'myb_pc_ytd_notice_2_shown', 'myb_pc_hpp_notice_2526_shown', 'myb_links_welcome_seen',
+            'myb_links_selector_welcome_seen']) localStorage.setItem(k, '1');
     }, [name, [...CALENDAR_NOTICE_FLAGS]]);
 }
 
