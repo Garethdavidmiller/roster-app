@@ -8,6 +8,8 @@ paths:
   - "test/al-leave-*.test.mjs"
   - "test/leave-file-*.test.mjs"
   - "e2e/operations.spec.js"
+  - "admin-auth.js"
+  - "test/admin-auth.test.mjs"
 ---
 # Operations page — area decisions
 

@@ -23,24 +23,6 @@ export function numVal(id) {
     return parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '');
 }
 
-/**
- * numVal, but floors an unparseable (NaN) result to `fallback`. The signed fields
- * (pension, Year-to-Date pay/tax) read numVal RAW after only a non-empty guard, so a
- * stray/pasted character (parseSmartFloat → NaN) would cascade £NaN through the whole
- * result card. Hours self-floor via intVal's `|| 0`; these need an explicit floor.
- * @param {string} id @param {number|null} fallback
- * @returns {number|null}
- */
-export function numValOr(id, fallback) {
-    // parseSmartFloatOrNull, NOT numVal: parseSmartFloat floors garbage to 0 (its `|| 0`), so
-    // the old Number.isFinite(numVal(id)) check was dead code — an unparseable Year-to-Date
-    // remnant (a lone "." or "-" left mid-edit, then autosaved) became £0, which flipped
-    // computeTax into cumulative mode and collapsed Income Tax to £0.00. A non-parseable OR
-    // empty value now genuinely returns the fallback ("not provided").
-    const v = parseSmartFloatOrNull(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '');
-    return v === null ? fallback : v;
-}
-
 /** @param {string} id */
 // Math.max(0, …) floors at zero: hours/minutes can never be negative, and on desktop the
 // numeric field will accept a typed/pasted "-5" (mobile's numeric keypad has no minus), which

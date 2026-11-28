@@ -105,6 +105,19 @@ export function constrainingTime(value, baseShiftFor) {
 }
 
 /**
+ * The refusal for too little rest between two shifts. A gap of nothing or less is not "rest" at all — the two shifts
+ * OVERLAP — so it says so, rather than "only -1h rest".
+ * @param {string} day the day being saved, as displayed @param {number} gap minutes between the two shifts
+ * @param {'after'|'before'} side the neighbour's side @param {string} other the neighbouring day, as displayed
+ * @returns {string}
+ */
+function restGapLine(day, gap, side, other) {
+    return gap <= 0
+        ? `${day}: overlaps the ${other} shift — need ${fmtHours(MIN_REST_MINS)} rest between shifts`
+        : `${day}: only ${fmtHours(gap)} rest ${side} ${other} shift — need ${fmtHours(MIN_REST_MINS)}`;
+}
+
+/**
  * Check the maximum-duration and minimum-rest rules across a pending save batch.
  *
  * @param {object} args
@@ -155,15 +168,11 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
             if (delta === -1) {
                 const prevEnd = effectiveEndMins(adjStart, adjEnd);
                 const gap = startMins + 24 * 60 - prevEnd;
-                if (gap < MIN_REST_MINS) {
-                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest after ${formatDate(adjISO)} shift — need ${fmtHours(MIN_REST_MINS)}`);
-                }
+                if (gap < MIN_REST_MINS) fail(date, restGapLine(formatDate(date), gap, 'after', formatDate(adjISO)));
             } else {
                 const nextStart = parseMinutes(adjStart);
                 const gap = nextStart + 24 * 60 - endMins;
-                if (gap < MIN_REST_MINS) {
-                    fail(date, `${formatDate(date)}: only ${fmtHours(gap)} rest before ${formatDate(adjISO)} shift — need ${fmtHours(MIN_REST_MINS)}`);
-                }
+                if (gap < MIN_REST_MINS) fail(date, restGapLine(formatDate(date), gap, 'before', formatDate(adjISO)));
             }
         });
     });

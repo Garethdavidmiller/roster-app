@@ -835,6 +835,26 @@ describe('F. a save on a member whose records have not been read is refused, not
         await save();
         assert.equal(_writes.length, 1);
     });
+
+    // …AND THE PREVIEW STATES NO FIGURES FROM THEM (admin-override-coverage.js): unread records are an empty slice,
+    // so a drawn preview counted no leave and asked nothing. It shows the empty state instead, until they land.
+    test('the preview draws no figures while the records are unread, and draws them once they land', () => {
+        /** @type {any[]} */ const drawn = [];
+        const { section } = wire({ cfg: { renderReady: (/** @type {any} */ ctx) => { drawn.push(ctx); return '<p>ready</p>'; } } });
+        _authority = false;
+        setRange(section, '2026-10-05', '2026-10-07');
+        assert.equal(drawn.length, 0, 'nothing is drawn from records that have not been read');
+        assert.equal(el('alPreview').className, 'al-preview empty');
+        assert.match(el('alPreview').textContent, /Still loading this member's saved changes/);
+        assert.equal(el('alSaveBtn').disabled, true);
+        _loadFailed = true;
+        section.updatePreview();
+        assert.match(el('alPreview').textContent, /Couldn't load this member's saved changes — reload the page/);
+        _authority = true; _loadFailed = false;
+        section.updatePreview();
+        assert.equal(drawn.length, 1);
+        assert.equal(el('alPreview').className, 'al-preview ready');
+    });
 });
 
 // G. THE CLICK ACTS ON THE RECORD AS IT STANDS NOW. A period deleted from the list under a drawn

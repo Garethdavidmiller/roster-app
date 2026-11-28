@@ -112,7 +112,7 @@ export function boxingDayLieuYear(member, boxingYear, overrides = []) {
  * @param {any} member @param {number|string} year @param {Array<any>} [overrides]
  * @returns {{ carried: number, late: number }}
  */
-export function boxingDayLieuSplit(member, year, overrides = []) {
+function boxingDayLieuSplit(member, year, overrides = []) {
     const y = parseInt(String(year), 10);
     return {
         carried: boxingDayLieuYear(member, y - 1, overrides) === y ? 1 : 0,
@@ -584,6 +584,9 @@ export function winningEntriesOfType(overrides, memberName, type) {
  * @returns {boolean}
  */
 export function isWorkingDate(memberObj, dateStr, ovByDate = null) {
+    // Layer 3 of the Sunday rule (CLAUDE.md): `recordRangeOverrides` writes a range's leave or absence only on the days
+    // this calls worked (through `rangeWriteDates`), so neither is written on a Sunday — both are in
+    // `SUNDAY_FORBIDDEN_TYPES` (override-utils.js).
     if (isSunday(dateStr)) return false;
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(dateStr) : null;
     // A Spare turn saved on 25 or 26 December is not work: the two days can never be spare days, in

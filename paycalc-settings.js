@@ -142,14 +142,25 @@ export function buildPensionFromSelect(timeline) {
 }
 
 /**
- * This period's DEFAULT pension as the £ number the field would show: the period-aware scheme
- * default (PENSION_STEPS via getPensionDefault) × the joining-period pro-rate, rounded to 2dp.
- * The ONE source for every comparison/write of it. No period → the bare current default.
+ * Payslip `p`'s DEFAULT pension, UNROUNDED: the period-aware scheme default (PENSION_STEPS via
+ * getPensionDefault) × the joining-period pro-rate. The ONE statement of that rule — the field's
+ * figure below rounds it, and a saved payslip with no figure of its own is priced on it as it stands
+ * (paycalc-hpp.js → `savedPeriodPension`, which passes the factor it already holds).
+ * @param {any} p @param {number} [factor] getProRateFactor(p), unless the caller holds it
+ * @returns {number}
+ */
+export function joinerDefaultPension(p, factor = getProRateFactor(p)) {
+  return (parseFloat(String(getPensionDefault(p))) || 0) * factor;
+}
+
+/**
+ * This period's DEFAULT pension as the £ number the field would show: `joinerDefaultPension`,
+ * rounded to 2dp. The ONE source for every comparison/write of it. No period → the bare current default.
  * @param {any} [p] @returns {number}
  */
 export function periodDefaultPension(p) {
   return p
-    ? parseFloat((getPensionDefault(p) * getProRateFactor(p)).toFixed(2))
+    ? parseFloat(joinerDefaultPension(p).toFixed(2))
     : (parseFloat(String(getPensionDefault())) || 0);
 }
 

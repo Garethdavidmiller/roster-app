@@ -16,7 +16,7 @@ import {
   taxYearForPeriod, capHours, getLondonAllowanceForPeriod, awardFromForYear, awardRatesFor,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, periodByNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible, payslipMayBeInHand } from './paycalc-periods.js';
-import { getLoggedMember, awardGrade, periodRate, settledRateFor, getEffectiveContr, getProRateFactor, getPensionDefault, isPensionOptedOut, isPeriodPriced } from './paycalc-settings.js';
+import { getLoggedMember, awardGrade, periodRate, settledRateFor, getEffectiveContr, getProRateFactor, joinerDefaultPension, isPensionOptedOut, isPeriodPriced } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
@@ -83,7 +83,7 @@ export function _decodeHours(p, d) {
 export function savedPeriodPension(p, d, factor) {
   if (isPensionOptedOut(p)) return 0;
   const own = d && d.pension != null ? parseSmartFloatOrNull(String(d.pension)) : null;
-  return own != null ? Math.max(0, own) : (parseFloat(String(getPensionDefault(p))) || 0) * factor;
+  return own != null ? Math.max(0, own) : joinerDefaultPension(p, factor);
 }
 
 // bhCapped mirrors calculate(): when all contracted hours are Saturday, bhCapped = 0

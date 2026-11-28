@@ -45,9 +45,9 @@
 // can name those days before the write instead of calling them "skipped" (whole-app check, 10 Nov 2026).
 
 import { projectAnnualLeaveOverage, parseISODate, isSunday, getBaseShift } from './roster-data.js';
-import { isRestShift, isBeforeMemberStart, nextReplacedType, nextLeaveYear, shouldReplaceOverride } from './override-utils.js';
+import { isRestShift, isBeforeMemberStart, nextLeaveYear, shouldReplaceOverride } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
-import { swapDecisionDates, rangeWriteDates, absenceHiddenDates, replacedTypeForSwap } from './al-swapped-days.js';
+import { swapDecisionDates, rangeWriteDates, absenceHiddenDates, replacedTypeOnWrite } from './al-swapped-days.js';
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType, lowersAllowance,
     spareWeekDays } from './al-entitlement.js';
 import { isChristmasClosureDate, allowanceYearsOf } from './christmas-leave.js';
@@ -254,7 +254,7 @@ function writtenLeave(memberName, date, existing, swapped) {
  */
 function writtenRecord(memberName, w, existing) {
     return { memberName, date: w.date, type: w.type, value: w.value ?? '', createdAt: { seconds: 4102444800 },   // 2100-01-01: the day's winner
-        replacedType: w.swapped ? replacedTypeForSwap(existing, w.type) : nextReplacedType(existing, w.type),
+        replacedType: replacedTypeOnWrite(existing, w.type, w.swapped),
         leaveYear: nextLeaveYear(existing, w.type, w.date) };
 }
 

@@ -21,7 +21,8 @@ import { saveFailureMessage } from './claim-retry.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-saved-changes.js';
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
-         resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays, NOT_ON_ROSTER_LINE } from './admin-week-editor.js';
+         resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays, NOT_ON_ROSTER_LINE } from './admin-week-editor.js';
+import { resetBulkPills } from './admin-bulk-bar.js';
 import { stagedDayChanges } from './admin-day-change.js';
 export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
          renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight, sendingDays,
@@ -153,7 +154,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     const drawn = drawnRecords(document.getElementById('weekGrid')), shownDays = drawnDays(document.getElementById('weekGrid'));
     // Each day's before → after, read off the rows before the save redraws them: the receipt says what the
     // preview beside Save said (owner, 27 Nov 2026).
-    const changes = stagedDayChanges(document.getElementById('weekGrid'), toSave);
+    const changes = stagedDayChanges(document.getElementById('weekGrid'), toSave, shownDays);
     const removedRows = toDelete.map(id => drawn.get(id) ?? getAllOverrides().find(o => o.id === id) ?? null);
     const total       = toSave.length + toDelete.length;
 

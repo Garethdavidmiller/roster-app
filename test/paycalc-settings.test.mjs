@@ -83,7 +83,7 @@ mock.module('../paycalc-roster-suggestions.js', {
 const { SK, periodKey } = await import('../paycalc-migrations.js');
 const {
     settledRate, settledRateFor, getPensionDefault, isPensionOptedOut, gradeForRole,
-    periodDefaultPension, getProRateFactor, getEffectiveContr, periodRate, gradeToOffer,
+    periodDefaultPension, joinerDefaultPension, getProRateFactor, getEffectiveContr, periodRate, gradeToOffer,
 } = await import('../paycalc-settings.js');
 const { awardRatesFor, getPensionForPeriod, GRADES, computeGross, getRateForPeriod, getLondonAllowanceForPeriod } = await import('../paycalc-calc.js');
 // The REAL period grid and the REAL year engine, both running against the REAL settings module
@@ -479,6 +479,31 @@ describe('the joining period’s pension is pro-rated — and only for somebody 
         const v = periodDefaultPension(p);
         assert.equal(v, parseFloat(v.toFixed(2)));
         assert.notEqual(getPensionDefault(p) * getProRateFactor(p), v, 'the raw product is already 2dp — this case proves nothing');
+    });
+
+    // ONE RULE, NOT THREE (28 Nov 2026): the field's figure and the figure a saved payslip with no
+    // pension of its own is priced on (paycalc-hpp.js → savedPeriodPension) were each a copy of
+    // "default × pro-rate". Both now ask `joinerDefaultPension`; this sweep holds every payslip of the
+    // grid, for joiners on every day of a period and the three who are never scaled, to the two
+    // formulas they replaced — to the last binary digit, so no £ anywhere moved.
+    test('every payslip prices exactly as the two copies it replaced did', async () => {
+        const { savedPeriodPension } = await import('../paycalc-hpp.js');
+        const ps = getPeriods(), anchor = periodsInYear()[6];
+        const who = [{}, { startDate: joinedPartWay(anchor, 10), noProRate: true },
+            ...Array.from({ length: 28 }, (_, i) => ({ startDate: joinedPartWay(anchor, i + 1) }))];
+        let scaled = 0;
+        for (const fields of who) {
+            beMember(fields);
+            for (const p of ps) {
+                const f = getProRateFactor(p), full = getPensionDefault(p);
+                if (f > 0 && f < 1) scaled++;
+                assert.equal(joinerDefaultPension(p), (parseFloat(String(full)) || 0) * f, `P${p.num}: the unrounded default moved`);
+                assert.equal(savedPeriodPension(p, null, f), (parseFloat(String(full)) || 0) * f, `P${p.num}: a saved payslip's pension moved`);
+                assert.equal(periodDefaultPension(p), parseFloat((full * f).toFixed(2)), `P${p.num}: the field's figure moved`);
+            }
+        }
+        assert.ok(scaled >= 27, `the sweep reached ${scaled} part periods — too few to prove the joining case`);
+        beNobody();
     });
 
     test('no period in hand returns the bare default — the boot paint, before a payslip is resolved', () => {

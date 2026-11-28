@@ -65,8 +65,10 @@ export function initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits,
 //   • The two WRITE functions (executeSave, recordRangeOverrides) gate INTERNALLY: built from an empty
 //     `_allOverrides`, an existing roster_import doc isn't deleted (duplicate overrides), a not-yet-loaded
 //     worked Sunday could be erased by an RD correction, and the in-flight initial snapshot resolving
-//     AFTERWARDS could clobber the post-write cache mutation. Both disable the Save button synchronously
-//     before their first await, so the internal gate can't open a double-tap window.
+//     AFTERWARDS could clobber the post-write cache mutation. The Save button is disabled synchronously
+//     before the first await — by executeSave itself, and for a range by its caller (admin-range-booking.js,
+//     `saving` and `setSaveInFlight`), which recordRangeOverrides does not do — so the gate opens no
+//     double-tap window.
 //   • The Change-a-Shift click handler (admin-app.js) gates too, for its PRE-write cache reads —
 //     validateShiftRules (the ±1-day rest-gap check) and the AL over-entitlement check. It disables
 //     Save BEFORE the await ("disable before the first await") so no double-tap window opens.
@@ -671,6 +673,9 @@ async function _loadOverridesInner(opts) {
         // leave "Loading…" over a load that has stopped — unless edits are staged: those rows belong to
         // a member already loaded, and a failed refresh must not wipe them (review A10).
         if (!_hasStagedEdits()) _renderWeekGrid();
+        // …and the leave cards redraw too, so a range preview waiting on this member says the read failed rather than
+        // "Still loading" over a load that has stopped (admin-range-booking.js asks `loadFailedFor`).
+        _onAfterLoad();
         if (tableBody) {
             // RETRY, NOT RELOAD. Refusing to render a list we could not read is right; a reload re-runs
             // sign-in, the SW handshake and every card, and discards staged edits in the week grid.

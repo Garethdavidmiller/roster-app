@@ -40,6 +40,18 @@ import { clearedDaysLine, withClearedDays } from './admin-own-write.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim-retry.js';
 /**
+ * Why a card cannot yet say anything about `member`'s records — the preview's empty state and the Save click's
+ * refusal, in the week grid's words. @param {string} member @returns {string}
+ */
+function unreadLine(member) {
+    return globalThis.navigator?.onLine === false
+        ? "You're offline, so this member's saved changes can't be checked — reconnect, then try again."
+        : loadFailedFor(member)
+            ? "Couldn't load this member's saved changes — reload the page before recording this."
+            : "Still loading this member's saved changes — try again in a moment.";
+}
+
+/**
  * Wire one date-range booking section (AL or sick).
  *
  * @param {object} cfg
@@ -202,6 +214,10 @@ export function createRangeBookingSection(cfg) {
 
         const rangeErr = cfg.validateRange(dates);
         if (rangeErr) { _setError(rangeErr); return; }
+        // NO FIGURES FROM RECORDS THAT HAVE NOT BEEN READ (admin-override-coverage.js): an unread member's records are
+        // an empty slice, so the preview would count no leave taken and ask nothing about a swapped-in day. The
+        // banner and the Recorded dates list ask the same; the Save click refuses in the same state.
+        if (!hasOverrideAuthorityFor(member)) { _setEmpty(unreadLine(member)); return; }
 
         const fromDisp = formatDisplay(dates[0]);
         const toDisp   = formatDisplay(dates[dates.length - 1]);
@@ -349,14 +365,7 @@ export function createRangeBookingSection(cfg) {
         if (!member || !dates || !dates.length) return;
 
         // NOT ON A RECORD THAT HAS NOT BEEN READ (header) — the week grid's refusal, in its words.
-        if (!hasOverrideAuthorityFor(member)) {
-            _say('error', globalThis.navigator?.onLine === false
-                ? "⚠ You're offline, so this member's saved changes can't be checked — reconnect, then try again."
-                : loadFailedFor(member)
-                    ? "⚠ Couldn't load this member's saved changes — reload the page before recording this."
-                    : "⚠ Still loading this member's saved changes — try again in a moment.");
-            return;
-        }
+        if (!hasOverrideAuthorityFor(member)) { _say('error', `⚠ ${unreadLine(member)}`); return; }
         // THE SAVE ACTS ON THIS MOMENT'S PLAN, NOT THE PREVIEW'S (header): a rest day that now needs
         // the question is asked, by redrawing the preview, and named — never silently left out.
         const plan = _plan(member, dates);

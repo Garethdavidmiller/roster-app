@@ -56,9 +56,9 @@
  */
 
 import { db, collection, doc, writeBatch, runTransaction, serverTimestamp, writeWithClaimRetry, whenOwnWritesSentFor, COLLECTIONS } from './firebase-client.js';
-import { buildOverrideWrite, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
+import { buildOverrideWrite, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { sameOverrideRecord } from './override-compare.js';
-import { replacedTypeForSwap } from './al-swapped-days.js';
+import { replacedTypeOnWrite } from './al-swapped-days.js';
 import { shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 import { isRdwEncoded, stripRdw } from './roster-review-states.js';
 import { parseISODate } from './roster-data.js';
@@ -115,7 +115,7 @@ function planChunk(chunk, currentUser) {
         // work it, over a moved January leave day which year's allowance it comes out of.
         sets.push({ ref: doc(collection(db, COLLECTIONS.overrides)), data: buildOverrideWrite(
             { memberName, date, type, value: savedValue, note: '', source: 'roster_import', changedBy: currentUser,
-              replacedType: swapped ? replacedTypeForSwap(replacedFrom, type) : nextReplacedType(replacedFrom, type),
+              replacedType: replacedTypeOnWrite(replacedFrom, type, swapped),
               leaveYear: nextLeaveYear(replacedFrom, type, date) },
             stamp) });
     }
