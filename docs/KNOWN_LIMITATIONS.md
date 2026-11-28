@@ -37,8 +37,8 @@ left, each for a decision rather than a default:
   `OVERTIME_AVAILABILITY.md` → Paused says what is switched off.
 - **The Link Designer is paused too** (owner, 27 Nov 2026), the same way: `CONFIG.LINK_DESIGNER_ENABLED`, every
   saved design kept. `LINK_DESIGNER_REFERENCE.md` → Paused.
-- **The Links Selector is the admin's beta** (owner, 27 Nov 2026) until `CONFIG.LINKS_SELECTOR_OPEN`, and the day it
-  draws the new link from, Sunday 17 January 2027, is PROVISIONAL (`STARTS` in `links-selector-core.js`): when the day
+- **The Links Selector is open to the New CEA Link page's audience** (owner, 28 Nov 2026; `CONFIG.LINKS_SELECTOR_OPEN`),
+  and the day it draws the new link from, Sunday 17 January 2027, is PROVISIONAL (`STARTS` in `links-selector-core.js`): when the day
   is set, change it and `newlink-config.js` → `STARTS` together (`links-selector-core.test.mjs` holds the month).
 
 ## The Pages mirror costs every cold load 21% more bytes (measured 5 Sep 2026)
