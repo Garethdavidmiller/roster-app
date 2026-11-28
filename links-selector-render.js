@@ -40,7 +40,7 @@
 import { MONTH_NAMES, isSameDay, isBankHoliday, isChristmasDay, isEasterSunday, isPayday, isCutoffDate, isWorkedShift, getShiftClass, shiftBadgeParts, escapeHtml } from './roster-data.js';
 import { createCalendarHeader, createDayCell, dayCellParts, dayCellName, dayMarkers, shiftWords, splitShiftLine, CHRISTMAS_LEAVE_WORDS } from './calendar-renderer.js';
 import { ROTATING_LINES } from './link-designer-design.js';
-import { dayOn, monthLines, isCoverLine, compareRows } from './links-selector-core.js';
+import { dayOn, monthLines, isCoverLine, compareRows, countedDates, dayTotals, totalsWords, totalsRows } from './links-selector-core.js';
 import { DAY_NAMES, DAY_NAMES_FULL } from './date-format.js';
 
 // The app's one list of day names (date-format.js), as the Calendar's grid reads it.
@@ -49,6 +49,44 @@ const SHORT_DAY_NAMES = DAY_NAMES;
 
 /** No member is drawn, so no member's `permanentShift` forces a badge: every worked day wears its time's own kind. */
 const NO_MEMBER = Object.freeze({});
+
+/**
+ * WHAT THE MONTH (OR YEAR) ADDS UP TO, as a list (links-selector-core.js → "WHAT A MONTH ADDS UP TO"): one item a count,
+ * each with its kind's emoji. A list, so a screen reader says how many there are and reads them one by one.
+ * @param {import('./links-selector-core.js').DayTotals} totals
+ * @returns {string} HTML
+ */
+function totalsList(totals) {
+    return `<ul class="sel-totals-list">${totalsWords(totals).map(t =>
+        `<li class="sel-total sel-total--${t.key}"><span class="sel-total-ico" aria-hidden="true">${t.icon}</span>`
+        + `<span>${escapeHtml(t.words)}</span></li>`).join('')}</ul>`;
+}
+
+/**
+ * Where the count starts, when it is not the 1st: "from 17 January". @param {ReadonlyArray<Date>} dates the counted days
+ * @param {number} year @param {number} firstMonth 0-indexed
+ */
+function countedFrom(dates, year, firstMonth) {
+    const first = dates[0];
+    return first && (first.getFullYear() !== year || first.getMonth() !== firstMonth || first.getDate() !== 1)
+        ? `from ${first.getDate()} ${MONTH_NAMES[first.getMonth()]}` : '';
+}
+
+/**
+ * The block under a month or a year: what it adds up to, for the week chosen.
+ * @param {string} what "February" or "2027" @param {ReadonlyArray<Date>} dates @param {number} year @param {number} firstMonth
+ * @param {import('./links-selector-core.js').DayTotals} totals @param {number} startLine
+ * @returns {HTMLElement}
+ */
+function totalsBlock(what, dates, year, firstMonth, totals, startLine) {
+    const block = document.createElement('section');
+    block.className = 'sel-totals';
+    const from = countedFrom(dates, year, firstMonth);
+    block.setAttribute('aria-label', `${what} in total`);
+    block.innerHTML = `<p class="sel-totals-head"><strong>${escapeHtml(what)} in total</strong>${from ? `, ${from}` : ''}`
+        + ` · starting on Week ${startLine}</p>${totalsList(totals)}`;
+    return block;
+}
 
 /**
  * The words the Calendar's day cell is NAMED by, in its order, for one proposal day.
@@ -185,12 +223,20 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
     anchor?.setAttribute('tabindex', '0');
 
     container.appendChild(grid);
+    const dates = countedDates(year, month);
+    if (dates.length) container.appendChild(totalsBlock(MONTH_NAMES[month], dates, year, month,
+        dayTotals(date => dayOn(proposal, startLine, date), dates), startLine));
     return container;
 }
 
 /** Team Week View's cell for a kind of day (calendar-team-view.js → getTeamCellDisplay), by the Calendar's own classes. */
 const TV_CLASS = Object.freeze({ 'early-shift': 'tv-early', 'late-shift': 'tv-late', 'night-shift': 'tv-night', 'rest-day': 'tv-rest',
     'spare-day': 'tv-spare', 'al-day': 'tv-al' });
+
+/** The fill a count's numbers sit on: the Team View cell of the kind of day it counts. A weekend and a Sunday shift are not one
+ *  kind, so they sit on white. */
+const TOTAL_FILL = Object.freeze(/** @type {Record<string, string>} */ ({ early: 'tv-early', late: 'tv-late', night: 'tv-night',
+    spare: 'tv-spare', rest: 'tv-rest', christmasLeave: 'tv-al' }));
 
 /**
  * One column of a side-by-side table: a proposal from the chosen week, or the reader's own roster today.
@@ -276,6 +322,19 @@ export function buildSelectorTable(columns, startLine, year, month, opts) {
         }).join('');
         return `<tr>${dayHead}${cells}</tr>`;
     }).join('');
+    // What each column adds up to, over the SAME days in every column — the days from the link's start — so "Your roster
+    // today" is never counted over a longer month than the proposal beside it.
+    const dates = countedDates(year, month);
+    const from = countedFrom(dates, year, month);
+    // A row per count and a number per column, headed like a week: the numbers for one count sit side by side, as the days do.
+    const totalsRow = dates.length ? `<tbody class="cmp-totals"><tr class="cmp-week"><th scope="colgroup" colspan="${span + 1}">`
+        + `${escapeHtml(monthName)} in total${from ? `, ${escapeHtml(from)}` : ''}</th></tr>`
+        + totalsRows(columns.map(c => dayTotals(c.dayAt, dates))).map(r =>
+            `<tr class="cmp-total-row cmp-total--${r.key}"><th scope="row" class="tv-name-col cmp-total-name">`
+            + `${r.icon ? `<span class="cmp-total-ico" aria-hidden="true">${r.icon}</span> ` : ''}${escapeHtml(r.label)}</th>`
+            + r.counts.map((n, i) => `<td class="tv-cell cmp-total-n ${TOTAL_FILL[r.key] ?? ''}${colClass(columns[i])}">${n}</td>`).join('')
+            + '</tr>').join('')
+        + '</tbody>' : '';
     const foot = [
         sundayWorked ? 'Sunday shifts are overtime.' : '',
         cover ? 'Spare is a cover week: four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.' : '',
@@ -286,7 +345,7 @@ export function buildSelectorTable(columns, startLine, year, month, opts) {
     wrap.innerHTML = `<table class="team-table cmp-table cmp-cols-${span}">
         <caption class="visually-hidden">${escapeHtml(opts.caption)}: ${monthName} ${year}</caption>
         <thead><tr><th scope="col" class="tv-name-col">Day</th>${head}</tr></thead>
-        <tbody>${body}</tbody></table>${foot ? `<p class="cmp-foot">${foot}</p>` : ''}`;
+        <tbody>${body}</tbody>${totalsRow}</table>${foot ? `<p class="cmp-foot">${foot}</p>` : ''}`;
     container.appendChild(wrap);
     return container;
 }
@@ -349,5 +408,8 @@ export function buildSelectorYear(proposal, startLine, year, opts = {}) {
         grid.appendChild(section);
     }
     container.appendChild(grid);
+    const dates = countedDates(year, first, last);
+    if (dates.length) container.appendChild(totalsBlock(String(year), dates, year, first,
+        dayTotals(date => dayOn(proposal, startLine, date), dates), startLine));
     return container;
 }

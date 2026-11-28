@@ -50,6 +50,12 @@ export const CARD_TIPS = Object.freeze({
                 { icon: '🎄', html: 'On Christmas Day and Boxing Day, a day you’d be due at work is annual leave that does not come off the allowance.' },
                 { icon: '🚫', html: 'No leave, absence or changed shift is shown: a proposal has none.' },
             ] },
+            { heading: 'The totals', items: [
+                { icon: '🔢', html: 'Under each month, and each year, is what it adds up to: <strong>earlies, lates, rest days and full weekends off</strong>, then nights, spare days and Sunday shifts where there are any. In Compare all and With my roster they are rows at the bottom, one number for each column.' },
+                { icon: '🛋️', html: 'A <strong>full weekend off</strong> is a Saturday and the Sunday after it, both rest days.' },
+                { icon: '💼', html: 'Sunday shifts are counted on their own, because they are overtime, not among the earlies and lates.' },
+                { icon: '🔍', html: 'They count only the week you chose to start on, and only the days from the start of the link, so try a few weeks before you decide.' },
+            ] },
             { heading: 'To compare them', items: [
                 { icon: '📆', html: '<strong>Year</strong>, in the switch under the pickers, shows the proposal’s whole year, a small month at a time, each day coloured by what it is. Select a month to see it day by day. <strong>Month</strong> goes back.' },
                 { icon: '⚖️', html: '<strong>Compare all</strong> sets every proposal side by side: a row for each day, a column for each proposal, all from the week you chose. <strong>Month</strong> goes back.' },

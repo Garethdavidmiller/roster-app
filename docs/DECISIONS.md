@@ -1769,3 +1769,5 @@ base roster only** — `getBaseShift` and Christmas leave, the Calendar's own ru
 publishes — and nothing RECORDED (leave, absence, a changed shift: the owner's "Leave out" for this page stands), so it
 reads no Firestore and its labels say so. The boundary that matters is unchanged: no roster page can reach a proposal
 (`newlink-boundary.test.mjs`); a proposal page reading a public pattern was never what it guards against.
+
+**What a month adds up to** (owner, 28 Nov 2026): the Links Selector's totals — `links-selector-core.js` → its rules.
