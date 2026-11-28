@@ -246,9 +246,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         setTimeout(() => { if (_panelOpen) closeBtn?.focus(); }, FOCUS_DELAY_MS);
     }
 
-    // Shared closed-state DOM mutations. Callers move focus OUT of the panel
-    // before calling this, so we never set aria-hidden over the focused element.
+    // Shared closed-state DOM mutations. Focus is moved OUT of the panel first, so aria-hidden never lands on the
+    // focused element. closePanel and closePanelFromBack hand it to the burger themselves; the two visual-only
+    // closes did not, and left it on a hidden ✕ or row (28 Nov 2026). So it is done HERE, only where focus is still
+    // inside the panel. It steals nothing: what opens next — the info panel, App Notices — takes focus to its own ✕
+    // FOCUS_DELAY_MS later, and a navigation leaves the page.
     function _applyClosedState() {
+        if (panel.contains?.(document.activeElement)) burger.focus();
         _panelOpen = false;
         _stopBodyFade(); _stopBodyFade = () => {};
         panel.setAttribute('aria-hidden', 'true');

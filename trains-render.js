@@ -48,7 +48,7 @@ const DEFAULT_LABELS = Object.freeze({ old: 'Now', new: `From ${dateWords(CHANGE
  * So the two cards that answer a question say first where their times come from, with the planner one tap away,
  * as the overview's own line does (trains-cards.js → `renderOverview`).
  */
-const ENDED_NOTE = '<p class="card-explainer tr-lead"><strong>These times come from timetables that have ended.</strong> '
+const ENDED_NOTE = '<p class="card-explainer tr-lead tr-ended"><strong>These times come from timetables that have ended.</strong> '
     + `Check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> for today’s trains.</p>`;
 
 /**
@@ -385,7 +385,7 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
         + `<span class="tr-grid-min">:${String(c.minute).padStart(2, '0')}</span>`
         + `<span class="tr-grid-end">${esc(SHORT[c.end] ?? stations[c.end] ?? c.end)}</span>`
         // Two Aylesbury columns look alike until the route is named; the dots below agree with it.
-        + (c.via === 'H' ? '<span class="tr-grid-via">via Wycombe</span>' : c.via === 'A' ? '<span class="tr-grid-via">via Amersham</span>' : '')
+        + (c.via === 'H' ? '<span class="tr-grid-via">via High Wycombe</span>' : c.via === 'A' ? '<span class="tr-grid-via">via Amersham</span>' : '')
         + (c.hours < c.of ? `<span class="tr-grid-via">${c.hours} of ${c.of} hours</span>` : '')
         + `<span class="sr-only">${col === i ? ', showing only its stops' : ', show only its stops'}</span></button></th>`).join('') + '</tr>';
     const origin = '<tr class="tr-grid-origin"><th scope="row" class="tr-grid-st">London Marylebone</th>'
@@ -659,6 +659,33 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
         + `<div><h3 class="tr-near-head">${esc(labels.new)}</h3>${list(near.dec, onlyDec)}</div></div>` + barNote;
 }
 
+/**
+ * The day a date is when the books hold an ordinary day's trains for it that may not run: 'Christmas Day' or
+ * 'Boxing Day', else null (`renderJourney`'s header). @param {Date} date @returns {string|null}
+ */
+export const holidayOf = (date) => date.getMonth() !== 11 ? null
+    : date.getDate() === 25 ? 'Christmas Day' : date.getDate() === 26 ? 'Boxing Day' : null;
+
+/** What Find a train says of Christmas Day, when no Chiltern train runs (owner, 28 Nov 2026; `renderJourney`). */
+export const NO_TRAINS_CHRISTMAS = 'No Chiltern trains run on Christmas Day.';
+
+/** Words that name a day — "tomorrow", "Monday", "sat", "weekend" — for which the day tabs are the way to ask. */
+export const DAY_WORDS = /\b(?:today|tonight|tomorrow|yesterday|weekends?|weekdays?|christmas|boxing|mon|tues?|weds?|thu|thurs?|fri|sat|sun|(?:mon|tues|wednes|thurs|fri|satur|sun)days?)\b/i;
+
+/**
+ * What the box says of a time it cannot read (trains-cards.js → `renderLookup`). A bare hour — "Gerrards Cross for 9" —
+ * is never guessed at (`parseTypedTime`), but answered with the ways to write it: "9" could be 09:00 or 21:00, and the
+ * box's general example did not say why "9" failed. Anything else, the example.
+ * @param {string} typed  the time as typed
+ * @returns {string} HTML
+ */
+export function timeHint(typed) {
+    const h = /^\d{1,2}$/.test(typed.trim()) ? Number(typed) : -1;
+    const ways = h >= 1 && h <= 12 ? `add the minutes or am/pm: ${String(h).padStart(2, '0')}:00, ${h}am or ${h}pm`
+        : h >= 13 && h <= 23 ? `add the minutes: ${h}:00` : '';
+    return `<p class="card-explainer tr-lead">${ways ? `“${esc(typed.trim())}” is not a time this box reads — ${ways}.` : 'Type a time like 17:15, 1715 or 5.15pm.'}</p>`;
+}
+
 /** What the journey box says when it cannot read what was typed: how to ask, in the box's own example. */
 export const JOURNEY_HINT = 'Type a station, a time like 17:15, 1715 or 5.15pm, or both: Aylesbury, after 17:15.';
 
@@ -678,9 +705,16 @@ export const JOURNEY_HINT = 'Type a station, a time like 17:15, 1715 or 5.15pm, 
  *
  * CHRISTMAS IS NOT HERE. A date in the weeks Chiltern is still changing (`timetable.festive`, the window the
  * overview's `#trFestive` line is shown for) carries that line too: the answer names the date and says
- * "Scheduled", and without it read as the time to tell a customer for Christmas Eve.
+ * "Scheduled", and without it read as the time to tell a customer for Christmas Eve. On 25 and 26 December
+ * (`holidayOf`) even that was too little: the books hold an ordinary Friday's trains for Christmas Day, and a
+ * boxed 08:27 marked "Scheduled" was a train that does not run. NO CHILTERN TRAIN RUNS ON CHRISTMAS DAY (owner,
+ * 28 Nov 2026), so that day answers with that sentence and no train, and a late question on Christmas Eve says it
+ * of the next day too. Boxing Day's answer drops "Scheduled" and leads with what the trains are — an ordinary
+ * day's — and the planner, which has the day's own.
  *
- * WORDS IT DID NOT READ ("Aylesbury tomorrow", `unused`) are said first, so the answer is not taken for them.
+ * WORDS IT DID NOT READ ("Aylesbury tomorrow", `unused`) are said first, so the answer is not taken for them —
+ * with how to ask for another day only when they name one (`DAY_WORDS`), and, for "via Amersham", what the
+ * answer does with a route.
  * @param {ReturnType<typeof import('./trains-journey.js').journey>} j
  * @param {{ crs: string, stations: Readonly<Record<string, string>>, asked: 'time'|'now'|'day', now: Date, others?: string[], unused?: string }} o
  *   asked — a time was typed; no time, today, so from now; or no time on another day, so from its first train ·
@@ -691,8 +725,12 @@ export const JOURNEY_HINT = 'Type a station, a time like 17:15, 1715 or 5.15pm, 
 export function renderJourney(j, { crs, stations, asked, now, others = [], unused = '' }) {
     const name = stations[crs] ?? crs;
     const on = (/** @type {Date} */ d) => dateWords(isoDate(d), 0, { weekday: true });
+    const planner = `<a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a>`;
+    // 25 and 26 December: no "Scheduled", and what the trains are, first (the header).
     const meta = (/** @type {import('./trains-journey.js').JourneyDay} */ day) => `<p class="tr-jr-meta"><span>${esc(on(day.date))}</span>`
-        + `<span aria-hidden="true">·</span><span>${esc(day.timetable.label)}</span><span class="tr-jr-sched">Scheduled</span></p>`;
+        + `<span aria-hidden="true">·</span><span>${esc(day.timetable.label)}</span>${holidayOf(day.date) ? '' : '<span class="tr-jr-sched">Scheduled</span>'}</p>`
+        + (holidayOf(day.date) === 'Boxing Day' ? `<p class="card-explainer tr-lead tr-jr-holiday"><strong>${esc(holidayOf(day.date))}’s trains are not on this page — these are an ordinary `
+            + `${esc(day.date.toLocaleDateString('en-GB', { weekday: 'long' }))}’s.</strong> Check ${planner}.</p>` : '');
     /** One train: its time and end, its route, when it gets there, and its stops on tap. */
     const train = (/** @type {import('./trains-journey.js').Departure} */ t, /** @type {boolean} */ via,
         /** @type {import('./trains-journey.js').Departure|null} */ first) => {
@@ -721,19 +759,32 @@ export function renderJourney(j, { crs, stations, asked, now, others = [], unuse
         ? `<div class="tr-picks tr-jr-others"><p class="tr-picks-label">Or did you mean</p>${others.map(c =>
             `<button type="button" class="tr-pick" data-journey="${esc(c)}">${esc(stations[c] ?? c)}</button>`).join('')}</div>`
         : '';
-    const sched = '<p class="card-explainer tr-note">Scheduled means Chiltern’s published time, not live running: on the day a train can still be late or cancelled.</p>';
+    const sched = (/** @type {import('./trains-journey.js').JourneyDay} */ day) => holidayOf(day.date) ? ''
+        : '<p class="card-explainer tr-note">Scheduled means Chiltern’s published time, not live running: on the day a train can still be late or cancelled.</p>';
     // The overview's own Christmas line (`renderFurtherChanges`), under the date it is about — said once.
     const festive = (/** @type {import('./trains-journey.js').JourneyDay|null} */ day) => day?.timetable.festive
-        ? `<p class="card-explainer tr-note">${renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)}</p>` : '';
-    const unread = unused ? `<p class="card-explainer tr-note">This box reads a station and a time, so “${esc(unused)}” is not part of this answer. `
-        + `For another day, press ${esc(Object.values(DAY_NAMES).join(', ').replace(/, (?=[^,]*$)/, ' or '))}.</p>` : '';
+        ? `<p class="card-explainer tr-note tr-festive">${renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)}</p>` : '';
+    // The day sentences only for words that name a day; the route sentence only where the answer names each train's
+    // route (`via`) — of Gerrards Cross no train here says one.
+    const shownVia = j.trains.length ? j.via : !!j.next?.via;
+    const unread = unused ? `<p class="card-explainer tr-note tr-unread">This box reads a station and a time, so “${esc(unused)}” is not part of this answer.`
+        + (DAY_WORDS.test(unused) ? ` For another day, press ${esc(Object.values(DAY_NAMES).join(', ').replace(/, (?=[^,]*$)/, ' or '))}. `
+            + 'Weekdays answers for today, or the next weekday at a weekend; Saturdays and Sundays for the next one. '
+            + `For any other date, check ${planner}.` : '')
+        + (/\bvia\b/i.test(unused) && shownVia ? ' This answer takes trains by either route, and each one says which it takes.' : '')
+        + '</p>' : '';
     const dayText = dayWord(j.date, now) ?? `on ${on(j.date)}`;
+    // Christmas Day: no train runs, so none is offered (the header).
+    const noneRun = `<p class="card-explainer tr-lead">For Boxing Day’s trains, check ${planner}.</p>`;
+    if (holidayOf(j.date) === 'Christmas Day') {
+        return ended + unread + meta(j) + `<p class="tr-answer"><strong>${NO_TRAINS_CHRISTMAS}</strong></p>` + noneRun + card + choose;
+    }
     if (j.trains.length) {
         const ask = asked === 'time' ? `First train to ${name} after ${j.at}` : asked === 'now' ? `Next train to ${name}` : `First train to ${name}`;
         const then = j.trains.slice(1);
         return ended + unread + meta(j) + festive(j) + `<p class="tr-jr-ask">${esc(ask)}</p>` + first(j)
             + (then.length ? `<p class="tr-picks-label tr-jr-then">Then</p><ol class="tr-jr-list">${then.map(t => `<li>${train(t, j.via, j.trains[0])}</li>`).join('')}</ol>` : '')
-            + sched + card + choose;
+            + sched(j) + card + choose;
     }
     // Nothing left that day. "After 17:15" is said only when it was typed: a time read from the clock would change
     // the sentence each minute, and the polite live region would read it out each time.
@@ -741,9 +792,11 @@ export function renderJourney(j, { crs, stations, asked, now, others = [], unuse
         ? `No more trains to ${name} ${dayText}${asked === 'time' ? ` after ${j.at}` : ''}.`
         : `No train from Marylebone stops at ${name} ${dayText}.`;
     const nextWord = (j.next && dayWord(j.next.date, now)) ?? 'the day after';
-    const next = j.next?.trains.length
-        ? `<p class="tr-jr-ask">First train ${nextWord}</p>` + meta(j.next) + (j.timetable.festive ? '' : festive(j.next)) + first(j.next) + sched
-        : `<p class="card-explainer tr-lead">None ${nextWord} either. For a journey with a change of train, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a>.</p>`;
+    const next = j.next && holidayOf(j.next.date) === 'Christmas Day'
+        ? `<p class="card-explainer tr-lead">${NO_TRAINS_CHRISTMAS} For Boxing Day’s trains, check ${planner}.</p>`
+        : j.next?.trains.length
+        ? `<p class="tr-jr-ask">First train ${nextWord}</p>` + meta(j.next) + (j.timetable.festive ? '' : festive(j.next)) + first(j.next) + sched(j.next)
+        : `<p class="card-explainer tr-lead">None ${nextWord} either. For a journey with a change of train, check ${planner}.</p>`;
     return ended + unread + meta(j) + festive(j) + `<p class="tr-answer"><strong>${esc(none)}</strong></p>` + next + card + choose;
 }
 

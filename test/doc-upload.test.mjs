@@ -105,7 +105,7 @@ function card(cfg) {
     initDocUploadCard({
         dateId: 'd', fileId: 'f', fileLabelId: 'l', uploadBtnId: 'b', feedbackId: 'fb',
         currentUser: 'Admin', btnLabel: 'Upload Huddle', logPrefix: 'Huddle',
-        successMsg: (/** @type {string} */ date) => `Huddle uploaded for ${date} — staff will see it on the main app`,
+        successMsg: (/** @type {string} */ date) => `Huddle uploaded for ${date} — staff can open it from ☰ → Daily Huddle`,
         ...cfg,
     });
     return els;
@@ -211,7 +211,7 @@ describe('one upload at a time, per card (cal-docs-4, whole-app review 10 Nov 20
         await u.release();
         await second;
         assert.equal(document.querySelector('[data-uploading]'), null, 'and stops seeing one when it has answered');
-        assert.equal(u.els.feedback.textContent, 'Huddle uploaded for 10 November 2026 — staff will see it on the main app');
+        assert.equal(u.els.feedback.textContent, 'Huddle uploaded for 10 November 2026 — staff can open it from ☰ → Daily Huddle');
     });
 });
 
@@ -241,7 +241,7 @@ describe('what the admin is told is what the engine decided (cal-docs-12, cal-do
         await pick(els, pdf('circular.pdf'));
         await els.btn.fire('click');
         assert.equal(els.feedback.textContent,
-            "Couldn't confirm this saved — the connection dropped mid-save. Reload to see whether it's there, and upload again if it isn't.");
+            'Couldn’t confirm it was saved — the connection dropped. Reload to see whether it’s there, and upload again if it isn’t.');
         assert.deepEqual(e.deleted, [], 'the file the document may name is kept');
     });
 

@@ -65,7 +65,7 @@ export const PERIOD_UNITS = [
     ...HM_PAIRS.map(({ cat, hId, mId }) => /** @type {PeriodUnit} */ ({ id: cat, fields: [hId, mId], label: HOURS_LABELS[cat], kind: 'hours' })),
     { id: 'peer',           fields: ['peer'],           label: 'Peer Training',                          kind: 'days' },
     { id: 'noSpecialHours', fields: ['noSpecialHours'], label: 'No special-rate hours on this payslip',  kind: 'tick' },
-    { id: 'slSkip',         fields: ['slSkip'],         label: 'Student loan not deducted this period',  kind: 'tick' },
+    { id: 'slSkip',         fields: ['slSkip'],         label: 'Student loan was not deducted on this payslip', kind: 'tick' },
     { id: 'otherAdj',       fields: ['otherAdj'],       label: 'Any other payslip adjustment',           kind: 'money' },
     { id: 'pension',        fields: ['pension'],        label: 'Pension contribution',                   kind: 'pension' },
     { id: 'actualNet',      fields: ['actualNet'],      label: 'Take-home on your payslip',              kind: 'money' },
@@ -85,7 +85,7 @@ const DEFAULTS = /** @type {Record<string, any>} */ ({ ...emptyPeriodData(), pen
 function _field(d, f) {
     const v = d?.[f];
     if (v !== undefined && v !== null) return v;
-    return f in DEFAULTS ? DEFAULTS[f] : 0;   // an hours or minutes field
+    return f in DEFAULTS ? DEFAULTS[f] : 0;   // a field the schema does not name (none today)
 }
 
 /** Do two periods agree on a unit? @param {PeriodUnit} u @param {any} a @param {any} b */

@@ -82,6 +82,9 @@ const TODO_LABEL = {
     'notifications': 'Turn on notifications',
 };
 
+/** The line a failed read adds to a list of to-dos (`summarise`). */
+const UNCHECKED_LABEL = 'Some settings couldn’t be checked.';
+
 /** What a `blocked` card says instead — the member cannot do the thing the to-do would name.
  *  @type {Record<string, string>} */
 const BLOCKED_LABEL = {
@@ -151,8 +154,9 @@ const TODO_CARD = {
  *   `unknown`, which is the whole point: nothing has to remember to report "not yet".
  * @returns {{ tone: 'checking'|'all-set'|'todo'|'error', headline: string, items: string[],
  *             ids: string[], cards: string[] }}
- *   `items` names what is outstanding, in `CARD_ORDER`. Empty unless tone is 'todo'. `ids` is the
- *   card each item is about and `cards` that card's element id (`TODO_CARD`), item for item.
+ *   `items` names what is outstanding, in `CARD_ORDER`, then — when a card's read failed — one
+ *   `UNCHECKED_LABEL` line. Empty unless tone is 'todo'. `ids` is the card each item is about and
+ *   `cards` that card's element id (`TODO_CARD`), item for item. The headline counts the to-dos only.
  */
 export function summarise(states) {
     const at = /** @param {string} id */ id => states[id] ?? 'unknown';
@@ -166,11 +170,17 @@ export function summarise(states) {
 
     const ids = CARD_ORDER.filter(id => at(id) === 'action' || at(id) === 'blocked');
     const items = ids.map(id => (at(id) === 'blocked' ? BLOCKED_LABEL[id] : TODO_LABEL[id]) || id);
+    const failed = CARD_ORDER.find(id => at(id) === 'error');
 
     if (items.length) {
+        // The headline counts the to-dos. A card whose read FAILED is not one of them, but returning
+        // the list without it hid the failure behind "1 thing to finish" — the same reassurance by
+        // silence as below, so it joins the list as its own line, leading to the first such card.
+        const count = items.length;
+        if (failed) { items.push(UNCHECKED_LABEL); ids.push(failed); }
         return {
             tone: 'todo',
-            headline: items.length === 1 ? '1 thing to finish' : `${items.length} things to finish`,
+            headline: count === 1 ? '1 thing to finish' : `${count} things to finish`,
             items, ids, cards: ids.map(id => TODO_CARD[id] || ''),
         };
     }
@@ -178,7 +188,7 @@ export function summarise(states) {
     // Everything reported, nothing outstanding — but a card whose read FAILED has not told us it is
     // fine, it has told us nothing. Saying "all set" over the top of that is the same lie as saying
     // it over silence, arriving one step later.
-    if (CARD_ORDER.some(id => at(id) === 'error')) {
+    if (failed) {
         return { tone: 'error', headline: 'Some settings couldn’t be checked — check your connection, then reopen Settings.', ...none };
     }
 

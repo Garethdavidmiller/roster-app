@@ -416,6 +416,9 @@ describe('buildCalendarContainer — withheld grid', () => {
         }
         assert.match(buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year).querySelectorAll('.calendar-pending')[0].innerHTML,
             /without them it could show the wrong shifts/, 'the failure no longer says why the month is held back');
+        // …and what to do when Try again keeps failing, with nobody to ask (28 Nov 2026): a broken read is the admin's.
+        assert.match(buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year).querySelectorAll('.calendar-pending')[0].innerHTML,
+            /If it keeps happening, check the signal, or tell the admin\./, 'the failure no longer says what to do if it keeps failing');
     });
 
     test('no retry callback ⇒ no button — an inert control is worse than none', () => {
@@ -997,7 +1000,7 @@ describe('a chained change says which value it is showing', () => {
 
         const html = readFileSync(new URL('./index.html', REPO_ROOT_URL), 'utf8');
         const eyebrow = html.match(/<span class="ddc-eyebrow"[^>]*>([^<]*)<\/span>/)?.[1] ?? '';
-        assert.match(eyebrow, /base roster/i,
+        assert.match(eyebrow, /usual roster/i,
             `the panel labels that pair "${eyebrow}". The left badge is the base roster and the `
             + 'right one is now; a label that does not say so reads as "what it was immediately '
             + 'before", which on a chained change is a change that never happened');

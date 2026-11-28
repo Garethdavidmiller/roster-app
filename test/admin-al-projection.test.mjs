@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, getBankHolidays, isBankHoliday } from '../roster-data.js';
-import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections, projectAbsenceRange, yearShiftWords } from '../admin-al-projection.js';
+import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections, projectAbsenceRange, yearShiftWords, alsoNote, sundayShiftWords } from '../admin-al-projection.js';
 import { consumesEntitlement, countedAlDates, entitlementFor } from '../al-entitlement.js';
 import { isRestShift } from '../override-utils.js';
 import { planAlWeekSave } from '../admin-al-week-save.js';
@@ -454,10 +454,10 @@ describe('the preview names every day in lieu a booking takes back', () => {
     });
 
     test('the words name each day: Christmas and Boxing Day by name, any other by its date', () => {
-        assert.equal(lieuGoesWords(['2026-12-26']), 'Boxing Day recorded as leave, so the day in lieu for working it goes');
+        assert.equal(lieuGoesWords(['2026-12-26']), 'Boxing Day recorded as leave, so the extra day of leave earned by working it is taken back');
         assert.equal(lieuGoesWords(['2026-12-25', '2026-12-26']),
-            'Christmas Day and Boxing Day recorded as leave, so the days in lieu for working them go');
-        assert.equal(lieuGoesWords(['2026-08-31']), 'the bank holiday on 31 August recorded as leave, so the day in lieu for working it goes');
+            'Christmas Day and Boxing Day recorded as leave, so the extra days of leave earned by working them are taken back');
+        assert.equal(lieuGoesWords(['2026-08-31']), 'the bank holiday on 31 August recorded as leave, so the extra day of leave earned by working it is taken back');
     });
 });
 
@@ -495,7 +495,7 @@ describe('projectAbsenceRange — an absence over work that earned a day in lieu
         assert.deepEqual(r.writing, ['2026-12-26']);
         assert.deepEqual(r.lieuLost, ['2026-12-26']);
         assert.ok(r.overage, 'the absence takes back the day in lieu, so 33 of 33 becomes 33 of 32');
-        assert.equal(r.overage.detail, 'Boxing Day recorded as absent, so the day in lieu for working it goes · 33 days used of 32 allowed in 2027');
+        assert.equal(r.overage.detail, 'Boxing Day recorded as absent, so the extra day of leave earned by working it is taken back · 33 days used of 32 allowed in 2027');
     });
 
     test('with a day to spare, the day in lieu is named and the save is not stopped', () => {
@@ -545,9 +545,9 @@ describe('projectAbsenceRange — an absence over work that earned a day in lieu
     });
 
     test('the leave card\'s words are unchanged, and the Absence card says "absent"', () => {
-        assert.equal(lieuGoesWords(['2026-12-26']), 'Boxing Day recorded as leave, so the day in lieu for working it goes');
+        assert.equal(lieuGoesWords(['2026-12-26']), 'Boxing Day recorded as leave, so the extra day of leave earned by working it is taken back');
         assert.equal(lieuGoesWords(['2026-12-25', '2026-12-26'], 'absent'),
-            'Christmas Day and Boxing Day recorded as absent, so the days in lieu for working them go');
+            'Christmas Day and Boxing Day recorded as absent, so the extra days of leave earned by working them are taken back');
     });
 });
 
@@ -840,5 +840,22 @@ describe('booking a Spare week charges at most four days', () => {
         const p = projectAlBooking({ member: disp, dates: spare, ovByDate: new Map() });
         assert.deepEqual(p.consuming, spare);
         assert.deepEqual(p.freeWritten, []);
+    });
+});
+
+// ── WHAT THE HEADLINE DOES NOT COUNT, SAID AS A SENTENCE ──────────────────────────────────────────
+// "(+ 1 rest day skipped, 1 Sunday set as a rest day)" left the reader to work out what "+" and "skipped" meant, and a
+// part that carries a bracket of its own nested inside it. Each part is a clause, counted properly.
+describe('alsoNote and sundayShiftWords — the days beside a range preview\'s headline', () => {
+    test('one clause per part, after the range, and nothing when there is nothing to add', () => {
+        assert.equal(alsoNote(['1 rest day not counted', sundayShiftWords(1)]),
+            '. <em>Also: 1 rest day not counted; 1 Sunday shift set as a rest day (Sundays aren’t contracted)</em>');
+        assert.equal(alsoNote(['', '2 already booked']), '. <em>Also: 2 already booked</em>', 'an empty part is not a clause');
+        assert.equal(alsoNote([]), '');
+        assert.equal(alsoNote(['']), '');
+    });
+    test('Sundays are counted properly', () => {
+        assert.equal(sundayShiftWords(0), '');
+        assert.equal(sundayShiftWords(2), '2 Sunday shifts set as rest days (Sundays aren’t contracted)');
     });
 });

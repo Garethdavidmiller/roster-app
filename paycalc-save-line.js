@@ -57,7 +57,7 @@ import { isDataEmpty, hasSavedComparison } from './paycalc-format.js';
  */
 export function saveStatusWords({ failure, saved, defaultPension }) {
   if (failure) return { text: failure, cls: 'failed' };
-  if (saved?.error) return { text: "⚠ Couldn't read this period's saved entries — anything you type will replace them", cls: 'corrupt' };
+  if (saved?.error) return { text: "⚠ Couldn't read this payslip's saved entries — anything you type will replace them", cls: 'corrupt' };
   const d = saved?.data;
   if (d) {
     const customPension = d.pension != null && Math.abs(d.pension - defaultPension) > 0.005;

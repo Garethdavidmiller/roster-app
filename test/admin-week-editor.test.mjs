@@ -107,9 +107,11 @@ mock.module('../admin-override-store.js', {
 
 // The preview's per-day lines need a parser to collect; a test that wants some sets them here. The rest is the real module.
 let _previewLines = new Map();
+/** The days the save's plan leaves alone, as `previewChanges` answers them (admin-day-change.js). @type {string[]} */
+let _leftAlone = [];
 const _realDayChange = await import('../admin-day-change.js');
 mock.module('../admin-day-change.js', {
-    namedExports: { ..._realDayChange, previewChanges: () => _previewLines },
+    namedExports: { ..._realDayChange, previewChanges: () => ({ changes: _previewLines, leftAlone: _leftAlone }) },
 });
 
 const { _hasStagedEdits, buildWeekGridInto, renderWeekGrid, updateSaveBtn, initWeekEditor }
@@ -250,6 +252,23 @@ describe('the Save button counts the same rows _hasStagedEdits does', () => {
             open.push(tag);
         }
         assert.deepEqual(open, [], 'every element the preview opens is closed');
+    });
+
+    // THE COUNT IS THE SAVE'S PLAN, not the staged rows: one day of leave on a rest day answered "No — rest day,
+    // nothing recorded" said "You're about to change 1 day" over a receipt saying "Nothing to record".
+    test('a staged day the save leaves alone is not counted as a change, and the line says nothing will be recorded', () => {
+        _previewLines = new Map([['2026-12-02', 'rest day — no leave needed, nothing to record']]);
+        _leftAlone = ['2026-12-02'];
+        try { saveEnabledFor([row({ type: 'annual_leave' })]); } finally { _previewLines = new Map(); _leftAlone = []; }
+        const html = byId.get('gridPreview').innerHTML;
+        assert.match(html, /Nothing will be recorded for <strong>G\. Miller<\/strong>:/);
+        assert.doesNotMatch(html, /about to change/);
+        assert.match(html, /rest day — no leave needed, nothing to record/);
+        // …and beside a day it does write, only that day is counted.
+        _previewLines = new Map([['2026-12-02', 'rest day — no leave needed, nothing to record']]);
+        _leftAlone = ['2026-12-02'];
+        try { saveEnabledFor([row({ type: 'annual_leave' }), row({ type: 'rdw' })]); } finally { _previewLines = new Map(); _leftAlone = []; }
+        assert.match(byId.get('gridPreview').innerHTML, /You're about to change <strong>1 day<\/strong> for/);
     });
 
     test('with nothing staged the bar is hidden and the hint tells the admin what to do', () => {
@@ -515,8 +534,8 @@ describe('the "Base roster" column says what the day WAS', () => {
         assert.match(row('2026-12-25').innerHTML,
             /<div class="col-rd-hint" hidden>The station is closed on Christmas Day — use <strong>RDW<\/strong> if this day was worked<\/div>/);
         assert.match(row('2026-12-26').innerHTML, /The station is closed on Boxing Day — use <strong>RDW<\/strong>/);
-        assert.match(row('2026-12-25').innerHTML, /Ticked and locked because the station is closed on Christmas Day — RDW is automatic/);
-        assert.doesNotMatch(row('2026-12-25').innerHTML, /Base roster: rest day|the base roster has this as a rest day/,
+        assert.match(row('2026-12-25').innerHTML, /Always ticked here: the station is closed on Christmas Day, so this day is paid as Rest Day Working/);
+        assert.doesNotMatch(row('2026-12-25').innerHTML, /On their roster this is a rest day|it’s a rest day on their roster/,
             'no hint calls the day a rest day beside an AL badge');
         // An ordinary day keeps its own base shift, and the rest-day words where it has them.
         assert.equal(col(row('2026-12-24')), shows(getBaseShift(member, new Date(2026, 11, 24))));
@@ -525,7 +544,29 @@ describe('the "Base roster" column says what the day WAS', () => {
         for (const d of ['2025-12-25', '2025-12-26']) {
             const r = old.find(x => x.dataset.date === d);
             assert.equal(col(r), shows('RD'), `${d}: before Christmas leave, the closure's rest day`);
-            assert.match(r.innerHTML, /Base roster: rest day — use <strong>RDW<\/strong> if this was worked as overtime/);
+            assert.match(r.innerHTML, /On their roster this is a rest day — if they worked it, choose <strong>RDW<\/strong> \(Rest Day Working\)/);
+        }
+    });
+
+    // WHOSE ROSTER: a manager reads "their roster", a member booking for themselves "your roster" — the question
+    // is about the reader's own swap there, and "Did they swap" over their own week reads as somebody else's.
+    test('the rest-day words speak to the reader: "their" for a manager, "your" for a member booking for themselves', () => {
+        const rest = (/** @type {any[]} */ rows) => rows.find(r => r.dataset.baseIsRd === '1' && r.dataset.date !== '2026-12-25' && r.dataset.date !== '2026-12-26');
+        const mgr = rest(buildWeek('G. Miller', '2027-01-13').slice(1));
+        assert.match(mgr.innerHTML, /This is a rest day on their roster\. Did they <strong>swap<\/strong> a working day onto it\?/);
+        assert.match(mgr.innerHTML, />Yes, swapped — uses a leave day<\/button><button[^>]*>No — rest day, nothing recorded<\/button>/);
+        assert.match(mgr.innerHTML, /Pay as Rest Day Working \(RDW\)<\/label>/);
+        assert.match(mgr.innerHTML, /Always ticked here: it’s a rest day on their roster, so this day is paid as Rest Day Working/);
+        assert.match(mgr.innerHTML, /24-hour clock · up to 12 hours/);
+        initWeekEditor({ canPickMember: false, showSuccess: () => {}, markChanged: () => {}, memberDateMap: () => _dateMap });
+        try {
+            const self = rest(buildWeek('G. Miller', '2027-01-13').slice(1));
+            assert.match(self.innerHTML, /This is a rest day on your roster\. Did you <strong>swap<\/strong> a working day onto it\?/);
+            assert.match(self.innerHTML, /On your roster this is a rest day — if you worked it, choose <strong>RDW<\/strong>/);
+            assert.match(self.innerHTML, /it’s a rest day on your roster/);
+            assert.doesNotMatch(self.innerHTML, /their roster|Did they/);
+        } finally {
+            initWeekEditor({ canPickMember: true, showSuccess: () => {}, markChanged: () => { _changed.push(1); }, memberDateMap: () => _dateMap });
         }
     });
 
@@ -536,7 +577,7 @@ describe('the "Base roster" column says what the day WAS', () => {
         assert.ok(resting, 'premise: somebody on the roster rests on Christmas Day 2026 by pattern');
         const xmas = buildWeek(resting.name, '2026-12-25').slice(1).find(r => r.dataset.date === '2026-12-25');
         assert.ok(xmas.innerHTML.includes(`<div class="col-base">${getShiftBadge('RD', { showTime: true })}</div>`));
-        assert.match(xmas.innerHTML, /Base roster: rest day — use <strong>RDW<\/strong> if this was worked as overtime/);
+        assert.match(xmas.innerHTML, /On their roster this is a rest day — if they worked it, choose <strong>RDW<\/strong> \(Rest Day Working\)/);
     });
 
     test('a worked Boxing Day names the NEXT year as the allowance its day in lieu goes into (15 Nov 2026)', () => {
@@ -546,7 +587,7 @@ describe('the "Base roster" column says what the day WAS', () => {
         try {
             const rows = buildWeek('G. Miller', '2026-12-26').slice(1);
             assert.match(rows.find(r => r.dataset.date === '2026-12-26').innerHTML,
-                /class="christmas-note">Boxing Day worked when due at work: one day of annual leave in lieu, from 27 December — it covers leave this December past the 2026 allowance, otherwise it is added to 2027</);
+                /class="christmas-note">Boxing Day worked when due at work: one extra day of annual leave, in place of this one, can be taken from 27 December\. If leave later in December 2026 runs past that year’s allowance, it covers that; otherwise it is added to the 2027 allowance</);
         } finally { _dateMap = new Map(); }
     });
 
@@ -599,7 +640,7 @@ describe('the swapped-day question follows the row on every path (review A6)', (
         r.dataset.alSwap = 'yes';
         _activateRow(r, null, [], null, null, 'shift');
         assert.equal(swapBox.hidden, true);
-        assert.equal(r.dataset.alSwap, undefined, 'a stale "Swapped — counts" would charge the next pick');
+        assert.equal(r.dataset.alSwap, undefined, 'a stale "Yes, swapped — uses a leave day" would charge the next pick');
         const plain = liveRow({ alSwapAsk: '' });
         _activateRow(plain.r, null, [], null, null, 'annual_leave');
         assert.equal(plain.swapBox.hidden, true);

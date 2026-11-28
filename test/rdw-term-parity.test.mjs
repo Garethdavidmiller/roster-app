@@ -83,7 +83,9 @@ describe('RDW is "Rest Day Working" everywhere a colleague reads it', () => {
             'the Calendar day panel');
         assert.match(read('./paycalc.html'), /<div class="h-title"><span aria-hidden="true">💼<\/span> Rest Day Working<\/div>/,
             'the Pay Calculator row where the hours are typed');
-        assert.match(read('./paycalc-help.js'), /RDW = Rest Day Working/, 'the Pay Calculator glossary');
+        // The Pay Calculator's ? panel has no glossary row of its own now: the app's one glossary
+        // (glossary.js) defines the word, and the panel ends with its link (28 Nov 2026).
+        assert.match(read('./glossary.js'), /term: 'RDW',[^\n]*line: 'Rest Day Working/, 'the app\'s glossary');
         // Sentence case, as every entry in that key is ("Rest or off day", "Annual leave"). Title case
         // also wrapped the label onto a third line and printed the Staff Guide on a third sheet
         // (e2e/print.spec.js), which has a few pixels to spare.

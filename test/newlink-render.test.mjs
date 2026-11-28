@@ -92,7 +92,8 @@ test('EVENLY: the status names the three A to Z, each once, in the same tile', (
     assert.deepEqual(names, ['Balanced V6', 'Level Crossing', 'Middle Ground']);
     assert.equal(count(html, /class="nl-name"/g), 3, 'one tile each, the same class for all three');
     assert.match(html, /Nothing is decided/);
-    assert.match(html, /a date to be agreed/);
+    assert.match(html, /Have your say<\/button> before the decision is made\./);
+    assert.doesNotMatch(html, /a date to be agreed/, 'with no closing date the line names when views stop, not a missing date');
 });
 
 /** Every state a COLLEAGUE can be shown, from the real builders and the real data — and the page's own static markup,
@@ -357,8 +358,8 @@ test('"Have your say by" goes once the closing date has passed, and not before (
         assert.doesNotMatch(at(today), /Have your say|by <strong>/, `on ${today} the date has gone, so the line goes`);
         assert.match(at(today), /<p class="nl-lead">Nothing on this page changes your roster\.<\/p>/, 'and the sentence before it ends cleanly');
     }
-    // no date set, or one that cannot be read: "a date to be agreed", whatever the day — it never passes
-    for (const closes of [null, '2026-02-30', 'soon']) assert.match(at('2027-06-01', closes), /Have your say<\/button> by <strong>a date to be agreed<\/strong>/);
+    // no date set, or one that cannot be read: "before the decision is made", whatever the day — it never passes
+    for (const closes of [null, '2026-02-30', 'soon']) assert.match(at('2027-06-01', closes), /Have your say<\/button> before the decision is made\./);
     // and with no day given (the page always gives one) the line stands, as it did before the date was known
     assert.match(at(null), SAY);
 });
@@ -398,7 +399,7 @@ test('the status line keeps its tense as the dates pass, and says nothing once t
 // \u2500\u2500 THE DECIDED STATE, AND THE SAFETY NET (owner, 10 Nov 2026) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 // "Add a 'decided' state." Until then the page had no state for a choice made or a link begun: from 1 January it dropped
 // its start sentence and went on saying "Nothing is decided \u2026 Have your say by a date to be agreed" for good.
-const SAY = /Have your say|data-open-card="nlSay"|a date to be agreed/;
+const SAY = /Have your say|data-open-card="nlSay"|a date to be agreed|before the decision is made/;
 const state = (/** @type {Record<string, any>} */ o) => renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01', timetable: '2026-12-13', contact: CONTACT, ...o });
 
 test('statusPhase: a design on the shortlist decides it; before the start nothing chosen is open; from the start, the page waits', () => {
@@ -457,7 +458,7 @@ test('waiting: from the start with nothing chosen, the page says who will confir
     // the day before, the page is as it was
     const eve = state({ today: '2026-12-31' });
     assert.match(eve, /Nothing is decided\./);
-    assert.match(eve, /Have your say<\/button> by <strong>a date to be agreed<\/strong>/);
+    assert.match(eve, /Have your say<\/button> before the decision is made\./);
     // with no contact given, nobody is named and nothing is broken
     assert.match(state({ today: '2027-01-01', contact: '' }), /<strong>The outcome is still to be confirmed\.<\/strong>/);
 });

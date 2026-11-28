@@ -510,6 +510,28 @@ test('paycalc: a setting whose read of the payslip fails says "Not saved", and R
     expect((await stored(page)).pension, 'the payslip\'s own figure lies dormant behind the lock').toBe(50);
 });
 
+// The Retry found nothing stored to carry the setting into (`write: null`), so nothing ended the line
+// and "Not saved" stayed up for good over a payslip with nothing left to save.
+test('paycalc: a setting\'s Retry on a payslip with no saved entries ends "Not saved"', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, null);
+    await page.evaluate((k) => {   // reads of the payslip fail until storage recovers
+        const w = /** @type {any} */ (window), get = Storage.prototype.getItem;
+        w.__refuseRead = true;
+        Storage.prototype.getItem = function (key) {
+            if (key === k && w.__refuseRead) throw new DOMException('busy', 'UnknownError');
+            return get.call(this, key);
+        };
+    }, KEY);
+    await page.locator('#pensionOptOutCheck').check();
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    await page.evaluate(() => { /** @type {any} */ (window).__refuseRead = false; });
+    await page.locator('#saveRetryBtn').click();
+    await expect(page.locator('#saveStatus')).toHaveText('No entries saved for this payslip');
+    await expect(page.locator('#saveRetryBtn')).toBeHidden();
+    expect(await stored(page), 'nothing is invented for a payslip with no entries').toBeNull();
+});
+
 // The adjustment was stored as typed and shown to two decimals, so a figure past the penny came back
 // as a different one, which the next edit then stored (invariant 2: the round trip is symmetric).
 test('paycalc: an adjustment typed past the penny is stored as the penny figure the box shows again', async ({ page }) => {

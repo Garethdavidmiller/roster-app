@@ -830,7 +830,7 @@ on the day says the member was contracted, so the booking ASKS the swap question
 | AL alone, on a rest-day base (what is on record now) | `null` | **no** |
 | …the AL re-saved, answering **Swapped** | `'shift'` | **yes** ✓ |
 
-Answering "Rest day — free" writes nothing and leaves the day as it was. (Before v23.75: nothing
+Answering "No — rest day, nothing recorded" writes nothing and leaves the day as it was. (Before v23.75: nothing
 asked, so it took two writes in order — the swapped-in SHIFT first, then the AL again over it, which
 carried `replacedType: 'shift'` forward. Recording only the AL again changed nothing.)
 

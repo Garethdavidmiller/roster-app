@@ -176,7 +176,7 @@ for (const [kind, code, locks] of /** @type {[string, string|undefined, boolean]
         }
         const reset = page.locator('#loginResetRequest');
         if (locks) {
-            await expect(submit).toHaveText('Try again in 30s');
+            await expect(submit).toHaveText('Try again in 30 seconds');
             await expect(submit).toBeDisabled();
             await expect(reset, 'repeated wrong passwords point at the reset route').toHaveClass(/login-reset-request--prompted/);
         } else {
@@ -897,7 +897,7 @@ test('login overlay: the 30-second lock is the person\'s who earned it, not the 
         await submit.click();
         await expect(page.locator('#loginError')).toBeVisible();
     }
-    await expect(submit, 'premise: three wrong passwords lock the button').toHaveText('Try again in 30s');
+    await expect(submit, 'premise: three wrong passwords lock the button').toHaveText('Try again in 30 seconds');
     await page.locator('#loginName').selectOption(second);
     await expect(submit, 'the next person was locked out for the last one\'s mistakes').toHaveText('Sign in →');
     await expect(submit).toBeEnabled();
@@ -908,7 +908,7 @@ test('login overlay: the 30-second lock is the person\'s who earned it, not the 
     await expect(page.locator('#loginError')).toBeVisible();
     await expect(submit, 'and it was their first mistake, not a fourth').toHaveText('Sign in →');
     await page.locator('#loginName').selectOption(first);
-    await expect(submit, 'the lock is still the first person\'s').toHaveText('Try again in 30s');
+    await expect(submit, 'the lock is still the first person\'s').toHaveText('Try again in 30 seconds');
     await expect(submit).toBeDisabled();
 });
 

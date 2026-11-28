@@ -161,8 +161,13 @@ test.describe('trains', () => {
         await page.locator('#trLookupInput').fill('zzz');
         await expect(page.locator('#trLookupResult')).toContainText('No station matches “zzz”.');
         await expect(page.locator('#trLookupResult')).toContainText('a time like 17:15, 1715 or 5.15pm');
-        await page.locator('#trLookupInput').fill('5');
+        await page.locator('#trLookupInput').fill('25:00');
         await expect(page.locator('#trLookupResult')).toHaveText('Type a time like 17:15, 1715 or 5.15pm.');
+        // A bare hour is never guessed at: the box says why it cannot read it, and the ways to write it.
+        await page.locator('#trLookupInput').fill('5');
+        await expect(page.locator('#trLookupResult')).toHaveText('“5” is not a time this box reads — add the minutes or am/pm: 05:00, 5am or 5pm.');
+        await page.locator('#trLookupInput').fill('Gerrards Cross for 9');
+        await expect(page.locator('#trLookupResult')).toHaveText('“9” is not a time this box reads — add the minutes or am/pm: 09:00, 9am or 9pm.');
 
         // The `?` panels are wired — the page's caveats live there.
         await page.locator('.btn-card-tips[data-card="changes"]').click();
@@ -1547,7 +1552,7 @@ test.describe('trains: the words review', () => {
         for (const value of ['5.15p', '5.15 p', '515p', '5.15pm']) {
             await input.fill(value);
             await expect(first, `"${value}"`).toContainText('The 17:15 to');
-            await expect(result).not.toContainText('Type a time like');
+            await expect(result).not.toContainText(/Type a time like|not a time this box reads/);
         }
         await input.fill('515a');
         await expect(result).toContainText('05:15');
@@ -1555,7 +1560,7 @@ test.describe('trains: the words review', () => {
         // A day pressed while the p.m. is pending answers for that day, not the kept one.
         await input.fill('5 ');
         await page.locator('[data-day="SO"]').click();
-        await expect(result).toContainText('Type a time like');
+        await expect(result).toHaveText('“5” is not a time this box reads — add the minutes or am/pm: 05:00, 5am or 5pm.');
         expect(errors, errors.join('\n')).toEqual([]);
     });
 
@@ -1909,8 +1914,12 @@ test.describe('trains — Find a train', () => {
         const errors = collectFatalErrors(page);
         await open(page, '2026-11-27T12:00:00');   // Friday 27 November
         const result = page.locator('#trLookupResult');
-        await expect(result).toHaveAttribute('aria-live', 'polite');
+        // The answer is not read out whole: its first lines are, in a status line of their own (trains-status.js → `sayLookup`).
+        await expect(result).not.toHaveAttribute('aria-live', /./);
+        const said = page.locator('#trLookupStatus');
+        await expect(said).toHaveAttribute('role', 'status');
         await ask(page, 'Aylesbury, after 17:15');
+        await expect(said).toHaveText('First train to Aylesbury after 17:15. 17:30 to Aylesbury Vale Parkway, via Amersham. Gets to Aylesbury at 18:21.');
         await expect(result.locator('.tr-jr-meta')).toHaveText('Friday 27 November·Timetable until Saturday 12 DecemberScheduled');
         await expect(result.locator('.tr-jr-ask')).toHaveText('First train to Aylesbury after 17:15');
         const first = result.locator('.tr-jr-first');
@@ -1934,6 +1943,7 @@ test.describe('trains — Find a train', () => {
         await ask(page, '17:15');
         await expect(result.locator('.tr-answer').first()).toContainText('The 17:15 to Oxford');
         await expect(result.locator('.tr-near-head')).toHaveCount(2);
+        await expect(said).toHaveText(/^The 17:15 to Oxford: [^]*\.$/);
         expect(errors, errors.join('\n')).toEqual([]);
     });
 
@@ -1968,6 +1978,8 @@ test.describe('trains — Find a train', () => {
         await expect(result.locator('.tr-jr-ask')).toHaveText('First train today');
         await expect(result.locator('.tr-jr-meta').nth(1)).toHaveText('Sunday 13 December·Timetable from Sunday 13 DecemberScheduled');
         await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('07:42');
+        // Said too: the next day's first train is what the reader is waiting for (trains-status.js → `lookupLine`).
+        await expect(page.locator('#trLookupStatus')).toHaveText(/^No more trains to Beaconsfield tonight\. First train today\. Christmas and New Year times are not on this page\. 07:42 to /);
     });
 
     test('on 13 December the new timetable answers: its new Sunday 15:38 to Birmingham Moor Street', async ({ page }) => {
@@ -2074,6 +2086,21 @@ test.describe('trains — Find a train', () => {
         await expect(result).not.toContainText('Christmas');
     });
 
+    // No Chiltern train runs on Christmas Day (owner, 28 Nov 2026): the books' ordinary Friday is never offered for it,
+    // on the overview or in an answer (trains-render.js → `renderJourney`, trains-cards.js → `renderOverview`).
+    test('on Christmas Day no train is offered: the overview and the answer say none runs', async ({ page }) => {
+        await open(page, '2026-12-25T07:00:00');
+        await expect(page.locator('#trFestive')).toContainText('No Chiltern trains run today, Christmas Day.');
+        await ask(page, 'Aylesbury after 08:00');
+        const result = page.locator('#trLookupResult');
+        await expect(result.locator('.tr-jr-meta')).toHaveText('Friday 25 December·Timetable from Sunday 13 December');
+        await expect(result.locator('.tr-answer')).toHaveText('No Chiltern trains run on Christmas Day.');
+        await expect(result.locator('.tr-jr-first')).toHaveCount(0);
+        await expect(result).not.toContainText('Scheduled');
+        await expect(result.locator('a', { hasText: 'the journey planner' })).toHaveAttribute('href', /nationalrail/);
+        await expect(page.locator('#trLookupStatus')).toHaveText(/^No Chiltern trains run on Christmas Day\. For Boxing Day’s trains, check the journey planner\./);
+    });
+
     test('noon, a name run into its time, and words the box does not read', async ({ page }) => {
         await open(page, '2026-11-27T09:00:00');
         const result = page.locator('#trLookupResult');
@@ -2083,10 +2110,12 @@ test.describe('trains — Find a train', () => {
         await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('17:30');
         await ask(page, 'Aylesbury after 17:15 via Amersham');
         await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('17:30');
-        await expect(result).toContainText('“via Amersham” is not part of this answer');
+        await expect(result).toContainText('“via Amersham” is not part of this answer. This answer takes trains by either route, and each one says which it takes.');
+        await expect(result).not.toContainText('For another day');
         await ask(page, 'Aylesbury tomorrow');
         await expect(result).not.toContainText('No station matches');
-        await expect(result).toContainText('“tomorrow” is not part of this answer. For another day, press Weekdays, Saturdays or Sundays.');
+        await expect(result).toContainText('“tomorrow” is not part of this answer. For another day, press Weekdays, Saturdays or Sundays. '
+            + 'Weekdays answers for today, or the next weekday at a weekend; Saturdays and Sundays for the next one. For any other date, check the journey planner.');
     });
 
     // The redraw came every 60 s from whenever the page opened, so a train that had gone stayed up to two minutes. It

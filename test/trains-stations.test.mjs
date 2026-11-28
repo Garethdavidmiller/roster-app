@@ -467,7 +467,7 @@ describe('the stopping-pattern grid', () => {
     test('a column carries the Aylesbury route, and the grid names it', () => {
         const g = stoppingGrid(hourly(27, 'AYS').map(r => /** @type {typeof r} */ ([r[0], r[1], 'H', r[3], r[4]])));
         assert.equal(g.columns[0].via, 'H');
-        assert.match(renderGrid(g, g, 'now', STATIONS), /<span class="tr-grid-via">via Wycombe<\/span>/);
+        assert.match(renderGrid(g, g, 'now', STATIONS), /<span class="tr-grid-via">via High Wycombe<\/span>/);
         assert.doesNotMatch(renderGrid(stoppingGrid(hourly(6, 'OXF')), g, 'now', STATIONS), /tr-grid-via/);
     });
 
@@ -1205,7 +1205,7 @@ describe('the panels name what the page draws, and an ended timetable says so wh
 
     // From the end of December's books only the overview said the timetables had ended; the lookup and the station card
     // answered from them in the present tense — "The 17:15 to Oxford: Same time as before 13 December".
-    const ENDED = /^<p class="card-explainer tr-lead"><strong>These times come from timetables that have ended\.<\/strong> Check <a href="([^"]+)" target="_blank" rel="noopener noreferrer">the journey planner<\/a> for today’s trains\.<\/p>/;
+    const ENDED = /^<p class="card-explainer tr-lead tr-ended"><strong>These times come from timetables that have ended\.<\/strong> Check <a href="([^"]+)" target="_blank" rel="noopener noreferrer">the journey planner<\/a> for today’s trains\.<\/p>/;
     const labels = { old: 'Until 12 Dec', new: 'From 13 Dec' };
 
     test('once both timetables have ended, a station card says so before anything else — and only then', () => {

@@ -541,7 +541,7 @@ export function confirmSettings(calculate) {
     return;
   }
   if (_pensionPatchFailed) {
-    if (fb) setStatus(fb, '⚠ Settings saved, but this payslip\u2019s saved data is damaged and kept its old pension figure — clear and re-enter this period\u2019s hours.');
+    if (fb) setStatus(fb, '⚠ Settings saved, but this payslip\u2019s saved data is damaged and kept its old pension figure — clear and re-enter this payslip\u2019s hours.');
     calculate();
     return;
   }

@@ -889,7 +889,7 @@ describe('probeResetAtMs — every way the probe ends', () => {
 // tested HERE is the wiring: that the export asks the SDK about the app's own Firestore — a wait
 // pointed at another instance would answer "nothing queued" at once, and every check would run
 // exactly as it did before the fix, green.
-describe('whenOwnWritesSent — the wait a checked write makes before it reads the server', () => {
+describe('whenOwnWritesSent — the whole-queue wait (the e2e suite\'s drain check; a checked save asks whenOwnWritesSentFor)', () => {
     const waits = () => state.ops.filter((o) => o.op === 'waitForPendingWrites');
 
     test('nothing queued: true at once, asked about the app\'s own Firestore', async () => {
@@ -911,8 +911,8 @@ describe('whenOwnWritesSent — the wait a checked write makes before it reads t
         assert.ok(Date.now() - started < 1_000, 'the limit it was given was not the one it kept');
     });
     test('every wait says how it went, for the slow-save diagnostic (22 Nov 2026)', async () => {
-        // The export is the one the checked saves call, so this is what the Error Log's line reads:
-        // a wiring that passed its own `onSettled` (or none at all) would leave the line silent.
+        // Each wait is announced to the slow-save diagnostic's listeners: a wiring that passed its own
+        // `onSettled` (or none at all) would leave the line silent.
         const { watchOwnWritesWaits } = await import('../claim-retry.js');
         /** @type {any[]} */ const heard = [];
         const stop = watchOwnWritesWaits((w) => heard.push(w));

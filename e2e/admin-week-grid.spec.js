@@ -220,8 +220,8 @@ test('admin: Apply changes only the days ticked — a saved day is left alone, a
 // ── SUNDAY IS NOT A CONTRACTED DAY — LAYERS 1 AND 2, AS THE GRID ACTUALLY DRAWS THEM ────────────
 //
 // CLAUDE.md's Sunday rule has seven enforcement layers and says none of them is removable alone. Two
-// of them live in `admin-week-editor.js` — the per-row pills a manager presses, and the bulk sweep
-// that stages a whole week at once — and until now neither had a behavioural test in any lane. A
+// of them live in the week grid — the per-row pills a manager presses (`admin-day-pills.js`), and the bulk
+// sweep that stages a whole week at once (`admin-bulk-bar.js`) — and until now neither had a behavioural test in any lane. A
 // mutation sweep replaced each guard's condition with `false` and everything stayed green.
 //
 // What already existed is a SOURCE pin (override-utils.test.mjs, "LAYER 1 disables a pill for every
@@ -655,7 +655,7 @@ test('admin: the before-start line is set like the Sunday line in the same week'
 });
 
 // …AND THE LEAVE CARD'S TWIN (whole-app check, 10 Nov 2026). Before the start date the base roster reads
-// as rest, so a range across it asked "Swapped — counts / Rest day — free" about days the member had not
+// as rest, so a range across it asked "Yes, swapped — uses a leave day / No — rest day, nothing recorded" about days the member had not
 // joined for, and "Swapped" wrote leave the Calendar never shows and the allowance counted.
 test('admin: a leave range across a start date asks nothing about the days before it, and writes none', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-06-01T09:00:00Z'));
@@ -691,7 +691,7 @@ test('admin: the leave preview names the days before the start date as such, not
     const preview = page.locator('#alPreview');
     await clickInView(preview.locator('.swapday-row[data-date="2026-06-06"] .swapday-opt[data-answer="no"]'));
     await expect(preview).toContainText('3 days of Annual Leave');
-    await expect(preview).toContainText('2 rest days skipped');
+    await expect(preview).toContainText('Also: 2 rest days not counted; 2 days skipped before the start date');
     await expect(preview).toContainText('2 days skipped before the start date');
 });
 

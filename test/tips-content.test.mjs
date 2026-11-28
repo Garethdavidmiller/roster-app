@@ -31,7 +31,7 @@
  */
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { ROTATING_LINES, MIN_REST_MINUTES, WEEKENDS_OFF_AIM_PCT } from '../link-designer-design.js';
 import { DEFAULT_TABLE_FIGURES } from '../link-designer-tips.js';
 
@@ -48,19 +48,29 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
  * string from the module's REAL constants, so a tips string quoting the wrong number would still have
  * to be wrong about something else to pass.
  */
-const PAGES = [
-    { js: 'admin-tips.js',     html: 'admin.html' },
-    { js: 'operations-tips.js', html: 'operations.html' },
-    { js: 'settings-tips.js',  html: 'settings.html' },
-    { js: 'link-designer-tips.js',     html: 'link-designer.html' },
-    { js: 'overtime-tips.js',  html: 'overtime.html' },
+// FOUND, NOT LISTED (28 Nov 2026): every `*-tips.js` at the repository root is checked, so a new page's tips module
+// cannot be missed by forgetting to add it here. Each is read against `<name>.html` unless it says otherwise below.
+const WHERE_BUTTONS_ARE = {
     // The Calendar's one ? is drawn by Team View (calendar-team-view.js), so that file is where its button is read.
-    { js: 'calendar-tips.js',  html: 'calendar-team-view.js', noCardHeading: true },
-    { js: 'trains-tips.js',    html: 'trains.html' },
-    { js: 'newlink-tips.js',   html: 'newlink.html' },
+    'calendar-tips.js':       { html: 'calendar-team-view.js', noCardHeading: true },
     // The Links Selector's one ? sits on its note strip, which has no card and so no heading: its title is the panel's own.
-    { js: 'links-selector-tips.js', html: 'links-selector.html', noCardHeading: true },
-];
+    'links-selector-tips.js': { html: 'links-selector.html', noCardHeading: true },
+};
+/** @type {Array<{ js: string, html: string, noCardHeading?: boolean }>} */
+const PAGES = readdirSync(REPO_ROOT_URL).filter(f => /-tips\.js$/.test(f)).sort()
+    .map(js => ({ js, html: js.replace(/-tips\.js$/, '.html'), .../** @type {Record<string, any>} */ (WHERE_BUTTONS_ARE)[js] }));
+
+describe('every tips module is checked', () => {
+    test('the list is found from the repository, and every module in it is a page\'s, with the file its buttons are in', () => {
+        // A filter that found nothing would check nothing and pass: these nine are the ones there were when the list was found.
+        for (const js of ['admin-tips.js', 'calendar-tips.js', 'link-designer-tips.js', 'links-selector-tips.js', 'newlink-tips.js',
+            'operations-tips.js', 'overtime-tips.js', 'settings-tips.js', 'trains-tips.js']) {
+            assert.ok(PAGES.some(p => p.js === js), `${js} is not checked`);
+        }
+        for (const { js, html } of PAGES) assert.ok(existsSync(new URL(html, REPO_ROOT_URL)), `${js}: no ${html} to read its ? buttons from — name it in WHERE_BUTTONS_ARE`);
+        for (const js of Object.keys(WHERE_BUTTONS_ARE)) assert.ok(PAGES.some(p => p.js === js), `WHERE_BUTTONS_ARE names ${js}, which is gone`);
+    });
+});
 
 // settings-tips.js lists Timetable changes only while one is due (`timetableListed`, notif-card-core.js),
 // as the card does at runtime; settings.html carries the card's kind in its markup either way. So the

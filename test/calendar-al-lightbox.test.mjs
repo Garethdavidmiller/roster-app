@@ -330,7 +330,7 @@ describe('the day panel', () => {
         openDayDetail(cell({ detailShiftValue: 'AL', detailShift: 'Annual leave', detailBase: 'Early shift 06:00-14:00',
             detailBaseShift: '06:00-14:00', detailNowShift: 'AL', detailBy: 'Changed by A. Person' }));
         assert.equal(byId('dayDetailChangeSaid').textContent,
-            'Base roster Early shift 06:00-14:00, changed to Annual leave. Changed by A. Person');
+            'Usual roster Early shift 06:00-14:00, changed to Annual leave. Changed by A. Person');
         assert.equal(byId('dayDetailChange').getAttribute('aria-label'), null,
             'a label on a plain <div> names nothing, and a screen reader may skip it');
         const [from] = byId('dayDetailChangePair').children;
@@ -355,7 +355,7 @@ describe('the day panel', () => {
     test('25/26 December: a day a record changed FROM Christmas leave is captioned and said as that leave', () => {
         // The left badge is the Christmas leave there, and the base roster was the very turn on the
         // right: "Changed from base roster 🏖️ AL → 🌙 13:30-21:00" said otherwise (18 Nov 2026).
-        assert.equal(CAPTION_BASE, 'Changed from base roster', 'premise: the markup\'s caption for an ordinary day');
+        assert.equal(CAPTION_BASE, 'Changed from the usual roster', 'premise: the markup\'s caption for an ordinary day');
         openDayDetail(cell({ detailShiftValue: '13:30-21:00', detailShift: 'Late shift 13:30-21:00', detailBase: 'Annual leave',
             detailBaseShift: 'AL', detailNowShift: '13:30-21:00', detailFromChristmas: '1', detailBy: 'Last saved by A. Person' }));
         assert.equal(byId('dayDetailChangeFrom').textContent, 'Changed from Christmas leave');
@@ -365,7 +365,7 @@ describe('the day panel', () => {
         openDayDetail(cell({ detailShiftValue: '07:00-16:00', detailShift: 'Early shift 07:00-16:00', detailBase: 'Spare day',
             detailBaseShift: 'SPARE', detailNowShift: '07:00-16:00' }));
         assert.equal(byId('dayDetailChangeFrom').textContent, CAPTION_BASE);
-        assert.equal(byId('dayDetailChangeSaid').textContent, 'Base roster Spare day, changed to Early shift 07:00-16:00');
+        assert.equal(byId('dayDetailChangeSaid').textContent, 'Usual roster Spare day, changed to Early shift 07:00-16:00');
     });
 
     test('the spoken sentence says the new value WITH its time, as the renderer hands it over', () => {
@@ -374,7 +374,7 @@ describe('the day panel', () => {
         openDayDetail(cell({ detailShiftValue: '06:00-14:00', detailShift: 'Late shift', detailPermanentShift: 'late',
             detailBase: 'Late shift 07:00-15:00', detailBaseShift: '07:00-15:00', detailNowShift: '06:00-14:00',
             detailNowSaid: 'Late shift 06:00-14:00' }));
-        assert.equal(byId('dayDetailChangeSaid').textContent, 'Base roster Late shift 07:00-15:00, changed to Late shift 06:00-14:00');
+        assert.equal(byId('dayDetailChangeSaid').textContent, 'Usual roster Late shift 07:00-15:00, changed to Late shift 06:00-14:00');
     });
 
     test('a pay cut-off says what one is, and which payday it feeds', () => {

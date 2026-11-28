@@ -307,8 +307,9 @@ const updateLegend = () => legend.update();
  * (calendar-view path). takeStaleMemberName() is one-shot so only one path fires.
  * @param {string} staleName  The name that was no longer found in the roster.
  * @param {string} fallbackName  The member now being shown.
+ * @param {boolean} [inTeamView]  The page opens in Team View, where the name picker is hidden.
  */
-function _showStaleMemberBanner(staleName, fallbackName) {
+function _showStaleMemberBanner(staleName, fallbackName, inTeamView = false) {
     const banner = document.getElementById('errorBanner');
     if (!banner) return;
     // A LINE OF ITS OWN, BESIDE WHATEVER THE BANNER ALREADY SAYS. The start-up roster check may have
@@ -317,7 +318,9 @@ function _showStaleMemberBanner(staleName, fallbackName) {
     const line = document.createElement('div');
     // The signed-in member's OWN name (a row hidden after a move into management, say) is said to
     // them, not about them in quotes.
-    line.textContent = `${staleName === getSession()?.name ? 'Your name' : `"${staleName}"`} is no longer in the roster — showing ${fallbackName}'s calendar. Choose a name from the list below.`;
+    // Team View hides the picker (index.css), so there the line says how to reach it.
+    const where = inTeamView ? 'Select 📅 Month, then choose a name from the list.' : 'Choose a name from the list below.';
+    line.textContent = `${staleName === getSession()?.name ? 'Your name' : `"${staleName}"`} is no longer in the roster — showing ${fallbackName}'s calendar. ${where}`;
     banner.appendChild(line);
     banner.classList.add('visible');
     setTimeout(() => {
@@ -654,7 +657,8 @@ try {
         // Show stale-member banner before branching on view mode so team-view users also see it.
         // takeStaleMemberName() is one-shot; renderCalendar() calls it again safely (returns null).
         const staleAtLoad = takeStaleMemberName();
-        if (staleAtLoad) _showStaleMemberBanner(staleAtLoad, (/** @type {any} */ (getCurrentMember())).name);
+        // Team View is restored below from the same flag, so it is read here: the picker will be hidden.
+        if (staleAtLoad) _showStaleMemberBanner(staleAtLoad, (/** @type {any} */ (getCurrentMember())).name, lsGet(TEAM_VIEW) === '1');
 
         // Start the initial 3-month override fetch BEFORE the first render. It sets
         // _initialFetchInProgress + pre-claims the window's months, so the first renderCalendar's

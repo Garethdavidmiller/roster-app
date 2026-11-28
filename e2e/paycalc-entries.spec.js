@@ -88,7 +88,7 @@ test('paycalc: a saved payslip that is a list, not a record, shows the damaged w
     });
     await page.goto('/paycalc.html?payday=2026-10-23');
     await expect(page.locator('.save-status.corrupt')).toBeVisible();
-    await expect(page.locator('#saveStatus')).toContainText("Couldn't read this period's saved entries");
+    await expect(page.locator('#saveStatus')).toContainText("Couldn't read this payslip's saved entries");
     await changeSettings(page);
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p57')),
         'a damaged period was rewritten without the member typing').toBe('[]');

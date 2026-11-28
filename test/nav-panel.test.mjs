@@ -662,6 +662,26 @@ describe('a close before the first frame keeps the panel closed', () => {
         mock.timers.tick(60);
         assert.equal(document.activeElement, $('navPanelClose'), 'the open drawer\'s ✕ never took the focus');
     });
+
+    // THE VISUAL-ONLY CLOSE MOVES FOCUS OUT TOO (28 Nov 2026). The drawer closes visually to hand over to one of its
+    // lightboxes, and only its ✕/Back closes moved focus out before aria-hidden: from App Notices or the info panel,
+    // focus sat on the hidden drawer's ✕ for 60 ms, and stayed there if the lightbox never took it. The burger holds
+    // it in between, and the lightbox still takes it at its own 60 ms — moving it out steals nothing.
+    for (const lb of LIGHTBOXES) {
+        test(`${lb.name}: opened from the drawer, focus leaves the hidden drawer at once and reaches the lightbox's ✕`, () => {
+            const { $ } = mountLive(lb.opts);
+            /** @type {any} */ ($('navPanel')).contains = (/** @type {any} */ n) => n === $('navPanelClose');
+            /** @type {any} */ ($('navMenuBtn')).fire('click');
+            mock.timers.tick(60);
+            assert.equal(document.activeElement, $('navPanelClose'), 'premise: focus is inside the open drawer');
+            /** @type {any} */ ($('navPanel')).fire('click', { target: { closest: (/** @type {string} */ sel) =>
+                (sel === lb.link ? { dataset: { csTitle: 'Rail Staff Travel' } } : null) }, button: 0, preventDefault() {} });
+            assert.equal($('navPanel').getAttribute('aria-hidden'), 'true', 'premise: the drawer is hidden');
+            assert.equal(document.activeElement, $('navMenuBtn'), 'focus was left inside the hidden drawer');
+            mock.timers.tick(60);
+            assert.equal(document.activeElement, $(lb.close), 'the lightbox no longer takes the focus');
+        });
+    }
 });
 
 // ── THE 8-SECOND BUDGET COVERS THE WHOLE OPEN (whole-app check, Nov 2026) ─────────────────────────────

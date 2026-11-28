@@ -137,7 +137,8 @@ export function buildAttentionItems(reports) {
  * @returns {boolean}
  */
 export function allClear(reports) {
-    return Object.keys(ATTENTION_CATALOGUE).every(id => reports[id] && !reports[id].unchecked)
+    // An unchecked report needs no clause of its own: `buildAttentionItems` lists every one as an item.
+    return Object.keys(ATTENTION_CATALOGUE).every(id => reports[id])
         && buildAttentionItems(reports).length === 0;
 }
 

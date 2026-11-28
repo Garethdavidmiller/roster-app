@@ -124,6 +124,14 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
         if (gen === _bellGen) _paintBell(state);
     }
 
+    /**
+     * Is the drawer the bell sits in still open? The info panel reuses the drawer's history entry, which a drawer
+     * closed meanwhile has given up, so a panel opened then would stack on whatever is open now. Asked after every
+     * wait: a toggle's answer, and the import of notif-card-core.js, which on a first visit is a network fetch.
+     * @returns {boolean}
+     */
+    const drawerStillOpen = () => !bell?.closest?.('[aria-hidden="true"]');
+
     bell?.addEventListener('click', async () => {
         if (_bellBusy) return;
         const state = bell.dataset.notifState;
@@ -140,6 +148,8 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
             _bellBusy = true;
             try {
                 const { MIRROR_OFF_LINE } = await import('./notif-card-core.js');
+                // The import is the first visit's network fetch, and the drawer can be closed while it lands.
+                if (!drawerStillOpen()) return;
                 _closePanelVisualOnly();
                 _openComingSoon(/** @type {HTMLElement} */ (/** @type {unknown} */ (MIRROR_OFF_PANEL)), MIRROR_OFF_LINE);
             } catch (err) {
@@ -173,8 +183,9 @@ export function wireNavBell({ currentPage, _closePanelVisualOnly, _openComingSoo
         // A dismissed prompt ('off-default') and a refusal ('denied') are the member's own answers and need no telling.
         // Only while the drawer is still open: the panel reuses the drawer's history entry, which a drawer closed
         // during a slow toggle has given up — the bell's 🔕 says the rest when it is next opened.
-        else if (turning === 'on' && answer === 'off-lapsed' && !bell.closest?.('[aria-hidden="true"]')) {
+        else if (turning === 'on' && answer === 'off-lapsed' && drawerStillOpen()) {
             const { ENABLE_FAILED_LINE } = await import('./notif-card-core.js');
+            if (!drawerStillOpen()) return;   // …and asked again once the import has landed
             _closePanelVisualOnly();
             _openComingSoon(/** @type {HTMLElement} */ (/** @type {unknown} */ (ENABLE_FAILED_PANEL)), ENABLE_FAILED_LINE);
         }

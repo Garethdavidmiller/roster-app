@@ -26,6 +26,7 @@
 import { formatDayMonth, formatClock } from './date-format.js';
 import { NAV_PAGES, pageName } from './nav-destinations.js';
 import { CONFIG } from './roster-data.js';
+import { linkDesignerEnabled, overtimeEnabled } from './auth-policy.js';
 
 /**
  * The privacy footer both reporting cards end on — ONE declaration, two consumers (v21.29).
@@ -62,15 +63,19 @@ const PAGE_META = Object.fromEntries(NAV_PAGES.map((page) => [page.id, {
  * on the usage page"). The card listed only a page somebody had opened, and the admin's own opens are never counted, so a
  * page that had just opened — the Links Selector — was simply absent, which reads as "not counted" rather than "nobody
  * yet". Every drawer page but two kinds: the admin's own (Operations: its every open is an admin's, never counted, so it
- * would always say 0), and a page that is PAUSED or still the admin's beta, read from the switch its drawer pill obeys.
- * @param {typeof CONFIG} [config]
+ * would always say 0), and a page that is PAUSED or still the admin's beta, read from the switch its drawer pill obeys —
+ * through auth-policy.js's one client reading of each pause (`linkDesignerEnabled`, `overtimeEnabled`), so its e2e seam
+ * reaches this list too.
+ * @param {{ linkDesigner?: boolean, overtime?: boolean, selector?: boolean }} [switches] each defaults to the live switch
  * @returns {string[]}
  */
-function staffPageIds(config = CONFIG) {
+function staffPageIds({
+    linkDesigner = linkDesignerEnabled(), overtime = overtimeEnabled(), selector = CONFIG.LINKS_SELECTOR_OPEN === true,
+} = {}) {
     return NAV_PAGES.filter(p => !p.adminOnly
-        && !(p.linksDesignerOnly && !config.LINK_DESIGNER_ENABLED)
-        && !(p.overtimeAudienceOnly && !config.OVERTIME_ENABLED)
-        && !(p.selectorAudienceOnly && !config.LINKS_SELECTOR_OPEN)).map(p => p.id);
+        && !(p.linksDesignerOnly && !linkDesigner)
+        && !(p.overtimeAudienceOnly && !overtime)
+        && !(p.selectorAudienceOnly && !selector)).map(p => p.id);
 }
 
 /**

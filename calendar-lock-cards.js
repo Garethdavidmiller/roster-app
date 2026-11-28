@@ -179,7 +179,7 @@ export const SIGN_IN_UNAVAILABLE_LINE = 'The sign-in form could not load. Check 
  * dynamic import can stay failed for the life of the page, so retrying the import in place may not).
  * A card in the same family and slot as the others, so it replaces whatever is up and never stacks.
  */
-export function showSignInUnavailable() {
+function showSignInUnavailable() {
     document.body.classList.add('calendar-locked');
     _deps.setWorkspaceHidden(true);
     const panel = mountLockCard({ id: 'calendarSignInUnavailable', labelledBy: 'calLockUnavailableTitle', html: `

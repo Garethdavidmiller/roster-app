@@ -373,7 +373,7 @@ export function init() {
     function updateAdjSign() {
       const btn = /** @type {HTMLElement} */ (document.getElementById('adjSignBtn'));
       btn.textContent = _adjNegative ? '−' : '+';
-      btn.setAttribute('aria-label', _adjNegative ? 'Toggle sign: currently negative' : 'Toggle sign: currently positive');
+      btn.setAttribute('aria-label', _adjNegative ? 'Takes off pay — select to add instead' : 'Adds to pay — select to deduct instead');
       btn.classList.toggle('negative', _adjNegative);
     }
 
@@ -497,8 +497,10 @@ export function init() {
       const disk = lsGetChecked(periodKey(pNum));
       const plan = disk.ok ? planSettingWrite({ diskRaw: disk.value, baseRaw: _base.raw, formNow: _readForm(pNum), fields: all }) : null;
       // Never "saved" over a write the device did not keep; a kept one ends only a setting's own line.
+      // Nothing to carry (`write: null` — no entries stored) is kept too: a Retry after a failed read
+      // must end the line, or "Not saved" stays up over a payslip with nothing left to save.
       if (!plan || (plan.write && !lsSetVerified(periodKey(pNum), plan.write))) _notSaved(pNum, NOT_SAVED, 'setting', persist, all);
-      else if (plan.write) { _base = { raw: plan.base }; _line.settingStored(all); updateSaveStatus(pNum); }
+      else { if (plan.write) _base = { raw: plan.base }; _line.settingStored(all); updateSaveStatus(pNum); }
       calculate(); };
 
     /** Paint payslip `p`'s own default pension into the field; no payslip, no paint. @param {any} p */

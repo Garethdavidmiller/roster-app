@@ -9,7 +9,7 @@
 // worker cache is invalidated by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '27.35';
+export const APP_VERSION = '27.36';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its line
@@ -123,11 +123,12 @@ export { teamMembers };
  * RD, OFF, SPARE, AL, SICK"). Returns false for the non-worked set — RD/OFF (rest), SPARE (standby),
  * AL (annual leave), SICK (absence) — true for everything else (incl. RDW and worked times). Shared
  * by the dispatcher lieu-day count (al-contract.js) and the calendar renderer so the two can never drift as
- * the leave/absence set grows.
- * @param {string} shift
+ * the leave/absence set grows. An EMPTY value (null, undefined, '') is no day at all, so it is not worked.
+ * @param {string|null|undefined} shift
  * @returns {boolean}
  */
 export function isWorkedShift(shift) {
+    if (!shift) return false;
     return shift !== 'RD' && shift !== 'OFF' && shift !== 'SPARE' && shift !== 'AL' && shift !== 'SICK';
 }
 

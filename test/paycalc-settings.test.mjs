@@ -485,7 +485,7 @@ describe('the joining period’s pension is pro-rated — and only for somebody 
     // pension of its own is priced on (paycalc-hpp.js → savedPeriodPension) were each a copy of
     // "default × pro-rate". Both now ask `joinerDefaultPension`; this sweep holds every payslip of the
     // grid, for joiners on every day of a period and the three who are never scaled, to the two
-    // formulas they replaced — to the last binary digit, so no £ anywhere moved.
+    // formulas they replaced, restated below — strictly equal for every member and payslip swept here.
     test('every payslip prices exactly as the two copies it replaced did', async () => {
         const { savedPeriodPension } = await import('../paycalc-hpp.js');
         const ps = getPeriods(), anchor = periodsInYear()[6];

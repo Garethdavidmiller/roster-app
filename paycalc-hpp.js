@@ -359,7 +359,7 @@ function _hppLabelText(ty, mode = 'hours') {
 
 /** The "how it's calculated" explainer, shared by both modes (it describes what HPP IS). @param {any} ty */
 function _hppNoteHtml(ty) {
-  return `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> Your extra pay above basic hours (Saturday, overtime, Rest Day Working, Sunday, bank holiday and Boxing Day premiums) × 7.69% (that's 4 weeks' leave out of 52). Basic pay, London Allowance, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>, and it shows as <strong>Holiday Pay Premium</strong> on that payslip. The more of your payslips you enter above, the closer this gets to the full-year figure.`;
+  return `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> Your pay above basic — all your overtime, Rest Day Working, Sunday, Bank Holiday Overtime and Boxing Day pay, and the extra quarter on rostered Saturdays and bank holidays — × 7.69% (that's 4 weeks' leave out of 52). Basic pay, London Allowance, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>, and it shows as <strong>Holiday Pay Premium</strong> on that payslip. The more of your payslips you enter above, the closer this gets to the full-year figure.`;
 }
 
 /** Render the current-year card from a NON-hours source and persist the resulting figure to
@@ -415,7 +415,7 @@ function _renderHppManual(ty, mode) {
       const part = y.upTo && yearLast && y.upTo.num < yearLast.num && payslipMayBeInHand(yearLast)
         ? ` <span class="hpp-partial-hint">It covers ${ty.label} only up to that payslip, so it may be low — the Year to Date pay on your ${fdLong(yearLast.payday)} payslip covers the whole year.</span>` : '';
       basisEl.innerHTML = !y.below
-        ? `Rough estimate from your Year to Date pay up to your ${fdLong(y.upTo.payday)} payslip: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay and London Allowance) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${part}${lumpNote}${premiumNote}`
+        ? `Rough estimate from your Year to Date pay up to your ${fdLong(y.upTo.payday)} payslip: ${fmt(extra)} premium pay (the part of your Year to Date Taxable Pay above the basic pay and London Allowance you'd expect after pension) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${part}${lumpNote}${premiumNote}`
         : `Your Year to Date Taxable Pay looks lower than the expected basic pay, so there's no premium to estimate from it — fill in your hours on each payslip in the calculator instead, or enter the figure yourself.`;
     }
     return;
@@ -841,12 +841,12 @@ export function updatePriorHpp(ty) {
     if (basisEl)  basisEl.textContent  = source !== 'hours'
       ? _priorSourcePrompt(priorTy, source)
       : _priorSkipped > 0
-        ? `Couldn't read ${_priorSkipped} saved ${priorTy.label} payslip${_priorSkipped > 1 ? 's' : ''} — open ${_priorSkipped > 1 ? 'those periods' : 'that period'} and enter the hours again, then check your January ${priorTy.hppPaidJan} payslip`
-        : `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
+        ? `Couldn't read ${_priorSkipped} saved ${priorTy.label} payslip${_priorSkipped > 1 ? 's' : ''} — open ${_priorSkipped > 1 ? 'those payslips' : 'that payslip'} and enter the hours again, then check your January ${priorTy.hppPaidJan} payslip`
+        : `No overtime, Rest Day Working or other extra pay entered for ${priorTy.label} — check your January ${priorTy.hppPaidJan} payslip`;
   }
   // Corrupt periods behind a PARTIAL estimate: the figure shown may be too low — say so.
   if (_priorSkipped > 0 && !hasActual && est > 0 && basisEl) {
-    basisEl.innerHTML += ` <span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_priorSkipped} saved period${_priorSkipped > 1 ? 's' : ''}, so this may be too low.</span>`;
+    basisEl.innerHTML += ` <span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_priorSkipped} saved payslip${_priorSkipped > 1 ? 's' : ''}, so this may be too low.</span>`;
   }
 
   const input = document.getElementById('priorHppActualInput');

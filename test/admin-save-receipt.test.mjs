@@ -132,7 +132,7 @@ describe('a day deliberately LEFT ALONE is part of the receipt (v23.88, external
             toSave: [{ date: '2026-06-17', type: 'annual_leave' }], removed: [],
             memberName: 'C. Reen', formatDate: fmt, describe: desc, skipped: ['2026-06-13'],
         });
-        assert.deepEqual(r.lines, ['[2026-06-13] — rest day, no leave recorded', '[2026-06-17] — Annual Leave']);
+        assert.deepEqual(r.lines, ['[2026-06-13] — rest day — no leave needed, nothing to record', '[2026-06-17] — Annual Leave']);
     });
 
     test('it is NOT counted as a change — nothing was written', () => {
@@ -149,7 +149,7 @@ describe('a day deliberately LEFT ALONE is part of the receipt (v23.88, external
             skipped: ['2026-06-13'],
         });
         assert.equal(r.summary, 'Nothing to record for C. Reen');
-        assert.deepEqual(r.lines, ['[2026-06-13] — rest day, no leave recorded']);
+        assert.deepEqual(r.lines, ['[2026-06-13] — rest day — no leave needed, nothing to record']);
     });
 
     test('omitting `skipped` leaves every existing receipt exactly as it was', () => {
@@ -178,12 +178,12 @@ describe('Christmas Day and Boxing Day are named as themselves (v25.37)', () => 
 
     test('leave already recorded there stays, and the line says it is never counted', () => {
         assert.deepEqual(receipt(['2026-12-26'], ['2026-12-26']).lines, [
-            '[2026-12-26] — Boxing Day; the leave already recorded here was left as it is and is never counted (select AL on the day again to remove it)',
+            '[2026-12-26] — Boxing Day — the leave already recorded here stays, and is never counted (to remove it, select AL on this day again)',
         ]);
     });
 
     test('before 2026 the ordinary rest-day words are kept', () => {
-        assert.deepEqual(receipt(['2025-12-25']).lines, ['[2025-12-25] — rest day, no leave recorded']);
+        assert.deepEqual(receipt(['2025-12-25']).lines, ['[2025-12-25] — rest day — no leave needed, nothing to record']);
     });
 });
 

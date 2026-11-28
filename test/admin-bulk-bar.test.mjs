@@ -61,15 +61,17 @@ const { initBulkBar, updateBulkSelCount, resetBulkPills } = await import('../adm
 const { teamMembers, getBaseShift, isWorkedShift } = await import('../roster-data.js');
 
 const MEMBER = teamMembers.find(m => m.name === 'G. Miller');
-const SUNDAY = '2027-01-10', TUESDAY = '2027-01-12';
+const SUNDAY = '2027-01-10', TUESDAY = '2027-01-12', WEDNESDAY = '2027-01-13';
+/** The member's saved changes by date, as `buildMemberDateMap` answers them: none, unless a test puts one. */
+let _dateMap = new Map();
 /** @type {any[]} */ let rows = [];
 const calls = { changed: 0, recount: 0, said: [] };
 // The bar looks its controls and the grid up once, as it wires: they exist first, as on the page, and stay.
 const grid = put('weekGrid');
 grid.querySelectorAll = sel => sel === '.day-row' ? rows : sel === '.day-cb:checked' ? rows.filter(r => r._cb.checked).map(r => r._cb) : [];
-for (const id of ['bulkTypePills', 'bulkApplyBtn', 'bulkTimeGroup', 'bulkStart', 'bulkEnd']) put(id);
+for (const id of ['bulkTypePills', 'bulkApplyBtn', 'bulkTimeGroup', 'bulkStart', 'bulkEnd', 'bulkSelWorking']) put(id);
 initBulkBar({
-    memberDateMap: () => new Map(),
+    memberDateMap: () => _dateMap,
     markChanged: () => { calls.changed++; },
     showSuccess: (msg) => { calls.said.push(msg); },
     recount: () => { calls.recount++; updateBulkSelCount(); },
@@ -77,6 +79,7 @@ initBulkBar({
 
 beforeEach(() => {
     rows = [row(SUNDAY, true), row(TUESDAY, true)];
+    _dateMap = new Map();
     calls.changed = 0; calls.recount = 0; calls.said = [];
     for (const id of ['bulkSelCount', 'bulkApplyHint', 'bulkApplyLabel', 'bulkFeedback']) put(id);
     put('fieldMember').value = MEMBER.name;
@@ -96,6 +99,7 @@ test('premise: the fixture week holds a Sunday and a worked Tuesday', () => {
     assert.ok(MEMBER, 'premise: the member is on the roster');
     assert.equal(new Date(2027, 0, 10).getDay(), 0);
     assert.ok(isWorkedShift(getBaseShift(MEMBER, new Date(2027, 0, 12))), 'premise: 12 Jan is worked');
+    assert.equal(getBaseShift(MEMBER, new Date(2027, 0, 13)), 'RD', 'premise: 13 Jan is a weekday rest day');
 });
 
 test('the bar counts the ticked days, and Apply waits for a type, saying why', () => {
@@ -128,4 +132,36 @@ test('resetBulkPills disarms the bar, so a later press applies nothing', () => {
     apply();
     assert.equal(rows.some(r => r.dataset.type), false);
     assert.equal(calls.changed, 0);
+});
+
+// ── A SHIFT SWAPPED ONTO A REST DAY IS A WORKING DAY (`isWorkingDate`, the cards' rule) ─────────────────
+// The bar reads the member's saved changes, so a rest day that now holds a shift — a swap with a colleague — is
+// work: Absent is recorded there, and "Working days" ticks it. Read off the base roster alone, both passed it by.
+const swappedIn = () => new Map([[WEDNESDAY, { id: 'sw', memberName: MEMBER.name, date: WEDNESDAY, type: 'shift', value: '06:20-14:20' }]]);
+
+test('Absent on a rest day is left alone — unless a shift was swapped onto it, which makes it a working day', () => {
+    rows = [row(WEDNESDAY, true)];
+    arm('sick');
+    assert.equal(byId.get('bulkApplyBtn').disabled, true, 'a plain rest day: Absent has nothing to act on');
+    apply();
+    assert.equal(rows[0].dataset.type, undefined, 'the plain rest day is left alone');
+
+    rows = [row(WEDNESDAY, true)];
+    _dateMap = swappedIn();
+    resetBulkPills();
+    arm('sick');
+    assert.equal(byId.get('bulkApplyBtn').disabled, false, 'the swapped-in shift is work: Apply can act');
+    apply();
+    assert.equal(rows[0].dataset.type, 'sick', 'the absence is staged over the swapped-in shift');
+});
+
+test('"Working days" ticks a rest day holding a swapped-in shift, and not a plain one', () => {
+    const click = () => { for (const fn of byId.get('bulkSelWorking')._on.click) fn({}); };
+    rows = [row(SUNDAY, false), row(TUESDAY, false), row(WEDNESDAY, false)];
+    click();
+    assert.deepEqual(rows.map(r => r._cb.checked), [false, true, false], 'the base roster alone: Tuesday only');
+    rows = [row(SUNDAY, false), row(TUESDAY, false), row(WEDNESDAY, false)];
+    _dateMap = swappedIn();
+    click();
+    assert.deepEqual(rows.map(r => r._cb.checked), [false, true, true], 'the swapped-in Wednesday is a working day');
 });

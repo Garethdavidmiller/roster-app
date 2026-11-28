@@ -352,21 +352,14 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             .filter(m => !m.hidden && m.role === grade)
             .sort((a, b) => a.name.localeCompare(b.name));
 
-        // NO "Printed …" HERE (print audit, 18 Nov 2026). This line used to carry its own stamp, taken
-        // when the grid was DRAWN, under the masthead's, which `stampPrintDate` (calendar-app.js) takes
-        // at print time — so the sheet said "Printed" twice, and a week left open since the morning
-        // printed two different times. The masthead's is the one that is true; it is the only one.
+        // NO "Printed …" HERE (print audit, 18 Nov 2026): the masthead's stamp, taken at print time
+        // (`stampPrintDate`, calendar-app.js), is the one that is true — a second, taken when the grid
+        // was drawn, printed two different times on a week left open since the morning.
         const isCurrentWeek = currentTeamWeekStart.getTime() === getSunday(new Date()).getTime();
-        // THE WORDS ARE BACK, ON A LINE OF THEIR OWN (v22.88, external review + owner). v22.85 made
-        // the current week a gold rule under the date and the way back a glyph-only ↩ beside the
-        // grade tabs — tidy, and two things a colleague had to DECODE where two words would have told
-        // them. The centre is now a designed two-line stack on EVERY week: the date, then a small
-        // second line that is either "This week" (a state) or "↩ Back to this week" (an action).
-        // Deliberately two lines rather than the chip the label used to share a line with: that chip
-        // fitted beside the date on a desktop and dropped under it on a phone, so the centre was one
-        // line or two depending on the week and the text size, with the arrows floating between.
-        // Here the arrows align to the DATE line (`.team-week-row`), and the second line is always
-        // there, so nothing moves between weeks. 📍 and the T key still jump here too.
+        // WORDS, ON A LINE OF THEIR OWN (v22.88, external review + owner): a gold rule and a glyph-only
+        // ↩ were two things to DECODE. Every week is a two-line stack — the date, then "This week" (a
+        // state) or "↩ Back to this week" (an action) — so the arrows align to the DATE line
+        // (`.team-week-row`) and nothing moves between weeks. 📍 and the T key still jump here too.
         const statusLine = isCurrentWeek
             ? '<span class="tv-week-status tv-week-status--now">This week</span>'
             : '<button class="tv-week-status tv-week-status--back" id="tvToday" type="button">↩ Back to this week</button>';
@@ -406,8 +399,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const tableBody = _withheld
             ? `<tr><td colspan="8" class="tv-empty tv-pending" role="${_weekDisplay === 'unavailable' ? 'alert' : 'status'}">`
               + (_weekDisplay === 'unavailable'
-                  ? '<span aria-hidden="true">⚠️</span> Couldn\'t check this week — annual leave, absences '
-                    + 'and shift changes couldn\'t be loaded.<button type="button" class="tv-retry" id="tvRetry">Try again</button>'
+                  ? '<span aria-hidden="true">⚠️</span> Couldn’t check this week — annual leave, absences '
+                    + 'and shift changes couldn’t be loaded.<button type="button" class="tv-retry" id="tvRetry">Try again</button>'
                   : '<span aria-hidden="true">⏳</span> Checking this week — loading annual leave, absences and shift changes.')
               + '</td></tr>'
             : gradeMembers.length === 0
@@ -484,10 +477,12 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         // the week touches AND forgets what was known about it, so the next render withholds on a
         // wait state rather than repeating the failure copy — the press has to look like it did
         // something. Re-rendering WITHOUT skipFetch is what actually re-queries.
-        calendarDisplay.querySelector('#tvRetry')?.addEventListener('click', () => {
+        // The On-with card's own Try again does the same: it can need a month the grid does not.
+        const retry = () => {
             new Set([..._weekMonths, ...onWithCard.months]).forEach(k => { clearFetchedMonth(k); forgetOverrideKnowledge(k); });
             renderTeamView(currentTeamGrade);
-        });
+        };
+        for (const id of ['#tvRetry', '#tvOnWithRetry']) calendarDisplay.querySelector(id)?.addEventListener('click', retry);
 
         const tvPrev  = calendarDisplay.querySelector('#tvPrevWeek');
         const tvNext  = calendarDisplay.querySelector('#tvNextWeek');

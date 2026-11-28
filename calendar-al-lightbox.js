@@ -163,10 +163,10 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView, openWhoI
     if (remLblEl) remLblEl.textContent = face.label;
     remEl.className      = 'al-lb-val' + (face.tone === 'none' ? ' empty' : face.tone === 'low' ? ' low' : '');
     // A footnote under the figures since 22 Nov 2026, not a caption inside the Entitlement cell, so it
-    // names the figure it explains: "Entitlement 33: includes 1 day in lieu for working Boxing Day 2026".
+    // names the figure it explains: "Allowance 33: includes 1 day in lieu for working Boxing Day 2026".
     if (breakdownEl) {
       const note = s.breakdown ?? '';
-      breakdownEl.textContent = note ? `Entitlement ${s.entitlement}: ${note.charAt(0).toLowerCase()}${note.slice(1)}` : '';
+      breakdownEl.textContent = note ? `Allowance ${s.entitlement}: ${note.charAt(0).toLowerCase()}${note.slice(1)}` : '';
       breakdownEl.hidden = s.breakdown == null;
     }
     if (carryEl) {
@@ -368,6 +368,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView, openWhoI
   const glyphEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftGlyph'));
   const wordsEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftWords'));
   const timeEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftTime'));
+  const kindNoteEl = document.getElementById('dayDetailKindNote');
   const leaveYrEl = document.getElementById('dayDetailLeaveYear');
   const xmasEl    = document.getElementById('dayDetailChristmas');
   const cutoffEl  = document.getElementById('dayDetailCutoff');
@@ -474,6 +475,11 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView, openWhoI
     // turn and a plain Rest day were the same grey card with different words.
     // A January leave day moved back to last year's allowance says so (v25.18, leave-year.js). The
     // renderer writes the year only for such a day; anything else here is ignored, not shown.
+    // What a Spare, Rest Day Working or Other day means — the renderer's sentence (`shiftExplanation`).
+    if (kindNoteEl) {
+      kindNoteEl.textContent = d.detailKindNote || '';
+      kindNoteEl.hidden = !d.detailKindNote;
+    }
     if (leaveYrEl) {
       const from = /^\d{4}$/.test(d.detailLeaveYear || '') ? d.detailLeaveYear : '';
       leaveYrEl.textContent = from ? `From the ${from} allowance` : '';
@@ -494,8 +500,8 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView, openWhoI
       // year's allowance cannot cover uses it, and otherwise it is in the next year's (boxingDayLieuYear,
       // al-entitlement.js). A Dispatcher's bank-holiday Boxing Day is counted in its own year, as before.
       const lieuLine = !lieu ? ''
-        : !boxingYear || lieu === boxingYear ? `Worked Boxing Day when due at work: one day of annual leave in lieu is added to the ${lieu} allowance.`
-        : `Worked Boxing Day when due at work: one day of annual leave in lieu, to take from 27 December. If leave later this December runs past the ${boxingYear} allowance, it covers that; otherwise it is added to the ${lieu} allowance.`;
+        : !boxingYear || lieu === boxingYear ? `Boxing Day worked when due at work: one extra day of annual leave, in place of this one, is added to the ${lieu} allowance.`
+        : `Boxing Day worked when due at work: one extra day of annual leave, in place of this one, can be taken from 27 December. If leave later in December ${boxingYear} runs past that year’s allowance, it covers that; otherwise it is added to the ${lieu} allowance.`;
       xmasEl.textContent = day ? `${day}: due at work, so this is annual leave. It does not come off the allowance.`
         : kept ? `${kept}: annual leave recorded here does not come off the allowance.`
         : lieuLine;
@@ -557,7 +563,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView, openWhoI
         if (fromEl) fromEl.textContent = fromChristmas ? 'Changed from Christmas leave' : FROM_BASE;
         if (saidEl) {
           const now = d.detailNowSaid || d.detailShift || '';
-          saidEl.textContent = (fromChristmas ? `Changed from Christmas leave to ${now}` : `Base roster ${d.detailBase}, changed to ${now}`).trim()
+          saidEl.textContent = (fromChristmas ? `Changed from Christmas leave to ${now}` : `Usual roster ${d.detailBase}, changed to ${now}`).trim()
             + (d.detailBy ? `. ${d.detailBy}` : '');
         }
         changeEl.hidden = false;

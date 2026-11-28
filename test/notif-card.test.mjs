@@ -346,10 +346,10 @@ describe('what the card lists', () => {
         assert.deepEqual([els.notifKindResetRequests.hidden, els.notifKindErrorLog.hidden], [false, false]);
         assert.deepEqual(kinds.filter(k => !k.hidden).map(k => k.textContent).slice(-3), ['Password reset ·', 'Reset requests ·', 'Error Log']);
     });
-    test('an iPhone in a browser: "After install", and the list is the installed app\'s', async () => {
+    test('an iPhone in a browser: "Home Screen first", and the list is the installed app\'s', async () => {
         Object.assign(env, { supported: false, ios: true, standalone: false });
         await openCard();
-        assert.deepEqual(lastReport(), ['n/a', 'After install', undefined]);
+        assert.deepEqual(lastReport(), ['n/a', 'Home Screen first', undefined]);
         assert.equal(els.notifKinds.hidden, false);
         assert.equal(els.notifKindsLead.textContent, 'In the Home Screen app, you’ll get:');
         assert.match(els.notifStatusMsg.textContent, /find Home Label \(the name under its icon\)/, 'the label is read from the page');

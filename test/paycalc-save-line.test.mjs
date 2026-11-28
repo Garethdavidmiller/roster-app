@@ -200,7 +200,7 @@ describe('saveStatusWords — what the status line says about a payslip', () => 
     test('entries that cannot be read say so, never "No entries saved"', () => {
         const w = saveStatusWords({ failure: null, saved: { data: null, error: 'bad' }, defaultPension: DEF });
         assert.equal(w.cls, 'corrupt');
-        assert.match(w.text, /Couldn't read this period's saved entries/);
+        assert.match(w.text, /Couldn't read this payslip's saved entries/);
     });
 
     test('entries, or a pension of the payslip\'s own, are "saved"; the default pension alone is not', () => {

@@ -100,7 +100,7 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
         dateId: 'huddleDate', fileId: 'huddleFileInput', fileLabelId: 'huddleFileName',
         uploadBtnId: 'huddleUploadBtn', feedbackId: 'huddleFeedback',
         uploadFn: uploadHuddle, currentUser,
-        successMsg: date => `Huddle uploaded for ${date} — staff will see it on the main app`,
+        successMsg: date => `Huddle uploaded for ${date} — staff can open it from ☰ → Daily Huddle`,
         btnLabel: 'Upload Huddle', logPrefix: 'Huddle',
         whereToCheck: '☰ → Daily Huddle',
         // A later Huddle already filed — tomorrow's, sent the evening before — hides this one from staff.
@@ -108,7 +108,7 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
         maxDateOffsetDays: 1,
         isAccepted: f => isPdfFile(f) || isDocxFile(f),
         rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
-        sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
+        sigMismatchMsg: 'That file isn’t a valid PDF or Word document — please choose the original file',
         transform: _convertHuddleDocx,
     });
 }

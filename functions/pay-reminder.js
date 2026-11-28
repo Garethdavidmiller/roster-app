@@ -97,4 +97,4 @@ async function sendPayReminder({ payday, roster, vapidPrivate, vapidPublic, STAF
     return accepted;
 }
 
-module.exports = { PAY_REMINDER_GRADES, payReminderMembers, sendPayReminder, uidForMember };   // uidForMember: the New link reminder resolves its members the same way
+module.exports = { PAY_REMINDER_GRADES, payReminderMembers, sendPayReminder };

@@ -67,7 +67,9 @@ export function injectNavPanel(currentPage, memberName, onSignOut, gates) {
         // rarest thing in the drawer.
         // The glossary (glossary.js): the roster's words, one line each, shown in the page's own ? panel.
         + `<li><button type="button" class="nav-panel-link nav-panel-link--glossary nav-panel-link--stacked"><span aria-hidden="true">📖</span><span class="nav-link-text"><span class="nav-link-title">Glossary</span><span class="nav-link-sub">What RDW, AL, Spare and the rest mean</span></span></button></li>`
-        + `<li><button type="button" class="nav-panel-link nav-panel-link--notices"><span aria-hidden="true">📣</span> App Notices</button></li>`;
+        // A line saying what it holds, as every row in Reference has (NAV_GUIDES): "App Notices" alone named
+        // something a reader had to know already.
+        + `<li><button type="button" class="nav-panel-link nav-panel-link--notices nav-panel-link--stacked"><span aria-hidden="true">📣</span><span class="nav-link-text"><span class="nav-link-title">App Notices</span><span class="nav-link-sub">Messages this app has shown you, kept for six months</span></span></button></li>`;
 
     // Member name is set via textContent (not innerHTML) after injection to avoid XSS.
     // The bell is only included when the device supports Web Push (notif.js folds in the

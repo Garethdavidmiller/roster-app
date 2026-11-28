@@ -397,7 +397,47 @@ describe('service worker — a JS module (Oct 2026 production review)', () => {
     });
 });
 
-// ── THE PACK UNDER docs/ IS LEFT TO THE NETWORK (v25.67) ─────────────────────────────────────────
+// ── THE CACHE-FIRST BRANCH: icons, fonts, manifest.json (28 Nov 2026) ─────────────────────────────
+// manifest.json is precached in EVERY release's cache, and this branch used a bare caches.match(), which
+// searches in creation order — so mid-transition it answered the OLDEST release's manifest, and a miss
+// was fetched with the page's cache mode (the HTTP cache's previous copy, stored in the NEW cache).
+describe('service worker — an icon, font or manifest.json', () => {
+    const json = (/** @type {string} */ t) => new Response(t, { status: 200, headers: { 'content-type': 'application/manifest+json' } });
+    test('held by this release AND an older one → this release’s copy, not the oldest', async () => {
+        const { body, fetches } = await navigate({
+            path: '/manifest.json', destination: 'manifest', mode: 'cors',
+            older: { './manifest.json': '{"v":"older release"}' },
+            cached: { './manifest.json': '{"v":"this release"}' },
+            network: async () => json('{"v":"network"}'),
+        });
+        assert.match(body, /this release/);
+        assert.deepEqual(fetches, [], 'a hit needs no network');
+    });
+
+    test('held only by an older release → that copy, with no fetch', async () => {
+        const { body, fetches } = await navigate({
+            path: '/manifest.json', destination: 'manifest', mode: 'cors',
+            older: { './manifest.json': '{"v":"older release"}' },
+            network: async () => json('{"v":"network"}'),
+        });
+        assert.match(body, /older release/);
+        assert.deepEqual(fetches, []);
+    });
+
+    test('a MISS is fetched past the browser HTTP cache, and stored in this release’s cache', async () => {
+        const { body, fetchModes, stores, settle } = await navigate({
+            path: '/manifest.json', destination: 'manifest', mode: 'cors',
+            network: async () => json('{"v":"fresh"}'),
+        });
+        assert.match(body, /fresh/);
+        assert.deepEqual(fetchModes, ['no-cache'], 'the default mode can return a previous release from the HTTP cache');
+        await settle(); await after(20, () => {});
+        const keys = [.../** @type {Map<string, Response>} */ (stores.get(CACHE)).keys()];
+        assert.ok(keys.some(k => k.endsWith('/manifest.json')));
+    });
+});
+
+// ── THE PACK UNDER docs/ IS LEFT TO THE NETWORK (v25.67)─────────────────────────────────────────
 // The New link pack's PDFs live under docs/ on the GitHub Pages mirror, and the in-app PDF viewer
 // (pdf-viewer.js) reads them from there. The worker's cache-first branch used to answer them — and keep
 // each one for the life of the release, so a pack file updated under the same name stayed old on that

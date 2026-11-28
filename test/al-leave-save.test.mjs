@@ -148,7 +148,6 @@ mock.module('../firebase-client.js', {
             if (writeFails) throw writeFails;
             try { return await fn(); } catch (err) { if (/** @type {any} */ (err)?.code !== 'permission-denied') throw err; return fn(); }
         },
-        whenOwnWritesSent: async () => true,
         whenOwnWritesSentFor: async () => true,
     },
 });

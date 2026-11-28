@@ -46,7 +46,7 @@ describe('a breach that must not be missed', () => {
     test('a shift longer than 12 hours is refused', () => {
         const { errors, failedDates } = check([{ date: '2026-06-15', value: '06:00-19:00', type: 'shift' }]);
         assert.equal(errors.length, 1);
-        assert.match(errors[0], /13h — max is 12h/);
+        assert.match(errors[0], /shift is 13 hours long — the longest allowed is 12 hours/);
         assert.deepEqual(failedDates, ['2026-06-15']);
     });
 
@@ -55,32 +55,40 @@ describe('a breach that must not be missed', () => {
         const { errors } = check([{ date: '2026-06-16', value: '07:00-15:00', type: 'shift' }],
             { shifts: { '2026-06-15': '14:00-22:00' } });
         assert.equal(errors.length, 1);
-        assert.match(errors[0], /only 9h rest after/);
+        assert.match(errors[0], /only 9 hours’ rest after the 2026-06-15 shift — there must be at least 12$/);
     });
 
     test('too little rest BEFORE the next day is refused', () => {
         const { errors } = check([{ date: '2026-06-15', value: '14:00-22:00', type: 'shift' }],
             { shifts: { '2026-06-16': '07:00-15:00' } });
         assert.equal(errors.length, 1);
-        assert.match(errors[0], /only 9h rest before/);
+        assert.match(errors[0], /only 9 hours’ rest before the 2026-06-16 shift — there must be at least 12$/);
     });
 
-    // Shifts that OVERLAP are not "only -1h rest" (review, Nov 2026): a gap of nothing or less is said as an overlap.
+    // Shifts that OVERLAP are not "only -1h rest" (review, Nov 2026), and shifts back to back do not overlap:
+    // each is said as what happens, on the side it happens.
     test('a shift that overlaps the day before or after says so, not a negative rest', () => {
         // 22:00–06:00 night before; the next day starts 05:00 → an hour of overlap.
         const after = check([{ date: '2026-06-16', value: '05:00-13:00', type: 'shift' }],
             { shifts: { '2026-06-15': '22:00-06:00' } }).errors;
         assert.equal(after.length, 1);
-        assert.equal(after[0], '2026-06-16: overlaps the 2026-06-15 shift — need 12h rest between shifts');
+        assert.equal(after[0], '2026-06-16: starts before the 2026-06-15 shift ends — there must be at least 12 hours’ rest between shifts');
         assert.doesNotMatch(after[0], /only|-\d+(\.\d+)?h/);
         // A night that runs past the next day's start, on the other side.
         const before = check([{ date: '2026-06-15', value: '22:00-08:00', type: 'shift' }],
             { shifts: { '2026-06-16': '07:00-15:00' } }).errors;
-        assert.equal(before[0], '2026-06-15: overlaps the 2026-06-16 shift — need 12h rest between shifts');
-        // Starting exactly as the last one ends is no rest at all: an overlap too, never "only 0h rest".
+        assert.equal(before[0], '2026-06-15: ends after the 2026-06-16 shift starts — there must be at least 12 hours’ rest between shifts');
+        // Starting exactly as the last one ends is no rest at all, and no overlap either: back to back, never "only 0h rest".
         const none = check([{ date: '2026-06-16', value: '06:00-14:00', type: 'shift' }],
             { shifts: { '2026-06-15': '22:00-06:00' } }).errors;
-        assert.equal(none[0], '2026-06-16: overlaps the 2026-06-15 shift — need 12h rest between shifts');
+        assert.equal(none[0], '2026-06-16: starts as the 2026-06-15 shift ends — there must be at least 12 hours’ rest between shifts');
+        const noneBefore = check([{ date: '2026-06-15', value: '20:00-07:00', type: 'shift' }],
+            { shifts: { '2026-06-16': '07:00-15:00' } }).errors;
+        assert.ok(noneBefore.includes('2026-06-15: ends as the 2026-06-16 shift starts — there must be at least 12 hours’ rest between shifts'), noneBefore.join(' | '));
+        // An hour's rest is singular.
+        const hour = check([{ date: '2026-06-16', value: '07:00-15:00', type: 'shift' }],
+            { shifts: { '2026-06-15': '22:00-06:00' } }).errors;
+        assert.equal(hour[0], '2026-06-16: only 1 hour’s rest after the 2026-06-15 shift — there must be at least 12');
     });
 
     test('a NIGHT shift is measured across midnight, not backwards', () => {
@@ -115,7 +123,7 @@ describe('a breach that must not be missed', () => {
         const { errors } = check([{ date: '2026-06-16', value: '09:50-17:00', type: 'shift' }],
             { shifts: { '2026-06-15': '14:00-22:00' } });   // 22:00 → 09:50 = 11h50m
         assert.equal(errors.length, 1, '11h50m of rest is a breach');
-        assert.match(errors[0], /11\.8h rest after/);
+        assert.match(errors[0], /only 11 hours 50 minutes’ rest after/);
     });
 
     test('one row breaking BOTH neighbours says both things but is marked once', () => {
@@ -153,7 +161,7 @@ describe('a refusal that must not be raised', () => {
     test('…and a Rest Day Working day IS, like any shift', () => {
         const { errors } = check([{ date: '2026-06-13', value: '06:00-19:00', type: 'rdw' }]);
         assert.equal(errors.length, 1, 'a 13-hour RDW went unchecked');
-        assert.match(errors[0], /13h — max is 12h/);
+        assert.match(errors[0], /shift is 13 hours long — the longest allowed is 12 hours/);
     });
 
     test('an untimed Other day on a REST day is exempt', () => {
@@ -179,7 +187,7 @@ describe('a refusal that must not be raised', () => {
         const { errors } = check([{ date: '2026-06-16', value: '02:00-19:00', type: 'shift' }],
             { shifts: { '2026-06-15': '14:00-22:00' } });
         assert.equal(errors.length, 1, 'the length is the finding; piling on rest gaps buries it');
-        assert.match(errors[0], /max is 12h/);
+        assert.match(errors[0], /the longest allowed is 12 hours/);
     });
 });
 

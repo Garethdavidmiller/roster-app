@@ -59,16 +59,17 @@ test.describe('the glossary', () => {
     test('a ? panel that uses a roster word ends with the link; one that does not, without it', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await seedSession(page, 'G. Miller');
-        await page.goto('/newlink.html');
-        await expect(page.locator('.nl-name-title').first()).toBeVisible();
-
-        // "What it means if you…" speaks of cover weeks and overtime, and uses none of the glossary's words.
-        await page.locator('.btn-card-tips[data-card="means"]').click();
-        await expect(page.locator('#tipsLbTitle')).toHaveText('What it means if you…');
+        // Settings' Password panel speaks of a surname default and a new password, and uses none of the glossary's words.
+        // (New link's "What it means if you…" was this case until "cover week" and "today’s link" joined the glossary.)
+        await page.goto('/settings.html');
+        await page.locator('.btn-card-tips[data-card="password"]').click();
+        await expect(page.locator('#tipsLbTitle')).toHaveText('Password');
         await expect(page.locator('#tipsLbBody .tips-lb-glossary')).toHaveCount(0);
         await page.locator('#tipsLightboxClose').click();
         await expect(page.locator('#tipsLightbox')).not.toHaveClass(/open/);
 
+        await page.goto('/newlink.html');
+        await expect(page.locator('.nl-name-title').first()).toBeVisible();
         // "The weeks" says Spare and RDW.
         await page.locator('.btn-card-tips[data-card="weeks"]').click();
         const link = page.locator('#tipsLbBody .tips-lb-glossary');

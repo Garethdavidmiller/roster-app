@@ -505,11 +505,12 @@ describe('what the admin is told', () => {
         assert.equal(fb.textContent, '⚠ ' + line);
     });
 
-    test('a cache that never loaded says RELOAD, not retry', async () => {
-        // recordRangeOverrides refused to write against an empty cache — retrying in place would
-        // meet the same empty cache. Only a reload changes the answer.
+    test('a cache that never loaded says to retry the READ, not the save', async () => {
+        // recordRangeOverrides refused to write against an empty cache — pressing Save again would
+        // meet the same empty cache. Saved Changes' ↻ Retry reads the records again (loadOverrides),
+        // which is what changes the answer, and keeps what is staged where a reload would discard it.
         const fb = await failWith(Object.assign(new Error('cache/load-failed'), {}));
-        assert.match(fb.textContent, /reload/i);
+        assert.equal(fb.textContent, "⚠ Couldn't load this member's saved changes — open Saved Changes and select ↻ Retry.");
     });
 
     test('an expired session says so, rather than blaming the connection', async () => {
@@ -667,7 +668,7 @@ describe('the swap answers', () => {
 // E. THE RECEIPT NAMES WHAT IT LEFT ALONE, AND WHO IT WAS FOR (polish round 2)
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// .claude/rules/admin.md → "AL on a rest day is ASKED about": "Rest day — free" means nothing is written, and the
+// .claude/rules/admin.md → "AL on a rest day is ASKED about": "No — rest day, nothing recorded" means nothing is written, and the
 // save receipt NAMES the days it left alone — on BOTH surfaces. The week grid did (v23.88, and the
 // kept-leave wording at v23.93); this card said only "Recorded N days", so a rest day answered free
 // vanished from the one line the manager reads after pressing Save. These run the REAL projection
@@ -721,13 +722,13 @@ describe('the receipt names the rest days it left alone', () => {
         assert.deepEqual(_writes[0].swappedDates, [], 'answered free: nothing declared swapped');
         const fb = el('alFeedback');
         assert.equal(fb.className, 'feedback success');
-        assert.match(fb.textContent, new RegExp(`${rest} — rest day, no leave recorded`),
+        assert.match(fb.textContent, new RegExp(`${rest} — rest day — no leave needed, nothing to record`),
             "the left-alone day must be named, in the week grid's own words");
         assert.doesNotMatch(fb.textContent, new RegExp(`${work} — rest day`), 'the recorded day is not a rest day');
     });
 
     test('a rest day that ALREADY held leave is named as kept, not as clear (v23.93 wording)', async () => {
-        // The Calendar will go on showing leave there; "no leave recorded" would contradict it.
+        // The Calendar will go on showing leave there; "no leave needed" would contradict it.
         const { work, rest } = /** @type {any} */ (pair);
         _ovMap = new Map([[rest, { id: 'old1', date: rest, type: 'annual_leave', value: 'AL' }]]);
         const { section } = wire(realAlCfg);
@@ -735,8 +736,8 @@ describe('the receipt names the rest days it left alone', () => {
         answerFree(rest);
         await save();
         const text = el('alFeedback').textContent;
-        assert.match(text, new RegExp(`${rest} — rest day; the leave already recorded here was left as it is`));
-        assert.doesNotMatch(text, /no leave recorded/);
+        assert.match(text, new RegExp(`${rest} — rest day — the leave already recorded here stays`));
+        assert.doesNotMatch(text, /no leave needed/);
     });
 
     // THE MIRROR OF THE "FREE" CASE (test audit, 7 Nov 2026). Only "free" was ever saved, and it
@@ -817,13 +818,13 @@ describe('F. a save on a member whose records have not been read is refused, not
         assert.equal(el('alFeedback').className, 'feedback error');
     });
 
-    test('a read that failed says to reload, not to wait', async () => {
+    test('a read that failed says where to retry it, not to wait', async () => {
         const { section } = wire();
         setRange(section, '2026-10-05', '2026-10-07');
         _authority = false; _loadFailed = true;
         await save();
         assert.equal(_writes.length, 0);
-        assert.match(el('alFeedback').textContent, /Couldn't load this member's saved changes — reload the page/);
+        assert.match(el('alFeedback').textContent, /Couldn't load this member's saved changes — open Saved Changes and select ↻ Retry\./);
     });
 
     test('once the read has landed, the same press books', async () => {
@@ -845,11 +846,11 @@ describe('F. a save on a member whose records have not been read is refused, not
         setRange(section, '2026-10-05', '2026-10-07');
         assert.equal(drawn.length, 0, 'nothing is drawn from records that have not been read');
         assert.equal(el('alPreview').className, 'al-preview empty');
-        assert.match(el('alPreview').textContent, /Still loading this member's saved changes/);
+        assert.equal(el('alPreview').textContent, "Loading this member's saved changes…", 'it redraws itself, so it asks nothing of the reader');
         assert.equal(el('alSaveBtn').disabled, true);
         _loadFailed = true;
         section.updatePreview();
-        assert.match(el('alPreview').textContent, /Couldn't load this member's saved changes — reload the page/);
+        assert.match(el('alPreview').textContent, /Couldn't load this member's saved changes — open Saved Changes and select ↻ Retry\./);
         _authority = true; _loadFailed = false;
         section.updatePreview();
         assert.equal(drawn.length, 1);
@@ -943,8 +944,8 @@ describe('H. the Sunday a range sets as a rest day is named in the preview and t
         for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
         initALSection(/** @type {any} */ (deps(m.name)));
         open('al', dates[0], dates[2]);
-        assert.match(el('alPreview').innerHTML, /1 Sunday set as a rest day/);
-        assert.doesNotMatch(el('alPreview').innerHTML, /rest day skipped/);
+        assert.match(el('alPreview').innerHTML, /1 Sunday shift set as a rest day \(Sundays aren’t contracted\)/);
+        assert.doesNotMatch(el('alPreview').innerHTML, /rest days? (skipped|not counted)/);
     });
 
     test('Absence: the same', () => {
@@ -952,8 +953,8 @@ describe('H. the Sunday a range sets as a rest day is named in the preview and t
         for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
         initSickSection(/** @type {any} */ (deps(m.name)));
         open('sick', dates[0], dates[2]);
-        assert.match(el('sickPreview').innerHTML, /1 Sunday set as a rest day/);
-        assert.doesNotMatch(el('sickPreview').innerHTML, /rest day skipped/);
+        assert.match(el('sickPreview').innerHTML, /1 Sunday shift set as a rest day \(Sundays aren’t contracted\)/);
+        assert.doesNotMatch(el('sickPreview').innerHTML, /rest days? (skipped|not counted)/);
     });
 
     test('the receipt names the Sunday the writer set — and only when the writer says it did', async () => {
@@ -1075,7 +1076,7 @@ describe('L. days that already hold leave are counted apart from the new ones', 
         const { m, days } = /** @type {any} */ (run);
         book(m, days);
         assert.match(el('alPreview').innerHTML, /<strong>2 new days<\/strong> of Annual Leave/);
-        assert.match(el('alPreview').innerHTML, /\(\+ 3 already booked\)/);
+        assert.match(el('alPreview').innerHTML, /\. <em>Also: 3 already booked<\/em>/);
         assert.doesNotMatch(el('alPreview').innerHTML, /<strong>5 days<\/strong>/);
     });
 
@@ -1119,7 +1120,7 @@ describe('M. the Absence card names a day before the start date and the Christma
 
     test('Christmas Day and Boxing Day are named, never counted as rest days', () => {
         const html = preview(MEMBER, '2026-12-25', '2026-12-26');
-        assert.match(html, /\(\+ Christmas Day and Boxing Day skipped\)/);
+        assert.match(html, /Also: Christmas Day and Boxing Day skipped/);
         assert.doesNotMatch(html, /rest day/);
     });
 
@@ -1128,7 +1129,7 @@ describe('M. the Absence card names a day before the start date and the Christma
         const s = /** @type {Date} */ (/** @type {any} */ (joiner).startDate);
         const before = (/** @type {number} */ n) => iso10(new Date(s.getFullYear(), s.getMonth(), s.getDate() - n));
         const html = preview(/** @type {any} */ (joiner).name, before(3), before(1));
-        assert.match(html, /\(\+ 3 days skipped before the start date\)/);
+        assert.match(html, /Also: 3 days skipped before the start date/);
         assert.doesNotMatch(html, /rest day/);
     });
 });
@@ -1343,7 +1344,7 @@ describe('O. the Absence card names a rest day it leaves as it is, and records n
         const html = card(work, rest);
         assert.match(html, /<strong>1 absence day<\/strong>/);
         assert.ok(html.includes(`${fmtPeriodDate(rest)} left as it is: Rest Day Working on a rest day, where an absence would not show`), html);
-        assert.doesNotMatch(html, /rest day skipped/, 'not a bare rest day: something is recorded there');
+        assert.doesNotMatch(html, /rest days? (skipped|not counted)/, 'not a bare rest day: something is recorded there');
     });
 
     test('a range of only that day records nothing, so Save is off', () => {
@@ -1407,7 +1408,7 @@ describe('P. the Spare line and the receipt say what the booking charges', () =>
     test('Wednesday to Saturday booked, Monday to Saturday booked again: the line\'s figure is the new days\', none', () => {
         const html = card(W.week[0], W.week[5], W.week.slice(2).map(leave));
         assert.match(html, /<strong>No days<\/strong>/, 'premise: the headline charges nothing');
-        assert.match(html, /4 already booked, 2 days recorded at no cost/);
+        assert.match(html, /Also: 4 already booked; 2 days recorded at no cost/);
         assert.ok(html.includes('A Spare week uses at most 4 days of annual leave, counting the days already booked that week, so the 2 new days use none.'), html);
         assert.doesNotMatch(html, /use 2 days/);
     });
@@ -1487,13 +1488,13 @@ describe('Q. leave over a worked Boxing Day: the receipt counts the day and says
             showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
         el('alFrom').value = BOX; el('alTo').value = BOX;
         for (const fn of el('alTo')._on.change ?? []) fn();
-        assert.match(el('alPreview').innerHTML, /day in lieu for working it goes/, 'premise: the preview says the day in lieu goes');
+        assert.match(el('alPreview').innerHTML, /extra day of leave earned by working it is taken back/, 'premise: the preview says the day in lieu goes');
         _record = async () => ({ workingCount: 1, sundayCount: 0 });
         await save();
         assert.equal(_writes.length, 1, 'premise: the booking was saved');
         const said = el('alFeedback').textContent;
         assert.doesNotMatch(said, /Recorded 0 days/, said);
-        assert.ok(said.includes(`Recorded 1 day of Annual Leave for ${QB.name} — Boxing Day recorded as leave, so the day in lieu for working it goes`), said);
+        assert.ok(said.includes(`Recorded 1 day of Annual Leave for ${QB.name} — Boxing Day recorded as leave, so the extra day of leave earned by working it is taken back`), said);
     });
 });
 
@@ -1524,12 +1525,12 @@ describe("R. a Dispatcher’s worked bank holiday: the receipt counts the day on
         for (const fn of el('alTo')._on.change ?? []) fn();
         const preview = el('alPreview').innerHTML;
         assert.match(preview, /<strong>1 day<\/strong>/, `premise: the preview charges one day — ${preview}`);
-        assert.match(preview, /day in lieu for working it goes/, 'premise: and says the day in lieu goes');
+        assert.match(preview, /extra day of leave earned by working it is taken back/, 'premise: and says the day in lieu goes');
         _record = async () => ({ workingCount: 1, sundayCount: 0 });
         await save();
         assert.equal(_writes.length, 1, 'premise: the booking was saved');
         const said = el('alFeedback').textContent;
         assert.doesNotMatch(said, /Recorded 2 days/, said);
-        assert.match(said, new RegExp(`Recorded 1 day of Annual Leave for ${QR.name} — .*day in lieu for working it goes`), said);
+        assert.match(said, new RegExp(`Recorded 1 day of Annual Leave for ${QR.name} — .*extra day of leave earned by working it is taken back`), said);
     });
 });

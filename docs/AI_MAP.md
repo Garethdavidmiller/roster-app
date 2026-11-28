@@ -157,13 +157,13 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
-- **Exports:** `initLockCards` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showSignInPanel` · `SIGN_IN_UNAVAILABLE_LINE` · `showSignInUnavailable` · `showMemberPanel`
+- **Exports:** `initLockCards` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showSignInPanel` · `SIGN_IN_UNAVAILABLE_LINE` · `showMemberPanel`
 
 ### `calendar-lock-slot.js`
 - **Exports:** `mountLockCard` · `unmountLockCard` · `lockCardId` · `armSkeleton` · `showBootSkeleton` · `setWorkspaceHidden`
 
 ### `calendar-snapshot.js`
-- **Exports:** `SNAPSHOT_VERSION` · `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `LEAVE_YEARS_AROUND` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
+- **Exports:** `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
 
 ### `calendar-own-copy.js`
 - **Exports:** `ownCopyWindow` · `ownMonthsToStore` · `createOwnCopy`
@@ -232,7 +232,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `takeStaleMemberName` · `getDefaultMemberIndex` · `isFirstRun` · `getSelectedMemberIndex` · `_resetSelectionFallbackForTest` · `saveSelectedMember` · `populateTeamMemberDropdown` · `getCurrentMember` · `validateTeamMembers`
 
 ### `calendar-renderer.js`
-- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer` · `CHRISTMAS_LEAVE_WORDS` · `rovingCellFor`
+- **Exports:** `changeProvenance` · `shiftWords` · `shiftExplanation` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer` · `CHRISTMAS_LEAVE_WORDS` · `rovingCellFor`
 
 ### `calendar-huddle-viewer.js`
 - **Exports:** `wrapTables` · `initHuddleViewer`
@@ -250,7 +250,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `dayOf` · `cardDate` · `isPastDay` · `ONWITH_WEEKS_AHEAD` · `lastOfferedDay` · `onWithOffered` · `colleaguesOf` · `rolesInOrder` · `buildOnWithCard`
 
 ### `team-overlap.js`
-- **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `rangeText` · `whoIsOnWith` · `togetherWords`
+- **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `whoIsOnWith` · `togetherWords`
 
 ### `calendar-tips.js`
 - **Exports:** `CARD_TIPS`
@@ -521,11 +521,11 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports of `trains-weekdays.js`:** `WEEKDAYS` · `REAL_DAY` · `runsOn` · `daysCode` · `aRealDay` · `onWeekday` · `weekdayGroups` · `weekdayWords`
 - **Exports of `trains-verdict.js`:** `EDGE_SHIFT_MIN` · `JOURNEY_SHIFT_MIN` · `verdictFor` · `balanceFacts` · `hourChanged` · `rateWords` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList`
 - **Exports of `trains-headlines.js`:** `headlineChanges`
-- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `HEADLINES_SHOWN` · `partialStopsNote` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `JOURNEY_HINT` · `renderJourney` · `renderNoStation` · `renderLastTrains`
+- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `HEADLINES_SHOWN` · `partialStopsNote` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `holidayOf` · `NO_TRAINS_CHRISTMAS` · `DAY_WORDS` · `timeHint` · `JOURNEY_HINT` · `renderJourney` · `renderNoStation` · `renderLastTrains`
 - **Exports of `trains-data.js`:** `CHANGE_DATE` · `FURTHER_CHANGES_UNTIL` · `DEC_VALID_UNTIL` · `LEAF_FALL` · `STATIONS` · `STATION_ORDER` · `TIMETABLES`
 - **Exports of `trains-tips.js`:** `CARD_TIPS` · `tipsOn`
 - **Exports of `trains-grid-mirror.js`:** `syncGridMirror`
-- **Exports of `trains-status.js`:** `announce` · `statusLine` · `matchesLine`
+- **Exports of `trains-status.js`:** `sayLookup` · `lookupLine` · `announce` · `statusLine` · `matchesLine`
 - **Exports of `trains-journey.js`:** `parseJourney` · `findStation` · `dayKindOf` · `isoDate` · `addDays` · `journeyDate` · `journeyDateAt` · `dayWord` · `timetableOn` · `departures` · `viaMatters` · `JOURNEY_TRAINS` · `journey`
 
 ### `overflow-hint.js`
@@ -562,7 +562,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `replacedTypeOnWrite` · `absenceHiddenDates` · `rangeWriteDates`
 
 ### `admin-al-projection.js`
-- **Exports:** `projectAlBooking` · `yearShiftWords` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `overridesAfterSave` · `projectAlOverage`
+- **Exports:** `projectAlBooking` · `yearShiftWords` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `alsoNote` · `sundayShiftWords` · `overridesAfterSave` · `projectAlOverage`
 
 ### `admin-time-inputs.js`
 - **Exports:** `initTimeInputs`
@@ -1033,7 +1033,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `buildIngestHuddle`
 
 ### `functions/pay-reminder.js`
-- **Exports:** `PAY_REMINDER_GRADES` · `payReminderMembers` · `sendPayReminder` · `uidForMember`
+- **Exports:** `PAY_REMINDER_GRADES` · `payReminderMembers` · `sendPayReminder`
 
 ### `functions/error-log-notify.js`
 - **Exports:** `notifyAdminOfErrorLog`

@@ -130,7 +130,7 @@ export function buildLoanLines({ sacGross, plan, planLabel, pgLoan, slUnder, slP
     const zero = (/** @type {string} */ lbl) =>
         `<div class="sum-row sum-sl-zero"><span class="lbl">${lbl}</span><span class="val">£0.00</span></div>`;
     if (slPaidOff && anyLoan) return zero(`Student Loan — not deducted from your ${paidOffDay ? paidOffDay + ' payslip' : 'chosen payslip'} onwards`);
-    if (slSkip && anyLoan) return zero('Student Loan — marked as not deducted this period');
+    if (slSkip && anyLoan) return zero('Student Loan — marked as not deducted on this payslip');
     const floor = (/** @type {number|undefined} */ t) => t == null ? t : Math.floor(t * 100) / 100;
     /** @param {string} row @param {number} amount @param {boolean} active @param {string} label
      *  @param {number|undefined} threshold @param {string|null} notAvailable */
@@ -206,8 +206,8 @@ export function ytdMisfitNote(misfit, code, from = '') {
 function _netNote({ _bpThisPeriod, _hppForPeriod, _bpIsEstimate, _hppIsEstimate }) {
     const parts = [];
     if (_bpThisPeriod > 0) parts.push(`${_bpIsEstimate  ? 'estimated ' : ''}back pay`);
-    if (_hppForPeriod > 0) parts.push(`${_hppIsEstimate ? 'estimated ' : ''}HPP`);
-    return parts.length ? `includes ${parts.join(' & ')}` : '';
+    if (_hppForPeriod > 0) parts.push(`${_hppIsEstimate ? 'estimated ' : ''}Holiday Pay Premium`);
+    return parts.length ? `includes ${parts.join(' and ')}` : '';
 }
 
 /**
@@ -269,7 +269,7 @@ export function buildBreakdownRows(d) {
     if (slPaidOff && (plan !== 'none' || pgLoan))
         bd += `<div class="bd-row"><span class="b-lbl bd-note-lbl">Student Loan — not deducted from your ${paidOffDay ? `${paidOffDay} payslip` : 'chosen payslip'} onwards</span><span class="b-val"></span></div>`;
     else if (slSkip && (plan !== 'none' || pgLoan))
-        bd += `<div class="bd-row"><span class="b-lbl bd-note-lbl">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl bd-note-lbl">Student Loan not deducted on this payslip</span><span class="b-val"></span></div>`;
     if (usingCumulative)
         bd += `<div class="bd-row"><span class="b-lbl bd-note-lbl">Tax adjusted using Year to Date figures from your ${ytdFrom ? `${ytdFrom} payslip` : 'last payslip'}</span><span class="b-val"></span></div>`;
     if (_bpThisPeriod > 0)

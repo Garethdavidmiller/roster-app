@@ -504,13 +504,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     /** Is the person in the card the one locked out, inside the lock's 30 seconds? */
     function lockHolds() { return Date.now() < _lockedUntil && nameSelect.value === _lockedFor; }
 
-    /** The button as the person now in the card stands: "Try again in 30s" for the lock's holder alone.
+    /** The button as the person now in the card stands: "Try again in 30 seconds" for the lock's holder alone.
      *  An attempt in flight owns the button until it settles; with no lock running there is nothing to do. */
     function showLockFor() {
         if (_signingIn || !_lockedUntil) return;
         const held = lockHolds();
         submitBtn.disabled = held;
-        submitBtn.textContent = held ? 'Try again in 30s' : 'Sign in →';
+        submitBtn.textContent = held ? 'Try again in 30 seconds' : 'Sign in →';
     }
 
     /** @param {string} msg */
@@ -586,7 +586,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // Replace the control rather than leaving a re-tappable button: the request is recorded
             // (the endpoint throttles repeats anyway) and there is nothing more for them to do here.
             resetBtn.hidden = true;
-            setResetStatus('Request sent. Once the admin has reset it, sign in with your surname in lowercase and choose a new password.', 'ok');
+            setResetStatus('Request sent. Once the admin has reset it, sign in with your surname in lowercase and choose a new password. The admin may not see it until their next shift — you don’t need to ask again. If you need your shifts before then, ask your manager.', 'ok');
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
             if (!current()) return;
@@ -790,7 +790,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                     if (_failCount >= 2) promptResetRequest();
                     if (_failCount >= 3) {
                         submitBtn.disabled = true;
-                        submitBtn.textContent = 'Try again in 30s';
+                        submitBtn.textContent = 'Try again in 30 seconds';
                         showError(/** @type {string} */ (_result.error));
                         passwordInput.value = '';
                         passwordInput.focus();
@@ -835,7 +835,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
     // Don't abandon an in-flight sign-in via the Back link — same intent as the Escape guard above.
     // Gated on `_signingIn` (true ONLY during the Firebase round trip), NOT on submitBtn.disabled,
-    // so a mere 30s password lockout still lets the user escape to the public roster. The same guard
+    // so a mere 30s password lockout still lets the user leave for the Calendar's own sign-in. The same guard
     // covers the caller's alternative (host mode): switching cards mid-submit would tear this one
     // down under a sign-in that may then succeed into a page that has moved on.
     backLink.addEventListener('click', e => {

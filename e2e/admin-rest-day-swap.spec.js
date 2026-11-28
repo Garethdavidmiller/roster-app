@@ -311,7 +311,7 @@ test('admin: a skip-only save leaves the row showing the record that is still th
     await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
     await clickInView(page.locator('#saveBtn'));
 
-    await expect(page.locator('.feedback, #weekGridFeedback').filter({ hasText: 'no leave recorded' }).first())
+    await expect(page.locator('.feedback, #weekGridFeedback').filter({ hasText: 'no leave needed' }).first())
         .toBeVisible();
     // Nothing was written…
     const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
@@ -322,7 +322,7 @@ test('admin: a skip-only save leaves the row showing the record that is still th
         'the absence is still on record, so the row must still show it').toHaveAttribute('aria-pressed', 'true');
 });
 
-test('admin: a rest day that ALREADY holds leave is not reported as "no leave recorded" (v23.93)', async ({ page }) => {
+test('admin: a rest day that ALREADY holds leave is not reported as "no leave needed" (v23.93)', async ({ page }) => {
     // THE WIRING HALF of admin-al-week-save.test.mjs's legacy-data block (external review of v23.92).
     // The pure test proves the planner and the receipt builder agree; only this proves the page
     // actually passes `keptLeave` from one to the other. Deleting that argument at either call site
@@ -385,9 +385,9 @@ test('admin: a rest day that ALREADY holds leave is not reported as "no leave re
     // that moved beside the bar (desktop audit, Nov 2026), and it sits above this one.
     const feedback = page.locator('#formFeedback');
     await expect(feedback, 'the receipt must say the existing leave was left alone')
-        .toContainText(/left as it is/);
+        .toContainText(/the leave already recorded here stays/);
     await expect(feedback, 'and must not use the wording for a day that is genuinely clear')
-        .not.toContainText('no leave recorded');
+        .not.toContainText('no leave needed');
 
     // …and the three layers still agree: nothing written, nothing deleted, the record still drawn.
     const writes = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
@@ -399,7 +399,7 @@ test('admin: a rest day that ALREADY holds leave is not reported as "no leave re
 
 test('admin: the week grid writes NOTHING for a rest day answered free, and names the day (v23.88)', async ({ page }) => {
     // THE TWO SURFACES MEANT DIFFERENT THINGS BY ONE ANSWER (external review of v23.85). The AL card
-    // wrote nothing for a rest day answered "Rest day — free"; the week grid wrote annual leave that
+    // wrote nothing for a rest day answered "No — rest day, nothing recorded"; the week grid wrote annual leave that
     // cost nothing — so the Calendar showed AL on a day the manager had just called a genuine rest
     // day, and `admin-al-projection.js` said "skipped" about a document that existed.
     //
@@ -439,12 +439,12 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
     const row = page.locator(`.day-row[data-date="${t.date}"]`);
     await expect(row).toHaveCount(1);
 
-    // ── "Rest day — free": nothing is recorded, and the receipt says which day ──────────────────
+    // ── "No — rest day, nothing recorded": nothing is recorded, and the receipt says which day ──────────────────
     await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
     await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));
     await clickInView(page.locator('#saveBtn'));
 
-    await expect(page.locator('.feedback, #weekGridFeedback').filter({ hasText: 'no leave recorded' }).first(),
+    await expect(page.locator('.feedback, #weekGridFeedback').filter({ hasText: 'no leave needed' }).first(),
         'a save that records nothing must still say what it did').toBeVisible();
     const afterFree = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
     expect(afterFree.filter((/** @type {any} */ w) => w.type === 'annual_leave' && w.date === t.date),
@@ -457,7 +457,7 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
     await clickInView(page.locator('#prevWeekBtn'));
     await expect(row).toHaveCount(1);
 
-    // ── THE CONTROL: the same row answered "Swapped — counts" IS written ────────────────────────
+    // ── THE CONTROL: the same row answered "Yes, swapped — uses a leave day" IS written ────────────────────────
     // Without it the fix could be "the grid stopped writing annual leave", which is not the fix.
     await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
     await clickInView(row.locator('.al-swap-btn[data-swap="yes"]'));

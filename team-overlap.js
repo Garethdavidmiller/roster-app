@@ -35,7 +35,8 @@
  *      their Training day would offer no "Who's on with me" at all.
  *   7. UNKNOWN TIMES ARE NEVER "NOT AT THE SAME TIME". A worked day with no times recorded — Rest Day
  *      Working with no time, a rest-day Other day ('RDW'), a Meeting with none — might overlap or might
- *      not, so it is its own group (`timesUnknown`), never `alsoWorking`, whose words are a claim.
+ *      not, so it is its own group (`timesUnknown`), listed apart — never dropped with the colleagues whose
+ *      times share no minute, whom the card leaves to the grid beneath it.
  *
  * The rules 2 and 3 need no special case in the arithmetic: a previous-day shift that does not cross
  * midnight ends at or before 0 once moved back, and a next-day shift starts at or after 1440, so either can
@@ -91,13 +92,6 @@ export function clockAt(minutes) {
     return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
-/** A shift time written for reading: two-digit hours and an en dash — '6:00-14:00' → '06:00–14:00'.
- *  @param {string} time @returns {string} */
-export function rangeText(time) {
-    const span = shiftSpan(time);
-    return span ? `${clockAt(span.start)}–${clockAt(span.end)}` : time;
-}
-
 /**
  * @template K
  * @typedef {{ key: K, prev?: string|null, day?: string|null, next?: string|null, worksDay?: boolean }} Colleague
@@ -117,18 +111,16 @@ export function rangeText(time) {
  * @template K
  * @param {string} mine  the member's TIMES that day ('HH:MM-HH:MM')
  * @param {Colleague<K>[]} colleagues  in the order a tie should keep (the caller sorts by name)
- * @returns {{ together: { key: K, minutes: number, spans: Together[] }[], alsoWorking: K[], timesUnknown: K[] }}
+ * @returns {{ together: { key: K, minutes: number, spans: Together[] }[], timesUnknown: K[] }}
  *   `together` — every colleague who shares at least one minute, in order of their shift's start (rule 5);
- *   `alsoWorking` — the rest who are working that day at times that share no minute, in the order given;
  *   `timesUnknown` — the rest who are working that day with no times recorded, in the order given (rule 7).
+ *   A colleague working at times that share no minute is in neither.
  */
 export function whoIsOnWith(mine, colleagues) {
     const me = shiftSpan(mine);
-    if (!me) return { together: [], alsoWorking: [], timesUnknown: [] };
+    if (!me) return { together: [], timesUnknown: [] };
     /** @type {{ key: K, minutes: number, starts: number, ends: number, spans: Together[] }[]} */
     const together = [];
-    /** @type {K[]} */
-    const alsoWorking = [];
     /** @type {K[]} */
     const timesUnknown = [];
     for (const c of colleagues) {
@@ -148,13 +140,13 @@ export function whoIsOnWith(mine, colleagues) {
             const first = /** @type {string} */ (spans[0].time);
             const ends = /** @type {{ end: number }} */ (shiftSpan(first)).end + spans[0].day * DAY_MINUTES;
             together.push({ key: c.key, minutes: spans.reduce((n, s) => n + s.minutes, 0), starts: spans[0].starts, ends, spans });
-        } else if (c.worksDay) {
-            (shiftSpan(c.day) ? alsoWorking : timesUnknown).push(c.key);   // rule 7
+        } else if (c.worksDay && !shiftSpan(c.day)) {
+            timesUnknown.push(c.key);                       // rule 7
         }
     }
     // Rule 5. Array.prototype.sort is stable, so equal shifts keep the caller's (name) order.
     together.sort((a, b) => a.starts - b.starts || a.ends - b.ends);
-    return { together: together.map(({ key, minutes, spans }) => ({ key, minutes, spans })), alsoWorking, timesUnknown };
+    return { together: together.map(({ key, minutes, spans }) => ({ key, minutes, spans })), timesUnknown };
 }
 
 /**

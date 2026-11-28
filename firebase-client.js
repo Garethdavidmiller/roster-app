@@ -294,7 +294,9 @@ export async function withClaimRetry(fn) {
 /** withClaimRetry for WRITES, through `runGatedWrite` (claim-retry.js): after an unconfirmed
  *  write no new one starts until reload. @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
 export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRetry(fn)); }
-/** Whether this device's queued writes reach the server within `ms` — a checked write asks first (claim-retry.js → ownWritesSent). @param {number} [ms] */
+/** Whether this device's WHOLE queue of writes reaches the server within `ms` (claim-retry.js → ownWritesSent).
+ *  No page calls it — a checked save asks `whenOwnWritesSentFor` below; it is the e2e suite's drain check
+ *  (e2e/signed-in.spec.js), which needs the SDK's whole-queue wait itself. @param {number} [ms] */
 export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrites(db), ms);
 /**
  * For a checked save that knows its documents (claim-retry.js → `ownWritesSentFor`): true when none of

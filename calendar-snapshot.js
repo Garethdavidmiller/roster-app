@@ -55,7 +55,7 @@ import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
 
 /** Bumped when the stored shape changes; an older copy is discarded, never migrated. */
-export const SNAPSHOT_VERSION = 1;
+const SNAPSHOT_VERSION = 1;
 /** How long a stored month may be shown for. Owner decision: 14 days. */
 export const MAX_AGE_MS = 14 * 86_400_000;
 /** The window kept around today, in months. */
@@ -67,7 +67,7 @@ const RESTAMP_AFTER_MS = 86_400_000;
 
 /** The leave years kept either side of today's: the panel steps a year at a time, and the year
  *  either side of now is as far as a member planning leave usually looks. */
-export const LEAVE_YEARS_AROUND = 1;
+const LEAVE_YEARS_AROUND = 1;
 /** The retired per-member, per-year balance keys (until 16 Nov 2026). Swept, never read. */
 const RETIRED_LEAVE_PREFIX = 'myb_al_stats_';
 

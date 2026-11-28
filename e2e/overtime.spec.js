@@ -1014,7 +1014,7 @@ test.describe('access and chrome', () => {
     // paused card had the hand taken away (keyed on the attribute only the paused path sets) and kept the fill; the
     // card that is not open to this member kept both.
     for (const [state, enabled, words] of /** @type {Array<[string, boolean, string]>} */ ([
-        ['paused', false, 'Overtime availability is paused'],
+        ['paused', false, 'Overtime availability, where you told the roster team when you could work overtime, isn’t in use at the moment'],
         ['not open to this member', true, "isn’t open to everyone yet"],
     ])) {
         test(`a card with no form, ${state}: its header offers a mouse no hand and no hover fill (overtime-ui-14)`, async ({ page }, info) => {
@@ -3891,7 +3891,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await stubOvertime(page, { windows: [openWindow()], weeks: sixWeeks() });
         const calls = overtimeCalls(page);
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability, where you told the roster team when you could work overtime, isn’t in use at the moment');
         await expect(page.locator('#otTabs')).toBeHidden();
         await expect(page.locator('#otAllPanel')).toBeHidden();
         await expect(page.locator('.ot-day')).toHaveCount(0);
@@ -3903,7 +3903,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
     test('signed out, it is paused too — no sign-in is offered, because there is nothing behind it', async ({ page }) => {
         await off(page);
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability, where you told the roster team when you could work overtime, isn’t in use at the moment');
         await expect(page.locator('#loginOverlay')).toHaveCount(0);
         // The drawer still works, so the visitor can leave.
         await page.locator('#navMenuBtn').click();
@@ -3916,7 +3916,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         // cache may answer offline — and was told it failed, not what would open it.
         await off(page);
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability, where you told the roster team when you could work overtime, isn’t in use at the moment');
         const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads ?? 0);
         const before = await reads();
         /** @type {any[]} */ const popups = [];
@@ -3933,7 +3933,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await seedSession(page, 'G. Miller');
         await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability, where you told the roster team when you could work overtime, isn’t in use at the moment');
         const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads ?? 0);
         const before = await reads();
         await page.locator('#navMenuBtn').click();
@@ -3948,7 +3948,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await seedSession(page, 'G. Miller');
         await off(page);
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability, where you told the roster team when you could work overtime, isn’t in use at the moment');
         // A way back, as every refusal card has (polish review, 26 Nov 2026).
         await expect(page.locator('#otMineContent .role-card-back')).toHaveAttribute('href', './');
         for (const sel of ['#otMineCard .hint', '#otMineCard .btn-card-tips', '#otMineChevron', '.ot-explainer', '.ot-privacy']) {
@@ -3969,7 +3969,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await seedSession(page, 'G. Miller');
         await off(page);
         await page.goto('/overtime.html');
-        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability, where you told the roster team when you could work overtime, isn’t in use at the moment');
         const title = page.locator('#otMineTitle');
         await expect(title).toHaveText('⏱️ Overtime availability');
         await expect(title.locator('> span[aria-hidden="true"]').first(), 'the emoji still leads the title').toHaveText('⏱️');

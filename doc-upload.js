@@ -117,7 +117,7 @@ export function initDocUploadCard(cfg) {
   const isAccepted   = cfg.isAccepted    || isPdfFile;
   const rejectTypeMsg = cfg.rejectTypeMsg || 'Please choose a PDF file';
   const sigMismatchMsg = cfg.sigMismatchMsg
-    || "That file isn't a valid PDF — please choose the original file";
+    || 'That file isn’t a valid PDF — please choose the original file';
 
   // Date default + max are recomputed on every submit, NOT frozen at page-init (v16.23). This is
   // a long-lived PWA: an Operations tab left open overnight would otherwise (a) upload an
@@ -286,7 +286,7 @@ export function initDocUploadCard(cfg) {
         ?? (_e?.code === 'upload/superseded'
           ? 'Someone else saved a newer file for this date. Reload to see it, then upload again only if yours should replace it.'
           : _e?.code === 'upload/unconfirmed'
-            ? "Couldn't confirm this saved — the connection dropped mid-save. Reload to see whether it's there, and upload again if it isn't."
+            ? 'Couldn’t confirm it was saved — the connection dropped. Reload to see whether it’s there, and upload again if it isn’t.'
             : _e?.message === 'SIGNATURE_MISMATCH' ? sigMismatchMsg : 'Upload failed — please try again');
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
       uploadBtn.disabled = false;

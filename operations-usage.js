@@ -135,12 +135,11 @@ async function initUsageCard() {
             // wear its parent's identity. \u{1F440} says what the number is: what gets looked at.
             headingText.textContent = `Page popularity — ${_usageMonthLabel(month)}`;
             popBody.innerHTML = '';
+            // Only LAST month can be empty: this month always lists every page open to staff, at 0 or more.
             if (!counts.length && !opens.length) {
                 const none = document.createElement('p');
                 none.className = 'usage-empty';
-                none.textContent = popActive === 'this'
-                    ? 'No page views recorded yet this month.'
-                    : 'No page views recorded last month.';
+                none.textContent = 'No page views recorded last month.';
                 popBody.appendChild(none);
                 return;
             }

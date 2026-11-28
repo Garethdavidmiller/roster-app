@@ -7,8 +7,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stagedDayChanges, nowShows, shownValue } from '../admin-day-change.js';
-import { dayWords } from '../admin-save-receipt.js';
+import { stagedDayChanges, nowShows, shownValue, gridPreviewHtml } from '../admin-day-change.js';
+import { dayWords, hiddenAbsenceWords } from '../admin-save-receipt.js';
 
 /** A week grid holding the rows given, as the editor stamps them. @param {Record<string, Record<string, string>>} rows */
 const grid = (rows) => ({
@@ -108,7 +108,7 @@ test('an absence on a rest day with nothing contracted under it says what the Ca
 });
 
 // ── THE PREVIEW IS THE SAVE'S OWN PLAN ───────────────────────────────────────────────────────────
-// Leave on a rest day answered "Rest day — free" is not written (planAlWeekSave). The preview read the collector
+// Leave on a rest day answered "No — rest day, nothing recorded" is not written (planAlWeekSave). The preview read the collector
 // alone and promised "Rest day → Annual leave"; it now asks the same planner and says the receipt's words.
 test('the preview says a rest day answered "free" is left alone, in the receipt\'s words, as the save does', async () => {
     const { previewChanges } = await import('../admin-day-change.js');
@@ -117,20 +117,49 @@ test('the preview says a rest day answered "free" is left alone, in the receipt\
     const member = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
     const iso = '2027-01-13';   // a Wednesday, a rest day on his pattern (checked below)
     assert.equal(getBaseShift(member, new Date(2027, 0, 13)), 'RD', 'premise: a weekday rest day');
-    /** A staged AL row, answered `swap` ('no' = "Rest day — free", 'yes' = swapped), as the grid stamps it. */
+    /** A staged AL row, answered `swap` ('no' = "No — rest day, nothing recorded", 'yes' = swapped), as the grid stamps it. */
     const row = (/** @type {string} */ swap) => /** @type {any} */ ({
         dataset: { date: iso, type: 'annual_leave', baseIsRd: '1', alSwapAsk: '1', alSwap: swap, nowShows: 'RD', baseShift: 'RD', xmasDue: '' },
         querySelector: () => null, querySelectorAll: () => [], classList: { contains: () => false },
     });
     const g = { querySelector: () => ({ dataset: { nowShows: 'RD', baseShift: 'RD', xmasDue: '' } }), querySelectorAll: () => [] };
-    const free = previewChanges([row('no')], member.name, /** @type {any} */ (g), new Map());
+    const { changes: free, leftAlone } = previewChanges([row('no')], member.name, /** @type {any} */ (g), new Map());
+    assert.deepEqual(leftAlone, [iso], 'the day the save leaves alone, which the preview\'s count leaves out');
     const receipt = buildSaveReceipt({ toSave: [], removed: [], memberName: member.name, formatDate: d => d,
         describe: () => '', skipped: [iso] });
-    assert.equal(free.get(iso), 'rest day, no leave recorded');
+    assert.equal(free.get(iso), 'rest day — no leave needed, nothing to record');
     assert.equal(receipt.lines[0], `${iso} — ${free.get(iso)}`, 'the preview says what the receipt will');
     // Answered "swapped", the leave is written and costs a day: the line is the change it makes.
-    assert.equal(previewChanges([row('yes')], member.name, /** @type {any} */ (g), new Map()).get(iso), 'Rest day → Annual leave');
+    const swapped = previewChanges([row('yes')], member.name, /** @type {any} */ (g), new Map());
+    assert.equal(swapped.changes.get(iso), 'Rest day → Annual leave');
+    assert.deepEqual(swapped.leftAlone, []);
     // A day already holding leave is said as kept, as the receipt says it.
     const held = new Map([[iso, { id: 'x', memberName: member.name, date: iso, type: 'annual_leave', value: 'AL' }]]);
-    assert.match(previewChanges([row('no')], member.name, /** @type {any} */ (g), held).get(iso) ?? '', /^rest day; the leave already recorded here was left as it is/);
+    assert.match(previewChanges([row('no')], member.name, /** @type {any} */ (g), held).changes.get(iso) ?? '', /^rest day — the leave already recorded here stays/);
+    // THE COUNT IS THE PLAN'S: the one staged day is left alone, so nothing will be recorded — the receipt's
+    // "Nothing to record", said before Save. Read off the staged rows it said "You're about to change 1 day".
+    const { html } = gridPreviewHtml({ saveCount: 1, delCount: 0, memberName: member.name, changes: free, leftAlone: leftAlone.length });
+    assert.match(html, /Nothing will be recorded for <strong>G\. Miller<\/strong>:<ul/);
+    assert.doesNotMatch(html, /about to change/);
+    assert.match(gridPreviewHtml({ saveCount: 2, delCount: 0, memberName: member.name, changes: free, leftAlone: 1 }).html,
+        /You're about to change <strong>1 day<\/strong> for/);
+    assert.match(gridPreviewHtml({ saveCount: 1, delCount: 1, memberName: member.name, changes: free, leftAlone: 1 }).html,
+        /You're about to remove <strong>1 change<\/strong> for/);
+});
+
+// ── CHRISTMAS LEAVE IS NOT A REST DAY ─────────────────────────────────────────────────────────────
+// An absence on 25 or 26 December for a member due at work is written and hidden under the Christmas leave the
+// Calendar draws there; the line once read "Annual leave; … doesn't show an absence on a rest day".
+test('an absence on Christmas Day or Boxing Day for a member due at work says the Calendar shows Christmas leave', () => {
+    const rows = {
+        '2026-12-25': { nowShows: nowShows(null, 'RD', '2026-12-25', true), baseShift: 'RD', xmasDue: '1' },
+        '2026-12-26': { nowShows: nowShows(null, 'RD', '2026-12-26', true), baseShift: 'RD', xmasDue: '1' },
+    };
+    assert.equal(rows['2026-12-25'].nowShows, 'AL', 'premise: the Calendar draws Christmas leave there');
+    const changes = stagedDayChanges(/** @type {any} */ (grid(rows)),
+        ['2026-12-25', '2026-12-26'].map(date => ({ date, type: 'sick', value: 'SICK' })), new Map());
+    assert.equal(changes.get('2026-12-25'), 'Christmas Day — the absence is saved, but the Calendar shows Christmas leave here, not an absence');
+    assert.equal(changes.get('2026-12-26'), 'Boxing Day — the absence is saved, but the Calendar shows Christmas leave here, not an absence');
+    // Not due at work, the day is the closure's rest day, and is said as one.
+    assert.equal(hiddenAbsenceWords('RD', 'RD', '2026-12-25'), 'Rest day; the absence is saved, but the Calendar doesn’t show an absence on a rest day');
 });

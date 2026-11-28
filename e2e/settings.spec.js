@@ -111,10 +111,10 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     await expect(page.locator('#installSteps')).toContainText('Add to Home Screen');
     await expect(page.locator('#installBtn')).toBeHidden();
 
-    // Notifications are not available HERE, and will be once installed (22 Nov 2026: "After install",
+    // Notifications are not available HERE, and will be once installed (22 Nov 2026: "After install", "Home Screen first" from 28 Nov 2026 —
     // not "Not available", which is kept for a device that truly cannot). The list it shows is the
     // installed app's, so the card promises nothing this browser tab can receive.
-    await expect(page.locator('#notifStatusChip')).toHaveText('After install');
+    await expect(page.locator('#notifStatusChip')).toHaveText('Home Screen first');
     await expect(page.locator('#notifKindsLead')).toHaveText('In the Home Screen app, you’ll get:');
 
     // …and POINTS at the Install card rather than restating its steps (polish round 2). The pointer
@@ -190,7 +190,7 @@ test('settings: an iPhone on the Pages mirror is sent to the main address to ins
     const notif = page.locator('#notifStatusMsg');
     await expect(notif).toContainText(heading);
     await expect(notif).not.toContainText(/web\.app|Add to Home Screen|Share/);
-    await expect(page.locator('#notifStatusChip')).toHaveText('After install');
+    await expect(page.locator('#notifStatusChip')).toHaveText('Home Screen first');
 });
 
 test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
@@ -1462,8 +1462,8 @@ test('settings: the blocked steps are inside the same live region as the status 
 // settings, as an iPhone's is; a browser tab keeps the address bar's site icon — described, not named a padlock, since
 // Chrome drew it as two sliders from 2023 (18 Nov 2026).
 for (const [where, installed, says] of /** @type {const} */ ([
-    ['the home screen app', true, 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'],
-    ['a browser tab', false, 'On Android: tap the icon at the left of the address bar (a padlock or two sliders) → Site settings → Notifications → Allow.'],
+    ['the home screen app', true, 'On Android: open your phone’s Settings → Apps, find MYB Roster (the name under its icon), and turn on Notifications. Then come back to this page — it updates by itself.'],
+    ['a browser tab', false, 'On Android: tap the icon at the left of the address bar (a padlock or two sliders) → Site settings → Notifications → Allow. Then come back to this page — it updates by itself.'],
 ])) {
     test(`settings: blocked on Android, ${where} is told the route that exists there`, async ({ page }) => {
         await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied', installed });

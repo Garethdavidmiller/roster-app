@@ -25,10 +25,10 @@ const device = (o = {}) => ({ supported: true, state: 'off-default', offByChoice
 const IPHONE_TAB = { supported: false, state: /** @type {const} */ ('unsupported'), ios: true, android: false };
 
 describe('a device that cannot get notifications is promised none', () => {
-    test('an iPhone in a browser: "After install", the installed app\'s list, and a POINTER to the Install card', () => {
+    test('an iPhone in a browser: "Home Screen first", the installed app\'s list, and a POINTER to the Install card', () => {
         for (const onMirror of [false, true]) {
             const w = notifCardWords(device({ ...IPHONE_TAB, onMirror }));
-            assert.equal(w.chip, 'After install', `mirror ${onMirror}`);
+            assert.equal(w.chip, 'Home Screen first', `mirror ${onMirror}`);
             assert.equal(w.report, 'n/a', 'the to-do is the Install card\'s, not a second one here');
             assert.equal(w.kinds, 'after-install');
             assert.equal(w.button, null);
@@ -121,23 +121,23 @@ describe('a blocked device is told the route that exists on it — never assumin
     const steps = (/** @type {Partial<import('./notif-card-core.js').NotifDevice>} */ o) => notifCardWords(device({ state: 'denied', ...o })).steps;
     test('an iPhone: iOS Settings, under the name under its icon', () => {
         assert.deepEqual(steps({ ios: true, android: false, installed: true }),
-            { text: 'On iPhone or iPad: open Settings → Notifications, find Home Label (the name under its icon), and turn on Allow Notifications.' });
+            { text: 'On iPhone or iPad: open Settings → Notifications, find Home Label (the name under its icon), and turn on Allow Notifications. Then come back to this page — it updates by itself.' });
         assert.deepEqual(steps({ ios: true, android: false, installed: true, appLabel: null }),
-            { text: 'On iPhone or iPad: open Settings → Notifications, find this app by the name under its icon, and turn on Allow Notifications.' });
+            { text: 'On iPhone or iPad: open Settings → Notifications, find this app by the name under its icon, and turn on Allow Notifications. Then come back to this page — it updates by itself.' });
     });
     test('an Android tab: the address bar\'s icon, whichever browser draws it', () => {
         assert.deepEqual(steps({}),
-            { text: 'On Android: tap the icon at the left of the address bar (a padlock or two sliders) → Site settings → Notifications → Allow.' });
+            { text: 'On Android: tap the icon at the left of the address bar (a padlock or two sliders) → Site settings → Notifications → Allow. Then come back to this page — it updates by itself.' });
     });
     test('the installed Android app, which has no address bar: the phone\'s own settings', () => {
         assert.deepEqual(steps({ installed: true }),
-            { text: 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.' });
+            { text: 'On Android: open your phone’s Settings → Apps, find Home Label (the name under its icon), and turn on Notifications. Then come back to this page — it updates by itself.' });
     });
     test('a computer: Chrome\'s route kept on one line, and a pointer for every other browser', () => {
         const s = /** @type {any} */ (steps({ android: false }));
         assert.equal(s.route, 'Site settings → Notifications → Allow');
         assert.match(s.lead, /^In Chrome: .*\u00a0→ $/, 'the arrow keeps to the word before it (a no-break space)');
-        assert.equal(s.tail, '. In another browser, look in its settings for this site’s notifications.');
+        assert.equal(s.tail, '. In another browser, look in its settings for this site’s notifications. Then come back to this page — it updates by itself.');
     });
 });
 

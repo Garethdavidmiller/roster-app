@@ -38,7 +38,7 @@ test.describe('new link', () => {
         await expect(page.locator('#nlPreview, .nl-preview')).toHaveCount(0);
         await expect(page.locator('body')).not.toContainText(/Preview —|Who it would reach/);
         await expect(page.locator('.nl-name-title')).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
-        await expect(page.locator('#nlStatus')).toContainText('Have your say by a date to be agreed');
+        await expect(page.locator('#nlStatus')).toContainText('Have your say before the decision is made.');
         // EVENLY: nothing on the page names a recommendation (owner, 2 Nov 2026: "No, three evenly")
         await expect(page.locator('main')).not.toContainText(/recommend/i);
         // what has changed since Short Run was shown, and what all three share — gains AND costs
@@ -117,7 +117,7 @@ test.describe('new link', () => {
                 await expect(status.locator('.nl-name')).toHaveCount(3);
                 if (open) {
                     await expect(status).toContainText('Nothing is decided.');
-                    await expect(status).toContainText('Have your say by a date to be agreed');
+                    await expect(status).toContainText('Have your say before the decision is made.');
                     await expect(page.locator('#nlStatusHint')).toHaveText('For discussion, not a decision');
                     await expect(page.locator('#nlSayCard')).toBeVisible();
                 } else {
@@ -146,7 +146,7 @@ test.describe('new link', () => {
         const status = page.locator('#nlStatus');
         await expect(status).toContainText('Middle Ground has been chosen.');
         await expect(status).toContainText(/The new link starts in January\s2027, and today’s link carries on until then\./);
-        await expect(status).not.toContainText(/Nothing is decided|Have your say|a date to be agreed/);
+        await expect(status).not.toContainText(/Nothing is decided|Have your say|a date to be agreed|before the decision is made/);
         await expect(page.locator('#nlStatusHint')).toHaveText('');
         await expect(page.locator('#nlSayCard')).toBeHidden();
         // the three are still there to read, A to Z, each opening its weeks

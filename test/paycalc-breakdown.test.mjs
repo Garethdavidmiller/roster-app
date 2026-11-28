@@ -79,7 +79,7 @@ test('buildSummaryRows: back pay + HPP → Regular pay + both extra rows + gross
     assert.ok(html.includes('Holiday Pay Premium'));
     assert.ok(html.includes('<span class="val">+£120.00</span>'));
     assert.ok(html.includes('Total pay</span><span class="val">£2,620.00</span>'), 'Total uses grossWithBp');
-    assert.ok(html.includes('<span class="sum-net-sub">includes back pay & HPP</span>'));
+    assert.ok(html.includes('<span class="sum-net-sub">includes back pay and Holiday Pay Premium</span>'));
 });
 
 // ── The take-home qualifier is a SUB-LINE, not a suffix (v20.53) ─────────────────────────────────
@@ -110,7 +110,7 @@ test('buildSummaryRows: each extra carries its OWN estimate flag', () => {
         ...SUM_BASE, _bpThisPeriod: 500, _hppForPeriod: 120, grossWithBp: 2620,
         _bpIsEstimate: false, _hppIsEstimate: true,
     });
-    assert.ok(html.includes('<span class="sum-net-sub">includes back pay & estimated HPP</span>'),
+    assert.ok(html.includes('<span class="sum-net-sub">includes back pay and estimated Holiday Pay Premium</span>'),
         'the estimated half must be named as estimated, and the confirmed half must not be');
 });
 
@@ -138,7 +138,7 @@ test('the summary and breakdown rows carry no inline style', () => {
         buildBreakdownRows({ ...BD_BASE, usingCumulative: true }),
     ].join('');
     assert.doesNotMatch(rows, /style="/);
-    assert.match(rows, /<span class="b-lbl bd-note-lbl">Student Loan not deducted this period<\/span>/);
+    assert.match(rows, /<span class="b-lbl bd-note-lbl">Student Loan not deducted on this payslip<\/span>/);
 });
 
 test('buildSummaryRows: Year to Date figures asking for more tax than the payslip pays say to check them', () => {
@@ -273,7 +273,7 @@ describe('buildLoanLines', () => {
 
     test('a skipped payslip is ONE row for both loans', () => {
         assert.equal(buildLoanLines({ ...LOAN, pgLoan: true, slSkip: true, slUnder: 66, slPost: 83 }),
-            zeroRow('Student Loan — marked as not deducted this period'));
+            zeroRow('Student Loan — marked as not deducted on this payslip'));
     });
 });
 
@@ -382,7 +382,7 @@ test('buildBreakdownRows: peer training pluralises days; otherAdj shows sign', (
 test('buildBreakdownRows: SL-skip note only with an active plan; cumulative + bp/hpp extra rows', () => {
     assert.ok(!buildBreakdownRows({ ...BD_BASE, slSkip: true, plan: 'none' }).includes('Student Loan not deducted'),
         'slSkip with no plan → no note');
-    assert.ok(buildBreakdownRows({ ...BD_BASE, slSkip: true, plan: 'plan2' }).includes('Student Loan not deducted this period'));
+    assert.ok(buildBreakdownRows({ ...BD_BASE, slSkip: true, plan: 'plan2' }).includes('Student Loan not deducted on this payslip'));
     assert.ok(buildBreakdownRows({ ...BD_BASE, usingCumulative: true }).includes('Tax adjusted using Year to Date figures'));
     const extras = buildBreakdownRows({ ...BD_BASE, _bpThisPeriod: 500, _bpIsEstimate: true, _hppForPeriod: 120, _hppIsEstimate: true });
     assert.ok(extras.includes('bd-extra'));
@@ -404,7 +404,7 @@ test('buildBreakdownRows: SL stopped-deducting note (v18.41) — active plan onl
     assert.ok(!buildBreakdownRows({ ...BD_BASE, slPaidOff: true, paidOffDay: '20 Nov 2026', plan: 'none' }).includes(LINE),
         'paid-off with no active loan → no note');
     const both = buildBreakdownRows({ ...BD_BASE, slPaidOff: true, paidOffDay: '20 Nov 2026', slSkip: true, plan: 'plan1' });
-    assert.ok(both.includes(LINE) && !both.includes('not deducted this period'),
+    assert.ok(both.includes(LINE) && !both.includes('not deducted on this payslip'),
         'the cutover outranks the one-off skip — one note, not two');
     assert.ok(!buildBreakdownRows({ ...BD_BASE, plan: 'plan1' }).includes(LINE),
         'omitted param defaults to still-repaying');

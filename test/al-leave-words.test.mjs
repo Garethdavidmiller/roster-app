@@ -379,7 +379,7 @@ test('the receipt: what was saved, for whom nothing was — and never "nothing" 
         'only the people the read shows saved for');
 });
 
-test('a day answered "Rest day — free" is named in the receipt: a Save never does nothing silently', () => {
+test('a day answered "No — rest day, nothing recorded" is named in the receipt: a Save never does nothing silently', () => {
     assert.equal(leftFreeWords('C. Specimen', [{ date: '2026-03-03', held: false }]),
         `For C. Specimen, ${dayLabel('2026-03-03')} was left as a rest day, as answered: nothing was written.`);
     assert.equal(leftFreeWords('C. Specimen', [{ date: '2026-03-03', held: false }, { date: '2026-03-10', held: true }]),

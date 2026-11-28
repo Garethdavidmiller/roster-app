@@ -98,7 +98,7 @@ test('christmas: leave after a worked Boxing Day, past the year\'s allowance, sp
     await expect(page.locator('#alLbEntitlement')).toHaveText('33');
     await expect(page.locator('#alLbRemaining')).toHaveText('0');
     await expect(page.locator('#alLbBreakdown'))
-        .toHaveText('Entitlement 33: includes 1 day in lieu for working Boxing Day 2026, taken on leave after it that December');
+        .toHaveText('Allowance 33: includes 1 day in lieu for working Boxing Day 2026, taken on leave after it that December');
     await page.locator('#alLbNextYear').click();
     await expect(page.locator('#alLbYear')).toHaveText('2027');
     await expect(page.locator('#alLbEntitlement'), 'spent in December 2026, so not in 2027 as well').toHaveText('32');
@@ -126,13 +126,13 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(line).toBeVisible();   // the text alone is no proof: a hidden line still holds it
     await expect(line).toHaveText('Christmas Day: due at work, so this is annual leave. It does not come off the allowance.');
     // The pair names the turn the member was ROSTERED — never "Rest day", which `getBaseShift` makes the day.
-    await expect(page.locator('#dayDetailChangeSaid')).toHaveText(/^Base roster Late shift 14:00-22:30, changed to /);
+    await expect(page.locator('#dayDetailChangeSaid')).toHaveText(/^Usual roster Late shift 14:00-22:30, changed to /);
     await page.locator('#dayDetailClose').click();
 
     await expect(cell('Saturday 26 December 2026')).toHaveAttribute('data-detail-shift-value', 'RDW');
     await cell('Saturday 26 December 2026').click();
     await expect(line).toBeVisible();
-    await expect(line).toHaveText('Worked Boxing Day when due at work: one day of annual leave in lieu, to take from 27 December. If leave later this December runs past the 2026 allowance, it covers that; otherwise it is added to the 2027 allowance.');
+    await expect(line).toHaveText('Boxing Day worked when due at work: one extra day of annual leave, in place of this one, can be taken from 27 December. If leave later in December 2026 runs past that year’s allowance, it covers that; otherwise it is added to the 2027 allowance.');
     await page.locator('#dayDetailClose').click();
     // An ordinary day says nothing about Christmas — absent means HIDDEN, not an empty line.
     await cell('Thursday 24 December 2026').click();
@@ -153,7 +153,7 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(page.locator('#alLbEntitlement')).toHaveText('33');
     await expect(page.locator('#alLbRemaining')).toHaveText('33');
     await expect(page.locator('#alLbBreakdown')).toBeVisible();
-    await expect(page.locator('#alLbBreakdown')).toHaveText('Entitlement 33: includes 1 day in lieu for working Boxing Day 2026');
+    await expect(page.locator('#alLbBreakdown')).toHaveText('Allowance 33: includes 1 day in lieu for working Boxing Day 2026');
     // A FULL-WIDTH LINE UNDER THE FIGURES (lightbox review, 22 Nov 2026), not a caption in the quarter-width
     // Entitlement cell, where a long note stretched all four figures to its height.
     const fit = await page.evaluate(() => {

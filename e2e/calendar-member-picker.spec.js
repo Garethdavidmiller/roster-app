@@ -180,6 +180,21 @@ test('calendar: a removed saved member falls back to the calendar + stale banner
     await expect(page.locator('#errorBanner')).toContainText('Choose a name from the list below.');
 });
 
+// TEAM VIEW HIDES THE PICKER (28 Nov 2026): a page that opens in Team View has no list "below", so the line
+// says how to reach it — back in 📅 Month — as the leave panel's first-run hint already did.
+test('calendar: the removed-member line opened in Team View says to go back to 📅 Month for the list', async ({ page }) => {
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_roster_selected_member', 'Z. Nonexistent');
+        localStorage.setItem('myb_team_view', '1');
+    });
+    await page.goto('/');
+    await expect(page.locator('.team-week-text')).toBeVisible();
+    await expect(page.locator('body')).toHaveClass(/team-view-active/);
+    await expect(page.locator('#errorBanner')).toContainText('"Z. Nonexistent" is no longer in the roster');
+    await expect(page.locator('#errorBanner')).toContainText('Select 📅 Month, then choose a name from the list.');
+    await expect(page.locator('#errorBanner')).not.toContainText('list below');
+});
+
 // THE SIGNED-IN MEMBER'S OWN NAME (18 Nov 2026): a row hidden after a move into management, say, while the
 // member is still signed in with it saved. The line is said to them, not about them in quotes. An invented
 // name stands in for theirs: it is on no roster, which is how a hidden row looks to the picker.

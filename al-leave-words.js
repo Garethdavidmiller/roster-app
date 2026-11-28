@@ -352,8 +352,8 @@ export function ageWords({ saved, ageDays, maxAge }) {
 
 /** The Save's fixed lines. */
 export const SAVE_WORDS = Object.freeze({
-    swapped: 'Swapped — counts',
-    free: 'Rest day — free',
+    swapped: 'Yes, swapped — uses a leave day',
+    free: 'No — rest day, nothing recorded',
     intro: 'Only the people you confirm are saved. Each day is checked again as it is written, and a day somebody has changed since this check is left as it is.',
     removedSince: 'Removed in the app since this sheet was last saved here, so the Save will not put it back. If it should be there, add it in Admin.',
     nothingForSave: 'Nothing here is for the Save: a day that differs another way is changed in Admin, with Change a Shift.',
@@ -461,7 +461,7 @@ export function receiptWords({ days, people, refused, unsure = false, landedFor 
 }
 
 /**
- * The days a Save left as rest days because they were answered "Rest day — free" — named, as the
+ * The days a Save left as rest days because they were answered "No — rest day, nothing recorded" — named, as the
  * Admin leave card's receipt names them (admin-save-receipt.js): a Save may not do nothing silently.
  * A day that already held leave says so, because answering never deletes and the Calendar still shows it.
  * @param {string} name @param {Array<{ date: string, held: boolean }>} days

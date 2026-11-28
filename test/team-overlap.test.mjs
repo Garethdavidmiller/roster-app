@@ -8,7 +8,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { shiftSpan, workedTimes, clockAt, rangeText, whoIsOnWith, togetherWords, DAY_MINUTES } from '../team-overlap.js';
+import { shiftSpan, workedTimes, clockAt, whoIsOnWith, togetherWords, DAY_MINUTES } from '../team-overlap.js';
 import { readFileSync } from 'node:fs';
 import { resolveEffectiveShift, hoursSlotTime } from '../override-utils.js';
 
@@ -85,44 +85,40 @@ describe('the clock text', () => {
         assert.equal(clockAt(DAY_MINUTES + 75), '01:15');
         assert.equal(clockAt(-60), '23:00');
     });
-    test('rangeText writes two-digit hours and an en dash', () => {
-        assert.equal(rangeText('6:00-14:00'), '06:00–14:00');
-        assert.equal(rangeText('22:00-06:00'), '22:00–06:00');
-    });
 });
 
 describe('whoIsOnWith', () => {
     test('the owner\'s own example: 14:00–22:30 with 06:00–15:00 is together 14:00–15:00', () => {
-        const { together, alsoWorking } = whoIsOnWith('14:00-22:30', [{ key: 'A', day: '06:00-15:00', worksDay: true }]);
+        const { together, timesUnknown } = whoIsOnWith('14:00-22:30', [{ key: 'A', day: '06:00-15:00', worksDay: true }]);
         assert.equal(together.length, 1);
         assert.deepEqual(together[0].spans.map(s => [s.day, s.from, s.to]), [[0, '14:00', '15:00']]);
         assert.equal(together[0].minutes, 60);
-        assert.deepEqual(alsoWorking, []);
+        assert.deepEqual(timesUnknown, []);
     });
 
-    test('rule 4: touching ends are NOT together, and the colleague is only "also working"', () => {
-        const { together, alsoWorking } = whoIsOnWith('14:00-22:00', [{ key: 'A', day: '06:00-14:00', worksDay: true }]);
+    test('rule 4: touching ends are NOT together, and the colleague is in no list (the grid shows them)', () => {
+        const { together, timesUnknown } = whoIsOnWith('14:00-22:00', [{ key: 'A', day: '06:00-14:00', worksDay: true }]);
         assert.deepEqual(together, []);
-        assert.deepEqual(alsoWorking, ['A']);
+        assert.deepEqual(timesUnknown, []);
     });
 
-    test('no overlap at all: also working, never together', () => {
-        const { together, alsoWorking } = whoIsOnWith('06:00-12:00', [{ key: 'A', day: '15:00-23:00', worksDay: true }]);
+    test('no overlap at all: never together, and not "times not recorded" either — their times are known', () => {
+        const { together, timesUnknown } = whoIsOnWith('06:00-12:00', [{ key: 'A', day: '15:00-23:00', worksDay: true }]);
         assert.deepEqual(together, []);
-        assert.deepEqual(alsoWorking, ['A']);
+        assert.deepEqual(timesUnknown, []);
     });
 
     test('somebody not working that day is in neither list', () => {
-        const { together, alsoWorking } = whoIsOnWith('06:00-12:00', [{ key: 'A', worksDay: false }]);
+        const { together, timesUnknown } = whoIsOnWith('06:00-12:00', [{ key: 'A', worksDay: false }]);
         assert.deepEqual(together, []);
-        assert.deepEqual(alsoWorking, []);
+        assert.deepEqual(timesUnknown, []);
     });
 
     test('rule 2: a colleague\'s overnight from the DAY BEFORE overlaps this morning, attributed to that day', () => {
-        const { together, alsoWorking } = whoIsOnWith('05:00-13:00', [{ key: 'N', prev: '22:00-06:00', worksDay: false }]);
+        const { together, timesUnknown } = whoIsOnWith('05:00-13:00', [{ key: 'N', prev: '22:00-06:00', worksDay: false }]);
         assert.equal(together.length, 1, 'the previous night\'s shift was not read');
         assert.deepEqual(together[0].spans.map(s => [s.day, s.time, s.from, s.to]), [[-1, '22:00-06:00', '05:00', '06:00']]);
-        assert.deepEqual(alsoWorking, []);
+        assert.deepEqual(timesUnknown, []);
     });
 
     test('rule 2 needs the midnight crossing: yesterday\'s day shift never overlaps today', () => {
@@ -142,10 +138,10 @@ describe('whoIsOnWith', () => {
     });
 
     test('rule 3: the member\'s own overnight meets the NEXT day\'s early, attributed to that day', () => {
-        const { together, alsoWorking } = whoIsOnWith('21:00-05:00', [{ key: 'E', next: '04:00-12:00', worksDay: false }]);
+        const { together, timesUnknown } = whoIsOnWith('21:00-05:00', [{ key: 'E', next: '04:00-12:00', worksDay: false }]);
         assert.equal(together.length, 1, 'the next day\'s early was not read');
         assert.deepEqual(together[0].spans.map(s => [s.day, s.from, s.to]), [[1, '04:00', '05:00']]);
-        assert.deepEqual(alsoWorking, []);
+        assert.deepEqual(timesUnknown, []);
     });
 
     test('rule 3 needs the midnight crossing: tomorrow\'s early never meets a shift that ends today', () => {
@@ -181,17 +177,16 @@ describe('whoIsOnWith', () => {
     });
 
     test('rule 7: working with no times recorded is its own group, never "not at the same time"', () => {
-        const { together, alsoWorking, timesUnknown } = whoIsOnWith('07:00-15:00', [
+        const { together, timesUnknown } = whoIsOnWith('07:00-15:00', [
             { key: 'rdw', day: null, worksDay: true },                       // Rest Day Working, no time
-            { key: 'apart', day: '15:00-23:00', worksDay: true },
+            { key: 'apart', day: '15:00-23:00', worksDay: true },            // known times, apart: in no list
         ]);
         assert.deepEqual(together, []);
-        assert.deepEqual(alsoWorking, ['apart']);
         assert.deepEqual(timesUnknown, ['rdw']);
     });
 
     test('a member with no shift times has nobody on with them', () => {
-        assert.deepEqual(whoIsOnWith('RD', [{ key: 'A', day: '06:00-15:00', worksDay: true }]), { together: [], alsoWorking: [], timesUnknown: [] });
+        assert.deepEqual(whoIsOnWith('RD', [{ key: 'A', day: '06:00-15:00', worksDay: true }]), { together: [], timesUnknown: [] });
     });
 });
 
