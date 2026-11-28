@@ -154,10 +154,12 @@ test.describe('trains', () => {
         await expect(page.locator('#trLookupResult .tr-answer').first()).toContainText('The 17:15 to Oxford');
         await page.locator('#trLookupInput').fill('1716');
         await expect(page.locator('#trLookupResult')).toContainText('No weekday train leaves at exactly 17:16 in the current timetable.');
-        // A word that is no time is a station asked for since the two lookups became one box (Nov 2026): not
-        // found, and the box says how to ask, a time among the ways. A time it cannot read still says how to type one.
+        // "noon" is a time (12:00) since the box learned its words (28 Nov 2026). A word that is no time is a station
+        // asked for: not found, and the box says how to ask, a time among the ways. A time it cannot read still says how to type one.
         await page.locator('#trLookupInput').fill('noon');
-        await expect(page.locator('#trLookupResult')).toContainText('No station matches “noon”.');
+        await expect(page.locator('#trLookupResult')).toContainText('leaves at exactly 12:00');
+        await page.locator('#trLookupInput').fill('zzz');
+        await expect(page.locator('#trLookupResult')).toContainText('No station matches “zzz”.');
         await expect(page.locator('#trLookupResult')).toContainText('a time like 17:15, 1715 or 5.15pm');
         await page.locator('#trLookupInput').fill('5');
         await expect(page.locator('#trLookupResult')).toHaveText('Type a time like 17:15, 1715 or 5.15pm.');
