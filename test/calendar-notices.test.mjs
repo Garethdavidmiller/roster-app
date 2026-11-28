@@ -1906,7 +1906,7 @@ describe('16 · see who you are on duty with: Team View, last in the queue, for 
         assert.match(text, /👥 Team , above your calendar/, 'where the button is');
         assert.match(text, /📅 Month brings your calendar back/, 'and the way back, in the words the button then shows');
         // The screen's own name, as its About badge and the Team button's spoken label give it.
-        assert.match(text, /Open Team Week View/);
+        assert.match(text, /Open Team Week View &rarr;/, 'its button, with the arrow every "Open …" call to action carries');
         assert.match(readFileSync(new URL('./calendar-team-view.js', REPO_ROOT_URL), 'utf8'), /'Switch to Team Week View'/);
         assert.doesNotMatch(text, /resting/, 'one word for it: "on a rest day", the app\'s own');
     });

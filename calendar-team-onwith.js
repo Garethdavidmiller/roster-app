@@ -164,7 +164,7 @@ export function buildOnWithCard({ onWith, effectiveDay, cellDisplay, monthKey, t
     const name = escapeHtml(shown.name);
     const shell = (/** @type {string} */ mine, /** @type {string} */ body) =>
         `<section class="tv-onwith" id="tvOnWith" aria-labelledby="tvOnWithTitle tvOnWithWhen">`
-        + `<div class="tv-onwith-head"><h2 class="tv-onwith-title" id="tvOnWithTitle" tabindex="-1">On with ${name}</h2>`
+        + `<div class="tv-onwith-head"><h2 class="tv-onwith-title" id="tvOnWithTitle" tabindex="-1"><span aria-hidden="true">👥</span> On with ${name}</h2>`
         + `<button type="button" class="tv-onwith-hide" id="tvOnWithHide" aria-label="Hide who’s on with ${name}">Hide</button></div>`
         + `<p class="tv-onwith-mine"><span id="tvOnWithWhen">${cardDate(date)}</span>${mine}</p>`
         + body + '</section>';
