@@ -171,8 +171,13 @@
     .pm-sub .period-badge { font-size: var(--type-small); }
 
     /* Save indicator row */
+    /* THE GAP KEEPS RETRY OFF "CLEAR ALL ENTRIES". Under the longest failure ("Couldn't clear this
+       payslip — …") the status wraps and pushes Retry against Clear: measured at 320 and 375px the two
+       touched (0px apart), and each one's touch region reaches 6px sideways (below), so a thumb aimed at
+       Retry could land on the destructive control. 12px is the two overhangs; it applies only when the
+       row is full, so the ordinary status-and-Clear row is unchanged. */
     .save-row {
-      display: flex; justify-content: space-between; align-items: center;
+      display: flex; justify-content: space-between; align-items: center; column-gap: var(--space-3);
       width: 100%; min-height: 20px;
     }
     .save-status {
@@ -188,7 +193,7 @@
        against the status so the two read as one message, with Clear all entries still at the far end. */
     .save-retry {
       font-size: var(--type-small); font-weight: 600; color: var(--warning-amber);
-      background: none; border: none; cursor: pointer; margin-left: 8px; margin-right: auto;
+      background: none; border: none; cursor: pointer; margin-right: auto;   /* the row's gap sets it off the status */
       padding: 2px 0; touch-action: manipulation;
       text-decoration: underline; text-underline-offset: 2px;
     }

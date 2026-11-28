@@ -95,6 +95,24 @@ describe('two tabs — the three-way merge', () => {
         assert.deepEqual(/** @type {any} */ (plan).fromDisk, ['sun']);
     });
 
+    test('EVERY field of the schema, absent, reads as the schema\'s own default — never as 0', () => {
+        // The defaults were a restated copy of emptyPeriodData, so a field added to the schema with a
+        // default other than 0 would have read, absent, as 0: a change nobody made, taken from disk.
+        const full = period();
+        for (const f of Object.keys(full)) {
+            const older = { ...full }; delete older[f];               // a save from before the field existed
+            const plan = /** @type {any} */ (planPeriodSave({ base: base(full), diskRaw: raw({ ...older, sunH: 1 }), form: full }));
+            assert.equal(plan.kind, 'write', f);
+            assert.deepEqual(plan.fromDisk, ['sun'], `"${f}" absent read as a change to it`);
+        }
+    });
+
+    test('a list or a bare value in storage is unreadable, by the same shape check every reader uses', () => {
+        for (const bad of ['[]', '[1]', '"text"', '42', 'null']) {
+            assert.equal(planPeriodSave({ base: base(period()), diskRaw: bad, form: period({ sunH: 1 }) }).kind, 'unreadable', bad);
+        }
+    });
+
     test('every saved field, and the pension, belongs to exactly one unit — a new field cannot be dropped', () => {
         const fields = PERIOD_UNITS.flatMap(u => u.fields);
         assert.equal(new Set(fields).size, fields.length, 'a field in two units');

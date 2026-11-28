@@ -706,7 +706,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `CLEAR_CONFIRM_MIN_MS` · `createClearConfirm`
 
 ### `paycalc-save-line.js`
-- **Exports:** `createSaveLine`
+- **Exports:** `saveStatusWords` · `createSaveLine`
 
 ### `paycalc-money-banner.js`
 - **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner` · `wireBannerTicks`
@@ -718,7 +718,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `CONFIG` · `getPeriods` · `periodByNum` · `payslipPeriodNum` · `computeEarliestVisiblePNum` · `payslipsShownTo` · `setEarliestVisiblePeriod` · `getEarliestVisiblePNum` · `visiblePeriods` · `isTaxYearVisible` · `todaysPeriodNum` · `currentPeriodNum` · `viewedPeriod` · `hasBoxingDay` · `bhsForYear` · `hasBankHoliday` · `CONDITIONAL_ROWS` · `updateBhRows` · `_setSelectPeriod` · `appendPayslipOptions` · `offerRecordedPayslip` · `periodLinkMissNote` · `periodPaidInMonth` · `buildPeriodSelect` · `payslipMayBeInHand` · `ytdSourceOffered` · `ytdAutoSource` · `ytdSourceToStamp` · `YTD_SRC_EARLY` · `ytdSourceAfterRetype` · `ytdAnchorStatus` · `buildYtdSourceSelect` · `buildBackPayPeriodSelect` · `updateTyTabs` · `jumpToTaxYear` · `prevPeriod` · `nextPeriod` · `ytdUpdateFrom`
 
 ### `paycalc-settings.js`
-- **Exports:** `gradeForRole` · `getGradeSetting` · `gradeDaysFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `isPeriodPriced` · `unpricedLineFor` · `getEffectiveContr` · `getProRateFactor` · `isPensionOptedOut` · `applyPensionOptOutUI` · `buildPensionFromSelect` · `periodDefaultPension` · `wirePensionControls` · `getPensionDefault` · `settledRate` · `settledRateFor` · `awardGrade` · `periodRate` · `settingsSummary` · `updateRateForPeriod` · `updateYtdForTaxYear` · `settingsKey` · `SETTINGS_NOT_SAVED` · `saveSettings` · `confirmSettings` · `setSettingsCardOpen` · `paintSettingsForYear` · `wireSettingsCard` · `loadSettings`
+- **Exports:** `gradeForRole` · `getGradeSetting` · `gradeDaysFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `isPeriodPriced` · `unpricedLineFor` · `getEffectiveContr` · `getProRateFactor` · `isPensionOptedOut` · `applyPensionOptOutUI` · `buildPensionFromSelect` · `joinerDefaultPension` · `periodDefaultPension` · `wirePensionControls` · `getPensionDefault` · `settledRate` · `settledRateFor` · `awardGrade` · `periodRate` · `settingsSummary` · `updateRateForPeriod` · `updateYtdForTaxYear` · `settingsKey` · `SETTINGS_NOT_SAVED` · `saveSettings` · `confirmSettings` · `setSettingsCardOpen` · `paintSettingsForYear` · `wireSettingsCard` · `loadSettings`
 
 ### `paycalc-grade-setting.js`
 - **Exports:** `getGradeSetting` · `gradeDaysFor` · `isPeriodPriced` · `unpricedLineFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `saveGradeSetting` · `loadGradeSetting`
@@ -755,13 +755,13 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `taxCodeNotRecognised` · `fmtHrsMins` · `buildSummaryRows` · `buildLoanLines` · `ytdMisfitNote` · `buildBreakdownRows` · `buildActualCheck` · `buildActualComparison` · `buildProvChips` · `buildBreakBar`
 
 ### `paycalc-form-data.js`
-- **Exports:** `emptyPeriodData` · `syncNoSpecialTick` · `pensionToStore` · `readFormData` · `settingFieldsWrite` · `writeFormData`
+- **Exports:** `emptyPeriodData` · `syncNoSpecialTick` · `pensionToStore` · `readOtherAdj` · `readFormData` · `settingFieldsWrite` · `planSettingWrite` · `writeFormData`
 
 ### `paycalc-period-merge.js`
 - **Exports:** `PERIOD_UNITS` · `planPeriodSave` · `formChangedSince` · `fieldsOfUnits` · `unitValueText` · `periodSaveQuestion`
 
 ### `paycalc-inputs.js`
-- **Exports:** `numVal` · `numValOr` · `intVal` · `hoursTextToHM` · `hmPair` · `hhmmDec` · `clampMins` · `_decHintEl` · `decimalHoursText` · `decPreview` · `paintTaxCodeWarning` · `commitFocusedField` · `wireIosTap`
+- **Exports:** `numVal` · `intVal` · `hoursTextToHM` · `hmPair` · `hhmmDec` · `clampMins` · `_decHintEl` · `decimalHoursText` · `decPreview` · `paintTaxCodeWarning` · `commitFocusedField` · `wireIosTap`
 
 ### `paycalc-backpay-state.js`
 - **Exports:** `BP_FIELDS` · `readBpFields` · `bpFieldWrites` · `resolveAuthoritativeRates` · `blobFitsGrade` · `allRatesOnRecord` · `resolvePaidInPeriod`

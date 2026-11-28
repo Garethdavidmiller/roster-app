@@ -107,6 +107,19 @@ export function pensionToStore(raw, periodDefaultPension) {
     return v;
 }
 
+/**
+ * The "Any other payslip adjustment" box, signed by the ± button and ROUNDED TO THE PENNY — the one
+ * reading the save (`readFormData`) and the price on screen (paycalc-app.js `calculate`) both take.
+ * Unrounded, a typed 1.005 priced and stored as 1.005, came back from `writeFormData` as "1.00", and
+ * the next edit stored 1.00: the round trip changed the figure (invariant 2).
+ * @param {boolean} adjNegative the coordinator's ± state
+ * @returns {number}
+ */
+export function readOtherAdj(adjNegative) {
+    const r = Math.round(Math.abs(numVal('otherAdj') || 0) * 100) / 100;
+    return adjNegative ? -r : r;
+}
+
 /** A payslip-actual field: a typed figure, or null for blank/garbage — never a phantom 0.
  * @param {string} id @returns {number|null} */
 function _readActual(id) {
@@ -149,7 +162,7 @@ export function readFormData({ adjNegative = false, periodDefaultPension = null,
         slSkip: /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
         // Hours typed supersede the tick, so it is stored only beside none (syncNoSpecialTick).
         noSpecialHours: !!_noSpecial?.checked && !_specialHoursOnScreen(),
-        otherAdj: (() => { const _r = Math.abs(numVal('otherAdj') || 0); return adjNegative ? -_r : _r; })(),
+        otherAdj: readOtherAdj(adjNegative),
         // Blank/garbage → null, a typed "0" kept, the period default → null: `pensionToStore` above.
         // A locked box (an opt-out spell) keeps the payslip's own saved figure — see the header.
         pension: _pa?.disabled ? (savedPension ?? null) : pensionToStore(_pa?.value ?? '', periodDefaultPension),
@@ -193,6 +206,29 @@ export function settingFieldsWrite(raw, formNow, fields) {
     const next = { ...saved };
     for (const f of fields) next[f] = formNow[f];
     return JSON.stringify(next);
+}
+
+/**
+ * A setting's write, planned: what to store (`write`, null for nothing — `settingFieldsWrite`) and the
+ * BASE the form is in step with once that write reads back (`base`, the two-tab merge's base:
+ * paycalc-period-merge.js).
+ *
+ * THE BASE MOVES WITH THE WRITE (28 Nov 2026). A setting write that read back left the base where the
+ * payslip was loaded, so the next typed save's merge (`planPeriodSave`) read this tab's OWN setting as
+ * "changed in another tab" and took it from storage: the loan skip, cleared by choosing None and ticked
+ * again, was stored unticked — and unticked on screen — under "saved". It is NOT the stored string
+ * itself: storage can hold another tab's figures this form does not show, and a base equal to them
+ * would make the next save write this form's stale ones over them. So the base is the OLD base with
+ * the same fields carried in — exactly what was stored, when no other tab has written since.
+ *
+ * @param {{ diskRaw: string|null, baseRaw: string|null, formNow: Record<string, any>, fields: string[] }} a
+ *   diskRaw — what storage holds for the payslip now; baseRaw — the base before the write.
+ * @returns {{ write: string|null, base: string|null }}
+ */
+export function planSettingWrite({ diskRaw, baseRaw, formNow, fields }) {
+    const write = settingFieldsWrite(diskRaw, formNow, fields);
+    if (write === null) return { write, base: baseRaw };
+    return { write, base: settingFieldsWrite(baseRaw, formNow, fields) ?? baseRaw };
 }
 
 /**

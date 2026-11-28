@@ -196,7 +196,7 @@ roster-app/
 ├── paycalc-ytd-card.js     ← the Year to Date card on the page; owns no rule. Tested by paycalc-ytd-card.test.mjs
 ├── paycalc-disclosures.js  ← the Pay page's button-and-panel disclosures. Tested by paycalc-disclosures.test.mjs
 ├── paycalc-clear-confirm.js ← the two-tap "Clear all entries": the arm, the countdown and which tap confirms. Tested by paycalc-clear-confirm.test.mjs. See also paycalc-entries.spec.js.
-├── paycalc-save-line.js    ← the "not saved" line: its words and its Retry are one failure's, "saved" only for what storage kept, and who hears it change. Tested by paycalc-save-line.test.mjs. See also paycalc-saving.spec.js.
+├── paycalc-save-line.js    ← the "not saved" line: its words and its Retry are one failure's, "saved" only for what storage kept, and who hears it change; and the status line's words for a payslip. Tested by paycalc-save-line.test.mjs. See also paycalc-saving.spec.js.
 ├── paycalc-money-banner.js ← the two opt-in money banners and their ticks and links; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc-backpay.spec.js.
 ├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html. See also paycalc-layout.spec.js.
 ├── paycalc-periods.js      ← period arithmetic and the period select, and the Year to Date source rules. See also paycalc-periods.test.mjs.
