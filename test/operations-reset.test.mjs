@@ -128,7 +128,7 @@ test('a member nobody told is the admin\'s errand, whether or not the sign-out w
     const untold = resetOutcome(NAME, { ...LANDED, notified: false });
     assert.equal(untold?.title, 'Password reset — tell them yourself');
     // `notified: false` is also a send that failed, so the line says what happened, never that the member has no notifications.
-    assert.match(untold?.message ?? '', new RegExp(`No reset notice reached ${NAME.replace('.', '\\.')}’s devices, so they have NOT been told`));
+    assert.match(untold?.message ?? '', new RegExp(`No reset notice reached ${NAME.replace('.', '\\.')}’s devices, so they have not been told`));
     assert.doesNotMatch(untold?.message ?? '', /has no notifications/, 'a send that failed is blamed on the member\'s phone');
     assert.match(untold?.message ?? '', /their password is now their surname and they are signed out\./);
     assert.match(untold?.message ?? '', /They are signed out on every device\./);
@@ -140,7 +140,7 @@ test('a member nobody told is the admin\'s errand, whether or not the sign-out w
     // The revoke is the MEMBER's whole sign-out, and the admin's device is not one of theirs: no "other devices".
     assert.match(both?.message ?? '', /They couldn’t be signed out of their devices straight away/);
     assert.doesNotMatch(`${both?.title} ${both?.message}`, /other devices/);
-    assert.match(both?.message ?? '', /they have NOT been told/, 'and the untold member is no longer hidden');
+    assert.match(both?.message ?? '', /they have not been told/, 'and the untold member is no longer hidden');
     assert.doesNotMatch(both?.message ?? '', /and they are signed out/, 'never claims a sign-out that failed');
 });
 
@@ -158,7 +158,7 @@ test('a lost-phone reset says what it did, that nobody was told, and that the su
 test('a lost-phone reset whose notifications could not be switched off says so', () => {
     const failed = resetOutcome(NAME, { ...LANDED, notified: false, lostDevice: true, pushReleaseFailed: true }, { lostDevice: true });
     assert.equal(failed?.title, 'Password reset — notifications still on');
-    assert.match(failed?.message ?? '', /COULDN’T be switched off/);
+    assert.match(failed?.message ?? '', /couldn’t be switched off/);
     assert.match(failed?.message ?? '', /Reset again with the box ticked/);
     assert.doesNotMatch(failed?.message ?? '', /notifications are now off/);
 });
@@ -170,8 +170,8 @@ test('a ticked box an older server ignored is said, never assumed to have run', 
     assert.doesNotMatch(toldAnyway?.message ?? '', /No reset notice was sent/);
 
     const untold = resetOutcome(NAME, { ...LANDED, notified: false }, { lostDevice: true });
-    assert.match(untold?.message ?? '', /The lost-phone step DIDN’T run\. Reset again with the box ticked\./);
-    assert.match(untold?.message ?? '', /they have NOT been told/);
+    assert.match(untold?.message ?? '', /The lost-phone step didn’t run\. Reset again with the box ticked\./);
+    assert.match(untold?.message ?? '', /they have not been told/);
 
     assert.equal(resetOutcome(NAME, LANDED, { lostDevice: false }), null, 'an unticked box expects nothing more');
 });

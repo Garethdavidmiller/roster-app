@@ -111,7 +111,7 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
     // so we don't strand a signed-in Firebase identity with no app session, and tell the user why.
     if (!saveSession()) {
         clearSession();
-        return { ok: false, kind: 'storage', error: 'This browser is blocking storage, which the app needs to keep you signed in. Allow cookies and website data for this site — on an iPhone, turn off Block All Cookies in Safari’s settings — then sign in again.' };
+        return { ok: false, kind: 'storage', error: 'This device is set to stop websites saving anything, and the app needs that to keep you signed in. On an iPhone: Settings → Apps → Safari (older iPhones: Settings → Safari), turn off Block All Cookies, then sign in again. Anywhere else, ask the admin.' };
     }
     return { ok: true };
 }

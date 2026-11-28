@@ -25,13 +25,23 @@ test('the Links Selector is listed while it is open to staff — and every other
 test('never the admin\'s own page, nor a paused one, nor a beta that is still the admin\'s — each read from its switch', () => {
     const ids = staffPageIds();
     assert.ok(!ids.includes('operations'), 'Operations: every open is an admin\'s, never counted');
-    const paused = { ...CONFIG, OVERTIME_ENABLED: false, LINK_DESIGNER_ENABLED: false, LINKS_SELECTOR_OPEN: false };
-    const p = staffPageIds(paused);
+    const p = staffPageIds({ overtime: false, linkDesigner: false, selector: false });
     for (const id of ['overtime', 'links', 'selector']) assert.ok(!p.includes(id), `${id} is listed while it is switched off`);
-    const open = staffPageIds({ ...CONFIG, OVERTIME_ENABLED: true, LINK_DESIGNER_ENABLED: true, LINKS_SELECTOR_OPEN: true });
+    const open = staffPageIds({ overtime: true, linkDesigner: true, selector: true });
     for (const id of ['overtime', 'links', 'selector']) assert.ok(open.includes(id), `${id} is left off when it is switched on`);
     // Every id is a real drawer page, so every row has its name and emoji (PAGE_META is read from NAV_PAGES).
     for (const id of open) assert.ok(NAV_PAGES.some(n => n.id === id));
+});
+
+test('a pause is read through auth-policy.js, the ONE client reading — so its e2e seam reaches this list too', () => {
+    const was = globalThis.__E2E;
+    try {
+        globalThis.__E2E = { overtimeEnabled: true, linkDesignerEnabled: true };
+        const ids = staffPageIds();
+        for (const id of ['overtime', 'links']) assert.ok(ids.includes(id), `${id}: the seam switched it on`);
+        globalThis.__E2E = { overtimeEnabled: false, linkDesignerEnabled: false };
+        for (const id of ['overtime', 'links']) assert.ok(!staffPageIds().includes(id), `${id}: the seam switched it off`);
+    } finally { globalThis.__E2E = was; }
 });
 
 test('counted pages keep their order; the rest follow at 0, in the drawer\'s order; nothing is listed twice', () => {

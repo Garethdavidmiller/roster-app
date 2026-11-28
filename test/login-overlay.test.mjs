@@ -254,7 +254,8 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         const r = await runNamedSignIn(deps);
         assert.equal(r.ok, false);
         assert.equal(r.kind, 'storage');
-        assert.match(/** @type {string} */ (r.error), /blocking storage/i);
+        assert.match(/** @type {string} */ (r.error), /stop websites saving anything/i);
+        assert.match(/** @type {string} */ (r.error), /Settings → Apps → Safari \(older iPhones: Settings → Safari\), turn off Block All Cookies/);
         assert.equal(calls.save, 1, 'save was attempted');
         assert.equal(calls.clear, 1, 'signed back out so no Firebase identity is stranded');
     });
@@ -939,7 +940,7 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         // …and it was A's third failure all the same: back to A, the lock is theirs.
         card.name.value = A;
         card.name.dispatchEvent({ type: 'change' });
-        assert.equal(card.submit.textContent, 'Try again in 30s', 'the failure was dropped rather than counted for A');
+        assert.equal(card.submit.textContent, 'Try again in 30 seconds', 'the failure was dropped rather than counted for A');
         assert.equal(card.submit.disabled, true);
     });
 
@@ -949,7 +950,7 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
     test('a card moved back to a locked person while somebody else’s sign-in is in flight shows their lock when it settles', async () => {
         const card = mount(B);
         for (let i = 0; i < 3; i++) { card.password.value = `wrong-${i}-for-B`; card.send(); await settle(card); }
-        assert.equal(card.submit.textContent, 'Try again in 30s', 'premise: B is locked');
+        assert.equal(card.submit.textContent, 'Try again in 30 seconds', 'premise: B is locked');
         card.name.value = A;
         card.name.dispatchEvent({ type: 'change' });
         assert.equal(card.submit.textContent, 'Sign in →', 'premise: the lock is B’s alone');
@@ -960,7 +961,7 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         card.name.dispatchEvent({ type: 'change' });
         release();
         await settle(card);
-        assert.equal(card.submit.textContent, 'Try again in 30s', 'B was offered a sign-in inside their own lock');
+        assert.equal(card.submit.textContent, 'Try again in 30 seconds', 'B was offered a sign-in inside their own lock');
         assert.equal(card.submit.disabled, true);
     });
 

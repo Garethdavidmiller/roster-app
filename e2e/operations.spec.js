@@ -1927,15 +1927,15 @@ test('operations: the lost-phone box is the dialog\'s first stop — Space ticks
 for (const [label, answer, title, says, never] of /** @type {Array<[string, any, string, string[], RegExp]>} */ ([
     ['a lost-phone reset says what it did, and that nobody told them',
         { ...LANDED, notified: false, lostDevice: true, pushReleased: 2 }, 'Password reset — tell them yourself',
-        ['WAS reset to their surname', 'signed out on every device, the lost phone included', 'notifications are now off on every device',
+        ['was reset to their surname', 'signed out on every device, the lost phone included', 'notifications are now off on every device',
             'No reset notice was sent. Tell', 'their surname signs in to their account — on the lost phone too'],
         /No reset notice reached|COULDN’T/],
     ['a lost-phone reset whose notifications could not be switched off says so, and to reset again with the box ticked',
         { ...LANDED, notified: false, lostDevice: true, pushReleaseFailed: true }, 'Password reset — notifications still on',
-        ['COULDN’T be switched off', 'Reset again with the box ticked', 'No reset notice was sent'], /notifications are now off/],
+        ['couldn’t be switched off', 'Reset again with the box ticked', 'No reset notice was sent'], /notifications are now off/],
     ['a ticked box an older server ignored says the lost-phone step did not run',
         LANDED, 'Password reset — the lost-phone step didn’t run',
-        ['WAS reset to their surname', 'The lost-phone step DIDN’T run', 'the usual reset notice went to their devices', 'Reset again with the box ticked'],
+        ['was reset to their surname', 'The lost-phone step didn’t run', 'the usual reset notice went to their devices', 'Reset again with the box ticked'],
         /No reset notice was sent/],
 ])) {
     test(`operations: ${label}`, async ({ page }) => {
@@ -1950,7 +1950,7 @@ for (const [label, answer, title, says, never] of /** @type {Array<[string, any,
     });
 }
 
-// A SIGN-OUT THAT FAILED NO LONGER HIDES THAT NOBODY TOLD THEM (sign-in audit E2). "They have NOT been told" was shown
+// A SIGN-OUT THAT FAILED NO LONGER HIDES THAT NOBODY TOLD THEM (sign-in audit E2). "They have not been told" was shown
 // only when the sign-out had worked, so the admin of a member with no notifications heard nothing about telling them;
 // and the failed sign-out itself is not the open door it read as — the password change ends those sign-ins within the
 // hour, so the line says so and offers the reset that ends them now.
@@ -1960,7 +1960,7 @@ test('operations: a reset whose sign-out failed still says nobody told them, and
     const dialog = page.locator('.lb-overlay.open');
     await expect(dialog.locator('.dialog-title')).toHaveText('Password reset — not signed out yet');
     await expect(dialog).toContainText('when it next renews, within the hour — reset again to sign them out now');
-    await expect(dialog).toContainText(`No reset notice reached ${name}’s devices, so they have NOT been told. Let them know their password is now their surname.`);
+    await expect(dialog).toContainText(`No reset notice reached ${name}’s devices, so they have not been told. Let them know their password is now their surname.`);
     await expect(dialog, 'they are not signed out yet, so nothing may say they are').not.toContainText('and they are signed out');
 });
 
@@ -1972,7 +1972,7 @@ test('operations: a reset\'s report has one button, OK — and closing it return
     await row.locator('.btn-acct-reset').focus();
     await page.keyboard.press('Enter');
     await page.locator('.lb-overlay.open .dialog-btn-confirm').click();       // the question: Reset
-    const report = page.locator('.lb-overlay.open').filter({ hasText: 'they have NOT been told' });
+    const report = page.locator('.lb-overlay.open').filter({ hasText: 'they have not been told' });
     await expect(report).toBeVisible();
     await expect(report.locator('.dialog-btn-cancel'), 'nothing to cancel: the reset has happened').toHaveCount(0);
     await expect(report.locator('.dialog-btn-confirm')).toHaveText('OK');

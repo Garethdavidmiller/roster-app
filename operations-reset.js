@@ -155,7 +155,7 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
     if (!revokeFailed && !takenBack && !lost && !lostSkipped && !untold) return null;
 
     const signedOut = !revokeFailed;
-    const parts = [`${name}’s password WAS reset to their surname.`];
+    const parts = [`${name}’s password was reset to their surname.`];
     if (revokeFailed) {
         // NOT "other devices" (confirm review, Nov 2026): `revokeFailed` is the member's whole sign-out failing, and the
         // admin's device was never one of theirs, so "other" had nothing to be other than.
@@ -168,7 +168,7 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
     }
     if (lost) {
         parts.push(releaseFailed
-            ? 'Their notifications COULDN’T be switched off, so the lost phone may still show them. Reset again with the box ticked to switch them off.'
+            ? 'Their notifications couldn’t be switched off, so the lost phone may still show them. Reset again with the box ticked to switch them off.'
             : 'Their notifications are now off on every device, so the lost phone shows nothing more from this app.');
         parts.push(`No reset notice was sent. Tell ${name} yourself: their password is now their surname${signedOut ? ', they are signed out,' : ''} and the app asks for a new one when they sign in.`);
         // A reset puts the account on the surname, which the sign-in card's hint names, so until the member chooses a new
@@ -177,14 +177,14 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
     }
     if (lostSkipped) {
         parts.push(r.notified === true
-            ? 'The lost-phone step DIDN’T run, so their notifications are still on, and the usual reset notice went to their devices — the lost phone may show it. Reset again with the box ticked.'
-            : 'The lost-phone step DIDN’T run. Reset again with the box ticked.');
+            ? 'The lost-phone step didn’t run, so their notifications are still on, and the usual reset notice went to their devices — the lost phone may show it. Reset again with the box ticked.'
+            : 'The lost-phone step didn’t run. Reset again with the box ticked.');
     }
     if (untold) {
         // WHAT HAPPENED, NOT WHY (18 Nov 2026). `notified: false` comes back for a member with no notifications on this
         // app, and just as much for a send that failed or that no push service accepted — so the line said the member
         // had none when the fault was the server's. The admin's errand is the same either way.
-        parts.push(`No reset notice reached ${name}’s devices, so they have NOT been told. Let them know their password is now their surname${signedOut ? ' and they are signed out' : ''}.`);
+        parts.push(`No reset notice reached ${name}’s devices, so they have not been told. Let them know their password is now their surname${signedOut ? ' and they are signed out' : ''}.`);
     }
     parts.push('Resetting again is safe.');
     return {

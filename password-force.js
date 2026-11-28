@@ -135,7 +135,9 @@ function _mount() {
         <div id="pwForceContent">
             <img src="icon-192.png" alt="" aria-hidden="true">
             <div class="login-app-name">Set your own password</div>
-            <div class="login-subtitle">Your password is your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
+            <!-- Conditional on purpose: this opens when the server has no record of the member's own password,
+                 and a lost record would otherwise tell somebody with their own password that it is their surname. -->
+            <div class="login-subtitle">If you haven’t chosen your own password yet, it is your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
             <!-- A REAL FORM, FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026) — the sign-in card's shape
                  and its display:contents class (login-overlay.js). With no form and no username,
                  iCloud Keychain filed the new password under nobody. The username is the member's
@@ -149,7 +151,7 @@ function _mount() {
                     <input type="password" id="pwfNew" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="pwfNewHint">
                     <button type="button" id="pwfToggle" class="login-pw-toggle" aria-label="Show password">Show</button>
                 </div>
-                <div class="login-hint" id="pwfNewHint">At least ${MIN_PASSWORD_LENGTH} characters, and not your surname — even with numbers added. It replaces your surname everywhere you sign in.</div>
+                <div class="login-hint" id="pwfNewHint">At least ${MIN_PASSWORD_LENGTH} characters, and not your surname — even with numbers added. It replaces your old password everywhere you sign in.</div>
             </div>
             <div class="login-field">
                 <label for="pwfConfirm">Confirm new password</label>

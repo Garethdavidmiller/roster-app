@@ -146,7 +146,7 @@ export const MIRROR_OFF_LINE = MIRROR_OFF_LEAD + MAIN_ADDRESS.text + MIRROR_OFF_
  * ── A DEVICE THAT CANNOT GET THEM IS NOT PROMISED ANY ────────────────────────────────────────────
  *
  * An iPhone in a browser cannot receive a push until the app is on its Home Screen (WebKit gives a
- * tab none), so its chip says "After install" and the list is the installed app's. Whether installing
+ * tab none), so its chip says "Home Screen first" and the list is the installed app's. Whether installing
  * is the answer is `installNeed`'s (settings-status.js), the same function the Install card reads, so
  * the two cards cannot disagree — and the line here is A POINTER, NOT A SECOND COPY of the steps
  * (polish round 2, owner-approved): the Install card lists the taps, on the main address and on the
@@ -162,7 +162,7 @@ export function notifCardWords(d) {
             const then = d.appLabel
                 ? `Then find ${d.appLabel} (the name under its icon) on your Home Screen, open it and turn notifications on there.`
                 : 'Then open the roster from your Home Screen (find it by the name under its icon) and turn notifications on there.';
-            return { report: 'n/a', chip: 'After install', button: null, steps: null, kinds: 'after-install',
+            return { report: 'n/a', chip: 'Home Screen first', button: null, steps: null, kinds: 'after-install',
                 status: `On iPhone or iPad, notifications work only in the app on your Home Screen — see “Install on this device” below. ${then}` };
         }
         // An iPhone ALREADY on the Home Screen with no push is an iOS from before Web Push (16.4).
@@ -217,23 +217,28 @@ export function notifCardWords(d) {
  * @returns {{ text: string } | { lead: string, route: string, tail: string }}
  */
 function blockedSteps(d) {
+    // An installed web app's permission lives in the phone's Settings under the name under its icon, not
+    // under a browser (whole-app review, Oct 2026) — named, when the page can read it. Android draws the
+    // manifest's `short_name` there, the same name as the iOS title meta that `appLabel` reads.
+    const app = d.appLabel ? `${d.appLabel} (the name under its icon)` : 'this app by the name under its icon';
     if (d.ios) {
-        // An installed web app's permission lives in iOS Settings under the name under its icon, not
-        // under a browser (whole-app review, Oct 2026) — named, when the page can read it.
-        const app = d.appLabel ? `${d.appLabel} (the name under its icon)` : 'this app by the name under its icon';
-        return { text: `On iPhone or iPad: open Settings → Notifications, find ${app}, and turn on Allow Notifications.` };
+        return { text: `On iPhone or iPad: open Settings → Notifications, find ${app}, and turn on Allow Notifications.${COME_BACK}` };
     }
     if (d.android) {
         // The INSTALLED app has no address bar, so no icon there to tap (17 Nov 2026). In a tab the icon
         // is DESCRIBED, not named a padlock: Chrome draws "two sliders" since 2023, an older one the
         // padlock — and the address bar is the browser's, whichever browser it is.
         return { text: d.installed
-            ? 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'
-            : 'On Android: tap the icon at the left of the address bar (a padlock or two sliders) → Site settings → Notifications → Allow.' };
+            ? `On Android: open your phone’s Settings → Apps, find ${app}, and turn on Notifications.${COME_BACK}`
+            : `On Android: tap the icon at the left of the address bar (a padlock or two sliders) → Site settings → Notifications → Allow.${COME_BACK}` };
     }
     // A computer. The route is one unit (`.nav-path`), and the arrow into it keeps to the word before
     // it (a no-break space): a line that starts "→" reads as broken punctuation (13 Nov 2026).
     return { lead: 'In Chrome: click the icon at the left of the address bar (a padlock or two sliders) → ',
         route: 'Site settings → Notifications → Allow',
-        tail: '. In another browser, look in its settings for this site’s notifications.' };
+        tail: `. In another browser, look in its settings for this site’s notifications.${COME_BACK}` };
 }
+
+/** The last thing every blocked route says: the card re-reads the permission when the page is visible again
+ *  (notif-card.js, `visibilitychange` and `pageshow`), so the member need not reload to see it change. */
+const COME_BACK = ' Then come back to this page — it updates by itself.';

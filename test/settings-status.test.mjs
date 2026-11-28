@@ -69,6 +69,19 @@ describe('false reassurance — the silent failure', () => {
         assert.notEqual(s.headline, '✓ You’re all set');
     });
 
+    test('a FAILED read is not hidden behind a list of to-dos', () => {
+        // The to-do branch used to return first, so a failed password check beside an unsaved work
+        // email read "1 thing to finish" and named only the email — the failure vanished.
+        const s = summarise({ ...ALL_OK, password: 'error', 'work-email': 'action' });
+        assert.equal(s.tone, 'todo');
+        assert.equal(s.headline, '1 thing to finish', 'the headline counts the to-dos');
+        assert.deepEqual(s.items, ['Save your work email', 'Some settings couldn’t be checked.']);
+        assert.deepEqual(s.ids, ['work-email', 'password'], 'the unchecked line leads to the card that failed');
+        assert.deepEqual(s.cards, ['contactCard', 'passwordCard']);
+        assert.deepEqual(summarise({ ...ALL_OK, 'work-email': 'action' }).items, ['Save your work email'],
+            'and no such line when every read answered');
+    });
+
     test('all set is reachable, and says so — the guard must not be a permanent hedge', () => {
         const s = summarise(ALL_OK);
         assert.equal(s.tone, 'all-set');

@@ -890,7 +890,7 @@ test('can\'t get in: the request from the sign-in card reaches the server, the c
     await page.goto('/');
     await signInThroughOverlay(page, MEMBER, { submit: false });   // named on the card, nothing tried
     await page.locator('#loginResetRequest').click();
-    await expect(page.locator('#loginResetStatus')).toHaveText('Request sent. Once the admin has reset it, sign in with your surname in lowercase and choose a new password.');
+    await expect(page.locator('#loginResetStatus')).toHaveText('Request sent. Once the admin has reset it, sign in with your surname in lowercase and choose a new password. The admin may not see it until their next shift — you don’t need to ask again. If you need your shifts before then, ask your manager.');
     await expect(page.locator('#loginResetRequest'), 'nothing left to press').toBeHidden();
 
     const rows = await readCollection('resetRequests');
