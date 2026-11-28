@@ -46,7 +46,7 @@ import { formatDayMonth, formatDayMonthYear, formatClock, printedStamp, DAY_NAME
 import { proposalById, proposalDisplayName } from './link-designer-proposals.js';
 import { buildSelectorMonth, buildSelectorTable, buildSelectorYear } from './links-selector-render.js';
 import { FIRST_MONTH, LAST_MONTH, inRange, openingMonth, shiftTypesInMonth, shiftTypesInMonthAll, hasBlankDays, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate,
-    lineOn, ignoredWords, refusalWords, rosterDayOn, isCoverLine, dayOn, shiftTypesInYear, MONTH_VIEW, YEAR_VIEW, COMPARE_VIEW, MINE_VIEW } from './links-selector-core.js';
+    lineOn, ignoredWords, refusalWords, rosterDayOn, isCoverLine, dayOn, shiftTypesInYear, countedDates, MONTH_VIEW, YEAR_VIEW, COMPARE_VIEW, MINE_VIEW } from './links-selector-core.js';
 
 /** New CEA Link, opened on one proposal's weeks: its `weeks` word (newlink-app.js → WEEKS_PARAM), then a sheet code. */
 const NEWLINK_WEEKS = './newlink.html?weeks=';
@@ -140,8 +140,10 @@ function showNotForYou(member) {
  */
 function rosterTypesInMonth(member, y, m) {
     const types = new Set();
-    for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) {
-        const { shift } = rosterDayOn(member, new Date(y, m, d));
+    // Only the days the table draws (review, 28 Nov 2026): 1–16 January 2027 fold into one "before the new link" row, so a
+    // spare day there would name Spare in a key no column shows.
+    for (const date of countedDates(y, m)) {
+        const { shift } = rosterDayOn(member, date);
         if (shift === 'SPARE' || shift === 'AL') types.add(shift);
     }
     return types;
@@ -165,7 +167,10 @@ function runSelector(member) {
     let line = choice.line;
     // The reader's own roster line, for "Compare with mine": a teamMembers row that is not an Other Staff login. Without one
     // (a name not on the roster) the tab is not offered, and an address asking for that view opens the month.
-    const myRow = teamMembers.find(m => m.name === member && !isOtherStaff(m)) ?? null;
+    // A MANAGER'S ROW IS NOT A ROSTER (review, 28 Nov 2026): a `managerOnly` row is a login, its pattern fields placeholders
+    // (roster-member-data.js), so "Your roster today" drew a manager the first week of the main link as theirs. Left out as
+    // the rest of the app leaves it out (pay-audience.js, calendar-own-copy.js), and a `hidden` leaver with it.
+    const myRow = teamMembers.find(m => m.name === member && !isOtherStaff(m) && !m.hidden && !m.managerOnly) ?? null;
     /** @type {string} */
     let view = choice.view === MINE_VIEW && !myRow ? MONTH_VIEW : choice.view;
     let { year, month } = openingMonth();
@@ -300,7 +305,7 @@ function runSelector(member) {
             : view === MINE_VIEW ? `Your roster today beside ${proposalDisplayName(proposal)} (${proposal.ref})`
             : `${proposalDisplayName(proposal)} (${proposal.ref})`;
         el('selectorPrintChoice').textContent = `${what} · starting in week ${line}`
-            + ` · ${view === MONTH_VIEW ? 'a proposal, not a roster' : 'proposals are not rosters'} · ${printedStamp(now, formatClock(now))}`;
+            + ` · ${view === COMPARE_VIEW ? 'proposals are not rosters' : view === MINE_VIEW ? 'the proposal is not a roster' : 'a proposal, not a roster'} · ${printedStamp(now, formatClock(now))}`;
     }
     // THE CALENDAR'S KEY RULE (calendar-legend.js), handed this page's month: an item shows only in a month that has it.
     // No member is drawn, so its "member" is an empty one — never on the Dispatcher roster, so no Night key — and its month
@@ -327,7 +332,9 @@ function runSelector(member) {
         if (blankKey) blankKey.style.display = (view === YEAR_VIEW ? hasBlankDays(year, 0) : hasBlankDays(year, month)) ? '' : 'none';
         const todayKey = document.getElementById('selectorLegendToday');
         const now = new Date();
-        if (todayKey) todayKey.style.display = now.getFullYear() === year && now.getMonth() === month && lineOn(1, now) !== null ? '' : 'none';
+        // In the Year view today is on whichever small month holds it, not the month the page last showed (review, 28 Nov 2026).
+        const todayShown = now.getFullYear() === year && (view === YEAR_VIEW || now.getMonth() === month) && lineOn(1, now) !== null;
+        if (todayKey) todayKey.style.display = todayShown ? '' : 'none';
     }
     /** Draw the shown month. @param {{ keepDay?: boolean }} [opts] `keepDay`: a redraw of the SAME month (a return to the
      *  app) gives the keyboard back to the same day, as the Calendar's background repaint does (`focusDay`); a press that
@@ -337,10 +344,13 @@ function runSelector(member) {
         // <body>, and then ← → change the month instead of moving between days.
         const active = document.activeElement;
         const onCell = active instanceof HTMLElement && active.classList.contains('calendar-day');
+        // …and a Year month's name, which ← → step past by a year: the same month's name in the new year keeps it.
+        const onMonthName = active instanceof HTMLElement && active.classList.contains('yr-open') ? active.dataset.month ?? null : null;
         const day = onCell && keepDay ? /** @type {HTMLElement} */ (active).dataset.detailDay ?? null : null;
         const container = build(year, month);
         display.replaceChildren(container);
         if (onCell) rovingCellFor(container, day)?.focus({ preventScroll: true });
+        if (onMonthName !== null) /** @type {HTMLElement|null} */ (container.querySelector(`.yr-open[data-month="${onMonthName}"]`))?.focus({ preventScroll: true });
         document.title = title();
         updateNav();
         updateLegend();
@@ -472,7 +482,9 @@ function runSelector(member) {
         isTeamViewMode: () => false,
         changeMonth,
         renderCalendar: render,
-        updateLegend,            // a swipe's commit updates the key, as the Calendar's does: it never calls render()
+        // a swipe's commit updates the key, as the Calendar's does: it never calls render() — so it stamps the printed
+        // heading too, or Safari's AirPrint (no `beforeprint`) printed the year swiped away from (review, 28 Nov 2026)
+        updateLegend: () => { updateLegend(); stampPrint(); },
         updateNavButtonState: updateNav,
         openDayDetail: null,
         announceMonthChange: announce,

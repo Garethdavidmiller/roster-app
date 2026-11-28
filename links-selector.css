@@ -167,7 +167,7 @@
     .controls .selector-view-row { flex-basis: 100%; }
 }
 
-/* ── ⚖️ COMPARE: every proposal side by side (links-selector-render.js → buildSelectorCompare) ──────────────────────
+/* ── ⚖️ COMPARE: every proposal side by side (links-selector-render.js → buildSelectorTable) ──────────────────────
    Team Week View's table and cells (index.css → .team-table, .tv-cell, .tv-*), turned to a row per DATE and a column per
    proposal, so three columns fit a 320px phone with no sideways scroll: Team View's `min-width` and one-line cells are
    undone here, and a time drops under its emoji rather than break at its dash. */
