@@ -28,6 +28,7 @@ import { formatISO, paydayForCutoff, parseISODate, CONFIG } from './roster-data.
 import { countedAlDates, alPosition, entitlementNote, balanceFace } from './al-entitlement.js';
 import { christmasLeaveDates, christmasLeaveLine, boxingDayForAllowance, CHRISTMAS_LEAVE_FROM_YEAR } from './christmas-leave.js';
 import { carryLine } from './leave-year.js';
+import { isPastDay } from './calendar-team-onwith.js';
 import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './calendar-snapshot.js';
 
 /**
@@ -37,8 +38,8 @@ import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './cal
  * @param {{ navigateToPaycalc?: (paydayIso: string) => void, isTeamView?: () => boolean,
  *           openWhoIsOn?: (who: { name: string, iso: string }) => void }} [deps]
  *   navigateToPaycalc — wired to the day-detail "Pay estimate" button on pay-marked days.
- *   openWhoIsOn — wired to "Who’s on with me" on a day worked with times: Team Week View on that date's
- *   week, with the colleagues whose duties overlap the member's shift (calendar-team-view.js).
+ *   openWhoIsOn — wired to "Who’s on with me" on a day worked with times, today or later: Team Week View
+ *   on that date's week, with the colleagues whose duties overlap the member's shift (calendar-team-view.js).
  *   isTeamView — whether Team Week View is on screen, where the name picker is not (the leave panel's
  *   first-run hint says where to choose a name).
  * @returns {{ openDayDetail: (cell: HTMLElement) => void, closeALLightbox: () => void }}
@@ -653,12 +654,14 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView, openWhoI
     }
     // WHO'S ON WITH ME (owner, 27 Nov 2026) — a day worked WITH times, the renderer's call
     // (`detailWorkedTimes`), on a Calendar the reader is admitted to: Team View is everybody's who is,
-    // so this is not a personal action — it names whose shift it asks about instead. The same wait for
+    // so this is not a personal action — it names whose shift it asks about instead. Today and later
+    // only (owner, 28 Nov 2026: "I do not need to see who I am on in the past with"): the card's own
+    // rule, `isPastDay`, asked here too so a past day offers no button that would open nothing. The same wait for
     // the close's Back as the pay jump above: Team View pushes its own history entry, and pushed before
     // the panel's `history.back()` had landed, that Back took Team View's entry instead of the panel's.
     if (teamBtn) {
       const name = d.detailWho || '';
-      if (openWhoIsOn && d.detailWorkedTimes && d.detailIso && name && getAccessType() === 'named') {
+      if (openWhoIsOn && d.detailWorkedTimes && d.detailIso && !isPastDay(d.detailIso, new Date()) && name && getAccessType() === 'named') {
         teamBtn.hidden = false;
         if (teamLabel) teamLabel.textContent = name === getSession()?.name ? 'Who’s on with me' : `Who’s on with ${name}`;
         const iso = d.detailIso;

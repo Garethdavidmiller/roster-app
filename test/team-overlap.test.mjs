@@ -8,7 +8,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { shiftSpan, workedTimes, clockAt, rangeText, whoIsOnWith, DAY_MINUTES } from '../team-overlap.js';
+import { shiftSpan, workedTimes, clockAt, rangeText, whoIsOnWith, togetherWords, DAY_MINUTES } from '../team-overlap.js';
 import { readFileSync } from 'node:fs';
 import { resolveEffectiveShift, hoursSlotTime } from '../override-utils.js';
 
@@ -159,15 +159,25 @@ describe('whoIsOnWith', () => {
         assert.equal(together[0].minutes, 4 * 60);
     });
 
-    test('rule 5: longest together first, a tie to whoever joins first, then the order given', () => {
+    test('rule 5: in order of the colleague\'s start, a tie to whoever finishes first, then the order given', () => {
         const { together } = whoIsOnWith('14:00-22:30', [
-            { key: 'short',      day: '06:00-15:00', worksDay: true },   // 1h, from 14:00
-            { key: 'long',       day: '13:00-21:00', worksDay: true },   // 7h
-            { key: 'tie-later',  day: '20:30-23:00', worksDay: true },   // 2h, from 20:30
-            { key: 'tie-first',  day: '12:00-16:00', worksDay: true },   // 2h, from 14:00
-            { key: 'tie-first2', day: '12:00-16:00', worksDay: true },   // 2h, from 14:00 — after tie-first, as given
+            { key: 'late',       day: '20:30-23:00', worksDay: true },   // starts 20:30
+            { key: 'long',       day: '13:00-21:00', worksDay: true },   // starts 13:00
+            { key: 'early',      day: '06:00-15:00', worksDay: true },   // starts 06:00
+            { key: 'mid',        day: '12:00-16:00', worksDay: true },   // starts 12:00, ends 16:00
+            { key: 'mid-same',   day: '12:00-16:00', worksDay: true },   // the same shift — after 'mid', as given
+            { key: 'mid-short',  day: '12:00-15:00', worksDay: true },   // starts 12:00, finishes first
         ]);
-        assert.deepEqual(together.map(t => t.key), ['long', 'tie-first', 'tie-first2', 'tie-later', 'short']);
+        assert.deepEqual(together.map(t => t.key), ['early', 'mid-short', 'mid', 'mid-same', 'long', 'late']);
+    });
+
+    test('rule 5: yesterday\'s overnight starts before midnight, so it comes before today\'s earliest', () => {
+        const { together } = whoIsOnWith('05:00-13:00', [
+            { key: 'today',     day: '04:00-12:00', worksDay: true },
+            { key: 'overnight', prev: '22:00-06:00' },
+        ]);
+        assert.deepEqual(together.map(t => t.key), ['overnight', 'today']);
+        assert.equal(together[0].spans[0].starts, 22 * 60 - DAY_MINUTES);
     });
 
     test('rule 7: working with no times recorded is its own group, never "not at the same time"', () => {
@@ -182,5 +192,24 @@ describe('whoIsOnWith', () => {
 
     test('a member with no shift times has nobody on with them', () => {
         assert.deepEqual(whoIsOnWith('RD', [{ key: 'A', day: '06:00-15:00', worksDay: true }]), { together: [], alsoWorking: [], timesUnknown: [] });
+    });
+});
+
+describe('togetherWords: the stretch together, said against the member\'s own shift', () => {
+    const say = (/** @type {string} */ mine, /** @type {any} */ c) => togetherWords(mine, whoIsOnWith(mine, [{ key: 'x', worksDay: true, ...c }]).together[0].spans[0]);
+    test('the whole of the member\'s shift', () => {
+        assert.equal(say('14:45-23:55', { day: '14:45-23:55' }), 'whole shift');
+        assert.equal(say('14:45-23:55', { day: '14:00-23:59' }), 'whole shift');
+    });
+    test('a colleague who leaves first, and one who arrives later', () => {
+        assert.equal(say('14:00-22:30', { day: '06:00-15:00' }), 'until 15:00');
+        assert.equal(say('14:00-22:30', { day: '20:30-06:00' }), 'from 20:30');
+    });
+    test('a stretch inside the member\'s shift is the stretch itself', () => {
+        assert.equal(say('14:00-23:55', { day: '15:00-23:00' }), '15:00–23:00');
+    });
+    test('across midnight: yesterday\'s overnight leaves at 06:00, tomorrow\'s early arrives at 04:00', () => {
+        assert.equal(say('05:00-13:00', { prev: '22:00-06:00' }), 'until 06:00');
+        assert.equal(say('21:00-05:00', { next: '04:00-12:00' }), 'from 04:00');
     });
 });
