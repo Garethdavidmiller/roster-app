@@ -232,7 +232,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `takeStaleMemberName` · `getDefaultMemberIndex` · `isFirstRun` · `getSelectedMemberIndex` · `_resetSelectionFallbackForTest` · `saveSelectedMember` · `populateTeamMemberDropdown` · `getCurrentMember` · `validateTeamMembers`
 
 ### `calendar-renderer.js`
-- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer` · `rovingCellFor`
+- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer` · `CHRISTMAS_LEAVE_WORDS` · `rovingCellFor`
 
 ### `calendar-huddle-viewer.js`
 - **Exports:** `wrapTables` · `initHuddleViewer`
