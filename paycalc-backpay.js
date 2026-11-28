@@ -595,7 +595,7 @@ export function calcBackPay() {
       // The story strip + hero already name the payslip — the notice carries only the tax fact.
       noticeEl.innerHTML = bpP.payday < new Date()
         ? 'ℹ️ The lump sum was taxed in full on that payslip.'
-        : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
+        : 'ℹ️ Tax and National Insurance come off the lump sum like any pay, so less than this reaches your bank. Payroll works tax out over the whole year so far, so the lump only reaches a higher tax rate if your pay for the year does.';
     } else {
       setStatus(noticeEl, '⚠️ Select which payslip carried this lump sum above.');
     }
@@ -737,9 +737,9 @@ export function calcBackPay() {
       // the past tense for a payday already gone.
       noticeEl.innerHTML = bpP.payday < new Date()
         ? 'ℹ️ The lump sum was taxed in full on that payslip.'
-        : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
+        : 'ℹ️ Tax and National Insurance come off the lump sum like any pay, so less than this reaches your bank. Payroll works tax out over the whole year so far, so the lump only reaches a higher tax rate if your pay for the year does.';
     } else {
-      setStatus(noticeEl, '⚠️ This lump sum is taxed in the period it is paid. Choose the payslip above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.');
+      setStatus(noticeEl, '⚠️ Choose the payslip the lump sum lands on, above, to see how it is taxed.');
     }
     if (_basicOnly.length) {
       // ITS OWN PARAGRAPH: how the lump is TAXED and which payslips are MISSING HOURS (the only

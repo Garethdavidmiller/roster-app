@@ -198,7 +198,7 @@
       <a class="login-about-link" href="./paycalc-guide.html">Read the Pay Calculator Guide →</a>
     </div>
     <p class="login-help" id="unsupportedGradeHelp">Everything else in the app works as normal.</p>
-    <a href="./" class="role-card-back">← Back to roster</a>
+    <a href="./" class="role-card-back">← Back to calendar</a>
   </div>
 
   <!-- DESKTOP WORK COLUMN (columns 1–2): the notes that head the page, then Settings + period band +
@@ -340,7 +340,7 @@
         <!-- On a payslip worked as a CES only (applyPensionOptOutUI, paycalc-settings.js): the figure is
              the CEA one, because no CES payslip's pension line is on record (VAL-PAY-007). -->
         <div class="field-hint" id="pensionCesNote" hidden>The app hasn&rsquo;t seen a CES payslip&rsquo;s pension yet, so this starts at the CEA figure. If the &ldquo;Smart RPS CR Scheme&rdquo; line on your payslip is different, type that here &mdash; it&rsquo;s kept for this payslip.</div>
-        <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite"><span aria-hidden="true">⚠</span> Pension exceeds gross pay — check the amount</div>
+        <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite"><span aria-hidden="true">⚠</span> The pension is more than this payslip's total pay — check the amount</div>
         <label class="toggle-row">
           <input type="checkbox" id="pensionOptOutCheck">
           <span class="toggle-row-text">I'm <strong>not in the pension scheme</strong></span>
@@ -427,7 +427,7 @@
     <div class="period-nav">
       <button type="button" class="nav-pill" id="prevBtn">← Earlier</button>
       <button type="button" class="nav-pill" id="nextBtn">Later →</button>
-      <button type="button" class="nav-pill-today hidden" id="todayPeriodBtn" aria-label="Jump to current pay period">📍</button>
+      <button type="button" class="nav-pill-today hidden" id="todayPeriodBtn" aria-label="Jump to today's payslip">📍</button>
     </div>
     <div class="period-meta">
       <div class="pm-range" id="pmRange">–</div>
@@ -466,7 +466,7 @@
     </div>
     <div class="card-body">
 
-      <div class="boxing-banner" id="boxingBanner">🎁 Boxing Day (26 Dec) falls in this period — 3× rate applies</div>
+      <div class="boxing-banner" id="boxingBanner">🎁 Boxing Day (26 Dec) is on this payslip — 3× rate applies</div>
 
       <!-- ROSTER SUGGESTION CARD: shown when the logged-in member has special shifts this period -->
       <div class="roster-card" id="rosterHintBar" style="display:none">
@@ -707,7 +707,7 @@
              sweep item 6: the duplicate .sec-hd repeated the button's own label). -->
         <label class="toggle-row hidden" id="slSkipRow">
           <input type="checkbox" id="slSkipCheck">
-          <span class="toggle-row-text">Student loan was <strong>not</strong> deducted this period</span>
+          <span class="toggle-row-text">Student loan was <strong>not</strong> deducted on this payslip</span>
         </label>
 
         <div class="hours-row">
@@ -716,7 +716,7 @@
             <div class="h-sub">For absence deductions, corrections, or any extra payslip line. Taxed like pay, so leave out expense refunds. Use <strong>+/−</strong> to switch between adding or deducting.</div>
           </div>
           <div class="adj-controls">
-            <button id="adjSignBtn" type="button" class="adj-sign-btn" aria-label="Toggle sign: currently positive">+</button>
+            <button id="adjSignBtn" type="button" class="adj-sign-btn" aria-label="Adds to pay — select to deduct instead">+</button>
             <div class="pfx pfx--adj">
               <span class="pfx-sym">£</span>
               <input type="text" id="otherAdj" aria-label="Other payslip adjustment amount (£)" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -741,7 +741,7 @@
     <div class="result-net">
       <div class="net-label" id="netLabel">💷 Estimated Take-Home Pay</div>
       <div class="net-amount" id="netDisplay" aria-live="polite">£–</div>
-      <div class="net-period" id="netPeriod">Select a pay period above</div>
+      <div class="net-period" id="netPeriod">Choose a payslip above</div>
       <!-- A payslip worked under a role with no confirmed rates (owner, 16 Nov 2026): the member is
            admitted by the role AT THE TIME, and THIS payslip says why it has no figure instead of
            one. Written on every calculate() run (renderUnpricedPayslip); body.payslip-unpriced
@@ -829,10 +829,10 @@
            notices; inside the breakdown they inform exactly when someone is reconciling. Static
            siblings of #bdRows so the innerHTML rebuild never touches them. -->
       <div class="payslip-note" id="payslipNote">
-        ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so the <strong>Taxable Pay</strong> on your payslip (your pay before tax) will be lower than the total above. This is normal.
+        ℹ️ Your pension (£<span id="pensionRef">–</span> a payslip) is deducted before tax — so the <strong>Taxable Pay</strong> on your payslip (your pay before tax) will be lower than the total above. This is normal.
       </div>
       <div id="absenceCaveat" class="payslip-note">
-        ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not match your payslip line for line.
+        ⚠️ Less accurate on payslips with absence, back pay, or payroll corrections — those may not match your payslip line for line.
       </div>
     </div>
   </div>
@@ -851,7 +851,7 @@
     <div class="card-header card-header-toggle" id="payslipCardToggle">
       <div>
         <h2><span aria-hidden="true">📊</span> Year to Date Figures</h2>
-        <span class="hint">Optional — copy two figures from the newest payslip you have; they sharpen the tax on the payslip after it</span>
+        <span class="hint">Optional — your payslip's running totals since April; copying two of them sharpens the tax on the payslip after it</span>
       </div>
       <div class="card-header-actions">
         <!-- Status chip (v18.40 — review item 6): whether the entered figures sharpen the VIEWED
@@ -873,14 +873,14 @@
             <div class="field-eyebrow" id="ytdPayLabel">Taxable Pay — Year to Date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
-              <input type="text" id="ytdPay" aria-labelledby="ytdPayLabel" placeholder="e.g. 21,758.94" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+              <input type="text" id="ytdPay" aria-labelledby="ytdPayLabel" placeholder="e.g. 18,000.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
           <div class="field-col">
             <div class="field-eyebrow" id="ytdTaxLabel">Tax Paid — Year to Date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
-              <input type="text" id="ytdTax" aria-labelledby="ytdTaxLabel" placeholder="e.g. 4,835.60" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+              <input type="text" id="ytdTax" aria-labelledby="ytdTaxLabel" placeholder="e.g. 2,500.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
         </div>
@@ -936,7 +936,7 @@
           <label for="priorHppActualInput">Confirmed amount — January payslip <span class="note note-block" id="priorHppActualNote">enter when the payslip arrives</span></label>
           <div class="pfx">
             <span class="pfx-sym">£</span>
-            <input type="text" id="priorHppActualInput" placeholder="e.g. 1,843.01" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="priorHppActualInput" placeholder="e.g. 1,500.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <!-- updatePriorHpp writes this on every render; the markup's words agree with what it writes, so a
                figure here never promises to change a take-home by itself (the premium joins one only through
@@ -964,7 +964,7 @@
       <!-- Year to Date estimate (shown in "ytd" mode): no input — it reads the Year to Date Figures
            card's Taxable Pay and works out the premium portion automatically. -->
       <div class="field-hint" id="hppYtdWrap" style="display:none">
-        A <strong>rough</strong> figure from the <strong>Taxable Pay</strong> on your Year to Date Figures card (expected basic pay + London Allowance removed, × 7.69%). It updates with that card — the first option is the accurate one.
+        A <strong>rough</strong> figure from the <strong>Taxable Pay</strong> on your Year to Date Figures card (the part of your Year to Date Taxable Pay above the basic pay and London Allowance you'd expect after pension, × 7.69%). It updates with that card — the first option is the accurate one.
       </div>
 
       <!-- Enter the figure yourself (shown in "exact" mode) -->
@@ -1020,7 +1020,7 @@
           <!-- The manual option is DISABLED while the paid-in payslip is still in the future
                (v18.48) — there is no printed figure to copy until it exists; calcBackPay owns the
                disabled state and falls a restored manual selection back to compute. -->
-          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> <span class="bp-mode-text">Enter the amount from your payslip <span class="bp-mode-why" id="bpModeManualWhy" hidden>Available once the payslip carrying the lump sum arrives — from its cut-off date, before payday</span></span></label>
+          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> <span class="bp-mode-text">Enter the amount from your payslip <span class="bp-mode-why" id="bpModeManualWhy" hidden>Available once the payslip carrying the lump sum arrives — from its cut-off date (the ✂️ on your calendar — the last day the payslip counts), before payday</span></span></label>
         </div>
       </div>
 
@@ -1029,7 +1029,7 @@
         <label for="bpManualAmt">Back-pay lump sum <span class="note">from your payslip</span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
-          <input type="text" id="bpManualAmt" aria-label="Back-pay lump sum from your payslip" placeholder="e.g. 535.37" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+          <input type="text" id="bpManualAmt" aria-label="Back-pay lump sum from your payslip" placeholder="e.g. 500.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
         <div class="field-hint">The total back-pay figure printed on the payslip that carried it.</div>
       </div>
@@ -1065,7 +1065,7 @@
       </div>
 
       <div class="field" id="bpLondonField">
-        <label>London Allowance <span class="note">per period</span></label>
+        <label>London Allowance <span class="note">a payslip</span></label>
         <div class="field-pair">
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
@@ -1108,7 +1108,7 @@
       <div class="backpay-notice" id="backPayNotice" style="display:none"></div>
       <!-- Per-period breakdown — collapsible, secondary to the total -->
       <button type="button" class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
-        Per-period breakdown <span class="bd-arrow">▼</span>
+        Breakdown by payslip <span class="bd-arrow">▼</span>
       </button>
       <div class="bd-body" id="backPayRows"></div>
     </div>
