@@ -11,7 +11,7 @@
 //     .claude/rules/css-tokens.md → "Brand colours".
 //  2. guide-doc.css carries a full second shift-type palette (--sb-*). Its VALUES intentionally
 //     diverge from the app tokens (deep print-friendly shades — accepted drift, see the colours
-//     review), but the SET must stay complete: a missing entry would silently unstyle a shift
+//     review; RDW excepted, held to the app's raspberry below), but the SET must stay complete: a missing entry would silently unstyle a shift
 //     badge in the printed guides.
 //
 // Part of `npm run test:hygiene`. Value changes here should be deliberate: if the brand hex
@@ -89,6 +89,15 @@ test('the legacy redirect stubs use the brand colours and the app\'s font stack'
         assert.match(css, /\ba\s*\{[^}]*color:\s*#f5c800/i, `${file}: its link is not the brand gold`);
         assert.equal(css.match(/font-family:\s*([^;]+);/)?.[1].trim(), stack, `${file}: its font is not the app's stack (guide-shell.css → --font-sans)`);
     }
+});
+
+// RDW's print red (#c0392b) was not a deeper raspberry but another colour, so the Staff Guide's badge key showed
+// a red RDW badge the app never draws (28 Nov 2026). The guides cannot read shared.css, so the value is copied —
+// and held to the app's token here.
+test('guide-doc\'s RDW badge is the app\'s RDW colour', () => {
+    const app = readFileSync(new URL('./shared.css', REPO_ROOT_URL), 'utf8');
+    assert.ok(tokenValue(app, '--rdw'), 'shared.css has no --rdw this test can read');
+    assert.equal(tokenValue(doc, '--sb-rdw'), tokenValue(app, '--rdw'));
 });
 
 test('guide-doc defines the complete --sb-* shift palette', () => {

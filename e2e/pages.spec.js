@@ -733,6 +733,42 @@ test('no card\'s chip covers its title in larger text, on any card page', async 
     }
 });
 
+// A CHIP SHARES THE TITLE'S ROW, NOT THE HINT'S (28 Nov 2026). Beside a chip, `?` and arrow a hint had about
+// 150px of a phone and ran to five lines (Settings' Notifications at 375px). Between 18em and 30em of its own
+// text a header showing a chip puts the hint on a row of its own, the header's full width (shared.css → "A CHIP
+// SHARES THE TITLE'S ROW"). At 1280px the 400px side columns take the step too; Settings' 640px cards do not.
+test('a card header\'s hint runs its full width under a chip, on every card page', async ({ page }) => {
+    test.setTimeout(150_000);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    for (const width of [320, 375, 412, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        let measured = 0;
+        for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
+            await page.goto(p.url);
+            await waitForPageSettled(page);
+            const found = await page.evaluate(() => [...document.querySelectorAll('.card-header-toggle, .card-header--row')]
+                .map(h => {
+                    const t = h.querySelector('h2'), hint = h.querySelector('.hint'), act = h.querySelector('.card-header-actions');
+                    const chip = [...h.querySelectorAll('.card-year-chip')].find(c => c.getClientRects().length);
+                    if (!t || !hint || !act || !chip || !hint.getClientRects().length) return null;
+                    const cs = getComputedStyle(h);
+                    const inner = h.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+                    const r = hint.getBoundingClientRect(), a = act.getBoundingClientRect(), ti = t.getBoundingClientRect();
+                    return { title: (t.textContent || '').trim(), em: inner / parseFloat(cs.fontSize),
+                             full: r.width >= inner - 1, under: r.top >= a.bottom - 3, alignedLeft: Math.abs(r.left - ti.left) < 1 };
+                }).filter(Boolean));
+            for (const f of found) {
+                if (!f || f.em > 30) continue;
+                measured++;
+                expect(f, `${p.url} at ${width}px: "${f.title}" (${f.em.toFixed(1)}em) — its hint should run the full width under the chip`)
+                    .toMatchObject({ full: true, under: true, alignedLeft: true });
+            }
+        }
+        if (width < 1280) expect(measured, `at ${width}px no header with a chip was measured — this proves nothing`).toBeGreaterThanOrEqual(8);
+    }
+});
+
 // ── A PAGE'S FIELD RULES STAY ON THE PAGE (css-admin-ops-1 and -5, Nov 2026) ────────────────────────
 // Admin and Operations style their fields BY ELEMENT, and those rules were unscoped, so they reached
 // the shared surfaces every page hosts and out-ranked those surfaces' own rules. Focused, the drawer's

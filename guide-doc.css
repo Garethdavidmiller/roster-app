@@ -31,13 +31,15 @@
     /* The shift-badge colours. Their VALUES are the guides' own deeper, print-friendly shades, not copies
        of the app's tokens (guide-colour-parity.test.mjs accepts that drift and checks the set is whole);
        what each chip LOOKS like is the app's: a solid fill under white text — except Night, which the app
-       draws white with a dark outline, and so does the key (`.sb-night`, below). */
+       draws white with a dark outline, and so does the key (`.sb-night`, below). RDW is the one exception, the
+       app's raspberry itself: as a print red (#c0392b) it was a different colour, not a deeper shade, so the
+       Staff Guide's key named a badge no page draws (28 Nov 2026; guide-colour-parity.test.mjs). */
     --sb-early:  #b06316;   /* ☀️ Early  */
     --sb-late:   #2f6fb0;   /* 🌙 Late   */
     --sb-night:  #26304a;   /* 🦉 Night  */
     --sb-rest:   #3a3a3a;   /* 🏠 Rest   */
     --sb-spare:  #7a3ca8;   /* 📋 Spare  */
-    --sb-rdw:    #c0392b;   /* 💼 RDW    */
+    --sb-rdw:    oklch(53.1% 0.2015 5.6deg);   /* 💼 RDW — shared.css --rdw */
     --sb-al:     #147a72;   /* 🏖️ AL     */
     --sb-absent: #6b6b6b;   /* 🪑 Absent */
     --sb-other:  #3f7d3a;   /* 🏷️ Other  */

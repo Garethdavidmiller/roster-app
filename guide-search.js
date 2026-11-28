@@ -80,10 +80,17 @@ export function tokeniseText(text) {
  */
 
 /**
+ * A heading's own leading emoji — a flag (two regional indicators) or a pictograph with its variation
+ * selector, skin tone or joined parts. A result row already leads with its GUIDE's emoji, so a second
+ * one read "🇪🇺 📋 Can International Rail book it?" (28 Nov 2026); the guide page keeps its own.
+ */
+const LEADING_EMOJI = /^(?:\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier}|\u200D\p{Extended_Pictographic}\uFE0F?)*)\s*/u;
+
+/**
  * @typedef {object} GuideSearchResult
  * @property {string} page
  * @property {string} id
- * @property {string} title
+ * @property {string} title     the heading's words, its own leading emoji left out (LEADING_EMOJI)
  * @property {string[]} evidence  verbatim from the index — see rule 1 in the header
  * @property {number} score
  */
@@ -116,7 +123,7 @@ export function searchGuideIndex(index, query, { limit = 12 } = {}) {
         }
         if (score < 0) return;
         hits.push({
-            page: unit.page, id: unit.id, title: unit.t,
+            page: unit.page, id: unit.id, title: unit.t.replace(LEADING_EMOJI, ''),
             evidence: Array.isArray(unit.e) ? unit.e.slice() : [],
             score, p: unit.p ?? null, order,
         });

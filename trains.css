@@ -77,10 +77,12 @@ body {
 /* The Christmas line sits between the header and the fold (v25.20), so a card that opens folded — every
    visit after the first — still shows it. It carries the body's inset itself, and an open body beneath
    it gives up its top padding: one 12px step down to the lead, not two. On a wide screen it keeps the
-   lead's measure, so the two read as one block of text. */
+   lead's measure, so the two read as one block of text. Find a train's answer repeats the line INSIDE
+   its body, where that inset put it 16px in from every other line (28 Nov 2026). */
 .tr-festive { margin: 0; padding: var(--space-3) var(--space-4); }
 .tr-festive:not([hidden]) + .card-collapsible-body.open { padding-top: 0; }
 @media (min-width: 1024px) { .tr-festive { max-width: calc(60ch + 2 * var(--space-4)); } }
+.tr-find-result .tr-festive { padding: 0; margin: 0 0 10px; }
 /* The three days' totals: a small table under one label (the polish of 2 Nov 2026 — as one run-on line
    they wrapped mid-sequence on a phone). A ROW a day — the day, its two counts, its change — in the
    card's sunken surface, as a figure recessed into a card is. Three cells side by side were tried first
@@ -229,11 +231,9 @@ body {
     text-transform: uppercase;
 }
 /* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface: white raised
-tabs with navy type, the chosen one the page's raspberry like every other choice here (v25.16 — it was
-navy with a gold edge). The raised tabs came on 2 Nov 2026, the same "lack pop" note; before that it
-was the Pay Calculator's outlined tabs, whose unchosen one is grey type on no fill — readable, and the
-least pressable-looking thing on the card. Until v24.93 it was a sunken track whose chosen tab went
-white, a third recipe for one job. */
+tabs with navy type, the chosen one the page's raspberry like every other choice here (v25.16). It was
+the Pay Calculator's outlined tabs until 2 Nov 2026 (the unchosen one the least pressable-looking thing
+on the card), and a sunken track before v24.93: git log has the history. */
 .tr-tabs--in-card { margin: 12px 0; }
 @media (min-width: 1024px) { .tr-tabs--in-card { max-width: var(--tr-side); } }
 .tr-tabs--in-card[hidden] { display: none !important; }
@@ -268,8 +268,9 @@ white, a third recipe for one job. */
 }
 .tr-find-eg { margin-top: 8px; }
 .tr-jump .tr-picks, .tr-jr-others { margin-bottom: 0; }
-/* The date, the timetable and "Scheduled" (the plan, not live running): a quiet-status chip, the 600 tier. */
-.tr-jr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
+/* The date, the timetable and "Scheduled" (the plan, not live running): a quiet-status chip, the 600 tier. The gap
+   parts them, not a "·", which a wrap left dangling at a line's end (28 Nov 2026). */
+.tr-jr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
 .tr-jr-sched { padding: 1px 8px; border: 1px solid var(--border-mid); border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--text-mid); font-size: var(--type-badge); font-weight: 600; }
 .tr-jr-ask { margin: 0 0 4px; font-weight: 700; }
 /* The first train is the answer box (.tr-answer); the next ones a quiet list beneath it. */
@@ -848,10 +849,8 @@ on the answer: the app's ring, not the browser's orange one. */
     border-radius: var(--radius);
     line-height: 1.5;
 }
-/* The Time and Station labels are the shared eyebrow (.field-eyebrow); this adds the spacing only.
-It set a size and a colour too until v24.93 — declared after shared.css at equal specificity, they
-won, and this page's two field labels were 12px sentence-grey where every other page's are 10px
-uppercase. */
+/* The Time and Station labels are the shared eyebrow (.field-eyebrow); this adds the spacing only. A
+size or colour here would win over shared.css at equal specificity (until v24.93 they were 12px grey). */
 .tr-label { display: block; margin-bottom: 6px; }
 .tr-input {
     width: 12em;

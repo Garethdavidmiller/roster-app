@@ -150,7 +150,7 @@ describe('journey — the first train there, then the next', () => {
         assert.equal(j.next.timetable.side, 'dec', 'the morning after is the new timetable\'s');
         assert.equal(j.next.trains[0].dep, departures(TIMETABLES.dec.SU.dep, 'BCF', day(12, 13), '03:00')[0].dep);
         const html = words(renderJourney(j, { crs: 'BCF', stations: STATIONS, asked: 'time', now: day(12, 12) }));
-        assert.match(html, /^Saturday 12 December · Timetable until Saturday 12 December Scheduled No more trains to Beaconsfield today after 00:30\. First train tomorrow Sunday 13 December · Timetable from Sunday 13 December Scheduled Christmas and New Year times are not on this page\. [^]*? 07:42 to /);
+        assert.match(html, /^Saturday 12 December Timetable until Saturday 12 December Scheduled No more trains to Beaconsfield today after 00:30\. First train tomorrow Sunday 13 December Timetable from Sunday 13 December Scheduled Christmas and New Year times are not on this page\. [^]*? 07:42 to /);
         // Asked from the clock, the sentence names no minute, so it does not change (and is not read out) each minute.
         assert.match(words(renderJourney(j, { crs: 'BCF', stations: STATIONS, asked: 'now', now: day(12, 12) })), /No more trains to Beaconsfield today\. First train tomorrow/);
         // On another day than today, the day is named.
@@ -166,7 +166,7 @@ describe('journey — the first train there, then the next', () => {
     test('the whole day, when no time is given on another day', () => {
         const j = ask('AYS', null, day(11, 28));
         assert.equal(j.trains[0].dep, departures(TIMETABLES.now.SO.dep, 'AYS', day(11, 28), '03:00')[0].dep);
-        assert.match(words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'day', now: day(11, 20) })), /^Saturday 28 November · .* First train to Aylesbury \d\d:\d\d/);
+        assert.match(words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'day', now: day(11, 20) })), /^Saturday 28 November .* First train to Aylesbury \d\d:\d\d/);
     });
 
     test('the date asked: today while the day chosen is today\'s kind, else the next of that kind', () => {
@@ -183,6 +183,9 @@ describe('renderJourney and renderNoStation — the words', () => {
     test('the answer names its date, its timetable and "Scheduled", and the stops are on tap', () => {
         const html = renderJourney(ask('AYS', '17:15', day(11, 27)), { crs: 'AYS', stations: STATIONS, asked: 'time', now: day(11, 27), others: ['AVP'] });
         assert.match(html, /^<p class="tr-jr-meta"><span>Friday 27 November<\/span>.*Timetable until Saturday 12 December.*<span class="tr-jr-sched">Scheduled<\/span><\/p>/);
+        // The gap parts the three, not a "·": a wrap left the dot dangling at a line's end (trains.css → .tr-jr-meta).
+        assert.equal(html.match(/^<p class="tr-jr-meta">.*?<\/p>/)?.[0], '<p class="tr-jr-meta"><span>Friday 27 November</span>'
+            + '<span>Timetable until Saturday 12 December</span><span class="tr-jr-sched">Scheduled</span></p>');
         assert.match(html, /<details class="tr-jr-stops"><summary>Where it stops<span class="sr-only">, the 17:30<\/span><\/summary><ol class="tr-jr-stoplist"><li><span class="tr-near-time">17:30<\/span> London Marylebone<\/li>/);
         assert.match(html, /<li class="tr-jr-here"><span class="tr-near-time">18:21<\/span> <strong>Aylesbury<\/strong>/);
         assert.match(html, /data-station="AYS"[^]*All trains to and from Aylesbury/);
@@ -248,7 +251,7 @@ describe('dayWord and renderJourney — "today" and "tomorrow" are the calendar\
         assert.equal(isoDate(j.date), '2026-11-30', 'premise: the railway day is still Monday\'s');
         assert.deepEqual(j.trains, []);
         const html = words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'now', now }));
-        assert.match(html, /No more trains to Aylesbury tonight\. First train today Tuesday 1 December · Timetable until Saturday 12 December Scheduled 06:35 to /);
+        assert.match(html, /No more trains to Aylesbury tonight\. First train today Tuesday 1 December Timetable until Saturday 12 December Scheduled 06:35 to /);
         assert.doesNotMatch(html, /tomorrow/);
     });
 
@@ -325,7 +328,7 @@ describe('renderJourney — 25 and 26 December are an ordinary day\'s trains, ne
         const h = html(day(12, 25));
         assert.doesNotMatch(h, /Scheduled/);
         assert.doesNotMatch(h, /tr-jr-first|08:27|an ordinary Friday/);
-        assert.match(words(h), /^Friday 25 December · Timetable from Sunday 13 December No Chiltern trains run on Christmas Day\. For Boxing Day’s trains, check the journey planner \./);
+        assert.match(words(h), /^Friday 25 December Timetable from Sunday 13 December No Chiltern trains run on Christmas Day\. For Boxing Day’s trains, check the journey planner \./);
         assert.match(h, /check <a href="https:\/\/www\.nationalrail\.co\.uk\/journey-planner\/"/);
         assert.equal(NO_TRAINS_CHRISTMAS, 'No Chiltern trains run on Christmas Day.');
     });

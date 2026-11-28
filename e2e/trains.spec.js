@@ -1920,7 +1920,7 @@ test.describe('trains — Find a train', () => {
         await expect(said).toHaveAttribute('role', 'status');
         await ask(page, 'Aylesbury, after 17:15');
         await expect(said).toHaveText('First train to Aylesbury after 17:15. 17:30 to Aylesbury Vale Parkway, via Amersham. Gets to Aylesbury at 18:21.');
-        await expect(result.locator('.tr-jr-meta')).toHaveText('Friday 27 November·Timetable until Saturday 12 DecemberScheduled');
+        await expect(result.locator('.tr-jr-meta').locator(':scope > span')).toHaveText(['Friday 27 November', 'Timetable until Saturday 12 December', 'Scheduled']);
         await expect(result.locator('.tr-jr-ask')).toHaveText('First train to Aylesbury after 17:15');
         const first = result.locator('.tr-jr-first');
         await expect(first.locator('.tr-jr-line')).toHaveText('17:30 to Aylesbury Vale Parkway, via Amersham');
@@ -1976,7 +1976,7 @@ test.describe('trains — Find a train', () => {
         const result = page.locator('#trLookupResult');
         await expect(result.locator('.tr-answer').first()).toHaveText('No more trains to Beaconsfield tonight.');
         await expect(result.locator('.tr-jr-ask')).toHaveText('First train today');
-        await expect(result.locator('.tr-jr-meta').nth(1)).toHaveText('Sunday 13 December·Timetable from Sunday 13 DecemberScheduled');
+        await expect(result.locator('.tr-jr-meta').nth(1).locator(':scope > span')).toHaveText(['Sunday 13 December', 'Timetable from Sunday 13 December', 'Scheduled']);
         await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('07:42');
         // Said too: the next day's first train is what the reader is waiting for (trains-status.js → `lookupLine`).
         await expect(page.locator('#trLookupStatus')).toHaveText(/^No more trains to Beaconsfield tonight\. First train today\. Christmas and New Year times are not on this page\. 07:42 to /);
@@ -1986,7 +1986,7 @@ test.describe('trains — Find a train', () => {
         await open(page, '2026-12-13T15:00:00');
         await ask(page, 'moor st after 15:30');
         const result = page.locator('#trLookupResult');
-        await expect(result.locator('.tr-jr-meta')).toHaveText('Sunday 13 December·Timetable from Sunday 13 DecemberScheduled');
+        await expect(result.locator('.tr-jr-meta').locator(':scope > span')).toHaveText(['Sunday 13 December', 'Timetable from Sunday 13 December', 'Scheduled']);
         await expect(result.locator('.tr-jr-first .tr-jr-line')).toHaveText('15:38 to Birmingham Moor Street');
     });
 
@@ -2057,7 +2057,7 @@ test.describe('trains — Find a train', () => {
         await expect(page.locator('[data-day="SO"]'), 'premise: Saturday night\'s trains are the ones running').toHaveAttribute('aria-pressed', 'true');
         await ask(page, 'Aylesbury, after 08:00');
         const result = page.locator('#trLookupResult');
-        await expect(result.locator('.tr-jr-meta')).toHaveText('Sunday 13 December·Timetable from Sunday 13 DecemberScheduled');
+        await expect(result.locator('.tr-jr-meta').locator(':scope > span')).toHaveText(['Sunday 13 December', 'Timetable from Sunday 13 December', 'Scheduled']);
         await expect(result.locator('.tr-jr-first .tr-jr-time')).toHaveText('08:53');
         // A small-hours time still to come tonight is tonight's.
         await ask(page, 'Aylesbury, after 02:00');
@@ -2093,7 +2093,7 @@ test.describe('trains — Find a train', () => {
         await expect(page.locator('#trFestive')).toContainText('No Chiltern trains run today, Christmas Day.');
         await ask(page, 'Aylesbury after 08:00');
         const result = page.locator('#trLookupResult');
-        await expect(result.locator('.tr-jr-meta')).toHaveText('Friday 25 December·Timetable from Sunday 13 December');
+        await expect(result.locator('.tr-jr-meta').locator(':scope > span')).toHaveText(['Friday 25 December', 'Timetable from Sunday 13 December']);
         await expect(result.locator('.tr-answer')).toHaveText('No Chiltern trains run on Christmas Day.');
         await expect(result.locator('.tr-jr-first')).toHaveCount(0);
         await expect(result).not.toContainText('Scheduled');
