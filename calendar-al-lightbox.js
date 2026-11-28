@@ -28,7 +28,7 @@ import { formatISO, paydayForCutoff, parseISODate, CONFIG } from './roster-data.
 import { countedAlDates, alPosition, entitlementNote, balanceFace } from './al-entitlement.js';
 import { christmasLeaveDates, christmasLeaveLine, boxingDayForAllowance, CHRISTMAS_LEAVE_FROM_YEAR } from './christmas-leave.js';
 import { carryLine } from './leave-year.js';
-import { isPastDay } from './calendar-team-onwith.js';
+import { onWithOffered } from './calendar-team-onwith.js';
 import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './calendar-snapshot.js';
 
 /**
@@ -654,14 +654,14 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView, openWhoI
     }
     // WHO'S ON WITH ME (owner, 27 Nov 2026) — a day worked WITH times, the renderer's call
     // (`detailWorkedTimes`), on a Calendar the reader is admitted to: Team View is everybody's who is,
-    // so this is not a personal action — it names whose shift it asks about instead. Today and later
-    // only (owner, 28 Nov 2026: "I do not need to see who I am on in the past with"): the card's own
-    // rule, `isPastDay`, asked here too so a past day offers no button that would open nothing. The same wait for
+    // so this is not a personal action — it names whose shift it asks about instead. From today to the
+    // Saturday ending the week three weeks on, and Boxing Day (owner, 28 Nov 2026): the card's own rule,
+    // `onWithOffered`, asked here too so a day outside it offers no button that would open nothing. The same wait for
     // the close's Back as the pay jump above: Team View pushes its own history entry, and pushed before
     // the panel's `history.back()` had landed, that Back took Team View's entry instead of the panel's.
     if (teamBtn) {
       const name = d.detailWho || '';
-      if (openWhoIsOn && d.detailWorkedTimes && d.detailIso && !isPastDay(d.detailIso, new Date()) && name && getAccessType() === 'named') {
+      if (openWhoIsOn && d.detailWorkedTimes && d.detailIso && onWithOffered(d.detailIso, new Date()) && name && getAccessType() === 'named') {
         teamBtn.hidden = false;
         if (teamLabel) teamLabel.textContent = name === getSession()?.name ? 'Who’s on with me' : `Who’s on with ${name}`;
         const iso = d.detailIso;

@@ -11,7 +11,7 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { teamMembers, TEAM_GRADES } from '../roster-data.js';
-import { buildOnWithCard, colleaguesOf, dayOf, cardDate, isPastDay, rolesInOrder } from '../calendar-team-onwith.js';
+import { buildOnWithCard, colleaguesOf, dayOf, cardDate, isPastDay, rolesInOrder, onWithOffered, lastOfferedDay, ONWITH_WEEKS_AHEAD } from '../calendar-team-onwith.js';
 import { noteKnowledge, _reset } from '../calendar-data-state.js';
 import { formatISO } from '../roster-data.js';
 import { resolveEffectiveShift } from '../override-utils.js';
@@ -213,6 +213,33 @@ describe('today and later only', () => {
     test('today, to its last minute, and any later day draw the card', () => {
         assert.match(build(me.name, ISO, new Date(2026, 10, 27, 23, 59)).html, /tv-onwith-row/);
         assert.match(build(me.name, ISO, new Date(2026, 10, 20, 12, 0)).html, /tv-onwith-row/);
+    });
+
+    // TO THE SATURDAY ENDING THE WEEK THREE WEEKS ON, AND BOXING DAY (owner, 28 Nov 2026).
+    test('the last day offered is the Saturday that ends the week three weeks on', () => {
+        assert.equal(ONWITH_WEEKS_AHEAD, 3);
+        const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        assert.equal(iso(lastOfferedDay(new Date(2026, 10, 28, 23, 59))), '2026-12-19', 'a Saturday ends its own week');
+        assert.equal(iso(lastOfferedDay(new Date(2026, 10, 29, 0, 0))), '2026-12-26', 'from the Sunday, a new week');
+        assert.equal(iso(lastOfferedDay(new Date(2026, 10, 25, 12, 0))), '2026-12-19', 'a Wednesday');
+        assert.equal(iso(lastOfferedDay(new Date(2027, 2, 24, 12, 0))), '2027-04-17', 'across the clocks going forward');
+    });
+
+    test('offered from today to that Saturday, never after it — except Boxing Day', () => {
+        const sat = new Date(2026, 10, 28, 9, 0);
+        assert.equal(onWithOffered('2026-11-27', sat), false, 'yesterday');
+        assert.equal(onWithOffered('2026-11-28', sat), true, 'today');
+        assert.equal(onWithOffered('2026-12-19', sat), true, 'the last Saturday');
+        assert.equal(onWithOffered('2026-12-20', sat), false, 'the Sunday after it');
+        assert.equal(onWithOffered('2026-12-25', sat), false, 'Christmas Day is not the exception');
+        assert.equal(onWithOffered('2026-12-26', sat), true, 'Boxing Day, beyond the three weeks');
+        assert.equal(onWithOffered('2027-12-26', sat), true, 'Boxing Day next year too');
+        assert.equal(onWithOffered('2025-12-26', sat), false, 'but never a Boxing Day gone past');
+    });
+
+    test('the card draws nothing for a day after the last one offered', () => {
+        assert.deepEqual(build(me.name, ISO, new Date(2026, 9, 1, 12, 0)), { html: '', months: [], dates: [] },
+            'four weeks before the date: not yet offered');
     });
 
     test('isPastDay compares local dates', () => {
