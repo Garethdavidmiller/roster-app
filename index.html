@@ -334,7 +334,7 @@
     </div>
 
     <!-- One-time notice: what Team Week View is for — who you are on duty with, and who you could swap with (owner, 27 Nov
-         2026; calendar-notices.js). Last in the Calendar's queue, for members on the roster; its button opens Team View. -->
+         2026; calendar-notices.js). For members on the roster, after the timetable notice; its button opens Team View. -->
     <div id="teamNoticeLb" class="lb-overlay" role="dialog" aria-label="See who you’re on duty with" aria-modal="true">
         <div id="teamNoticeContent" class="lb-content notice-lb-content">
             <button id="teamNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
@@ -350,6 +350,27 @@
             <div class="notice-actions">
                 <button id="teamNoticeShow" class="notice-cta" type="button">Open Team Week View</button>
                 <button id="teamNoticeLater" class="notice-later" type="button">Not now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- One-time notice: what the Links Selector is, with a link to it (owner, 28 Nov 2026; calendar-notices.js). Last in
+         the Calendar's queue, for whoever the page admits, 28 November to 11 December. -->
+    <div id="selectorNoticeLb" class="lb-overlay" role="dialog" aria-label="See the proposals as a calendar" aria-modal="true">
+        <div id="selectorNoticeContent" class="lb-content notice-lb-content">
+            <button id="selectorNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-head">
+                <div class="notice-badge notice-badge--selector">🗓️ Links Selector</div>
+                <div class="lightbox-app-name">See the proposals as a calendar</div>
+                <div class="notice-date">Posted 28 November 2026</div>
+            </div>
+            <div class="notice-main">
+                <p class="notice-body">The <strong>Links Selector</strong> shows a proposal for the new link as a calendar, like this one, so you can see your shifts and rest days month by month.</p>
+                <p class="notice-body">Choose a proposal and the week you’d start on. Who starts on which week is decided later, so try a few. Your own roster stays as it is. Open it any time from the menu: ☰&nbsp;then 🗓️&nbsp;Links&nbsp;Selector.</p>
+            </div>
+            <div class="notice-actions">
+                <a href="./links-selector.html" id="selectorNoticeGo" class="notice-cta">Open the Links Selector &rarr;</a>
+                <button id="selectorNoticeLater" class="notice-later" type="button">Not now</button>
             </div>
         </div>
     </div>

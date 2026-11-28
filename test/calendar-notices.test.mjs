@@ -1286,12 +1286,13 @@ describe('11 · the New link notice: only where the page would let them in, afte
         assert.equal(NL.followsInstall, DONE_KEY_OF(INST));
         // The page's own question, asked of whoever is signed in when it OPENS — never a list of its own.
         assert.match(IIFE, /canOpenNewlink\(getSession\(\)\?\.name\)/);
-        assert.match(SOURCE, /import \{ canOpenNewlink \} from '\.\/auth-policy\.js'/);
+        assert.match(SOURCE, /import \{ canOpenNewlink(, canOpenSelector)? \} from '\.\/auth-policy\.js'/);
         // LAST of the notices it could share a load with: on a load where anything else is due, that one takes the
-        // screen and this one comes back next time. Only the Team View notice is wired after it, and that one follows
-        // the timetable notice, which waits for this one until it has ended — so the two are never due together.
+        // screen and this one comes back next time. Only the Team View and Links Selector notices are wired after it: the
+        // first follows the timetable notice, which waits for this one until it has ended, and the second follows the
+        // first — so neither is ever due with it.
         const after = NOTICES.slice(NOTICES.findIndex(n => n.overlay === NL.overlay) + 1).map(n => n.overlay);
-        assert.deepEqual(after, ['teamNoticeLb'], 'wired last but for the Team View notice, so it yields to every other one');
+        assert.deepEqual(after, ['teamNoticeLb', 'selectorNoticeLb'], 'wired last but for the two that follow it, so it yields to every other one');
     });
 
     test('before 26 November nothing in the matrix is about it — it gets its rows here instead', () => {
@@ -1787,7 +1788,7 @@ describe('16 · see who you are on duty with: Team View, last in the queue, for 
     const ON_DESK = { accessType: /** @type {const} */ ('named'), route: null, store: AFTER_TIMETABLE,
                       present: [TV.overlay, 'teamNoticeShow', 'teamNoticeLater', 'teamViewBtn'] };
 
-    test('in the matrix, members only, its own key, no snooze, from 27 November for 90 days, after the REAL timetable and install keys, wired last', () => {
+    test('in the matrix, members only, its own key, no snooze, from 27 November for 90 days, after the REAL timetable and install keys, wired last but for the notice that follows it', () => {
         assert.ok(TV, 'found by the same pattern as every other notice');
         assert.equal(TV.audience, 'members');
         assert.equal(DONE, 'myb_notice_team_view_2026_done');
@@ -1798,7 +1799,9 @@ describe('16 · see who you are on duty with: Team View, last in the queue, for 
         assert.equal(TV.follows, DONE_KEY_OF(SOON), 'after the timetable notice, which itself waits for the install and New link ones');
         assert.equal(TV.followsInstall, DONE_KEY_OF(INST));
         assert.match(IIFE, /if \(!followedDone\(FOLLOWS\)\) return;/, 'the timetable notice, through its END too — never its flag alone');
-        assert.equal(NOTICES[NOTICES.length - 1].overlay, TV.overlay, 'wired last, so it yields to every other notice');
+        const after = NOTICES.slice(NOTICES.findIndex(n => n.overlay === TV.overlay) + 1);
+        assert.deepEqual(after.map(n => n.overlay), ['selectorNoticeLb'], 'wired last but for the Links Selector notice, so it yields to every other one');
+        assert.equal(after[0].follows, DONE, 'and that one follows this, so the two never share a load');
     });
 
     test('on a desk, after the timetable notice, it opens for a member on the roster — nothing flagged yet', async () => {
@@ -1906,5 +1909,177 @@ describe('16 · see who you are on duty with: Team View, last in the queue, for 
         assert.match(text, /Open Team Week View/);
         assert.match(readFileSync(new URL('./calendar-team-view.js', REPO_ROOT_URL), 'utf8'), /'Switch to Team Week View'/);
         assert.doesNotMatch(text, /resting/, 'one word for it: "on a rest day", the app\'s own');
+    });
+});
+
+describe('17 · see the proposals as a calendar: the Links Selector, last in the queue, for whoever the page admits, 28 Nov – 11 Dec (owner, 28 Nov 2026)', () => {
+    // "An app notice in sequence in Calendar to last 2 weeks letting people know what the links selector is and providing
+    // a link to it." Organised by what a wrong answer costs: offered to somebody the page turns away, it invites them
+    // through a door that is shut; sharing a visit breaks one-at-a-time; flagged where refused, or before its day, that
+    // device never sees it; and words that drift from the page or the drawer send a colleague looking for nothing.
+    const SEL  = /** @type {{ overlay: string, audience: string, follows: string|null, followsInstall: string|null, starts: number|null }} */ (NOTICES.find(n => n.overlay === 'selectorNoticeLb'));
+    const TV   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'teamNoticeLb'));
+    const INST = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
+    const DONE = DONE_KEY_OF(SEL);
+    const IIFE = IIFE_OF('selectorNoticeLb');
+    const NOV_30 = new Date(2026, 10, 30, 9, 0).getTime();
+    const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === SEL.overlay));
+    const roles = (/** @type {string} */ n) => [...CONFIG.ADMIN_NAMES, ...(CONFIG.MANAGER_NAMES || []), ...(CONFIG.NEWLINK_PREVIEW || [])].includes(n);
+    function someone(/** @type {string} */ what, /** @type {(m: any) => boolean} */ fits) {
+        const m = teamMembers.find(x => !x.hidden && fits(x));
+        assert.ok(m, `the roster has no ${what}`);
+        return /** @type {any} */ (m).name;
+    }
+    const NORMAL_CEA = someone('CEA on a normal contract outside every role list', m => m.role === 'CEA' && !m.bilingualContract && !m.managerOnly && !roles(m.name));
+    const BILINGUAL  = someone('CEA on a bilingual contract', m => m.role === 'CEA' && m.bilingualContract && !roles(m.name));
+    /** A colleague's desktop, every notice before this one answered. */
+    const ON_DESK = { accessType: /** @type {const} */ ('named'), session: { name: NORMAL_CEA }, route: null,
+                      store: { [DONE_KEY_OF(TV)]: '1' }, present: [SEL.overlay, 'selectorNoticeGo', 'selectorNoticeLater'] };
+
+    test('in the matrix, members only, its own key, no snooze, 28 November to the end of 11 December, after the REAL Team View and install keys, wired last', () => {
+        assert.ok(SEL, 'found by the same pattern as every other notice');
+        assert.equal(SEL.audience, 'members');
+        assert.equal(DONE, 'myb_notice_links_selector_2026_done');
+        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
+        assert.equal(SEL.starts, new Date(2026, 10, 28).getTime(), 'STARTS is its posting day, read from the source');
+        assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
+        // Two weeks (owner): 28 November to 11 December inclusive is fourteen days.
+        assert.match(IIFE, /const LAST_DAY\s*=\s*'11 Dec 2026'/);
+        assert.match(IIFE, /isNoticeExpired\(LAST_DAY, 1\)/, 'offered through the whole of the Friday, gone on the Saturday');
+        assert.equal((new Date(2026, 11, 12).getTime() - new Date(2026, 10, 28).getTime()) / 86_400_000, 14, 'fourteen days offered');
+        assert.equal(SEL.follows, DONE_KEY_OF(TV), 'after the Team View notice, which waits for every notice before it');
+        assert.match(IIFE, /if \(!followedDone\(FOLLOWS\)\) return;/, 'the Team View notice, through its END too — never its flag alone');
+        assert.equal(SEL.followsInstall, DONE_KEY_OF(INST));
+        // The page's own question, asked of whoever is signed in when it OPENS — never a list of its own.
+        assert.match(IIFE, /canOpenSelector\(getSession\(\)\?\.name\)/);
+        assert.equal(NOTICES[NOTICES.length - 1].overlay, SEL.overlay, 'wired last, so it yields to every other notice');
+    });
+
+    test('everyone the page admits is on the roster, so the Team View notice it waits for is always theirs to get', async () => {
+        // The Team View notice is offered only to a member on the roster (`onTheRoster`). If the selector ever admitted
+        // somebody who is not — an Other Staff login, or a manager with no line — this notice would wait for one that
+        // never comes, through Team View's 90 days and past its own two weeks: it would reach them never.
+        const { canOpenSelector } = await import('../auth-policy.js');
+        const names = new Set([...teamMembers.map(m => m.name), ...CONFIG.ADMIN_NAMES, ...(CONFIG.MANAGER_NAMES || []), ...(CONFIG.NEWLINK_PREVIEW || [])]);
+        const admitted = [...names].filter(n => canOpenSelector(n));
+        assert.ok(admitted.length > 10, `premise: the page admits a real audience (${admitted.length})`);
+        const offRoster = admitted.filter(n => { const m = teamMembers.find(t => t.name === n); return !m || isOtherStaff(m); });
+        assert.deepEqual(offRoster, [], 'admitted by the Links Selector but never offered the Team View notice it waits for');
+    });
+
+    test('on a desk, after the Team View notice, it opens for a colleague the page admits — nothing flagged yet', async () => {
+        for (const name of [NORMAL_CEA, CONFIG.ADMIN_NAMES[0], /** @type {string} */ ((CONFIG.MANAGER_NAMES || [])[0])]) {
+            mock.timers.setTime(NOV_30);
+            await wire({ ...ON_DESK, session: { name } });
+            await settleAccess();
+            assert.ok(opened(), `${name}: not offered`);
+            assert.deepEqual(_writes, []);
+        }
+    });
+
+    test('not for a colleague the page turns away, an Other Staff login, nor a name not on the roster — and NOT flagged', async () => {
+        const other = teamMembers.find(m => isOtherStaff(m))?.name;
+        assert.ok(other, 'precondition: the roster has an Other Staff login');
+        for (const name of [BILINGUAL, other, 'Not On The Roster']) {
+            mock.timers.setTime(NOV_30);
+            await wire({ ...ON_DESK, session: { name } });
+            await settleAccess();
+            assert.equal(opened(), undefined, `${name}: offered a page that refuses them`);
+            assert.ok(!_writes.some(([k]) => k === DONE), `${name}: refused, so left unflagged`);
+        }
+    });
+
+    test('it waits for the Team View notice, and on a phone browser for the install notice — unflagged', async () => {
+        for (const [what, extra] of /** @type {const} */ ([
+            ['the Team View notice still to come', { store: {} }],
+            ['a phone browser before the install notice', { route: { how: 'menu', mirror: false } }],
+        ])) {
+            mock.timers.setTime(NOV_30);
+            await wire({ ...ON_DESK, ...extra });
+            await settleAccess();
+            assert.equal(opened(), undefined, `it shared a visit with ${what}`);
+            assert.ok(!_writes.some(([k]) => k === DONE));
+        }
+    });
+
+    test('NOT on the load the Team View notice is answered — that flag is read at wiring time — and the load after, it opens', async () => {
+        mock.timers.setTime(NOV_30);
+        const SOON = DONE_KEY_OF(/** @type {any} */ (NOTICES.find(n => n.overlay === 'timetableSoonNoticeLb')));
+        await wire({ ...ON_DESK, present: [...ON_DESK.present, TV.overlay, 'teamNoticeShow', 'teamNoticeLater'], store: { [SOON]: '1' } });
+        await settleAccess();
+        const team = /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === TV.overlay));
+        assert.ok(team, 'premise: the Team View notice has this load');
+        team._cfg.onClose();
+        assert.equal(opened(), undefined, 'the second notice of one visit');
+        await wire({ ...ON_DESK, store: { ..._store } });
+        await settleAccess();
+        assert.ok(opened(), 'the next load is its turn');
+    });
+
+    test('the evening before 28 November nothing is offered, and nothing flagged; late on 11 December it still is; then it is flagged and shown nothing', async () => {
+        mock.timers.setTime(new Date(2026, 10, 27, 21, 0).getTime());
+        await wire(ON_DESK);
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, [], 'an early device is left for its day');
+
+        mock.timers.setTime(new Date(2026, 11, 11, 23, 0).getTime());
+        await wire(ON_DESK);
+        await settleAccess();
+        assert.ok(opened(), 'offered through the whole of its last day');
+
+        mock.timers.setTime(new Date(2026, 11, 12, 9, 0).getTime());
+        await wire({ ...ON_DESK, expired: (day, days) => day === '11 Dec 2026' && days === 1 });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, [[DONE, '1']], 'past its end, a device that never saw it is flagged and shown nothing');
+    });
+
+    test('every dismissal marks it done — the link (through the one helper), Not now and the close — and it is archived on OPEN', async () => {
+        mock.timers.setTime(NOV_30);
+        await wire(ON_DESK);
+        await settleAccess();
+        const lb = opened();
+        lb._cfg.onOpen();
+        assert.ok(_archived.some(n => n.id === 'links-selector-2026'), 'archived on OPEN, before the link can take the member away');
+        _listeners.get('selectorNoticeGo:click')?.({});
+        assert.deepEqual(_writes, [[DONE, '1']], 'the link answers it');
+        assert.equal(_followed.length, 1, 'and leaves through followLinkOutOf, replacing the notice\'s history entry');
+        _writes = [];
+        _listeners.get('selectorNoticeLater:click')?.();
+        assert.deepEqual(_closed, [SEL.overlay], 'Not now closes it');
+        lb._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']], 'and any close answers it');
+    });
+
+    test('its words say what the page is, its badge and route are the real pill, and the record stays true for 180 days', async () => {
+        const here = new URL('.', REPO_ROOT_URL);
+        const html = readFileSync(new URL('./index.html', here), 'utf8');
+        const at = html.indexOf('id="selectorNoticeLb"');
+        const block = html.slice(at, html.indexOf('</div>\n    </div>', at));
+        const text = block.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&rarr;/g, '→').replace(/\s+/g, ' ');
+        const { NAV_PAGES } = await import('../nav-destinations.js');
+        const pill = NAV_PAGES.find(p => p.id === 'selector');
+        assert.ok(pill, 'the drawer still has a Links Selector pill');
+        assert.ok(block.includes(`<div class="notice-badge notice-badge--selector">${pill.label}</div>`), 'the badge is the pill, word for word');
+        assert.ok(text.includes(`then ${pill.label}`), `the menu route names the pill as the drawer labels it: ${pill.label}`);
+        assert.ok(block.includes(`href="${pill.url}"`), `the link goes where the pill goes: ${pill.url}`);
+        // What you choose, in the page's own word ("week", links-selector-tips.js), and WHY a week is yours to try, in the
+        // page's own sentence — a newcomer cannot otherwise tell why they are picking one. Then the reassurance.
+        assert.match(text, /the week you’d start on/);
+        const tips = readFileSync(new URL('./links-selector-tips.js', here), 'utf8');
+        assert.match(tips, /Who starts on which week is decided later/, 'premise: the page says it in these words');
+        assert.match(text, /Who starts on which week is decided later, so try a few\./);
+        assert.match(text, /Your own roster stays as it is\./);
+        assert.doesNotMatch(text, /\bline\b/i, 'one word for it, the page\'s own: a week');
+        mock.timers.setTime(NOV_30);
+        await wire(ON_DESK);
+        await settleAccess();
+        opened()._cfg.onOpen();
+        const filed = _archived.find(n => n.id === 'links-selector-2026');
+        assert.equal(filed.section, 'Links Selector', 'filed under the page it is about — coloured in App Notices (block 10)');
+        assert.equal(filed.date, '28 Nov 2026');
+        assert.ok(filed.body.includes(`then ${pill.label.replace(/ /g, ' ')}`), 'the record\'s route is the pill, unbroken');
+        assert.doesNotMatch(filed.title + filed.body, /\bnew link starts|\bsoon\b|\btoday\b|\bvote\b|\bthree\b/i, 'nothing that dates, and no count');
     });
 });

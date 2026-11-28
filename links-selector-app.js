@@ -35,12 +35,13 @@ import { enhanceSelect } from './select-sheet.js';
 import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calendar-swipe.js';
 import { rovingCellFor } from './calendar-renderer.js';
 import { initCalendarTooltip, initCalendarKeyboard, initCalendarShortcuts } from './calendar-keyboard.js';
+import { initMonthJump } from './calendar-month-jump.js';
 import { lsGet, lsSet, lsAvailable } from './ls.js';
 import { CARD_TIPS } from './links-selector-tips.js';
 import { formatDayMonth, formatDayMonthYear, formatClock, printedStamp, DAY_NAMES_FULL } from './date-format.js';
 import { proposalById, proposalDisplayName } from './link-designer-proposals.js';
 import { buildSelectorMonth } from './links-selector-render.js';
-import { FIRST_MONTH, inRange, openingMonth, shiftTypesInMonth, hasBlankDays, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate,
+import { FIRST_MONTH, LAST_MONTH, inRange, openingMonth, shiftTypesInMonth, hasBlankDays, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate,
     lineOn, ignoredWords, refusalWords } from './links-selector-core.js';
 
 /** New CEA Link, opened on one proposal's weeks: its `weeks` word (newlink-app.js → WEEKS_PARAM), then a sheet code. */
@@ -59,7 +60,7 @@ const WELCOME_DELAY_MS = 1500;
 const ABOUT = Object.freeze({
     lines: Object.freeze([
         'A shortlisted proposal for the new CEA link, shown month by month as the Calendar shows your roster.',
-        'Choose a proposal and the line you would start on.',
+        'Choose a proposal and the week you would start on.',
         'A proposal, not your roster: your own roster carries on as it is.',
     ]),
 });
@@ -155,7 +156,7 @@ function runSelector() {
     };
     fillLines();
     const paintProposal = enhanceSelect(proposalSel, { title: 'Which proposal?', placeholder: 'Choose a proposal', createLightbox });
-    const paintLine = enhanceSelect(lineSel, { title: 'Which line do you start on?', placeholder: 'Choose a line', searchLabel: 'Search lines', createLightbox });
+    const paintLine = enhanceSelect(lineSel, { title: 'Which week do you start on?', placeholder: 'Choose a week', searchLabel: 'Search weeks', createLightbox });
 
     // WHAT THIS IS AND HOW TO READ IT, in the order a colleague needs it (staff-copy.md: discover, understand, act): not
     // their roster; what the two choices mean; what happens each week; and why January starts blank. "Date not final"
@@ -163,8 +164,8 @@ function runSelector() {
     const start = startDate();
     const note = el('selectorNote');
     note.replaceChildren(Object.assign(document.createElement('strong'), { textContent: 'A proposal, not your roster.' }),
-        ` Choose a proposal and the line you’d be on in its first week, from ${DAY_NAMES_FULL[start.getDay()]} `
-        + `${formatDayMonthYear(start)} (date not final). Each Sunday you move down one line. Who starts on which line is decided later.`);
+        ` Choose a proposal and the week you’d start on, from ${DAY_NAMES_FULL[start.getDay()]} `
+        + `${formatDayMonthYear(start)} (date not final). Each Sunday you move on to the next week. Who starts on which week is decided later.`);
     // A shared link that named something this page cannot show says so, and what it shows instead — never a quiet swap.
     const linkNote = el('selectorLinkNote');
     linkNote.textContent = ignoredWords(choice.ignored, proposalDisplayName(proposal), line);
@@ -241,7 +242,7 @@ function runSelector() {
     /** The printed heading's second line (links-selector.html → #selectorPrintHead): the choice, and when it was printed. */
     function stampPrint() {
         const now = new Date();
-        el('selectorPrintChoice').textContent = `${proposalDisplayName(proposal)} (${proposal.ref}) · starting on line ${line}`
+        el('selectorPrintChoice').textContent = `${proposalDisplayName(proposal)} (${proposal.ref}) · starting in week ${line}`
             + ` · a proposal, not a roster · ${printedStamp(now, formatClock(now))}`;
     }
     // THE CALENDAR'S KEY RULE (calendar-legend.js), handed this page's month: an item shows only in a month that has it.
@@ -351,6 +352,18 @@ function runSelector() {
         print: () => { stampPrint(); window.print(); },
     });
     initCalendarKeyboard({ navigateToPaycalc: () => false, openDayDetail: /** @type {any} */ (openDayDetail) });
+    // THE CALENDAR'S MONTH PICKER (owner, 28 Nov 2026: "The month doesn't have the drop down selector"), opened by the month's
+    // name as on the Calendar, handed this page's month and its two years. Every month of both is in range, so a choice
+    // never lands outside it.
+    initMonthJump({
+        renderCalendar: render, announceMonthChange: announce,
+        getAccessType: () => (document.getElementById('loginOverlay') ? 'none' : 'named'),
+        month: {
+            get: () => ({ year, month }),
+            set: (y, m) => { if (inRange(y, m)) ({ year, month } = { year: y, month: m }); },
+            firstYear: FIRST_MONTH.year, lastYear: LAST_MONTH.year,
+        },
+    });
     initCalendarTooltip();
 
     // With `months` given the swipe builds, bounds, titles and settles through the page's own months, so two of its

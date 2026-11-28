@@ -33,14 +33,14 @@ export const CARD_TIPS = Object.freeze({
         sections: [
             { heading: 'What it is', items: [
                 { icon: '🗓️', html: 'A <strong>proposal</strong> for the new CEA link, drawn on dates the way the Calendar draws your roster, so you can see what your months would look like.' },
-                { icon: '🔁', html: 'A <strong>link</strong> is the set of weeks everyone works through in turn. Each week of it is a <strong>line</strong>: a line here is a week on the New CEA Link page, and a LINE on the printed proposal sheets.' },
+                { icon: '🔁', html: `A <strong>link</strong> is the set of weeks everyone works through in turn, numbered 1 to ${ROTATING_LINES}. A week here is a week on the New CEA Link page, and a LINE on the printed proposal sheets.` },
                 { icon: '🛡️', html: '<strong>A proposal, not your roster.</strong> Your own roster carries on as it is, and nothing you choose here is saved anywhere but this device.' },
             ] },
             { heading: 'How to use it', items: [
                 { icon: '1️⃣', html: 'Choose a <strong>proposal</strong> at the top.' },
-                { icon: '2️⃣', html: `Choose the <strong>line</strong> you’d be on in its first week, from ${START_WORDS} (date not final). Who starts on which line is decided later, so try a few.` },
-                { icon: '⬇️', html: `Each Sunday you move down one line, and after line ${ROTATING_LINES} comes line 1. Swipe, or use ← Prev and Next →, to see the months after.` },
-                { icon: '👆', html: 'Select a day to see its shift, its line and what it means. The 🚩 button goes back to the month the link starts.' },
+                { icon: '2️⃣', html: `Choose the <strong>week</strong> you’d start on, from ${START_WORDS} (date not final). Who starts on which week is decided later, so try a few.` },
+                { icon: '⬇️', html: `Each Sunday you move on to the next week, and after week ${ROTATING_LINES} comes week 1. Swipe, or use ← Prev and Next →, or tap the month’s name to choose one.` },
+                { icon: '👆', html: 'Select a day to see its shift, its week and what it means. The 🚩 button goes back to the month the link starts.' },
                 { icon: '🔗', html: 'The address keeps your choice, so you can send a colleague exactly what you see.' },
             ] },
             { heading: 'What the days show', items: [

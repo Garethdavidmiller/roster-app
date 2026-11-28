@@ -30,7 +30,7 @@ test.describe('links selector', () => {
         await seedSession(page, ADMIN);
         await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
         await expect(page.locator('.month-year')).toHaveText('January 2027');
-        await expect(page.locator('.week-info-text')).toHaveText('Lines 7–9');
+        await expect(page.locator('.week-info-text')).toHaveText('Weeks 7–9');
         await expect(page.locator('#selectorNote')).toContainText('A proposal, not your roster');
         // 1 to 16 January: a date and nothing else
         await expect(page.locator('.calendar-day.selector-blank')).toHaveCount(16);
@@ -44,7 +44,7 @@ test.describe('links selector', () => {
         for (let d = 17; d <= 31; d++) {
             const want = /** @type {any} */ (dayOn(lc, 7, new Date(2027, 0, d)));
             await expect(days.nth(d - 17)).toHaveAttribute('data-detail-shift-value', want.shift);
-            await expect(days.nth(d - 17)).toHaveAttribute('data-detail-week', `Line ${want.line}`);
+            await expect(days.nth(d - 17)).toHaveAttribute('data-detail-week', `Week ${want.line}`);
         }
         expect(errors).toEqual([]);
     });
@@ -55,11 +55,11 @@ test.describe('links selector', () => {
         const proposals = page.locator('#selectorProposal option');
         await expect(proposals).toHaveText(['Balanced V6', 'Level Crossing', 'Middle Ground']);
         await expect(page.locator('#selectorLine option')).toHaveCount(26);
-        await expect(page.locator('#selectorLine option').first()).toHaveText('Line 1 · cover week');
+        await expect(page.locator('#selectorLine option').first()).toHaveText('Week 1 · cover week');
         await expect(page).toHaveURL(/\?proposal=MB-26-V6&line=1$/);
         await page.locator('#selectorLine').selectOption('12');
         await expect(page).toHaveURL(/\?proposal=MB-26-V6&line=12$/);
-        await expect(page.locator('.week-info-text')).toHaveText('Lines 12–14');
+        await expect(page.locator('.week-info-text')).toHaveText('Weeks 12–14');
         await page.locator('#selectorProposal').selectOption('proposal:MG-26-T8');
         await expect(page).toHaveURL(/\?proposal=MG-26-T8&line=12$/);
         // a fresh visit with no address of its own reopens where this device left it
@@ -110,7 +110,7 @@ test.describe('links selector', () => {
         const panel = page.locator('#dayDetailLightbox');
         await expect(panel).toBeVisible();
         await expect(page.locator('#dayDetailDate')).toHaveText('Monday 18 January 2027');
-        await expect(page.locator('#dayDetailWeek')).toHaveText(`Line ${want.line}`);
+        await expect(page.locator('#dayDetailWeek')).toHaveText(`Week ${want.line}`);
         await expect(page.locator('#dayDetailWho')).toHaveText('Balanced V6');
         await expect(panel).toContainText('A proposal, not your roster.');
         await page.locator('#dayDetailClose').click();
@@ -172,7 +172,7 @@ test.describe('links selector', () => {
         await seedSession(page, ADMIN);
         // line 1 is a cover week in every proposal, so the start week is spare from Monday to Saturday
         await page.goto('/links-selector.html?proposal=LC-26-T10&line=1');
-        await expect(page.locator('#selectorLine option').first()).toHaveText('Line 1 · cover week');
+        await expect(page.locator('#selectorLine option').first()).toHaveText('Week 1 · cover week');
         await page.locator('.calendar-day[data-detail-day="Tuesday 19 January 2027"]').click();
         await expect(page.locator('#dayDetailShiftWords')).toHaveText('Spare day');
         await expect(page.locator('#selectorCoverLine')).toHaveText('A cover week: four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.');
@@ -315,7 +315,7 @@ test.describe('links selector', () => {
         const lc = /** @type {any} */ (proposalById('proposal:LC-26-T10'));
         await page.emulateMedia({ media: 'print' });
         await expect(page.locator('#selectorPrintHead')).toBeVisible();
-        await expect(page.locator('#selectorPrintChoice')).toContainText(`Level Crossing (${lc.ref}) · starting on line 5 · a proposal, not a roster`);
+        await expect(page.locator('#selectorPrintChoice')).toContainText(`Level Crossing (${lc.ref}) · starting in week 5 · a proposal, not a roster`);
         await expect(page.locator('#selectorNote')).toBeHidden();
     });
 
@@ -414,6 +414,31 @@ test.describe('links selector', () => {
         await page.goto('/newlink.html?weeks=ZZ-99');
         await expect(page.locator('.nl-weeks-one.is-chosen')).toHaveAttribute('data-weeks', 'proposal:MB-26-V6');
         await expect(page.locator('#nlStatusCard')).toBeInViewport();
+    });
+    test('the month\'s name opens the Calendar\'s month picker, with this page\'s two years', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=3');
+        await expect(page.locator('.month-year')).toHaveText('January 2027');
+        await expect(page.locator('.month-year')).toHaveAttribute('role', 'button');
+        await page.locator('.month-year').click();
+        await expect(page.locator('#monthJumpOverlay')).toBeVisible();
+        await expect(page.locator('#monthJumpYear option')).toHaveText(['2027', '2028']);
+        await expect(page.locator('#monthJumpMonth')).toHaveValue('0');
+        await page.locator('#monthJumpMonth').selectOption('6');
+        await page.locator('#monthJumpYear').selectOption('2028');
+        await page.locator('#monthJumpConfirm').click();
+        await expect(page.locator('#monthJumpOverlay')).toBeHidden();
+        await expect(page.locator('.month-year')).toHaveText('July 2028');
+        await expect(page).toHaveTitle(/^July 2028 — Links Selector/);
+        // the note beside it names the proposal's weeks, as the Calendar's names the roster's
+        await expect(page.locator('.week-info-text')).toHaveText(/^Weeks \d/);
+        // and the keyboard opens it too, as on the Calendar
+        await page.locator('.month-year').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#monthJumpOverlay')).toBeVisible();
+        await expect(page.locator('#monthJumpMonth')).toHaveValue('6');
+        await page.locator('#monthJumpCancel').click();
+        await expect(page.locator('.month-year')).toHaveText('July 2028');
     });
 });
 

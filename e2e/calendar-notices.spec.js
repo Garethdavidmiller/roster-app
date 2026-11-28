@@ -425,7 +425,7 @@ test('on a phone, the New link notice comes the load after the install notice �
             sessionStorage.setItem('__e2e_flags_cleared', '1');
             for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done']) localStorage.removeItem(k);
             localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');
-            localStorage.setItem('myb_notice_team_view_2026_done', '1');   // the Team View notice, last in the queue: its own test
+            localStorage.setItem('myb_notice_team_view_2026_done', '1');   // the Team View notice, after these two: its own test
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
@@ -466,7 +466,7 @@ async function colleagueWithNoNoticesAnswered(page, day) {
         if (!sessionStorage.getItem('__e2e_flags_cleared')) {
             sessionStorage.setItem('__e2e_flags_cleared', '1');
             for (const k of ['myb_notice_install_app_2026_done', 'myb_notice_newlink_vote_2026_done', 'myb_notice_timetable_soon_2026_done',
-                             'myb_notice_team_view_2026_done']) localStorage.removeItem(k);
+                             'myb_notice_team_view_2026_done', 'myb_notice_links_selector_2026_done']) localStorage.removeItem(k);
         }
     }, NEWLINK_COLLEAGUE);
     await page.goto('/');
@@ -489,7 +489,8 @@ async function answerInOrder(page, order) {
 
 test('from 16 November the timetable notice comes after the install and New link notices, and the Team View notice after it — one a load (v26.21)', async ({ page }, info) => {
     // By the 27th the October notices have ended and flag themselves, and the New link vote notice (from the 26th) is
-    // running. The install notice is offered on a touch screen only, so a desk starts at the New link notice.
+    // running. The install notice is offered on a touch screen only, so a desk starts at the New link notice. The Links
+    // Selector notice's flag is cleared too, and it is not offered: it starts on the 28th.
     test.setTimeout(90_000);
     const errors = collectFatalErrors(page);
     await colleagueWithNoNoticesAnswered(page, TIMETABLE_NOTICE_DAY);
@@ -509,7 +510,8 @@ test('in its final week the timetable notice goes first — the install notice, 
     await colleagueWithNoNoticesAnswered(page, TIMETABLE_FINAL_WEEK);
     await answerInOrder(page, [['#timetableSoonNoticeLb', '#timetableSoonNoticeLater'],
                                ['#installNoticeLb', '#installNoticeClose'],
-                               ['#teamNoticeLb', '#teamNoticeLater']]);
+                               ['#teamNoticeLb', '#teamNoticeLater'],
+                               ['#selectorNoticeLb', '#selectorNoticeLater']]);   // last in the queue (owner, 28 Nov 2026)
     expect(errors).toHaveLength(0);
 });
 
@@ -540,6 +542,62 @@ test('Team View notice: its button opens Team Week View, and it fits the smalles
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     expect(await page.evaluate(() => history.state?.mybOverlay ?? null), 'no step is left that nothing answers').toBeNull();
     expect(await page.evaluate(() => history.length)).toBe(entries);
+    expect(errors).toHaveLength(0);
+});
+
+// ── The Links Selector notice: what the page is, with a link to it, 28 November – 11 December (owner, 28 Nov 2026) ──
+//
+// Who gets it, the order and every date are pinned in calendar-notices.test.mjs; the order on a real page is the final-week
+// test above. What only a browser shows: the card fits the two smallest phones the app is measured at, and its link opens
+// the page for somebody the page admits.
+const SELECTOR_NOTICE_DAY = new Date('2026-11-30T09:00:00Z');
+for (const [width, height] of [[360, 740], [375, 667]]) {
+    test(`Links Selector notice: fits a ${width}x${height} phone without scrolling, and its link opens the page for a colleague it is for`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.setViewportSize({ width, height });
+        await page.clock.setFixedTime(SELECTOR_NOTICE_DAY);
+        await seedSession(page, NEWLINK_COLLEAGUE);
+        await seedMemberSession(page, NEWLINK_COLLEAGUE);
+        await clearNoticeFlags(page, ['myb_notice_links_selector_2026_done']);   // after the seeders: last write wins
+        await page.goto('/');
+        const notice = page.locator('#selectorNoticeLb');
+        await expect(notice, 'every notice before it answered by the seeders').toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#selectorNoticeContent .lightbox-app-name')).toHaveText('See the proposals as a calendar');
+        await page.waitForTimeout(600);                           // the open transition, so the card is measured at rest
+        const fit = await page.locator('#selectorNoticeContent').evaluate(el => el.scrollHeight - el.clientHeight);
+        expect(fit, 'the card scrolls inside itself').toBeLessThanOrEqual(0);
+        const go = page.locator('#selectorNoticeGo');
+        // The rendered lines of its words, by their distinct tops — its line-height is `normal`, so a height says nothing.
+        const lines = await go.evaluate(el => { const r = document.createRange(); r.selectNodeContents(el);
+            return new Set([...r.getClientRects()].map(b => Math.round(b.top))).size; });
+        expect(lines, 'the button keeps to one line').toBe(1);
+        // The flag is read AS THE LINK IS PRESSED (the New link notice's test says why).
+        await page.evaluate(() => document.addEventListener('click', () => {
+            sessionStorage.setItem('__selectorDoneAtClick', localStorage.getItem('myb_notice_links_selector_2026_done') ?? 'unset');
+        }));
+        await go.click();
+        await expect(page).toHaveURL(/\/links-selector\.html$/);
+        await expect(page.locator('#calendarDisplay .calendar-day').first(), 'the page let them in').toBeVisible({ timeout: 15_000 });
+        await expect(page.locator('#selectorNotForYou'), 'never the page\'s refusal card').toHaveCount(0);
+        expect(await page.evaluate(() => sessionStorage.getItem('__selectorDoneAtClick')), 'the link marks it done as it is pressed').toBe('1');
+        const filed = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_app_notices') || '[]')
+            .filter((/** @type {any} */ n) => n.id === 'links-selector-2026').map((/** @type {any} */ n) => n.section));
+        expect(filed, 'archived on open, under its own section').toEqual(['Links Selector']);
+        expect(errors).toHaveLength(0);
+    });
+}
+
+test('Links Selector notice: never for a colleague the page turns away — and not flagged', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(SELECTOR_NOTICE_DAY);
+    await seedSession(page, NOT_NEWLINK);
+    await seedMemberSession(page, NOT_NEWLINK);
+    await clearNoticeFlags(page, ['myb_notice_links_selector_2026_done']);
+    await page.goto('/');
+    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+    await page.waitForTimeout(2500);                          // past the 1,500ms defer
+    await expect(page.locator('#selectorNoticeLb')).not.toHaveClass(/\bopen\b/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_links_selector_2026_done')), 'refused, so left unflagged').toBeNull();
     expect(errors).toHaveLength(0);
 });
 

@@ -124,7 +124,7 @@ export function isCoverLine(proposal, line) {
 export function lineOptions(proposal) {
     return Array.from({ length: ROTATING_LINES }, (_, i) => {
         const n = i + 1;
-        return { value: String(n), label: isCoverLine(proposal, n) ? `Line ${n} · cover week` : `Line ${n}` };
+        return { value: String(n), label: isCoverLine(proposal, n) ? `Week ${n} · cover week` : `Week ${n}` };
     });
 }
 
@@ -221,9 +221,9 @@ export function initialChoice(search, stored) {
  */
 export function ignoredWords(ignored, proposalName, line) {
     const proposal = ignored.includes('proposal'), badLine = ignored.includes('line');
-    if (proposal && badLine) return `The link you opened names a proposal and a line that aren’t here, so this shows ${proposalName} from line ${line}.`;
+    if (proposal && badLine) return `The link you opened names a proposal and a week that aren’t here, so this shows ${proposalName} from week ${line}.`;
     if (proposal) return `The link you opened names a proposal that isn’t on the shortlist, so this shows ${proposalName}.`;
-    if (badLine) return `The link you opened names a line that isn’t one of the ${ROTATING_LINES}, so this shows line ${line}.`;
+    if (badLine) return `The link you opened names a week that isn’t one of the ${ROTATING_LINES}, so this shows week ${line}.`;
     return '';
 }
 

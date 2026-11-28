@@ -50,6 +50,7 @@ export const CALENDAR_NOTICE_FLAGS = Object.freeze([
     'myb_notice_newlink_vote_2026_done',      // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
     'myb_notice_move_to_main_2026_done',      // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
     'myb_notice_team_view_2026_done',         // the Team View notice, from 27 Nov 2026 for 90 days
+    'myb_notice_links_selector_2026_done',    // the Links Selector notice, 28 Nov – 11 Dec 2026
 ]);
 
 /**

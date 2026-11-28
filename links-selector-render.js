@@ -21,8 +21,7 @@
  * ── WHAT IS DIFFERENT, ON PURPOSE ──────────────────────────────────────────────────────────────
  *
  * - Days before the link starts are BLANK (links-selector-core.js): a date and nothing else, never today's roster.
- * - The header names the LINES the month's weeks fall on ("Lines 3–7"), where the Calendar names roster weeks.
- * - The month name is not a button: the Calendar's opens its month picker, and this page has none.
+ * - The header names the proposal's WEEKS the month falls on ("Weeks 3–7"), where the Calendar names the roster's.
  * - The cells carry no "As rostered" and no "changed from": nothing is recorded against a proposal.
  * - A spare day in a cover week, and a Sunday shift, carry a line for the day panel saying what they are
  *   (`data-detail-cover`, `data-detail-sunday`): the proposal's grid is all a colleague has to read it by.
@@ -75,10 +74,10 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
     const lines = monthLines(startLine, year, month);
     const header = document.createElement('div');
     header.className = 'calendar-header';
-    header.innerHTML = createCalendarHeader(lines?.first ?? '', lines?.last ?? '', lines ? 'Line' : '', month, year, ROTATING_LINES);
-    // The Calendar's month name opens its month picker; here there is none, so it is plain text, not a dead button.
-    const monthName = header.querySelector('.month-year');
-    if (monthName) { monthName.removeAttribute('role'); monthName.removeAttribute('tabindex'); monthName.removeAttribute('aria-label'); }
+    // THE CALENDAR'S HEADING, WHOLE (owner, 28 Nov 2026): the month's name opens the Calendar's own month picker
+    // (calendar-month-jump.js, handed this page's months by links-selector-app.js), and the note beside it names the weeks
+    // the month falls on — "Weeks 3–7", as the Calendar's says "CEA Weeks 3–7", the word New CEA Link uses for them too.
+    header.innerHTML = createCalendarHeader(lines?.first ?? '', lines?.last ?? '', lines ? 'Week' : '', month, year, ROTATING_LINES);
     container.appendChild(header);
 
     const grid = document.createElement('div');
@@ -142,7 +141,7 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
         cell.setAttribute('aria-label', cellName(date, shift, christmasLeave, extras));
         // The pieces the day panel shows, as the Calendar's cells carry them — read back by links-selector-app.js.
         cell.dataset.detailDay = `${FULL_DAY_NAMES[date.getDay()]} ${d} ${MONTH_NAMES[month]} ${year}`;
-        cell.dataset.detailWeek = `Line ${line}`;
+        cell.dataset.detailWeek = `Week ${line}`;
         cell.dataset.detailWho = proposalName;
         cell.dataset.detailShiftValue = shift;
         // The Calendar's desktop hover line (calendar-keyboard.js → initCalendarTooltip): the day's words, then its markers.

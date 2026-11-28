@@ -1752,4 +1752,6 @@ each opening the other on the proposal in hand: New CEA Link offers "See one as 
 it as a calendar" under each proposal's weeks (`?proposal=` and the sheet code), and the Links Selector offers "See the
 proposals side by side" under its key (`newlink.html?weeks=` and the code, which opens that proposal's weeks). Both are the
 same row — New CEA Link's file row, the destination named in its own colour's pill — and only a reader the Links Selector
-admits is offered the way there. Not from the Calendar yet (owner, the same day).
+admits is offered the way there. Not from the Calendar's own screen (owner, the same day): the Calendar's way in is a
+two-week one-time notice, last in its queue, that says what the page is and links to it (`links-selector-2026`, owner,
+the same day — 28 November to 11 December).

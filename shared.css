@@ -458,6 +458,7 @@
     --on-navy-trains:   oklch(82% 0.14 357.0deg);
     --on-navy-ops:      oklch(82% 0.15 64.1deg);
     --on-navy-newlink:  oklch(82% 0.11 182.5deg);   /* the New link pill's teal (`--al`'s hue) — v25.61 */
+    --on-navy-selector: oklch(82% 0.10 255.7deg);   /* the Links Selector pill's sky blue (`--blue-sky`'s hue) */
 
     --focus-outline: 2px solid var(--primary-blue);
     --focus-outline-gold: 2px solid var(--accent-gold);
@@ -1707,7 +1708,7 @@ button.lightbox-bug-link {
 /* Page-identity badge — coloured to match the page's nav pill.
    Use class="notice-badge notice-badge--[page]" on every notice lightbox.
    Modifier classes: --pay (green) · --links (purple) · --settings (indigo) · --ops (orange)
-                     --calendar (gold) · --trains (raspberry) · --newlink (teal) · no modifier = neutral */
+                     --calendar (gold) · --trains (raspberry) · --newlink (teal) · --selector (sky) · no modifier = neutral */
 .notice-badge {
     display: inline-flex;
     align-items: center;
@@ -1730,6 +1731,7 @@ button.lightbox-bug-link {
 /* The New link pill's teal under white type, as the drawer wears it (5.19:1 — css-tokens.md); first worn by
    `newlink-2026` (v25.61). */
 .notice-badge--newlink  { background: var(--al);          color: white; }
+.notice-badge--selector { background: var(--blue-sky);    color: white; }   /* the Links Selector pill's, as the drawer wears it */
 
 /* THE CARD — three zones, and a surface that reads.
    Use class="lb-content notice-lb-content" on every notice content div, and put the children in
@@ -2799,6 +2801,7 @@ button.nav-panel-link--notices {
    navy archive panel — the pill's own L51% is a FILL under white text, too dark to be text here. */
 .notices-item-section--trains   { color: var(--on-navy-trains); }
 .notices-item-section--newlink  { color: var(--on-navy-newlink); }
+.notices-item-section--selector { color: var(--on-navy-selector); }
 .notices-item-date {
     font-size: var(--type-badge);
     color: var(--on-navy-muted);   /* 0.70; it was 0.35 (2.79:1), then a 0.65 literal, to clear WCAG AA */

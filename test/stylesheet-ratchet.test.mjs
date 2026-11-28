@@ -88,7 +88,9 @@ const CAPS = {
     // 3789 → 3791 (27 Nov 2026): the Links Selector's drawer pill and its hover, beside every other page's pill.
     // 3791 → 3793 (27 Nov 2026, at 3,793), a RAISE of two lines: the sub-page header's badge shrinking to its emoji
     // when the app's name would be cut (`fitHeaderBadge`), a rule on every sub-page's header, so it can live nowhere else.
-    'shared.css':     3793,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
+    // 3793 → 3796 (28 Nov 2026, at 3,796), a RAISE of three lines: the Links Selector notice's sky-blue badge, its App
+    // Notices section colour and that colour's on-navy token — a notice and the drawer's archive, so nowhere else.
+    'shared.css':     3796,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     // 3776 → 3786 (27 Nov 2026): the Pages mirror's desktop line, a new surface on every page and the sign-in card.
     // 2700 → 2650 (Nov 2026, at 2,574): the week grid's five-column template and the two blocks that
     // restated the stacked one over it became one rule; dead and inert rules out (css-admin-ops-15).

@@ -111,6 +111,22 @@
     </div>
 </div>
 
+<!-- The Calendar's month picker (index.html → #monthJumpOverlay), opened by the month's name and wired by
+     calendar-month-jump.js with this page's months: January 2027 to December 2028. -->
+<div id="monthJumpOverlay" class="lb-overlay" role="dialog" aria-label="Jump to month" aria-modal="true">
+    <div id="monthJumpCard" class="lb-content">
+        <h2>Jump to month</h2>
+        <div class="month-jump-selects">
+            <select id="monthJumpMonth" aria-label="Month"></select>
+            <select id="monthJumpYear" aria-label="Year"></select>
+        </div>
+        <div class="month-jump-actions">
+            <button type="button" id="monthJumpCancel">Cancel</button>
+            <button type="button" id="monthJumpConfirm">Go to month</button>
+        </div>
+    </div>
+</div>
+
 <div class="container">
     <!-- The sub-pages' header (shared.css): the burger, the logo back to the Calendar, and the page's badge, which fits
          beside the name down to 320px. Everything under it is the Calendar's. -->
@@ -143,7 +159,7 @@
         </div>
         <div class="controls-row">
             <div class="control-group control-group--stacked">
-                <label for="selectorLine" class="visually-hidden">The line you start on</label>
+                <label for="selectorLine" class="visually-hidden">The week you start on</label>
                 <select id="selectorLine"></select>
             </div>
             <!-- The Calendar's gold 📍 Today button, for this page's anchor: the week the new link starts. Its date is written
