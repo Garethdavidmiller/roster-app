@@ -25,12 +25,22 @@
  * - The cells carry no "As rostered" and no "changed from": nothing is recorded against a proposal.
  * - A spare day in a cover week, and a Sunday shift, carry a line for the day panel saying what they are
  *   (`data-detail-cover`, `data-detail-sunday`): the proposal's grid is all a colleague has to read it by.
+ *
+ * ── COMPARE: THE PROPOSALS SIDE BY SIDE (owner, 28 Nov 2026: "Do 2, not as the default view") ───────────────────
+ *
+ * `buildSelectorTable` draws the same month for every proposal (and, for "Compare with mine", the reader's roster today beside
+ * one), from the same starting week, as ONE TABLE: dates down
+ * the side, a column per proposal, so one row reads "this day, under each proposal". Turned the other way — Team Week
+ * View's way, a row per person and a column per day — it scrolled sideways on a phone and put the three answers for one
+ * day in three different rows. Its cells ARE Team Week View's (index.css → `.tv-cell` and its `.tv-*` colours), with the
+ * words Team Week View gives each kind of day, so a Compare cell reads exactly as a colleague's day reads there. The
+ * month's heading is the Calendar's own, as on the month, so the month picker opens from it here too.
  */
 
-import { MONTH_NAMES, isSameDay, isBankHoliday, isChristmasDay, isEasterSunday, isPayday, isCutoffDate, isWorkedShift, getShiftClass } from './roster-data.js';
+import { MONTH_NAMES, isSameDay, isBankHoliday, isChristmasDay, isEasterSunday, isPayday, isCutoffDate, isWorkedShift, getShiftClass, shiftBadgeParts, escapeHtml } from './roster-data.js';
 import { createCalendarHeader, createDayCell, dayCellParts, dayCellName, dayMarkers, shiftWords, splitShiftLine, CHRISTMAS_LEAVE_WORDS } from './calendar-renderer.js';
 import { ROTATING_LINES } from './link-designer-design.js';
-import { dayOn, monthLines, isCoverLine } from './links-selector-core.js';
+import { dayOn, monthLines, isCoverLine, compareRows } from './links-selector-core.js';
 import { DAY_NAMES, DAY_NAMES_FULL } from './date-format.js';
 
 // The app's one list of day names (date-format.js), as the Calendar's grid reads it.
@@ -175,5 +185,108 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
     anchor?.setAttribute('tabindex', '0');
 
     container.appendChild(grid);
+    return container;
+}
+
+/** Team Week View's cell for a kind of day (calendar-team-view.js → getTeamCellDisplay), by the Calendar's own classes. */
+const TV_CLASS = Object.freeze({ 'early-shift': 'tv-early', 'late-shift': 'tv-late', 'night-shift': 'tv-night', 'rest-day': 'tv-rest',
+    'spare-day': 'tv-spare', 'al-day': 'tv-al' });
+
+/**
+ * One column of a side-by-side table: a proposal from the chosen week, or the reader's own roster today.
+ * @typedef {{ key: string, name: string, kind: 'proposal'|'mine', chosen?: boolean,
+ *   dayAt: (date: Date) => import('./links-selector-core.js').SelectorDay, isCover?: (line: number) => boolean }} TableColumn
+ */
+
+/**
+ * One day of one column as a cell: the text Team Week View shows, its colour class, and what it says aloud — a cover
+ * week's spare day and a Sunday shift say what they are, as the month's day panel does, because a cell is all there is.
+ * @param {import('./links-selector-core.js').SelectorDay} day @param {Date} date @param {boolean} cover
+ * @returns {{ html: string, cls: string, label: string }}
+ */
+function tableCell(day, date, cover) {
+    if (day.blank) return { html: '', cls: '', label: '' };
+    const { shift, christmasLeave } = day;
+    const cls = TV_CLASS[/** @type {keyof typeof TV_CLASS} */ (getShiftClass(shift))] ?? '';
+    if (shift === 'RD' || shift === 'OFF') return { html: '–', cls, label: 'Rest day' };
+    if (shift === 'SPARE') return { html: '📋 Spare', cls, label: cover ? 'Spare, a cover week' : 'Spare day' };
+    if (shift === 'AL') return { html: '🏖️ AL', cls, label: christmasLeave ? CHRISTMAS_LEAVE_WORDS : 'Annual leave' };
+    const { emoji } = shiftBadgeParts(shift);
+    const words = shiftWords(shift, NO_MEMBER, false);
+    const sunday = date.getDay() === 0 && isWorkedShift(shift);
+    // The emoji and the time on ONE line where the column has the room, the time under it where it has not: never the
+    // time broken at its dash.
+    return { html: `<span class="cmp-ico" aria-hidden="true">${emoji}</span> <span class="cmp-time">${escapeHtml(shift)}</span>`,
+        cls, label: sunday ? `${words}, overtime` : words };
+}
+
+/**
+ * The same month in every column, side by side: a `.calendar-container` with the Calendar's heading and one table — a
+ * row per date, a column per `columns` entry — that the page's swipe moves like a month. Compare hands it every proposal;
+ * "Compare with mine" hands it the reader's roster today and the chosen proposal.
+ * @param {ReadonlyArray<TableColumn>} columns in order
+ * @param {number} startLine @param {number} year @param {number} month 0-indexed
+ * @param {{ today?: Date, caption: string }} opts
+ * @returns {HTMLElement}
+ */
+export function buildSelectorTable(columns, startLine, year, month, opts) {
+    const today = opts.today ?? new Date();
+    const container = document.createElement('div');
+    container.className = 'calendar-container selector-compare';
+    container.dataset.selectorMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+    const lines = monthLines(startLine, year, month);
+    const header = document.createElement('div');
+    header.className = 'calendar-header';
+    header.innerHTML = createCalendarHeader(lines?.first ?? '', lines?.last ?? '', lines ? 'Week' : '', month, year, ROTATING_LINES);
+    container.appendChild(header);
+
+    const monthName = MONTH_NAMES[month];
+    const span = columns.length;
+    const colClass = (/** @type {TableColumn} */ c) => `${c.chosen ? ' cmp-chosen' : ''}${c.kind === 'mine' ? ' cmp-mine' : ''}`;
+    const head = columns.map(c => `<th scope="col" class="cmp-col${colClass(c)}"${c.chosen ? ' aria-current="true"' : ''}>${escapeHtml(c.name)}</th>`).join('');
+    const rows = compareRows(startLine, year, month);
+    // WHAT A CELL CANNOT SAY, said under the table (staff-copy.md: educate at the point of use): a month's grid has the
+    // day panel for it, and these cells open nothing. Only for what this month shows — the day panel's own words.
+    let sundayWorked = false, cover = false;
+    const body = rows.map(row => {
+        if (row.kind === 'week') return `<tr class="cmp-week"><th scope="colgroup" colspan="${span + 1}">Week ${row.line}</th></tr>`;
+        if (row.kind === 'before') {
+            const dates = row.first.getDate() === row.last.getDate() ? `${row.first.getDate()}` : `${row.first.getDate()}–${row.last.getDate()}`;
+            return `<tr class="cmp-before"><th scope="row" class="tv-name-col">${dates}</th>`
+                + `<td class="tv-cell cmp-blank" colspan="${span}">Before the new link starts</td></tr>`;
+        }
+        const { date } = row;
+        // The month's holiday markers, which bear on what a rota asks of you — not its pay markers, which do not differ
+        // between rotas (the key hides those two here: links-selector.css).
+        const marks = [isBankHoliday(date) ? ['⭐', 'bank holiday'] : null, isChristmasDay(date) ? ['🎄', 'Christmas Day'] : null,
+            isEasterSunday(date) ? ['🐣', 'Easter Sunday'] : null].filter(Boolean);
+        const marksHtml = marks.map(m => ` <span aria-hidden="true">${/** @type {string[]} */ (m)[0]}</span><span class="visually-hidden">, ${/** @type {string[]} */ (m)[1]}</span>`).join('');
+        const isToday = isSameDay(date, today);
+        const dayHead = `<th scope="row" class="tv-name-col cmp-day${date.getDay() === 0 ? ' cmp-sunday' : ''}${isToday ? ' cmp-today' : ''}">`
+            + `<span class="cmp-wd">${SHORT_DAY_NAMES[date.getDay()]}</span> <span class="cmp-dn">${date.getDate()}</span>`
+            + `<span class="visually-hidden"> ${monthName}${isToday ? ', today' : ''}</span>${marksHtml}</th>`;
+        const cells = columns.map(c => {
+            const day = c.dayAt(date);
+            const isCover = !day.blank && day.shift === 'SPARE' && !!c.isCover?.(day.line);
+            if (!day.blank && date.getDay() === 0 && isWorkedShift(day.shift)) sundayWorked = true;
+            if (isCover) cover = true;
+            const cell = tableCell(day, date, isCover);
+            return `<td class="tv-cell ${cell.cls}${colClass(c)}" aria-label="${escapeHtml(`${c.name}: ${cell.label}`)}">${cell.html}</td>`;
+        }).join('');
+        return `<tr>${dayHead}${cells}</tr>`;
+    }).join('');
+    const foot = [
+        sundayWorked ? 'Sunday shifts are overtime.' : '',
+        cover ? 'Spare is a cover week: four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.' : '',
+    ].filter(Boolean).join(' ');
+
+    const wrap = document.createElement('div');
+    wrap.className = 'cmp-wrap';
+    wrap.innerHTML = `<table class="team-table cmp-table cmp-cols-${span}">
+        <caption class="visually-hidden">${escapeHtml(opts.caption)}: ${monthName} ${year}</caption>
+        <thead><tr><th scope="col" class="tv-name-col">Day</th>${head}</tr></thead>
+        <tbody>${body}</tbody></table>${foot ? `<p class="cmp-foot">${foot}</p>` : ''}`;
+    container.appendChild(wrap);
     return container;
 }

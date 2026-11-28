@@ -34,8 +34,8 @@
 
 import { PROPOSALS, proposalDisplayName } from './link-designer-proposals.js';
 import { DAYS, ROTATING_LINES, isCoverWeek } from './link-designer-design.js';
-import { isChristmasRD } from './roster-data.js';
-import { isChristmasDueByPattern } from './christmas-leave.js';
+import { isChristmasRD, getBaseShift } from './roster-data.js';
+import { isChristmasDueByPattern, isChristmasLeaveDay } from './christmas-leave.js';
 
 /**
  * The Sunday the new link starts, as the Links Selector draws it — PROVISIONAL (owner, 27 Nov 2026: "It should
@@ -99,6 +99,23 @@ export function dayOn(proposal, startLine, date) {
         return { blank: false, shift: due ? 'AL' : 'RD', line, christmasLeave: due };
     }
     return { blank: false, shift: pattern, line, christmasLeave: false };
+}
+
+/**
+ * The reader's OWN roster on `date`, as it is today — for "Compare with mine" (owner, 28 Nov 2026: "Do 5 … clear labelling").
+ *
+ * The member's base roster only, by the Calendar's own two rules: `getBaseShift` (the pattern, its start date and any
+ * scheduled move, with 25 and 26 December at rest) and Christmas leave on top (`isChristmasLeaveDay`). What it never adds is
+ * anything RECORDED — leave, absence, a changed shift — which lives in Firestore behind a claim; this page reads none of it
+ * (owner: "Leave out"), and the column says so. Nor does it know which week of a proposal the member would start on: that
+ * is decided later, which the page says too.
+ * @param {any} member a teamMembers row
+ * @param {Date} date
+ * @returns {{ blank: false, shift: string, line: number, christmasLeave: boolean }} never blank: a roster has every day
+ */
+export function rosterDayOn(member, date) {
+    const christmasLeave = isChristmasLeaveDay(member, date);
+    return { blank: false, shift: christmasLeave ? 'AL' : getBaseShift(member, date), line: 0, christmasLeave };
 }
 
 /** The shortlisted proposals in the order the page lists them: A to Z by the name shown, as the New CEA Link page lists
@@ -165,6 +182,52 @@ export function shiftTypesInMonth(proposal, startLine, year, month) {
     return types;
 }
 
+/**
+ * The kinds of day a month draws across EVERY proposal shown side by side (Compare): the key under the table names what
+ * any column has, by the same rule as one proposal's (`shiftTypesInMonth`), so it never names a day no column shows.
+ * @param {ReadonlyArray<{ patterns: Record<string, Record<string, string>> }>} proposals @param {number} startLine
+ * @param {number} year @param {number} month 0-indexed
+ * @returns {Set<string>}
+ */
+export function shiftTypesInMonthAll(proposals, startLine, year, month) {
+    const types = new Set();
+    for (const p of proposals) for (const t of shiftTypesInMonth(p, startLine, year, month)) types.add(t);
+    return types;
+}
+
+/**
+ * @typedef {{ kind: 'before', first: Date, last: Date }
+ *   | { kind: 'week', line: number }
+ *   | { kind: 'day', date: Date }} CompareRow
+ */
+
+/**
+ * The rows of Compare for one month, top to bottom (owner, 28 Nov 2026: the proposals side by side, same month, same week).
+ * One row per date from the link's start, each week headed by its number — a week's number is the SAME in every column,
+ * because every proposal is shown from the one starting week — and the days before the link starts folded into one row,
+ * as the month leaves them blank. What each proposal gives on a date is `dayOn`, asked by the renderer per column, so a
+ * column can never disagree with that proposal's own month.
+ * @param {number} startLine @param {number} year @param {number} month 0-indexed
+ * @returns {CompareRow[]}
+ */
+export function compareRows(startLine, year, month) {
+    /** @type {CompareRow[]} */
+    const rows = [];
+    const days = new Date(year, month + 1, 0).getDate();
+    /** @type {Date|null} */ let beforeFirst = null;
+    /** @type {Date|null} */ let beforeLast = null;
+    for (let d = 1; d <= days; d++) {
+        const date = new Date(year, month, d);
+        const line = lineOn(startLine, date);
+        if (line === null) { beforeFirst ??= date; beforeLast = date; continue; }
+        if (beforeFirst && beforeLast) { rows.push({ kind: 'before', first: beforeFirst, last: beforeLast }); beforeFirst = beforeLast = null; }
+        if (date.getDay() === 0 || rows.every(r => r.kind !== 'week')) rows.push({ kind: 'week', line });
+        rows.push({ kind: 'day', date });
+    }
+    if (beforeFirst && beforeLast) rows.push({ kind: 'before', first: beforeFirst, last: beforeLast });
+    return rows;
+}
+
 /** Does the month have days before the link starts — the ones the grid leaves blank? @param {number} year @param {number} month */
 export function hasBlankDays(year, month) {
     return lineOn(1, new Date(year, month, 1)) === null;
@@ -193,7 +256,7 @@ export function openingMonth(today = new Date()) {
  * this device kept is never reported: it is the page's own note, and a stale one is simply replaced.
  * @param {string} search the page's `location.search`
  * @param {{ proposal?: unknown, line?: unknown }|null} stored what this device kept
- * @returns {{ proposalId: string, line: number, ignored: Array<'proposal'|'line'> }}
+ * @returns {{ proposalId: string, line: number, ignored: Array<'proposal'|'line'>, view: 'month'|'compare'|'mine' }}
  */
 export function initialChoice(search, stored) {
     const params = new URLSearchParams(search || '');
@@ -209,7 +272,11 @@ export function initialChoice(search, stored) {
     const ignored = [];
     if (params.has('proposal') && pick(params.get('proposal')) === null) ignored.push('proposal');
     if (params.has('line') && num(params.get('line')) === null) ignored.push('line');
-    return { proposalId: /** @type {any} */ (PROPOSALS.find(p => p.code === code)).id, line, ignored };
+    // Neither side-by-side view is where the page OPENS by itself (owner: "not as the default view"): only an address that
+    // asks for one — a shared link, or a reload of one — and this device never remembers it.
+    const asked = params.get(VIEW_PARAM);
+    const view = asked === COMPARE_VIEW || asked === MINE_VIEW ? asked : MONTH_VIEW;
+    return { proposalId: /** @type {any} */ (PROPOSALS.find(p => p.code === code)).id, line, ignored, view };
 }
 
 /**
@@ -250,7 +317,14 @@ export function refusalWords({ otherStaff, inAudience }) {
         newlink: true };
 }
 
-/** The address's query for a choice. @param {{ code: string }} proposal @param {number} line */
-export function choiceQuery(proposal, line) {
-    return `?proposal=${encodeURIComponent(proposal.code)}&line=${line}`;
+/** The address's word for the view, and its values: `?view=compare` is Compare all, `?view=mine` is Compare with mine, and
+ *  no `view` is the month. */
+export const VIEW_PARAM = 'view';
+export const MONTH_VIEW = 'month';
+export const COMPARE_VIEW = 'compare';
+export const MINE_VIEW = 'mine';
+
+/** The address's query for a choice. @param {{ code: string }} proposal @param {number} line @param {string} [view] */
+export function choiceQuery(proposal, line, view = MONTH_VIEW) {
+    return `?proposal=${encodeURIComponent(proposal.code)}&line=${line}${view !== MONTH_VIEW ? `&${VIEW_PARAM}=${view}` : ''}`;
 }

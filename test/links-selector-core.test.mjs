@@ -11,7 +11,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STARTS, FIRST_MONTH, LAST_MONTH, startDate, lineOn, dayOn, proposalsAtoZ, isCoverLine, lineOptions,
-    monthLines, inRange, openingMonth, initialChoice, choiceQuery, shiftTypesInMonth, hasBlankDays, ignoredWords, refusalWords } from '../links-selector-core.js';
+    monthLines, inRange, openingMonth, initialChoice, choiceQuery, shiftTypesInMonth, hasBlankDays, ignoredWords, refusalWords,
+    compareRows, shiftTypesInMonthAll, VIEW_PARAM, COMPARE_VIEW, MINE_VIEW, MONTH_VIEW, rosterDayOn } from '../links-selector-core.js';
 import { readFileSync } from 'node:fs';
 import { STARTS as NEWLINK_STARTS } from '../newlink-config.js';
 import { PROPOSALS, proposalDisplayName } from '../link-designer-proposals.js';
@@ -118,11 +119,11 @@ test('the months the page shows, and the one it opens on', () => {
 
 test('the opening choice: the address, then this device, then the first proposal on line 1 — and nothing guessed', () => {
     const first = proposalsAtoZ()[0];
-    assert.deepEqual(initialChoice('', null), { proposalId: first.id, line: 1, ignored: [] });
-    assert.deepEqual(initialChoice('?proposal=LC-26-T10&line=7', null), { proposalId: 'proposal:LC-26-T10', line: 7, ignored: [] });
-    assert.deepEqual(initialChoice('', { proposal: 'MG-26-T8', line: 12 }), { proposalId: 'proposal:MG-26-T8', line: 12, ignored: [] });
+    assert.deepEqual(initialChoice('', null), { proposalId: first.id, line: 1, ignored: [], view: 'month' });
+    assert.deepEqual(initialChoice('?proposal=LC-26-T10&line=7', null), { proposalId: 'proposal:LC-26-T10', line: 7, ignored: [], view: 'month' });
+    assert.deepEqual(initialChoice('', { proposal: 'MG-26-T8', line: 12 }), { proposalId: 'proposal:MG-26-T8', line: 12, ignored: [], view: 'month' });
     // the address wins, half by half: a link naming only a line keeps the proposal this device last showed
-    assert.deepEqual(initialChoice('?line=3', { proposal: 'MG-26-T8', line: 12 }), { proposalId: 'proposal:MG-26-T8', line: 3, ignored: [] });
+    assert.deepEqual(initialChoice('?line=3', { proposal: 'MG-26-T8', line: 12 }), { proposalId: 'proposal:MG-26-T8', line: 3, ignored: [], view: 'month' });
     // a choice that names nothing is ignored, never guessed at
     for (const bad of ['?proposal=XX&line=0', '?proposal=proposal:LC-26-T10&line=27', '?line=7.5', '?line=-1', '?line=1e1']) {
         const got = initialChoice(bad, null);
@@ -134,7 +135,7 @@ test('the opening choice: the address, then this device, then the first proposal
     assert.deepEqual(initialChoice('?proposal=XX&line=4', null).ignored, ['proposal']);
     assert.deepEqual(initialChoice('?proposal=LC-26-T10&line=27', null).ignored, ['line']);
     assert.deepEqual(initialChoice('?proposal=&line=', null).ignored, ['proposal', 'line']);
-    assert.deepEqual(initialChoice('', { proposal: 42, line: '12' }), { proposalId: first.id, line: 12, ignored: [] });
+    assert.deepEqual(initialChoice('', { proposal: 42, line: '12' }), { proposalId: first.id, line: 12, ignored: [], view: 'month' });
     assert.equal(choiceQuery(/** @type {any} */ (PROPOSALS[0]), 9), `?proposal=${PROPOSALS[0].code}&line=9`);
 });
 
@@ -218,7 +219,7 @@ test('New CEA Link and the Links Selector send each other the proposal in the ot
         const href = selectorHref(p);
         assert.ok(href.startsWith(`${SELECTOR_URL}?`), href);
         // the Links Selector reads exactly that proposal from it, and says nothing about a line it did not name
-        assert.deepEqual(initialChoice(href.slice(href.indexOf('?')), null), { proposalId: p.id, line: 1, ignored: [] });
+        assert.deepEqual(initialChoice(href.slice(href.indexOf('?')), null), { proposalId: p.id, line: 1, ignored: [], view: 'month' });
     }
     const app = readFileSync(new URL('../links-selector-app.js', import.meta.url), 'utf8');
     const newlinkApp = readFileSync(new URL('../newlink-app.js', import.meta.url), 'utf8');
@@ -238,5 +239,85 @@ test('the two rows are one recipe: the Links Selector\'s way out is drawn as New
     const sel = block(readFileSync(new URL('../links-selector.css', import.meta.url), 'utf8'), '.selector-onward');
     for (const prop of ['display', 'align-items', 'gap', 'padding', 'border', 'border-radius', 'background', 'box-shadow', 'color', 'font-weight', 'text-decoration', 'transition']) {
         assert.equal(sel[prop], nl[prop], prop);
+    }
+});
+
+// ── ⚖️ COMPARE (owner, 28 Nov 2026: "Do 2, not as the default view") ─────────────────────────────────────────────────
+
+test('Neither side-by-side view is where the page opens by itself: only an address that asks, and this device never keeps one', () => {
+    assert.equal(initialChoice('', null).view, MONTH_VIEW, 'a first visit opens on the month');
+    assert.equal(initialChoice('', /** @type {any} */ ({ proposal: 'MB-26-V6', line: 3, compare: true, view: 'compare' })).view, MONTH_VIEW,
+        'nothing this device kept can open one');
+    assert.equal(initialChoice(`?proposal=MB-26-V6&line=3&${VIEW_PARAM}=${COMPARE_VIEW}`, null).view, COMPARE_VIEW, 'a shared link can');
+    assert.equal(initialChoice(`?${VIEW_PARAM}=${MINE_VIEW}`, null).view, MINE_VIEW);
+    assert.equal(initialChoice(`?${VIEW_PARAM}=something`, null).view, MONTH_VIEW, 'any other view is the month');
+    // The address round-trips, and the month's address names no view at all.
+    const p = proposalsAtoZ()[0];
+    assert.equal(choiceQuery(p, 4), `?proposal=${encodeURIComponent(p.code)}&line=4`);
+    for (const v of [MONTH_VIEW, COMPARE_VIEW, MINE_VIEW]) assert.equal(initialChoice(choiceQuery(p, 4, v), null).view, v);
+});
+
+test('"Your roster today" is the member\'s base roster by the Calendar\'s own rules — the pattern, and Christmas leave on top — and nothing recorded', async () => {
+    const { teamMembers, getBaseShift, isOtherStaff } = await import('../roster-data.js');
+    const { isChristmasLeaveDay } = await import('../christmas-leave.js');
+    const members = teamMembers.filter(m => !m.hidden && !isOtherStaff(m)).slice(0, 12);
+    assert.ok(members.length >= 5, 'premise: real members to ask');
+    let christmasSeen = 0;
+    for (const m of members) for (const [y, mo, d] of [[2027, 0, 17], [2027, 1, 3], [2027, 6, 14], [2027, 11, 25], [2027, 11, 26], [2028, 11, 25], [2028, 4, 29]]) {
+        const date = new Date(y, mo, d);
+        const day = rosterDayOn(m, date);
+        assert.equal(day.blank, false, 'a roster has every day');
+        const xmas = isChristmasLeaveDay(m, date);
+        if (xmas) christmasSeen++;
+        assert.equal(day.christmasLeave, xmas);
+        assert.equal(day.shift, xmas ? 'AL' : getBaseShift(m, date), `${m.name} ${date.toDateString()}: the Calendar's base day`);
+    }
+    assert.ok(christmasSeen > 0, 'premise: some member is due at work on a Christmas date, so the leave rule was exercised');
+    // Nothing recorded can reach it: the module reads no Firestore and no override.
+    const src = readFileSync(new URL('../links-selector-core.js', import.meta.url), 'utf8');
+    const imports = [...src.matchAll(/from\s+'\.\/([\w.-]+)'/g)].map(m => m[1]);
+    assert.deepEqual(imports.filter(f => /firebase|firestore|override|calendar-|session|auth/.test(f)), [],
+        `the rules module reads nothing recorded — it imports ${imports.join(', ')}`);
+});
+
+test('Compare\'s rows: every date once, in order, each week headed by the number every column shares, and the days before the start folded into one row', () => {
+    for (const startLine of [1, 5, 26]) for (const [y, m] of [[2027, 0], [2027, 1], [2027, 11], [2028, 1], [2028, 11]]) {
+        const rows = compareRows(startLine, y, m);
+        const days = rows.filter(r => r.kind === 'day').map(r => /** @type {any} */ (r).date);
+        const before = rows.filter(r => r.kind === 'before');
+        const inMonth = new Date(y, m + 1, 0).getDate();
+        const blankCount = before.reduce((n, r) => n + (/** @type {any} */ (r).last.getDate() - /** @type {any} */ (r).first.getDate() + 1), 0);
+        assert.equal(days.length + blankCount, inMonth, `${y}-${m + 1} from week ${startLine}: every date accounted for once`);
+        days.forEach((d, i) => { if (i) assert.equal(d.getDate(), days[i - 1].getDate() + 1, 'in order, none skipped'); });
+        assert.ok(before.length <= 1, 'one row for the days before the start, never several');
+        if (before.length) assert.equal(rows[0].kind, 'before', 'and it comes first: the start is in this month');
+        // A week row stands before each Sunday and before the month's first drawn day, naming that day's week.
+        rows.forEach((r, i) => {
+            if (r.kind !== 'day') return;
+            const d = /** @type {any} */ (r).date;
+            const firstDrawn = rows.findIndex(x => x.kind === 'day') === i;
+            if (d.getDay() === 0 || firstDrawn) {
+                const prev = rows[i - 1];
+                assert.equal(prev?.kind, 'week', `${d.toDateString()}: a week row heads it`);
+                assert.equal(/** @type {any} */ (prev).line, lineOn(startLine, d), 'naming the week that day falls in');
+            } else assert.notEqual(rows[i - 1].kind, 'week', 'and only there');
+        });
+    }
+    // January 2027 from week 5: 1–16 before the start, then week 5 from Sunday 17.
+    const jan = compareRows(5, 2027, 0);
+    assert.deepEqual([jan[0].kind, /** @type {any} */ (jan[0]).first.getDate(), /** @type {any} */ (jan[0]).last.getDate()], ['before', 1, 16]);
+    assert.deepEqual(jan[1], { kind: 'week', line: 5 });
+    // A month wholly before the start is one row (none is in range today, but the rule must not loop or invent weeks).
+    const dec = compareRows(1, 2026, 11);
+    assert.deepEqual(dec.map(r => r.kind), ['before']);
+});
+
+test('Compare\'s key names what ANY column has — and only that', () => {
+    const all = proposalsAtoZ();
+    for (const startLine of [1, 2, 9, 17]) for (const [y, m] of [[2027, 0], [2027, 5], [2027, 11], [2028, 11]]) {
+        const union = shiftTypesInMonthAll(all, startLine, y, m);
+        const each = all.map(p => shiftTypesInMonth(p, startLine, y, m));
+        for (const t of union) assert.ok(each.some(s => s.has(t)), `${t} named, and no column has it`);
+        for (const s of each) for (const t of s) assert.ok(union.has(t), `${t} in a column, and the key leaves it out`);
     }
 });

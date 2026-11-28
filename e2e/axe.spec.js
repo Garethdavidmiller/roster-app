@@ -757,6 +757,34 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // ⚖️ Compare (owner, 28 Nov 2026): the proposals side by side, one table, the chosen column in the page's sky blue.
+    test('links selector — Compare all, January and February 2027', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=7&view=compare');
+        await expect(page.locator('.cmp-table')).toBeVisible();
+        let v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+        await page.locator('#nextMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    // 👤 Compare with mine (owner, 28 Nov 2026): the reader's roster today beside a proposal, its heading in the Calendar's gold.
+    test('links selector — Compare with mine, January and February 2027', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=7&view=mine');
+        await expect(page.locator('.cmp-table thead th.cmp-mine')).toBeVisible();
+        let v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+        await page.locator('#nextMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // THE PACK'S PDF VIEWER (pdf-viewer.js, v25.67): a dialog over the page, its pages drawings a screen reader cannot read —
     // so each page is a named group carrying its words, and the scroll box is a named tab stop. Scanned open on a drawn
     // file, then on the failure state with its Try again.
