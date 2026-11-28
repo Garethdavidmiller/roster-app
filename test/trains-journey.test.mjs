@@ -16,7 +16,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseJourney, findStation, journey, journeyDate, timetableOn, departures, viaMatters, dayKindOf, isoDate, addDays } from '../trains-journey.js';
+import { parseJourney, findStation, journey, journeyDate, journeyDateAt, dayWord, timetableOn, departures, viaMatters, dayKindOf, isoDate, addDays } from '../trains-journey.js';
 import { renderJourney, renderNoStation } from '../trains-render.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from '../trains-data.js';
 
@@ -111,7 +111,7 @@ describe('journey — the first train there, then the next', () => {
     test('the next alternatives are the next trains to leave — on a Sunday, one via High Wycombe and a later one that gets there first', () => {
         const j = ask('AYS', '17:45', day(11, 29));     // Sunday 29 November
         assert.deepEqual(j.trains.map(t => `${t.dep} ${t.via} ${t.arrives}`), ['17:53 H 19:16', '17:57 A 18:55', '18:27 A 19:26']);
-        const html = words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'time', today: true }));
+        const html = words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'time', now: day(11, 29) }));
         assert.match(html, /First train to Aylesbury after 17:45 17:53 to Aylesbury , via High Wycombe Gets there at 19:16/);
         assert.match(html, /Then 17:57 to Aylesbury Vale Parkway , via Amersham Gets to Aylesbury at 18:55, before the 17:53/);
         assert.doesNotMatch(html, /18:27[^]*before the/, 'a train that gets there later says nothing of it');
@@ -121,7 +121,7 @@ describe('journey — the first train there, then the next', () => {
         assert.equal(viaMatters(TIMETABLES.now.SX.dep, 'GER'), false);
         assert.equal(viaMatters(TIMETABLES.now.SX.dep, 'AYS'), true);
         const j = ask('GER', '07:00', day(11, 27));
-        assert.doesNotMatch(renderJourney(j, { crs: 'GER', stations: STATIONS, asked: 'time', today: true }), /via (High Wycombe|Amersham)/);
+        assert.doesNotMatch(renderJourney(j, { crs: 'GER', stations: STATIONS, asked: 'time', now: day(11, 27) }), /via (High Wycombe|Amersham)/);
     });
 
     test('a weekday is answered from that weekday\'s trains: Banbury after 17:30 is the 17:37 on a Monday, the 17:33 on a Tuesday', () => {
@@ -135,7 +135,7 @@ describe('journey — the first train there, then the next', () => {
         assert.equal(timetableOn(day(12, 13), dates).label, 'Timetable from Sunday 13 December');
         assert.notEqual(ask('BMO', '15:30', day(12, 6)).trains[0].dep, '15:38', 'premise: the old Sunday has no 15:38');
         assert.equal(ask('BMO', '15:30', day(12, 13)).trains[0].dep, '15:38');
-        assert.match(renderJourney(ask('BMO', '15:30', day(12, 13)), { crs: 'BMO', stations: STATIONS, asked: 'time', today: true }),
+        assert.match(renderJourney(ask('BMO', '15:30', day(12, 13)), { crs: 'BMO', stations: STATIONS, asked: 'time', now: day(12, 13) }),
             /Sunday 13 December.*Timetable from Sunday 13 December.*Scheduled/);
     });
 
@@ -149,24 +149,24 @@ describe('journey — the first train there, then the next', () => {
         assert.equal(isoDate(j.next.date), '2026-12-13');
         assert.equal(j.next.timetable.side, 'dec', 'the morning after is the new timetable\'s');
         assert.equal(j.next.trains[0].dep, departures(TIMETABLES.dec.SU.dep, 'BCF', day(12, 13), '03:00')[0].dep);
-        const html = words(renderJourney(j, { crs: 'BCF', stations: STATIONS, asked: 'time', today: true }));
-        assert.match(html, /^Saturday 12 December · Timetable until Saturday 12 December Scheduled No more trains to Beaconsfield today after 00:30\. First train tomorrow Sunday 13 December · Timetable from Sunday 13 December Scheduled 07:42 to /);
+        const html = words(renderJourney(j, { crs: 'BCF', stations: STATIONS, asked: 'time', now: day(12, 12) }));
+        assert.match(html, /^Saturday 12 December · Timetable until Saturday 12 December Scheduled No more trains to Beaconsfield today after 00:30\. First train tomorrow Sunday 13 December · Timetable from Sunday 13 December Scheduled Christmas and New Year times are not on this page\. [^]*? 07:42 to /);
         // Asked from the clock, the sentence names no minute, so it does not change (and is not read out) each minute.
-        assert.match(words(renderJourney(j, { crs: 'BCF', stations: STATIONS, asked: 'now', today: true })), /No more trains to Beaconsfield today\. First train tomorrow/);
+        assert.match(words(renderJourney(j, { crs: 'BCF', stations: STATIONS, asked: 'now', now: day(12, 12) })), /No more trains to Beaconsfield today\. First train tomorrow/);
         // On another day than today, the day is named.
-        assert.match(words(renderJourney(j, { crs: 'BCF', stations: STATIONS, asked: 'time', today: false })), /on Saturday 12 December after 00:30\. First train the day after/);
+        assert.match(words(renderJourney(j, { crs: 'BCF', stations: STATIONS, asked: 'time', now: day(12, 1) })), /on Saturday 12 December after 00:30\. First train the day after/);
     });
 
     test('no train either day: said, and the journey planner offered', () => {
         const none = { ...ask('BCF', '00:30', day(12, 12)) };
         none.next = { ...(/** @type {NonNullable<typeof none.next>} */ (none.next)), trains: [] };
-        assert.match(renderJourney(none, { crs: 'BCF', stations: STATIONS, asked: 'time', today: true }), /None tomorrow either\. For a journey with a change of train, check <a href="https:\/\/www\.nationalrail\.co\.uk\/journey-planner\/"/);
+        assert.match(renderJourney(none, { crs: 'BCF', stations: STATIONS, asked: 'time', now: day(12, 12) }), /None tomorrow either\. For a journey with a change of train, check <a href="https:\/\/www\.nationalrail\.co\.uk\/journey-planner\/"/);
     });
 
     test('the whole day, when no time is given on another day', () => {
         const j = ask('AYS', null, day(11, 28));
         assert.equal(j.trains[0].dep, departures(TIMETABLES.now.SO.dep, 'AYS', day(11, 28), '03:00')[0].dep);
-        assert.match(words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'day', today: false })), /^Saturday 28 November · .* First train to Aylesbury \d\d:\d\d/);
+        assert.match(words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'day', now: day(11, 20) })), /^Saturday 28 November · .* First train to Aylesbury \d\d:\d\d/);
     });
 
     test('the date asked: today while the day chosen is today\'s kind, else the next of that kind', () => {
@@ -181,7 +181,7 @@ describe('journey — the first train there, then the next', () => {
 
 describe('renderJourney and renderNoStation — the words', () => {
     test('the answer names its date, its timetable and "Scheduled", and the stops are on tap', () => {
-        const html = renderJourney(ask('AYS', '17:15', day(11, 27)), { crs: 'AYS', stations: STATIONS, asked: 'time', today: true, others: ['AVP'] });
+        const html = renderJourney(ask('AYS', '17:15', day(11, 27)), { crs: 'AYS', stations: STATIONS, asked: 'time', now: day(11, 27), others: ['AVP'] });
         assert.match(html, /^<p class="tr-jr-meta"><span>Friday 27 November<\/span>.*Timetable until Saturday 12 December.*<span class="tr-jr-sched">Scheduled<\/span><\/p>/);
         assert.match(html, /<details class="tr-jr-stops"><summary>Where it stops<span class="sr-only">, the 17:30<\/span><\/summary><ol class="tr-jr-stoplist"><li><span class="tr-near-time">17:30<\/span> London Marylebone<\/li>/);
         assert.match(html, /<li class="tr-jr-here"><span class="tr-near-time">18:21<\/span> <strong>Aylesbury<\/strong>/);
@@ -192,7 +192,7 @@ describe('renderJourney and renderNoStation — the words', () => {
 
     test('next train, from the clock, says "Next"; a typed time says "after"', () => {
         const j = ask('AYS', '17:15', day(11, 27));
-        assert.match(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'now', today: true }), /<p class="tr-jr-ask">Next train to Aylesbury<\/p>/);
+        assert.match(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'now', now: day(11, 27) }), /<p class="tr-jr-ask">Next train to Aylesbury<\/p>/);
     });
 
     test('a station it cannot find: said, with the closest to choose from and how to ask', () => {
@@ -202,5 +202,103 @@ describe('renderJourney and renderNoStation — the words', () => {
         assert.match(html, /Type a station, a time like 17:15, 1715 or 5\.15pm, or both: Aylesbury, after 17:15\./);
         assert.match(renderNoStation('<b>x</b>', [], STATIONS), /“&lt;b&gt;x&lt;\/b&gt;”/, 'what was typed is escaped');
         assert.match(renderNoStation('Marylebone', [], STATIONS), /Every train on this page leaves from London Marylebone/);
+    });
+});
+
+// ── The small hours, the calendar's words, Christmas, and what the box reads (Nov 2026) ──────────────────────────
+// Between 00:00 and 03:00 the railway day is still yesterday's, so a morning time typed then was answered from a day
+// that had gone, and "today"/"tomorrow" counted from it. Each guard below was proven by breaking its line.
+
+/** A local clock time. @param {number} m @param {number} d @param {number} h @param {number} [min] */
+const clock = (m, d, h, min = 0, y = 2026) => new Date(y, m - 1, d, h, min);
+
+describe('journeyDateAt — a time typed in the small hours is the next one to come', () => {
+    test('01:00 on Sunday 13 December, "Aylesbury, after 08:00": Sunday\'s new-timetable trains, not Saturday\'s gone ones', () => {
+        const date = journeyDateAt(clock(12, 13, 1), 'SO', '08:00');   // the page opens on Saturday's tab: it is Saturday's railway day
+        assert.equal(isoDate(date), '2026-12-13');
+        const j = ask('AYS', '08:00', date);
+        assert.equal(j.timetable.side, 'dec');
+        assert.deepEqual(deps(j.trains), ['08:53', '08:57', '09:53']);
+        assert.equal(ask('AYS', '08:00', day(12, 12)).trains[0].dep, '08:27', 'premise: Saturday\'s answer is the gone 08:27');
+    });
+
+    test('every Friday night: 01:00 on a Saturday, "after 08:00" is that Saturday morning', () => {
+        assert.equal(isoDate(journeyDateAt(clock(11, 28, 1), 'SX', '08:00')), '2026-11-28');
+        assert.equal(isoDate(journeyDateAt(clock(11, 28, 1), 'SO', '08:00')), '2026-11-28');
+        assert.equal(isoDate(journeyDateAt(clock(11, 28, 1), 'SU', '08:00')), '2026-11-29', 'another day tab still chooses its own day');
+    });
+
+    test('a small-hours time: tonight while it has not passed, this minute included; else the next night', () => {
+        assert.equal(isoDate(journeyDateAt(clock(12, 13, 1), 'SO', '02:00')), '2026-12-12', 'still to come tonight');
+        assert.equal(isoDate(journeyDateAt(clock(12, 13, 1), 'SO', '01:00')), '2026-12-12', 'this minute has not passed');
+        assert.equal(isoDate(journeyDateAt(clock(12, 13, 1), 'SO', '00:30')), '2026-12-13', 'gone tonight: the next 00:30 is the Sunday night\'s');
+    });
+
+    test('outside the small hours, and with no time typed, nothing moves', () => {
+        assert.equal(isoDate(journeyDateAt(clock(11, 27, 18), 'SX', '17:15')), '2026-11-27', 'a time gone this evening is still this evening\'s');
+        assert.equal(isoDate(journeyDateAt(clock(11, 27, 3), 'SX', '02:00')), '2026-11-27');
+        assert.equal(isoDate(journeyDateAt(clock(12, 13, 1), 'SO', null)), '2026-12-12', 'the next train from now is tonight\'s');
+    });
+});
+
+describe('dayWord and renderJourney — "today" and "tomorrow" are the calendar\'s', () => {
+    test('00:30 on Tuesday 1 December, "Aylesbury": none left tonight, and the first train is today\'s', () => {
+        const now = clock(12, 1, 0, 30);
+        const j = ask('AYS', '00:30', journeyDateAt(now, 'SX', null));
+        assert.equal(isoDate(j.date), '2026-11-30', 'premise: the railway day is still Monday\'s');
+        assert.deepEqual(j.trains, []);
+        const html = words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'now', now }));
+        assert.match(html, /No more trains to Aylesbury tonight\. First train today Tuesday 1 December · Timetable until Saturday 12 December Scheduled 06:35 to /);
+        assert.doesNotMatch(html, /tomorrow/);
+    });
+
+    test('the words: today, tomorrow and tonight by the calendar, else none', () => {
+        const now = clock(12, 1, 0, 30);
+        assert.equal(dayWord(day(12, 1), now), 'today');
+        assert.equal(dayWord(day(12, 2), now), 'tomorrow');
+        assert.equal(dayWord(day(11, 30), now), 'tonight');
+        assert.equal(dayWord(day(11, 30), clock(12, 1, 9)), null, 'after 03:00 yesterday is not tonight');
+        assert.equal(dayWord(day(12, 5), now), null);
+    });
+});
+
+describe('renderJourney — a date Chiltern is still changing carries the page\'s Christmas line', () => {
+    const line = /Christmas and New Year times are not on this page\./;
+    test('Christmas Eve, 13 December and 10 January carry it; 12 December and 11 January do not', () => {
+        const html = (/** @type {Date} */ d) => renderJourney(ask('AYS', '17:15', d), { crs: 'AYS', stations: STATIONS, asked: 'time', now: d });
+        for (const d of [day(12, 24), day(12, 13), day(1, 10, 2027)]) assert.match(html(d), line, isoDate(d));
+        for (const d of [day(12, 12), day(1, 11, 2027)]) assert.doesNotMatch(html(d), line, isoDate(d));
+        assert.equal((html(day(12, 24)).match(/Christmas and New Year times/g) ?? []).length, 1, 'said once');
+        assert.equal(timetableOn(day(12, 24), dates).festive, true);
+    });
+});
+
+describe('parseJourney and findStation — the gaps', () => {
+    test('noon, midday and midnight are times, alone or after a 12', () => {
+        assert.deepEqual(parseJourney('Aylesbury noon'), { place: 'Aylesbury', timeText: 'noon', time: '12:00' });
+        assert.equal(parseJourney('Aylesbury midday').time, '12:00');
+        assert.equal(parseJourney('after midnight to Banbury').time, '00:00');
+        assert.equal(parseJourney('Banbury after midnight').place, 'Banbury');
+        assert.equal(parseJourney('Aylesbury 12 noon').time, '12:00');
+        assert.equal(parseJourney('Aylesbury 3 noon').time, null, 'never a guess');
+        assert.equal(parseJourney('Noonhill').place, 'Noonhill', 'a word that only starts with it is not it');
+    });
+
+    test('a name run into its time is split', () => {
+        assert.deepEqual(parseJourney('Aylesbury17:15'), { place: 'Aylesbury', timeText: '17:15', time: '17:15' });
+        assert.deepEqual(parseJourney('aylesbury5.15pm'), { place: 'aylesbury', timeText: '5.15pm', time: '17:15' });
+    });
+
+    test('a station\'s full name, then words the box does not read: the station, with those words said', () => {
+        assert.deepEqual(findStation(parseJourney('Aylesbury tomorrow').place, STATIONS), { crs: 'AYS', others: ['AVP'], closest: [], unused: 'tomorrow' });
+        const via = parseJourney('Aylesbury after 17:15 via Amersham');
+        assert.equal(via.time, '17:15');
+        assert.equal(findStation(via.place, STATIONS).unused, 'via Amersham');
+        assert.equal(findStation('AYS tomorrow', STATIONS).crs, 'AYS');
+        assert.equal(findStation('west ruislop', STATIONS).crs, null, 'only a full name: a slip is not taken for a station');
+        const j = ask('AYS', null, day(11, 27));
+        const html = words(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'day', now: day(11, 27), unused: 'tomorrow' }));
+        assert.match(html, /^This box reads a station and a time, so “tomorrow” is not part of this answer\. For another day, press Weekdays, Saturdays or Sundays\. Friday 27 November/);
+        assert.doesNotMatch(renderJourney(j, { crs: 'AYS', stations: STATIONS, asked: 'day', now: day(11, 27) }), /This box reads/);
     });
 });

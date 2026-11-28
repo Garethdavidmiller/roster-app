@@ -247,10 +247,10 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `weekStartForMonth` · `weekAfterDateChange` · `initTeamView`
 
 ### `calendar-team-onwith.js`
-- **Exports:** `dayOf` · `cardDate` · `colleaguesOf` · `buildOnWithCard`
+- **Exports:** `dayOf` · `cardDate` · `isPastDay` · `colleaguesOf` · `rolesInOrder` · `buildOnWithCard`
 
 ### `team-overlap.js`
-- **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `rangeText` · `whoIsOnWith`
+- **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `rangeText` · `whoIsOnWith` · `togetherWords`
 
 ### `calendar-tips.js`
 - **Exports:** `CARD_TIPS`
@@ -526,7 +526,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports of `trains-tips.js`:** `CARD_TIPS` · `tipsOn`
 - **Exports of `trains-grid-mirror.js`:** `syncGridMirror`
 - **Exports of `trains-status.js`:** `announce` · `statusLine` · `matchesLine`
-- **Exports of `trains-journey.js`:** `parseJourney` · `findStation` · `dayKindOf` · `isoDate` · `addDays` · `journeyDate` · `timetableOn` · `departures` · `viaMatters` · `JOURNEY_TRAINS` · `journey`
+- **Exports of `trains-journey.js`:** `parseJourney` · `findStation` · `dayKindOf` · `isoDate` · `addDays` · `journeyDate` · `journeyDateAt` · `dayWord` · `timetableOn` · `departures` · `viaMatters` · `JOURNEY_TRAINS` · `journey`
 
 ### `overflow-hint.js`
 - **Exports:** `watchOverflowHint`
@@ -559,7 +559,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `offersSundayRelease` · `SUNDAY_RELEASE_ASKED` · `SUNDAY_RELEASE_LABEL` · `releaseRequestLine`
 
 ### `al-swapped-days.js`
-- **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `absenceHiddenDates` · `rangeWriteDates`
+- **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `replacedTypeOnWrite` · `absenceHiddenDates` · `rangeWriteDates`
 
 ### `admin-al-projection.js`
 - **Exports:** `projectAlBooking` · `yearShiftWords` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `overridesAfterSave` · `projectAlOverage`
@@ -704,6 +704,9 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `paycalc-clear-confirm.js`
 - **Exports:** `CLEAR_CONFIRM_MIN_MS` · `createClearConfirm`
+
+### `paycalc-save-line.js`
+- **Exports:** `createSaveLine`
 
 ### `paycalc-money-banner.js`
 - **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner` · `wireBannerTicks`
@@ -887,11 +890,11 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `doc-dates.js`
 - **Exports:**
-- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `HUDDLE_NEXT_DAY_FROM_HOUR` · `huddleForDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
+- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `HUDDLE_NEXT_DAY_FROM_HOUR` · `HUDDLE_FLOW_UPLOADER` · `huddleForDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
 
 ### `admin-day-change.js`
 - **Exports:**
-- **Exports:** `stagedDayChanges` · `previewChanges`
+- **Exports:** `shownValue` · `nowShows` · `stagedDayChanges` · `previewChanges`
 
 ### `newsletter-recency.js`
 - **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `latestNewsletterDate` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`
@@ -909,7 +912,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `noteClockBoxBefore` · `shapeClockBox` · `shapeClockBoxInPlace` · `settleClockBox` · `clockTextStatus` · `readClockBox` · `timePairError` · `composeTimedValue`
 
 ### `override-utils.js`
-- **Exports:** `nextLeaveYear` · `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `resolveEffectiveShift` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`
+- **Exports:** `nextLeaveYear` · `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `resolveEffectiveShift` · `hoursSlotTime` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`
 
 ### `other-day.js`
 - **Exports:** `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay`

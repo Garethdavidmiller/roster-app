@@ -20,7 +20,7 @@ import {
     getPatternShift,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, escapeHtml,
 } from './roster-data.js';
-import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, isChristmasOrBoxingDay } from './override-utils.js';
+import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, isChristmasOrBoxingDay, hoursSlotTime } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave, allowanceForBoxingDay } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 import { workedTimes } from './team-overlap.js';
@@ -230,7 +230,7 @@ export function dayCellParts(shift, permanentShift, isWorkedDay, rdwTime = '') {
     const forced = shift !== 'RDW' && !isOther && isWorkedDay
         && (permanentShift === 'late' || permanentShift === 'early') ? permanentShift : null;
     const badgeWord = forced === 'late' ? 'Late' : forced === 'early' ? 'Early' : shiftBadgeParts(shift).word;
-    const displayTime = (shift === 'RDW' || isOther) ? rdwTime : shift;
+    const displayTime = hoursSlotTime(shift, rdwTime);
     const timeShown = isWorkedDay && (!permanentShift || shift === 'RDW' || isOther) && displayTime ? displayTime : '';
     return { forced, badgeWord, timeShown };
 }
@@ -620,7 +620,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
         dayCell.dataset.detailShiftValue = shift;
         // THE DATE AND THE TIMES WORKED, for the panel's "Who's on with me" (team-overlap.js): offered only
         // on a day worked WITH times, and read from the same resolved value the cell draws, so the button
-        // cannot appear on a rest day, leave or an absence. The date is ISO, never parsed out of the words.
+        // cannot appear on a rest day, leave or an absence. The times are the ones the hours slot prints
+        // (`hoursSlotTime`, through `workedTimes`) — rdwTime included, or a Training day on the base shift's
+        // hours would offer no button. The date is ISO, never parsed out of the words.
         dayCell.dataset.detailIso = dateStr;
         const timesWorked = workedTimes({ shift, rdwTime });
         if (timesWorked) dayCell.dataset.detailWorkedTimes = timesWorked;

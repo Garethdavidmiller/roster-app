@@ -164,7 +164,8 @@ export function withdrawLoginAccounts(strip) {
 const UNCHECKED = 'couldn’t check';
 
 /**
- * Wire the strip. Renders into `container` (kept `hidden` until an item exists).
+ * Wire the strip. Renders into `container`, kept `hidden` until an item exists or every item has reported zero
+ * (`allClear`), when it shows the one quiet line, `ALL_CLEAR_LINE`.
  *
  * @param {{container: HTMLElement|null, onJump?: (hash: string) => void}} cfg
  * @returns {{report: (id: string, count: number, extra?: {truncated?: boolean}) => void, withdraw: (id: string) => void, unchecked: (id: string) => void}}

@@ -152,7 +152,11 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', getUserName,
  * larger text left too little. A width rule cannot see text size, so the header is MEASURED: when the name would
  * be cut, the badge shows its emoji alone (`.app-header--tight`, shared.css) — its colour still says which page,
  * and the words stay in the page for a screen reader. Re-measured whenever the header's size changes (a rotation,
- * a text-size change). Every sub-page reaches it through `wireHeaderLogo`; the Calendar has its own header.
+ * a text-size change) — and when the fonts finish loading, because Inter arrives with `font-display: swap`
+ * (shared.css): the swap changes the name's WIDTH and not the header's box, so no ResizeObserver sees it, and a
+ * measure taken against the fallback face would stand for the visit. `document.fonts.ready` and every later
+ * `loadingdone` re-measure (guide-chips.js's precedent); a browser without `document.fonts` keeps the rest.
+ * Every sub-page reaches it through `wireHeaderLogo`; the Calendar has its own header.
  */
 function fitHeaderBadge() {
     const header = document.querySelector('.app-header');
@@ -165,6 +169,9 @@ function fitHeaderBadge() {
     };
     fit();
     if (typeof ResizeObserver === 'function') new ResizeObserver(fit).observe(header);
+    const fonts = document.fonts;
+    if (fonts && fonts.ready) fonts.ready.then(fit, () => {});
+    if (fonts && typeof fonts.addEventListener === 'function') fonts.addEventListener('loadingdone', fit);
 }
 
 /**

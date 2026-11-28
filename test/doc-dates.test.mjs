@@ -7,6 +7,7 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 /** @type {Map<string, string>} */ const store = new Map();
 globalThis.localStorage = /** @type {any} */ ({
@@ -14,7 +15,7 @@ globalThis.localStorage = /** @type {any} */ ({
     setItem: (/** @type {string} */ k, /** @type {string} */ v) => { store.set(k, String(v)); },
     removeItem: (/** @type {string} */ k) => { store.delete(k); },
 });
-const { recordDocDate, docDate, docDateLabel, checkLatestCircular, DOC_DATE_KEYS, huddleForDate, HUDDLE_NEXT_DAY_FROM_HOUR } = await import('../doc-dates.js');
+const { recordDocDate, docDate, docDateLabel, checkLatestCircular, DOC_DATE_KEYS, huddleForDate: huddleForAnyDate, HUDDLE_NEXT_DAY_FROM_HOUR, HUDDLE_FLOW_UPLOADER } = await import('../doc-dates.js');
 const { recordLatestNewsletter } = await import('../newsletter-recency.js');
 
 const NOW = new Date(2026, 10, 27, 12);
@@ -56,6 +57,22 @@ test('the Circular check keeps the server\'s answer, and a failed read keeps wha
 // A HUDDLE THAT ARRIVES AFTER MIDDAY IS TOMORROW'S (owner, 27 Nov 2026). The flow files a Huddle under the
 // London date its email arrived; the evening's Huddle plans the next day.
 const utc = (/** @type {number[]} */ ...a) => Date.UTC(a[0], a[1] - 1, a[2], a[3], a[4] ?? 0);
+/** A Huddle the FLOW delivered — the only uploads the after-midday rule moves. @param {unknown} date @param {unknown} at */
+const huddleForDate = (date, at) => huddleForAnyDate(date, at, HUDDLE_FLOW_UPLOADER);
+
+test('the flow\'s uploader is the value the flow writes', () => {
+    const ingest = readFileSync(new URL('../functions/huddle-ingest.js', import.meta.url), 'utf8');
+    assert.match(ingest, new RegExp(`uploadedBy: '${HUDDLE_FLOW_UPLOADER}',`), 'functions/huddle-ingest.js writes another uploadedBy');
+});
+
+test('a Huddle put up BY HAND is for the day chosen, whenever it went up', () => {
+    // The Operations card offers today's date; a hand upload writes uploadedAt too, and the member's name.
+    assert.equal(huddleForAnyDate('2026-11-27', utc(2026, 11, 27, 13), 'G. Miller'), '2026-11-27', 'by hand for today at 13:00');
+    assert.equal(huddleForAnyDate('2026-11-27', utc(2026, 11, 27, 19), 'G. Miller'), '2026-11-27', 'by hand for today in the evening');
+    assert.equal(huddleForAnyDate('2026-11-27', utc(2026, 11, 27, 19), undefined), '2026-11-27', 'nobody recorded: taken as filed');
+    assert.equal(huddleForAnyDate('2026-11-27', utc(2026, 11, 27, 19), ''), '2026-11-27');
+    assert.equal(huddleForAnyDate('2026-11-27', utc(2026, 11, 27, 19), HUDDLE_FLOW_UPLOADER), '2026-11-28', 'the flow\'s evening Huddle still moves');
+});
 
 test('a Huddle filed under the day it arrived, arriving at 12:00 London or later, is the next day\'s', () => {
     assert.equal(HUDDLE_NEXT_DAY_FROM_HOUR, 12);
@@ -77,7 +94,7 @@ test('the next day crosses a month and a year', () => {
 });
 
 test('a date not filed under the day it arrived is taken as filed, so no date moves twice', () => {
-    assert.equal(huddleForDate('2026-11-28', utc(2026, 11, 27, 19)), '2026-11-28', 'uploaded by hand with tomorrow chosen');
+    assert.equal(huddleForDate('2026-11-28', utc(2026, 11, 27, 19)), '2026-11-28', 'filed under tomorrow already');
     assert.equal(huddleForDate('2026-11-20', utc(2026, 11, 27, 15)), '2026-11-20', 'an older one filled in later');
 });
 

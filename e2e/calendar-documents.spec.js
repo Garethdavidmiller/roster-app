@@ -477,14 +477,18 @@ test('documents: the ☰ menu dates each latest document, and leaves out a date 
     await expect(page.locator('#navPanel .nav-panel-link--circular')).toHaveText(/^\S+\s*Weekly Retail Circular$/);
 });
 
-// A HUDDLE THAT ARRIVES AFTER MIDDAY IS TOMORROW'S (owner, 27 Nov 2026): the flow files it under the day its email
-// arrived, so the evening's Huddle is on file a day early. Through the real listener, the real record and the menu.
-for (const [arrived, expected] of /** @type {const} */ ([['19:05', 'for Sat 28 Nov'], ['07:40', 'for Fri 27 Nov']])) {
-    test(`documents: a Huddle that arrived at ${arrived} is named ${expected} in the ☰ menu`, async ({ page }) => {
+// A HUDDLE THE FLOW DELIVERS AFTER MIDDAY IS TOMORROW'S (owner, 27 Nov 2026): the flow files it under the day its
+// email arrived, so the evening's Huddle is on file a day early. One put up BY HAND names its own day, whenever it
+// went up (doc-dates.js). Through the real listener, the real record and the menu.
+for (const [arrived, by, expected] of /** @type {const} */ ([
+    ['19:05', 'power-automate', 'for Sat 28 Nov'], ['07:40', 'power-automate', 'for Fri 27 Nov'],
+    ['13:00', 'G. Miller', 'for Fri 27 Nov'],   // by hand for today, after midday: still today's
+])) {
+    test(`documents: a Huddle that arrived at ${arrived} from ${by} is named ${expected} in the ☰ menu`, async ({ page }) => {
         const [h, m] = arrived.split(':').map(Number);
         await page.clock.install({ time: new Date(Date.UTC(2026, 10, 27, 20, 0)) });
         await calendarWithHuddle(page, { date: '2026-11-27', storageUrl: 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-11-27.pdf?alt=media&token=e2e',
-            fileType: 'pdf', uploadedAt: Date.UTC(2026, 10, 27, h, m) });
+            fileType: 'pdf', uploadedAt: Date.UTC(2026, 10, 27, h, m), uploadedBy: by });
         await seedMemberSession(page, 'G. Miller');
         await page.goto('/');
         await page.locator('#navMenuBtn').click();

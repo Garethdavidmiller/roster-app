@@ -125,6 +125,7 @@
   <link rel="modulepreload" href="./paycalc-role-card.js">
   <link rel="modulepreload" href="./paycalc-roster-hint.js">
   <link rel="modulepreload" href="./paycalc-roster-suggestions.js">
+  <link rel="modulepreload" href="./paycalc-save-line.js">
   <link rel="modulepreload" href="./paycalc-settings.js">
   <link rel="modulepreload" href="./paycalc-sticky-total.js">
   <link rel="modulepreload" href="./paycalc-transfer-card.js">
@@ -436,8 +437,10 @@
       </div>
     </div>
     <div class="save-row">
-      <span class="save-status" id="saveStatus">No entries saved for this payslip</span>
+      <span class="save-status" id="saveStatus" tabindex="-1">No entries saved for this payslip</span>
       <button type="button" class="save-retry" id="saveRetryBtn" hidden>Retry</button>
+      <!-- Speaks only a CHANGE of state — not saved, saved again — never each typed save (paycalc-save-line.js rule 5) -->
+      <span class="visually-hidden" id="saveStatusLive" role="status" aria-live="polite"></span>
       <button type="button" class="clear-btn" id="clearBtn">Clear all entries</button>
     </div>
     <a class="roster-view-link" id="rosterViewLink" href="./">← View these dates in your roster calendar</a>

@@ -104,7 +104,12 @@ function showNotForYou(member) {
     // (`selectorRoles(true)`, the policy's own open list)? Asked of `CONFIG.LINKS_SELECTOR_OPEN`, a colleague on a
     // bilingual contract was told during the beta that it "isn't open to you yet" — a promise it will never keep.
     const roles = /** @type {Record<string, boolean>} */ (rolesFor(member));
-    const { title, why } = refusalWords({ otherStaff: roles.otherStaff === true, inAudience: selectorRoles(true).some(r => roles[r] === true) });
+    const { title, why, newlink } = refusalWords({ otherStaff: roles.otherStaff === true, inAudience: selectorRoles(true).some(r => roles[r] === true) });
+    // The way to the proposals, worded as the About panel's own link to them (#selectorNewlinkLink), for the one reader
+    // who may open that page. Its own line, so it never sits beside the way back.
+    const toNewlink = newlink
+        ? `<div><a href="./newlink.html" class="role-card-back" id="selectorNotForYouNewlink"><span aria-hidden="true">🔁</span> Compare the proposals on New CEA Link</a></div>`
+        : '';
     card.innerHTML = `<div class="role-card-icon" aria-hidden="true">🗓️</div>
         <h2 class="role-card-title">${title}</h2>
         <p class="role-card-why">${why}</p>
@@ -112,6 +117,7 @@ function showNotForYou(member) {
             <p class="field-eyebrow">What it does</p>
             ${ABOUT.lines.map(line => `<p class="login-about-line">${escapeHtml(line)}</p>`).join('')}
         </div>
+        ${toNewlink}
         <a href="./" class="role-card-back">← Back to roster</a>`;
     document.querySelector('nav.controls')?.remove();
     document.getElementById('selectorNoteBox')?.remove();   // the note and its ?: nothing here to explain

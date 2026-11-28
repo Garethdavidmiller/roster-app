@@ -367,3 +367,98 @@ test('paycalc: a Clear whose delete is refused puts the stored figure back and s
     await page.reload();
     await expect(page.locator('#satH')).toHaveValue('3');
 });
+
+// ── THE "NOT SAVED" LINE: ITS WORDS, ITS RETRY AND WHO HEARS IT (paycalc-save-line.js) ───────────────
+
+/** Storage refuses the NEXT write of the payslip, then recovers. @param {import('@playwright/test').Page} page */
+const refuseNextWrite = (page) => page.evaluate((k) => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, v) {
+        if (key === k) { Storage.prototype.setItem = set; throw new DOMException('quota', 'QuotaExceededError'); }
+        return set.call(this, key, v);
+    };
+}, KEY);
+
+// A setting refused while a Clear's failure stood took the words "Not saved — try again" and left the
+// Clear's Retry under them: one tap deleted the payslip's entries without the two-tap confirm.
+test('paycalc: a setting refused while a Clear\'s failure stands keeps the Clear\'s words, and Retry runs that Clear', async ({ page }) => {
+    await page.clock.install({ time: DAY });
+    await openOctober(page, { satH: 3, satM: 0 });
+    await page.evaluate((k) => {   // storage refuses this payslip's deletes and writes until told otherwise
+        const w = /** @type {any} */ (window), del = Storage.prototype.removeItem, set = Storage.prototype.setItem;
+        w.__refuse = true;
+        Storage.prototype.removeItem = function (key) { if (key === k && w.__refuse) return; return del.call(this, key); };
+        Storage.prototype.setItem = function (key, v) {
+            if (key === k && w.__refuse) throw new DOMException('quota', 'QuotaExceededError');
+            return set.call(this, key, v);
+        };
+    }, KEY);
+    await page.clock.pauseAt(new Date(DAY.getTime() + 60_000));
+    const btn = page.locator('#clearBtn'), status = page.locator('#saveStatus'), retry = page.locator('#saveRetryBtn');
+    await btn.click();
+    await page.clock.runFor(1000);
+    await btn.click();
+    await expect(status).toHaveText(/Couldn't clear this payslip/);
+    await page.locator('#pensionOptOutCheck').check();          // a setting refused too
+    await expect(status, 'the words still name the Clear that Retry runs').toHaveText(/Couldn't clear this payslip/);
+    await expect(retry).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__refuse = false; });
+    await retry.click();
+    await expect(status).toHaveText('No entries saved for this payslip');
+    expect(await stored(page), 'the Clear the words named is what ran').toBeNull();
+});
+
+// One setting's verified write ended ANOTHER setting's "Not saved" line and said "saved" while the
+// refused one was still not stored.
+test('paycalc: a setting that saves after another was refused stores the refused one too before it says saved', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0, slSkip: true });
+    expect(await page.evaluate(() => /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked),
+        'premise: the payslip\'s loan skip is ticked').toBe(true);
+    await refuseNextWrite(page);
+    await page.evaluate(() => {   // no loan at all: the skip is cleared, and carried into the payslip — refused
+        const s = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'));
+        s.value = 'none'; s.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    expect((await stored(page)).slSkip, 'premise: the cleared skip did not reach storage').toBe(true);
+    await page.locator('#pensionOptOutCheck').check();          // a different setting, which saves
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+    expect((await stored(page)).slSkip, '"saved" means the refused skip is stored too').toBe(false);
+});
+
+test('paycalc: a Retry that saves hands keyboard focus to the status line, and only a change of state is spoken', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0 });
+    const status = page.locator('#saveStatus'), live = page.locator('#saveStatusLive'), retry = page.locator('#saveRetryBtn');
+    await page.locator('#sunH').fill('4');
+    await expect(status).toHaveText('✓ Entries saved for this payslip');
+    await expect(live, 'an ordinary save is not announced').toHaveText('');
+    await refuseNextWrite(page);
+    await page.locator('#sunH').fill('5');
+    await expect(status).toHaveText('⚠ Not saved — try again');
+    await expect(live, 'the line going up is announced').toHaveText('⚠ Not saved — try again');
+    await retry.focus();
+    await page.keyboard.press('Enter');
+    await expect(status).toHaveText('✓ Entries saved for this payslip');
+    await expect(retry).toBeHidden();
+    await expect(status, 'focus went to the status line, not to the top of the page').toBeFocused();
+    await expect(live, 'the focused line reads itself out; the region does not say it twice').toHaveText('');
+    expect(await stored(page)).toMatchObject({ sunH: 5 });
+});
+
+test('paycalc: a "Not saved" ended by the next edit announces the recovery once', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0 });
+    const live = page.locator('#saveStatusLive');
+    await refuseNextWrite(page);
+    await page.locator('#sunH').fill('5');
+    await expect(live).toHaveText('⚠ Not saved — try again');
+    await page.locator('#sunM').fill('15');                     // storage answers now
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+    await expect(live, 'saved again is announced').toHaveText('✓ Entries saved for this payslip');
+    await page.evaluate(() => { /** @type {HTMLElement} */ (document.getElementById('saveStatusLive')).textContent = 'heard'; });
+    await page.locator('#sunM').fill('20');                     // an ordinary save after it
+    await expect.poll(async () => (await stored(page))?.sunM).toBe(20);
+    await expect(live, 'a later keystroke\'s save is not announced').toHaveText('heard');
+});

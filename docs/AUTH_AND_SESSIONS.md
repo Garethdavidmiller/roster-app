@@ -310,9 +310,11 @@ password is asked for from the start, since Firebase changes a password only aft
 a member this device has seen the server confirm on their own password is not asked again, so the
 check costs a read only for those still on the surname. A sign-in forgets that note before it reads,
 so a reset ends with the member asked again, even where the read after it fails. **Until the password
-is set the step comes up on every open of every page that runs it**, and "Continue for now" appears
-only after three failed saves (`ESCAPE_AFTER_FAILURES`), so in practice it holds the page until a
-password is chosen. **Nobody is signed out to hurry it** (owner, 25 Jul 2026).
+is set the step comes up on every open of every page that runs it**. "Continue for now" appears at
+once on a failure no typing can fix — a rate limit, a network failure, a timeout, a save whose outcome
+is unknown, or another account signed in (`passwordChangeFailure`'s `escape`) — and otherwise after
+three failed saves (`ESCAPE_AFTER_FAILURES`): property 3 in `password-force.js`. Short of those it
+holds the page until a password is chosen. **Nobody is signed out to hurry it** (owner, 25 Jul 2026).
 
 - It shows only for a `named` identity whose status is not migrated (`!isPasswordMigrated`), and
   **fails open before and after showing** (invariant 11; "Continue for now" stamps nothing).

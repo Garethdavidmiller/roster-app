@@ -1371,23 +1371,27 @@
            both engines draw `hidden` as a presentational hint, which `.touch-only`'s `display: revert`
            rolls back past, so without this the line shows anyway (measured — page-visibility's trap). */
         .tv-scroll-hint[hidden] { display: none; }
-        /* THE "ON WITH" CARD (owner, 27 Nov 2026: "Who's on with me?") — above the week grid, opened from the
-           day panel's "Who’s on with me" (calendar-team-view.js → buildOnWithCard). A RECESSED block on the
-           Team View card, the sunken surface, so it reads as part of this view and not a second card; the
-           grid stays where it was beneath it. Prose is left-aligned: it can run to several lines. */
+        /* THE "ON WITH" CARD (owner, 27 Nov 2026: "Who's on with me?"; redesigned 28 Nov) — above the week
+           grid, opened from the day panel's "Who’s on with me" (calendar-team-view.js → buildOnWithCard). A
+           RECESSED block on the Team View card, the sunken surface, so it reads as part of this view and not
+           a second card. By role, a section per grade tab; one line a colleague. */
         .tv-onwith {
-            margin: 6px 8px 4px;
-            padding: 8px 12px 10px;
+            margin: 6px 6px 4px;
+            padding: 8px 10px 10px;
             background: var(--surface-sunken);
             border: 1px solid var(--border-light);
             border-radius: var(--radius);
             text-align: left;
             color: var(--text-dark);
+            font-variant-numeric: tabular-nums;   /* the times line up down a section */
         }
         @media (min-width: 768px) {
             /* The same 640px cluster as the tabs and the week row, so the card does not run the width
                of a desktop grid with its names 1000px from their times. */
-            .tv-onwith { width: calc(100% - 16px); max-width: 640px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+            .tv-onwith { width: calc(100% - 12px); max-width: 640px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+            /* Two columns of roles, each one unbroken: one column put the names 600px from their shifts. */
+            .tv-onwith-roles { column-count: 2; column-gap: 24px; }
+            .tv-onwith-group { break-inside: avoid; }
         }
         .tv-onwith-head {
             display: flex;
@@ -1397,6 +1401,7 @@
         }
         .tv-onwith-title {
             margin: 0;
+            min-width: 0;
             font-size: var(--type-body);
             font-weight: 700;
             letter-spacing: -0.01em;
@@ -1432,52 +1437,57 @@
         }
         .tv-onwith-hide:active { opacity: 0.75; }
         .tv-onwith-hide:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-        .tv-onwith-mine, .tv-onwith-note {
-            margin: 4px 0 0;
-            font-size: var(--type-label);
-            color: var(--text-mid);
-        }
-        .tv-onwith-list {
-            list-style: none;
-            margin: 6px 0 0;
-            padding: 0;
-        }
-        /* One colleague per row: the name, then each stretch together — their shift and the shared hours.
-           The hours are what was asked, so they carry the weight; tabular figures stop the times jittering
-           down the list. */
-        .tv-onwith-row {
+        /* The date, then the member's own shift as the grid draws it. */
+        .tv-onwith-mine {
             display: flex;
-            flex-wrap: wrap;
-            align-items: baseline;
-            column-gap: 10px;
-            row-gap: 1px;
-            padding: 5px 0;
+            align-items: center;
+            gap: 8px;
+            margin: 2px 0 0;
+            font-size: var(--type-label);
+            color: var(--text-mid);
+        }
+        .tv-onwith-note { margin: 6px 0 0; font-size: var(--type-label); color: var(--text-mid); }
+        /* A role's heading: the grade tab's word, small and quiet, so the names stay what is read. */
+        .tv-onwith-group { padding-top: 10px; }   /* padding: a margin is cut at the top of a column */
+        .tv-onwith-role {
+            margin: 0;
+            font-size: var(--type-badge);
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-mid);
+        }
+        .tv-onwith-list { list-style: none; margin: 0; padding: 0; }
+        /* ONE LINE A COLLEAGUE, three tracks: the name takes what is left (and ellipses, as the grid's name
+           column does), the shift a fixed floor so every chip starts at one x, the stretch together a fixed
+           column at the right edge. In `em`, so larger text widens them with the words. Each row is its own
+           grid, so nothing here may be `auto`: two `auto`s are two widths (css-tokens.md). Measured at 320px: the
+           name keeps 96px (the grid's name column has 88), a shift and "15:00–23:00" fit beside it. */
+        .tv-onwith-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(7.4em, max-content) 5.8em;
+            column-gap: 6px;
+            row-gap: 2px;
+            align-items: center;
+            padding: 4px 0;
             border-top: 1px solid var(--border-light);
             font-size: var(--type-label);
-            font-variant-numeric: tabular-nums;
         }
-        .tv-onwith-row:first-child { border-top: 0; }
-        .tv-onwith-name { font-weight: 700; color: var(--text-dark); min-width: 0; }
-        .tv-onwith-grade {
-            margin-left: 6px;
+        .tv-onwith-row[data-lines="2"] .tv-onwith-name { grid-row: span 2; }
+        .tv-onwith-row[data-lines="3"] .tv-onwith-name { grid-row: span 3; }
+        .tv-onwith-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* The grid's own cell: its tint class (`.tv-late`…), its 11px and its padding, given a corner. */
+        .tv-onwith-shift {
+            padding: 3px 4px;
+            border-radius: var(--radius-xs);
             font-size: var(--type-badge);
-            font-weight: 600;
-            color: var(--text-mid);
+            text-align: center;
+            white-space: nowrap;
         }
-        .tv-onwith-pair { display: inline-flex; flex-wrap: wrap; column-gap: 8px; align-items: baseline; }
-        .tv-onwith-shift { color: var(--text-mid); }
-        .tv-onwith-when { color: var(--text-light); }
-        .tv-onwith-together { font-weight: 700; color: var(--primary-blue); white-space: nowrap; }
-        .tv-onwith-also {
-            margin: 6px 0 0;
-            padding-top: 6px;
-            border-top: 1px solid var(--border-light);
-            font-size: var(--type-small);
-            color: var(--text-mid);
-            font-variant-numeric: tabular-nums;
-        }
-        .tv-onwith-also-label { font-weight: 600; }
-        .tv-onwith-also-item { white-space: nowrap; }
+        .tv-onwith-day { font-weight: 700; }
+        /* The stretch together, said quietly: the shifts are what is scanned. */
+        .tv-onwith-when { font-size: var(--type-badge); color: var(--text-light); white-space: nowrap; }
+        .tv-onwith-none, .tv-onwith-sub { margin: 4px 0 0; font-size: var(--type-small); color: var(--text-light); }
         /* NOT ON PAPER. Team View prints one landscape sheet a grade (print.spec.js counts them), and the card
            is a question asked on screen, not part of the week's roster; the sheet stays the grid alone. */
         @media print { .tv-onwith { display: none !important; } }

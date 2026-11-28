@@ -325,6 +325,8 @@ test.describe('links selector', () => {
         await page.goto('/links-selector.html');
         await expect(page.locator('#selectorNotForYou')).toContainText('doesn’t apply to your contract');
         await expect(page.locator('#selectorNotForYou')).not.toContainText('yet');
+        // New CEA Link is not theirs either, so the card offers no way there
+        await expect(page.locator('#selectorNotForYouNewlink')).toHaveCount(0);
     });
     test('Next is the faded end at December 2028, and stays there', async ({ page }) => {
         await seedSession(page, ADMIN);

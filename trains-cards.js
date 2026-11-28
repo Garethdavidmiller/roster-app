@@ -18,7 +18,7 @@
 import { lsGet, lsSet } from './ls.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { daysUntil, timetablePhase, dateWords, railwayToday, JOURNEY_PLANNER_URL } from './trains-change.js';
-import { parseJourney, findStation, journeyDate, journey, isoDate } from './trains-journey.js';
+import { parseJourney, findStation, journeyDateAt, journey, isoDate } from './trains-journey.js';
 import { stationView, busiestStations, matchStations, stoppingGrid, stopsKnown, stationBands, lastTrains } from './trains-stations.js';
 import { headlineChanges } from './trains-headlines.js';
 import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME, DAY_NAMES,
@@ -186,7 +186,12 @@ const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinu
  * to the 17:15?", the two timetables side by side for the day chosen (`lookupHtml`).
  *
  * The journey is for a DATE: today's railway day while the day chosen is today's kind, else the next date of the
- * kind chosen (`journeyDate`) — and from now, today, when no time is given. @param {PageState} state
+ * kind chosen (`journeyDate`) — and from now, today, when no time is given. In the small hours a time typed that
+ * has gone on the railway day is the next one to come (`journeyDateAt`): at 01:00, "after 08:00" is this morning's.
+ *
+ * "THE NEXT TRAIN" COUNTS THE MINUTE NOW: a train leaving at 17:30 is still the answer at 17:30:40 — it may be at
+ * the platform — and is gone from 17:31:00, when the page's redraw comes on the minute (trains-app.js → `onEachMinute`).
+ * @param {PageState} state
  */
 export function renderLookup(state) {
     const raw = /** @type {HTMLInputElement|null} */ (el('trLookupInput'))?.value ?? '';
@@ -198,10 +203,11 @@ export function renderLookup(state) {
     lookupDay = state.day;
     const ask = parseJourney(typed);
     const now = new Date(), today = railwayToday(now);
-    const date = journeyDate(today, state.day);
+    const date = journeyDateAt(now, state.day, ask.time);
     const isToday = isoDate(date) === isoDate(today);
     const p = phase();
-    const key = JSON.stringify([typed, state.day, isoDate(today), p.phase, ask.place && !ask.time && isToday ? hhmm(now) : '']);
+    // The calendar date too: "today" and "tomorrow" are the calendar's (`dayWord`), and turn at midnight.
+    const key = JSON.stringify([typed, state.day, isoDate(today), isoDate(now), isoDate(date), p.phase, ask.place && !ask.time && isToday ? hhmm(now) : '']);
     if (key === lookupKey) return;   // nothing it answers from has changed: the answer on screen stands
     lookupKey = key;
     if (!typed) { setHTML(result, ''); return; }
@@ -218,13 +224,15 @@ export function renderLookup(state) {
     if (ask.timeText && !ask.time) { setHTML(result, TIME_HINT); return; }
     const at = ask.time ?? (isToday ? hhmm(now) : null);
     const j = journey({ crs: found.crs, at, date, timetables: TIMETABLES, dates: DATES });
-    setHTML(result, renderJourney(j, { crs: found.crs, stations: STATIONS, asked: ask.time ? 'time' : isToday ? 'now' : 'day', today: isToday, others: found.others }));
+    setHTML(result, renderJourney(j, { crs: found.crs, stations: STATIONS, asked: ask.time ? 'time' : isToday ? 'now' : 'day', now,
+        others: found.others, unused: found.unused }));
 }
 
-/** Whether the lookup's answer is "the next train from now" — a station with no time — which the minute moves on. */
+/** Whether the lookup's answer moves on with the minute: "the next train from now" — a station with no time — and, in the
+ *  small hours, a station with a time, whose date turns once that time has passed (`journeyDateAt`). */
 export function lookupFollowsClock() {
     const ask = parseJourney(/** @type {HTMLInputElement|null} */ (el('trLookupInput'))?.value ?? '');
-    return !!ask.place && !ask.timeText;
+    return !!ask.place && (!ask.timeText || new Date().getHours() < 3);
 }
 
 /**

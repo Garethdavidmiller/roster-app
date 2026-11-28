@@ -99,7 +99,7 @@ roster-app/
 ├── perf-reporter.js        ← the shared anonymous latency recorder behind the App Speed card; only time somebody spent waiting is counted. See also perf-reporter.test.mjs.
 ├── perf-stats.js           ← pure latency maths behind the App Speed card
 ├── calendar-team-view.js        ← Team Week View; its overrides come from the SHARED month fetch, with no Firestore read of its own. See also CALENDAR_DATA.md, team-week-start.test.mjs, calendar-team-view.spec.js.
-├── calendar-team-onwith.js      ← Team View's "On with" card: the colleagues whose duties overlap a member's shift, above the week grid. See also team-overlap.js, calendar-team-onwith.test.mjs, calendar-team-view.spec.js.
+├── calendar-team-onwith.js      ← Team View's "On with" card: the colleagues whose duties overlap a member's shift, by role, today onwards, above the week grid. See also team-overlap.js, calendar-team-onwith.test.mjs, calendar-team-view.spec.js.
 ├── team-overlap.js              ← PURE: which shifts overlap and for how long, across midnight and the days either side. Tested by team-overlap.test.mjs
 ├── calendar-tips.js             ← CARD_TIPS for Team Week View's `?`, in the shared Tips panel (tips-lightbox.js). See also tips-content.test.mjs.
 ├── al-contract.js ← a member's CONTRACT leave allowance for a year; read it through `entitlementFor`. Pure; tested by al-entitlement.test.mjs
@@ -196,6 +196,7 @@ roster-app/
 ├── paycalc-ytd-card.js     ← the Year to Date card on the page; owns no rule. Tested by paycalc-ytd-card.test.mjs
 ├── paycalc-disclosures.js  ← the Pay page's button-and-panel disclosures. Tested by paycalc-disclosures.test.mjs
 ├── paycalc-clear-confirm.js ← the two-tap "Clear all entries": the arm, the countdown and which tap confirms. Tested by paycalc-clear-confirm.test.mjs. See also paycalc-entries.spec.js.
+├── paycalc-save-line.js    ← the "not saved" line: its words and its Retry are one failure's, "saved" only for what storage kept, and who hears it change. Tested by paycalc-save-line.test.mjs. See also paycalc-saving.spec.js.
 ├── paycalc-money-banner.js ← the two opt-in money banners and their ticks and links; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc-backpay.spec.js.
 ├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html. See also paycalc-layout.spec.js.
 ├── paycalc-periods.js      ← period arithmetic and the period select, and the Year to Date source rules. See also paycalc-periods.test.mjs.
@@ -474,8 +475,8 @@ roster-app/
 │   ├── touch-gate-parity.test.mjs ← **a touch-only test must run on every touch engine** (a skip is green). Part of test:hygiene
 │   ├── hidden-member-visibility.test.mjs ← **a leaver is off the roster everywhere it is listed**, and every copy agrees. Part of test:hygiene
 │   ├── team-week-start.test.mjs ← which week the team grid opens on. Part of test:hygiene
-│   ├── team-overlap.test.mjs ← "Who's on with me": midnight, the overnights either side, touching ends, the order. Part of test:hygiene
-│   ├── calendar-team-onwith.test.mjs ← the "On with" card executed: who is listed, in what order, who never is, and its wait. Part of test:hygiene
+│   ├── team-overlap.test.mjs ← "Who's on with me": midnight, the overnights either side, touching ends, the order, the words for a stretch together. Part of test:hygiene
+│   ├── calendar-team-onwith.test.mjs ← the "On with" card executed: a section per role, who is listed, in what order, who never is, no past date, and its wait. Part of test:hygiene
 │   ├── admin-deep-link.test.mjs ← where an admin.html hash lands, and never throwing on a malformed one. Part of test:hygiene
 │   ├── admin-shift-rules.test.mjs ← the maximum-length and minimum-rest checks at their boundaries. Part of test:hygiene
 │   ├── admin-auth.test.mjs ← the provisioning audit as the card runs it: never a false all-clear
@@ -487,6 +488,7 @@ roster-app/
 │   ├── nav-bell.test.mjs      ← the drawer's notification bell under racing answers
 │   ├── nav-guide-fold.test.mjs ← the guide list following the Reference fold
 │   ├── about-markup-parity.test.mjs ← every app page's About markup carries every id about-lightbox.js looks up. Part of test:hygiene
+│   ├── header-badge-fit.test.mjs ← the sub-page header re-measured once Inter has swapped in, so the app's name is never left cut. Part of test:hygiene
 │   ├── sw-register.test.mjs    ← the service-worker registration and update reloads. Part of test:hygiene
 │   ├── status-text.test.mjs ← the decorative-glyph rule from both sides. Part of test:hygiene
 │   ├── status-glyph-parity.test.mjs ← the decorative-glyph rule across the tree. Part of test:hygiene
@@ -536,6 +538,7 @@ roster-app/
 │   ├── pay-audience.test.mjs ← who the Pay Calculator admits, by the role at the time, and who is sent the pay reminder. Part of test:hygiene
 │   ├── paycalc-money-banner.test.mjs ← the two money banners never overstating, and the take-home's lump rules behind them. Part of test:hygiene
 │   ├── paycalc-clear-confirm.test.mjs ← the two-tap Clear: no delete nobody confirmed. Part of test:hygiene
+│   ├── paycalc-save-line.test.mjs ← the "not saved" line: no Retry the words do not name, no "saved" over a refused setting. Part of test:hygiene
 │   ├── paycalc-breakdown.test.mjs ← the pay-result card builders. Part of test:hygiene
 │   ├── paycalc-form-data.test.mjs ← the paycalc form round trip, a case per historical defect (--experimental-test-module-mocks)
 │   ├── paycalc-period-merge.test.mjs ← two tabs on one payslip: the merge rule, a clear made elsewhere, and the question

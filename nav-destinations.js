@@ -121,8 +121,8 @@ export const SECTION_MODS = Object.freeze({ Pay: 'pay', 'Link Designer': 'links'
 
 /**
  * Each flag a `NAV_PAGES` entry may carry, and the gate (an `initNavPanel` option, from `navGatesFor`)
- * that must be true for the pill to be drawn. A sixth gate is one entry here and one in `navGatesFor`.
- * @type {Readonly<Record<'adminOnly'|'linksDesignerOnly'|'overtimeAudienceOnly'|'newlinkAudienceOnly'|'otherStaffHidden', 'isAdmin'|'isLinksDesigner'|'canOpenOvertime'|'canOpenNewlink'|'isNotOtherStaff'>>}
+ * that must be true for the pill to be drawn. A new gate is one entry here and one in `navGatesFor`.
+ * @type {Readonly<Record<'adminOnly'|'linksDesignerOnly'|'overtimeAudienceOnly'|'newlinkAudienceOnly'|'selectorAudienceOnly'|'otherStaffHidden', 'isAdmin'|'isLinksDesigner'|'canOpenOvertime'|'canOpenNewlink'|'canOpenSelector'|'isNotOtherStaff'>>}
  */
 export const PILL_GATES = Object.freeze({
     adminOnly:            'isAdmin',

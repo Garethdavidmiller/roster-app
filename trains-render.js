@@ -21,8 +21,8 @@ import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, route
 import { pairColumns, lineOf, orderStations, stopChanges, parseStops } from './trains-stations.js';
 import { aRealDay, weekdayGroups, weekdayWords, WEEKDAYS, runsOn } from './trains-weekdays.js';
 import { minutesWords, hourNote, hourWords, andList } from './trains-verdict.js';
-import { CHANGE_DATE } from './trains-data.js';
-import { isoDate } from './trains-journey.js';
+import { CHANGE_DATE, FURTHER_CHANGES_UNTIL } from './trains-data.js';
+import { isoDate, dayWord } from './trains-journey.js';
 
 /** The three kinds of day in words, as the day tabs name them — one copy for every sentence that names one. */
 export const DAY_NAMES = /** @type {Readonly<Record<'SX'|'SO'|'SU', string>>} */ (Object.freeze({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' }));
@@ -673,14 +673,22 @@ export const JOURNEY_HINT = 'Type a station, a time like 17:15, 1715 or 5.15pm, 
  * two routes take different times, and "before the 17:53" is the thing to tell the customer.
  *
  * NO TRAIN LEFT. Said, with the first train the next day from the next day's own timetable; with none then
- * either, the journey planner, which finds a route with a change of train.
+ * either, the journey planner, which finds a route with a change of train. "Today", "tomorrow" and "tonight"
+ * are the CALENDAR's (`dayWord`): at 00:30 on a Tuesday, its 06:35 is "First train today", not "tomorrow".
+ *
+ * CHRISTMAS IS NOT HERE. A date in the weeks Chiltern is still changing (`timetable.festive`, the window the
+ * overview's `#trFestive` line is shown for) carries that line too: the answer names the date and says
+ * "Scheduled", and without it read as the time to tell a customer for Christmas Eve.
+ *
+ * WORDS IT DID NOT READ ("Aylesbury tomorrow", `unused`) are said first, so the answer is not taken for them.
  * @param {ReturnType<typeof import('./trains-journey.js').journey>} j
- * @param {{ crs: string, stations: Readonly<Record<string, string>>, asked: 'time'|'now'|'day', today: boolean, others?: string[] }} o
+ * @param {{ crs: string, stations: Readonly<Record<string, string>>, asked: 'time'|'now'|'day', now: Date, others?: string[], unused?: string }} o
  *   asked — a time was typed; no time, today, so from now; or no time on another day, so from its first train ·
- *   today — the date is today's railway day · others — the search's other matches, to choose instead
+ *   now — the clock, whose calendar date "today" means · others — the search's other matches, to choose instead ·
+ *   unused — words typed after the station that the box does not read
  * @returns {string}
  */
-export function renderJourney(j, { crs, stations, asked, today, others = [] }) {
+export function renderJourney(j, { crs, stations, asked, now, others = [], unused = '' }) {
     const name = stations[crs] ?? crs;
     const on = (/** @type {Date} */ d) => dateWords(isoDate(d), 0, { weekday: true });
     const meta = (/** @type {import('./trains-journey.js').JourneyDay} */ day) => `<p class="tr-jr-meta"><span>${esc(on(day.date))}</span>`
@@ -714,24 +722,29 @@ export function renderJourney(j, { crs, stations, asked, today, others = [] }) {
             `<button type="button" class="tr-pick" data-journey="${esc(c)}">${esc(stations[c] ?? c)}</button>`).join('')}</div>`
         : '';
     const sched = '<p class="card-explainer tr-note">Scheduled means Chiltern’s published time, not live running: on the day a train can still be late or cancelled.</p>';
-    const dayWord = today ? 'today' : `on ${on(j.date)}`;
+    // The overview's own Christmas line (`renderFurtherChanges`), under the date it is about — said once.
+    const festive = (/** @type {import('./trains-journey.js').JourneyDay|null} */ day) => day?.timetable.festive
+        ? `<p class="card-explainer tr-note">${renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)}</p>` : '';
+    const unread = unused ? `<p class="card-explainer tr-note">This box reads a station and a time, so “${esc(unused)}” is not part of this answer. `
+        + `For another day, press ${esc(Object.values(DAY_NAMES).join(', ').replace(/, (?=[^,]*$)/, ' or '))}.</p>` : '';
+    const dayText = dayWord(j.date, now) ?? `on ${on(j.date)}`;
     if (j.trains.length) {
         const ask = asked === 'time' ? `First train to ${name} after ${j.at}` : asked === 'now' ? `Next train to ${name}` : `First train to ${name}`;
         const then = j.trains.slice(1);
-        return ended + meta(j) + `<p class="tr-jr-ask">${esc(ask)}</p>` + first(j)
+        return ended + unread + meta(j) + festive(j) + `<p class="tr-jr-ask">${esc(ask)}</p>` + first(j)
             + (then.length ? `<p class="tr-picks-label tr-jr-then">Then</p><ol class="tr-jr-list">${then.map(t => `<li>${train(t, j.via, j.trains[0])}</li>`).join('')}</ol>` : '')
             + sched + card + choose;
     }
     // Nothing left that day. "After 17:15" is said only when it was typed: a time read from the clock would change
     // the sentence each minute, and the polite live region would read it out each time.
     const none = j.total
-        ? `No more trains to ${name} ${dayWord}${asked === 'time' ? ` after ${j.at}` : ''}.`
-        : `No train from Marylebone stops at ${name} ${dayWord}.`;
-    const nextWord = today ? 'tomorrow' : 'the day after';
+        ? `No more trains to ${name} ${dayText}${asked === 'time' ? ` after ${j.at}` : ''}.`
+        : `No train from Marylebone stops at ${name} ${dayText}.`;
+    const nextWord = (j.next && dayWord(j.next.date, now)) ?? 'the day after';
     const next = j.next?.trains.length
-        ? `<p class="tr-jr-ask">First train ${nextWord}</p>` + meta(j.next) + first(j.next) + sched
+        ? `<p class="tr-jr-ask">First train ${nextWord}</p>` + meta(j.next) + (j.timetable.festive ? '' : festive(j.next)) + first(j.next) + sched
         : `<p class="card-explainer tr-lead">None ${nextWord} either. For a journey with a change of train, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a>.</p>`;
-    return ended + meta(j) + `<p class="tr-answer"><strong>${esc(none)}</strong></p>` + next + card + choose;
+    return ended + unread + meta(j) + festive(j) + `<p class="tr-answer"><strong>${esc(none)}</strong></p>` + next + card + choose;
 }
 
 /**

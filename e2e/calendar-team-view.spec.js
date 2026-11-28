@@ -8,7 +8,7 @@
  * calendar-access.spec.js.
  */
 import { test, expect } from './fixtures.js';
-import { teamMembers } from '../roster-data.js';
+import { teamMembers, getBaseShift, SHIFT_TIME_REGEX } from '../roster-data.js';
 import { seedMember, seedCalendarMember, seedMemberSession, isTouchProject } from './helpers.js';
 
 // ── Calendar access ─────────────────────────────────────────────────────────────────────────────
@@ -761,8 +761,8 @@ test('Team View: the swipe hint shows only while the week is wider than its box'
 });
 
 // ─── "WHO’S ON WITH ME" (owner, 27 Nov 2026) ─────────────────────────────────────────────────────────
-// The day panel's button on a day worked with times opens Team View on that date's week, with the
-// colleagues whose duties overlap listed above the grid, longest together first. The arithmetic is
+// The day panel's button on a day worked with times, today or later, opens Team View on that date's week,
+// with the colleagues whose duties overlap listed above the grid by role, in order of start. The arithmetic is
 // team-overlap.test.mjs's and the card's markup calendar-team-onwith.test.mjs's; this is the WIRING — the
 // cell's date and times reaching the panel, the panel's close waiting for its Back before Team View pushes
 // its own (`whenHistorySettled`), the card drawn from the shared cache, focus, Hide, and one Back out.
@@ -801,16 +801,18 @@ test('team view: "Who’s on with me" opens the week on that date with the overl
     await expect(btn).toHaveAccessibleName('Who’s on with me');
     await btn.click();
 
-    const card = page.getByRole('region', { name: 'On with G. Miller · Wednesday 16 September' });
+    const card = page.getByRole('region', { name: 'On with G. Miller Wednesday 16 September' });
     await expect(card).toBeVisible();
     await expect(page.locator('#tvOnWithTitle'), 'focus did not move to the answer').toBeFocused();
     await expect(page.locator('#tvWeekJump')).toHaveText('13–19 Sep 2026');
     await expect(page.locator('.team-table'), 'the week grid is not under the card').toBeVisible();
     const row = (/** @type {string} */ name) => card.locator('.tv-onwith-row', { has: page.locator('.tv-onwith-name', { hasText: name }) });
-    await expect(row(early.name)).toContainText('Together 14:00–15:00');
-    await expect(row(long.name)).toContainText('Together 14:00–21:00');
+    await expect(row(early.name)).toContainText('until 15:00');
+    await expect(row(long.name)).toContainText('until 21:00');
     const names = await card.locator('.tv-onwith-name').allTextContents();
-    expect(names.indexOf(long.name), 'seven hours together was not listed before one').toBeLessThan(names.indexOf(early.name));
+    expect(names.indexOf(early.name), 'the 06:00 start was not listed before the 13:00').toBeLessThan(names.indexOf(long.name));
+    await expect(card.getByRole('heading', { level: 3 }), 'not by role, the member\'s own first').toHaveText(['CEA', 'CES', 'Dispatcher']);
+    await expect(card.getByRole('list', { name: 'CEA' }).locator('.tv-onwith-name')).toContainText([early.name, long.name]);
     await expect(card, 'somebody on leave was listed').not.toContainText(away.name);
     await expect(card.locator('.tv-onwith-name', { hasText: 'G. Miller' }), 'the member was listed as on with themselves').toHaveCount(0);
 
@@ -865,6 +867,135 @@ test('team view: a rest day offers no "Who’s on with me", and a colleague’s 
     await page.locator('.calendar-day[data-detail-iso="2026-09-16"]').click();
     await expect(page.locator('#dayDetailTeamBtn')).toHaveAccessibleName(`Who’s on with ${colleague.name}`);
     await page.locator('#dayDetailTeamBtn').click();
-    await expect(page.getByRole('region', { name: `On with ${colleague.name} · Wednesday 16 September` })).toBeVisible();
+    await expect(page.getByRole('region', { name: `On with ${colleague.name} Wednesday 16 September` })).toBeVisible();
     await expect(page.locator('#tvOnWith .tv-onwith-name', { hasText: 'G. Miller' }), 'G. Miller (14:00–22:30) shares 14:00–15:00').toHaveCount(1);
+});
+
+// A TRAINING DAY WITH NO TIME OF ITS OWN IS ON THE BASE SHIFT'S HOURS (team-overlap.js, rules 6 and 7): the
+// cell prints them, so the card must count them — for a colleague and for the member's own day alike.
+/** A day of 16–19 Sep 2026 whose BASE shift is timed for `member`, as the cell would print it. From the
+ *  16th, the tests' today: the card answers for today and later only. */
+const timedBaseDay = (/** @type {any} */ member) => {
+    for (let d = 16; d <= 19; d++) {
+        const base = getBaseShift(member, new Date(2026, 8, d, 12));
+        if (SHIFT_TIME_REGEX.test(base)) return { iso: `2026-09-${d}`, base };
+    }
+    return null;
+};
+/** @param {import('@playwright/test').Page} page @param {any[]} docs */
+async function seedDocs(page, docs) {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await page.addInitScript((docs) => { const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = docs; }, docs);
+}
+
+test('team view: a colleague on Training over the same hours is on with you, never "not at the same time"', async ({ page }) => {
+    const trainee = /** @type {any} */ (onWithCast().find(m => timedBaseDay(m)));
+    const at = trainee && timedBaseDay(trainee);
+    expect(at, 'premise: a CEA with a timed base shift that week').toBeTruthy();
+    const { iso, base } = /** @type {{ iso: string, base: string }} */ (at);
+    await seedDocs(page, [
+        { id: 'tr1', memberName: 'G. Miller', date: iso, type: 'shift', value: base, note: '' },
+        { id: 'tr2', memberName: trainee.name, date: iso, type: 'other', value: 'TRG', note: '' },   // no time of its own
+    ]);
+    await page.goto('/');
+    await page.locator(`.calendar-day[data-detail-iso="${iso}"]`).click();
+    await page.locator('#dayDetailTeamBtn').click();
+    const card = page.locator('#tvOnWith');
+    await expect(card).toBeVisible();
+    const row = card.locator('.tv-onwith-row', { has: page.locator('.tv-onwith-name', { hasText: trainee.name }) });
+    await expect(row, 'a colleague on Training over the same hours was not listed as on with you').toContainText('Training');
+    await expect(row).toContainText('whole shift');
+    await expect(card, 'the old "not at the same time" list came back').not.toContainText('not at the same time');
+});
+
+test('team view: the member\'s own Training day on the base shift\'s hours offers "Who’s on with me"', async ({ page }) => {
+    const me = teamMembers.find(m => m.name === 'G. Miller');
+    const at = timedBaseDay(me);
+    expect(at, 'premise: G. Miller has a timed base shift that week').toBeTruthy();
+    const { iso, base } = /** @type {{ iso: string, base: string }} */ (at);
+    await seedDocs(page, [{ id: 'tr3', memberName: 'G. Miller', date: iso, type: 'other', value: 'TRG', note: '' }]);
+    await page.goto('/');
+    const day = page.locator(`.calendar-day[data-detail-iso="${iso}"]`);
+    await expect(day).toHaveAttribute('data-detail-shift-value', 'TRG');
+    await expect(day, 'the cell\'s own times did not reach the panel').toHaveAttribute('data-detail-worked-times', base);
+    await day.click();
+    await expect(page.locator('#dayDetailTeamBtn'), 'a Training day on the base shift\'s hours offered no button').toBeVisible();
+    await page.locator('#dayDetailTeamBtn').click();
+    await expect(page.locator('#tvOnWith .tv-onwith-mine')).toContainText('Training');
+    await expect(page.locator('#tvOnWith')).not.toContainText('has no shift with times');
+});
+
+// TODAY AND LATER ONLY (owner, 28 Nov 2026: "I do not need to see who I am on in the past with"). A past day
+// worked with times offers no button; today and a later day do. A panel left open across midnight still
+// has its button, and pressing it then opens the week with no card: the card's own rule, not the panel's.
+test('team view: "Who’s on with me" is offered today and later, never on a past day', async ({ page }) => {
+    await seedDocs(page, ['2026-09-15', '2026-09-16', '2026-09-17'].map((date, i) =>
+        ({ id: `p${i}`, memberName: 'G. Miller', date, type: 'shift', value: '14:00-22:30', note: '' })));
+    await page.goto('/');
+    const btn = page.locator('#dayDetailTeamBtn');
+    for (const [iso, offered] of /** @type {[string, boolean][]} */ ([['2026-09-15', false], ['2026-09-16', true], ['2026-09-17', true]])) {
+        const day = page.locator(`.calendar-day[data-detail-iso="${iso}"]`);
+        await expect(day, 'premise: a day worked with times').toHaveAttribute('data-detail-worked-times', '14:00-22:30');
+        await day.click();
+        await expect(page.locator('#dayDetailLightbox')).toHaveClass(/\bopen\b/);
+        if (offered) await expect(btn, `${iso} offered no button`).toBeVisible();
+        else await expect(btn, 'a past day offered "Who’s on with me"').toBeHidden();
+        await page.locator('#dayDetailClose').click();
+        await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/\bopen\b/);
+    }
+});
+
+test('team view: a date gone past by the time the button is pressed opens the week with no card', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 8, 16, 23, 58, 0) });
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'm1', memberName: 'G. Miller', date: '2026-09-16', type: 'shift', value: '14:00-22:30', note: '' }];
+    });
+    await page.goto('/');
+    await page.locator('.calendar-day[data-detail-iso="2026-09-16"]').click();
+    await expect(page.locator('#dayDetailTeamBtn')).toBeVisible();
+    await page.clock.runFor('03:00');                     // past local midnight, the panel still open
+    await page.locator('#dayDetailTeamBtn').click();
+    await expect(page.locator('.team-table'), 'Team View did not open').toBeVisible();
+    await expect(page.locator('#tvOnWith'), 'a card for a day now past').toHaveCount(0);
+});
+
+// BY ROLE, AND TIDY AT 320px (owner, 28 Nov 2026: "very ugly and clunky … needs to be by role"). One line a
+// colleague: the name, the shift and the stretch together side by side, nothing past the card's edge.
+test('team view: the "On with" card is by role and keeps every colleague to one line at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
+    const ces = /** @type {any} */ (teamMembers.find(m => !m.hidden && m.role === 'CES'
+        && !(m.startDate && m.startDate > new Date(2026, 8, 15))));
+    await seedOnWithDay(page);
+    await page.addInitScript((name) => {
+        /** @type {any} */ (window).__E2E.docs.push({ id: 'ow5', memberName: name, date: '2026-09-16', type: 'rdw', value: '16:00-23:00', note: '' });
+    }, ces.name);
+    await page.goto('/');
+    await page.locator('.calendar-day[data-detail-iso="2026-09-16"]').click();
+    await page.locator('#dayDetailTeamBtn').click();
+    const card = page.locator('#tvOnWith');
+    await expect(card).toBeVisible();
+    await expect(card.getByRole('heading', { level: 3 }), 'not by role, the member\'s own first').toHaveText(['CEA', 'CES', 'Dispatcher']);
+    // Each role's list holds only that role: the Rest Day Working CES is under CES, not CEA.
+    await expect(card.getByRole('list', { name: 'CES' }).locator('.tv-onwith-row', { hasText: ces.name })).toContainText('from 16:00');
+    await expect(card.getByRole('list', { name: 'CEA' })).not.toContainText(ces.name);
+
+    const rows = await card.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const mid = (/** @type {DOMRect} */ r) => (r.top + r.bottom) / 2;
+        return [...el.querySelectorAll('.tv-onwith-row')].map(row => {
+            const parts = [...row.children].map(c => c.getBoundingClientRect());
+            return {
+                name: row.querySelector('.tv-onwith-name')?.textContent,
+                oneLine: parts.every(p => Math.abs(mid(p) - mid(parts[0])) < 3) && row.getBoundingClientRect().height < 36,
+                inside: parts.every(p => p.left >= box.left && p.right <= box.right - 1),
+            };
+        });
+    });
+    expect(rows.length, 'premise: rows to measure').toBeGreaterThan(3);
+    for (const row of rows) {
+        expect(row.oneLine, `${row.name}'s row wrapped`).toBe(true);
+        expect(row.inside, `${row.name}'s row ran past the card`).toBe(true);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 'the page scrolls sideways').toBeLessThanOrEqual(0);
 });

@@ -449,7 +449,7 @@ the Pay Calculator's comparison table also uses — the uppercase label is the c
     @supports (grid-template-columns: subgrid) {
         .tr-heads { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 10px; row-gap: 8px; }
         .tr-heads > li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
-        .tr-head { grid-column: 1 / -1; grid-template-columns: subgrid; }
+        .tr-heads .tr-head { grid-column: 1 / -1; grid-template-columns: subgrid; }   /* the list's rows: a plain one has no list grid */
         .tr-head > .tr-chip { justify-self: start; }
     }
 }
