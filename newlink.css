@@ -460,6 +460,16 @@ body {
 @media (hover: hover) and (pointer: fine) {
     .nl-file:hover { border-color: var(--primary-blue); }
 }
+/* THE WAY TO THE LINKS SELECTOR (newlink-render.js → selectorRow): a file row's recipe, so it reads as the page's own
+   pressable row, standing alone — under the three names on the top card, and under each proposal's weeks. Its pill is
+   the page it opens, in that page's sky blue, the colour of its drawer pill and header badge, so the row says where it
+   goes before it is pressed. */
+.nl-onward { margin: 0 0 12px; }
+.nl-weeks-one .nl-onward { margin: 10px 0 0; }
+.nl-onward .nl-file-meta {
+    background: var(--blue-light);
+    color: color-mix(in oklch, var(--blue-sky) 70%, black);   /* the Links Selector's own --page-accent-text */
+}
 
 
 /* ── Desktop ──────────────────────────────────────────────────────────────────────────────────── */
@@ -481,7 +491,11 @@ body {
        held to 640px on the left, and half the card stood empty (the 2 Nov 2026 polish). */
     #nlStatus { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); column-gap: 32px; align-items: start; }
     #nlStatus > * { grid-column: 1; }
-    #nlStatus > .nl-names { grid-column: 2; grid-row: 1 / span 3; align-self: center; margin: 0; }
+    /* The three names and the way to see one as a calendar are one group, beside the words, as they are one under the
+       other on a phone: the row stays with the tiles it continues, never stranded in the column of prose. */
+    #nlStatus > .nl-picks { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+    .nl-picks > .nl-names, .nl-picks > .nl-onward:last-child { margin-bottom: 0; }
+    .nl-picks > .nl-names + .nl-onward { margin-top: 10px; }
     .nl-fig { max-width: 760px; }
     .nl-tabs { display: none; }
     .nl-weeks-all { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
@@ -672,6 +686,8 @@ body {
 }
 
 @media print {
+    /* The way to the Links Selector is a link, which paper cannot follow. */
+    .nl-onward { display: none; }
     body { background: white; padding: 0; color: black; }
     /* The title and the page badge's words are white for the navy canvas, which paper does not have,
        and both printed white on white: the title turns navy, the badge keeps its fill. */

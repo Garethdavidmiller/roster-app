@@ -201,6 +201,15 @@
             <div class="legend-item" id="legend-christmas" style="display:none"><span class="legend-text"><span aria-hidden="true">🎄</span> Christmas Day</span></div>
         </div>
     </div>
+
+    <!-- THE WAY BACK TO THE THREE SIDE BY SIDE (owner, 28 Nov 2026): New CEA Link, opened on the weeks of the proposal shown
+         (links-selector-app.js writes `?weeks=` and its code). The same row as New CEA Link's way here (newlink-render.js →
+         selectorRow), with that page's emoji and colour, so each page names the other the way the drawer does. -->
+    <a class="selector-onward" id="selectorOnward" href="./newlink.html">
+        <span class="selector-onward-icon" aria-hidden="true">🔁</span>
+        <span class="selector-onward-name">See the proposals side by side<span class="visually-hidden" id="selectorOnwardFrom"></span></span>
+        <span class="selector-onward-meta">New CEA Link</span>
+    </a>
 </div>
 
 <script type="module" src="./links-selector-boot.js"></script>

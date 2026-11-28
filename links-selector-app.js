@@ -43,6 +43,9 @@ import { buildSelectorMonth } from './links-selector-render.js';
 import { FIRST_MONTH, inRange, openingMonth, shiftTypesInMonth, hasBlankDays, initialChoice, choiceQuery, lineOptions, proposalsAtoZ, startDate,
     lineOn, ignoredWords, refusalWords } from './links-selector-core.js';
 
+/** New CEA Link, opened on one proposal's weeks: its `weeks` word (newlink-app.js → WEEKS_PARAM), then a sheet code. */
+const NEWLINK_WEEKS = './newlink.html?weeks=';
+
 /** Where this device keeps the last choice — a proposal code and a line, nothing about the person. */
 export const STORE_KEY = 'myb_links_selector_choice';
 
@@ -295,11 +298,20 @@ function runSelector() {
         if (changeMonth(delta)) { render(); announce(); }
     }
 
+    /** The way to New CEA Link opens on the weeks of the proposal shown (newlink-app.js reads `weeks`). */
+    function aimOnward() {
+        const onward = /** @type {HTMLAnchorElement|null} */ (document.getElementById('selectorOnward'));
+        if (onward) onward.href = `${NEWLINK_WEEKS}${encodeURIComponent(proposal.code)}`;
+        const from = document.getElementById('selectorOnwardFrom');
+        if (from) from.textContent = `, starting with ${proposalDisplayName(proposal)}`;
+    }
+
     /** Keep the choice in the address and on this device, then redraw. */
     function chosen() {
         try { history.replaceState(history.state, '', choiceQuery(proposal, line) + location.hash); } catch { /* a sandboxed frame */ }
         lsSet(STORE_KEY, JSON.stringify({ proposal: proposal.code, line }));
         linkNote.hidden = true;   // what the link named is behind them now: the screen shows their own choice
+        aimOnward();
         render();
     }
 
@@ -376,6 +388,7 @@ function runSelector() {
 
     paintProposal();
     paintLine();
+    aimOnward();
     // The address says what is shown, from the first paint — a link copied straight away is the view on screen.
     try { history.replaceState(history.state, '', choiceQuery(proposal, line) + location.hash); } catch { /* a sandboxed frame */ }
     render();

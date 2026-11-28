@@ -28,6 +28,26 @@ import { proposalDisplayName } from './link-designer-proposals.js';
 import { DAYS, isCoverWeek, startMinutes, classifyShift } from './link-designer-design.js';
 import { formatDayMonthYear } from './date-format.js';
 
+/**
+ * THE WAY TO THE LINKS SELECTOR (owner, 28 Nov 2026: "There needs to be a link from New CEA Link to Links Selector and vice
+ * versa"): the page that draws one of these proposals on DATES, as the Calendar draws a month. Its address takes the
+ * proposal's sheet code as `proposal` (links-selector-core.js → initialChoice and choiceQuery; newlink-render.test.mjs holds
+ * the two to one word) and keeps the line this device last chose, so a link names the proposal and nothing else.
+ */
+export const SELECTOR_URL = './links-selector.html';
+/** The Links Selector, opened on one proposal. @param {Proposal} p */
+export const selectorHref = (p) => `${SELECTOR_URL}?proposal=${encodeURIComponent(p.code)}`;
+
+/**
+ * A way to the Links Selector, drawn as the pack's file rows are (`fileRow`): a white raised row, because on this page raised
+ * means pressable, with the destination's name in the row's pill where a file says its pages — so a colleague learns
+ * the tool's name as they meet it, the name the drawer gives it. `hidden` is said to a screen reader only, after the words.
+ * @param {string} words @param {string} href @param {string} [hidden]
+ */
+function selectorRow(words, href, hidden = '') {
+    return `<a class="nl-file nl-onward" href="${esc(href)}"><span class="nl-file-icon" aria-hidden="true">🗓️</span><span class="nl-file-name">${esc(words)}${hidden ? `<span class="visually-hidden">: ${esc(hidden)}</span>` : ''}</span><span class="nl-file-meta">Links Selector</span></a>`;
+}
+
 /** @typedef {import('./newlink-data.js').Persona} Persona */
 /** @typedef {import('./newlink-data.js').Row} Row */
 /** @typedef {import('./newlink-data.js').PackFile} PackFile */
@@ -132,10 +152,12 @@ function startIsPast(starts, today) {
  * The status card's body: what the page is, the three names (one equal tile each, A to Z), and — while views are wanted — by
  * when. `timetable` and `today` are 'YYYY-MM-DD'; with no `today` the line reads as it does before the timetable changes.
  * `chosen` and `contact` are the settings `statusPhase` and the safety net read (newlink-config.js, CHOSEN and CONTACT).
+ * `calendar`: offer the way to the Links Selector, under the three names — for a reader it admits (auth-policy.js →
+ * `canOpenSelector`, which newlink-app.js asks), so nobody is offered a page that would refuse them.
  * @param {{ proposals: ReadonlyArray<Proposal>, closes: string|null, starts?: string|null, timetable?: string|null, today?: string|null,
- *   chosen?: string|null, contact?: string }} o
+ *   chosen?: string|null, contact?: string, calendar?: boolean }} o
  */
-export function renderStatus({ proposals, closes, starts = null, timetable = null, today = null, chosen = null, contact = '' }) {
+export function renderStatus({ proposals, closes, starts = null, timetable = null, today = null, chosen = null, contact = '', calendar = false }) {
     // Each tile LOOKS pressable — white, raised, the page's button recipe — so it is one: it opens that proposal's weeks
     // (the review, 2 Nov 2026: three raised tiles that did nothing broke the page's own rule that raised means pressable).
     // The name and nothing else: the sheet code told a colleague nothing and took a second line on a phone, so it lives on
@@ -181,7 +203,7 @@ export function renderStatus({ proposals, closes, starts = null, timetable = nul
     const passed = closesWords(closes) !== closesWords(null) && !!today && today > /** @type {string} */ (closes);
     const say = passed || phase !== 'open' ? '' : ` <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> by <strong>${esc(closesWords(closes))}</strong>.`;
     return `<p class="nl-callout">${lead}</p>
-    <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
+    <div class="nl-picks"><ul class="nl-names" aria-label="The three proposals">${tiles}</ul>${calendar ? selectorRow('See one as a calendar', SELECTOR_URL) : ''}</div>
     ${weeksShape(proposals)}
     <p class="nl-lead">Nothing on this page changes your roster.${say}</p>`;
 }
@@ -392,9 +414,10 @@ function dayCell(s) {
  * One proposal's weeks, Sunday to Saturday as the paper rosters run. A cover week (`isCoverWeek`: SPARE Monday to Saturday)
  * is one cell across the week, because its four shifts are not set until nearer the time. Its Sunday is not contracted and
  * not asked about, so one written as anything but SPARE — a rest day, an overtime duty — keeps its own cell beside it.
- * @param {Proposal} p
+ * `calendar`: end with the way to see these weeks as a calendar, in the Links Selector (`renderAllWeeks` says when).
+ * @param {Proposal} p @param {{ calendar?: boolean }} [opts]
  */
-export function renderWeeks(p) {
+export function renderWeeks(p, { calendar = false } = {}) {
     const weeks = Object.keys(p.patterns).sort((a, b) => +a - +b);
     const head = `<thead><tr><th scope="col">${short('Wk', 'Week')}</th>${DAYS.map(d => `<th scope="col">${short(DAY_SHORT[d], DAY_LONG[d])}</th>`).join('')}</tr></thead>`;
     const rows = weeks.map(w => {
@@ -410,7 +433,7 @@ export function renderWeeks(p) {
     <div class="nl-weeks-wrap" tabindex="0" role="group" aria-label="${esc(designName(p))}’s ${weeks.length} weeks"><table class="nl-weeks">
         <caption>${esc(designName(p))} <span class="nl-ref">${esc(p.ref)}</span></caption>
         ${head}<tbody>${rows}</tbody>
-    </table></div>`;
+    </table></div>${calendar ? selectorRow('See it as a calendar', selectorHref(p), designName(p)) : ''}`;
 }
 
 /**
@@ -418,10 +441,12 @@ export function renderWeeks(p) {
  * three side by side and no tabs (newlink.css), which compares them at a glance and gives none of them the first look — the
  * one a default tab gave to the first name in the alphabet (the review, 2 Nov 2026). Each keeps its own flag, so any one of
  * them, cropped, still says what it is.
- * @param {ReadonlyArray<Proposal>} proposals @param {string} chosen  a proposal id
+ * Under each grid, for a reader the Links Selector admits (`calendar`), the way to see that proposal on dates — where the
+ * reader has just read its weeks and the question is what they would look like as months.
+ * @param {ReadonlyArray<Proposal>} proposals @param {string} chosen  a proposal id @param {{ calendar?: boolean }} [opts]
  */
-export function renderAllWeeks(proposals, chosen) {
-    return `<div class="nl-weeks-all">${aToZ(proposals).map(p => `<div class="nl-weeks-one${p.id === chosen ? ' is-chosen' : ''}" data-weeks="${esc(p.id)}" tabindex="-1">${renderWeeks(p)}</div>`).join('')}</div>`;
+export function renderAllWeeks(proposals, chosen, opts = {}) {
+    return `<div class="nl-weeks-all">${aToZ(proposals).map(p => `<div class="nl-weeks-one${p.id === chosen ? ' is-chosen' : ''}" data-weeks="${esc(p.id)}" tabindex="-1">${renderWeeks(p, opts)}</div>`).join('')}</div>`;
 }
 
 /**

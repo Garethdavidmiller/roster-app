@@ -386,6 +386,35 @@ test.describe('links selector', () => {
         });
         await expect(page.locator('.calendar-day[data-detail-day="Tuesday 26 January 2027"]')).toBeFocused();
     });
+    test('the two pages lead to each other, each opening the other on the proposal in hand', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        // New CEA Link → the Links Selector: on the top card, and under the proposal whose weeks are shown
+        await page.goto('/newlink.html');
+        await expect(page.locator('#nlStatus .nl-onward')).toHaveAttribute('href', './links-selector.html');
+        const row = page.locator('.nl-weeks-one.is-chosen .nl-onward');
+        await expect(row).toContainText('See it as a calendar');
+        const mg = page.locator('.nl-weeks-one[data-weeks="proposal:MG-26-T8"] .nl-onward');
+        await expect(mg).toHaveAttribute('href', './links-selector.html?proposal=MG-26-T8');
+        await page.goto('/links-selector.html?proposal=MG-26-T8');
+        await expect(page.locator('#selectorProposal')).toHaveValue('proposal:MG-26-T8');
+        // …and back: the way out names the proposal shown, and follows the picker
+        const onward = page.locator('#selectorOnward');
+        await expect(onward).toHaveAttribute('href', './newlink.html?weeks=MG-26-T8');
+        await page.locator('#selectorProposal').selectOption('proposal:LC-26-T10');
+        await expect(onward).toHaveAttribute('href', './newlink.html?weeks=LC-26-T10');
+        await onward.click();
+        await expect(page).toHaveURL(/newlink\.html\?weeks=LC-26-T10$/);
+        // New CEA Link opens on that proposal's weeks, its card open and in view
+        await expect(page.locator('.nl-weeks-one.is-chosen')).toHaveAttribute('data-weeks', 'proposal:LC-26-T10');
+        await expect(page.locator('#nlWeeksCard')).toBeInViewport();
+    });
+
+    test('a New CEA Link address that names no proposal opens the page as it always does', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/newlink.html?weeks=ZZ-99');
+        await expect(page.locator('.nl-weeks-one.is-chosen')).toHaveAttribute('data-weeks', 'proposal:MB-26-V6');
+        await expect(page.locator('#nlStatusCard')).toBeInViewport();
+    });
 });
 
 // A FIRST VISIT (owner, 28 Nov 2026: "nothing to say what it is and how to use it"): the ? panel opens by itself, once, and

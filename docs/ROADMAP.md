@@ -1,6 +1,6 @@
 # Marylebone Roster — Product Roadmap
 
-*Last updated: November 2026 — v27.20 · Updated every 0.10 version*
+*Last updated: November 2026 — v27.30 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -108,8 +108,8 @@ admin's beta, then open to the same audience since v27.28 (`CONFIG.LINKS_SELECTO
 
 **What remains is decisions, not code:**
 
-- **Opening the Links Selector** once the admin is happy with it (`OPERATIONS_REFERENCE.md` → Opening the Links
-  Selector to colleagues), and setting its start day with the link's (`STARTS`, provisionally 17 January 2027).
+- **The Links Selector's start day**, set with the link's (`STARTS`, provisionally 17 January 2027). The selector and
+  New CEA Link lead to each other since v27.30; **a way to it from the Calendar is not wanted yet** (owner, 28 Nov 2026).
 - **The choice.** None is chosen (`CHOSEN` is null in `newlink-config.js`): S. Silva's decision, as the
   one leading the change, then the area manager's review.
 - **The management review meeting** is not scheduled. The plan's backwards dates, counted from the

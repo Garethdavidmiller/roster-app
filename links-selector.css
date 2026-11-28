@@ -73,6 +73,51 @@
     color: rgba(255, 255, 255, 0.65);
 }
 
+/* THE WAY TO NEW CEA LINK, under the key: the row New CEA Link draws for its way here (newlink.css → .nl-file, .nl-onward),
+   drawn the same, so the two ways read as one pair — a white raised row, the page's words in navy, and the destination's
+   name in its own colour's pill (New CEA Link's teal, its drawer pill's). Restated rather than shared: each page loads
+   only its own sheet (page-css-parity.test.mjs), and a test holds the two recipes together (links-selector-core.test.mjs). */
+.selector-onward {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;   /* the key's own margin below it is the gap, the grid-to-key gap above it (index.css → .legend) */
+    padding: 10px 12px;
+    border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-button);
+    background: white;
+    box-shadow: var(--shadow-1);
+    color: var(--primary-blue);
+    font-size: var(--type-body);
+    font-weight: 700;
+    text-decoration: none;
+    transition: border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.selector-onward:active { transform: scale(var(--press-scale)); }
+/* Gold: the row sits on the navy canvas, so its ring does too (css-tokens.md → focus indicators). */
+.selector-onward:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+    .selector-onward:hover { border-color: var(--primary-blue); }
+}
+.selector-onward-icon { flex: 0 0 auto; font-size: var(--type-medium); }
+.selector-onward-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.selector-onward-meta {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--al-light);
+    color: var(--al-deep);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    white-space: nowrap;
+}
+/* Wider, the row is the key's width above it, and the key centres its items: so do the row's three parts, together —
+   words and pill a sentence apart, not a band apart (the screenshot at 1280px: 1,100px of white between them). */
+@media (min-width: 768px) {
+    .selector-onward { justify-content: center; }
+    .selector-onward-name { flex: 0 1 auto; }
+}
+
 /* The printed heading: nothing on screen, where the controls already say it. */
 .selector-print-head { display: none; }
 
@@ -94,6 +139,7 @@
     .selector-print-choice { margin: 4px 0 0; font-size: var(--type-badge); font-weight: 700; }
     /* The note is how to use the screen; the heading above already says on paper that it is a proposal. */
     .selector-note, #selectorNoteBox { display: none; }   /* the box by its id too: its screen rule (above) is an id */
+    .selector-onward { display: none; }   /* a link, which paper cannot follow */
     .calendar-day.selector-blank { background: none; }
     .legend-color.selector-blank-key { background: none; }
 }

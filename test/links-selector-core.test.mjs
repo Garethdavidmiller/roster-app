@@ -208,3 +208,35 @@ test('the day panel\'s Christmas, cover-week and Sunday lines are the Calendar\'
     assert.ok(weeksKey.includes('Sunday shifts are overtime.') && app.includes("'Sunday shifts are overtime.'"), 'the Sunday line');
     assert.ok(panel.includes("html: 'Sunday shifts are overtime.'"), 'the ? panel\'s Sunday line');
 });
+
+// THE TWO WAYS BETWEEN THE PAGES (owner, 28 Nov 2026: "a link from New CEA Link to Links Selector and vice versa"). Each page
+// names the other in the other's own address words, and draws the way across as the same row — so these hold the words and
+// the recipe to one another: rename a parameter, or restyle one row, and this fails until both agree.
+test('New CEA Link and the Links Selector send each other the proposal in the other\'s own words', async () => {
+    const { selectorHref, SELECTOR_URL } = await import('../newlink-render.js');
+    for (const p of PROPOSALS) {
+        const href = selectorHref(p);
+        assert.ok(href.startsWith(`${SELECTOR_URL}?`), href);
+        // the Links Selector reads exactly that proposal from it, and says nothing about a line it did not name
+        assert.deepEqual(initialChoice(href.slice(href.indexOf('?')), null), { proposalId: p.id, line: 1, ignored: [] });
+    }
+    const app = readFileSync(new URL('../links-selector-app.js', import.meta.url), 'utf8');
+    const newlinkApp = readFileSync(new URL('../newlink-app.js', import.meta.url), 'utf8');
+    const word = newlinkApp.match(/const WEEKS_PARAM = '([a-z]+)';/)?.[1];
+    assert.ok(word, 'newlink-app.js names its WEEKS_PARAM');
+    assert.ok(app.includes(`const NEWLINK_WEEKS = './newlink.html?${word}=';`), 'the Links Selector sends New CEA Link its own word');
+});
+
+test('the two rows are one recipe: the Links Selector\'s way out is drawn as New CEA Link\'s file row', () => {
+    const block = (/** @type {string} */ css, /** @type {string} */ selector) => {
+        const at = css.indexOf(`\n${selector} {`);
+        assert.ok(at >= 0, `${selector} has a rule`);
+        return Object.fromEntries(css.slice(at, css.indexOf('}', at)).split('\n').slice(1)
+            .map(l => l.replace(/\/\*.*?\*\//g, '').trim()).filter(l => l.includes(':')).map(l => l.replace(/;$/, '').split(/:\s*/)));
+    };
+    const nl = block(readFileSync(new URL('../newlink.css', import.meta.url), 'utf8'), '.nl-file');
+    const sel = block(readFileSync(new URL('../links-selector.css', import.meta.url), 'utf8'), '.selector-onward');
+    for (const prop of ['display', 'align-items', 'gap', 'padding', 'border', 'border-radius', 'background', 'box-shadow', 'color', 'font-weight', 'text-decoration', 'transition']) {
+        assert.equal(sel[prop], nl[prop], prop);
+    }
+});
