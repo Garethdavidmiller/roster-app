@@ -108,6 +108,11 @@ const NATIVE_BY_DECISION = {
         + 'for a 12-item list, which is more chrome than the list is worth. DECISIONS.md, 8 Sep 2026.',
     'index.html#monthJumpYear':
         'The other half of the month-jump pair, and native for the same reason. DECISIONS.md.',
+    'links-selector.html#monthJumpMonth':
+        'The Calendar\'s month-jump pair, on the Links Selector (owner, 28 Nov 2026): the same picker, native for the '
+        + 'same reason as on index.html.',
+    'links-selector.html#monthJumpYear':
+        'The other half of the Links Selector\'s month-jump pair, native for the same reason.',
 
     'overtime.html#otIdentityMember':
         'DISABLED with a single option — it states who you are, it does not ask. There is nobody '

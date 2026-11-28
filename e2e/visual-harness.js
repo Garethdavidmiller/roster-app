@@ -57,6 +57,7 @@ export function dismissOneTimeOverlays(page) {
             'myb_notice_newlink_vote_2026_done': '1', // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
             'myb_notice_move_to_main_2026_done': '1', // the move-to-the-main-address notice, GitHub Pages only (v26.90)
             'myb_notice_team_view_2026_done': '1', // the Team View notice, from 27 Nov 2026 (90 days)
+            'myb_notice_links_selector_2026_done': '1', // the Links Selector notice, 28 Nov – 11 Dec 2026
         };
         for (const [k, v] of Object.entries(flags)) {
             try { localStorage.setItem(k, v); } catch { /* iOS private mode — ignore */ }

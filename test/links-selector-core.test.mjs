@@ -97,7 +97,7 @@ test('the proposals A to Z, as the New CEA Link page lists them; the cover weeks
             // the app's rule: spare Monday to Saturday, whatever the Sunday (link-designer-design.js → isCoverWeek)
             const cover = DAYS.every(d => d === 'sun' || p.patterns[String(i + 1)][d] === 'SPARE');
             assert.equal(isCoverLine(p, i + 1), cover);
-            assert.equal(o.label, cover ? `Line ${i + 1} · cover week` : `Line ${i + 1}`);
+            assert.equal(o.label, cover ? `Week ${i + 1} · cover week` : `Week ${i + 1}`);
         }
     }
 });
@@ -162,8 +162,8 @@ test('the key\'s month: the kinds of day drawn, read through dayOn, and the blan
 test('a shared link that named nothing here says so, and what is shown instead', () => {
     assert.equal(ignoredWords([], 'Balanced V6', 1), '');
     assert.match(ignoredWords(['proposal'], 'Balanced V6', 4), /names a proposal that isn’t on the shortlist, so this shows Balanced V6\.$/);
-    assert.match(ignoredWords(['line'], 'Level Crossing', 1), new RegExp(`isn’t one of the ${ROTATING_LINES}, so this shows line 1\\.$`));
-    assert.match(ignoredWords(['proposal', 'line'], 'Balanced V6', 1), /a proposal and a line that aren’t here, so this shows Balanced V6 from line 1\.$/);
+    assert.match(ignoredWords(['line'], 'Level Crossing', 1), new RegExp(`names a week that isn’t one of the ${ROTATING_LINES}, so this shows week 1\\.$`));
+    assert.match(ignoredWords(['proposal', 'line'], 'Balanced V6', 1), /a proposal and a week that aren’t here, so this shows Balanced V6 from week 1\.$/);
 });
 
 test('the refusal card tells each reader what is true for them — never "not yet" to somebody it will never admit', () => {

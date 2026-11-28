@@ -1279,6 +1279,22 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('the Links Selector notice open (calendar) — the sky-blue Links Selector badge on the glass (owner, 28 Nov 2026)', async ({ page }) => {
+        // The Links Selector pill's sky blue under white type, a pairing no other notice carries. Whoever the page admits,
+        // 28 November to 11 December, last in the queue: the seeders mark every notice before it answered, so clearing
+        // this flag alone is the setup, on every project.
+        await page.clock.setFixedTime(new Date('2026-11-30T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await seedMemberSession(page, 'G. Miller');
+        await seedMember(page);
+        await clearNoticeFlags(page, ['myb_notice_links_selector_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#selectorNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('the Holiday Pay Premium notice open (pay) — the Pay page\'s own notice, on its own page (v26.22)', async ({ page }) => {
         // Every Pay page notice is suppressed in this suite, so none had been scanned on the page it opens
         // over: the green Pay badge was measured on the Calendar's glass (the Year to Date scan above), never

@@ -44,7 +44,7 @@ import { getSession } from './session.js';
 import { teamMembers, isOtherStaff } from './roster-data.js';
 import { payCalculatorPrices } from './pay-audience.js';   // the Pay page's own audience question
 import { installRoute, onPagesMirror, promptInstall, yieldToInstallNotice, releaseInstallNoticeYield, retireInstallStrip } from './install-prompt.js';
-import { canOpenNewlink } from './auth-policy.js';   // the New link notice's audience — the drawer pill's own question
+import { canOpenNewlink, canOpenSelector } from './auth-policy.js';   // the New link and Links Selector notices' audiences — each drawer pill's own question
 
 /**
  * Open a notice once access is decided AND this device is one of its audience.
@@ -170,6 +170,18 @@ const TEAM_RECORD = {
         + 'with you, and who is on a rest day when you might swap.',
 };
 
+/**
+ * What App Notices keeps of the Links Selector notice (28 Nov 2026). Nothing in it dates — no "new", no count of
+ * proposals, no vote — so it stays true for the 180 days the record is listed, while the proposals are still proposals.
+ * Its route names the drawer pill by its label (`NAV_PAGES`, nav-destinations.js), which the test holds it to.
+ */
+const SELECTOR_RECORD = {
+    id: 'links-selector-2026', section: 'Links Selector', date: '28 Nov 2026',
+    title: 'See the proposals as a calendar',
+    body: 'The Links Selector shows a proposal for the new link as a calendar, so you can see your shifts and rest days '
+        + 'month by month. Open it from the menu: ☰\u00a0then 🗓️\u00a0Links\u00a0Selector.',
+};
+
 /** What every notice waits for after access — set once by `initCalendarNotices`. @type {Promise<any>} */
 let _after = Promise.resolve();
 
@@ -189,6 +201,7 @@ const FOLLOWED_ENDS = {
     myb_notice_install_app_2026_done: ['22 Oct 2026', 90],
     myb_notice_newlink_vote_2026_done: ['5 Dec 2026', 1],
     myb_notice_timetable_soon_2026_done: ['12 Dec 2026', 1],
+    myb_notice_team_view_2026_done: ['27 Nov 2026', 90],
 };
 
 /**
@@ -582,11 +595,11 @@ export function initCalendarNotices({ after } = {}) {
     // FOR MEMBERS ON THE ROSTER. An Other Staff login has no line, so "who is on with you" has no answer for them; asked
     // at OPEN time, through the gate, because a front-door sign-in has no session at wiring time. Refused, unflagged.
     //
-    // IN SEQUENCE, never sharing a visit, and LAST: after the timetable notice (`FOLLOWS`, which itself waits for the
-    // install and New link notices until its final week), after the install notice where that one is this device's
-    // (`FOLLOWS_INSTALL`), and wired after every other notice, so on a load where the move notice is also due on the
-    // Pages copy, that one takes the screen and this one comes back next time (openNoticeIfClear). Both followed ends
-    // are in `FOLLOWED_ENDS`, so neither holds it after it has ended.
+    // IN SEQUENCE, never sharing a visit: after the timetable notice (`FOLLOWS`, which itself waits for the install and
+    // New link notices until its final week), after the install notice where that one is this device's
+    // (`FOLLOWS_INSTALL`), and wired after every other notice but the Links Selector one (which follows this), so on a
+    // load where the move notice is also due on the Pages copy, that one takes the screen and this one comes back next
+    // time (openNoticeIfClear). Both followed ends are in `FOLLOWED_ENDS`, so neither holds it after it has ended.
     //
     // A ONE-OFF on the rule every notice here follows, from its posting day (`STARTS`) for 90 days — an explanation of
     // a feature, not news, so it waits as long as the queue in front of it might. Archived on open.
@@ -634,6 +647,62 @@ export function initCalendarNotices({ after } = {}) {
             return !!m && !isOtherStaff(m);
         };
         _openWhenAudienceAllows(lb, 'members', () => onTheRoster() && (installNoticeDone || !installRoute()));
+    }());
+
+    // ── See the proposals as a calendar: the Links Selector (owner, 28 Nov 2026) ─────────────────────────────────────
+    //
+    // "An app notice in sequence in Calendar to last 2 weeks letting people know what the links selector is and providing
+    // a link to it." The page draws a proposal for the new link as the Calendar's own months, so a colleague can see what
+    // their year would look like before the choice is made — but only somebody who opens the drawer finds its pill. The
+    // body says what it is in the reader's terms (a calendar like this one, their shifts and rest days), what to choose
+    // and why the week is theirs to try (the page's own words: "Who starts on which week is decided later"), that their
+    // own roster stays as it is, and the drawer route, so "Not now" loses nothing; the link opens the page, whose own
+    // first-visit panel then takes over the explaining.
+    //
+    // FOR WHOEVER THE PAGE ADMITS (`canOpenSelector` — the drawer pill's own question, as the vote notice asks
+    // `canOpenNewlink`): never an invitation the page then refuses. Asked at OPEN time, through the gate, because a
+    // front-door sign-in has no session at wiring time; refused, unflagged.
+    //
+    // IN SEQUENCE, never sharing a visit, and LAST: after the Team View notice (`FOLLOWS`, which itself waits for the
+    // timetable notice, which waits for the vote notice until 6 December — so the vote notice always comes first), after
+    // the install notice where that one is this device's (`FOLLOWS_INSTALL`), and wired after every other notice. Team
+    // View's audience is everyone on the roster, and everyone this page admits is on the roster
+    // (calendar-notices.test.mjs holds that), so it waits for a notice that is always the member's to get. Both ends
+    // are in `FOLLOWED_ENDS`, so neither holds it after it has ended.
+    //
+    // A ONE-OFF on the rule every notice here follows, for two weeks (owner): from its posting day (`STARTS` — before it,
+    // a device is left unflagged) through the whole of Friday 11 December (`LAST_DAY`). Archived on OPEN, because the
+    // link leaves the page.
+    (function () {
+        const DONE_KEY        = 'myb_notice_links_selector_2026_done';
+        const STARTS          = new Date(2026, 10, 28);    // local midnight, Saturday 28 November — its posting day
+        const LAST_DAY        = '11 Dec 2026';             // two weeks: offered through the whole of the Friday
+        const FOLLOWS         = 'myb_notice_team_view_2026_done';
+        const FOLLOWS_INSTALL = 'myb_notice_install_app_2026_done';   // …where that notice is this device's
+
+        const overlay = document.getElementById('selectorNoticeLb');
+        if (!overlay) return;
+        if (lsGet(DONE_KEY)) return;
+        if (isNoticeExpired(LAST_DAY, 1)) { lsSet(DONE_KEY, '1'); return; }
+        if (Date.now() < STARTS.getTime()) return;
+        if (!followedDone(FOLLOWS)) return;
+        const installNoticeDone = followedDone(FOLLOWS_INSTALL);
+
+        const markDone = () => lsSet(DONE_KEY, '1');
+
+        const lb = createLightbox({
+            overlay,
+            content:  /** @type {HTMLElement} */ (document.getElementById('selectorNoticeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('selectorNoticeClose')),
+            onOpen() { archiveNotice(SELECTOR_RECORD); },
+            onClose() { markDone(); },
+        });
+
+        _wireNoticeLink('selectorNoticeGo', lb, markDone);
+        document.getElementById('selectorNoticeLater')?.addEventListener('click', () => lb.close());
+
+        _openWhenAudienceAllows(lb, 'members',
+            () => canOpenSelector(getSession()?.name) && (installNoticeDone || !installRoute()));
     }());
 }
 

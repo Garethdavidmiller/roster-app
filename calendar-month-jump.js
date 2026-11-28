@@ -9,6 +9,11 @@
  *   announcing it (`announceMonthChange`, handed in), or whether the Calendar is open
  *   (`getAccessType`, handed in; calendar-access.js decides).
  * Edit here for: the picker's behaviour. Its markup is in index.html.
+ *
+ * THE LINKS SELECTOR'S MONTH HEADING TOO (owner, 28 Nov 2026: "The month doesn't have the drop down selector in links
+ * selector"). That page draws the Calendar's month and heading, and keeps its own month: it hands in `month` — what is
+ * shown, how to move it, and the years it may reach — and the picker reads and writes that instead of calendar-state.js.
+ * Without `month` the Calendar's behaviour is unchanged, its own state and CONFIG's years.
  */
 
 import { CONFIG, MONTH_NAMES } from './roster-data.js';
@@ -17,11 +22,22 @@ import { onCalendarAccess } from './calendar-access-state.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear } from './calendar-state.js';
 
 /**
+ * @typedef {{ get: () => { year: number, month: number }, set: (year: number, month: number) => void,
+ *   firstYear: number, lastYear: number }} MonthSource  a page's own month, and the years it may show
+ */
+
+/**
  * Wire the picker. A page without `#monthJumpOverlay` gets nothing, and returns null.
- * @param {{ renderCalendar: () => void, announceMonthChange: () => void, getAccessType: () => string }} deps
+ * @param {{ renderCalendar: () => void, announceMonthChange: () => void, getAccessType: () => string, month?: MonthSource }} deps
  * @returns {{ open: () => void, close: () => void }|null} the picker, for a test; the page keeps nothing
  */
-export function initMonthJump({ renderCalendar, announceMonthChange, getAccessType }) {
+export function initMonthJump({ renderCalendar, announceMonthChange, getAccessType, month = undefined }) {
+    /** @type {MonthSource} */
+    const source = month ?? {
+        get: () => ({ year: getDisplayYear(), month: getDisplayMonth() }),
+        set: (y, m) => { setDisplayMonth(m); setDisplayYear(y); },
+        firstYear: CONFIG.MIN_YEAR, lastYear: CONFIG.MAX_YEAR,
+    };
     const overlay    = document.getElementById('monthJumpOverlay');
     const card       = document.getElementById('monthJumpCard');
     const selMonth   = /** @type {HTMLSelectElement} */ (document.getElementById('monthJumpMonth'));
@@ -30,8 +46,8 @@ export function initMonthJump({ renderCalendar, announceMonthChange, getAccessTy
     const btnCancel  = document.getElementById('monthJumpCancel');
     if (!overlay) return null;
 
-    // Populate year select once (CONFIG.MIN_YEAR..MAX_YEAR)
-    for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
+    // Populate year select once (CONFIG.MIN_YEAR..MAX_YEAR, or the page's own years)
+    for (let y = source.firstYear; y <= source.lastYear; y++) {
         const opt = document.createElement('option');
         opt.value = String(y); opt.textContent = String(y);
         selYear.appendChild(opt);
@@ -51,8 +67,9 @@ export function initMonthJump({ renderCalendar, announceMonthChange, getAccessTy
         content: card || undefined,
         initialFocus: () => selMonth || undefined,
         onOpen() {
-            selMonth.value = String(getDisplayMonth());
-            selYear.value  = String(getDisplayYear());
+            const shown = source.get();
+            selMonth.value = String(shown.month);
+            selYear.value  = String(shown.year);
         },
     });
 
@@ -73,8 +90,7 @@ export function initMonthJump({ renderCalendar, announceMonthChange, getAccessTy
     onCalendarAccess(({ open }) => { if (!open) picker.close(); });
     btnConfirm?.addEventListener('click', () => {
         if (getAccessType() === 'none') { picker.close(); return; }
-        setDisplayMonth(parseInt(selMonth.value, 10));
-        setDisplayYear(parseInt(selYear.value, 10));
+        source.set(parseInt(selYear.value, 10), parseInt(selMonth.value, 10));
         picker.close();
         renderCalendar();
         announceMonthChange();

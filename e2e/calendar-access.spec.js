@@ -1311,6 +1311,7 @@ async function heldSessionWithReset(page, resetAgoMs) {
         localStorage.setItem('myb_notice_newlink_vote_2026_done', '1');   // the New link vote notice, 26 Nov – 5 Dec 2026 (v26.90)
         localStorage.setItem('myb_notice_move_to_main_2026_done', '1');   // the move-to-the-main-address notice, GitHub Pages only, 26 Nov – 31 Dec 2026 (v26.90)
         localStorage.setItem('myb_notice_team_view_2026_done', '1');   // the Team View notice, from 27 Nov 2026 for 90 days
+        localStorage.setItem('myb_notice_links_selector_2026_done', '1');   // the Links Selector notice, 28 Nov – 11 Dec 2026
         window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true });
     });
     await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route => route.fulfill(resetAgoMs

@@ -117,7 +117,7 @@ export const NAV_GUIDES = Object.freeze([
  * `Links` stays beside `Link Designer`: a notice archived before the page was renamed (v27.10) keeps the old section name.
  * @type {Readonly<Record<string, string>>}
  */
-export const SECTION_MODS = Object.freeze({ Pay: 'pay', 'Link Designer': 'links', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New CEA Link': 'newlink', 'New link': 'newlink' });
+export const SECTION_MODS = Object.freeze({ Pay: 'pay', 'Link Designer': 'links', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New CEA Link': 'newlink', 'New link': 'newlink', 'Links Selector': 'selector' });
 
 /**
  * Each flag a `NAV_PAGES` entry may carry, and the gate (an `initNavPanel` option, from `navGatesFor`)

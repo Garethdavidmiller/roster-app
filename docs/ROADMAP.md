@@ -109,7 +109,8 @@ admin's beta, then open to the same audience since v27.28 (`CONFIG.LINKS_SELECTO
 **What remains is decisions, not code:**
 
 - **The Links Selector's start day**, set with the link's (`STARTS`, provisionally 17 January 2027). The selector and
-  New CEA Link lead to each other since v27.30; **a way to it from the Calendar is not wanted yet** (owner, 28 Nov 2026).
+  New CEA Link lead to each other since v27.30, and a two-week Calendar notice (28 Nov – 11 Dec 2026) says what it is
+  and links to it; **no permanent way to it from the Calendar's own screen** (owner, 28 Nov 2026).
 - **The choice.** None is chosen (`CHOSEN` is null in `newlink-config.js`): S. Silva's decision, as the
   one leading the change, then the area manager's review.
 - **The management review meeting** is not scheduled. The plan's backwards dates, counted from the
