@@ -704,6 +704,9 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `paycalc-clear-confirm.js`
 - **Exports:** `CLEAR_CONFIRM_MIN_MS` · `createClearConfirm`
 
+### `paycalc-save-line.js`
+- **Exports:** `createSaveLine`
+
 ### `paycalc-money-banner.js`
 - **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner` · `wireBannerTicks`
 

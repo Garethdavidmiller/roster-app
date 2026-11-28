@@ -196,6 +196,7 @@ roster-app/
 ├── paycalc-ytd-card.js     ← the Year to Date card on the page; owns no rule. Tested by paycalc-ytd-card.test.mjs
 ├── paycalc-disclosures.js  ← the Pay page's button-and-panel disclosures. Tested by paycalc-disclosures.test.mjs
 ├── paycalc-clear-confirm.js ← the two-tap "Clear all entries": the arm, the countdown and which tap confirms. Tested by paycalc-clear-confirm.test.mjs. See also paycalc-entries.spec.js.
+├── paycalc-save-line.js    ← the "not saved" line: its words and its Retry are one failure's, "saved" only for what storage kept, and who hears it change. Tested by paycalc-save-line.test.mjs. See also paycalc-saving.spec.js.
 ├── paycalc-money-banner.js ← the two opt-in money banners and their ticks and links; "Includes" only when the sum is in the figure. Tested by paycalc-money-banner.test.mjs. See also paycalc-backpay.spec.js.
 ├── paycalc-lightboxes.js   ← lightbox and About initialisation for paycalc.html. See also paycalc-layout.spec.js.
 ├── paycalc-periods.js      ← period arithmetic and the period select, and the Year to Date source rules. See also paycalc-periods.test.mjs.
@@ -536,6 +537,7 @@ roster-app/
 │   ├── pay-audience.test.mjs ← who the Pay Calculator admits, by the role at the time, and who is sent the pay reminder. Part of test:hygiene
 │   ├── paycalc-money-banner.test.mjs ← the two money banners never overstating, and the take-home's lump rules behind them. Part of test:hygiene
 │   ├── paycalc-clear-confirm.test.mjs ← the two-tap Clear: no delete nobody confirmed. Part of test:hygiene
+│   ├── paycalc-save-line.test.mjs ← the "not saved" line: no Retry the words do not name, no "saved" over a refused setting. Part of test:hygiene
 │   ├── paycalc-breakdown.test.mjs ← the pay-result card builders. Part of test:hygiene
 │   ├── paycalc-form-data.test.mjs ← the paycalc form round trip, a case per historical defect (--experimental-test-module-mocks)
 │   ├── paycalc-period-merge.test.mjs ← two tabs on one payslip: the merge rule, a clear made elsewhere, and the question

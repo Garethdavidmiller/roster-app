@@ -352,6 +352,7 @@ const APP_FILES = [
     'paycalc-role-card.js',
     'paycalc-roster-hint.js',
     'paycalc-roster-suggestions.js',
+    'paycalc-save-line.js',
     'paycalc-settings.js',
     'paycalc-sticky-total.js',
     'paycalc-transfer-card.js',

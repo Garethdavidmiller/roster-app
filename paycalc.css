@@ -179,6 +179,8 @@
       font-size: var(--type-small); color: var(--text-faint);
       transition: color var(--dur-slower);
     }
+    /* tabindex="-1": a Retry that hides under keyboard focus hands it here (paycalc-save-line.js rule 4) */
+    .save-status:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .save-status.saved   { color: var(--success-text); }
     /* corrupt: saved entries that cannot be read; failed: what is on screen did not reach storage */
     .save-status.corrupt, .save-status.failed { color: var(--warning-amber); font-weight: 600; }
