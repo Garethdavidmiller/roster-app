@@ -28,8 +28,8 @@
  * change stopped is ticked again by somebody looking at it, and a person the Save never reached keeps
  * their tick, so saving again finishes it. Clear asks, and forgets them; so does leaving the page.
  *
- * ONLY WHAT A SAVE WOULD WRITE IS UNSAVED: a tick, or a day answered "Swapped — counts". "Rest day —
- * free" writes nothing, so it holds nothing back: after a Save had saved everything, every way off the
+ * ONLY WHAT A SAVE WOULD WRITE IS UNSAVED: a tick, or a day answered "Yes, swapped — uses a leave day". "No — rest day,
+ * nothing recorded" writes nothing, so it holds nothing back: after a Save had saved everything, every way off the
  * page asked about "unsaved changes" it could never make. The Save names those days instead.
  *
  * ── A SAVE THAT SENT NOTHING CHANGES NOTHING ────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ let _seq = 0;
 
 /** True while a Save or an Undo runs. */
 export const alSaveWorking = () => _working;
-/** True while a Save or an Undo runs, or a tick or a "Swapped — counts" answer is unsaved (header). */
+/** True while a Save or an Undo runs, or a tick or a "Yes, swapped — uses a leave day" answer is unsaved (header). */
 export const alSaveUnsaved = () => _working || _memory.ticks.size > 0
     || [..._memory.answers.values()].some(m => [...m.values()].includes('swapped'));
 /** Clear, answered: everything the admin gave the review goes. Taking an answer off the screen alone

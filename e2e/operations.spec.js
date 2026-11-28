@@ -5575,7 +5575,7 @@ test('operations annual leave sheet: unsaved answers ask before Clear, and befor
     expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')), 'a declined sign-out keeps the session').not.toBeNull();
     const a = personRow(page, fx.A.name);
     await expect(a.getByRole('radiogroup', { name: questionWords(fx.dates.restDay) }).getByRole('radio', { name: SAVE_WORDS.swapped })).toBeChecked();
-    // Unticked, the "Swapped — counts" answer is still something a Save would write.
+    // Unticked, the "Yes, swapped — uses a leave day" answer is still something a Save would write.
     await a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }).uncheck();
     expect(await armed(), 'an answer is still on screen').toBe(true);
     // Clear, answered "Clear", takes the answers with it: nothing is left to warn about.
@@ -5696,7 +5696,7 @@ test('operations annual leave sheet: a Save that landed nothing records nothing,
     await expect(page.locator('.al-sheet-last'), 'the earlier Save keeps its Undo').toContainText('adding 1 day of leave');
 });
 
-test('operations annual leave sheet: a rest day answered "Rest day — free" is named on the receipt, and leaves nothing unsaved', async ({ page }) => {
+test('operations annual leave sheet: a rest day answered "No — rest day, nothing recorded" is named on the receipt, and leaves nothing unsaved', async ({ page }) => {
     // A Save may not do nothing silently (.claude/rules/admin.md), and a free answer writes nothing — so
     // after the Save, every way off the page asked about "unsaved changes" that a Save would never make.
     const fx = await alSheetFixture();

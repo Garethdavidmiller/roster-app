@@ -43,7 +43,7 @@
  * anything the Save would write is unsaved — on screen or waiting off it for the next check
  * (operations-al-save.js) — and Operations holds an update's reload on it (operations-app.js): forty
  * people's differences are a long read, and a reload half way through takes them away with no word.
- * `alSheetUnsaved()` is narrower — a tick or a "Swapped — counts" answer not yet saved, or a Save or an
+ * `alSheetUnsaved()` is narrower — a tick or a "Yes, swapped — uses a leave day" answer not yet saved, or a Save or an
  * Undo running — and it is what a notification tap, a drawer link, the header logo, sign-out and
  * closing the tab ask about: a check saves nothing, so that question was untrue for one (review, 14 Nov
  * 2026). While a Save or an Undo runs every control is locked, so no new input can start a check under it.

@@ -105,9 +105,9 @@ export const CLOSES = null;
  * decided yet ("Decide later"), so null stands for everyone on a normal CEA contract today — the people the new link is
  * for. NOT a CEA bilingual contract, which keeps its own links (owner, 8 Nov 2026: "This link will only apply to people
  * with the normal CEA contract and NOT the bilingual contract who will still have their own links"). It is the CONTRACT,
- * `bilingualContract`, as the leave allowance reads it, not the line: M. Campbell, on a normal CEA contract and on the
- * bilingual link from 8 to 21 Nov 2026 (the main link from 22 Nov), is on the new link (owner, 8 Nov 2026: "Keep her on
- * the new link"); K. Jedlinski, a CES from 22 Nov 2026, is not, which this list reads off the grade. No page lists them
+ * `bilingualContract`, as the leave allowance reads it, not the line: a colleague on a normal CEA contract who spent a
+ * fortnight on the bilingual link is on the new link (owner, 8 Nov 2026), and one who moved to another grade is not,
+ * which this list reads off the grade. No page lists them
  * since the preview banner went (8 Nov 2026); newlink-config.test.mjs holds the list to the roster. Set it to the 26 names,
  * spelt as `teamMembers` spells them.
  * @type {ReadonlyArray<string>|null}

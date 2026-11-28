@@ -587,7 +587,7 @@ describe('the "Base roster" column says what the day WAS', () => {
         try {
             const rows = buildWeek('G. Miller', '2026-12-26').slice(1);
             assert.match(rows.find(r => r.dataset.date === '2026-12-26').innerHTML,
-                /class="christmas-note">Boxing Day worked when due at work: one day of annual leave in lieu, from 27 December — it covers leave this December past the 2026 allowance, otherwise it is added to 2027</);
+                /class="christmas-note">Boxing Day worked when due at work: one extra day of annual leave, in place of this one, can be taken from 27 December\. If leave later in December 2026 runs past that year’s allowance, it covers that; otherwise it is added to the 2027 allowance</);
         } finally { _dateMap = new Map(); }
     });
 
