@@ -740,6 +740,12 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
         await seedSession(page, 'G. Miller');
         await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
+        // A first visit opens the ? panel by itself: scanned open, then closed for the page beneath it.
+        await expect(page.locator('#tipsLightbox')).toBeVisible();
+        let tipsV = await scan(page, { exclude: ['.other-month'] });
+        expect(tipsV.length, report(tipsV)).toBe(0);
+        await page.locator('#tipsLightboxClose').click();
+        await expect(page.locator('#tipsLightbox')).toBeHidden();
         await expect(page.locator('.calendar-day.selector-blank')).toHaveCount(16);
         // The Calendar's documented exclusion (A11Y_BASELINE.md): the faded filler days are aria-hidden decoration.
         let v = await scan(page, { exclude: ['.other-month'] });
@@ -1126,7 +1132,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         ['links', '/link-designer.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
         ['trains', '/trains.html', '#trTotals .tr-total'],
         ['newlink', '/newlink.html', '[data-persona="all"]'],
-        ['selector', '/links-selector.html', '.calendar-grid'],
+        ['selector', '/links-selector.html', '.calendar-grid', () => localStorage.setItem('myb_links_selector_welcome_seen', '1')],
         ['overtime, paused', '/overtime.html', '#otMineContent .ot-state',
             () => document.addEventListener('DOMContentLoaded', () => { document.body.style.minHeight = '100vh'; })],
     ])) {

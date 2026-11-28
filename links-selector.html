@@ -66,13 +66,11 @@
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
         <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">🗓️</span> Links Selector</div>
-        <!-- The Calendar's tips, for the Calendar's gestures and keys (calendar-keyboard.js runs here too), and what this
-             page adds: what a line is, what it is called elsewhere, and that a Sunday shift is overtime. -->
+        <!-- The Calendar's tips, for the Calendar's gestures and keys (calendar-keyboard.js runs here too). What the page
+             IS and how to read it is the ? panel's (links-selector-tips.js), one home for those words. -->
         <div class="lightbox-tips" id="selectorTips">
             <div class="lightbox-tips-title">Tips</div>
-            <div class="lightbox-tip"><span>Each Sunday you move down one line, and after line 26 comes line 1</span></div>
-            <div class="lightbox-tip"><span>A line here is a week on the New CEA Link page, and a LINE on the printed proposal sheets</span></div>
-            <div class="lightbox-tip"><span>Sunday shifts are overtime</span></div>
+            <div class="lightbox-tip"><span>The ? above the month says what this page is and how to read it</span></div>
             <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
             <div class="lightbox-tip"><span>Select a day to see its details</span></div>
             <div class="lightbox-tip keyboard-only"><span>Change month (in the grid: PgUp PgDn)</span><span class="lightbox-tip-key">← →</span></div>
@@ -166,7 +164,12 @@
         <p class="selector-print-choice" id="selectorPrintChoice"></p>
     </div>
 
-    <p class="selector-note" id="selectorNote"></p>
+    <!-- …and the ? that explains it all (links-selector-tips.js): the app's own Tips button and panel, opened by itself
+         on a first visit (links-selector-app.js). -->
+    <div class="selector-note" id="selectorNoteBox">
+        <p class="selector-note-text" id="selectorNote"></p>
+        <button type="button" class="btn-card-tips" data-card="selector" aria-label="How to read the Links Selector">?</button>
+    </div>
     <!-- A shared link that named a proposal or a line this page could not show: said, with what is shown instead
          (links-selector-core.js → ignoredWords), until the next choice. -->
     <p class="selector-note" id="selectorLinkNote" role="status" hidden></p>

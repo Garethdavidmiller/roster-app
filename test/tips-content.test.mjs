@@ -58,6 +58,8 @@ const PAGES = [
     { js: 'calendar-tips.js',  html: 'calendar-team-view.js', noCardHeading: true },
     { js: 'trains-tips.js',    html: 'trains.html' },
     { js: 'newlink-tips.js',   html: 'newlink.html' },
+    // The Links Selector's one ? sits on its note strip, which has no card and so no heading: its title is the panel's own.
+    { js: 'links-selector-tips.js', html: 'links-selector.html', noCardHeading: true },
 ];
 
 // settings-tips.js lists Timetable changes only while one is due (`timetableListed`, notif-card-core.js),
