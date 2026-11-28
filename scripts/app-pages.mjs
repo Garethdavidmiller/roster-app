@@ -92,7 +92,7 @@ export const APP_PAGES = Object.freeze([
     app('newlink.html', 'newlink'),
     // The Links Selector (owner, 27 Nov 2026): a proposal drawn as the Calendar draws a month. Not built from cards — it is
     // the Calendar's grid, so it loads index.css as well as its own sheet (`alsoCss`). Open to New CEA Link's audience
-    // since v27.27 (CONFIG.LINKS_SELECTOR_OPEN).
+    // since v27.28 (CONFIG.LINKS_SELECTOR_OPEN).
     app('links-selector.html', 'selector', { coordinator: 'links-selector-app.js', boot: 'links-selector-boot.js', cards: false, alsoCss: ['index.css'] }),
 ]);
 

@@ -104,7 +104,7 @@ Z, with no recommendation (owner, 8 Nov 2026, drawn for no two closing weeks sid
 in the pack (`docs/links-26/`). The New CEA Link page (`newlink.html`, renamed from "New link" at v27.15) presents them
 evenly to everyone on the normal CEA contract and the managers — **open since v25.60** (owner, 9 Nov 2026). The **Links
 Selector** (`links-selector.html`, v27.18) draws one of them as the Calendar's months from a chosen start line — the
-admin's beta, then open to the same audience since v27.27 (`CONFIG.LINKS_SELECTOR_OPEN`). The Link Designer is paused (v27.13).
+admin's beta, then open to the same audience since v27.28 (`CONFIG.LINKS_SELECTOR_OPEN`). The Link Designer is paused (v27.13).
 
 **What remains is decisions, not code:**
 

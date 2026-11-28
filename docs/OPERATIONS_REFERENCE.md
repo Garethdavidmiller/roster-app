@@ -1424,7 +1424,7 @@ instead.
 
 ### Who can open the Links Selector
 
-The Links Selector (`links-selector.html`) is **open** to the New CEA Link page's audience since v27.27 (owner, 28 Nov
+The Links Selector (`links-selector.html`) is **open** to the New CEA Link page's audience since v27.28 (owner, 28 Nov
 2026): `LINKS_SELECTOR_OPEN: true` in `CONFIG` (`roster-data.js`), so the page and its 🗓️ drawer pill admit exactly whom
 New CEA Link admits (`selectorRoles`, `auth-policy.js`). To put it back to the admin alone, set it `false`, bump and
 release, and in the same commit move the `nav-gates.test.mjs` assertion on the switch and the "who it admits" tests in

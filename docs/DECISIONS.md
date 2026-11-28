@@ -1737,7 +1737,7 @@ opposite on purpose, and is made unmistakable instead — its own name and colou
 above every month and in every day's panel, and no recorded change, leave or absence drawn on any day ("Leave out").
 The owner's calls: the name **Links Selector**; a provisional start of **Sunday 17 January 2027**, with every day before
 it **blank** rather than today's link; reached from the drawer; a **beta for the admin alone** until it is right, then
-**the New CEA Link page's audience** — one switch, `CONFIG.LINKS_SELECTOR_OPEN`, turned on at v27.27 (owner, 28 Nov
+**the New CEA Link page's audience** — one switch, `CONFIG.LINKS_SELECTOR_OPEN`, turned on at v27.28 (owner, 28 Nov
 2026, after two audits and a first-visit explanation, the `?` panel).
 
 How it is built, so it is not rebuilt another way: the month is assembled from the Calendar's own cell builders and
