@@ -59,7 +59,7 @@ mock.module('../calendar-member.js', { namedExports: { getCurrentMember: unused(
 mock.module('../calendar-overrides.js', { namedExports: {
     rosterOverridesCache: new Map(), monthKey: unused('the override cache'),
 } });
-const { dayMarkers, shiftWords, weekContext } = await import('../calendar-renderer.js');
+const { dayMarkers, shiftWords, shiftExplanation, weekContext } = await import('../calendar-renderer.js');
 
 // The renderer's SHIFT_KIND_LABELS — roster-data.js's since Team View shares them (whole-app review,
 // 24 Nov 2026) — and the renderer is held to importing it rather than keeping a copy Team View lacks.
@@ -179,6 +179,37 @@ describe('every shift a CELL can wear, the panel says in full words', () => {
     });
 });
 
+// A KIND WHOSE NAME DOES NOT SAY WHAT IT IS GETS ONE SENTENCE (28 Nov 2026). "Spare day", "Rest Day
+// Working" and "Training" name a day without saying what it means for the member — standby, extra work
+// paid as overtime, a duty paid as the day underneath — so the panel adds that sentence under the shift.
+describe('the three kinds whose name does not explain them get a sentence that does', () => {
+    test('a Spare day says it is standby, with the shift given nearer the day', () => {
+        assert.equal(shiftExplanation('SPARE', false), 'On standby: the shift to work is given nearer the day.');
+    });
+    test('Rest Day Working says it is a rest day worked as extra, paid as overtime', () => {
+        assert.equal(shiftExplanation('RDW', false), 'A rest day worked as extra, paid as overtime.');
+    });
+    test('every Other flavour says it stands in for the turn, and its rest-day form says how it is paid', () => {
+        for (const f of Object.keys(OTHER_FLAVOURS)) {
+            assert.match(shiftExplanation(f, false), /^Training, a meeting or another duty in place of the usual turn/, f);
+            assert.match(shiftExplanation(`${f} 09:00-17:00`, false), /in place of the usual turn/, `${f} timed`);
+            assert.match(shiftExplanation(`${f} RDW`, false), /on a rest day, paid as Rest Day Working\.$/, `${f} RDW`);
+            assert.match(shiftExplanation(f, true), /on a rest day, paid as Rest Day Working\.$/, `${f} derived`);
+        }
+    });
+    test('a kind whose name already says it gets no sentence', () => {
+        for (const v of ['RD', 'OFF', 'AL', 'SICK', '07:00-16:00', '22:00-06:00', 'SEE NATHAN']) {
+            assert.equal(shiftExplanation(v, false), '', v);
+        }
+    });
+    test('the renderer writes the sentence onto the cell the panel reads, from the day\'s own resolved value', () => {
+        assert.match(RENDERER, /dataset\.detailKindNote = kindNote/, 'the cell no longer carries the sentence');
+        assert.match(RENDERER, /shiftExplanation\(shift, otherDerivedRdw\)/, 'the sentence is not asked of the effective value');
+        const PANEL = readFileSync('./calendar-al-lightbox.js', 'utf8');
+        assert.match(PANEL, /kindNoteEl\.textContent = d\.detailKindNote/, 'the panel no longer shows the sentence');
+    });
+});
+
 describe('the panel has somewhere to put each explanation', () => {
     // Cheap, and it is the half that a CSS or markup tidy-up breaks: the rules above can all pass
     // while the element that would show the answer has been renamed out from under them.
@@ -189,6 +220,7 @@ describe('the panel has somewhere to put each explanation', () => {
         ['dayDetailWeek',        'the roster week'],
         ['dayDetailWho',         'whose day it is'],
         ['dayDetailAsRostered',  'the unchanged-day confirmation'],
+        ['dayDetailKindNote',    'what a Spare, Rest Day Working or Other day means'],
         ['dayDetailLeaveBtn',    'the annual-leave route to the recorded dates'],
         ['dayDetailTeamBtn',     'the route to who is on with the member (Team View)'],
         ['dayDetailActions',     'the row the two routes share'],

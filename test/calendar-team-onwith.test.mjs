@@ -187,6 +187,19 @@ describe('the card', () => {
         assert.match(html, /Checking who is on/);
         assert.doesNotMatch(html, /tv-onwith-row/);
         assert.deepEqual(months, ['2026-10', '2026-11'], 'the card did not say which months it reads');
+        assert.match(html, /<p class="tv-onwith-note" role="status">/, 'a check under way is a status, not an alert');
+        assert.doesNotMatch(html, /tvOnWithRetry/, 'nothing has failed yet, so there is nothing to try again');
+    });
+
+    test('a month only the card reads that could not be read offers the card\'s own Try again, as an alert', () => {
+        // 30 November: the day after is 1 December, outside the week's months, so the grid's Try again
+        // is not on screen. Without its own the card was a dead end (28 Nov 2026).
+        noteKnowledge(['2026-11'], 'error');
+        const { html, months } = build(me.name, '2026-11-30');
+        assert.match(html, /Couldn’t check who is on/);
+        assert.match(html, /<p class="tv-onwith-note" role="alert">/, 'a failure is announced, as the grid\'s is');
+        assert.match(html, /<button type="button" class="tv-retry" id="tvOnWithRetry">Try again<\/button>/);
+        assert.deepEqual(months, ['2026-10', '2026-11'], 'Try again needs the months the card reads');
     });
 
     test('no card for nobody, and a note when the member has no shift with times', () => {

@@ -345,7 +345,7 @@
             </div>
             <div class="notice-main">
                 <p class="notice-body"><strong>👥&nbsp;Team</strong>, above your calendar, shows everyone on your grade side by side, a week at a time: who is on with you each day, and who is on a rest day.</p>
-                <p class="notice-body">Thinking of swapping a shift? Look for a colleague on a rest day when you’d like to work, or working on a day you’d like off. <strong>📅&nbsp;Month</strong> brings your calendar back.</p>
+                <p class="notice-body">Thinking of swapping a shift? Look for a colleague on a rest day on the day you’d like off, and working on a day you could work instead. <strong>📅&nbsp;Month</strong> brings your calendar back.</p>
             </div>
             <div class="notice-actions">
                 <button id="teamNoticeShow" class="notice-cta" type="button">Open Team Week View</button>
@@ -405,11 +405,11 @@
                 </div>
                 <div class="al-lb-stat" role="group" aria-labelledby="alLbLblEntitlement">
                     <span class="al-lb-val" id="alLbEntitlement">—</span>
-                    <span class="al-lb-lbl" id="alLbLblEntitlement">Entitlement</span>
+                    <span class="al-lb-lbl" id="alLbLblEntitlement">Allowance</span>
                 </div>
             </div>
             <!-- WHAT MAKES UP THE ENTITLEMENT, on a line of its own (lightbox review, 22 Nov 2026). It sat
-                 inside the quarter-width Entitlement cell at 10px, where a pro-rated year with a Boxing Day
+                 inside the quarter-width Allowance cell at 10px, where a pro-rated year with a Boxing Day
                  lieu day ran to seven lines and stretched all four figures to match. A footnote here, it
                  names the figure it explains (calendar-al-lightbox.js). -->
             <p id="alLbBreakdown" class="al-lb-carry" hidden></p>
@@ -469,6 +469,10 @@
                      and a browser will break at the hyphen inside 07:00-16:00 given the chance. -->
                 <span class="dds-time" id="dayDetailShiftTime" hidden></span>
             </div>
+            <!-- WHAT THE DAY'S KIND MEANS (28 Nov 2026) — one sentence for a Spare day, Rest Day
+                 Working or an Other day, whose name alone does not say it (`shiftExplanation`,
+                 calendar-renderer.js). The same quiet line as the ones below; absent on every other day. -->
+            <div class="day-detail-leaveyear" id="dayDetailKindNote" hidden></div>
             <!-- WHICH YEAR'S ALLOWANCE (v25.18) — only on a January leave day moved back to the
                  previous year's (leave-year.js). Directly under the shift because it qualifies it.
                  Absent on every other day: its own year is the default, and needs no saying. -->
@@ -486,22 +490,22 @@
                  which reads as "what this was immediately before" — and the left badge is the
                  member's own pattern (`getBaseShift`), never the previous override. On a chained
                  change (rest day → a shift somebody allocated → annual leave) that made the panel
-                 state a change which never happened, quietly and plausibly. Naming the base roster
-                 is also the more useful fact, and "base roster" is vocabulary the Team view note
-                 already teaches.
+                 state a change which never happened, quietly and plausibly. Naming the roster is
+                 also the more useful fact. "The usual roster", not "base roster" (28 Nov 2026): the
+                 plain words, and the ones the Calendar's tips use for the same thing (calendar-tips.js).
                  ONE EXCEPTION, 25 AND 26 DECEMBER (18 Nov 2026). There the left badge is the pattern
                  itself, not the rest day `getBaseShift` makes both days — or, where a record that is
                  not leave changed a day the member was due to work, the Christmas leave that record
                  changed. calendar-al-lightbox.js then writes "Changed from Christmas leave" here,
                  and in the spoken sentence; the renderer decides (`detailFromChristmas`). -->
             <!-- ONE SENTENCE FOR A SCREEN READER, in visually hidden TEXT (17 Nov 2026). Read part by
-                 part the block is "Changed from base roster, Spare, Early, changed by…" — fragments of
+                 part the block is "Changed from the usual roster, Spare, Early, changed by…" — fragments of
                  one fact, the arrow not a word — so the parts are aria-hidden and the sentence says
                  it whole. It used to be an aria-label on this div, which a screen reader may ignore:
                  a plain div has no role a label can name, and axe only marks that "needs review". -->
             <div class="day-detail-change" id="dayDetailChange" hidden>
                 <span class="visually-hidden" id="dayDetailChangeSaid"></span>
-                <span class="ddc-eyebrow" id="dayDetailChangeFrom" aria-hidden="true">Changed from base roster</span>
+                <span class="ddc-eyebrow" id="dayDetailChangeFrom" aria-hidden="true">Changed from the usual roster</span>
                 <span class="ddc-pair" id="dayDetailChangePair" aria-hidden="true"></span>
                 <!-- Who made the change, or that it came in with the weekly roster. Absent when the
                      document cannot say, which is honest — the alternative names a colleague. -->

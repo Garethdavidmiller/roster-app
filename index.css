@@ -1447,6 +1447,7 @@
             color: var(--text-mid);
         }
         .tv-onwith-note { margin: 6px 0 0; font-size: var(--type-label); color: var(--text-mid); }
+        .tv-onwith-note .tv-retry { margin-inline: 0; }   /* the card's Try again keeps the note's left edge */
         /* A role's heading: the grade tab's word, small and quiet, so the names stay what is read. */
         .tv-onwith-group { padding-top: 10px; }   /* padding: a margin is cut at the top of a column */
         .tv-onwith-role {
@@ -2593,11 +2594,12 @@
             outline-offset: -4px;
             border-radius: var(--radius-sm);
         }
-        /* THE PANEL'S TWO ACTIONS — "Pay estimate" (payday and cut-off days) and "Leave dates"
-           (annual-leave days). SIZED TO THEIR WORDS, NOT TO THE PANEL (owner: "looks huge"): the panel
-           is a READ surface, and a full-width slab made the route outweigh the answer. They share
-           every dimension and differ only in colour — Pay's green, Annual Leave's teal — so one
-           selector list, not two copies that would drift.
+        /* THE PANEL'S THREE ACTIONS — "Pay estimate" (payday and cut-off days), "Leave dates"
+           (annual-leave days) and "Who’s on with me" (a day worked with times). SIZED TO THEIR WORDS,
+           NOT TO THE PANEL (owner: "looks huge"): the panel is a READ surface, and a full-width slab
+           made the route outweigh the answer. They share every dimension and differ in colour — Pay's
+           green, Annual Leave's teal, Team's gold with navy text — so one selector list, not three
+           copies that would drift.
            ONE ROW, which fits because a label names its destination and carries no "View"
            (day-detail-explains.test.mjs refuses the verb). `flex-wrap` is the honest fallback: a
            longer label or a text-scale tier wraps back to the stack rather than overflowing. */

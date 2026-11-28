@@ -157,13 +157,13 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
-- **Exports:** `initLockCards` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showSignInPanel` · `SIGN_IN_UNAVAILABLE_LINE` · `showSignInUnavailable` · `showMemberPanel`
+- **Exports:** `initLockCards` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showSignInPanel` · `SIGN_IN_UNAVAILABLE_LINE` · `showMemberPanel`
 
 ### `calendar-lock-slot.js`
 - **Exports:** `mountLockCard` · `unmountLockCard` · `lockCardId` · `armSkeleton` · `showBootSkeleton` · `setWorkspaceHidden`
 
 ### `calendar-snapshot.js`
-- **Exports:** `SNAPSHOT_VERSION` · `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `LEAVE_YEARS_AROUND` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
+- **Exports:** `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
 
 ### `calendar-own-copy.js`
 - **Exports:** `ownCopyWindow` · `ownMonthsToStore` · `createOwnCopy`
@@ -232,7 +232,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `takeStaleMemberName` · `getDefaultMemberIndex` · `isFirstRun` · `getSelectedMemberIndex` · `_resetSelectionFallbackForTest` · `saveSelectedMember` · `populateTeamMemberDropdown` · `getCurrentMember` · `validateTeamMembers`
 
 ### `calendar-renderer.js`
-- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer` · `CHRISTMAS_LEAVE_WORDS` · `rovingCellFor`
+- **Exports:** `changeProvenance` · `shiftWords` · `shiftExplanation` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `monthOnScreen` · `buildCalendarContainer` · `CHRISTMAS_LEAVE_WORDS` · `rovingCellFor`
 
 ### `calendar-huddle-viewer.js`
 - **Exports:** `wrapTables` · `initHuddleViewer`
@@ -250,7 +250,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `dayOf` · `cardDate` · `isPastDay` · `ONWITH_WEEKS_AHEAD` · `lastOfferedDay` · `onWithOffered` · `colleaguesOf` · `rolesInOrder` · `buildOnWithCard`
 
 ### `team-overlap.js`
-- **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `rangeText` · `whoIsOnWith` · `togetherWords`
+- **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `whoIsOnWith` · `togetherWords`
 
 ### `calendar-tips.js`
 - **Exports:** `CARD_TIPS`

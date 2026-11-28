@@ -250,7 +250,7 @@ describe('the Team Week View draws no row for a week it does not know (CALENDAR_
         const { html, shown: drawn } = openWith('error', 'error');
         assert.equal(drawn, false);
         assert.deepEqual(rowNames(html), []);
-        assert.match(html, /Couldn't check this week/);
+        assert.match(html, /Couldn’t check this week/);
         assert.match(html, /id="tvRetry"/);
     });
 

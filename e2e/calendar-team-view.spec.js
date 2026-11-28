@@ -1022,3 +1022,37 @@ test('team view: "Who’s on with me" is offered to the Saturday three weeks on,
         await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/\bopen\b/);
     }
 });
+
+// THE CARD'S OWN TRY AGAIN (28 Nov 2026). The card reads the day after as well, so a Saturday ending a month
+// needs next month, which the week grid does not: when only that read failed, the card said "Couldn’t check
+// who is on" with no way to try again — the grid's Try again is drawn only when the WEEK is withheld. Staged
+// with a first load that fails, a month Try again that reads October alone, then a failing November.
+test('team view: the On-with card whose own month could not be read offers its own Try again, which reads it', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-28T09:00:00Z'));
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'sat', memberName: 'G. Miller', date: '2026-10-31', type: 'shift', value: '14:00-22:30', note: '' }];
+        w.__E2E.failGetDocs = true;
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-pending--failed'), 'premise: the first load failed').toBeVisible();
+    const fail = (/** @type {boolean} */ on) => page.evaluate((v) => { /** @type {any} */ (window).__E2E.failGetDocs = v; }, on);
+    await fail(false);
+    await page.locator('.calendar-pending-retry').click();
+    const day = page.locator('.calendar-day[data-detail-iso="2026-10-31"]');
+    await expect(day).toHaveAttribute('data-detail-worked-times', '14:00-22:30');
+
+    await fail(true);
+    await day.click();
+    await page.locator('#dayDetailTeamBtn').click();
+    const card = page.locator('#tvOnWith');
+    await expect(card.getByRole('alert')).toContainText('Couldn’t check who is on');
+    await expect(page.locator('.team-table .tv-cell').first(), 'premise: the week itself was read, so the grid is drawn').toBeVisible();
+    await expect(page.locator('#tvRetry'), 'premise: the grid offers no Try again of its own').toHaveCount(0);
+
+    await fail(false);
+    await card.locator('#tvOnWithRetry').click();
+    await expect(card.locator('.tv-onwith-mine')).toContainText('Saturday 31 October');
+    await expect(card.getByRole('heading', { level: 3 })).toHaveText(['CEA', 'CES', 'Dispatcher']);
+    await expect(card).not.toContainText('Couldn’t check who is on');
+});

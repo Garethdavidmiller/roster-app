@@ -98,6 +98,27 @@ export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
 }
 
 /**
+ * WHAT THE DAY'S KIND MEANS, in one sentence under the shift (28 Nov 2026) — for the three kinds whose
+ * name alone does not say it: a Spare day, Rest Day Working and an Other day. The same quiet line as the
+ * pay cut-off's, and neutral, because the panel shows a colleague's day too. Every other kind says what
+ * it is in its name ("Rest day", "Annual leave", "Early shift"), so it gets none.
+ * @param {string} shift  the effective value
+ * @param {boolean} derivedRdw  an Other day the override ladder derived as rest-day-worked
+ * @returns {string}  the sentence, or '' for a kind that needs none
+ */
+export function shiftExplanation(shift, derivedRdw) {
+    if (shift === 'SPARE') return 'On standby: the shift to work is given nearer the day.';
+    if (shift === 'RDW')   return 'A rest day worked as extra, paid as overtime.';
+    const other = parseOtherValue(shift);
+    if (!other) return '';
+    // An Other day pays as the day underneath (OTHER_DAYS.md): a rostered turn's pay, or on a rest day
+    // marked Rest Day Working, that.
+    return (other.rdw || derivedRdw)
+        ? 'Training, a meeting or another duty on a rest day, paid as Rest Day Working.'
+        : 'Training, a meeting or another duty in place of the usual turn, paid as that turn would be.';
+}
+
+/**
  * THE SHIFT LINE, SPLIT SO A TIME CANNOT BREAK IN HALF.
  *
  * "Early shift 07:00-16:00" is one string, and at 320px the day panel has ~240px of content width —
@@ -321,7 +342,7 @@ function buildGridPlaceholder(display, onRetry) {
         ? '<div class="calendar-pending-emoji" aria-hidden="true">⚠️</div>'
           + '<h2>Couldn\'t check this month</h2>'
           + '<p>Annual leave, absences and shift changes couldn\'t be loaded, so this month isn\'t '
-          + 'shown: without them it could show the wrong shifts.</p>'
+          + 'shown: without them it could show the wrong shifts. If it keeps happening, check the signal, or tell the admin.</p>'
         : '<div class="calendar-pending-emoji" aria-hidden="true">⏳</div>'
           + '<h2>Checking this month</h2>'
           + '<p>Loading annual leave, absences and shift changes.</p>';
@@ -618,6 +639,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // `shiftBadgeParts`. Written on every day, changed or not, so the colour is a property of the
         // shift, not of "something happened".
         dayCell.dataset.detailShiftValue = shift;
+        // What a Spare, Rest Day Working or Other day means, for the panel's line under the shift.
+        const kindNote = shiftExplanation(shift, otherDerivedRdw);
+        if (kindNote) dayCell.dataset.detailKindNote = kindNote;
         // THE DATE AND THE TIMES WORKED, for the panel's "Who's on with me" (team-overlap.js): offered only
         // on a day worked WITH times, and read from the same resolved value the cell draws, so the button
         // cannot appear on a rest day, leave or an absence. The times are the ones the hours slot prints

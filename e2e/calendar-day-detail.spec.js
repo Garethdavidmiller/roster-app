@@ -69,6 +69,8 @@ test('day detail: names the roster it was changed from, and opens at full size',
     await expect(change).toBeVisible();
     await expect(change.locator('.ddc-badge.badge-spare')).toBeVisible();
     await expect(change.locator('.ddc-badge.badge-early')).toBeVisible();
+    // An Early shift says what it is in its name: no sentence under it (the Spare it replaced is the pair's).
+    await expect(page.locator('#dayDetailKindNote')).toBeHidden();
     // A TIMED pill shows its TIME, not its kind. Without that a time tweak — early to early —
     // draws two identical pills either side of an arrow and reads as "nothing changed".
     const pills = await change.locator('.ddc-badge').allTextContents();
@@ -77,7 +79,7 @@ test('day detail: names the roster it was changed from, and opens at full size',
     // one fact, and the arrow is not a word. Visually hidden TEXT, not an aria-label: a label on a
     // plain <div> names nothing, so a screen reader may skip it and read the fragments (17 Nov 2026).
     // Asserted on the accessibility tree itself, which is what a screen reader is given.
-    await expect(change.locator('#dayDetailChangeSaid')).toHaveText(/^Base roster Spare day, changed to /);
+    await expect(change.locator('#dayDetailChangeSaid')).toHaveText(/^Usual roster Spare day, changed to /);
     const said = (await change.locator('#dayDetailChangeSaid').textContent()) ?? '';
     expect(await change.ariaSnapshot(), 'the block is read as its parts as well as, or instead of, its one sentence')
         .toBe(`- text: ${said}`);
@@ -100,12 +102,12 @@ test('day detail: names the roster it was changed from, and opens at full size',
         .toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
 });
 
-// THE CHANGE'S CAPTION READS ON THE GLASS (whole-app review, 10 Nov 2026). "Changed from base roster" is
+// THE CHANGE'S CAPTION READS ON THE GLASS (whole-app review, 10 Nov 2026). "Changed from the usual roster" is
 // 10px white on the panel's see-through glass, and at 55% it measured 4.3–4.4:1 over the light calendar
 // card: under the 4.5:1 its size needs, the one caption the Oct 2026 contrast pass left behind. axe rates
 // text on a see-through sheet as incomplete, so this reads the ground the browser painted BESIDE the
 // caption and composites the caption's own colour on it, as the browser does.
-test('day detail: the "Changed from base roster" caption clears 4.5:1 on the glass over the calendar', async ({ page }) => {
+test('day detail: the "Changed from the usual roster" caption clears 4.5:1 on the glass over the calendar', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
     await seedMember(page);
@@ -263,6 +265,8 @@ test('day detail: the date clears the close button at every phone width', async 
     // that stops reading as a number.
     await expect(page.locator('#dayDetailShiftGlyph')).toHaveText('💼');
     await expect(page.locator('#dayDetailShiftTime')).toHaveText('09:00-17:00');
+    // What Rest Day Working means, in one sentence under the shift (28 Nov 2026; `shiftExplanation`).
+    await expect(page.locator('#dayDetailKindNote')).toHaveText('A rest day worked as extra, paid as overtime.');
     const timeLines = await page.locator('#dayDetailShiftTime')
         .evaluate(el => el.getClientRects().length);
     expect(timeLines, 'the shift time was broken across two lines').toBe(1);

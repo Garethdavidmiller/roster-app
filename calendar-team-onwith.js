@@ -170,10 +170,15 @@ export function buildOnWithCard({ onWith, effectiveDay, cellDisplay, monthKey, t
         + body + '</section>';
 
     const display = decideDisplay(worstKnowledge(months));
-    if (display === 'loading' || display === 'unavailable') {
-        return { html: shell('', `<p class="tv-onwith-note" role="status">${display === 'unavailable'
-            ? 'Couldn’t check who is on — shift changes couldn’t be loaded.'
-            : 'Checking who is on — loading shift changes.'}</p>`), months, dates };
+    // A FAILED READ OFFERS ITS OWN TRY AGAIN (28 Nov 2026). The card can need a month the grid does not (a
+    // Saturday ending a month, a Sunday the 1st), so the grid's Try again may not be on screen; Team View wires
+    // this one to re-read the card's `months` with the week's.
+    if (display === 'unavailable') {
+        return { html: shell('', '<p class="tv-onwith-note" role="alert">Couldn’t check who is on — shift changes couldn’t be loaded.'
+            + '<button type="button" class="tv-retry" id="tvOnWithRetry">Try again</button></p>'), months, dates };
+    }
+    if (display === 'loading') {
+        return { html: shell('', '<p class="tv-onwith-note" role="status">Checking who is on — loading shift changes.</p>'), months, dates };
     }
 
     const myDay = effectiveDay(shown, date);
