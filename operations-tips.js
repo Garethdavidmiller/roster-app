@@ -160,7 +160,7 @@ export const CARD_TIPS = {
                 // with no role. This said CEA/CES/Dispatcher, and that Management had no
                 // Settings page, which would have had an admin doing by hand what the
                 // member can do themselves.
-                { icon: '⚙️', html: 'Anyone who can sign in can add their own email in ☰ → <strong>Settings → Work Email</strong> — Management included. That is the easiest way to get them registered.' },
+                { icon: '⚙️', html: 'Anyone who can sign in can add their own email in ☰ → <strong>Settings → Work Email</strong> — the Management grade included. That is the easiest way to get them registered.' },
                 { icon: '📝', html: 'You can do it on anyone’s behalf here — <strong>Set email</strong> or <strong>Edit</strong> to enter one, and a separate <strong>Remove</strong> button to clear it. Useful if somebody is having trouble doing it themselves.' },
             ]},
             { heading: 'Resetting a password', items: [

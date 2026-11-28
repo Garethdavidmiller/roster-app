@@ -191,3 +191,39 @@ test('on the Pages mirror an ON bell still turns notifications off', async () =>
         assert.equal(bell.getAttribute('aria-label'), 'Notifications off — where to turn them on', 'and now off, it says where they are turned on');
     } finally { mirror = false; disable = async () => 'off-default'; }
 });
+
+// ── A DRAWER CLOSED WHILE THE PANEL'S WORDS WERE BEING FETCHED OPENS NO PANEL (28 Nov 2026) ─────────────────
+// Both explaining taps import notif-card-core.js first — on a first visit a network fetch. The off-lapsed path asked
+// whether the drawer was open only BEFORE that import, and the mirror path never asked: a drawer closed while it
+// landed had the info panel opened over the page, on a history entry the drawer had already given up. Here the drawer
+// closes inside the import's wait, after every earlier question has been answered yes.
+test('a drawer closed during the import of the panel\'s words: no panel, on the mirror tap and the failed turn-on alike', async () => {
+    const { wireNavBell } = await import(R + 'nav-bell.js');
+    for (const path of ['mirror', 'off-lapsed']) {
+        mirror = path === 'mirror';
+        try {
+            const bell = el(); els.set('navNotifBell', bell); els.set('navNotifIcon', el());
+            // The drawer is open when the tap begins. On the mirror nothing asks before the import, so it is closed
+            // straight after the tap's first, synchronous part — inside the import's wait. On a failed turn-on the drawer
+            // is asked about once the toggle answers (open: that ask is the old guard), and closed by the next ask.
+            let hidden = false, asks = 0;
+            /** @type {any} */ (bell).closest = (/** @type {string} */ sel) => {
+                if (sel !== '[aria-hidden="true"]') return null;
+                asks += 1;
+                return hidden || (path === 'off-lapsed' && asks > 1) ? {} : null;
+            };
+            /** @type {any[]} */ const calls = [];
+            const refresh = wireNavBell({ currentPage: 'admin', _closePanelVisualOnly: () => calls.push('visual close'),
+                _openComingSoon: () => calls.push('panel') });
+            peek = async () => 'off-default';
+            await refresh();
+            enable = async () => 'off-lapsed';
+            const tap = bell.on.click();
+            if (path === 'mirror') hidden = true;      // the drawer closes while the import is in flight
+            await tap;
+            if (path === 'off-lapsed') assert.equal(asks, 2, 'premise: asked before the import and again after it');
+            assert.deepEqual(calls, [], `${path}: a panel opened over a drawer that had closed`);
+            assert.equal(bell.disabled, false, `${path}: the bell is left usable`);
+        } finally { mirror = false; enable = async () => 'on'; }
+    }
+});

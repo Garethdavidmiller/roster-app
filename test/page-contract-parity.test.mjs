@@ -147,10 +147,14 @@ test('every app page is checked by page-css-parity, against its own stylesheet',
 test('every page with a Tips panel is checked by tips-content', () => {
     // Scoped to pages that actually HAVE `?` buttons: requiring an entry for a page with no tips
     // would force a fictional one, which is worse than not checking.
+    // tips-content FINDS every `*-tips.js` at the root and reads `<name>-tips.js` against `<name>.html` (28 Nov 2026), so
+    // a page is checked when its tips module is there by that name, or when the suite names the page itself (its
+    // WHERE_BUTTONS_ARE, for a module whose buttons are drawn elsewhere).
     const suite = read('./test/tips-content.test.mjs');
+    assert.match(suite, /readdirSync\(REPO_ROOT_URL\)\.filter\(f => \/-tips\\\.js\$\/\.test\(f\)\)/, 'tips-content no longer finds its modules from the repository');
     const withTips = APP_PAGES.filter(p => read(`./${p}`).includes('btn-card-tips'));
-    const missing = withTips.filter(p => !suite.includes(`'${p}'`));
-    assert.deepEqual(missing, [], 'pages with Tips panels absent from tips-content\'s PAGES list');
+    const missing = withTips.filter(p => !existsSync(new URL(p.replace(/\.html$/, '-tips.js'), REPO_ROOT_URL)) && !suite.includes(`'${p}'`));
+    assert.deepEqual(missing, [], 'pages with Tips panels that tips-content does not check: give each a <page>-tips.js');
 });
 
 test('every app page is scanned by the accessibility gate', () => {
