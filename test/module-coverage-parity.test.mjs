@@ -77,7 +77,6 @@ const UNNAMED_BY_DESIGN = {
     'link-designer-boot.js':      'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
     'links-selector-boot.js':     'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
 
-    'operations-usage.js':  'driven through its card by e2e/operations.spec.js (Usage)',
     'operations-speed.js':  'driven through its card by e2e/operations.spec.js (App Speed)',
     'settings-install-card.js': 'driven through its card by e2e/settings.spec.js ("settings: an iPhone in a browser is told to install, not that it is all set", and the Pages mirror tests); its rule is installNeed, held by settings-status.test.mjs',
     'operations-doc-uploads.js': 'configuration only, over doc-upload.js — driven through both cards by e2e/operations.spec.js (the Circular and Newsletter uploads, "Circular uploaded for" / "Newsletter uploaded for")',

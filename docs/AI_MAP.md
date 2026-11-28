@@ -338,7 +338,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - **Exports:** `init`
 
 ### `operations-reports.js` / `operations-errors.js` / `operations-usage.js` / `operations-speed.js`
-- **Exports of `operations-reports.js`:** `PRIVACY_FOOTER` · `PAGE_META` · `OPEN_META` · `_cardLoadError` · `_usageMonthLabel` · `_relativeTime`
+- **Exports of `operations-reports.js`:** `PRIVACY_FOOTER` · `PAGE_META` · `OPEN_META` · `staffPageIds` · `withEveryStaffPage` · `_cardLoadError` · `_usageMonthLabel` · `_relativeTime`
 - **Exports of `operations-errors.js`:** `initErrorLog`
 - **Exports of `operations-usage.js`:** `initUsageCard`
 - **Exports of `operations-speed.js`:** `initPageSpeedCard`
