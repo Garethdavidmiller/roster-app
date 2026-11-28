@@ -22,6 +22,8 @@
  * - The header names the LINES the month's weeks fall on ("Lines 3–7"), where the Calendar names roster weeks.
  * - The month name is not a button: the Calendar's opens its month picker, and this page has none.
  * - The cells carry no "As rostered" and no "changed from": nothing is recorded against a proposal.
+ * - A spare day in a cover week, and a Sunday shift, carry a line for the day panel saying what they are
+ *   (`data-detail-cover`, `data-detail-sunday`): the proposal's grid is all a colleague has to read it by.
  */
 
 import { MONTH_NAMES, isSameDay, isBankHoliday, isChristmasDay, isEasterSunday, isPayday, isCutoffDate, isWorkedShift, getShiftClass } from './roster-data.js';
@@ -145,6 +147,9 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
         cell.dataset.tooltip = [christmasLeave ? 'Annual leave (Christmas, not counted)' : words, extras].filter(Boolean).join(' · ');
         // A spare day in a cover week says what a cover week IS, in the day panel — the word "Spare" alone teaches nothing.
         if (shift === 'SPARE' && isCoverLine(proposal, line)) cell.dataset.detailCover = date.getDay() === 0 ? 'sunday' : 'week';
+        // A Sunday shift is overtime, never part of the contracted week (CLAUDE.md → "Sundays are non-contracted"), and the
+        // New CEA Link page says so beside its grids. Drawn here as a plain early or late, it would read as a contracted one.
+        else if (date.getDay() === 0 && isWorkedDay) cell.dataset.detailSunday = 'overtime';
         const split = splitShiftLine(words);
         cell.dataset.detailShiftWords = split.words;
         if (split.time) cell.dataset.detailShiftTime = split.time;

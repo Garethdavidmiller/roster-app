@@ -187,9 +187,13 @@ export function openingMonth(today = new Date()) {
  * The choice to open with: the address's, else this device's, else the first proposal on line 1. Each half is taken only
  * when it names a real proposal or a real line, and the two sources are read SEPARATELY, so a link naming only a line
  * keeps the proposal this device last showed.
+ *
+ * `ignored` names each half the ADDRESS gave and this page could not use — a link to a proposal since dropped from the
+ * shortlist, or a line mistyped — so the page can say so rather than quietly show something else (`ignoredWords`). What
+ * this device kept is never reported: it is the page's own note, and a stale one is simply replaced.
  * @param {string} search the page's `location.search`
  * @param {{ proposal?: unknown, line?: unknown }|null} stored what this device kept
- * @returns {{ proposalId: string, line: number }}
+ * @returns {{ proposalId: string, line: number, ignored: Array<'proposal'|'line'> }}
  */
 export function initialChoice(search, stored) {
     const params = new URLSearchParams(search || '');
@@ -201,7 +205,43 @@ export function initialChoice(search, stored) {
     };
     const code = pick(params.get('proposal')) ?? pick(stored?.proposal) ?? proposalsAtoZ()[0].code;
     const line = num(params.get('line')) ?? num(stored?.line) ?? 1;
-    return { proposalId: /** @type {any} */ (PROPOSALS.find(p => p.code === code)).id, line };
+    /** @type {Array<'proposal'|'line'>} */
+    const ignored = [];
+    if (params.has('proposal') && pick(params.get('proposal')) === null) ignored.push('proposal');
+    if (params.has('line') && num(params.get('line')) === null) ignored.push('line');
+    return { proposalId: /** @type {any} */ (PROPOSALS.find(p => p.code === code)).id, line, ignored };
+}
+
+/**
+ * What the page says when the address named something it could not show, or '' when it named nothing wrong. It says what
+ * IS shown instead, so a colleague who followed somebody's link knows they are not looking at what was sent.
+ * @param {ReadonlyArray<'proposal'|'line'>} ignored from `initialChoice`
+ * @param {string} proposalName the proposal shown
+ * @param {number} line the line shown
+ */
+export function ignoredWords(ignored, proposalName, line) {
+    const proposal = ignored.includes('proposal'), badLine = ignored.includes('line');
+    if (proposal && badLine) return `The link you opened names a proposal and a line that aren’t here, so this shows ${proposalName} from line ${line}.`;
+    if (proposal) return `The link you opened names a proposal that isn’t on the shortlist, so this shows ${proposalName}.`;
+    if (badLine) return `The link you opened names a line that isn’t one of the ${ROTATING_LINES}, so this shows line ${line}.`;
+    return '';
+}
+
+/**
+ * The refusal card's words for a signed-in colleague the page does not admit. Three answers, each true for its reader:
+ * an Other Staff login has no roster line at all; a colleague outside the New CEA Link page's audience (a bilingual
+ * contract, a Dispatcher) keeps their own link, so the page will never be for them — said so during the beta too, where
+ * "not open to you yet" would promise what it never will; and everybody else is waiting for the beta to end.
+ * @param {{ otherStaff: boolean, inAudience: boolean }} who `inAudience`: would the page admit them once it opens?
+ * @returns {{ title: string, why: string }}
+ */
+export function refusalWords({ otherStaff, inAudience }) {
+    if (otherStaff) return { title: 'The Links Selector is for the CEA roster',
+        why: 'It shows the proposed new rota for colleagues on a normal CEA contract. An Other Staff login has no roster line, so there is nothing here for it.' };
+    if (!inAudience) return { title: 'The Links Selector doesn’t apply to your contract',
+        why: 'It shows the proposed new rota for colleagues on a normal CEA contract, and yours keeps its own link.' };
+    return { title: 'The Links Selector isn’t open to you yet',
+        why: 'It is being tried out before it opens. The three proposals are on the New CEA Link page in the meantime.' };
 }
 
 /** The address's query for a choice. @param {{ code: string }} proposal @param {number} line */

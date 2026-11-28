@@ -66,18 +66,23 @@
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
         <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">🗓️</span> Links Selector</div>
-        <!-- The Calendar's tips, for the Calendar's gestures and keys (calendar-keyboard.js runs here too), and the one
-             thing this page adds: what a line is. -->
+        <!-- The Calendar's tips, for the Calendar's gestures and keys (calendar-keyboard.js runs here too), and what this
+             page adds: what a line is, what it is called elsewhere, and that a Sunday shift is overtime. -->
         <div class="lightbox-tips" id="selectorTips">
             <div class="lightbox-tips-title">Tips</div>
             <div class="lightbox-tip"><span>Each Sunday you move down one line, and after line 26 comes line 1</span></div>
+            <div class="lightbox-tip"><span>A line here is a week on the New CEA Link page, and a LINE on the printed proposal sheets</span></div>
+            <div class="lightbox-tip"><span>Sunday shifts are overtime</span></div>
             <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
             <div class="lightbox-tip"><span>Select a day to see its details</span></div>
             <div class="lightbox-tip keyboard-only"><span>Change month (in the grid: PgUp PgDn)</span><span class="lightbox-tip-key">← →</span></div>
-            <div class="lightbox-tip keyboard-only"><span>Go to this month</span><span class="lightbox-tip-key">T</span></div>
+            <div class="lightbox-tip keyboard-only"><span>Go to this month (until the link starts, its first month)</span><span class="lightbox-tip-key">T</span></div>
             <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
         </div>
         <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> Calendar</a>
+        <!-- The three proposals side by side, in words and figures: the page this one puts on dates. Everybody this page
+             admits may open it (auth-policy.js → selectorRoles is New CEA Link's audience, or the admin alone). -->
+        <a href="./newlink.html" class="lightbox-bug-link" id="selectorNewlinkLink"><span aria-hidden="true">🔁</span> Compare the proposals on New CEA Link</a>
         <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>
 </div>
@@ -101,6 +106,8 @@
         <div class="day-detail-leaveyear" id="dayDetailChristmas" hidden></div>
         <!-- WHAT A COVER WEEK IS, on a spare day of one — the New CEA Link page's own words (newlink-tips.js). -->
         <div class="day-detail-leaveyear" id="selectorCoverLine" hidden></div>
+        <!-- …and on a Sunday shift, that it is overtime — the New CEA Link page's own words (newlink-render.js → renderWeeksKey). -->
+        <div class="day-detail-leaveyear" id="selectorSundayLine" hidden></div>
         <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
         <p class="selector-day-note">A proposal, not your roster.</p>
     </div>
@@ -160,19 +167,23 @@
     </div>
 
     <p class="selector-note" id="selectorNote"></p>
+    <!-- A shared link that named a proposal or a line this page could not show: said, with what is shown instead
+         (links-selector-core.js → ignoredWords), until the next choice. -->
+    <p class="selector-note" id="selectorLinkNote" role="status" hidden></p>
 
     <main id="calendarDisplay" aria-label="A proposed roster, month by month"></main>
 
     <!-- THE CALENDAR'S KEY, laid out as index.html lays it out and driven by the Calendar's own rule (calendar-legend.js):
          an item shows only in a month that has it — Spare in a cover week's month, Annual Leave and the 🎄 in December, the
          🐣 in Easter's month. Rest Day Working, absence, Other and Night are left out: a proposal has none. One item is this
-         page's own, shown only in a month with blank days: "Before the new link" (links-selector-app.js). -->
+         page's own, shown only in a month with blank days: "Before the new link"; and Today shows only in the month that draws
+         today's ring, which before the link starts is none of them (links-selector-app.js). -->
     <div class="legend" id="calendarLegend" role="group" aria-label="Colour legend">
         <div class="legend-row">
             <div class="legend-item"><div class="legend-color rest"></div><span class="legend-text">Rest</span></div>
             <div class="legend-item"><div class="legend-color early"></div><span class="legend-text">Early</span></div>
             <div class="legend-item"><div class="legend-color late"></div><span class="legend-text">Late</span></div>
-            <div class="legend-item"><div class="legend-color today"></div><span class="legend-text">Today</span></div>
+            <div class="legend-item" id="selectorLegendToday" style="display:none"><div class="legend-color today"></div><span class="legend-text">Today</span></div>
             <div class="legend-item" id="selectorLegendBlank" style="display:none"><div class="legend-color selector-blank-key"></div><span class="legend-text">Before the new link</span></div>
         </div>
         <div class="legend-row" id="legend-row-2">
