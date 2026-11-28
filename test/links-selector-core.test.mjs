@@ -182,9 +182,12 @@ test('the day panel\'s Christmas, cover-week and Sunday lines are the Calendar\'
     const calendar = readFileSync(new URL('../calendar-al-lightbox.js', import.meta.url), 'utf8');
     const tips = readFileSync(new URL('../newlink-tips.js', import.meta.url), 'utf8');
     const weeksKey = readFileSync(new URL('../newlink-render.js', import.meta.url), 'utf8');
+    const panel = readFileSync(new URL('../links-selector-tips.js', import.meta.url), 'utf8');
     const christmas = ': due at work, so this is annual leave. It does not come off the allowance.';
     assert.ok(calendar.includes(christmas) && app.includes(christmas), 'the Christmas line');
     const cover = 'four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.';
     assert.ok(tips.includes(cover) && app.includes(`A cover week: ${cover}`), 'the cover-week line');
+    assert.ok(panel.includes(`shows as Spare: ${cover}`), 'the ? panel\'s cover-week line');
     assert.ok(weeksKey.includes('Sunday shifts are overtime.') && app.includes("'Sunday shifts are overtime.'"), 'the Sunday line');
+    assert.ok(panel.includes("html: 'Sunday shifts are overtime.'"), 'the ? panel\'s Sunday line');
 });

@@ -11,10 +11,11 @@
  *
  * 1. **The order is the one a newcomer needs** (staff-copy.md: discover → understand → act → deep dive): what it is and
  *    is not, how to use it, what the grid shows, and where to go next. Never lead with a gesture.
- * 2. **No date or length is typed**: the start comes from `startDate()` and the line count from `ROTATING_LINES`, so a
+ * 2. **No date, length or count is typed** — not even how many proposals there are: the start comes from `startDate()` and the line count from `ROTATING_LINES`, so a
  *    moved start date or a new proposal length cannot leave a stale sentence here.
- * 3. **The day panel's three explanations are said in the same words** (the Christmas, cover-week and Sunday lines,
- *    held to their sources by links-selector-core.test.mjs), so the panel and the day never disagree.
+ * 3. **The cover-week and Sunday lines are the day panel's own words**, and the New CEA Link page's — held by
+ *    links-selector-core.test.mjs, which reads this file too. The Christmas line is the day panel's rule, said for both
+ *    days at once rather than for the one day the panel shows.
  * 4. **No link out of the panel.** A link out of a lightbox must go through `followLinkOutOf` (CLAUDE.md), which the
  *    shared panel does not offer; the New CEA Link page is named, and About carries its link.
  */
@@ -43,14 +44,14 @@ export const CARD_TIPS = Object.freeze({
                 { icon: '🔗', html: 'The address keeps your choice, so you can send a colleague exactly what you see.' },
             ] },
             { heading: 'What the days show', items: [
-                { icon: '▫️', html: 'Days before the link starts are blank: today’s link still runs then.' },
+                { icon: '⬜', html: 'Days before the link starts are blank: today’s link still runs then.' },
                 { icon: '📋', html: 'A <strong>cover week</strong> shows as Spare: four shifts between Monday and Saturday, set nearer the time, to cover leave and absence.' },
                 { icon: '💼', html: 'Sunday shifts are overtime.' },
                 { icon: '🎄', html: 'On Christmas Day and Boxing Day, a day you’d be due at work is annual leave that does not come off the allowance.' },
                 { icon: '🚫', html: 'No leave, absence or changed shift is shown: a proposal has none.' },
             ] },
             { heading: 'To compare them', items: [
-                { icon: '⚖️', html: 'The New CEA Link page sets the three proposals side by side, in words and figures. It is in the menu, and linked from About.' },
+                { icon: '⚖️', html: 'The New CEA Link page sets the proposals side by side, in words and figures. It is in the menu, and linked from About.' },
             ] },
         ],
     },

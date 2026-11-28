@@ -315,6 +315,64 @@ test.describe('links selector', () => {
         await expect(page.locator('#selectorNotForYou')).toContainText('doesn’t apply to your contract');
         await expect(page.locator('#selectorNotForYou')).not.toContainText('yet');
     });
+    test('Next is the faded end at December 2028, and stays there', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=1');
+        for (let n = 0; n < 23; n++) await page.locator('#nextMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('December 2028');
+        await expect(page.locator('#nextMonth')).toHaveAttribute('aria-disabled', 'true');
+        // pressed anyway (Playwright waits on an aria-disabled button unless forced): a true no-op
+        await page.locator('#nextMonth').click({ force: true });
+        await expect(page.locator('.month-year')).toHaveText('December 2028');
+        await expect(page.locator('#prevMonth')).toHaveAttribute('aria-disabled', 'false');
+    });
+
+    test('a cover week\'s Sunday, and Boxing Day due at work, each say what they are', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        // line 1 is a cover week in every proposal: its Sunday is the start day itself
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=1');
+        await page.locator('.calendar-day[data-detail-day="Sunday 17 January 2027"]').click();
+        await expect(page.locator('#selectorCoverLine')).toHaveText('The Sunday of a cover week. Its four shifts fall between Monday and Saturday.');
+        await page.locator('#dayDetailClose').click();
+        // Boxing Day 2028, on a line that has it at work — found from the proposal itself
+        const mb = /** @type {any} */ (proposalById('proposal:MB-26-V6'));
+        let line = 0;
+        for (let l = 1; l <= 26 && !line; l++) if (/** @type {any} */ (dayOn(mb, l, new Date(2028, 11, 26))).christmasLeave) line = l;
+        expect(line, 'some line has Boxing Day 2028 at work').toBeGreaterThan(0);
+        await page.goto(`/links-selector.html?proposal=MB-26-V6&line=${line}`);
+        for (let n = 0; n < 23; n++) await page.locator('#nextMonth').click();
+        await page.locator('.calendar-day[data-detail-day="Tuesday 26 December 2028"]').click();
+        await expect(page.locator('#dayDetailChristmas')).toHaveText('Boxing Day: due at work, so this is annual leave. It does not come off the allowance.');
+    });
+
+    test('coming back to the app with a day open: closing it gives the keyboard back to that day', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=2');
+        const day = page.locator('.calendar-day[data-detail-day="Monday 25 January 2027"]');
+        await day.focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#dayDetailLightbox')).toBeVisible();
+        // the app is put away and brought back (an installed app is reopened, not reloaded)
+        await page.evaluate(() => {
+            for (const state of ['hidden', 'visible']) {
+                Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
+                document.dispatchEvent(new Event('visibilitychange'));
+            }
+        });
+        await page.locator('#dayDetailClose').click();
+        await expect(page.locator('#dayDetailLightbox')).toBeHidden();
+        await expect(page.locator('.calendar-day[data-detail-day="Monday 25 January 2027"]')).toBeFocused();
+        // and a return with no panel open keeps the focused day, not the month's first
+        await page.keyboard.press('ArrowRight');
+        await expect(page.locator('.calendar-day[data-detail-day="Tuesday 26 January 2027"]')).toBeFocused();
+        await page.evaluate(() => {
+            for (const state of ['hidden', 'visible']) {
+                Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
+                document.dispatchEvent(new Event('visibilitychange'));
+            }
+        });
+        await expect(page.locator('.calendar-day[data-detail-day="Tuesday 26 January 2027"]')).toBeFocused();
+    });
 });
 
 // A FIRST VISIT (owner, 28 Nov 2026: "nothing to say what it is and how to use it"): the ? panel opens by itself, once, and

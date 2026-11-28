@@ -36,6 +36,17 @@
     line-height: 1.45;
 }
 .selector-note strong { color: white; }
+/* A SHARED LINK THAT NAMED NOTHING HERE says so in the same strip, told apart from the note above it — it is about the
+   link the colleague followed, not about the page — by the link's own 🔗 and a gold edge, the app's "look at this"
+   colour on navy. Gold as an EDGE only: as text on the raised navy it would be the one gold sentence on the page. */
+.selector-link-note {
+    display: flex;
+    gap: 8px;
+    border-color: color-mix(in oklch, var(--accent-gold) 55%, transparent);
+}
+.selector-link-note[hidden] { display: none; }
+.selector-link-note::before { content: "🔗" / ""; flex-shrink: 0; }
+
 /* The note and its ? share the strip: the words take the width, the ? sits at their top right (shared.css draws it). */
 #selectorNoteBox { display: flex; align-items: flex-start; gap: 10px; }
 .selector-note-text { margin: 0; flex: 1; min-width: 0; }

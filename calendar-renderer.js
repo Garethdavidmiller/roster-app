@@ -578,7 +578,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
 
         // The FULL word on tap/tooltip/aria (the badge carries the short one). Shared with the
         // base-roster line below, so the two can never describe the same value differently.
-        const shiftLabel = christmasNotCounted ? 'Annual leave (Christmas, not counted)'
+        const shiftLabel = christmasNotCounted ? CHRISTMAS_LEAVE_WORDS
             : shiftWords(shift, member, otherDerivedRdw);
 
         const isToday  = isSameDay(currentDate, today);
@@ -735,6 +735,10 @@ export function buildCalendarContainer(month, year, opts = {}) {
     calendarContainer.appendChild(grid);
     return calendarContainer;
 }
+
+/** The full words for leave on a Christmas day that is never counted — the day cell's name, tooltip and panel. Shared with
+ *  the Links Selector (links-selector-render.js), which draws a proposal's Christmas the Calendar's way. */
+export const CHRISTMAS_LEAVE_WORDS = 'Annual leave (Christmas, not counted)';
 
 /**
  * THE CELL A DRAWN GRID GIVES KEYBOARD FOCUS TO, with the roving tabindex moved onto it.
