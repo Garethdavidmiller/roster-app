@@ -287,7 +287,9 @@ const CAPS = {
     // 1500 → 1285 on 25 Nov 2026, brought DOWN (1,393 measured lines to 1,253): the over-allowance bar left for
     // admin-confirm-bar.js and the Recorded-dates delete for admin-period-delete.js — each a rule a test can now run
     // without a page — and the refresh lists became one `refreshLeaveViews`. Measured + ~30, as the extraction asked.
-    'admin-app.js':            1285,
+    // 1285 → 1210 on 28 Nov 2026, brought DOWN to the file: it stood at 1,181 lines, so the cap had banked 104 lines of
+    // headroom nothing needed. Measured + ~30.
+    'admin-app.js':            1210,
     // 1500 → 1503 in the second whole-app check (Nov 2026), a RAISE, said so: two RULES grew where rules belong — the rest
     // repair tries the earlier duty of a short turnaround when no swap of the later one works, and the shift balance counts a
     // cover week as its duties — each pinned in link-designer-design.test.mjs. Nothing in it is coordination. At the measured size.
