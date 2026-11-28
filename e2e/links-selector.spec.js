@@ -320,9 +320,17 @@ test.describe('links selector', () => {
 // A FIRST VISIT (owner, 28 Nov 2026: "nothing to say what it is and how to use it"): the ? panel opens by itself, once, and
 // the ? opens it again whenever it is wanted.
 test.describe('links selector — the first visit', () => {
+    /** A device that has never opened the page: the seeders mark the panel seen for every other spec (helpers.js), so it is
+     *  cleared ONCE, behind a sentinel — cleared on every load, a reload would be a first visit again. @param {import('@playwright/test').Page} page */
+    const firstVisit = (page) => page.addInitScript((key) => {
+        try { if (sessionStorage.getItem('__e2e_selector_first_visit')) return; sessionStorage.setItem('__e2e_selector_first_visit', '1'); } catch { /* private mode */ }
+        localStorage.removeItem(key);
+    }, WELCOME_KEY);
+
     test('the ? panel opens by itself on a first visit, never again, and the ? reopens it', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
         await seedSession(page, ADMIN);
+        await firstVisit(page);
         await page.goto('/links-selector.html');
         const panel = page.locator('#tipsLightbox');
         await expect(panel).toBeVisible();
@@ -345,6 +353,7 @@ test.describe('links selector — the first visit', () => {
     test('a colleague the page refuses is not shown it', async ({ page }) => {
         const colleague = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.bilingualContract && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
         await seedSession(page, colleague);
+        await firstVisit(page);
         await page.goto('/links-selector.html');
         await expect(page.locator('#selectorNotForYou')).toBeVisible();
         await expect(page.locator('#tipsLightbox')).toBeHidden();

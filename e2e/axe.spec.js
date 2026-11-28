@@ -739,6 +739,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     test('links selector (admin) — January 2027, then a day\'s panel', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-11-27T09:00:00Z'));
         await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => localStorage.removeItem('myb_links_selector_welcome_seen'));   // a first visit (helpers.js seeds it seen)
         await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
         // A first visit opens the ? panel by itself: scanned open, then closed for the page beneath it.
         await expect(page.locator('#tipsLightbox')).toBeVisible();
