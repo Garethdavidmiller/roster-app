@@ -195,13 +195,16 @@ export function renderStatus({ proposals, closes, starts = null, timetable = nul
         These are the three proposals on the shortlist, in alphabetical order.`;
     // "BY" A DAY THAT HAS GONE IS UNTRUE (owner, 9 Nov 2026: "Yes" to hiding it once the date has passed). The closing date
     // is the last day for views, so the line shows on it and goes from the day after; with no date set — or one that cannot
-    // be read, which closesWords words the same way — it reads "a date to be agreed" and never goes while the page is open.
+    // be read — it reads "before the decision is made" (until 28 Nov 2026, "by a date to be agreed"), which is when views
+    // stop being heard, and never goes while the page is open.
     // Outside 'open' views are not asked for at all, and the coordinator takes the Have your say card away with the line.
     // THE CARD OUTLIVES THE DATE (owner, 22 Nov 2026: "Keep until decided"): once the closing date has passed, this line drops
     // its "by", but the Have your say card stays until a design is chosen, or the start comes with none — views are still
     // heard until the decision. Pinned by newlink-render.test.mjs and e2e/newlink.spec.js.
-    const passed = closesWords(closes) !== closesWords(null) && !!today && today > /** @type {string} */ (closes);
-    const say = passed || phase !== 'open' ? '' : ` <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> by <strong>${esc(closesWords(closes))}</strong>.`;
+    const dated = closesWords(closes) !== closesWords(null);
+    const passed = dated && !!today && today > /** @type {string} */ (closes);
+    const until = dated ? `by <strong>${esc(closesWords(closes))}</strong>` : 'before the decision is made';
+    const say = passed || phase !== 'open' ? '' : ` <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> ${until}.`;
     return `<p class="nl-callout">${lead}</p>
     <div class="nl-picks"><ul class="nl-names" aria-label="The three proposals">${tiles}</ul>${calendar ? selectorRow('See one as a calendar', SELECTOR_URL) : ''}</div>
     ${weeksShape(proposals)}

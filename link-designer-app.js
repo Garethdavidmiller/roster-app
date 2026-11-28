@@ -92,7 +92,7 @@ function renderPaused() {
     <div class="card" id="linksPausedCard">
         <div class="card-header"><h2><span aria-hidden="true">⏸️</span> The Link Designer is paused</h2></div>
         <div class="card-body">
-            <p>The Link Designer isn’t in use at the moment. Every saved design is kept, and nothing has been deleted.</p>
+            <p>The Link Designer, where the proposals for the new CEA link were drawn up, isn’t in use at the moment. Every saved design is kept, and nothing has been deleted.</p>
             <a href="./" class="role-card-back">← Back to roster</a>
         </div>
     </div>`;

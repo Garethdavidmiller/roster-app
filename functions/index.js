@@ -136,8 +136,10 @@ const readRawBody = (req, res, logTag) => readCappedBody(req, res, logTag, MAX_R
 // ============================================================================
 // Document-and-notification domain — functions/documents.js (the index.js split)
 // ============================================================================
-// ingestHuddle, the three onDocumentCreated notification triggers and the scheduled pay
-// reminder live in ./documents.js, built here with the shared infrastructure so index.js
+// ./documents.js builds ingestHuddle (its handler is ./huddle-ingest.js), getDocumentUrl,
+// rotateDocumentLinks, the three onDocumentCreated notification triggers and the three scheduled
+// notices (the pay reminder, the one-off timetable reminder and the admin's Error Log notification),
+// built here with the shared infrastructure so index.js
 // stays the COMPOSITION ROOT (the VAPID public key literal and STAFF_SITE_URL keep their
 // one guarded home in this file). The re-export names are the deploy contract — Firebase
 // discovers functions from THIS module's exports, so renaming or dropping one here

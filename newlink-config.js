@@ -31,7 +31,7 @@
  *
  * ── WHAT IT IS NOT ─────────────────────────────────────────────────────────────────────────────
  *
- * Not a ballot: nothing here collects a view, a vote or a name (owner: no voting, no stored feedback). Not a roster: the
+ * Not a ballot: nothing here collects a view, a vote or a name (owner: no voting on this page, no stored feedback). Not a roster: the
  * page never mixes a proposal into the Calendar, Team Week, the day panel or the Pay Calculator, and newlink-boundary
  * .test.mjs fails if any of their modules imports the proposals. Not secret: this file is served to anyone, like every
  * module. It holds decisions, and names one person — CONTACT, with CONTACT_ROLE — on the owner's instruction (4 Nov 2026);
@@ -80,7 +80,8 @@ export const CONTACT_ROLE = 'the RMT rep';
  * though nothing were chosen) and newlink-config.test.mjs fails on it. Still null when the link's start (STARTS) comes, the
  * page stops inviting views anyway and says only that CONTACT will confirm the outcome — it never names a design itself.
  * THE CALENDAR'S NOTICE GOES WITH IT (the 22 Nov 2026 review): its words, in index.html and in calendar-notices.js's archived
- * copy, say "Nothing is decided yet" as fixed text — the Calendar may not import this file (newlink-boundary.test.mjs), so
+ * copy, say the choice "will be decided by a vote" as fixed text (until 26 Nov 2026, "Nothing is decided yet") — the
+ * Calendar may not import this file (newlink-boundary.test.mjs), so
  * it cannot follow this line by itself. Setting a name here means rewording or retiring that notice in the same commit
  * (/new-notice); newlink-config.test.mjs fails until it is done.
  * @type {string|null}
@@ -94,7 +95,7 @@ export const CHOSEN = null;
 export const PHASE = CHOSEN ? 'decided' : 'open';
 
 /**
- * The last day for views, 'YYYY-MM-DD' — or null, which the page words as "a date to be agreed" (owner: "Not set yet").
+ * The last day for views, 'YYYY-MM-DD' — or null (owner: "Not set yet"), when the page says "Have your say before the decision is made".
  * @type {string|null}
  */
 export const CLOSES = null;

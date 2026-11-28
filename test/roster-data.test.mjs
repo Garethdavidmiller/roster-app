@@ -2534,6 +2534,12 @@ describe('SPARE is standby, not work', () => {
                 assert.equal(isWorkedShift(value), false, `${value} is not a worked day`);
             }
         });
+
+        test('nor is an EMPTY value — no shift at all is not a worked day (28 Nov 2026)', () => {
+            for (const value of [null, undefined, '']) {
+                assert.equal(isWorkedShift(value), false, `${JSON.stringify(value)} is not a worked day`);
+            }
+        });
     });
 
     describe('and never loses a day that was', () => {

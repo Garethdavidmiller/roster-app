@@ -25,7 +25,7 @@ export const CARD_TIPS = Object.freeze({
         title: 'The new link: three proposals',
         sections: [
             { heading: 'What this page is', items: [
-                { icon: '🔁', html: 'A <strong>link</strong> is the set of weeks everyone works through in turn, one week each, then on to the next. The new link replaces today’s for the people on the main CEA roster.' },
+                { icon: '🔁', html: 'A <strong>link</strong> is the set of weeks everyone works through in turn, one week each, then on to the next. The new link replaces today’s for colleagues on a normal CEA contract (not the bilingual contract).' },
                 { icon: '📋', html: 'The three proposals are shown A to Z, never ranked. Tap a name to see its weeks.' },
                 // No invitation: the page stops inviting views once a design is chosen or the start has come (newlink-config.js →
                 // CHOSEN), and a static panel cannot know which (regression review, 26 Nov 2026). "Have your say" invites, while it may.

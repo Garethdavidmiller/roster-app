@@ -905,12 +905,12 @@ self.addEventListener("fetch", event => {
         // splash, so a broken Cache Storage must degrade: the backstop's own lookup is caught, and it
         // ends with a real network attempt (an online device with wedged storage still gets its modules).
     } else {
-        // Cache-first: icons/manifest served from cache instantly, fetched if missing
+        // Cache-first: icons/fonts/manifest from THIS version's cache, then the newest older one — never a bare
+        // caches.match(), the OLDEST release's copy (manifest.json is precached in each); a miss is fetched `no-cache`.
         event.respondWith(
-            caches.match(event.request)
-                .then(cached => {
-                    if (cached) return cached;
-                    return fetch(event.request).then(response => {
+            openCache().then(cache => cache.match(event.request)).then(hit => hit || matchNewestManagedCache(event.request))
+                .then(cached => cached || fetch(new Request(event.request.url, { cache: 'no-cache', credentials: event.request.credentials,
+                    mode: event.request.mode === 'navigate' ? 'same-origin' : event.request.mode })).then(response => {
                         // ctSafe: never cache a proxy interstitial under an icon/font/manifest path.
                         if (response && response.status === 200 && ctSafe(url.pathname, response)) {
                             const clone = response.clone();
@@ -918,8 +918,7 @@ self.addEventListener("fetch", event => {
                             openCache().then(cache => cache.put(event.request, clone)).catch(() => {});
                         }
                         return response;
-                    });
-                })
+                    }))
                 // As the other branches: on broken storage or an offline miss, degrade (the lookup
                 // guarded, then a network attempt) — never a rejected respondWith.
                 .catch(() => caches.match(event.request).catch(() => null)

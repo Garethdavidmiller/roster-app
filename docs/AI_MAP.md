@@ -1033,7 +1033,7 @@ The CSS every app page shares (the guides load none of it): the `:root` tokens �
 - **Exports:** `buildIngestHuddle`
 
 ### `functions/pay-reminder.js`
-- **Exports:** `PAY_REMINDER_GRADES` · `payReminderMembers` · `sendPayReminder` · `uidForMember`
+- **Exports:** `PAY_REMINDER_GRADES` · `payReminderMembers` · `sendPayReminder`
 
 ### `functions/error-log-notify.js`
 - **Exports:** `notifyAdminOfErrorLog`
