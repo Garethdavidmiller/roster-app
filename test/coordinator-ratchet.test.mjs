@@ -215,7 +215,10 @@ const CAPS = {
     // year (paycalc-settings.js), the Year to Date card's wiring (paycalc-ytd-card.js), the banners'
     // ticks and links (paycalc-money-banner.js) and the two-tap Clear (paycalc-clear-confirm.js). The
     // room is about 30 lines, not the usual 50–99: the next change here should extract first.
-    'paycalc-app.js':          1310,
+    // 1310 → 1290 on 28 Nov 2026, brought DOWN with what left (1,288 to 1,263 measured): the "not saved" line's
+    // rules and its words (paycalc-save-line.js, `saveStatusWords`) and the setting write's merge base
+    // (`planSettingWrite`, paycalc-form-data.js). The same ~30 lines of room.
+    'paycalc-app.js':          1290,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
