@@ -2,7 +2,7 @@
 /**
  * e2e/links-selector.spec.js — the Links Selector (links-selector.html): a proposal drawn as the Calendar draws a month.
  *
- * What only a browser can show: the page admits the admin and refuses everybody else during its beta; the month is the
+ * What only a browser can show: the page admits New CEA Link's audience and refuses everybody else; the month is the
  * Calendar's grid with the proposal's days in it, blank before the link starts; the two pickers, the month buttons and
  * the swipe move it; the address and this device keep the choice; and a day opens its panel. The rules themselves —
  * which line a date falls on, Christmas, a choice that names nothing — are links-selector-core.test.mjs.
@@ -231,15 +231,23 @@ test.describe('links selector', () => {
         await expect(page.locator('#selectorLegendBlank')).toBeHidden();
     });
 
-    test('during the beta a colleague is refused with the app\'s card, and no menu offers them the page', async ({ page }) => {
+    test('open: a colleague on a normal CEA contract is admitted and offered it in the drawer', async ({ page }) => {
+        // CONFIG.LINKS_SELECTOR_OPEN (owner, 28 Nov 2026): New CEA Link's audience, not the admin alone
         const colleague = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.bilingualContract && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
         await seedSession(page, colleague);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=3');
+        await expect(page.locator('#selectorNotForYou')).toHaveCount(0);
+        await expect(page.locator('.calendar-day[role="button"]').first()).toBeVisible();
+        await page.goto('/admin.html');
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('a.nav-panel-pill', { hasText: 'Links Selector' })).toHaveCount(1);
+    });
+
+    test('a colleague outside its audience is refused with the app\'s card, and no menu offers them the page', async ({ page }) => {
+        const bilingual = /** @type {string} */ (teamMembers.find(m => m.bilingualContract && !m.hidden && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
+        await seedSession(page, bilingual);
         await page.goto('/links-selector.html');
         await expect(page.locator('#selectorNotForYou')).toBeVisible();
-        await expect(page.locator('#selectorNotForYou')).toContainText('isn’t open to you yet');
-        // the card names a page they can open in the meantime, so it links to it
-        await expect(page.locator('#selectorNotForYouNewlink')).toBeVisible();
-        await expect(page.locator('#selectorNotForYouNewlink')).toHaveAttribute('href', './newlink.html');
         await expect(page.locator('.calendar-day')).toHaveCount(0);
         await page.locator('#navMenuBtn').click();
         // not even as the page they are on: a gated pill is drawn only for the people its page admits (nav-destinations.js)
@@ -311,7 +319,7 @@ test.describe('links selector', () => {
         await expect(page.locator('#selectorNote')).toBeHidden();
     });
 
-    test('a colleague whose contract keeps its own link is told so, not "not yet" — during the beta too', async ({ page }) => {
+    test('a colleague whose contract keeps its own link is told so, not "not yet"', async ({ page }) => {
         const bilingual = /** @type {string} */ (teamMembers.find(m => m.bilingualContract && !m.hidden && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
         await seedSession(page, bilingual);
         await page.goto('/links-selector.html');
@@ -414,7 +422,7 @@ test.describe('links selector — the first visit', () => {
     });
 
     test('a colleague the page refuses is not shown it', async ({ page }) => {
-        const colleague = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.bilingualContract && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
+        const colleague = /** @type {string} */ (teamMembers.find(m => m.bilingualContract && !m.hidden && !CONFIG.ADMIN_NAMES.includes(m.name))?.name);
         await seedSession(page, colleague);
         await firstVisit(page);
         await page.goto('/links-selector.html');

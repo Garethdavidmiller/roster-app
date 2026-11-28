@@ -9,9 +9,8 @@
  *
  * ── WHO IT IS FOR ──────────────────────────────────────────────────────────────────────────────
  *
- * A BETA for the admin alone until it is right (owner, 27 Nov 2026: "The beta would only be accessible to me the master
- * admin until it is perfected"), then the New CEA Link page's audience (owner: "Same as new link page") — one switch,
- * `CONFIG.LINKS_SELECTOR_OPEN`, read by auth-policy.js for the page and its drawer pill together.
+ * The New CEA Link page's audience (owner: "Same as new link page"), open since 28 Nov 2026 after a beta for the admin
+ * alone — one switch, `CONFIG.LINKS_SELECTOR_OPEN`, read by auth-policy.js for the page and its drawer pill together.
  *
  * ── WHAT IT NEVER DOES ─────────────────────────────────────────────────────────────────────────
  *

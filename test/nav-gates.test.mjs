@@ -131,10 +131,13 @@ for (const paused of [true, false]) {
             assert.equal(drawn(manager).includes('overtime'), !paused, 'and so does a reviewer');
             assert.equal(drawn(plain).includes('overtime'), false, 'never a member with neither');
             assert.ok(!drawn(plain).includes('newlink'), 'a Dispatcher is not the new link\'s audience');
-            // The Links Selector is a beta for the admin (CONFIG.LINKS_SELECTOR_OPEN false): nobody else has its pill yet.
-            assert.equal(CONFIG.LINKS_SELECTOR_OPEN, false, 'the Links Selector has opened — this line and the two below move with it');
-            assert.ok(drawn(admin).includes('selector'), 'the admin has the Links Selector during its beta');
-            for (const member of [manager, designer, beta, plain]) assert.ok(!drawn(member).includes('selector'), `${member} has the Links Selector before it opens`);
+            // The Links Selector is OPEN (CONFIG.LINKS_SELECTOR_OPEN, owner, 28 Nov 2026): its pill is drawn exactly where the
+            // New CEA Link page's is — the admin and a manager have both, a Dispatcher neither.
+            assert.equal(CONFIG.LINKS_SELECTOR_OPEN, true, 'the Links Selector is back to the admin\'s beta — this line and the two below move with it');
+            for (const member of [admin, manager, designer, beta, plain]) {
+                assert.equal(drawn(member).includes('selector'), drawn(member).includes('newlink'), `${member}: the Links Selector's pill and New CEA Link's disagree`);
+            }
+            assert.ok(drawn(manager).includes('selector') && !drawn(plain).includes('selector'), 'a manager has it, a Dispatcher does not');
         });
 
         test('nobody signed in: every ungated pill drawn, every gated one hidden', () => {

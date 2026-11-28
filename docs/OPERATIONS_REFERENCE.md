@@ -1422,13 +1422,14 @@ instead.
    the suite must pass. No `npm run generate:roster-members`: the server copy carries no `rosterChanges`
    and no pattern.
 
-### Opening the Links Selector to colleagues
+### Who can open the Links Selector
 
-The Links Selector (`links-selector.html`) is the admin's beta. To open it, set `LINKS_SELECTOR_OPEN: true` in
-`CONFIG` (`roster-data.js`), bump and release: the page and its 🗓️ drawer pill then admit exactly whom the New CEA Link
-page admits (`selectorRoles`, `auth-policy.js`), and the refusal card's words change to match. Update the
-`nav-gates.test.mjs` line that asserts the switch is off in the same commit. Nothing server-side moves: the page reads no
-Firestore of its own. When the new link's start day is agreed, set it in `links-selector-core.js` → `STARTS` and
+The Links Selector (`links-selector.html`) is **open** to the New CEA Link page's audience since v27.28 (owner, 28 Nov
+2026): `LINKS_SELECTOR_OPEN: true` in `CONFIG` (`roster-data.js`), so the page and its 🗓️ drawer pill admit exactly whom
+New CEA Link admits (`selectorRoles`, `auth-policy.js`). To put it back to the admin alone, set it `false`, bump and
+release, and in the same commit move the `nav-gates.test.mjs` assertion on the switch and the "who it admits" tests in
+`e2e/links-selector.spec.js`. Whoever the page refuses is told why by who they are, not by the switch
+(`refusalWords`). Nothing server-side moves either way: the page reads no Firestore of its own. When the new link's start day is agreed, set it in `links-selector-core.js` → `STARTS` and
 `newlink-config.js` → `STARTS` together; when the link is brought into the roster (above), the page stays a preview of
 the PROPOSALS, so retire it or point it at the chosen design then.
 
