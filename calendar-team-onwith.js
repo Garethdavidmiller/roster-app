@@ -18,8 +18,10 @@
  *   · BY ROLE — one section per Team View grade tab (CEA, CES, Dispatcher), the member's own role first and
  *     the rest in the tabs' order (`rolesInOrder`), so the card is organised as the grid beneath it is. One
  *     list of every role mixed, a grade tag on some rows, was the defect.
- *   · TODAY AND LATER ONLY (`isPastDay`) — the day panel offers no button on a past day, and a past date
- *     reached any other way (a panel left open over midnight) draws nothing.
+ *   · TODAY TO THREE WEEKS AHEAD (`onWithOffered`) — the day panel offers no button on a past day, nor after
+ *     the Saturday that ends the week three weeks on (owner, 28 Nov 2026: a roster that far out is not yet the
+ *     one people work), except Boxing Day, which is always offered; a date outside that reached any other way
+ *     (a panel left open over midnight) draws nothing.
  *   · ONE LINE A COLLEAGUE — the name, their shift as the grid cell draws it, and the stretch together said
  *     quietly (`togetherWords`), in three tracks of fixed width (index.css) so every row lines up and none
  *     wraps at 320px. Colleagues working at times that share no minute are NOT listed: the grid beneath
@@ -68,6 +70,35 @@ export function isPastDay(iso, today) {
     const t = new Date(today);
     t.setHours(0, 0, 0, 0);
     return dayOf(iso).getTime() < t.getTime();
+}
+
+/** How many weeks after this one the card is offered for. @type {number} */
+export const ONWITH_WEEKS_AHEAD = 3;
+
+/**
+ * The last day the card is offered for: the Saturday that ends the week `ONWITH_WEEKS_AHEAD` weeks after this
+ * one, a week running Sunday to Saturday as Team View's does. On a Saturday this week ends today, so on Saturday
+ * 28 November the last day is Saturday 19 December, and from Sunday 29 November it is Saturday 26 December.
+ * @param {Date} today @returns {Date} local midnight of that Saturday
+ */
+export function lastOfferedDay(today) {
+    const t = new Date(today);
+    t.setHours(12, 0, 0, 0);   // noon: a day added across a clock change stays on its date
+    t.setDate(t.getDate() + (6 - t.getDay()) + 7 * ONWITH_WEEKS_AHEAD);
+    t.setHours(0, 0, 0, 0);
+    return t;
+}
+
+/**
+ * Is the card offered for `iso`? Today and later (`isPastDay`), up to `lastOfferedDay` — and Boxing Day whenever
+ * it is still to come, however far ahead (owner, 28 Nov 2026). The day panel's button, the card and Team View's
+ * redraw all ask this, so the three never disagree.
+ * @param {string} iso @param {Date} today @returns {boolean}
+ */
+export function onWithOffered(iso, today) {
+    if (isPastDay(iso, today)) return false;
+    if (/^\d{4}-12-26$/.test(iso)) return true;
+    return dayOf(iso).getTime() <= lastOfferedDay(today).getTime();
 }
 
 /**
@@ -126,7 +157,7 @@ function shiftChip(cellDisplay, member, date, sameDay = true) {
 export function buildOnWithCard({ onWith, effectiveDay, cellDisplay, monthKey, today }) {
     const none = { html: '', months: [], dates: [] };
     const shown = onWith ? teamMembers.find(m => m.name === onWith.name) : null;
-    if (!onWith || !shown || isPastDay(onWith.iso, today)) return none;
+    if (!onWith || !shown || !onWithOffered(onWith.iso, today)) return none;
     const date = dayOf(onWith.iso);
     const dates = [dayOf(onWith.iso, -1), date, dayOf(onWith.iso, 1)];
     const months = [...new Set(dates.map(d => monthKey(d.getFullYear(), d.getMonth())))];

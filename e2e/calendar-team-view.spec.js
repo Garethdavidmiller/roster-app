@@ -999,3 +999,26 @@ test('team view: the "On with" card is by role and keeps every colleague to one 
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 'the page scrolls sideways').toBeLessThanOrEqual(0);
 });
+
+// TO THE SATURDAY ENDING THE WEEK THREE WEEKS ON, AND BOXING DAY (owner, 28 Nov 2026: "Apart from Boxing Day, the
+// who's on with me button should only be active until the week ending Saturday 3 weeks ahead"). On Saturday 28
+// November that Saturday is 19 December: the 19th offers the button, the Sunday after does not, and Boxing Day does.
+test('team view: "Who’s on with me" is offered to the Saturday three weeks on, and on Boxing Day', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-28T09:00:00Z'));
+    await page.addInitScript((docs) => { const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = docs; },
+        ['2026-12-19', '2026-12-20', '2026-12-26'].map((date, i) =>
+            ({ id: `h${i}`, memberName: 'G. Miller', date, type: 'rdw', value: '08:00-16:00', note: '' })));
+    await page.goto('/');
+    await page.locator('#nextMonth').click();
+    const btn = page.locator('#dayDetailTeamBtn');
+    for (const [iso, offered] of /** @type {[string, boolean][]} */ ([['2026-12-19', true], ['2026-12-20', false], ['2026-12-26', true]])) {
+        const day = page.locator(`.calendar-day[data-detail-iso="${iso}"]`);
+        await expect(day, `premise: ${iso} is worked with times`).toHaveAttribute('data-detail-worked-times', '08:00-16:00');
+        await day.click();
+        await expect(page.locator('#dayDetailLightbox')).toHaveClass(/\bopen\b/);
+        if (offered) await expect(btn, `${iso} offered no button`).toBeVisible();
+        else await expect(btn, `${iso}, after the third week, offered "Who’s on with me"`).toBeHidden();
+        await page.locator('#dayDetailClose').click();
+        await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/\bopen\b/);
+    }
+});

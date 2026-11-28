@@ -247,7 +247,7 @@ below, and run `npm run generate:ai-map`.
 - **Exports:** `weekStartForMonth` · `weekAfterDateChange` · `initTeamView`
 
 ### `calendar-team-onwith.js`
-- **Exports:** `dayOf` · `cardDate` · `isPastDay` · `colleaguesOf` · `rolesInOrder` · `buildOnWithCard`
+- **Exports:** `dayOf` · `cardDate` · `isPastDay` · `ONWITH_WEEKS_AHEAD` · `lastOfferedDay` · `onWithOffered` · `colleaguesOf` · `rolesInOrder` · `buildOnWithCard`
 
 ### `team-overlap.js`
 - **Exports:** `DAY_MINUTES` · `shiftSpan` · `workedTimes` · `clockAt` · `rangeText` · `whoIsOnWith` · `togetherWords`
