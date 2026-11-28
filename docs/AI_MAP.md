@@ -558,7 +558,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `offersSundayRelease` · `SUNDAY_RELEASE_ASKED` · `SUNDAY_RELEASE_LABEL` · `releaseRequestLine`
 
 ### `al-swapped-days.js`
-- **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `absenceHiddenDates` · `rangeWriteDates`
+- **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `replacedTypeOnWrite` · `absenceHiddenDates` · `rangeWriteDates`
 
 ### `admin-al-projection.js`
 - **Exports:** `projectAlBooking` · `yearShiftWords` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `overridesAfterSave` · `projectAlOverage`
@@ -890,7 +890,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `admin-day-change.js`
 - **Exports:**
-- **Exports:** `stagedDayChanges` · `previewChanges`
+- **Exports:** `shownValue` · `nowShows` · `stagedDayChanges` · `previewChanges`
 
 ### `newsletter-recency.js`
 - **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `latestNewsletterDate` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`

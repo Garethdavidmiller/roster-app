@@ -105,6 +105,13 @@ mock.module('../admin-override-store.js', {
     },
 });
 
+// The preview's per-day lines need a parser to collect; a test that wants some sets them here. The rest is the real module.
+let _previewLines = new Map();
+const _realDayChange = await import('../admin-day-change.js');
+mock.module('../admin-day-change.js', {
+    namedExports: { ..._realDayChange, previewChanges: () => _previewLines },
+});
+
 const { _hasStagedEdits, buildWeekGridInto, renderWeekGrid, updateSaveBtn, initWeekEditor, rosteredWords }
     = await import('../admin-week-editor.js');
 const { teamMembers, getBaseShift, getShiftBadge, formatISO } = await import('../roster-data.js');
@@ -222,6 +229,26 @@ describe('the Save button counts the same rows _hasStagedEdits does', () => {
         saveEnabledFor([row({ type: 'rdw' }), row({ type: 'shift' }), row({ existingId: 'ov1' })]);
         assert.equal(byId.get('stagedCount').textContent, '2 days, 1 to remove');
         assert.equal(byId.get('stagedBar').hidden, false);
+    });
+
+    test('the preview lists each day under its sentence in markup that nests validly', () => {
+        // A <ul> inside a <span> is invalid HTML (a phrasing element may not hold a list), and a parser is free to
+        // repair it by moving the list out of the sentence. The sentence's wrapper must be one that may hold it.
+        _previewLines = new Map([['2026-12-01', '06:20–14:20 → Annual leave']]);
+        try { saveEnabledFor([row({ type: 'annual_leave' })]); } finally { _previewLines = new Map(); }
+        const html = byId.get('gridPreview').innerHTML;
+        assert.match(html, /<ul class="grid-preview-days"><li>[^<]*06:20–14:20 → Annual leave<\/li><\/ul>/);
+        const PHRASING = new Set(['span', 'strong', 'em', 'b', 'i', 'a', 'label']);
+        const open = [];
+        for (const [, close, tag] of html.matchAll(/<(\/?)([a-z]+)[^>]*>/g)) {
+            if (close) { assert.equal(open.pop(), tag, `</${tag}> closes the element it opened`); continue; }
+            if (['ul', 'li', 'div', 'p'].includes(tag)) {
+                const inside = open.filter(t => PHRASING.has(t));
+                assert.deepEqual(inside, [], `<${tag}> inside <${inside.join('><')}> is invalid HTML`);
+            }
+            open.push(tag);
+        }
+        assert.deepEqual(open, [], 'every element the preview opens is closed');
     });
 
     test('with nothing staged the bar is hidden and the hint tells the admin what to do', () => {
@@ -519,6 +546,16 @@ describe('the "Base roster" column says what the day WAS', () => {
             const rows = buildWeek('G. Miller', '2026-12-26').slice(1);
             assert.match(rows.find(r => r.dataset.date === '2026-12-26').innerHTML,
                 /class="christmas-note">Boxing Day worked when due at work: one day of annual leave in lieu, from 27 December — it covers leave this December past the 2026 allowance, otherwise it is added to 2027</);
+        } finally { _dateMap = new Map(); }
+    });
+
+    test('a row holding Rest Day Working is stamped with its hours, the "before" of the line beside Save', () => {
+        // The before → after line reads `data-now-shows`; stamped from the resolver's bare 'RDW' it said "RDW" where
+        // the Calendar draws the hours.
+        _dateMap = new Map([['2026-12-26', { memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00' }]]);
+        try {
+            const rows = buildWeek('G. Miller', '2026-12-26').slice(1);
+            assert.equal(rows.find(r => r.dataset.date === '2026-12-26').dataset.nowShows, 'RDW 13:30-21:00');
         } finally { _dateMap = new Map(); }
     });
 });

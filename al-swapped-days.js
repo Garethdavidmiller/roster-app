@@ -115,6 +115,19 @@ export function replacedTypeForSwap(existing, newType) {
     return 'shift';
 }
 
+/**
+ * The `replacedType` a write of `newType` over `existing` carries: a declared swap's (`replacedTypeForSwap`), else
+ * what `nextReplacedType` carries forward. ONE answer for the week grid's save, the range save and the before → after
+ * line beside Save (admin-day-change.js), because an absence on a rest day shows only with a contracted `replacedType`
+ * (`isOverrideDisplaySuppressed`): a preview that resolved the day without it said "Rest day" where the Calendar
+ * draws Absent.
+ * @param {any} existing the override the write replaces, if any @param {string} newType @param {boolean} [swapped]
+ * @returns {string|null}
+ */
+export function replacedTypeOnWrite(existing, newType, swapped = false) {
+    return swapped ? replacedTypeForSwap(existing, newType) : nextReplacedType(existing, newType);
+}
+
 /** The record an absence range writes. */
 const ABSENT = { type: 'sick', value: 'SICK' };
 

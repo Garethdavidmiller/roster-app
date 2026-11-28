@@ -101,6 +101,8 @@ test('admin: a staged day says before → after beside Save, and the receipt say
     const preview = page.locator('#gridPreview');
     await expect(preview).toContainText('You\'re about to change 1 day');
     await expect(preview.locator('.grid-preview-days li')).toHaveText(new RegExp(`11 Jan.*: ${words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+    // A list inside a <span> is invalid HTML (phrasing content may not hold one); the sentence's wrapper is a <div>.
+    await expect(preview.locator('span ul, strong ul'), 'the day list is not nested inside phrasing content').toHaveCount(0);
 
     await page.locator('#saveBtn').click();
     const feedback = page.locator('#formFeedback');
@@ -108,6 +110,88 @@ test('admin: a staged day says before → after beside Save, and the receipt say
     const receipt = feedback.locator('.save-receipt');
     await receipt.locator('summary').click();
     await expect(receipt.locator('li')).toHaveText(new RegExp(`11 Jan.* — ${words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+});
+
+/**
+ * Open Change a Shift on G. Miller's week of 11 Jan 2027, over `docs`, with writes allowed. Wednesday 13 and
+ * Thursday 14 January are rest days on his pattern (each test checks its own premise).
+ * @param {import('@playwright/test').Page} page @param {any[]} docs
+ */
+async function openMillerJanuaryWeek(page, docs) {
+    await page.addInitScript((rows) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), authUser: true, docs: rows };
+    }, docs);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    await waitForReadsToLand(page, 'G. Miller\'s records never answered');
+}
+
+/** @param {string} s */
+const literal = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// REST DAY WORKING SAYS ITS HOURS, before and after. The Calendar's resolver answers 'RDW' with the hours beside
+// it (`rdwTime`), and the line read only the first, so it said "Rest day → RDW" where the Calendar draws the hours.
+test('admin: Rest Day Working says its hours beside Save and in the receipt', async ({ page }) => {
+    const miller = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    for (const d of [13, 14]) expect(isRestShift(getBaseShift(miller, new Date(2027, 0, d))), `premise: ${d} Jan is a rest day`).toBe(true);
+    await openMillerJanuaryWeek(page, [{ id: 'm_2027-01-14_G.%20Miller', memberName: 'G. Miller', date: '2027-01-14',
+        type: 'rdw', value: '13:30-21:00', note: '', source: 'manual' }]);
+
+    const wed = page.locator('.day-row[data-date="2027-01-13"]');
+    await wed.locator('.day-cb').click();
+    await clickInView(wed.locator('.type-pill-btn[data-type="rdw"]'));
+    await wed.locator('.day-start').fill('09:00');
+    await wed.locator('.day-end').fill('17:00');
+    const thu = page.locator('.day-row[data-date="2027-01-14"]');
+    await expect(thu.locator('.type-pill-btn[data-type="rdw"]'), 'premise: Thursday starts with its RDW').toHaveAttribute('aria-pressed', 'true');
+    await clickInView(thu.locator('.type-pill-btn[data-type="annual_leave"]'));
+
+    const lines = ['Rest day → RDW 09:00–17:00', 'RDW 13:30–21:00 → Annual leave'];
+    await expect(page.locator('#gridPreview .grid-preview-days li'))
+        .toHaveText([new RegExp(`13 Jan.*: ${literal(lines[0])}$`), new RegExp(`14 Jan.*: ${literal(lines[1])}$`)]);
+
+    await page.locator('#saveBtn').click();
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('2 changes saved for', { timeout: 10000 });
+    const receipt = feedback.locator('.save-receipt');
+    await receipt.locator('summary').click();
+    await expect(receipt.locator('li'))
+        .toHaveText([new RegExp(`13 Jan.* — ${literal(lines[0])}$`), new RegExp(`14 Jan.* — ${literal(lines[1])}$`)]);
+});
+
+// AN ABSENCE OVER A SWAPPED-IN SHIFT IS DRAWN ABSENT, and the line says so. The save carries `replacedType` from the
+// shift it replaces, which is what lets the Calendar show an absence on a rest day; resolved without it, the line
+// said "06:20–14:20 → Rest day" beside a Calendar reading Absent.
+test('admin: an absence over a swapped-in shift on a rest day says Absent beside Save and in the receipt', async ({ page }) => {
+    const miller = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    expect(isRestShift(getBaseShift(miller, new Date(2027, 0, 13))), 'premise: 13 Jan is a rest day').toBe(true);
+    await openMillerJanuaryWeek(page, [{ id: 'm_2027-01-13_G.%20Miller', memberName: 'G. Miller', date: '2027-01-13',
+        type: 'shift', value: '06:20-14:20', note: '', source: 'manual' }]);
+
+    const wed = page.locator('.day-row[data-date="2027-01-13"]');
+    await expect(wed.locator('.type-pill-btn[data-type="shift"]'), 'premise: the swapped-in shift is drawn').toHaveAttribute('aria-pressed', 'true');
+    await clickInView(wed.locator('.type-pill-btn[data-type="sick"]'));
+
+    const words = '06:20–14:20 → Absent';
+    await expect(page.locator('#gridPreview .grid-preview-days li')).toHaveText(new RegExp(`13 Jan.*: ${literal(words)}$`));
+
+    await page.locator('#saveBtn').click();
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('1 change saved for', { timeout: 10000 });
+    const receipt = feedback.locator('.save-receipt');
+    await receipt.locator('summary').click();
+    await expect(receipt.locator('li')).toHaveText(new RegExp(`13 Jan.* — ${literal(words)}$`));
+    // …and the save wrote what makes the Calendar draw it: the absence, remembering the shift it replaced.
+    const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites.at(-1).data);
+    expect(written).toMatchObject({ date: '2027-01-13', type: 'sick', value: 'SICK', replacedType: 'shift' });
 });
 
 test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {

@@ -105,7 +105,8 @@
 
     <!-- Needs attention (v22.03) — an INDEX of exceptional card states, rendered by
          operations-attention.js from what the cards themselves report. Hidden (absent, not empty)
-         when nothing needs doing; role=status so an item appearing is announced. -->
+         until every item has answered; once each has reported zero it shows one quiet line,
+         "Nothing needs your attention" (allClear). role=status so an item appearing is announced. -->
     <section class="attn-strip" id="attentionStrip" role="status" hidden></section>
 
     <!-- Desktop column wrappers (like admin.html): the narrow left column holds the

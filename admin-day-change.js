@@ -11,30 +11,66 @@
  * e2e/admin-saves.spec.js.
  */
 import { isSunday } from './roster-data.js';
-import { isChristmasOrBoxingDay } from './override-utils.js';
+import { isChristmasOrBoxingDay, parseOtherValue } from './override-utils.js';
 import { resolveDayShift } from './christmas-leave.js';
+import { replacedTypeOnWrite } from './al-swapped-days.js';
 import { collectWeekRows } from './admin-week-collect.js';
 import { changeWords } from './admin-save-receipt.js';
 import { formatDisplay } from './admin-period-dates.js';
+import { drawnDays } from './admin-week-row-state.js';
+
+/**
+ * A day as the Calendar draws it, as ONE value the receipt's words read (`dayWords`): the resolver's `shift` WITH its
+ * hours slot (`rdwTime`). Rest Day Working, and a timed shift on a Sunday, resolve to the bare `'RDW'` with their hours
+ * in `rdwTime`, so `.shift` alone said "Rest day → RDW" where the Calendar draws "RDW 09:00-17:00". An Other day with
+ * no hours of its own shows the slot beneath its badge too — "RDW" on a rest day, else the base shift's time — so it
+ * is put back into the Other grammar (`FLAVOUR[" RDW"][" HH:MM-HH:MM"]`), which `dayWords` already reads.
+ * @param {{ shift: string, rdwTime?: string }} resolved what `resolveDayShift` answers @returns {string}
+ */
+export function shownValue({ shift, rdwTime = '' }) {
+    const time = /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(rdwTime) ? rdwTime : '';
+    if (shift === 'RDW') return time ? `RDW ${time}` : 'RDW';
+    const other = parseOtherValue(shift);
+    if (!other || other.time) return shift;
+    if (rdwTime === 'RDW') return other.rdw ? shift : `${shift} RDW`;
+    return time ? `${shift} ${time}` : shift;
+}
+
+/**
+ * What a row's day shows NOW, as `shownValue` says it: the before half of the line, stamped on the row as the week
+ * editor draws it (`data-now-shows`). The same resolver, with the same inputs, as the after half below.
+ * @param {any} existing the record the row is drawn from, or null @param {string} baseShift @param {string} dateISO
+ * @param {boolean} xmasDue @returns {string}
+ */
+export function nowShows(existing, baseShift, dateISO, xmasDue) {
+    return shownValue(resolveDayShift(existing ?? null, baseShift, isSunday(dateISO), xmasDue, isChristmasOrBoxingDay(dateISO)));
+}
 
 /**
  * Each staged day's before → after (`changeWords`), as the Calendar would draw it, by date: the line
  * beside Save and the receipt's words for the day. A day whose change leaves it looking the same, or
  * a row the grid did not draw, has none.
- * @param {Element|null} grid @param {Array<{date: string, type: string, value: string}>} toSave
+ *
+ * THE AFTER IS THE RECORD THE SAVE WRITES, `replacedType` included (`replacedTypeOnWrite`, the save's own call): an
+ * absence on a rest day shows only when it replaced contracted work, so an absence staged over a swapped-in shift, an
+ * Other day or a Spare turn is drawn Absent — and resolved from its type and value alone it read "Rest day".
+ * @param {Element|null} grid
+ * @param {Array<{date: string, type: string, value: string, swapped?: boolean}>} toSave
+ * @param {Map<string, any>} [drawn] date → the record each row was drawn from (`drawnDays`), what the save replaces
  * @returns {Map<string, string>}
  */
-export function stagedDayChanges(grid, toSave) {
+export function stagedDayChanges(grid, toSave, drawn) {
     /** @type {Map<string, string>} */ const out = new Map();
     // Words for the receipt, never a reason a save fails: a grid it cannot read gives none, and the receipt
     // falls back to its own description of each day.
     if (typeof grid?.querySelector !== 'function') return out;
+    const under = drawn ?? (typeof grid.querySelectorAll === 'function' ? drawnDays(/** @type {HTMLElement} */ (grid)) : new Map());
     for (const e of toSave) {
         const row = /** @type {HTMLElement|null} */ (grid?.querySelector(`.day-row[data-date="${e.date}"]`) ?? null);
         const before = row?.dataset.nowShows;
         if (!row || before == null) continue;
-        const after = resolveDayShift({ type: e.type, value: e.value }, row.dataset.baseShift ?? '', isSunday(e.date),
-            row.dataset.xmasDue === '1', isChristmasOrBoxingDay(e.date)).shift;
+        const written = { type: e.type, value: e.value, replacedType: replacedTypeOnWrite(under.get(e.date) ?? null, e.type, e.swapped) };
+        const after = nowShows(written, row.dataset.baseShift ?? '', e.date, row.dataset.xmasDue === '1');
         if (after && after !== before) out.set(e.date, changeWords(before, after));
     }
     return out;

@@ -12,7 +12,7 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
-import { shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear, chunkByWrites } from './override-utils.js';
+import { shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextLeaveYear, chunkByWrites } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
 import { db, doc, serverTimestamp, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { saveFailureMessage } from './claim-retry.js';
@@ -34,7 +34,7 @@ export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
          loadOverrides, ensureMemberLoaded };
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
-import { replacedTypeForSwap, rangeWriteDates } from './al-swapped-days.js';
+import { replacedTypeOnWrite, rangeWriteDates } from './al-swapped-days.js';
 import { rangeSundayCorrections } from './admin-al-projection.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
@@ -219,9 +219,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
                 // day it is the only record of contracted work, on a moved January day of its year.
                 const _under = entry.existingId ? byId.get(entry.existingId) : null;
                 // A day answered "swapped" records `shift`, so the entitlement check sees contracted work.
-                const replacedType = entry.swapped
-                    ? replacedTypeForSwap(_under, entry.type)
-                    : nextReplacedType(_under, entry.type);
+                const replacedType = replacedTypeOnWrite(_under, entry.type, entry.swapped);
                 // ONE id per member and date (override-id.js): a colleague's save lands on the same document.
                 const fixedId = manualOverrideId(entry.memberName, entry.date);
                 for (const id of idsReplacedBy(entry.memberName, entry.date, entry.existingId)) {
@@ -439,9 +437,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                     const existing = ovByDate.get(op.date);
                     // Read BEFORE the delete, which destroys it: the only record that a swapped-in day was
                     // contracted work, and of a moved January day's year. A declared swap records `shift`.
-                    const replacedType = swapped.has(op.date)
-                        ? replacedTypeForSwap(existing, op.type)
-                        : nextReplacedType(existing, op.type);
+                    const replacedType = replacedTypeOnWrite(existing, op.type, swapped.has(op.date));
                     const fixedId = manualOverrideId(memberName, op.date);   // one per member and date
                     for (const id of idsReplacedBy(memberName, op.date, existing?.id)) {
                         if (!delIds.has(id)) { w.delete(doc(db, COLLECTIONS.overrides, id)); delIds.add(id); }
