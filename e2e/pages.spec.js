@@ -2397,3 +2397,25 @@ for (const width of [320, 360, 430]) {
         expect(cut, 'pages whose header cut the app\'s name').toEqual([]);
     });
 }
+
+// NEW CEA LINK SAYS "Links" ON A PHONE (owner, 28 Nov 2026: "Can you just call it Links on smaller devices rather than just
+// the emoji. Larger devices can have the full name"): the short and full names Operations and the Links Selector carry,
+// so at a phone's width the badge keeps a word, and from 768px it says the page's full name. The app's name stays whole.
+for (const [width, words] of /** @type {const} */ ([[360, 'Links'], [390, 'Links'], [800, 'New CEA Link']])) {
+    test(`New CEA Link's header badge reads "${words}" at ${width}px, and the app's name stays whole @layout`, async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/newlink.html');
+        const badge = page.locator('#newlinkBadge');
+        await expect(badge).toBeVisible();
+        await page.waitForTimeout(100);   // the ResizeObserver's answer
+        // What is DISPLAYED (`innerText`): both names are in the markup, and only one is ever shown.
+        // The badge is set in capitals by CSS, so the words are compared without case or line breaks.
+        await expect.poll(() => badge.evaluate(el => /** @type {HTMLElement} */ (el).innerText.replace(/\s+/g, ' ').trim().toLowerCase()),
+            { message: 'the badge says what it should at this width' }).toBe(`🔁 ${words.toLowerCase()}`);
+        const m = await page.locator('.app-header h1').evaluate(el => ({ cut: el.scrollWidth > el.clientWidth + 1,
+            tight: !!el.closest('.app-header')?.classList.contains('app-header--tight') }));
+        expect(m.cut, 'the app\'s name was cut').toBe(false);
+        expect(m.tight, 'the badge fell back to its emoji alone').toBe(false);
+    });
+}
