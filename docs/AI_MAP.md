@@ -73,7 +73,7 @@ below, and run `npm run generate:ai-map`.
 | Document links card (ops page) — a new key for every stored Huddle, Circular and Newsletter file, so every old copy of a link stops working | `operations-doc-links.js` (the card) · `functions/documents.js` (`rotateDocumentLinks`, the endpoint) · `functions/doc-link-rotation.js` (the rules) |
 | Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · decisions `docs/DECISIONS.md` → The annual leave uploader |
 | Link Designer design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, the generator (Build a link) | `link-designer-app.js` + `link-designer.html` + `link-designer.css`; the grid `link-designer-grid.js`, the paint bar `link-designer-brush-bar.js`, the window editor `link-designer-window-editor.js`, the Build press `link-designer-build-button.js` |
-| Links Selector — a shortlisted proposal and a start line as the Calendar's months, with its swipe (admin beta, `CONFIG.LINKS_SELECTOR_OPEN`) | the rules `links-selector-core.js`; the month `links-selector-render.js` (the Calendar's own cells); the page `links-selector-app.js` + `links-selector.html` + `links-selector.css` (with `index.css`); the swipe is `calendar-swipe.js`'s `months` option |
+| Links Selector — a shortlisted proposal and a start line as the Calendar's months, with its swipe (admin beta, `CONFIG.LINKS_SELECTOR_OPEN`) | the rules `links-selector-core.js`; the month `links-selector-render.js` (the Calendar's own cells); the `?` panel and first-visit orientation `links-selector-tips.js`; the page `links-selector-app.js` + `links-selector.html` + `links-selector.css` (with `index.css`); the swipe is `calendar-swipe.js`'s `months` option |
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), the rest between two duties, design quality checks | `link-designer-design.js` (pure — no DOM/Firebase, imports nothing; tested by `link-designer-design.test.mjs`) |
 | The link generator — the two constructions, the contract gate, the minimum-rest repair | `link-designer-generate.js` (pure; imports its constants from `link-designer-design.js`; tested by `link-designer-design.test.mjs` and `link-designer-contract.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |
@@ -538,11 +538,12 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports of `newlink-data.js`:** `COLUMNS` · `CHANGES` · `GAINS` · `COSTS` · `DIFFERS` · `DIFFER_RULE` · `PERSONAS` · `NOTES` · `PACK`
 - **Exports of `newlink-render.js`:** `designName` · `aToZ` · `closesWords` · `startsWords` · `statusPhase` · `statusHint` · `renderStatus` · `renderList` · `renderCommon` · `renderDiffers` · `ifYou` · `renderFigures` · `figuresKey` · `renderPersonas` · `renderPersonaChips` · `dutyKind` · `renderWeeks` · `renderAllWeeks` · `renderWeeksKey` · `renderWeeksTabs` · `fileRow` · `renderPack` · `glanceFile` · `personaStatus` · `weeksStatus` · `weeksTitle`
 
-### `links-selector-app.js` / `links-selector-boot.js` / `links-selector-core.js` / `links-selector-render.js`
-- **Exports of `links-selector-app.js`:** `STORE_KEY` · `init`
+### `links-selector-app.js` / `links-selector-boot.js` / `links-selector-core.js` / `links-selector-render.js` / `links-selector-tips.js`
+- **Exports of `links-selector-app.js`:** `STORE_KEY` · `WELCOME_KEY` · `init`
 - **Exports of `links-selector-boot.js`:** none
 - **Exports of `links-selector-core.js`:** `STARTS` · `FIRST_MONTH` · `LAST_MONTH` · `startDate` · `lineOn` · `dayOn` · `proposalsAtoZ` · `isCoverLine` · `lineOptions` · `monthLines` · `shiftTypesInMonth` · `hasBlankDays` · `inRange` · `openingMonth` · `initialChoice` · `ignoredWords` · `refusalWords` · `choiceQuery`
 - **Exports of `links-selector-render.js`:** `buildSelectorMonth`
+- **Exports of `links-selector-tips.js`:** `CARD_TIPS`
 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`
 - **Exports of `pdf-viewer.js`:** `initPdfViewer`
