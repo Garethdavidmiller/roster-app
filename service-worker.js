@@ -122,6 +122,7 @@ const APP_FILES = [
     'admin-booked-periods.js',
     'admin-boot.js',
     'admin-bulk-apply.js',
+    'admin-bulk-bar.js',
     'admin-confirm-bar.js',
     'admin-day-change.js',
     'admin-day-pills.js',

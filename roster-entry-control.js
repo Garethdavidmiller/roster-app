@@ -166,7 +166,7 @@ export function entryControlHtml(key, s, date) {
  * The cell key is `member|YYYY-MM-DD`, and a roster name can hold no `|`, so the date is the tail.
  * @param {string} key @returns {string} ISO date
  */
-export function isoFromKey(key) {
+function isoFromKey(key) {
     return key.slice(key.lastIndexOf('|') + 1);
 }
 

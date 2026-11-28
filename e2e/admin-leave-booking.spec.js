@@ -710,7 +710,8 @@ test('admin: "Save anyway" does not start while a booking is still sending', asy
 
 // Whole-app review, Oct 2026: a leave range picked while the member's records were still loading was
 // previewed from an empty cache — asking about a rest day the records show is worked (RDW) — and the
-// load refreshed the banners but never the preview, so the question stayed.
+// load refreshed the banners but never the preview, so the question stayed. Since 28 Nov 2026 the preview
+// draws nothing from records that have not been read (admin-range-booking.js): it says they are loading.
 test('admin: a leave preview drawn before the member\'s records arrive is redrawn when they do', async ({ page }) => {
     test.setTimeout(30_000);
     await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
@@ -736,7 +737,8 @@ test('admin: a leave preview drawn before the member\'s records arrive is redraw
     await cell.click();
     await cell.click();
     const preview = page.locator('#alPreview');
-    await expect(preview, 'premise: drawn before the records arrived').toContainText('rest day to answer');
+    await expect(preview, 'drawn before the records arrived, it states nothing about them').toContainText('Still loading this member\'s saved changes');
+    await expect(preview).not.toContainText('rest day to answer');
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });   // the records land
     await expect(preview).toContainText('recorded at no cost', { timeout: 8_000 });
     await expect(preview).not.toContainText('rest day to answer');

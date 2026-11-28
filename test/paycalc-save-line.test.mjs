@@ -13,7 +13,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSaveLine } from '../paycalc-save-line.js';
+import { createSaveLine, saveStatusWords } from '../paycalc-save-line.js';
 
 const NOT_SAVED = '⚠ Not saved — try again';
 const NOT_CLEARED = "⚠ Couldn't clear this payslip — its saved entries are still there. Try again";
@@ -182,5 +182,44 @@ describe('a change of state is spoken, a keystroke is not', () => {
         line.stored();
         paint(line, page);
         assert.equal(page.liveEl.textContent, '');
+    });
+});
+
+// ── THE STATUS LINE'S WORDS (saveStatusWords, out of paycalc-app.js on 28 Nov 2026) ──────────────
+// What a wrong answer costs: "saved" over figures storage never kept, or "No entries saved" over
+// entries that cannot be read — the member types over them believing there was nothing there.
+describe('saveStatusWords — what the status line says about a payslip', () => {
+    const DEF = 147.36;
+    /** @param {any} data */ const saved = (data) => ({ data, error: false });
+
+    test('a failure on the line is said as it stands, whatever storage holds', () => {
+        assert.deepEqual(saveStatusWords({ failure: NOT_SAVED, saved: saved({ satH: 3 }), defaultPension: DEF }),
+            { text: NOT_SAVED, cls: 'failed' });
+    });
+
+    test('entries that cannot be read say so, never "No entries saved"', () => {
+        const w = saveStatusWords({ failure: null, saved: { data: null, error: 'bad' }, defaultPension: DEF });
+        assert.equal(w.cls, 'corrupt');
+        assert.match(w.text, /Couldn't read this period's saved entries/);
+    });
+
+    test('entries, or a pension of the payslip\'s own, are "saved"; the default pension alone is not', () => {
+        const yes = { text: '✓ Entries saved for this payslip', cls: 'saved' };
+        assert.deepEqual(saveStatusWords({ failure: null, saved: saved({ satH: 3 }), defaultPension: DEF }), yes);
+        assert.deepEqual(saveStatusWords({ failure: null, saved: saved({ pension: 0 }), defaultPension: DEF }), yes, 'a £0 opt-out is an entry');
+        assert.deepEqual(saveStatusWords({ failure: null, saved: saved({ pension: 147.37 }), defaultPension: DEF }), yes);
+        assert.equal(saveStatusWords({ failure: null, saved: saved({ pension: 147.364 }), defaultPension: DEF }).cls, 'unsaved',
+            'within half a penny of the default is the default');
+    });
+
+    test('only payslip figures are named as the comparison they are', () => {
+        assert.equal(saveStatusWords({ failure: null, saved: saved({ actualNet: 0 }), defaultPension: DEF }).text, '✓ Take-home comparison saved');
+        assert.equal(saveStatusWords({ failure: null, saved: saved({ actualTax: 12 }), defaultPension: DEF }).text, '✓ Payslip comparison saved');
+    });
+
+    test('nothing stored, or an empty record, is "No entries saved"', () => {
+        const no = { text: 'No entries saved for this payslip', cls: 'unsaved' };
+        assert.deepEqual(saveStatusWords({ failure: null, saved: null, defaultPension: DEF }), no);
+        assert.deepEqual(saveStatusWords({ failure: null, saved: saved({ satH: 0, slSkip: false }), defaultPension: DEF }), no);
     });
 });

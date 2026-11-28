@@ -59,6 +59,36 @@ export function changeWords(before, after) {
 }
 
 /**
+ * An absence saved where the Calendar will not draw it — on a rest day, unless it replaced contracted work
+ * (`isOverrideDisplaySuppressed`). The record IS written, so the day is not left out of the receipt; and the words
+ * say what the Calendar will show, never "Absent" over a day that goes on reading as a rest day.
+ * @param {string} before what the day shows now @param {string} after what it shows once saved
+ * @returns {string}
+ */
+export function hiddenAbsenceWords(before, after) {
+    const shown = before === after ? dayWords(after) : changeWords(before, after);
+    return `${shown}; the absence is saved, but the Calendar doesn’t show an absence on a rest day`;
+}
+
+/**
+ * A staged day the save deliberately leaves alone — leave on a rest day answered "Rest day — free" (v23.88) — in the
+ * words the receipt and the preview beside Save both say it in. `kept`: the day already holds leave, which stands.
+ * CHRISTMAS DAY AND BOXING DAY are left alone for a different reason (v25.37): leave there is never counted, and a
+ * member due at work already has it, shown from the roster — so the day is named as itself, not as a rest day it may
+ * not have been.
+ * @param {string} date ISO @param {boolean} kept @returns {string}
+ */
+export function leftAloneWords(date, kept) {
+    const xmas = isChristmasClosureDate(date) ? (date.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day') : '';
+    if (xmas) return kept
+        ? `${xmas}; the leave already recorded here was left as it is and is never counted (select AL on the day again to remove it)`
+        : `${xmas}, never counted: nothing to record`;
+    return kept
+        ? 'rest day; the leave already recorded here was left as it is (select AL on the day again to remove it)'
+        : 'rest day, no leave recorded';
+}
+
+/**
  * Build the receipt for one save.
  *
  * @param {object} args
@@ -120,22 +150,7 @@ export function buildSaveReceipt({ toSave, removed, memberName, formatDate, desc
     // manager the opposite of what they were about to see. The line names what remains and how to
     // clear it, because the receipt is the last thing read before the grid is trusted.
     const kept = new Set(keptLeave);
-    skipped.forEach(date => {
-        // CHRISTMAS DAY AND BOXING DAY are left alone for a different reason (v25.37): leave there is
-        // never counted, and a member due at work already has it, shown from the roster — so the day
-        // is named as itself, not as a rest day it may not have been.
-        const xmas = isChristmasClosureDate(date) ? (date.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day') : '';
-        rows.push({
-            date,
-            text: xmas
-                ? (kept.has(date)
-                    ? `${formatDate(date)} — ${xmas}; the leave already recorded here was left as it is and is never counted (select AL on the day again to remove it)`
-                    : `${formatDate(date)} — ${xmas}, never counted: nothing to record`)
-                : kept.has(date)
-                ? `${formatDate(date)} — rest day; the leave already recorded here was left as it is (select AL on the day again to remove it)`
-                : `${formatDate(date)} — rest day, no leave recorded`,
-        });
-    });
+    skipped.forEach(date => rows.push({ date, text: `${formatDate(date)} — ${leftAloneWords(date, kept.has(date))}` }));
 
     rows.sort((a, b) => a.date.localeCompare(b.date));
 

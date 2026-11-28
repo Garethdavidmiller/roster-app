@@ -368,6 +368,29 @@ test('paycalc: a Clear whose delete is refused puts the stored figure back and s
     await expect(page.locator('#satH')).toHaveValue('3');
 });
 
+// Under the longest failure the status wrapped and pushed Retry flush against "Clear all entries" (0px
+// apart at 320 and 375px), and each one's touch region reaches 6px sideways: a thumb aimed at Retry
+// could land on the destructive control (paycalc.css → "THE GAP KEEPS RETRY OFF").
+test('paycalc: at 320px Retry under the longest failure keeps its distance from "Clear all entries"', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.clock.install({ time: DAY });
+    await openOctober(page, { satH: 3, satM: 0 });
+    await page.evaluate((k) => {
+        const real = Storage.prototype.removeItem;
+        Storage.prototype.removeItem = function (key) { if (key !== k) real.call(this, key); };
+    }, KEY);
+    await page.clock.pauseAt(new Date(DAY.getTime() + 60_000));
+    const btn = page.locator('#clearBtn');
+    await btn.click();
+    await page.clock.runFor(1000);
+    await btn.click();
+    await expect(page.locator('#saveStatus')).toHaveText(/Couldn't clear this payslip/);
+    const [status, retry, clear] = await Promise.all(['#saveStatus', '#saveRetryBtn', '#clearBtn']
+        .map(async (s) => /** @type {{ x: number, width: number }} */ (await page.locator(s).boundingBox())));
+    expect(retry.x - (status.x + status.width), 'Retry overlaps the status line').toBeGreaterThanOrEqual(0);
+    expect(clear.x - (retry.x + retry.width), 'Retry\'s and Clear\'s touch regions (6px each) overlap').toBeGreaterThanOrEqual(12);
+});
+
 // ── THE "NOT SAVED" LINE: ITS WORDS, ITS RETRY AND WHO HEARS IT (paycalc-save-line.js) ───────────────
 
 /** Storage refuses the NEXT write of the payslip, then recovers. @param {import('@playwright/test').Page} page */
@@ -425,6 +448,83 @@ test('paycalc: a setting that saves after another was refused stores the refused
     await page.locator('#pensionOptOutCheck').check();          // a different setting, which saves
     await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
     expect((await stored(page)).slSkip, '"saved" means the refused skip is stored too').toBe(false);
+});
+
+/** Choose a student-loan plan, as the Settings card's select does. @param {import('@playwright/test').Page} page @param {string} v */
+const chooseLoan = (page, v) => page.evaluate((value) => {
+    const s = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'));
+    s.value = value; s.dispatchEvent(new Event('change', { bubbles: true }));
+}, v);
+/** Tick or untick the payslip's loan skip, as the member does. @param {import('@playwright/test').Page} page @param {boolean} on */
+const setLoanSkip = (page, on) => page.evaluate((checked) => {
+    const c = /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck'));
+    c.checked = checked; c.dispatchEvent(new Event('change', { bubbles: true }));
+}, on);
+const loanSkipTicked = (/** @type {import('@playwright/test').Page} */ page) =>
+    page.evaluate(() => /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked);
+
+// A setting's write left the merge's base where the payslip was loaded, so the next save took this tab's
+// own setting for another tab's: the skip ticked again was stored, and shown, unticked under "saved".
+test('paycalc: a setting this tab saved is not mistaken for another tab\'s by the next save', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0, slSkip: true });
+    await chooseLoan(page, 'plan2');
+    expect(await loanSkipTicked(page), 'premise: the payslip\'s loan skip is ticked').toBe(true);
+    await chooseLoan(page, 'none');                             // no loan: the skip is cleared and stored
+    await expect.poll(async () => (await stored(page)).slSkip).toBe(false);
+    await chooseLoan(page, 'plan2');
+    await setLoanSkip(page, true);                              // the member ticks it again
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+    expect((await stored(page)).slSkip, 'the tick is what was stored').toBe(true);
+    expect(await loanSkipTicked(page), 'and the box was not unticked under "saved"').toBe(true);
+    await expect(dialog(page)).toHaveCount(0);
+
+    // Then the other tab: it unticks the skip after this tab's setting write, and this tab types a figure.
+    await chooseLoan(page, 'none');
+    await expect.poll(async () => (await stored(page)).slSkip).toBe(false);
+    await otherTabWrites(page, { ...(await stored(page)), slSkip: true });
+    await page.locator('#sunH').fill('5');
+    await expect.poll(async () => (await stored(page))?.sunH).toBe(5);
+    expect((await stored(page)).slSkip, 'the other tab\'s change is kept, not written over').toBe(true);
+    expect(await loanSkipTicked(page), 'and this screen is brought up to it').toBe(true);
+});
+
+// A setting's read of the payslip was unchecked: storage that would not answer read as "nothing saved
+// here", and the setting was dropped with nothing on screen to say so.
+test('paycalc: a setting whose read of the payslip fails says "Not saved", and Retry stores it', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0, pension: 50 });
+    await page.evaluate((k) => {   // reads of the payslip fail until storage recovers
+        const w = /** @type {any} */ (window), get = Storage.prototype.getItem;
+        w.__refuseRead = true;
+        Storage.prototype.getItem = function (key) {
+            if (key === k && w.__refuseRead) throw new DOMException('busy', 'UnknownError');
+            return get.call(this, key);
+        };
+    }, KEY);
+    await page.locator('#pensionOptOutCheck').check();
+    await expect(page.locator('#saveStatus')).toHaveText('⚠ Not saved — try again');
+    await page.evaluate(() => { /** @type {any} */ (window).__refuseRead = false; });
+    await page.locator('#saveRetryBtn').click();
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
+    expect((await stored(page)).pension, 'the payslip\'s own figure lies dormant behind the lock').toBe(50);
+});
+
+// The adjustment was stored as typed and shown to two decimals, so a figure past the penny came back
+// as a different one, which the next edit then stored (invariant 2: the round trip is symmetric).
+test('paycalc: an adjustment typed past the penny is stored as the penny figure the box shows again', async ({ page }) => {
+    await page.clock.setFixedTime(DAY);
+    await openOctober(page, { satH: 3, satM: 0 });
+    await page.locator('#hoursShowMore').click();
+    await page.locator('#otherAdj').fill('12.346');
+    await expect.poll(async () => (await stored(page)).otherAdj).toBe(12.35);
+    const net = await page.locator('#netDisplay').textContent();
+    await page.reload();
+    await expect(page.locator('#otherAdj')).toHaveValue('12.35');
+    await expect(page.locator('#netDisplay'), 'reopened, the payslip prices as it did').toHaveText(String(net));
+    await page.locator('#sunH').fill('2');                      // the next edit stores the same figure
+    await expect.poll(async () => (await stored(page)).sunH).toBe(2);
+    expect((await stored(page)).otherAdj).toBe(12.35);
 });
 
 test('paycalc: a Retry that saves hands keyboard focus to the status line, and only a change of state is spoken', async ({ page }) => {

@@ -23,7 +23,7 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } = await import('../paycalc-form-data.js');
+const { emptyPeriodData, readFormData, readOtherAdj, writeFormData, settingFieldsWrite, planSettingWrite, syncNoSpecialTick } = await import('../paycalc-form-data.js');
 
 // ── Minimal fake DOM: just the fields this module touches ─────────────────────
 const INPUT_IDS = ['satH','satM','bhH','bhM','bhOtH','bhOtM','otH','otM','rdwH','rdwM',
@@ -142,6 +142,19 @@ describe('round trip — what is written must read back unchanged', () => {
         const again = roundTrip(read);
         for (const k of Object.keys(saved)) {
             assert.deepEqual(again[k], read[k], `field "${k}" changed on a second trip`);
+        }
+    });
+
+    test('an adjustment typed past the penny is STORED as the penny figure the box will show', () => {
+        // 1.005 was stored as 1.005, came back as "1.00" (toFixed), and the next edit stored 1.00:
+        // the figure changed on a trip through storage. Rounded on read, the trip is a fixed point.
+        for (const [typed, neg, want] of [['1.005', false, 1], ['12.346', false, 12.35], ['7.999', true, -8]]) {
+            _els.otherAdj.value = typed;
+            const first = readFormData({ adjNegative: neg });
+            assert.equal(first.otherAdj, want, `"${typed}" stored as ${first.otherAdj}`);
+            assert.equal(readOtherAdj(neg), want, 'the price on screen takes the same figure');
+            const again = roundTrip(first);
+            assert.equal(again.otherAdj, first.otherAdj, `"${typed}" changed on a second trip`);
         }
     });
 
@@ -350,6 +363,59 @@ describe('settingFieldsWrite — a setting change carries only its own fields', 
         for (const raw of ['[]', '[1,2]', '"text"', '42']) {
             assert.equal(settingFieldsWrite(raw, formNow, ['slSkip']), null, `a period holding ${raw} was rewritten`);
         }
+    });
+});
+
+// ── A SETTING'S WRITE MOVES THE MERGE'S BASE (28 Nov 2026) ─────────────────────────────────────
+// The coordinator's `persistSetting` stored the setting and left the two-tab merge's base where the
+// payslip was loaded, so the next typed save read this tab's OWN setting as another tab's and took it
+// from storage. Driven here through the real merge (`planPeriodSave`), as the save runs it; the page
+// half is e2e/paycalc-saving.spec.js ("a setting this tab saved is not mistaken for another tab's").
+describe('planSettingWrite — the base a setting write leaves behind', () => {
+    test('the loan skip, cleared by a setting and ticked again, saves TICKED (the reported case)', async () => {
+        const { planPeriodSave } = await import('../paycalc-period-merge.js');
+        const loaded = JSON.stringify({ ...emptyPeriodData(), satH: 3, slSkip: true });
+        // Student Loan → None: the setting clears the skip and stores it.
+        const cleared = { ...emptyPeriodData(), satH: 3, slSkip: false, pension: null };
+        const s = planSettingWrite({ diskRaw: loaded, baseRaw: loaded, formNow: cleared, fields: ['slSkip'] });
+        assert.equal(JSON.parse(/** @type {string} */ (s.write)).slSkip, false);
+        assert.equal(s.base, s.write, 'no other tab wrote: the base is exactly what was stored');
+        // A plan again, and the box ticked: the autosave merges against that base.
+        const ticked = { ...cleared, slSkip: true };
+        const plan = planPeriodSave({ base: { raw: s.base }, diskRaw: s.write, form: ticked });
+        assert.equal(plan.kind, 'write');
+        assert.equal(/** @type {any} */ (plan).data.slSkip, true, 'the tick was stored unticked');
+        assert.deepEqual(/** @type {any} */ (plan).fromDisk, [], 'and the screen was unticked under "saved"');
+    });
+
+    test('another tab changing the setting back afterwards is kept, not written over', async () => {
+        const { planPeriodSave } = await import('../paycalc-period-merge.js');
+        const loaded = JSON.stringify({ ...emptyPeriodData(), satH: 3, slSkip: true });
+        const formNow = { ...emptyPeriodData(), satH: 3, slSkip: false, pension: null };
+        const s = planSettingWrite({ diskRaw: loaded, baseRaw: loaded, formNow, fields: ['slSkip'] });
+        const other = JSON.stringify({ ...JSON.parse(/** @type {string} */ (s.write)), slSkip: true });   // the other tab ticks it
+        const plan = planPeriodSave({ base: { raw: s.base }, diskRaw: other, form: { ...formNow, satH: 4 } });
+        assert.equal(plan.kind, 'write');
+        assert.equal(/** @type {any} */ (plan).data.slSkip, true, 'the other tab\'s tick was overwritten');
+        assert.equal(/** @type {any} */ (plan).data.satH, 4);
+        assert.deepEqual(/** @type {any} */ (plan).fromDisk, ['slSkip']);
+    });
+
+    test('figures another tab saved before the setting are NOT folded into the base', async () => {
+        const { planPeriodSave } = await import('../paycalc-period-merge.js');
+        const loaded = JSON.stringify({ ...emptyPeriodData(), satH: 3, slSkip: true });
+        const disk = JSON.stringify({ ...emptyPeriodData(), satH: 8, slSkip: true });       // the other tab: Saturday 8h
+        const formNow = { ...emptyPeriodData(), satH: 3, slSkip: false, pension: null };    // this screen still shows 3h
+        const s = planSettingWrite({ diskRaw: disk, baseRaw: loaded, formNow, fields: ['slSkip'] });
+        assert.deepEqual(JSON.parse(/** @type {string} */ (s.base)), { ...emptyPeriodData(), satH: 3, slSkip: false });
+        const plan = planPeriodSave({ base: { raw: s.base }, diskRaw: s.write, form: { ...formNow, sunH: 2 } });
+        assert.equal(/** @type {any} */ (plan).data.satH, 8, 'this screen\'s stale Saturday went over the other tab\'s');
+    });
+
+    test('nothing written leaves the base alone', () => {
+        const formNow = { ...emptyPeriodData(), slSkip: false, pension: null };
+        assert.deepEqual(planSettingWrite({ diskRaw: null, baseRaw: null, formNow, fields: ['slSkip'] }), { write: null, base: null });
+        assert.deepEqual(planSettingWrite({ diskRaw: '{bad', baseRaw: '{bad', formNow, fields: ['slSkip'] }), { write: null, base: '{bad' });
     });
 });
 

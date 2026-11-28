@@ -112,8 +112,9 @@ mock.module('../admin-day-change.js', {
     namedExports: { ..._realDayChange, previewChanges: () => _previewLines },
 });
 
-const { _hasStagedEdits, buildWeekGridInto, renderWeekGrid, updateSaveBtn, initWeekEditor, rosteredWords }
+const { _hasStagedEdits, buildWeekGridInto, renderWeekGrid, updateSaveBtn, initWeekEditor }
     = await import('../admin-week-editor.js');
+const { rosteredWords } = await import('../admin-week-row-state.js');
 const { teamMembers, getBaseShift, getShiftBadge, formatISO } = await import('../roster-data.js');
 const { isChristmasLeaveDay } = await import('../christmas-leave.js');
 

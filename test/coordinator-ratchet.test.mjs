@@ -215,7 +215,10 @@ const CAPS = {
     // year (paycalc-settings.js), the Year to Date card's wiring (paycalc-ytd-card.js), the banners'
     // ticks and links (paycalc-money-banner.js) and the two-tap Clear (paycalc-clear-confirm.js). The
     // room is about 30 lines, not the usual 50–99: the next change here should extract first.
-    'paycalc-app.js':          1310,
+    // 1310 → 1290 on 28 Nov 2026, brought DOWN with what left (1,288 to 1,263 measured): the "not saved" line's
+    // rules and its words (paycalc-save-line.js, `saveStatusWords`) and the setting write's merge base
+    // (`planSettingWrite`, paycalc-form-data.js). The same ~30 lines of room.
+    'paycalc-app.js':          1290,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
@@ -254,7 +257,10 @@ const CAPS = {
     // not to 796, for the v24.64 reason: the rest is the next week-grid change's headroom.
     // 810 → 800 on 16 Nov 2026 (tidy-up): changelog comments cut to their reasons, 796 measured lines to 720 — the
     // setting rule's figure, which leaves 80 lines for the next week-grid change.
-    'admin-week-editor.js':    800,
+    // 800 → 610 on 28 Nov 2026, an EXTRACT at 800 of 800: the bulk bar left for admin-bulk-bar.js (told four things,
+    // not the seven of v23.98 — the row functions it needs are importable now) and the preview's markup for
+    // admin-day-change.js (`gridPreviewHtml`), 800 measured lines to 582. Measured + ~30, so the room is not banked.
+    'admin-week-editor.js':    610,
     // 460 → 450 on 16 Nov 2026 (tidy-up): changelog comments cut to their reasons, 457 measured lines to 397.
     'admin-saved-changes.js':  450,
     // 1800 → 1700 at v21.89. The week-grid swipe left for admin-week-swipe.js — 1,783 down to
@@ -287,7 +293,9 @@ const CAPS = {
     // 1500 → 1285 on 25 Nov 2026, brought DOWN (1,393 measured lines to 1,253): the over-allowance bar left for
     // admin-confirm-bar.js and the Recorded-dates delete for admin-period-delete.js — each a rule a test can now run
     // without a page — and the refresh lists became one `refreshLeaveViews`. Measured + ~30, as the extraction asked.
-    'admin-app.js':            1285,
+    // 1285 → 1210 on 28 Nov 2026, brought DOWN to the file: it stood at 1,181 lines, so the cap had banked 104 lines of
+    // headroom nothing needed. Measured + ~30.
+    'admin-app.js':            1210,
     // 1500 → 1503 in the second whole-app check (Nov 2026), a RAISE, said so: two RULES grew where rules belong — the rest
     // repair tries the earlier duty of a short turnaround when no swap of the later one works, and the shift balance counts a
     // cover week as its duties — each pinned in link-designer-design.test.mjs. Nothing in it is coordination. At the measured size.
@@ -649,7 +657,9 @@ const CAPS = {
     // 1080 → 1081 (28 Nov 2026), one generated precache line: `links-selector-tips.js`, the Links Selector's ? panel.
     // 1081 → 1082 (28 Nov 2026), one generated precache line: `paycalc-save-line.js`, the "not saved" line's
     // rules, which left paycalc-app.js for a module of its own. Nothing else in the worker grew.
-    'service-worker.js':       1082,
+    // 1082 → 1083 (28 Nov 2026), one generated precache line: `admin-bulk-bar.js`, the week card's bulk bar, which left
+    // admin-week-editor.js for a module of its own. Nothing else in the worker grew.
+    'service-worker.js':       1083,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

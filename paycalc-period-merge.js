@@ -40,6 +40,8 @@
  */
 
 import { HM_PAIRS } from './paycalc-format.js';
+import { emptyPeriodData } from './paycalc-form-data.js';
+import { isSavedPeriodShape } from './paycalc-inventory.js';
 
 /**
  * One merge unit: the saved fields it spans, its plain-English name (the row's own title on the
@@ -73,12 +75,10 @@ export const PERIOD_UNITS = [
     { id: 'actualNi',       fields: ['actualNi'],       label: 'National Insurance on your payslip',     kind: 'money' },
 ];
 
-/** What an ABSENT key means, field by field — the saved schema's own defaults (`emptyPeriodData`,
- *  paycalc-form-data.js), restated as a merge reads them: hours 0, ticks false, figures null. */
-const DEFAULTS = /** @type {Record<string, any>} */ ({
-    peer: 0, otherAdj: 0, slSkip: false, noSpecialHours: false, pension: null,
-    actualNet: null, actualGross: null, actualTax: null, actualNi: null, actualPension: null,
-});
+/** What an ABSENT key means, field by field — the saved schema itself (`emptyPeriodData`), never a
+ *  copy of it, so a field added there cannot merge as 0: hours 0, ticks false, figures null. The
+ *  pension, which the schema leaves out on purpose, reads null ("the period default"). */
+const DEFAULTS = /** @type {Record<string, any>} */ ({ ...emptyPeriodData(), pension: null });
 
 /** A field's value in a saved or read period, with an absent key read as its default.
  *  @param {Record<string, any>|null|undefined} d @param {string} f */
@@ -98,7 +98,7 @@ function _parse(raw) {
     if (raw === null) return { ok: true, data: null };
     try {
         const d = JSON.parse(raw);
-        return (d && typeof d === 'object' && !Array.isArray(d)) ? { ok: true, data: d } : { ok: false, data: null };
+        return isSavedPeriodShape(d) ? { ok: true, data: d } : { ok: false, data: null };   // the shared shape check
     } catch { return { ok: false, data: null }; }
 }
 

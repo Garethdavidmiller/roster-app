@@ -5,9 +5,9 @@
  *
  * Owns: which failure the line is about, the Retry beside it, the SETTING fields storage has not yet
  *   kept, when a later save may end the line, the Retry's focus when it hides, and the live region
- *   that speaks a change of state.
- * Does NOT own: the writes themselves, or the words of a saved payslip's status (paycalc-app.js →
- *   `_commit`, `persistSetting`, `clearPeriod`, `updateSaveStatus`, which call in here).
+ *   that speaks a change of state — and the status line's words for a payslip (`saveStatusWords`).
+ * Does NOT own: the writes themselves, or reading storage (paycalc-app.js → `_commit`,
+ *   `persistSetting`, `clearPeriod`, `updateSaveStatus`, which call in here).
  *
  * Out of paycalc-app.js (28 Nov 2026), where it was three loose variables that two code paths could
  * each leave half-updated. The e2e half is e2e/paycalc-saving.spec.js; the rules are pinned without a
@@ -40,11 +40,34 @@
  */
 
 import { setStatus } from './status-text.js';
+import { isDataEmpty, hasSavedComparison } from './paycalc-format.js';
+
+/**
+ * The status line's words for a payslip, and the class that colours them. Pure — the coordinator
+ * reads storage and hands the answer in (paycalc-app.js → `updateSaveStatus`).
+ *   - A failure on the line (`createSaveLine().text`) is said as it stands: what is on screen did not
+ *     reach storage, so it is never "saved" for the figures storage still holds.
+ *   - Saved entries that cannot be read say so, never "No entries saved" — anything typed replaces them.
+ *   - Entries, or a pension figure of the payslip's own (more than half a penny off its default), are
+ *     "saved"; only the figures typed from the real payslip are named as the comparison they are,
+ *     since they compare the estimate with the payslip and do not change it.
+ * @param {{ failure: string|null, saved: { data: any, error: any }|null, defaultPension: number }} a
+ *   saved — `parseSavedPeriod`'s answer for what storage holds, null for nothing stored
+ * @returns {{ text: string, cls: 'failed'|'corrupt'|'saved'|'unsaved' }}
+ */
+export function saveStatusWords({ failure, saved, defaultPension }) {
+  if (failure) return { text: failure, cls: 'failed' };
+  if (saved?.error) return { text: "⚠ Couldn't read this period's saved entries — anything you type will replace them", cls: 'corrupt' };
+  const d = saved?.data;
+  if (d) {
+    const customPension = d.pension != null && Math.abs(d.pension - defaultPension) > 0.005;
+    if (!isDataEmpty(d) || customPension) return { text: '✓ Entries saved for this payslip', cls: 'saved' };
+    if (hasSavedComparison(d)) return { text: d.actualNet != null ? '✓ Take-home comparison saved' : '✓ Payslip comparison saved', cls: 'saved' };
+  }
+  return { text: 'No entries saved for this payslip', cls: 'unsaved' };
+}
 
 /** @typedef {'form'|'setting'} LineFrom */
-
-/** A no-break space, written as an escape so no editor turns it into an ordinary one. */
-const NBSP = String.fromCharCode(0xa0);
 
 /**
  * The page's one "not saved" line.
@@ -116,9 +139,10 @@ export function createSaveLine() {
       painted = text; recovered = false;
       if (!changed || !liveEl) return;
       if (focusMoved || (!text && !byWrite)) { liveEl.textContent = ''; return; }
-      const said = statusEl?.textContent ?? '';
-      // The same words again would not be heard: a no-break space makes them a change.
-      setStatus(liveEl, liveEl.textContent === said ? said + NBSP : said);
+      // The region never holds these words already: it is spoken only when the line's text changes, and
+      // it holds the last words spoken or nothing — a failure's (which a status line with no failure
+      // never shows) or a status line's (which a failure's never is) — so no change goes unheard.
+      setStatus(liveEl, statusEl?.textContent ?? '');
     },
   };
 }

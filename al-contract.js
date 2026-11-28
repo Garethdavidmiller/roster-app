@@ -49,7 +49,7 @@
  */
 
 import { getBankHolidays, getBaseShift, isBankHoliday, isWorkedShift, formatISO } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
+import { shouldReplaceOverride, isBeforeMemberStart, isOverrideDisplaySuppressed, isChristmasOrBoxingDay } from './override-utils.js';
 import { roleOn, rolesInRange } from './roster-roles.js';
 
 /** The grades this app holds a leave figure for. Anything else (Management) has none on record. */
@@ -125,9 +125,14 @@ export function countDispatcherBankHolidaysWorked(member, year, overrides) {
         // roster even when a dispatcher is due to work. A Christmas bank holiday counts only when an
         // override records the member AT WORK that day — any worked value (isWorkedShift), not only RDW.
         // A trainee's rostered 'TRG' is worked, so it earns the day (owner, 16 Nov 2026 — header).
-        const shift = overrideMap.has(dateStr)
-            ? overrideMap.get(dateStr).value
-            : getBaseShift(member, bh);
+        // A record the Calendar does not DRAW earns nothing (owner, 25 Nov 2026; christmas-leave.js applies the same to
+        // a worked Boxing Day): an Other day saved on 25 or 26 December before Save refused one is hidden there
+        // (`isOverrideDisplaySuppressed`), so the day is what it is without it.
+        const base = getBaseShift(member, bh);
+        const winner = overrideMap.get(dateStr);
+        const shift = winner && !isOverrideDisplaySuppressed(winner, base, bh.getDay() === 0, isChristmasOrBoxingDay(dateStr))
+            ? winner.value
+            : base;
 
         if (isWorkedShift(shift)) lieuDays++;
     }

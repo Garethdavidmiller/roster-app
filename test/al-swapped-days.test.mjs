@@ -6,7 +6,7 @@
 // the "require an answer" half is a save-path property and lives in the e2e.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { swapDecisionDates, replacedTypeForSwap, rangeWriteDates, absenceHiddenDates } from '../al-swapped-days.js';
+import { swapDecisionDates, replacedTypeForSwap, replacedTypeOnWrite, rangeWriteDates, absenceHiddenDates } from '../al-swapped-days.js';
 import { teamMembers, getBaseShift, getPatternShift, parseISODate, formatISO, CONFIG } from '../roster-data.js';
 import { isRestShift } from '../override-utils.js';
 import { projectAlBooking } from '../admin-al-projection.js';
@@ -93,6 +93,26 @@ test('a stronger existing record is kept, not flattened to `shift`', () => {
     // A retired contracted type is a stronger record than the reconstruction, and keeps its name.
     assert.equal(replacedTypeForSwap({ type: 'annual_leave', replacedType: 'swap' }, 'annual_leave'), 'swap');
     assert.equal(replacedTypeForSwap({ type: 'annual_leave', replacedType: 'allocated' }, 'annual_leave'), 'allocated');
+});
+
+// ── ONE ANSWER FOR EVERY WRITER ───────────────────────────────────────────────────────────────────
+// `replacedTypeOnWrite` is what the week grid's save, the range save, the leave projection, the roster import and the
+// before → after line all ask; each used to restate `swapped ? replacedTypeForSwap : nextReplacedType` itself.
+test('replacedTypeOnWrite: a declared swap records contracted work; otherwise it carries what the day held', () => {
+    // Swapped onto a bare rest day: nothing to carry, so the reconstruction.
+    assert.equal(replacedTypeOnWrite(null, 'annual_leave', true), 'shift');
+    // Not swapped, nothing underneath: nothing to say.
+    assert.equal(replacedTypeOnWrite(null, 'annual_leave'), null);
+    assert.equal(replacedTypeOnWrite(null, 'sick', false), null);
+    // Not swapped, over a swapped-in shift: the shift IS the fact, and is carried.
+    assert.equal(replacedTypeOnWrite({ type: 'shift', value: '06:20-14:20' }, 'sick'), 'shift');
+    // Not swapped, over RDW: carried as RDW — never promoted to contracted work.
+    assert.equal(replacedTypeOnWrite({ type: 'rdw', value: '13:30-21:00' }, 'annual_leave'), 'rdw');
+    // Swapped, over RDW: the declaration wins — contracted work, not the RDW the day held.
+    assert.equal(replacedTypeOnWrite({ type: 'rdw', value: '13:30-21:00' }, 'annual_leave', true), 'shift');
+    // Re-saving a booking keeps the original, whichever way it is asked.
+    assert.equal(replacedTypeOnWrite({ type: 'annual_leave', replacedType: 'swap' }, 'annual_leave'), 'swap');
+    assert.equal(replacedTypeOnWrite({ type: 'annual_leave', replacedType: 'swap' }, 'annual_leave', true), 'swap');
 });
 
 // A declared swap is always on a base REST day — only a rest day is asked about — and there an Other day

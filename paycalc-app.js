@@ -70,10 +70,10 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes, initPaycalcAbout } from './paycalc-lightboxes.js';
-import { fdShort, fdLong, fmt, minutesFieldText, isDataEmpty, hasSavedComparison } from './paycalc-format.js';
+import { fdShort, fdLong, fmt, minutesFieldText } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
-import { numVal, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
-import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } from './paycalc-form-data.js';
+import { hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
+import { emptyPeriodData, readFormData, readOtherAdj, writeFormData, planSettingWrite, syncNoSpecialTick } from './paycalc-form-data.js';
 import { planPeriodSave, periodSaveQuestion, fieldsOfUnits, formChangedSince } from './paycalc-period-merge.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { classifyPayKey } from './paycalc-inventory.js';
@@ -84,7 +84,7 @@ import { renderResultHeadline, renderYtdLine, wireYtdLine, renderUnpricedPayslip
 import { backPayBannerCopy, hppBannerCopy, paintBanner, wireBannerTicks } from './paycalc-money-banner.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
 import { createClearConfirm } from './paycalc-clear-confirm.js';
-import { createSaveLine } from './paycalc-save-line.js';
+import { createSaveLine, saveStatusWords } from './paycalc-save-line.js';
 import { refreshYtdSrc, updateYtdNote, wireYtdCard } from './paycalc-ytd-card.js';
 import { setDisclosure, toggleDisclosure, toggleHoursExtra, toggleHppNote, toggleBD, toggleDisclaimer } from './paycalc-disclosures.js';
 
@@ -387,7 +387,7 @@ export function init() {
 
     // ── TWO TABS, ONE PAYSLIP (paycalc-period-merge.js holds the rule) ──
     // `_base` is the stored payslip this form was last in step with — set on load, and after every
-    // write this tab read back. A save merges the form into what storage holds NOW against it, so a
+    // write this tab read back (a setting's, by its own fields: `planSettingWrite`). A save merges the form into what storage holds NOW against it, so a
     // stale tab never writes its old figures over another tab's; what both changed is asked about.
     /** @type {{ raw: string|null }} */
     let _base = { raw: null };
@@ -488,15 +488,17 @@ export function init() {
       updateRosterHint();
     });
     /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
-     *  (`autosave` would save the calendar's suggestion too — see `settingFieldsWrite`). @param {string[]} fields */
-    const persistSetting = (fields) => function persist() { const pNum = currentPeriodNum(), p = periodByNum(pNum);
+     *  (`autosave` would save the calendar's suggestion too — see `settingFieldsWrite`). A CHECKED read, as
+     *  `_savePeriod`'s: one that fails is "not saved", never "nothing saved here". A write that reads back
+     *  moves `_base` with it (`planSettingWrite`), or the next save's merge takes this tab's own setting
+     *  for another tab's. @param {string[]} fields */
+    const persistSetting = (fields) => function persist() { const pNum = currentPeriodNum();
       const all = _line.settingFields(fields);   // with any setting refused before, so a "saved" covers it too
-      const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative,
-        periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }), all);
-      if (w) {   // never "saved" over a write the device did not keep; a kept one ends only a setting's own line
-        if (!lsSetVerified(periodKey(pNum), w)) _notSaved(pNum, NOT_SAVED, 'setting', persist, all);
-        else { _line.settingStored(all); updateSaveStatus(pNum); }
-      }
+      const disk = lsGetChecked(periodKey(pNum));
+      const plan = disk.ok ? planSettingWrite({ diskRaw: disk.value, baseRaw: _base.raw, formNow: _readForm(pNum), fields: all }) : null;
+      // Never "saved" over a write the device did not keep; a kept one ends only a setting's own line.
+      if (!plan || (plan.write && !lsSetVerified(periodKey(pNum), plan.write))) _notSaved(pNum, NOT_SAVED, 'setting', persist, all);
+      else if (plan.write) { _base = { raw: plan.base }; _line.settingStored(all); updateSaveStatus(pNum); }
       calculate(); };
 
     /** Paint payslip `p`'s own default pension into the field; no payslip, no paint. @param {any} p */
@@ -547,39 +549,13 @@ export function init() {
       _paintSaveStatus(el, pNum);   // the words first: they are what the live region speaks
       _line.paint({ statusEl: el, retryBtn: document.getElementById('saveRetryBtn'), liveEl: document.getElementById('saveStatusLive') });
     }
-    /** The status line's words for payslip `pNum`. @param {HTMLElement} el @param {number} pNum */
+    /** The status line's words for payslip `pNum` (paycalc-save-line.js → `saveStatusWords`). @param {HTMLElement} el @param {number} pNum */
     function _paintSaveStatus(el, pNum) {
-      // What is on screen did not reach storage: say so, never "saved" for the figures storage still
-      // holds — until a save is read back, or the payslip is loaded again.
-      if (_line.text) { setStatus(el, _line.text); el.className = 'save-status failed'; return; }
-      const raw = lsGet(periodKey(pNum));
-      if (raw) {
-        const { data: d, error } = parseSavedPeriod(raw);
-        if (error) {
-          // Saved entries that cannot be read say so, never "No entries saved" (loadPeriodData).
-          setStatus(el, "⚠ Couldn't read this period's saved entries — anything you type will replace them");
-          el.className   = 'save-status corrupt';
-          return;
-        }
-        if (d) {
-          const _pObj = periodByNum(pNum);
-          const _hasCustomPension = d.pension != null && Math.abs(d.pension - periodDefaultPension(_pObj)) > 0.005;
-          if (!isDataEmpty(d) || _hasCustomPension) {
-            setStatus(el, '✓ Entries saved for this payslip');
-            el.className   = 'save-status saved';
-            return;
-          }
-          // Only figures typed from the real payslip: saved, and said so — and what they are, since they
-          // compare the estimate with the payslip and do not change it.
-          if (hasSavedComparison(d)) {
-            setStatus(el, d.actualNet != null ? '✓ Take-home comparison saved' : '✓ Payslip comparison saved');
-            el.className   = 'save-status saved';
-            return;
-          }
-        }
-      }
-      el.textContent = 'No entries saved for this payslip';
-      el.className   = 'save-status unsaved';
+      const raw = _line.text ? null : lsGet(periodKey(pNum));
+      const { text, cls } = saveStatusWords({ failure: _line.text, saved: raw ? parseSavedPeriod(raw) : null,
+        defaultPension: periodDefaultPension(periodByNum(pNum)) });
+      setStatus(el, text);
+      el.className = `save-status ${cls}`;
     }
 
     // The two-tap "Clear all entries" (paycalc-clear-confirm.js holds its rules): the second tap runs
@@ -682,8 +658,7 @@ export function init() {
       const r300 = rate * RATE_300;
       const peer = +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent;
 
-      const _adjRaw   = Math.abs(numVal('otherAdj') || 0);
-      const otherAdj  = _adjNegative ? -_adjRaw : _adjRaw;
+      const otherAdj = readOtherAdj(_adjNegative);   // to the penny, as a save stores it
 
       // The hours each row counts, the London Allowance and contracted hours a joiner's share of the
       // payslip scales, and the gross they price to: payslipGross (paycalc-calc.js), which reads the

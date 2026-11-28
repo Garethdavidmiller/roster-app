@@ -1186,3 +1186,22 @@ describe('balanceFace — the figure, its words and its tone', () => {
         assert.deepEqual(balanceFace(12), { tone: 'ok', over: false, figure: '12', label: 'Remaining', short: 'left' });
     });
 });
+
+// ── A RECORD THE CALENDAR DOES NOT DRAW EARNS NO DAY IN LIEU (owner, 25 Nov 2026) ────────────────
+// A Dispatcher's day in lieu for a worked bank holiday was counted from any winning override with a worked value, so
+// an Other day saved on Christmas Day before Save refused one — hidden on the Calendar, which shows the day as it is
+// without it — earned a day. A worked Boxing Day already followed the rule (`boxingDayLieuDays`); this is its twin.
+describe('a Dispatcher\'s bank holiday earns its day only from a record the Calendar draws', () => {
+    const disp = { name: 'Dispatch Tester', rosterType: 'dispatcher', currentWeek: 1, role: 'Dispatcher' };
+    const on25 = (/** @type {string} */ type, /** @type {string} */ value) =>
+        [{ memberName: disp.name, date: '2026-12-25', type, value, source: 'manual', createdAt: { seconds: 1 } }];
+    test('a Training day on 25 December 2026 is hidden there, so it earns nothing', () => {
+        assert.equal(entitlementFor(disp, 2026, []), 27, 'premise: the pattern\'s own bank holidays');
+        assert.equal(entitlementFor(disp, 2026, on25('other', 'TRG')), 27);
+        assert.equal(countDispatcherBankHolidaysWorked(disp, 2026, on25('other', 'TRG')),
+            countDispatcherBankHolidaysWorked(disp, 2026, []));
+    });
+    test('Rest Day Working on 25 December is drawn, and earns its day', () => {
+        assert.equal(entitlementFor(disp, 2026, on25('rdw', '06:00-14:00')), 28);
+    });
+});

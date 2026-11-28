@@ -692,7 +692,7 @@ export function init() {
         const go = () => {
             // A hidden member is not in the dropdown, and going on would edit whoever IS selected.
             if (!_setSelectValue(fieldMember, memberName)) {
-                showError(`${memberName} isn't in the staff list (hidden or left) — can't edit their entry here. Delete it from Saved Changes, or un-hide the member first.`);
+                showError(`${memberName} isn't in the staff list (hidden or left) — can't edit their entry here. Delete it from Saved Changes, or ask the admin to put the member back on the staff list.`);
                 return;
             }
             fieldDate.value   = date;

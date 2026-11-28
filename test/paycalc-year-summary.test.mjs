@@ -64,6 +64,8 @@ mock.module('../paycalc-settings.js', {
         getEffectiveContr:    () => 140,
         getProRateFactor:     /** @param {any} p */ p => _proRate(p),
         getPensionDefault:    /** @param {any} p */ p => (_optedOut(p) ? 0 : 147.36),
+        // The real rule over the two answers above: the default × the factor the caller passes.
+        joinerDefaultPension: /** @param {any} p @param {number} [f] */ (p, f = _proRate(p)) => (_optedOut(p) ? 0 : 147.36) * f,
         isPensionOptedOut:    /** @param {any} p */ p => _optedOut(p),
         isPeriodPriced:       () => true,   // a refused payslip: paycalc-grade-wiring.test.mjs
     },

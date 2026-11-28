@@ -69,6 +69,8 @@ mock.module('../paycalc-settings.js', {
         // pro-rated for a joiner) had nothing behind it. The module still imports it for other work.
         getProRateFactor:  (/** @type {any} */ p) => (typeof _proRate === 'function' ? _proRate(p) : _proRate),
         getPensionDefault: () => 147.36,
+        // The real rule over the answer above: the default × the factor the caller passes.
+        joinerDefaultPension: (/** @type {any} */ p, /** @type {number} */ f) => 147.36 * f,
         isPensionOptedOut: () => false,
         // Every payslip here is worked under a grade with rates; a refused one is
         // paycalc-grade-wiring.test.mjs's, through the real settings module.
@@ -827,6 +829,33 @@ describe('the rough Year to Date premium takes the back-pay lump\'s arrears out 
         runYtd(t, carrier.num, String(carrier.num - 1), taxable);
         assert.equal(_els.hppAmount.textContent, `£${(500 * HPP_FRACTION).toFixed(2)}`);
         assert.doesNotMatch(_els.hppBasis.textContent, /back pay/);
+    });
+});
+
+// A JOINER's Year to Date figure holds no London Allowance and no pension for the payslips before they
+// started, and a share of each on the payslip they joined in — so the expected plain pay the rough
+// premium is taken from scales both by the joining factor (`_expectedNonPremiumYtd`). Counted whole,
+// the London Allowance and pension of payslips nobody was paid read as plain pay, and moved the
+// premium by pounds. Nothing else in the lane failed when that factor was dropped.
+describe('the rough Year to Date premium pro-rates a joiner\'s plain pay', () => {
+    beforeEach(reset);
+
+    test('a payslip before the start counts none of it, the joining payslip its share', (t) => {
+        const { carrier } = award(TY26);
+        const covered = getPeriods().filter((/** @type {any} */ p) => p.num >= 48 + TY26.first && p.num < carrier.num);
+        assert.ok(covered.length >= 3, 'precondition: payslips before the start, the joining one and a whole one');
+        const [before, joining] = covered;
+        const factorOf = (/** @type {any} */ p) => (p.num === before.num ? 0 : p.num === joining.num ? 0.5 : 1);
+        _proRate = factorOf;
+        // Taxable Pay as a joiner's payslips paid it: London Allowance and pension by the factor, and
+        // £500 of premium pay on top. (Basic is the mocked contract's; getEffectiveContr carries the
+        // factor in the app.)
+        const plain = covered.reduce((/** @type {number} */ s, /** @type {any} */ p) => s
+            + 140 * getRateForPeriod(p, _grade, TY26.label, _settledRate(TY26))
+            + (getLondonAllowanceForPeriod(p, TY26) - 147.36) * factorOf(p), 0);
+        runYtd(t, carrier.num, String(carrier.num - 1), plain + 500);
+        assert.equal(_els.hppAmount.textContent, `£${(500 * HPP_FRACTION).toFixed(2)}`,
+            'the joiner\'s London Allowance or pension was counted for payslips they were not paid');
     });
 });
 

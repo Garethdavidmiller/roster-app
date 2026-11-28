@@ -195,6 +195,54 @@ test('admin: an absence over a swapped-in shift on a rest day says Absent beside
     expect(written).toMatchObject({ date: '2027-01-13', type: 'sick', value: 'SICK', replacedType: 'shift' });
 });
 
+// LEAVE ON A REST DAY ANSWERED "REST DAY — FREE" IS NOT WRITTEN, and the line beside Save says so in the receipt's
+// words. It read the collector alone and promised "Rest day → Annual leave" over a save that wrote nothing.
+test('admin: leave on a rest day answered free is named as left alone beside Save and in the receipt, and nothing is written', async ({ page }) => {
+    const miller = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    expect(isRestShift(getBaseShift(miller, new Date(2027, 0, 13))), 'premise: 13 Jan is a rest day').toBe(true);
+    await openMillerJanuaryWeek(page, []);
+
+    const wed = page.locator('.day-row[data-date="2027-01-13"]');
+    await wed.locator('.day-cb').click();
+    await clickInView(wed.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(wed.locator('.al-swap-btn[data-swap="no"]'));   // "Rest day — free"
+    const words = 'rest day, no leave recorded';
+    await expect(page.locator('#gridPreview .grid-preview-days li')).toHaveText(new RegExp(`13 Jan.*: ${literal(words)}$`));
+    // …and answered "swapped" instead, the leave is written and costs a day: the line is the change it makes.
+    await clickInView(wed.locator('.al-swap-btn[data-swap="yes"]'));
+    await expect(page.locator('#gridPreview .grid-preview-days li')).toHaveText(new RegExp(`13 Jan.*: ${literal('Rest day → Annual leave')}$`));
+    await clickInView(wed.locator('.al-swap-btn[data-swap="no"]'));
+    await expect(page.locator('#gridPreview .grid-preview-days li')).toHaveText(new RegExp(`13 Jan.*: ${literal(words)}$`));
+
+    await page.locator('#saveBtn').click();
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('Nothing to record for', { timeout: 10000 });
+    await expect(feedback.locator('li')).toHaveText(new RegExp(`13 Jan.* — ${literal(words)}$`));
+    const writes = await page.evaluate(() => [...(/** @type {any} */ (window).__E2E.setWrites || []), ...(/** @type {any} */ (window).__E2E.batchWrites || [])]);
+    expect(writes, 'the answer said nothing is written there').toEqual([]);
+});
+
+// AN ABSENCE THE CALENDAR HIDES IS NOT REPORTED AS "ABSENT". On a plain rest day the Calendar does not draw an absence
+// (`isOverrideDisplaySuppressed`), so the line beside Save and the receipt say what it does draw.
+test('admin: an absence on a plain rest day is said as not shown beside Save and in the receipt, never as Absent', async ({ page }) => {
+    const miller = /** @type {any} */ (teamMembers.find(m => m.name === 'G. Miller'));
+    expect(isRestShift(getBaseShift(miller, new Date(2027, 0, 13))), 'premise: 13 Jan is a rest day').toBe(true);
+    await openMillerJanuaryWeek(page, []);
+
+    const wed = page.locator('.day-row[data-date="2027-01-13"]');
+    await wed.locator('.day-cb').click();
+    await clickInView(wed.locator('.type-pill-btn[data-type="sick"]'));
+    const words = 'Rest day; the absence is saved, but the Calendar doesn’t show an absence on a rest day';
+    await expect(page.locator('#gridPreview .grid-preview-days li')).toHaveText(new RegExp(`13 Jan.*: ${literal(words)}$`));
+
+    await page.locator('#saveBtn').click();
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('1 change saved for', { timeout: 10000 });
+    const receipt = feedback.locator('.save-receipt');
+    await receipt.locator('summary').click();
+    await expect(receipt.locator('li')).toHaveText(new RegExp(`13 Jan.* — ${literal(words)}$`));
+});
+
 test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 };

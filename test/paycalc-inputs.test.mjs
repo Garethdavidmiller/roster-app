@@ -4,7 +4,7 @@
 // `document`, so we install a minimal fake DOM. Part of test:hygiene.
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText, commitFocusedField,
+import { numVal, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap, decimalHoursText, commitFocusedField,
     paintTaxCodeWarning, hoursTextToHM } from '../paycalc-inputs.js';
 
 // ── Minimal fake DOM ───────────────────────────────────────────────────────────
@@ -43,15 +43,6 @@ test('numVal parses a plain number, and smart-hyphen / missing element cases', (
   assert.equal(numVal('a'), 12.5);
   assert.equal(numVal('neg'), -5);          // parseSmartFloat normalises the unicode minus
   assert.equal(numVal('missing'), 0);       // absent element → '' → 0
-});
-
-// ── numValOr ────────────────────────────────────────────────────────────────────
-test('numValOr returns the fallback for empty / unparseable, the number otherwise', () => {
-  installDom({ pay: field('21758.94'), junk: field('.'), blank: field('   ') });
-  assert.equal(numValOr('pay', null), 21758.94);
-  assert.equal(numValOr('junk', null), null);   // lone "." is not a number → fallback, NOT 0
-  assert.equal(numValOr('blank', null), null);
-  assert.equal(numValOr('missing', 7), 7);
 });
 
 // ── intVal (floors at 0, integers only) ──────────────────────────────────────────
