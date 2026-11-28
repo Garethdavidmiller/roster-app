@@ -28,7 +28,8 @@
  * injected dependencies (`showError`, `showSuccess`, `markChanged`, `activateRow`, `deactivateRow`,
  * `updateSaveBtn`, `memberDateMap`) for 181 lines. A boundary that has to be told about seven
  * things is not a boundary; it is a cut made to create room, which is exactly what this extraction
- * was trying to avoid.
+ * was trying to avoid. (It did leave later, 28 Nov 2026, for admin-bulk-bar.js — by then told four
+ * things, because the row functions it needed were importable from here.)
  *
  * This cluster needs NONE. It imports the shift-type table, the Other-day grammar, the status helper
  * and the record comparison (override-compare.js, v26.08), all pure, and nothing else — every function

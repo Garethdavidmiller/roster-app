@@ -254,7 +254,10 @@ const CAPS = {
     // not to 796, for the v24.64 reason: the rest is the next week-grid change's headroom.
     // 810 → 800 on 16 Nov 2026 (tidy-up): changelog comments cut to their reasons, 796 measured lines to 720 — the
     // setting rule's figure, which leaves 80 lines for the next week-grid change.
-    'admin-week-editor.js':    800,
+    // 800 → 610 on 28 Nov 2026, an EXTRACT at 800 of 800: the bulk bar left for admin-bulk-bar.js (told four things,
+    // not the seven of v23.98 — the row functions it needs are importable now) and the preview's markup for
+    // admin-day-change.js (`gridPreviewHtml`), 800 measured lines to 582. Measured + ~30, so the room is not banked.
+    'admin-week-editor.js':    610,
     // 460 → 450 on 16 Nov 2026 (tidy-up): changelog comments cut to their reasons, 457 measured lines to 397.
     'admin-saved-changes.js':  450,
     // 1800 → 1700 at v21.89. The week-grid swipe left for admin-week-swipe.js — 1,783 down to
@@ -651,7 +654,9 @@ const CAPS = {
     // 1080 → 1081 (28 Nov 2026), one generated precache line: `links-selector-tips.js`, the Links Selector's ? panel.
     // 1081 → 1082 (28 Nov 2026), one generated precache line: `paycalc-save-line.js`, the "not saved" line's
     // rules, which left paycalc-app.js for a module of its own. Nothing else in the worker grew.
-    'service-worker.js':       1082,
+    // 1082 → 1083 (28 Nov 2026), one generated precache line: `admin-bulk-bar.js`, the week card's bulk bar, which left
+    // admin-week-editor.js for a module of its own. Nothing else in the worker grew.
+    'service-worker.js':       1083,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

@@ -9,13 +9,23 @@
  * `changeWords` (admin-save-receipt.js), shared with the receipt. The week editor stamps each row with what it
  * shows (`data-now-shows`, `data-base-shift`, `data-xmas-due`) as it draws it. Tested through the page by
  * e2e/admin-saves.spec.js.
+ *
+ * ── THE PREVIEW IS THE SAVE'S OWN PLAN ──────────────────────────────────────────────────────────
+ *
+ * Leave staged on a rest day answered "Rest day — free" is not written (`planAlWeekSave`, admin-al-week-save.js),
+ * and the preview once read the collector alone, so it promised "Rest day → Annual leave" over a save that wrote
+ * nothing and a receipt that said "rest day, no leave recorded". The preview runs the same planner on the same
+ * answers and says each day it leaves alone in the receipt's words (`leftAloneWords`) — .claude/rules/admin.md: the
+ * answer must reach every layer. And an absence the Calendar will not draw — on a rest day, with nothing contracted
+ * under it — is said as what the Calendar shows (`hiddenAbsenceWords`), here and in the receipt, never "Absent".
  */
-import { isSunday } from './roster-data.js';
+import { isSunday, teamMembers, escapeHtml } from './roster-data.js';
 import { isChristmasOrBoxingDay, parseOtherValue } from './override-utils.js';
 import { resolveDayShift } from './christmas-leave.js';
 import { replacedTypeOnWrite } from './al-swapped-days.js';
 import { collectWeekRows } from './admin-week-collect.js';
-import { changeWords } from './admin-save-receipt.js';
+import { changeWords, hiddenAbsenceWords, leftAloneWords } from './admin-save-receipt.js';
+import { planAlWeekSave } from './admin-al-week-save.js';
 import { formatDisplay } from './admin-period-dates.js';
 import { drawnDays } from './admin-week-row-state.js';
 
@@ -49,7 +59,8 @@ export function nowShows(existing, baseShift, dateISO, xmasDue) {
 /**
  * Each staged day's before → after (`changeWords`), as the Calendar would draw it, by date: the line
  * beside Save and the receipt's words for the day. A day whose change leaves it looking the same, or
- * a row the grid did not draw, has none.
+ * a row the grid did not draw, has none — except an absence the Calendar hides, which is written and so
+ * is said as what the day will show (`hiddenAbsenceWords`).
  *
  * THE AFTER IS THE RECORD THE SAVE WRITES, `replacedType` included (`replacedTypeOnWrite`, the save's own call): an
  * absence on a rest day shows only when it replaced contracted work, so an absence staged over a swapped-in shift, an
@@ -71,23 +82,54 @@ export function stagedDayChanges(grid, toSave, drawn) {
         if (!row || before == null) continue;
         const written = { type: e.type, value: e.value, replacedType: replacedTypeOnWrite(under.get(e.date) ?? null, e.type, e.swapped) };
         const after = nowShows(written, row.dataset.baseShift ?? '', e.date, row.dataset.xmasDue === '1');
-        if (after && after !== before) out.set(e.date, changeWords(before, after));
+        if (!after) continue;
+        if (e.type === 'sick' && after !== 'SICK') out.set(e.date, hiddenAbsenceWords(before, after));
+        else if (after !== before) out.set(e.date, changeWords(before, after));
     }
     return out;
 }
 
-/** The staged days' changes for the PREVIEW: the collector run on read-only stand-ins for the rows,
- *  so a row still being typed into is never marked as an error before Save is pressed.
- *  @param {HTMLElement[]} rows @param {string} memberName @param {Element|null} grid */
-export function previewChanges(rows, memberName, grid) {
+/**
+ * The staged days' changes for the PREVIEW: the collector run on read-only stand-ins for the rows, so a row still
+ * being typed into is never marked as an error before Save is pressed — and then the save's own leave plan
+ * (`planAlWeekSave`, as the Save handler calls it), so a day it leaves alone is said as the receipt will say it.
+ * @param {HTMLElement[]} rows @param {string} memberName @param {Element|null} grid
+ * @param {Map<string, any>|null} [ovByDate] the member's records in play (`buildMemberDateMap`), which the plan reads
+ * @returns {Map<string, string>}
+ */
+export function previewChanges(rows, memberName, grid, ovByDate = null) {
     const quiet = rows.map(r => ({ dataset: r.dataset, querySelector: (/** @type {string} */ q) => r.querySelector(q),
         querySelectorAll: (/** @type {string} */ q) => r.querySelectorAll(q),
         classList: { contains: (/** @type {string} */ c) => r.classList.contains(c), add() {}, remove() {} } }));
     // A preview never stands in the way of Save: a row it cannot read (half drawn, a field missing) gives no
     // lines, and the count above still says what is staged.
     try {
-        const { toSave } = collectWeekRows({ rows: /** @type {any} */ (quiet), memberName, formatDate: formatDisplay });
-        return stagedDayChanges(grid, toSave);
+        const { toSave, toDelete, swapAnswers } = collectWeekRows({ rows: /** @type {any} */ (quiet), memberName, formatDate: formatDisplay });
+        const member = teamMembers.find(m => m.name === memberName);
+        const plan = member ? planAlWeekSave({ member, memberName, toSave, toDelete, ovByDate, swapAnswers }) : null;
+        const free = new Set(plan?.skipped ?? []), kept = new Set(plan?.keptLeave ?? []);
+        const out = stagedDayChanges(grid, toSave);
+        for (const d of free) out.set(d, leftAloneWords(d, kept.has(d)));   // the save writes no leave there
+        return out;
     } catch { return new Map(); }
 }
 
+/**
+ * The preview beside Save as HTML, with the signature it is redrawn on: what is about to happen, naming the member,
+ * so a wrong person or count is caught before saving — and, for a few days, what each becomes (`previewChanges`).
+ * THE VERB BELONGS TO EACH CLAUSE, so every combination is a sentence. The preview is a live region that is asked on
+ * every keystroke, so the caller rewrites it (and it is re-announced) only when `sig` changes.
+ * @param {{ saveCount: number, delCount: number, memberName: string, changes: Map<string, string> }} args
+ * @returns {{ html: string, sig: string }}
+ */
+export function gridPreviewHtml({ saveCount, delCount, memberName, changes }) {
+    const bits = [];
+    if (saveCount) bits.push(`change <strong>${saveCount} day${saveCount > 1 ? 's' : ''}</strong>`);
+    if (delCount)  bits.push(`remove <strong>${delCount} change${delCount > 1 ? 's' : ''}</strong>`);
+    const dayLines = [...changes].sort(([a], [b]) => a.localeCompare(b))
+        .map(([d, words]) => `<li>${escapeHtml(formatDisplay(d))}: ${escapeHtml(words)}</li>`).join('');
+    // A list inside a <span> is invalid HTML (phrasing content may not hold one): the sentence's wrapper is a <div>.
+    return { sig: `${saveCount}|${delCount}|${memberName}|${dayLines}`,
+        html: `<span aria-hidden="true">🗓️</span> <div>You're about to ${bits.join(' and ')} for <strong>${escapeHtml(memberName)}</strong>.`
+            + (dayLines ? `<ul class="grid-preview-days">${dayLines}</ul>` : '') + '</div>' };
+}

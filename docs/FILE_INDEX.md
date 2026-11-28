@@ -54,7 +54,7 @@ roster-app/
 ├── nav-bell.js             ← the drawer footer's notification bell; the push logic is notif.js's. See also nav-bell.test.mjs.
 ├── nav-guide-fold.js       ← the drawer's Reference fold and the guide search's lazy load. See also nav-guide-fold.test.mjs, guide-index-parity.test.mjs.
 ├── nav-destinations.js     ← the drawer's destinations and pill gates as DATA; imports nothing
-├── admin-day-change.js     ← Change a Shift's before → after for each staged day, beside Save and in the receipt. See also admin-saves.spec.js.
+├── admin-day-change.js     ← Change a Shift's before → after for each staged day, beside Save and in the receipt, by the save's own leave plan. See also admin-saves.spec.js.
 ├── doc-dates.js            ← the ☰ menu's date beside the Daily Huddle, Circular and Newsletter (what the Calendar last heard). See also doc-dates.test.mjs.
 ├── newsletter-recency.js   ← whether the ☰ menu offers the Marylebone Newsletter (latest issue under six weeks old). See also calendar-documents.spec.js, operations.spec.js.
 ├── notice-archive.js       ← the App Notices archive's rules and its never-throwing read. See also notice-archive.test.mjs.
@@ -119,6 +119,7 @@ roster-app/
 ├── admin-day-pills.js ← which changes one week-grid day takes, refused at its pills (layer 1 of the Sunday rule). Its header. See also admin-day-pills.test.mjs.
 ├── admin-own-write.js ← what the page's own write does to the week on screen: only the touched days redraw. Its header
 ├── admin-bulk-apply.js ← what the week card's bulk Apply is waiting for, and the days it left alone; not a layer of the Sunday rule
+├── admin-bulk-bar.js ← the week card's bulk bar: its type, count, tick buttons and the Apply press (layer 2 of the Sunday rule). Its header. See also admin-week-grid.spec.js.
 ├── admin-time-inputs.js ← the Admin week grid's time boxes. Its re-entry guard is load-bearing on iOS — the header says why. See also admin-week-grid.spec.js.
 ├── admin-week-collect.js ← what one press of the week grid's Save asks to write (Sunday rule layer 6). Its header. Tested by override-utils.test.mjs
 ├── admin-al-week-save.js ← what one week-grid save does about its annual leave, and the same for a Saved Changes delete. Its header. Pure; tested by admin-al-week-save.test.mjs
@@ -170,7 +171,7 @@ roster-app/
 ├── admin-save-receipt.js ← what a save actually DID, day by day; a removed day is named, not omitted. Pure; tested by admin-save-receipt.test.mjs
 ├── slow-save.js ← the one line shown while a save waits for the server; never says "saved" (its header says why). Tested by slow-save.test.mjs and e2e/admin-saves.spec.js
 ├── admin-shift-types.js ← the shift-type table Change a Shift speaks. **`PILL_TYPES` is the ONE declaration of which pills exist and in what order.** Tested by admin-shift-types.test.mjs
-├── admin-week-editor.js ← the seven-day grid, its pills, the bulk bar and everything staged but not saved. Its header. See also admin-week-editor.test.mjs, admin-week-grid.spec.js.
+├── admin-week-editor.js ← the seven-day grid, its pills and everything staged but not saved (the bulk bar is admin-bulk-bar.js). Its header. See also admin-week-editor.test.mjs, admin-week-grid.spec.js.
 ├── admin-saved-changes.js ← the Saved Changes list and both delete paths; it may not claim completeness it does not have. Its header. See also admin-saved-changes.test.mjs, admin-leave-records.spec.js, admin-saves.spec.js.
 ├── admin-override-store.js ← the Admin override cache, its staged reads and their on-screen states. Its header
 ├── override-id.js ← the ONE document id a manual override for a member and date is written to. Pure; its header. See also override-utils.test.mjs, admin-overrides.test.mjs.
@@ -410,6 +411,7 @@ roster-app/
 │   ├── admin-day-pills.test.mjs ← each day's pills and chips over a fake row, and the grid's call. Part of test:hygiene
 │   ├── admin-own-write.test.mjs ← the rule, the words and the sync over a fake grid. Part of test:hygiene
 │   ├── admin-bulk-apply.test.mjs ← each reason, read off `SUNDAY_FORBIDDEN_TYPES` and `PILL_TYPES`. Part of test:hygiene
+│   ├── admin-bulk-bar.test.mjs ← the bar over a fake grid: arming a type, the count and Apply's reason, a press staging only what it may. Part of test:unit
 │   ├── overflow-hint.test.mjs  ← the overflow rule, the re-measure after a resize, and the no-ResizeObserver path. Part of test:hygiene
 │   ├── link-designer-design-doc.test.mjs ← the design-shape invariants, across every producer. Part of test:hygiene
 │   ├── link-designer-design-load.test.mjs ← the two design readers in sequence, the legacy migration and which design opens. Part of test:hygiene

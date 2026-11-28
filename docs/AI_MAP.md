@@ -86,7 +86,7 @@ below, and run `npm run generate:ai-map`.
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
 | Push notifications card (all staff, settings page) — its wiring / its words | `notif-card.js` → `initNotificationsCard` / `notif-card-core.js` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
-| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-week-collect.js` (what a Save asks to write) · `admin-overrides.js` (save logic) |
+| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid) · `admin-bulk-bar.js` (bulk bar) · `admin-day-change.js` (the preview beside Save) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-week-collect.js` (what a Save asks to write) · `admin-overrides.js` (save logic) |
 | An Admin save or delete must not overwrite a colleague's newer edit — the checked commit, and what counts as changed | `admin-override-store.js` · `override-compare.js` · `admin-week-row-state.js` (what each row showed) · `admin-own-write.js` (the page's OWN write is not a colleague's: the rows it touched follow it) · the weekly roster import's Save: `roster-import-save.js` (`saveRosterWrites`) |
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
@@ -579,6 +579,9 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 ### `admin-bulk-apply.js`
 - **Exports:** `bulkApplyWaitingFor` · `bulkSkippedLine`
 
+### `admin-bulk-bar.js`
+- **Exports:** `updateBulkSelCount` · `resetBulkPills` · `initBulkBar`
+
 ### `admin-week-collect.js`
 - **Exports:** `collectWeekRows`
 
@@ -613,7 +616,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `TYPES` · `PILL_TYPES` · `renderTable` · `resetTableMemberFilter` · `renderWeekGrid` · `buildWeekGridInto` · `updateWeekNavLabel` · `updateSaveBtn` · `resetBulkPills` · `_hasStagedEdits` · `setSaveInFlight` · `isSaveInFlight` · `sendingDays` · `NOT_ON_ROSTER_LINE` · `initOverrideStore` · `getAllOverrides` · `setAllOverrides` · `removeFromCache` · `whenOverridesReady` · `whenLoadSettled` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `loadOverrides` · `ensureMemberLoaded` · `buildMemberDateMap` · `isWorkingDate` · `initOverrides` · `refusedLine` · `executeSave` · `getEffectiveShift` · `validateShiftRules` · `recordRangeOverrides` · `formatDisplay`
 
 ### `admin-save-receipt.js`
-- **Exports:** `dayWords` · `changeWords` · `buildSaveReceipt`
+- **Exports:** `dayWords` · `changeWords` · `hiddenAbsenceWords` · `leftAloneWords` · `buildSaveReceipt`
 
 ### `slow-save.js`
 - **Exports:** `SLOW_SAVE_MS` · `SLOW_SAVE_TEXT` · `SLOW_SAVE_TEXT_BATCHED` · `SLOW_SAVE_TEXT_ONLINE` · `SLOW_SAVE_TEXT_BATCHED_ONLINE` · `SLOW_SAVE_TEXT_UNHELD` · `SLOW_SAVE_TEXT_UNHELD_ONLINE` · `slowSaveText` · `SLOW_SAVE_EVENT` · `watchSlowCommit` · `trackHiddenTime` · `trackOwnWritesWaits` · `writesInFlight` · `withSlowSaveNotice`
@@ -622,7 +625,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `TYPES` · `PILL_TYPES` · `pillName` · `typePillHtml` · `WORKED_OVERRIDE_TYPES` · `rowValueText`
 
 ### `admin-week-editor.js`
-- **Exports:** `rosteredWords` · `NOT_ON_ROSTER_LINE` · `initWeekEditor` · `_hasStagedEdits` · `resetStagedRows` · `updateWeekNavLabel` · `buildWeekGridInto` · `renderWeekGrid` · `setSaveInFlight` · `isSaveInFlight` · `sendingDays` · `updateSaveBtn` · `resetBulkPills`
+- **Exports:** `NOT_ON_ROSTER_LINE` · `initWeekEditor` · `_hasStagedEdits` · `resetStagedRows` · `updateWeekNavLabel` · `buildWeekGridInto` · `renderWeekGrid` · `setSaveInFlight` · `isSaveInFlight` · `sendingDays` · `updateSaveBtn`
 
 ### `admin-saved-changes.js`
 - **Exports:** `initSavedChanges` · `resetTableMemberFilter` · `renderTable`
@@ -894,7 +897,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `admin-day-change.js`
 - **Exports:**
-- **Exports:** `shownValue` · `nowShows` · `stagedDayChanges` · `previewChanges`
+- **Exports:** `shownValue` · `nowShows` · `stagedDayChanges` · `previewChanges` · `gridPreviewHtml`
 
 ### `newsletter-recency.js`
 - **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `latestNewsletterDate` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`
