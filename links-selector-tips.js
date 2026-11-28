@@ -51,7 +51,7 @@ export const CARD_TIPS = Object.freeze({
                 { icon: '🚫', html: 'No leave, absence or changed shift is shown: a proposal has none.' },
             ] },
             { heading: 'To compare them', items: [
-                { icon: '⚖️', html: 'The New CEA Link page sets the proposals side by side, in words and figures. It is in the menu, and linked from About.' },
+                { icon: '⚖️', html: 'The New CEA Link page sets the proposals side by side, in words and figures. The link under the key opens it on the proposal you are looking at.' },
             ] },
         ],
     },

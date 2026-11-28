@@ -16,6 +16,7 @@ import {
     closesWords, dutyKind, designName, ifYou, renderStatus, renderList, renderCommon, renderDiffers, renderFigures,
     renderPersonas, renderPersonaChips, renderWeeks, renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, fileRow, figuresKey,
     statusPhase, statusHint, glanceFile, personaStatus, weeksStatus, weeksTitle, aToZ,
+    SELECTOR_URL, selectorHref,
 } from '../newlink-render.js';
 import { PROPOSALS } from '../link-designer-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from '../newlink-data.js';
@@ -495,4 +496,23 @@ test('a cover week falling badly includes its Sunday, and a link is explained, w
     assert.match(html, /A <strong>link<\/strong> is the set of weeks everyone works through in turn/);
     assert.match(html, /those four shifts land in the worst place, and its\s+Sunday is worked as overtime too/);
     assert.match(NOTES.join(' '), /with its Sunday worked as overtime too/);
+});
+
+// THE WAY TO THE LINKS SELECTOR (owner, 28 Nov 2026): offered only to a reader the Links Selector admits (`calendar`, which
+// newlink-app.js reads from canOpenSelector), once on the top card and under every proposal's weeks, each opening its own.
+test('the way to the Links Selector: on the top card and under each proposal\'s weeks, only when the reader may open it', () => {
+    const shut = renderStatus({ proposals: PROPOSALS, closes: null }) + renderAllWeeks(PROPOSALS, PROPOSALS[0].id);
+    assert.doesNotMatch(shut, /links-selector\.html/, 'nobody is offered a page that would refuse them');
+    const top = renderStatus({ proposals: PROPOSALS, closes: null, calendar: true });
+    assert.equal(top.match(/class="nl-file nl-onward"/g)?.length, 1);
+    assert.ok(top.includes(`href="${SELECTOR_URL}"`), 'the top card opens the Links Selector as this device last left it');
+    assert.match(top, /See one as a calendar/);
+    // the row sits with the three names, as one group (newlink.css → .nl-picks), so a wide screen keeps it beside them
+    assert.match(top, /<div class="nl-picks"><ul class="nl-names"[^]*?<\/ul><a class="nl-file nl-onward"/);
+    const weeks = renderAllWeeks(PROPOSALS, PROPOSALS[0].id, { calendar: true });
+    for (const p of PROPOSALS) {
+        assert.ok(weeks.includes(`href="${selectorHref(p).replace(/&/g, '&amp;')}"`), `${p.code}: its weeks lead to it on the calendar`);
+        assert.ok(weeks.includes(`<span class="visually-hidden">: ${designName(p)}</span>`), `${p.code}: a screen reader hears whose`);
+    }
+    assert.equal(weeks.match(/nl-onward/g)?.length, PROPOSALS.length);
 });

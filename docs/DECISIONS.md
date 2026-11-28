@@ -1746,3 +1746,10 @@ drawn by `index.css`, so it looks exactly like the Calendar and follows any chan
 swipe is the Calendar's own module, handed the page's months through its `months` option, which the Calendar leaves
 unset. The rotation is the app's: the line chosen in the week of the start, one line down each Sunday, back to line 1
 after line 26 (`links-selector-core.js`). Nothing reads or writes Firestore for the roster.
+
+**The two pages lead to each other** (owner, 28 Nov 2026: "a link from New CEA Link to Links Selector and vice versa"),
+each opening the other on the proposal in hand: New CEA Link offers "See one as a calendar" with its three names and "See
+it as a calendar" under each proposal's weeks (`?proposal=` and the sheet code), and the Links Selector offers "See the
+proposals side by side" under its key (`newlink.html?weeks=` and the code, which opens that proposal's weeks). Both are the
+same row — New CEA Link's file row, the destination named in its own colour's pill — and only a reader the Links Selector
+admits is offered the way there. Not from the Calendar yet (owner, the same day).

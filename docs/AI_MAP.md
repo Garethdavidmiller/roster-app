@@ -536,7 +536,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports of `newlink-boot.js`:** none
 - **Exports of `newlink-config.js`:** `STARTS` · `TIMETABLE_STARTS` · `CONTACT` · `CONTACT_ROLE` · `CHOSEN` · `PHASE` · `CLOSES` · `AUDIENCE` · `audienceNames` · `PACK_BASE` · `HAVE_YOUR_SAY`
 - **Exports of `newlink-data.js`:** `COLUMNS` · `CHANGES` · `GAINS` · `COSTS` · `DIFFERS` · `DIFFER_RULE` · `PERSONAS` · `NOTES` · `PACK`
-- **Exports of `newlink-render.js`:** `designName` · `aToZ` · `closesWords` · `startsWords` · `statusPhase` · `statusHint` · `renderStatus` · `renderList` · `renderCommon` · `renderDiffers` · `ifYou` · `renderFigures` · `figuresKey` · `renderPersonas` · `renderPersonaChips` · `dutyKind` · `renderWeeks` · `renderAllWeeks` · `renderWeeksKey` · `renderWeeksTabs` · `fileRow` · `renderPack` · `glanceFile` · `personaStatus` · `weeksStatus` · `weeksTitle`
+- **Exports of `newlink-render.js`:** `SELECTOR_URL` · `selectorHref` · `designName` · `aToZ` · `closesWords` · `startsWords` · `statusPhase` · `statusHint` · `renderStatus` · `renderList` · `renderCommon` · `renderDiffers` · `ifYou` · `renderFigures` · `figuresKey` · `renderPersonas` · `renderPersonaChips` · `dutyKind` · `renderWeeks` · `renderAllWeeks` · `renderWeeksKey` · `renderWeeksTabs` · `fileRow` · `renderPack` · `glanceFile` · `personaStatus` · `weeksStatus` · `weeksTitle`
 
 ### `links-selector-app.js` / `links-selector-boot.js` / `links-selector-core.js` / `links-selector-render.js` / `links-selector-tips.js`
 - **Exports of `links-selector-app.js`:** `STORE_KEY` · `WELCOME_KEY` · `init`

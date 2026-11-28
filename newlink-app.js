@@ -100,6 +100,9 @@ export function init() {
  * @param {string} member @param {boolean} admitted
  */
 function start(member, admitted) {
+    // The ways to the Links Selector, only for a reader it admits (auth-policy.js → canOpenSelector): its audience is this
+    // page's since it opened (CONFIG.LINKS_SELECTOR_OPEN), and the admin's alone if it is ever put back.
+    calendarLinks = navGatesFor(member).canOpenSelector;
     /** @type {(() => void)|null} */
     let openAboutLightbox = null;
     initNavPanel({
@@ -206,6 +209,13 @@ function wirePack() {
 }
 
 /** The day the status card was last drawn for. @type {string} */
+/** Whether this reader is offered the ways to the Links Selector (set by `start`, read by every redraw). */
+let calendarLinks = false;
+
+/** The address word the Links Selector sends a proposal's sheet code in (links-selector-app.js → NEWLINK_WEEKS; the two
+ *  are held to one word by links-selector-core.test.mjs). */
+const WEEKS_PARAM = 'weeks';
+
 let statusDay = '';
 
 /**
@@ -219,7 +229,7 @@ function drawStatus() {
     const today = formatISO(new Date());
     if (today === statusDay) return;
     statusDay = today;
-    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS, timetable: TIMETABLE_STARTS, today, chosen: CHOSEN, contact: CONTACT }));
+    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS, timetable: TIMETABLE_STARTS, today, chosen: CHOSEN, contact: CONTACT, calendar: calendarLinks }));
     const { phase } = statusPhase({ proposals: PROPOSALS, chosen: CHOSEN, starts: STARTS, today });
     setText('nlStatusHint', statusHint(phase));   // words, not `hidden`: `.card-header .hint` is display:block, which outranks it
     // While 'open' the card stays, past the closing date too, until the decision (owner, 22 Nov 2026: "Keep until decided" —
@@ -233,7 +243,10 @@ function drawStatus() {
  */
 function wireChoices(cards) {
     /** @type {string|null} */ let persona = null;
-    let design = aToZ(PROPOSALS)[0].id;   // A to Z: the first is first in the alphabet, not first in anyone's estimation (the page sorts for itself, whatever order the built-in list keeps)
+    // ARRIVING FROM THE LINKS SELECTOR (`?weeks=` and a proposal's sheet code, links-selector-app.js): that proposal's weeks,
+    // shown and scrolled to. A code that names no proposal is ignored — the page opens as it always does.
+    const asked = PROPOSALS.find(p => p.code === new URLSearchParams(location.search).get(WEEKS_PARAM)) ?? null;
+    let design = asked?.id ?? aToZ(PROPOSALS)[0].id;   // A to Z: the first is first in the alphabet, not first in anyone's estimation (the page sorts for itself, whatever order the built-in list keeps)
 
     const drawPersonas = () => {
         setHTML('nlPersonaChips', renderPersonaChips(PERSONAS, persona));
@@ -242,7 +255,7 @@ function wireChoices(cards) {
     const drawWeeks = () => {
         const p = PROPOSALS.find(x => x.id === design) ?? aToZ(PROPOSALS)[0];
         setHTML('nlWeeksTabs', renderWeeksTabs(PROPOSALS, p.id));
-        setHTML('nlWeeksPanel', renderAllWeeks(PROPOSALS, p.id));
+        setHTML('nlWeeksPanel', renderAllWeeks(PROPOSALS, p.id, { calendar: calendarLinks }));
     };
     drawPersonas();
     drawWeeks();
@@ -309,6 +322,13 @@ function wireChoices(cards) {
         reveal(`${id}Card`);
         /** @type {HTMLElement|null} */ (el(`${id}Card`)?.querySelector('h2') ?? null)?.focus({ preventScroll: true });
     });
+    if (asked) {
+        cards.nlWeeks?.setOpen(true);
+        setText('nlWeeksStatus', weeksStatus(asked));
+        // After the first paint, so the scroll lands where the cards above have finished drawing; at once, not smoothly — a
+        // page that glides down by itself on arrival reads as something going wrong.
+        requestAnimationFrame(() => { el('nlWeeksCard')?.scrollIntoView({ block: 'start' }); focusChosenWeeks(); });
+    }
 }
 
 /**
