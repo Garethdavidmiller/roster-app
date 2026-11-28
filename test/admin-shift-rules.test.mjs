@@ -65,6 +65,24 @@ describe('a breach that must not be missed', () => {
         assert.match(errors[0], /only 9h rest before/);
     });
 
+    // Shifts that OVERLAP are not "only -1h rest" (review, Nov 2026): a gap of nothing or less is said as an overlap.
+    test('a shift that overlaps the day before or after says so, not a negative rest', () => {
+        // 22:00–06:00 night before; the next day starts 05:00 → an hour of overlap.
+        const after = check([{ date: '2026-06-16', value: '05:00-13:00', type: 'shift' }],
+            { shifts: { '2026-06-15': '22:00-06:00' } }).errors;
+        assert.equal(after.length, 1);
+        assert.equal(after[0], '2026-06-16: overlaps the 2026-06-15 shift — need 12h rest between shifts');
+        assert.doesNotMatch(after[0], /only|-\d+(\.\d+)?h/);
+        // A night that runs past the next day's start, on the other side.
+        const before = check([{ date: '2026-06-15', value: '22:00-08:00', type: 'shift' }],
+            { shifts: { '2026-06-16': '07:00-15:00' } }).errors;
+        assert.equal(before[0], '2026-06-15: overlaps the 2026-06-16 shift — need 12h rest between shifts');
+        // Starting exactly as the last one ends is no rest at all: an overlap too, never "only 0h rest".
+        const none = check([{ date: '2026-06-16', value: '06:00-14:00', type: 'shift' }],
+            { shifts: { '2026-06-15': '22:00-06:00' } }).errors;
+        assert.equal(none[0], '2026-06-16: overlaps the 2026-06-15 shift — need 12h rest between shifts');
+    });
+
     test('a NIGHT shift is measured across midnight, not backwards', () => {
         // 21:00–05:00 is 8 hours. Read naively it is minus 16, which passes every check silently —
         // the one shape where an arithmetic slip hides a breach rather than inventing one.
