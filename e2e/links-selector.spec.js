@@ -9,9 +9,10 @@
  */
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
-import { CONFIG, teamMembers } from '../roster-data.js';
-import { proposalById } from '../link-designer-proposals.js';
-import { dayOn } from '../links-selector-core.js';
+import { CONFIG, teamMembers, getBaseShift } from '../roster-data.js';
+import { isChristmasLeaveDay } from '../christmas-leave.js';
+import { proposalById, proposalDisplayName } from '../link-designer-proposals.js';
+import { dayOn, proposalsAtoZ } from '../links-selector-core.js';
 // links-selector-app.js → WELCOME_KEY (the coordinator is not importable outside a page); the first-visit test fails if the two part.
 const WELCOME_KEY = 'myb_links_selector_welcome_seen';
 
@@ -439,6 +440,152 @@ test.describe('links selector', () => {
         await expect(page.locator('#monthJumpMonth')).toHaveValue('6');
         await page.locator('#monthJumpCancel').click();
         await expect(page.locator('.month-year')).toHaveText('July 2028');
+    });
+
+    // ⚖️ COMPARE (owner, 28 Nov 2026: "Do 2, not as the default view"): every proposal side by side, the same month from the
+    // same week. Organised by what a wrong answer costs: opened by itself, it is the default view the owner said it must not
+    // be; a column that disagrees with that proposal's own month shows a colleague a rota that is not the one on offer; and
+    // a table wider than the phone hides a proposal off the edge.
+    test('Compare all: never by itself, every proposal side by side — each column that proposal\'s own month — and One proposal goes back', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
+        await expect(page.locator('#selectorViewMonth')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#selectorViewCompare')).toHaveAttribute('aria-pressed', 'false');
+        await expect(page.locator('.cmp-table')).toHaveCount(0);
+        await page.locator('#selectorViewCompare').click();
+        await expect(page.locator('#selectorViewCompare')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('.cmp-table')).toBeVisible();
+        await expect(page).toHaveURL(/[?&]view=compare\b/);
+        await expect(page.locator('#selectorNote')).toContainText('Proposals, not your roster');
+        // A column per proposal, A to Z, the chosen one in the page's colour
+        const names = proposalsAtoZ().map(proposalDisplayName);
+        await expect(page.locator('.cmp-table thead th.cmp-col')).toHaveText(names);
+        await expect(page.locator('.cmp-table thead th.cmp-chosen')).toHaveText(proposalDisplayName(/** @type {any} */ (proposalById('proposal:LC-26-T10'))));
+        // 1–16 January folded into one row; then every date from the 17th, each cell that proposal's own day
+        await expect(page.locator('.cmp-before')).toHaveCount(1);
+        const rows = page.locator('.cmp-table tbody tr:not(.cmp-week):not(.cmp-before)');
+        await expect(rows).toHaveCount(15);
+        for (const [i, p] of proposalsAtoZ().entries()) {
+            for (const d of [17, 18, 24, 31]) {
+                const want = /** @type {any} */ (dayOn(p, 7, new Date(2027, 0, d)));
+                const cell = rows.nth(d - 17).locator('td').nth(i);
+                const text = want.shift === 'RD' ? '–' : want.shift === 'SPARE' ? '📋 Spare' : want.shift;
+                await expect(cell, `${proposalDisplayName(p)}, ${d} January`).toContainText(text);
+            }
+        }
+        // The month moves as the month does, and the key names what any column has
+        await page.locator('#nextMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        await expect(page.locator('.cmp-before')).toHaveCount(0);
+        await expect(page.locator('.cmp-table tbody tr:not(.cmp-week)')).toHaveCount(28);
+        // A reload keeps it (the address), but this device never does: the stored choice names no view
+        await page.reload();
+        await expect(page.locator('.cmp-table')).toBeVisible();
+        const stored = await page.evaluate(() => localStorage.getItem('myb_links_selector_choice'));
+        expect(JSON.parse(stored || '{}')).toEqual({ proposal: 'LC-26-T10', line: 7 });
+        await page.goto('/links-selector.html');
+        await expect(page.locator('.calendar-grid')).toBeVisible();
+        await expect(page.locator('.cmp-table')).toHaveCount(0);
+        await page.locator('#selectorViewCompare').click();
+        await page.locator('#selectorViewMonth').click();
+        await expect(page.locator('.calendar-grid')).toBeVisible();
+        await expect(page).not.toHaveURL(/view=/);
+        expect(errors).toEqual([]);
+    });
+
+    test('Compare fits a 320px phone: no proposal off the edge, no time broken at its dash', async ({ page }) => {
+        await page.setViewportSize({ width: 320, height: 640 });
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=2&view=compare');
+        await page.locator('#nextMonth').click();   // February: a full month of times
+        await expect(page.locator('.cmp-table')).toBeVisible();
+        const fit = await page.evaluate(() => {
+            const t = /** @type {HTMLElement} */ (document.querySelector('.cmp-table'));
+            const times = [...document.querySelectorAll('.cmp-time')].map(e => e.getClientRects().length);
+            return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                table: t.getBoundingClientRect().right - /** @type {HTMLElement} */ (t.parentElement).getBoundingClientRect().right,
+                broken: times.filter(n => n > 1).length, times: times.length };
+        });
+        expect(fit.page, 'the page scrolls sideways').toBeLessThanOrEqual(0);
+        expect(fit.table, 'the table runs past its card').toBeLessThanOrEqual(0.5);
+        expect(fit.times, 'premise: February has times to draw').toBeGreaterThan(20);
+        expect(fit.broken, 'a time wrapped onto two lines').toBe(0);
+        // and every view control is on the screen
+        for (const id of ['#selectorViewMonth', '#selectorViewCompare', '#selectorStartBtn']) {
+            const box = /** @type {any} */ (await page.locator(id).boundingBox());
+            expect(box.x + box.width, `${id} off the edge`).toBeLessThanOrEqual(320);
+        }
+    });
+
+    // 👤 COMPARE WITH MINE (owner, 28 Nov 2026: "Do 5 … as a button and not the default option. Clear labelling."): the
+    // reader's own roster today beside the chosen proposal. What a wrong answer costs: a "today" column that is not what the
+    // Calendar draws teaches a colleague a false trade-off; one that reads as a proposal, or a proposal as their roster, is
+    // the confusion the whole page guards against.
+    test('Compare with mine: your roster today, as the Calendar draws it, beside the chosen proposal — labelled, and never by itself', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MG-26-T8&line=4');
+        await expect(page.locator('#selectorViewMine')).toBeVisible();
+        await expect(page.locator('#selectorViewMine')).toHaveAttribute('aria-pressed', 'false');
+        await page.locator('#selectorViewMine').click();
+        await expect(page.locator('#selectorViewMine')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page).toHaveURL(/[?&]view=mine\b/);
+        await expect(page.locator('#selectorNote')).toContainText('Your roster beside a proposal.');
+        await expect(page.locator('#selectorNote')).toContainText('without leave or changed shifts');
+        // Two columns, labelled: yours first, in the Calendar's gold; the proposal in the page's colour
+        await expect(page.locator('.cmp-table thead th.cmp-col')).toHaveText(['Your roster today', proposalDisplayName(/** @type {any} */ (proposalById('proposal:MG-26-T8')))]);
+        await expect(page.locator('.cmp-table thead th.cmp-mine')).toHaveText('Your roster today');
+        await expect(page.locator('.cmp-table thead th.cmp-chosen')).toHaveCount(1);
+        // February 2027, day by day: the left column is the Calendar's base day for the signed-in member
+        await page.locator('#nextMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        const me = /** @type {any} */ (teamMembers.find(m => m.name === ADMIN));
+        const mg = /** @type {any} */ (proposalById('proposal:MG-26-T8'));
+        const rows = page.locator('.cmp-table tbody tr:not(.cmp-week)');
+        await expect(rows).toHaveCount(28);
+        const text = (/** @type {string} */ shift) => shift === 'RD' || shift === 'OFF' ? '–' : shift === 'SPARE' ? '📋 Spare' : shift === 'AL' ? '🏖️ AL' : shift;
+        for (const d of [1, 5, 9, 14, 20, 27]) {
+            const date = new Date(2027, 1, d);
+            await expect(rows.nth(d - 1).locator('td').nth(0), `yours, ${d} February`).toContainText(text(getBaseShift(me, date)));
+            await expect(rows.nth(d - 1).locator('td').nth(1), `the proposal, ${d} February`).toContainText(text(/** @type {any} */ (dayOn(mg, 4, date)).shift));
+        }
+        // Not the default: a fresh visit opens on the month, and the stored choice names no view
+        expect(JSON.parse(await page.evaluate(() => localStorage.getItem('myb_links_selector_choice') || '{}'))).toEqual({ proposal: 'MG-26-T8', line: 4 });
+        await page.goto('/links-selector.html');
+        await expect(page.locator('.calendar-grid')).toBeVisible();
+        await expect(page.locator('#selectorViewMonth')).toHaveAttribute('aria-pressed', 'true');
+        expect(errors).toEqual([]);
+    });
+
+    test('Christmas 2027 beside your roster: each side by its own rule — your Christmas leave from your pattern, the proposal\'s from its own', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=1&view=mine');
+        await page.locator('.month-year').click();
+        await page.locator('#monthJumpMonth').selectOption('11');
+        await page.locator('#monthJumpConfirm').click();
+        await expect(page.locator('.month-year')).toHaveText('December 2027');
+        const me = /** @type {any} */ (teamMembers.find(m => m.name === ADMIN));
+        const v6 = /** @type {any} */ (proposalById('proposal:MB-26-V6'));
+        const row = (/** @type {number} */ d) => page.locator('.cmp-table tbody tr:not(.cmp-week)').nth(d - 1);
+        for (const d of [25, 27]) {
+            const date = new Date(2027, 11, d);
+            const mine = /** @type {any} */ (getBaseShift(me, date));
+            const xmasMine = d === 25 && isChristmasLeaveDay(me, date);
+            const want = xmasMine ? '🏖️ AL' : mine === 'RD' || mine === 'OFF' ? '–' : mine === 'SPARE' ? '📋 Spare' : mine;
+            await expect(row(d).locator('td').nth(0)).toContainText(want);
+            const theirs = /** @type {any} */ (dayOn(v6, 1, date));
+            await expect(row(d).locator('td').nth(1)).toContainText(theirs.shift === 'AL' ? '🏖️ AL' : theirs.shift === 'RD' ? '–' : theirs.shift === 'SPARE' ? '📋 Spare' : theirs.shift);
+        }
+    });
+
+    test('Compare says what a cell cannot: Sunday shifts are overtime, and what a cover week is — only in a month that has them', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=5&view=compare');
+        await expect(page.locator('.cmp-foot')).toHaveText(/Sunday shifts are overtime\..*Spare is a cover week: four shifts between Monday and Saturday/);
+        // A Sunday cell says so aloud too, where the eye has the note
+        const sundayWorked = page.locator('.cmp-table tbody tr', { has: page.locator('th', { hasText: /^Sun/ }) }).locator('td[aria-label*="overtime"]');
+        await expect(sundayWorked.first()).toBeAttached();
     });
 });
 

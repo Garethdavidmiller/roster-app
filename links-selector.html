@@ -73,6 +73,8 @@
             <div class="lightbox-tip"><span>The ? above the month says what this page is and how to read it</span></div>
             <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
             <div class="lightbox-tip"><span>Select a day to see its details</span></div>
+            <div class="lightbox-tip"><span>⚖️ Compare all shows every proposal side by side</span></div>
+            <div class="lightbox-tip"><span>👤 Compare with mine puts your roster today beside a proposal</span></div>
             <div class="lightbox-tip keyboard-only"><span>Change month (in the grid: PgUp PgDn)</span><span class="lightbox-tip-key">← →</span></div>
             <div class="lightbox-tip keyboard-only"><span>Go to this month (until the link starts, its first month)</span><span class="lightbox-tip-key">T</span></div>
             <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
@@ -160,12 +162,23 @@
         <div class="controls-row">
             <div class="control-group control-group--stacked">
                 <label for="selectorLine" class="visually-hidden">The week you start on</label>
-                <select id="selectorLine"></select>
+                <select id="selectorLine" class="selector-week-pick"></select>
             </div>
             <!-- The Calendar's gold 📍 Today button, for this page's anchor: the week the new link starts. Its date is written
                  by links-selector-app.js from links-selector-core.js → STARTS, so it cannot disagree with the grid. -->
             <div class="control-group">
                 <button type="button" id="selectorStartBtn" class="today-btn"><span aria-hidden="true">🚩</span> <span id="selectorStartDate">Start</span></button>
+            </div>
+        </div>
+        <!-- THE WAYS TO SEE IT (owner, 28 Nov 2026: Compare, then Compare with mine, each "not as the default view"): all named,
+             the one shown in the page's colour, as Team Week View's grade tabs are — a single button whose word flips to the view you are NOT on
+             (the Calendar's 👥 Team / 📅 Month) has to be decoded by somebody new to the page. A row of its own: beside the
+             week picker the two did not fit a 360px phone, and "Week 1 · cover week" is wider still. -->
+        <div class="controls-row selector-view-row">
+            <div class="selector-view" role="group" aria-label="How to see it">
+                <button type="button" class="grade-tab active" id="selectorViewMonth" aria-pressed="true"><span aria-hidden="true">📅</span> <span>One proposal</span></button>
+                <button type="button" class="grade-tab" id="selectorViewCompare" aria-pressed="false"><span aria-hidden="true">⚖️</span> <span>Compare all</span></button>
+                <button type="button" class="grade-tab" id="selectorViewMine" aria-pressed="false" hidden><span aria-hidden="true">👤</span> <span>Compare with mine</span></button>
             </div>
         </div>
     </nav>
@@ -211,8 +224,8 @@
         </div>
         <div class="legend-row">
             <div class="legend-item"><span class="legend-text"><span aria-hidden="true">⭐</span> Bank Holiday</span></div>
-            <div class="legend-item"><span class="legend-text"><span aria-hidden="true">✂️</span> Pay cut-off</span></div>
-            <div class="legend-item"><span class="legend-text"><span aria-hidden="true">💷</span> Payday</span></div>
+            <div class="legend-item selector-pay-key"><span class="legend-text"><span aria-hidden="true">✂️</span> Pay cut-off</span></div>
+            <div class="legend-item selector-pay-key"><span class="legend-text"><span aria-hidden="true">💷</span> Payday</span></div>
             <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text"><span aria-hidden="true">🐣</span> Easter Sunday</span></div>
             <div class="legend-item" id="legend-christmas" style="display:none"><span class="legend-text"><span aria-hidden="true">🎄</span> Christmas Day</span></div>
         </div>
@@ -223,7 +236,7 @@
          selectorRow), with that page's emoji and colour, so each page names the other the way the drawer does. -->
     <a class="selector-onward" id="selectorOnward" href="./newlink.html">
         <span class="selector-onward-icon" aria-hidden="true">🔁</span>
-        <span class="selector-onward-name">See the proposals side by side<span class="visually-hidden" id="selectorOnwardFrom"></span></span>
+        <span class="selector-onward-name">See them in words and figures<span class="visually-hidden" id="selectorOnwardFrom"></span></span>
         <span class="selector-onward-meta">New CEA Link</span>
     </a>
 </div>

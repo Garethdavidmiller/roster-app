@@ -114,6 +114,105 @@
     .selector-onward-name { flex: 0 1 auto; }
 }
 
+/* THE WEEK PICKER HOLDS ITS LONGEST NAME, "Week 26 · cover week": the Calendar's 200px cap on its pickers (index.css)
+   fits a colleague's name and cut this to "cover we…". It still gives way on a narrow phone, as the name picker does. */
+.controls .fieldpick.selector-week-pick { max-width: 260px; }
+/* ON A WIDE SCREEN THE CONTROLS ARE ONE ROW (index.css → "Controls: one compact row"), and the views' tabs joined it and
+   squeezed both pickers to "L…" at 1024px. They take a line of their own under the pickers instead, as on a phone. */
+@media (min-width: 1024px) {
+    .controls { flex-wrap: wrap; row-gap: 8px; }
+    .controls .selector-view-row { flex-basis: 100%; }
+}
+
+/* The two views, a row of their own under the pickers: Team Week View's grade tabs (index.css → .grade-tab), centred.
+   The Calendar's `.controls button` paints every button in the controls navy, so the tab's own face is restated here at a
+   higher specificity — white with a hairline, and the one shown in the page's colour, as every chosen tab is. */
+.selector-view { display: flex; justify-content: center; gap: 6px; }
+/* ON A PHONE THE TABS SHARE THE ROW EQUALLY, EACH THE SAME SHAPE: the emoji on a line of its own, the words under it in
+   up to two balanced lines. Three names do not fit 320px on one line each, and left to wrap where they fell, one tab
+   broke after its emoji, one after a word and one not at all — three shapes for one control. */
+@media (max-width: 767px) {
+    .selector-view { width: 100%; align-items: stretch; }
+    .controls .selector-view .grade-tab {
+        flex: 1 1 0; min-width: 0; padding: 5px 6px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+        text-wrap: balance; line-height: 1.2;
+    }
+}
+.controls .selector-view .grade-tab {
+    min-height: 36px;
+    padding: 6px 14px;
+    border: 2px solid var(--border-light);
+    background: white;
+    color: var(--text-mid);
+    box-shadow: none;
+    font-size: var(--type-label);
+    font-weight: 600;
+}
+.controls .selector-view .grade-tab.active {
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
+}
+/* `hidden` still hides: the phone rule below gives the tabs a `display`, which outranks the browser's own [hidden] rule, and
+   👤 Compare with mine is hidden for a reader with no roster line. */
+.controls .selector-view .grade-tab[hidden] { display: none; }
+@media (hover: hover) and (pointer: fine) {
+    .controls .selector-view .grade-tab:not(.active):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+}
+
+/* ── ⚖️ COMPARE: every proposal side by side (links-selector-render.js → buildSelectorCompare) ──────────────────────
+   Team Week View's table and cells (index.css → .team-table, .tv-cell, .tv-*), turned to a row per DATE and a column per
+   proposal, so three columns fit a 320px phone with no sideways scroll: Team View's `min-width` and one-line cells are
+   undone here, and a time drops under its emoji rather than break at its dash. */
+.cmp-table { min-width: 0; table-layout: fixed; }
+.cmp-table thead th { white-space: normal; text-wrap: balance; line-height: 1.25; vertical-align: middle; }
+/* The proposal chosen in the picker — the one 📅 Month goes back to — wears the page's colour (css-tokens.md: whatever
+   you have chosen wears the page's colour). */
+.cmp-table thead th.cmp-chosen { background: var(--page-accent); color: var(--page-accent-ink); }
+/* YOUR ROSTER TODAY (Compare with mine) in the Calendar's gold, the colour of your own roster everywhere in the app, so the
+   one column that is not a proposal never reads as one. */
+.cmp-table thead th.cmp-mine { background: var(--accent-gold); color: var(--primary-blue); }
+.cmp-table th.tv-name-col { width: 64px; min-width: 0; max-width: none; }
+.cmp-table .tv-cell { white-space: normal; line-height: 1.3; padding: 6px 3px; }
+.cmp-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cmp-table .cmp-day { font-variant-numeric: tabular-nums; }
+/* A date's ⭐ 🎄 or 🐣 drops under it where the column is narrow, never cutting the date to "Sat …" (Team View's name
+   column is one line with an ellipsis; a date may not be cut). */
+.cmp-table tbody th.cmp-day { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.3; }
+/* The weekday and the date each in a column of their own width, so "Mon 1" and "Fri 12" line up down the table. */
+.cmp-table .cmp-wd { display: inline-block; min-width: 2.3em; color: var(--text-mid); font-weight: 600; }
+.cmp-table .cmp-dn { display: inline-block; min-width: 1.3em; text-align: right; }
+.cmp-foot { margin: 10px 2px 0; color: var(--text-mid); font-size: var(--type-small); line-height: 1.45; }
+/* Each week, headed by its number — the same in every column, since every proposal starts on the week chosen. */
+.cmp-table .cmp-week th {
+    position: static;
+    padding: 6px 10px;
+    background: var(--surface-sunken);
+    border-bottom: 1px solid var(--border-light);
+    color: var(--primary-blue);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-align: left;
+    text-transform: uppercase;
+}
+.cmp-table .cmp-blank { background: var(--bg-faint); color: var(--text-light); }
+/* ONE ROW HEIGHT on a phone, where a time drops under its emoji: a row of rest days or spares would otherwise be half the
+   height of the row above it, and the table would read as ragged. Wider, every cell is one line and needs no floor. */
+@media (max-width: 599px) {
+    .cmp-table tbody tr:not(.cmp-week) > * { height: 40px; }
+}
+/* On a wide screen the three columns would be 380px apart: the table keeps a reading width, centred in the card. */
+@media (min-width: 768px) {
+    .cmp-wrap { max-width: 760px; margin: 0 auto; }
+    .cmp-wrap:has(.cmp-cols-2) { max-width: 560px; }
+}
+/* Compare draws no pay markers (they do not differ between proposals), so its key does not name them. */
+body.selector-compare-active .selector-pay-key { display: none; }
+/* Today, where it falls: the Calendar's gold, as an edge on its date. */
+.cmp-table tbody th.cmp-today { box-shadow: inset 3px 0 0 var(--accent-gold); color: var(--primary-blue); }
+
 /* The printed heading: nothing on screen, where the controls already say it. */
 .selector-print-head { display: none; }
 
