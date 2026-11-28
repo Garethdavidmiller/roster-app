@@ -174,6 +174,23 @@ test('the refusal card tells each reader what is true for them — never "not ye
     assert.match(refusalWords({ otherStaff: true, inAudience: true }).title, /for the CEA roster/);
 });
 
+test('only the reader waiting for the beta is sent to New CEA Link — the one page of the two they may open', () => {
+    const waiting = refusalWords({ otherStaff: false, inAudience: true });
+    assert.equal(waiting.newlink, true);
+    assert.match(waiting.why, /compare the proposals on the New CEA Link page\.$/);
+    assert.equal(refusalWords({ otherStaff: false, inAudience: false }).newlink, false, 'outside the audience: New CEA Link refuses them too');
+    assert.equal(refusalWords({ otherStaff: true, inAudience: false }).newlink, false, 'an Other Staff login has no roster line');
+    assert.equal(refusalWords({ otherStaff: true, inAudience: true }).newlink, false);
+});
+
+test('the refusal card states no count of proposals — the shortlist is PROPOSALS, and a number here drifts from it', () => {
+    const NUMBER = /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+proposals?\b/i;
+    for (const who of [{ otherStaff: false, inAudience: true }, { otherStaff: false, inAudience: false }, { otherStaff: true, inAudience: false }]) {
+        const { title, why } = refusalWords(who);
+        assert.doesNotMatch(`${title} ${why}`, NUMBER);
+    }
+});
+
 // THE COPIED SENTENCES. The day panel says three things in another page's words, so a colleague reading both pages meets
 // one explanation, not two. They are copies — the Calendar's and New CEA Link's modules are not this page's to import
 // (newlink-boundary.test.mjs) — so this holds each copy to its source: reword one and this fails until both agree.

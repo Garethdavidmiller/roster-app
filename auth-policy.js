@@ -285,7 +285,7 @@ export function canOpenSelector(member) {
 }
 
 /**
- * The drawer's pill gates for this member — the five `initNavPanel` options `PILL_GATES`
+ * The drawer's pill gates for this member — the six `initNavPanel` options `PILL_GATES`
  * (nav-destinations.js) reads. EVERY page spreads this rather than building its own: ten pages built
  * the four by hand in four styles, which is how one page once passed `canOpenOvertime: !!member` and
  * drew the paused Overtime pill for every member. One answer, here, beside the page policy it must

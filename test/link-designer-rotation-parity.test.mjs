@@ -44,11 +44,15 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(`./${f}`, REPO_ROOT_URL), 'utf8');
 
-/** Every Link Designer module, discovered rather than listed — an enumerated list stops covering what
- *  arrives after it, which is the failure `.claude/rules/link-designer.md`'s own `paths:` glob and
- *  `selectBackupKeys`'s prefix scan were both written up for. */
+/** Every Link Designer module, and every Links Selector module (which draws the same rotation on dates and
+ *  works its length out from ROTATING_LINES too) — discovered rather than listed: an enumerated list stops
+ *  covering what arrives after it, which is the failure `.claude/rules/link-designer.md`'s own `paths:` glob
+ *  and `selectBackupKeys`'s prefix scan were both written up for. */
 const LINKS_JS = readdirSync(new URL('.', REPO_ROOT_URL))
-    .filter(f => /^link-designer-[\w-]+\.js$/.test(f) || f === 'link-designer-app.js');
+    .filter(f => /^link-designer-[\w-]+\.js$/.test(f) || f === 'link-designer-app.js' || /^links-selector[\w-]*\.js$/.test(f));
+
+/** The pages whose markup is checked: the Link Designer's, and the Links Selector's. */
+const LINKS_HTML = ['link-designer.html', 'links-selector.html'];
 
 /**
  * Strip comments so the guard reads CODE and STRINGS, never the history above them.
@@ -109,11 +113,19 @@ describe('the length is never STATED — not in code, not in prose', () => {
     const deAllow = (/** @type {string} */ s) =>
         ALLOW_SUBSTRINGS.reduce((acc, a) => acc.split(a).join(''), s);
 
-    test('no Link Designer module states a line count as a literal', () => {
+    /**
+     * The other way prose gives the length: the LAST line named by its number — "after line 26 comes
+     * line 1" sat in the Links Selector's tips while the page worked the length out from the constant
+     * everywhere else — or counted as "the N", "one of the N". Built from the current value, so it
+     * catches the number that is true today.
+     */
+    const LAST_NAMED = new RegExp(`\\b(?:lines?|of|all|the)\\s+(?:the\\s+)?${ROTATING_LINES}\\b`, 'gi');
+
+    test('no Link Designer or Links Selector module states a line count as a literal', () => {
         /** @type {string[]} */ const offenders = [];
         for (const f of LINKS_JS) {
             const code = deAllow(stripComments(read(f)));
-            for (const m of code.matchAll(STATED)) {
+            for (const m of [...code.matchAll(STATED), ...code.matchAll(LAST_NAMED)]) {
                 // A number that happens to equal the current rotation is still a literal — it is
                 // right today and wrong on the next change, which is the whole failure mode.
                 offenders.push(`${f}: "${m[0].trim()}"`);
@@ -123,12 +135,17 @@ describe('the length is never STATED — not in code, not in prose', () => {
             `interpolate ROTATING_LINES instead of writing the number:\n  ${offenders.join('\n  ')}`);
     });
 
-    test('link-designer.html states it only through a stamped span', () => {
-        const html = deAllow(stripHtmlComments(read('link-designer.html')));
-        const offenders = [...html.matchAll(STATED)].map(m => `"${m[0].trim()}"`);
+    test('neither page\'s markup states it, outside a stamped span', () => {
+        /** @type {string[]} */ const offenders = [];
+        for (const f of LINKS_HTML) {
+            // A stamped span's static fallback is the number in a tag of its own, so it never reads "N lines" here.
+            const html = deAllow(stripHtmlComments(read(f)));
+            for (const m of [...html.matchAll(STATED), ...html.matchAll(LAST_NAMED)]) offenders.push(`${f}: "${m[0].trim()}"`);
+        }
         assert.deepEqual(offenders, [],
-            'static markup cannot interpolate, so the count belongs in a `.js-rotating-lines` span '
-            + `that link-designer-app.js stamps at init:\n  ${offenders.join('\n  ')}`);
+            'static markup cannot interpolate, so word it without the number ("after the last line"), or put the '
+            + 'count in a `.js-rotating-lines` span that the page\'s coordinator stamps at init (link-designer-app.js '
+            + `does):\n  ${offenders.join('\n  ')}`);
     });
 
     test('the stamped spans exist, carry the right value, and are actually stamped', () => {
@@ -180,7 +197,7 @@ describe('the length is never USED as a bare number in code', () => {
     const stripStrings = (/** @type {string} */ s) =>
         s.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/g, '""');
 
-    test('no Link Designer module passes the rotation length as a literal', () => {
+    test('no Link Designer or Links Selector module passes the rotation length as a literal', () => {
         const bare = new RegExp(`(?<![\\w.:$])${ROTATING_LINES}(?![\\w.:])`);
         /** @type {string[]} */ const offenders = [];
         for (const f of LINKS_JS) {
