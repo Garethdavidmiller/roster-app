@@ -172,7 +172,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
         // that a leaver's login is off. The endpoint sends both arrays on every answer, a refusal
         // included, so a reply without them is not a clean result: it is one nobody can read.
         if (!gaps || !Array.isArray(gaps.setUp) || !Array.isArray(gaps.leavers)) {
-            renderUnknown('Couldn’t check the accounts — the answer couldn’t be read. Try again.');
+            renderUnknown('Couldn’t check the accounts — the answer couldn’t be read.');
             return;                                   // report NOTHING: unknown is not "nothing to do"
         }
         const { setUp, leavers } = gaps;
@@ -217,14 +217,15 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
         gapsEl.textContent = '';
         const p = document.createElement('p');
         p.className = 'auth-gap-unknown';
-        p.textContent = message + ' ';
-        const retry = document.createElement('button');
-        retry.type = 'button';
-        retry.className = 'auth-gap-retry';
-        retry.textContent = 'Retry';
-        retry.addEventListener('click', () => { retry.disabled = true; loadGaps(); });
-        p.append(retry);
-        gapsEl.append(p);
+        p.textContent = message;
+        // The page's other cards' way back, word and button alike (`card-retry-btn`, operations-reports.js):
+        // a text link reading "Retry" was the one odd one out (28 Nov 2026).
+        const retryBtn = document.createElement('button');
+        retryBtn.type = 'button';
+        retryBtn.className = 'btn-action btn-secondary card-retry-btn';
+        retryBtn.textContent = '↻ Try again';
+        retryBtn.addEventListener('click', () => { retryBtn.disabled = true; loadGaps(); });
+        gapsEl.append(p, retryBtn);
         gapsEl.hidden = false;
     }
 

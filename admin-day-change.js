@@ -119,6 +119,27 @@ export function previewChanges(rows, memberName, grid, ovByDate = null) {
 }
 
 /**
+ * The Unsaved bar's count: "3 days", "2 days, 1 to remove". It counts every STAGED day, because an answer the save
+ * leaves alone ("No — rest day, nothing recorded") is still an unsaved choice that Save or Discard settles — but it
+ * may not contradict the preview above Save, which counts only what the save WRITES (`gridPreviewHtml`): "Unsaved:
+ * 3 days" sat under "You're about to change 2 days" (28 Nov 2026). So where the two differ it says how many of the
+ * staged days are recorded: "3 days (2 to record)", "1 day (nothing to record)".
+ * @param {{ saveCount: number, delCount: number, leftAlone?: number }} args the staged rows, the removals, and how
+ *   many of the staged rows the save's plan leaves alone
+ * @returns {string}
+ */
+export function stagedCountWords({ saveCount, delCount, leftAlone = 0 }) {
+    const parts = [];
+    if (saveCount) {
+        const writes = Math.max(0, saveCount - leftAlone);
+        const recorded = writes === saveCount ? '' : writes ? ` (${writes} to record)` : ' (nothing to record)';
+        parts.push(`${saveCount} day${saveCount > 1 ? 's' : ''}${recorded}`);
+    }
+    if (delCount) parts.push(`${delCount} to remove`);
+    return parts.join(', ');
+}
+
+/**
  * The preview beside Save as HTML, with the signature it is redrawn on: what is about to happen, naming the member,
  * so a wrong person or count is caught before saving — and, for a few days, what each becomes (`previewChanges`).
  * THE VERB BELONGS TO EACH CLAUSE, so every combination is a sentence. The preview is a live region that is asked on

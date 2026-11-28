@@ -1320,8 +1320,8 @@ test('operations account status: every row button\'s name holds its visible word
     await expect(page.locator('.acct-row').nth(0).locator('.btn-acct-reset')).toHaveText('Resetting…');
     expect(await nameMismatches(page), 'a reset under way: Resetting…').toEqual([]);
     await resetOn(1);
-    await expect(page.locator('.acct-row').nth(1).locator('.btn-acct-reset')).toHaveText('Retry');
-    expect(await nameMismatches(page), 'a reset that failed: Retry').toEqual([]);
+    await expect(page.locator('.acct-row').nth(1).locator('.btn-acct-reset')).toHaveText('Try again');
+    expect(await nameMismatches(page), 'a reset that failed: Try again').toEqual([]);
     await page.locator('.lb-overlay.open .dialog-btn-confirm').click();   // the 500's own sentence, shown since the sign-in audit (Nov 2026)
     await resetOn(2);
     await expect(page.locator('.acct-row').nth(2).locator('.btn-acct-reset')).toHaveText('Reset ✓');
@@ -1744,7 +1744,7 @@ test('operations error log: a Resolve, and Resolve all shown, waiting on the ser
 // ── A REFUSED RESET SAYS WHY, AND OFFERS NO RETRY (whole-app review, Oct 2026) ──────────────────
 // A 404 "run Set up accounts first", a 409 "linked to the shared PIN" or a 403 all became a bare
 // "Retry" that could never succeed, with the server's sentence only in the console.
-test('operations: a refused reset names the server\'s reason and offers no Retry', async ({ page }) => {
+test('operations: a refused reset names the server\'s reason and offers no Try again', async ({ page }) => {
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window);
         w.__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
@@ -1791,8 +1791,8 @@ test('operations: a refusal that is an HTML page is not shown as the reason', as
 // A RESET THE SERVER COULD NOT RECORD CHANGED NOTHING, AND SAYS SO (whole-app fix, Nov 2026). A device
 // the reset signs out is kept out only by the SAVED resetAt (AUTH_AND_SESSIONS 23), so the server now
 // stamps it FIRST and answers 503 when it cannot — before the password changes (functions-core-2). The
-// page used to show only "Retry"; the sentence that says nothing was changed is shown beside it.
-test('operations: a reset the server could not record says nothing changed, and offers Retry', async ({ page }) => {
+// page used to show only "Retry"; the sentence that says nothing was changed is shown beside "Try again".
+test('operations: a reset the server could not record says nothing changed, and offers Try again', async ({ page }) => {
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
     });
@@ -1810,7 +1810,7 @@ test('operations: a reset the server could not record says nothing changed, and 
     const dialog = page.locator('.lb-overlay.open');
     await expect(dialog).toContainText('The reset didn’t go through');
     await expect(dialog).toContainText('nothing was changed');
-    await expect(row.locator('.btn-acct-reset')).toHaveText(/Retry/);
+    await expect(row.locator('.btn-acct-reset')).toHaveText('Try again');
 });
 
 // AN ACCOUNT TAKEN BACK WAITS ON SET UP ACCOUNTS (v24.57). It holds no claim yet, so the dialog leads
@@ -2013,10 +2013,10 @@ for (const [what, o, shown] of /** @type {Array<[string, any, boolean]>} */ ([
     ['nothing, when the answer is a web page', { status: 500, body: '<!DOCTYPE html><title>Error 500</title><p>Server Error' }, false],
     ['nothing, when its sentence is markup', { status: 500, answer: { error: '<p>Internal Server Error</p>' } }, false],
 ])) {
-    test(`operations: a reset the server answered 500 shows ${what}, beside Retry`, async ({ page }) => {
+    test(`operations: a reset the server answered 500 shows ${what}, beside Try again`, async ({ page }) => {
         const { row } = await openForReset(page, o);
         await pressReset(page, row);
-        await expect(row.locator('.btn-acct-reset')).toHaveText('Retry');
+        await expect(row.locator('.btn-acct-reset')).toHaveText('Try again');
         if (shown) {
             const dialog = page.locator('.lb-overlay.open');
             await expect(dialog.locator('.dialog-title')).toHaveText('The reset ran into a problem');
@@ -2065,10 +2065,10 @@ test('operations: a reset whose server never answers is not reported as a failur
     await expect(dialog).toContainText('Couldn’t confirm the reset');
     await expect(dialog).toContainText(String(name));
     await expect(dialog).toContainText('may still have gone through');
-    // …and the button does not describe an outcome nobody knows. "Retry" is the failure
+    // …and the button does not describe an outcome nobody knows. "Try again" is the failure
     // affordance and belongs only to a request that provably did not land.
     await expect(row.locator('.btn-acct-reset')).toHaveText('Reset');
-    await expect(row.locator('.btn-acct-reset')).not.toHaveText('Retry');
+    await expect(row.locator('.btn-acct-reset')).not.toHaveText('Try again');
 });
 
 // A date with its year is written with the month IN FULL (owner, 22 Nov 2026 — date-format.js).

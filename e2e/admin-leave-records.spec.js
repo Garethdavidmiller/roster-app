@@ -270,7 +270,7 @@ test('admin: the AL banner keeps its figures and the Boxing Day note inside the 
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('#fieldMember').selectOption(who);
     await page.locator('#alToggleHeader').click();
-    await expect(page.locator('#alBannerLblEntitlement')).toHaveText('2027 entitlement');
+    await expect(page.locator('#alBannerLblEntitlement')).toHaveText('2027 allowance');
     await expect(page.locator('#alBannerEntitlement')).toHaveText('33');
     await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day 2026');
     for (const width of [360, 375, 1024]) {

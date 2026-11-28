@@ -271,6 +271,19 @@ describe('the Save button counts the same rows _hasStagedEdits does', () => {
         assert.match(byId.get('gridPreview').innerHTML, /You're about to change <strong>1 day<\/strong> for/);
     });
 
+    // THE BAR MAY NOT CONTRADICT THE PREVIEW (28 Nov 2026): "Unsaved: 3 days" sat under "You're about to change
+    // 2 days". The bar still counts the answered day — it is an unsaved choice — and says how many are recorded.
+    test('the Unsaved bar counts a day the save leaves alone, and says how many days are recorded', () => {
+        _leftAlone = ['2026-12-02'];
+        try { saveEnabledFor([row({ type: 'annual_leave' }), row({ type: 'rdw' }), row({ type: 'shift' }), row({ existingId: 'ov1' })]); }
+        finally { _leftAlone = []; }
+        assert.equal(byId.get('stagedCount').textContent, '3 days (2 to record), 1 to remove');
+        assert.match(byId.get('gridPreview').innerHTML, /change <strong>2 days<\/strong>/, 'the preview counts the same two');
+        _leftAlone = ['2026-12-02'];
+        try { saveEnabledFor([row({ type: 'annual_leave' })]); } finally { _leftAlone = []; }
+        assert.equal(byId.get('stagedCount').textContent, '1 day (nothing to record)');
+    });
+
     test('with nothing staged the bar is hidden and the hint tells the admin what to do', () => {
         saveEnabledFor([row(), row()]);
         assert.equal(byId.get('stagedBar').hidden, true);

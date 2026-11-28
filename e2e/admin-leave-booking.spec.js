@@ -263,7 +263,7 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
         .toBeGreaterThan(0);
     // AND IT SAYS WHICH YEAR (whole-app check, Nov 2026; admin-2-14): four figures with no year beside them.
     const entLbl = page.locator('#alBannerLblEntitlement');
-    await expect(entLbl).toHaveText('2026 entitlement');
+    await expect(entLbl).toHaveText('2026 allowance');
     // …AND SO DOES THE COLLAPSED CARD'S CHIP (review, Nov 2026): "AL left: N" named no year, so in December it
     // could be read as next year's balance, or the other way round.
     const chip = page.locator('#alHeaderBalance');
@@ -271,7 +271,7 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
 
     await scroll('#alRpNext');
     await expect(page.locator('#alRpLabel, #alRangePicker .rp-label')).toContainText('2027');
-    await expect(entLbl, 'the year moves with the figures').toHaveText('2027 entitlement');
+    await expect(entLbl, 'the year moves with the figures').toHaveText('2027 allowance');
     const nextYear = await read();
     expect(nextYear.taken, 'leave taken in 2026 is being counted against 2027').toBe(0);
     expect(nextYear.remaining, 'a year with nothing booked shows the whole entitlement')

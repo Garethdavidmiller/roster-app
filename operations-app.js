@@ -506,7 +506,7 @@ export function init() {
                 // A timeout or a refusal offers no Retry: one may have landed, the other cannot change.
                 const { retry, note } = resetFailure(name, e);
                 btn.disabled = false;
-                if (retry) say(btn, 'Retry', `Retry resetting ${name}’s password`); else sayReset(btn, name);
+                if (retry) say(btn, 'Try again', `Try again: reset ${name}’s password`); else sayReset(btn, name);
                 if (note) report(name, note);
                 return;
             }

@@ -1598,8 +1598,11 @@
   .roster-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   /* A primary-button family member — the obvious first action on the page: --radius-button, the press,
      the token ring and --type-button. "Replace with calendar values" fits one line from 360px; at 320px
-     it takes two, balanced, and the button grows rather than clipping (e2e/paycalc-layout.spec.js measures both). */
+     it takes two, balanced, and the button grows rather than clipping (e2e/paycalc-layout.spec.js measures both).
+     FULL WIDTH, as the family's `.btn-action` is (28 Nov 2026): sized to its words it ended short of the card's
+     edge, the one main button on the page that did, and its width jumped as its label changed. */
   .fill-roster-btn {
+    width: 100%; box-sizing: border-box;
     padding: 10px 16px; background: var(--primary-blue); color: white;
     border: none; border-radius: var(--radius-button); min-height: 44px;
     font-family: inherit; font-size: var(--type-button); font-weight: 700; text-wrap: balance;

@@ -897,7 +897,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `admin-day-change.js`
 - **Exports:**
-- **Exports:** `shownValue` · `nowShows` · `stagedDayChanges` · `previewChanges` · `gridPreviewHtml`
+- **Exports:** `shownValue` · `nowShows` · `stagedDayChanges` · `previewChanges` · `stagedCountWords` · `gridPreviewHtml`
 
 ### `newsletter-recency.js`
 - **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `latestNewsletterDate` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`

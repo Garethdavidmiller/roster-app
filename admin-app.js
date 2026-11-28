@@ -447,7 +447,7 @@ export function init() {
         entEl.textContent    = String(entitlement);
         // …AND WHICH YEAR (admin-2-14): a save keeps the picker on the year it booked.
         const entLbl = document.getElementById('alBannerLblEntitlement');
-        if (entLbl) entLbl.textContent = `${yearStr} entitlement`;
+        if (entLbl) entLbl.textContent = `${yearStr} allowance`;   // the Calendar's word for it
 
         // What the entitlement is made of, in ONE line shared with the Calendar's leave panel
         // (`entitlementNote`). Never `entitlement - 22`, which goes negative for a mid-year joiner.

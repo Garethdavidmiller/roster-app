@@ -1697,9 +1697,6 @@ const KNOWN_SMALL = {
     '/admin.html': {
         'input#day-cb-<date>.day-cb[]': '22x22 — the per-day tick in the week grid. Since Oct 2026 the day name and date beside it are its <label>, so the row has a full-height target and this box is no longer the only one. App-drawn since v23.50, same size',
     },
-    '/operations.html': {
-        'button.auth-gap-retry[Retry]': '34x18 — the retry on a failed account-status read',
-    },
 };
 
 // ── Every control has a tap target, and the DRAWN box is not it (v21.53) ────────────────────────
