@@ -482,7 +482,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `allowanceRole` · `countsAsDispatcherBankHoliday` · `countDispatcherBankHolidaysWorked` · `dispatcherBaseAL` · `getALEntitlement`
 
 ### `al-entitlement.js`
-- **Exports:** `entitlementFor` · `boxingDayLieuYear` · `boxingDayLieuSplit` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `rosteredSpareDay` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `balanceFace` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
+- **Exports:** `entitlementFor` · `boxingDayLieuYear` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `rosteredSpareDay` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `balanceFace` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
 - **Exports:** `LEAVE_FILE_FORMAT` · `LEAVE_FILE_VERSION` · `LEAVE_FILE_MAX_AGE_DAYS` · `LEAVE_FILE_MAX_BYTES` · `GRADES` · `FOUND_IN` · `NOT_IMPORTED_REASONS` · `canonicalJson` · `leaveFileDigest` · `sealLeaveFile` · `isRealIsoDate` · `isSundayIso` · `isChristmasIso` · `leaveFileAgeDays` · `londonDayOf` · `usedRow` · `personSums` · `readLeaveFile` · `validateLeaveFile` · `describeRefusal`
@@ -673,7 +673,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `RDW_PREFIX` · `isRdwEncoded` · `stripRdw` · `UNKNOWN_PREFIX` · `isUnknownEncoded` · `stripUnknown` · `normaliseCellValue` · `shiftValueToOverrideType` · `isZeroLengthRange`
 
 ### `roster-entry-control.js`
-- **Exports:** `entryControlHtml` · `isoFromKey` · `redrawEntry` · `toggleEntry` · `patchEntryRow` · `paintUnreadableRow` · `entryClick` · `commitEntry` · `entryLeftAsRest`
+- **Exports:** `entryControlHtml` · `redrawEntry` · `toggleEntry` · `patchEntryRow` · `paintUnreadableRow` · `entryClick` · `commitEntry` · `entryLeftAsRest`
 
 ### `roster-alignment.js`
 - **Exports:** `defaultWeekEnding` · `detectShiftedRow` · `ALIGNMENT_BLOCK_THRESHOLD` · `assessRosterAlignment` · `geometryCopy` · `driftCopy` · `stopCopy`

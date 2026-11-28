@@ -14,7 +14,7 @@
  *   (`_onToRemove`, admin-week-row-state.js, after these rules run): never for a new choice.
  * Does NOT own: the sentences in the row that say why (they are part of the row's markup, in
  *   `buildWeekGridInto`), what an enabled pill does, or the backstops at Save (`checkDayRules`,
- *   admin-shift-rules.js, and the single-row save in admin-app.js).
+ *   admin-shift-rules.js, and the single-row save's collector, `collectWeekRows` in admin-week-collect.js).
  *
  * ── SPARE ON A SUNDAY: THE OTHER PILL OFFERS SPARE ALONE (owner decision, Nov 2026) ──────────────
  *    (except where the Sunday is ALSO Christmas Day or Boxing Day — never a Spare turn, owner 19 Nov
