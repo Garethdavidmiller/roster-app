@@ -7,7 +7,7 @@
  * the swipe move it; the address and this device keep the choice; and a day opens its panel. The rules themselves —
  * which line a date falls on, Christmas, a choice that names nothing — are links-selector-core.test.mjs.
  */
-import { test, expect } from './fixtures.js';
+import { test, expect, appTab } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
 import { CONFIG, teamMembers, getBaseShift } from '../roster-data.js';
 import { isChristmasLeaveDay } from '../christmas-leave.js';
@@ -464,7 +464,7 @@ test.describe('links selector', () => {
         await expect(page.locator('.cmp-table thead th.cmp-chosen')).toHaveText(proposalDisplayName(/** @type {any} */ (proposalById('proposal:LC-26-T10'))));
         // 1–16 January folded into one row; then every date from the 17th, each cell that proposal's own day
         await expect(page.locator('.cmp-before')).toHaveCount(1);
-        const rows = page.locator('.cmp-table tbody tr:not(.cmp-week):not(.cmp-before)');
+        const rows = page.locator('.cmp-table tbody:not(.cmp-totals) tr:not(.cmp-week):not(.cmp-before)');
         await expect(rows).toHaveCount(15);
         for (const [i, p] of proposalsAtoZ().entries()) {
             for (const d of [17, 18, 24, 31]) {
@@ -478,7 +478,7 @@ test.describe('links selector', () => {
         await page.locator('#nextMonth').click();
         await expect(page.locator('.month-year')).toHaveText('February 2027');
         await expect(page.locator('.cmp-before')).toHaveCount(0);
-        await expect(page.locator('.cmp-table tbody tr:not(.cmp-week)')).toHaveCount(28);
+        await expect(page.locator('.cmp-table tbody:not(.cmp-totals) tr:not(.cmp-week)')).toHaveCount(28);
         // A reload keeps it (the address), but this device never does: the stored choice names no view
         await page.reload();
         await expect(page.locator('.cmp-table')).toBeVisible();
@@ -542,7 +542,7 @@ test.describe('links selector', () => {
         await expect(page.locator('.month-year')).toHaveText('February 2027');
         const me = /** @type {any} */ (teamMembers.find(m => m.name === ADMIN));
         const mg = /** @type {any} */ (proposalById('proposal:MG-26-T8'));
-        const rows = page.locator('.cmp-table tbody tr:not(.cmp-week)');
+        const rows = page.locator('.cmp-table tbody:not(.cmp-totals) tr:not(.cmp-week)');
         await expect(rows).toHaveCount(28);
         const text = (/** @type {string} */ shift) => shift === 'RD' || shift === 'OFF' ? '–' : shift === 'SPARE' ? '📋 Spare' : shift === 'AL' ? '🏖️ AL' : shift;
         for (const d of [1, 5, 9, 14, 20, 27]) {
@@ -567,7 +567,7 @@ test.describe('links selector', () => {
         await expect(page.locator('.month-year')).toHaveText('December 2027');
         const me = /** @type {any} */ (teamMembers.find(m => m.name === ADMIN));
         const v6 = /** @type {any} */ (proposalById('proposal:MB-26-V6'));
-        const row = (/** @type {number} */ d) => page.locator('.cmp-table tbody tr:not(.cmp-week)').nth(d - 1);
+        const row = (/** @type {number} */ d) => page.locator('.cmp-table tbody:not(.cmp-totals) tr:not(.cmp-week)').nth(d - 1);
         for (const d of [25, 27]) {
             const date = new Date(2027, 11, d);
             const mine = /** @type {any} */ (getBaseShift(me, date));
@@ -632,6 +632,76 @@ test.describe('links selector', () => {
         // A Sunday cell says so aloud too, where the eye has the note
         const sundayWorked = page.locator('.cmp-table tbody tr', { has: page.locator('th', { hasText: /^Sun/ }) }).locator('td[aria-label*="overtime"]');
         await expect(sundayWorked.first()).toBeAttached();
+    });
+
+    // WHAT A MONTH ADDS UP TO (owner, 28 Nov 2026: "Do your suggestions"). What a wrong answer costs: a count that disagrees
+    // with the days above it — a colleague votes on "2 weekends off" the grid does not have. So the page's own numbers are
+    // checked against the page's own cells, through the real build, and the table's against each column's month.
+    test('Totals: under the month, each count is the grid\'s own days; January counts from the 17th; the week chosen is named', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
+        const totals = page.locator('.sel-totals');
+        await expect(totals.locator('.sel-totals-head')).toHaveText('January in total, from 17 January · starting on Week 7');
+        await page.locator('#nextMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('February 2027');
+        await expect(totals.locator('.sel-totals-head')).toHaveText('February in total · starting on Week 7');
+        // Count the drawn grid, cell by cell: a Sunday shift apart from the rest.
+        const cells = await page.locator('.calendar-day[role="button"]').evaluateAll(els => els.map(e => ({
+            cls: e.className, sunday: (e.getAttribute('data-detail-day') ?? '').startsWith('Sunday') })));
+        const worked = (/** @type {{cls: string}} */ c) => /early-shift|late-shift|night-shift/.test(c.cls);
+        const want = {
+            early: cells.filter(c => !c.sunday && /early-shift/.test(c.cls)).length,
+            late: cells.filter(c => !c.sunday && /late-shift/.test(c.cls)).length,
+            rest: cells.filter(c => /rest-day/.test(c.cls)).length,
+            sunday: cells.filter(c => c.sunday && worked(c)).length,
+        };
+        const count = async (/** @type {string} */ key) => Number((await totals.locator(`.sel-total--${key}`).innerText()).match(/\d+/)?.[0]);
+        expect(await count('early')).toBe(want.early);
+        expect(await count('late')).toBe(want.late);
+        expect(await count('rest')).toBe(want.rest);
+        if (want.sunday) expect(await count('sunday')).toBe(want.sunday);
+        else await expect(totals.locator('.sel-total--sunday')).toHaveCount(0);
+        // A different week is a different month, and its totals follow.
+        const before = await totals.innerText();
+        await page.locator('#selectorLine').selectOption('8');
+        await expect(totals.locator('.sel-totals-head')).toContainText('starting on Week 8');
+        expect(await totals.innerText()).not.toBe(before);
+        expect(errors).toEqual([]);
+    });
+
+    test('Totals side by side: a row per count, a number per column, each the column\'s own month; and under the Year', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=1&view=compare');
+        await page.locator('#nextMonth').click();
+        const block = page.locator('tbody.cmp-totals');
+        await expect(block.locator('.cmp-week')).toHaveText('February in total');
+        const names = await block.locator('th.cmp-total-name').allInnerTexts();
+        expect(names.map(n => n.replace(/^\P{L}+/u, '').trim()).slice(0, 2)).toEqual(['Earlies', 'Lates']);
+        // Each column's numbers are what that proposal's own month says: open it, read its line, compare.
+        const tableEarlies = await block.locator('tr.cmp-total--early td').allInnerTexts();
+        for (const [i, p] of proposalsAtoZ().entries()) {
+            const tab = await appTab(page.context());   // under the suite's routes, as the test's own page is
+            await tab.goto(`/links-selector.html?proposal=${p.code}&line=1`);
+            await tab.locator('#nextMonth').click();
+            await expect(tab.locator('.month-year')).toHaveText('February 2027');
+            const early = (await tab.locator('.sel-total--early').innerText()).match(/\d+/)?.[0];
+            expect(tableEarlies[i], `${proposalDisplayName(p)}: the table and its month disagree`).toBe(early);
+            await tab.close();
+        }
+        // Beside your roster, BOTH columns count the same days — from the 17th in January — so neither has the longer month.
+        await page.locator('#selectorViewMine').click();
+        await page.locator('#prevMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('January 2027');
+        await expect(block.locator('.cmp-week')).toHaveText('January in total, from 17 January');
+        for (const col of [0, 1]) {
+            const days = await block.locator('tr.cmp-total-row:not(.cmp-total--weekendsOff)').evaluateAll(
+                (rows, i) => rows.reduce((sum, r) => sum + Number(r.querySelectorAll('td')[i]?.textContent ?? 0), 0), col);
+            expect(days, col ? 'the proposal' : 'your roster today').toBe(15);
+        }
+        // The Year: one line for the whole year, counted from the link's start.
+        await page.locator('#selectorViewYear').click();
+        await expect(page.locator('.selector-year .sel-totals-head')).toHaveText('2027 in total, from 17 January · starting on Week 1');
     });
 });
 

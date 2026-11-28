@@ -256,6 +256,43 @@ body.selector-compare-active .selector-pay-key { display: none; }
 /* The Year draws no holiday or pay markers, so its key does not name them. */
 body.selector-year-active .selector-marker-key { display: none; }
 
+/* ── WHAT A MONTH ADDS UP TO (links-selector-core.js → dayTotals; owner, 28 Nov 2026) ───────────────────────────────
+   Under the month and under the year: a row of counts, each a small pill edged in its kind's colour, the edges the cells
+   above wear (index.css → .calendar-day.early-shift and its kin), so "8 earlies" reads as the orange days. A weekend is not
+   a kind of day: it wears the plain edge. */
+.sel-totals { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light); }
+.sel-totals-head { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); line-height: 1.4; }
+.sel-totals-head strong { color: var(--primary-blue); }
+.sel-totals-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sel-total {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: var(--radius-pill);
+    background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--border-mid);
+    color: var(--text-dark); font-size: var(--type-small); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.sel-total-ico:empty { display: none; }
+.sel-total--early  { box-shadow: inset 0 0 0 1.5px var(--early-cell-border); }
+.sel-total--late   { box-shadow: inset 0 0 0 1.5px var(--blue-sky); }
+.sel-total--night  { box-shadow: inset 0 0 0 1.5px var(--night-cell-border); }
+.sel-total--spare  { box-shadow: inset 0 0 0 1.5px var(--purple); }
+.sel-total--christmasLeave { box-shadow: inset 0 0 0 1.5px var(--al); }
+/* …and under the days side by side, a row per count and a number per column (links-selector-core.js → totalsRows), so a
+   count reads across like a day: "Earlies 7 9 0". Headed like a week; the number large, as it is the whole cell. */
+.cmp-table .cmp-totals .cmp-week th { border-top: 2px solid var(--border-mid); }
+/* With the room, the date column widens so a count's name sits on one line, not three. */
+@media (min-width: 600px) { .cmp-table th.tv-name-col { width: 120px; } }
+.cmp-table tbody th.cmp-total-name {
+    white-space: normal; overflow: visible; text-overflow: clip; padding-left: 6px; hyphens: manual;
+    color: var(--text-dark); font-size: var(--type-badge); font-weight: 700; line-height: 1.25; text-align: left;
+}
+.cmp-table .cmp-total-n {
+    color: var(--primary-blue); font-size: var(--type-body); font-weight: 800;
+    font-variant-numeric: tabular-nums; text-align: center;
+}
+/* A count of a kind of day sits on that kind's fill (links-selector-render.js → TOTAL_FILL: Team View's .tv-* cell), so a
+   row reads as the days it counts; the rest day's faint words are for a "–", not a number. */
+.cmp-table .cmp-total-n.tv-rest { color: var(--primary-blue); }
+
 /* The printed heading: nothing on screen, where the controls already say it. */
 .selector-print-head { display: none; }
 
@@ -279,5 +316,7 @@ body.selector-year-active .selector-marker-key { display: none; }
     .selector-note, #selectorNoteBox { display: none; }   /* the box by its id too: its screen rule (above) is an id */
     .selector-onward { display: none; }   /* a link, which paper cannot follow */
     .calendar-day.selector-blank { background: none; }
+    /* The counts print as outlined pills, never filled ones. */
+    .sel-total { background: none; }
     .legend-color.selector-blank-key { background: none; }
 }

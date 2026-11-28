@@ -12,7 +12,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STARTS, FIRST_MONTH, LAST_MONTH, startDate, lineOn, dayOn, proposalsAtoZ, isCoverLine, lineOptions,
     monthLines, inRange, openingMonth, initialChoice, choiceQuery, shiftTypesInMonth, hasBlankDays, ignoredWords, refusalWords,
-    compareRows, shiftTypesInMonthAll, VIEW_PARAM, COMPARE_VIEW, MINE_VIEW, MONTH_VIEW, YEAR_VIEW, rosterDayOn, shiftTypesInYear } from '../links-selector-core.js';
+    compareRows, shiftTypesInMonthAll, VIEW_PARAM, COMPARE_VIEW, MINE_VIEW, MONTH_VIEW, YEAR_VIEW, rosterDayOn, shiftTypesInYear,
+    countedDates, dayTotals, totalsWords, totalsRows } from '../links-selector-core.js';
 import { readFileSync } from 'node:fs';
 import { STARTS as NEWLINK_STARTS } from '../newlink-config.js';
 import { PROPOSALS, proposalDisplayName } from '../link-designer-proposals.js';
@@ -333,4 +334,78 @@ test('the Year\'s key names what any month of the year has — and only that, in
         for (const t of year) assert.ok(months.some(s => s.has(t)), `${t} named for ${y}, and no month has it`);
         for (const s of months) for (const t of s) assert.ok(year.has(t), `${t} in a month of ${y}, and the year's key leaves it out`);
     }
+});
+
+// ── WHAT A MONTH ADDS UP TO (owner, 28 Nov 2026: "Do your suggestions") ─────────────────────────────────────────────
+
+/** A made-up day-by-day source: a map of ISO date → shift; anything absent is a rest day. */
+const fromMap = (/** @type {Record<string, string>} */ map) => (/** @type {Date} */ d) => {
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { blank: false, shift: map[iso] ?? 'RD', line: 1, christmasLeave: false };
+};
+
+test('the counted days start at the link\'s start — January 2027 from the 17th — and run to the month\'s end', () => {
+    const jan = countedDates(2027, 0);
+    assert.equal(jan.length, 15);
+    assert.equal(jan[0].getDate(), 17);
+    assert.equal(countedDates(2027, 1).length, 28);
+    assert.equal(countedDates(2026, 11).length, 0, 'a month wholly before the start counts nothing');
+    assert.equal(countedDates(2027, 0, 11).length, 365 - 16, 'a year from 17 January');
+});
+
+test('every counted day is counted once, as what the grid draws it — the counts add up to the days', () => {
+    for (const p of PROPOSALS) for (const line of [1, 7, 13, 26]) for (const [y, m] of [[2027, 0], [2027, 1], [2027, 11], [2028, 5]]) {
+        const dates = countedDates(y, m);
+        const t = dayTotals(d => dayOn(p, line, d), dates);
+        const sum = t.early + t.late + t.night + t.spare + t.rest + t.sunday + t.christmasLeave;
+        assert.equal(sum, dates.length, `${p.code} week ${line}, ${y}-${m + 1}: the counts do not add up to the days`);
+        // …and each one agrees with the grid, day by day.
+        const earlies = dates.filter(d => { const x = dayOn(p, line, d); return !x.blank && d.getDay() !== 0 && /^(0[4-9]|10):/.test(x.shift); }).length;
+        assert.equal(t.early, earlies, `${p.code} week ${line}, ${y}-${m + 1}: earlies`);
+    }
+});
+
+test('a Sunday shift is counted on its own, as overtime — never among the earlies and lates', () => {
+    // Sun 7 Feb 2027 an early, Mon 8 an early, Sun 14 a late.
+    const t = dayTotals(fromMap({ '2027-02-07': '06:20-14:20', '2027-02-08': '06:20-14:20', '2027-02-14': '14:00-22:00' }), countedDates(2027, 1));
+    assert.equal(t.sunday, 2);
+    assert.equal(t.early, 1);
+    assert.equal(t.late, 0);
+});
+
+test('a full weekend off is a Saturday and the Sunday after it, both rest; counted in the Saturday\'s month, once', () => {
+    // February 2027: Saturdays 6, 13, 20, 27. Work Sun 7 and Sat 20; rest elsewhere.
+    const src = fromMap({ '2027-02-07': '06:20-14:20', '2027-02-20': '14:00-22:00' });
+    assert.equal(dayTotals(src, countedDates(2027, 1)).weekendsOff, 2, 'Sat 13 + Sun 14, and Sat 27 + Sun 28');
+    // Saturday 31 July 2027 and Sunday 1 August: July's weekend, not August's.
+    const all = fromMap({});
+    const july = dayTotals(all, countedDates(2027, 6)).weekendsOff, august = dayTotals(all, countedDates(2027, 7)).weekendsOff;
+    assert.equal(july, 5, 'July 2027 has five Saturdays, the last with its Sunday in August');
+    assert.equal(august, 4, 'August 2027 counts its own four Saturdays, not the Sunday of July\'s');
+    // A spare Saturday is not a weekend off.
+    assert.equal(dayTotals(fromMap({ '2027-02-13': 'SPARE' }), countedDates(2027, 1)).weekendsOff, 3);
+});
+
+test('a blank day is never counted, and Christmas leave is its own count', () => {
+    const p = PROPOSALS[0];
+    const blank = dayTotals(d => dayOn(p, 1, d), [day(2027, 1, 10)]);
+    assert.deepEqual(Object.values(blank), [0, 0, 0, 0, 0, 0, 0, 0]);
+    const xmas = dayTotals(() => ({ blank: false, shift: 'AL', line: 1, christmasLeave: true }), [day(2027, 12, 25)]);
+    assert.equal(xmas.christmasLeave, 1);
+});
+
+test('the words: the four that matter always, a 0 included; the rest only where there are any; plain plurals', () => {
+    const zero = { early: 0, late: 0, night: 0, spare: 0, rest: 0, weekendsOff: 0, sunday: 0, christmasLeave: 0 };
+    assert.deepEqual(totalsWords(zero).map(w => w.words), ['0 earlies', '0 lates', '0 rest days', '0 full weekends off']);
+    assert.deepEqual(totalsWords({ ...zero, early: 1, night: 1, spare: 1, rest: 1, weekendsOff: 1, sunday: 1, christmasLeave: 1 }).map(w => w.words),
+        ['1 early', '0 lates', '1 night', '1 spare day', '1 rest day', '1 full weekend off', '1 Sunday shift, overtime', '1 day of Christmas leave']);
+    assert.ok(totalsWords(zero).every(w => !/\(s\)/.test(w.words)));
+});
+
+test('side by side, a row per count and a number per column; a count any column has is in every column', () => {
+    const zero = { early: 0, late: 0, night: 0, spare: 0, rest: 0, weekendsOff: 0, sunday: 0, christmasLeave: 0 };
+    const rows = totalsRows([{ ...zero, early: 7, sunday: 2 }, { ...zero, early: 9 }]);
+    assert.deepEqual(rows.map(r => r.key), ['early', 'late', 'rest', 'weekendsOff', 'sunday']);
+    assert.deepEqual(rows.find(r => r.key === 'sunday')?.counts, [2, 0]);
+    assert.deepEqual(rows.find(r => r.key === 'early')?.counts, [7, 9]);
 });

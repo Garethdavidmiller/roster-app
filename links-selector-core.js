@@ -34,7 +34,7 @@
 
 import { PROPOSALS, proposalDisplayName } from './link-designer-proposals.js';
 import { DAYS, ROTATING_LINES, isCoverWeek } from './link-designer-design.js';
-import { isChristmasRD, getBaseShift } from './roster-data.js';
+import { isChristmasRD, getBaseShift, getShiftClass, isWorkedShift } from './roster-data.js';
 import { isChristmasDueByPattern, isChristmasLeaveDay } from './christmas-leave.js';
 
 /**
@@ -237,6 +237,111 @@ export function shiftTypesInYear(proposal, startLine, year) {
     const types = new Set();
     for (let m = 0; m < 12; m++) if (inRange(year, m)) for (const t of shiftTypesInMonth(proposal, startLine, year, m)) types.add(t);
     return types;
+}
+
+/**
+ * ── WHAT A MONTH ADDS UP TO (owner, 28 Nov 2026: "Do your suggestions") ─────────────────────────────────────────────
+ *
+ * A line of counts under each month, so a colleague reads "2 full weekends off" instead of counting squares — and, side by
+ * side, reads the difference between proposals in one row. The rules, each the owner's choice of the ones offered:
+ * - **Earlies, lates, rest days and full weekends off are always counted**, a 0 included: "0 weekends off" is the answer.
+ *   Nights, spare days, Sunday shifts and Christmas leave are named only in a month that has them.
+ * - **A full weekend off is a Saturday and the Sunday after it, both rest days.** It belongs to the Saturday's month, so a
+ *   weekend across the turn of a month is counted once.
+ * - **A Sunday shift is counted on its own, as overtime** (CLAUDE.md → "Sundays are non-contracted"), never among the
+ *   earlies and lates: a proposal with Sunday turns must not look busier in its contracted week than it is.
+ * - **Only the days from the link's start are counted** (`countedDates`), in every column, so January 2027 is a short month
+ *   and says so — and "Your roster today" is counted over the SAME days as the proposal beside it.
+ * - **No hours.** A total of hours reads as pay, which this page does not show.
+ * Every day is read through the column's own `dayAt`, so a total can never disagree with the days drawn above it.
+ *
+ * @typedef {{ early: number, late: number, night: number, spare: number, rest: number, weekendsOff: number,
+ *   sunday: number, christmasLeave: number }} DayTotals
+ */
+
+/**
+ * The dates a total counts: every day of the months given that falls on or after the link's start.
+ * @param {number} year @param {number} firstMonth 0-indexed @param {number} [lastMonth] 0-indexed, default `firstMonth`
+ * @returns {Date[]}
+ */
+export function countedDates(year, firstMonth, lastMonth = firstMonth) {
+    /** @type {Date[]} */
+    const dates = [];
+    for (let m = firstMonth; m <= lastMonth; m++) {
+        const days = new Date(year, m + 1, 0).getDate();
+        for (let d = 1; d <= days; d++) {
+            const date = new Date(year, m, d);
+            if (lineOn(1, date) !== null) dates.push(date);
+        }
+    }
+    return dates;
+}
+
+/** A rest day, as the grid draws one. @param {SelectorDay} day */
+const isRest = (day) => !day.blank && (day.shift === 'RD' || day.shift === 'OFF');
+
+/**
+ * Count what `dayAt` gives on `dates` (see "WHAT A MONTH ADDS UP TO", above).
+ * @param {(date: Date) => SelectorDay} dayAt a proposal from a week (`dayOn`), or a roster (`rosterDayOn`)
+ * @param {ReadonlyArray<Date>} dates
+ * @returns {DayTotals}
+ */
+export function dayTotals(dayAt, dates) {
+    /** @type {DayTotals} */
+    const t = { early: 0, late: 0, night: 0, spare: 0, rest: 0, weekendsOff: 0, sunday: 0, christmasLeave: 0 };
+    for (const date of dates) {
+        const day = dayAt(date);
+        if (day.blank) continue;
+        if (date.getDay() === 6 && isRest(day)
+            && isRest(dayAt(new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)))) t.weekendsOff++;
+        if (day.christmasLeave) { t.christmasLeave++; continue; }
+        const kind = getShiftClass(day.shift);
+        if (kind === 'rest-day') t.rest++;
+        else if (kind === 'spare-day') t.spare++;
+        else if (date.getDay() === 0 && isWorkedShift(day.shift)) t.sunday++;
+        else if (kind === 'early-shift') t.early++;
+        else if (kind === 'late-shift') t.late++;
+        else if (kind === 'night-shift') t.night++;
+    }
+    return t;
+}
+
+/**
+ * Each count, in the order a colleague weighs them, with the emoji the app gives that kind of day (none for a weekend,
+ * which is not a kind of day), its words, and its name as a row of the side-by-side table — "Sunday shifts" there, as the
+ * note under that table already says they are overtime. `always`: named even at 0.
+ * @type {ReadonlyArray<{ key: keyof DayTotals, icon: string, one: string, many: string, label: string, always: boolean }>}
+ */
+const TOTAL_KINDS = Object.freeze([
+    { key: 'early', icon: '☀️', one: 'early', many: 'earlies', label: 'Earlies', always: true },
+    { key: 'late', icon: '🌙', one: 'late', many: 'lates', label: 'Lates', always: true },
+    { key: 'night', icon: '🦉', one: 'night', many: 'nights', label: 'Nights', always: false },
+    { key: 'spare', icon: '📋', one: 'spare day', many: 'spare days', label: 'Spare days', always: false },
+    { key: 'rest', icon: '🏠', one: 'rest day', many: 'rest days', label: 'Rest days', always: true },
+    { key: 'weekendsOff', icon: '', one: 'full weekend off', many: 'full weekends off', label: 'Full weekends off', always: true },
+    { key: 'sunday', icon: '💼', one: 'Sunday shift, overtime', many: 'Sunday shifts, overtime', label: 'Sunday shifts', always: false },
+    { key: 'christmasLeave', icon: '🏖️', one: 'day of Christmas leave', many: 'days of Christmas leave', label: 'Christmas leave', always: false },
+]);
+
+/**
+ * One month's (or year's) totals in words, for the line under it: "7 earlies". Plain plurals, never "early(s)".
+ * @param {DayTotals} t
+ * @returns {Array<{ key: keyof DayTotals, icon: string, words: string }>}
+ */
+export function totalsWords(t) {
+    return TOTAL_KINDS.filter(k => k.always || t[k.key] > 0)
+        .map(k => ({ key: k.key, icon: k.icon, words: `${t[k.key]} ${t[k.key] === 1 ? k.one : k.many}` }));
+}
+
+/**
+ * Several columns' totals as table rows — a row per count, a number per column — so the side-by-side table reads across:
+ * "Earlies 7 9 0". A count no column has is left out, as under one month; one any column has is shown in every column.
+ * @param {ReadonlyArray<DayTotals>} columns
+ * @returns {Array<{ key: keyof DayTotals, icon: string, label: string, counts: number[] }>}
+ */
+export function totalsRows(columns) {
+    return TOTAL_KINDS.filter(k => k.always || columns.some(t => t[k.key] > 0))
+        .map(k => ({ key: k.key, icon: k.icon, label: k.label, counts: columns.map(t => t[k.key]) }));
 }
 
 /** Does the month have days before the link starts — the ones the grid leaves blank? @param {number} year @param {number} month */
