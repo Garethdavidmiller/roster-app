@@ -148,13 +148,14 @@ test('admin: Rest Day Working says its hours beside Save and in the receipt', as
     const wed = page.locator('.day-row[data-date="2027-01-13"]');
     await wed.locator('.day-cb').click();
     await clickInView(wed.locator('.type-pill-btn[data-type="rdw"]'));
-    await wed.locator('.day-start').fill('09:00');
-    await wed.locator('.day-end').fill('17:00');
+    // 10:00, not 09:00: the base shift on the 12th ends at 22:00, and Admin refuses less than 12 hours' rest.
+    await wed.locator('.day-start').fill('10:00');
+    await wed.locator('.day-end').fill('18:00');
     const thu = page.locator('.day-row[data-date="2027-01-14"]');
     await expect(thu.locator('.type-pill-btn[data-type="rdw"]'), 'premise: Thursday starts with its RDW').toHaveAttribute('aria-pressed', 'true');
     await clickInView(thu.locator('.type-pill-btn[data-type="annual_leave"]'));
 
-    const lines = ['Rest day → RDW 09:00–17:00', 'RDW 13:30–21:00 → Annual leave'];
+    const lines = ['Rest day → RDW 10:00–18:00', 'RDW 13:30–21:00 → Annual leave'];
     await expect(page.locator('#gridPreview .grid-preview-days li'))
         .toHaveText([new RegExp(`13 Jan.*: ${literal(lines[0])}$`), new RegExp(`14 Jan.*: ${literal(lines[1])}$`)]);
 
