@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STARTS, FIRST_MONTH, LAST_MONTH, startDate, lineOn, dayOn, proposalsAtoZ, isCoverLine, lineOptions,
     monthLines, inRange, openingMonth, initialChoice, choiceQuery, shiftTypesInMonth, hasBlankDays, ignoredWords, refusalWords,
-    compareRows, shiftTypesInMonthAll, VIEW_PARAM, COMPARE_VIEW, MINE_VIEW, MONTH_VIEW, rosterDayOn } from '../links-selector-core.js';
+    compareRows, shiftTypesInMonthAll, VIEW_PARAM, COMPARE_VIEW, MINE_VIEW, MONTH_VIEW, YEAR_VIEW, rosterDayOn, shiftTypesInYear } from '../links-selector-core.js';
 import { readFileSync } from 'node:fs';
 import { STARTS as NEWLINK_STARTS } from '../newlink-config.js';
 import { PROPOSALS, proposalDisplayName } from '../link-designer-proposals.js';
@@ -228,18 +228,21 @@ test('New CEA Link and the Links Selector send each other the proposal in the ot
     assert.ok(app.includes(`const NEWLINK_WEEKS = './newlink.html?${word}=';`), 'the Links Selector sends New CEA Link its own word');
 });
 
-test('the two rows are one recipe: the Links Selector\'s way out is drawn as New CEA Link\'s file row', () => {
-    const block = (/** @type {string} */ css, /** @type {string} */ selector) => {
-        const at = css.indexOf(`\n${selector} {`);
-        assert.ok(at >= 0, `${selector} has a rule`);
-        return Object.fromEntries(css.slice(at, css.indexOf('}', at)).split('\n').slice(1)
-            .map(l => l.replace(/\/\*.*?\*\//g, '').trim()).filter(l => l.includes(':')).map(l => l.replace(/;$/, '').split(/:\s*/)));
-    };
-    const nl = block(readFileSync(new URL('../newlink.css', import.meta.url), 'utf8'), '.nl-file');
-    const sel = block(readFileSync(new URL('../links-selector.css', import.meta.url), 'utf8'), '.selector-onward');
-    for (const prop of ['display', 'align-items', 'gap', 'padding', 'border', 'border-radius', 'background', 'box-shadow', 'color', 'font-weight', 'text-decoration', 'transition']) {
-        assert.equal(sel[prop], nl[prop], prop);
-    }
+test('the way to New CEA Link is a button at the top, in the note strip, naming the page it opens in that page\'s own colour', () => {
+    // Owner, 28 Nov 2026: the bar under the key was "badly positioned and worded" — "Add it as a button at the top". It lives
+    // in the strip above the month (so the month and its key are never between a colleague and it), says what is there
+    // rather than how it is laid out (Compare now owns "side by side"), and wears New CEA Link's teal as the drawer does.
+    const html = readFileSync(new URL('../links-selector.html', import.meta.url), 'utf8');
+    const box = html.slice(html.indexOf('id="selectorNoteBox"'), html.indexOf('</div>\n    </div>', html.indexOf('id="selectorNoteBox"')));
+    assert.match(box, /id="selectorOnward"/, 'inside the note strip');
+    assert.ok(html.indexOf('id="selectorOnward"') < html.indexOf('id="calendarDisplay"'), 'above the month');
+    assert.match(box, />Read about each proposal</);
+    assert.doesNotMatch(html, /See the proposals side by side/, 'not the words Compare all now owns');
+    const css = readFileSync(new URL('../links-selector.css', import.meta.url), 'utf8');
+    const meta = css.slice(css.indexOf('.selector-onward-meta {'), css.indexOf('}', css.indexOf('.selector-onward-meta {')));
+    assert.match(meta, /background: var\(--al-light\)/);
+    assert.match(meta, /color: var\(--al-deep\)/);
+    assert.match(css, /\.selector-onward:focus-visible \{ outline: var\(--focus-outline-gold\)/, 'a gold ring on the navy strip');
 });
 
 // ── ⚖️ COMPARE (owner, 28 Nov 2026: "Do 2, not as the default view") ─────────────────────────────────────────────────
@@ -250,11 +253,12 @@ test('Neither side-by-side view is where the page opens by itself: only an addre
         'nothing this device kept can open one');
     assert.equal(initialChoice(`?proposal=MB-26-V6&line=3&${VIEW_PARAM}=${COMPARE_VIEW}`, null).view, COMPARE_VIEW, 'a shared link can');
     assert.equal(initialChoice(`?${VIEW_PARAM}=${MINE_VIEW}`, null).view, MINE_VIEW);
+    assert.equal(initialChoice(`?${VIEW_PARAM}=${YEAR_VIEW}`, null).view, YEAR_VIEW);
     assert.equal(initialChoice(`?${VIEW_PARAM}=something`, null).view, MONTH_VIEW, 'any other view is the month');
     // The address round-trips, and the month's address names no view at all.
     const p = proposalsAtoZ()[0];
     assert.equal(choiceQuery(p, 4), `?proposal=${encodeURIComponent(p.code)}&line=4`);
-    for (const v of [MONTH_VIEW, COMPARE_VIEW, MINE_VIEW]) assert.equal(initialChoice(choiceQuery(p, 4, v), null).view, v);
+    for (const v of [MONTH_VIEW, YEAR_VIEW, COMPARE_VIEW, MINE_VIEW]) assert.equal(initialChoice(choiceQuery(p, 4, v), null).view, v);
 });
 
 test('"Your roster today" is the member\'s base roster by the Calendar\'s own rules — the pattern, and Christmas leave on top — and nothing recorded', async () => {
@@ -319,5 +323,14 @@ test('Compare\'s key names what ANY column has — and only that', () => {
         const each = all.map(p => shiftTypesInMonth(p, startLine, y, m));
         for (const t of union) assert.ok(each.some(s => s.has(t)), `${t} named, and no column has it`);
         for (const s of each) for (const t of s) assert.ok(union.has(t), `${t} in a column, and the key leaves it out`);
+    }
+});
+
+test('the Year\'s key names what any month of the year has — and only that, inside the months the page shows', () => {
+    for (const p of proposalsAtoZ()) for (const startLine of [1, 6, 20]) for (const y of [2027, 2028]) {
+        const year = shiftTypesInYear(p, startLine, y);
+        const months = Array.from({ length: 12 }, (_, m) => shiftTypesInMonth(p, startLine, y, m));
+        for (const t of year) assert.ok(months.some(s => s.has(t)), `${t} named for ${y}, and no month has it`);
+        for (const s of months) for (const t of s) assert.ok(year.has(t), `${t} in a month of ${y}, and the year's key leaves it out`);
     }
 });

@@ -228,6 +228,17 @@ export function compareRows(startLine, year, month) {
     return rows;
 }
 
+/**
+ * The kinds of day a YEAR of the proposal draws (the Year view's key), by the month's own rule across the months shown.
+ * @param {{ patterns: Record<string, Record<string, string>> }} proposal @param {number} startLine @param {number} year
+ * @returns {Set<string>}
+ */
+export function shiftTypesInYear(proposal, startLine, year) {
+    const types = new Set();
+    for (let m = 0; m < 12; m++) if (inRange(year, m)) for (const t of shiftTypesInMonth(proposal, startLine, year, m)) types.add(t);
+    return types;
+}
+
 /** Does the month have days before the link starts — the ones the grid leaves blank? @param {number} year @param {number} month */
 export function hasBlankDays(year, month) {
     return lineOn(1, new Date(year, month, 1)) === null;
@@ -256,7 +267,7 @@ export function openingMonth(today = new Date()) {
  * this device kept is never reported: it is the page's own note, and a stale one is simply replaced.
  * @param {string} search the page's `location.search`
  * @param {{ proposal?: unknown, line?: unknown }|null} stored what this device kept
- * @returns {{ proposalId: string, line: number, ignored: Array<'proposal'|'line'>, view: 'month'|'compare'|'mine' }}
+ * @returns {{ proposalId: string, line: number, ignored: Array<'proposal'|'line'>, view: 'month'|'year'|'compare'|'mine' }}
  */
 export function initialChoice(search, stored) {
     const params = new URLSearchParams(search || '');
@@ -275,7 +286,7 @@ export function initialChoice(search, stored) {
     // Neither side-by-side view is where the page OPENS by itself (owner: "not as the default view"): only an address that
     // asks for one — a shared link, or a reload of one — and this device never remembers it.
     const asked = params.get(VIEW_PARAM);
-    const view = asked === COMPARE_VIEW || asked === MINE_VIEW ? asked : MONTH_VIEW;
+    const view = asked === COMPARE_VIEW || asked === MINE_VIEW || asked === YEAR_VIEW ? asked : MONTH_VIEW;
     return { proposalId: /** @type {any} */ (PROPOSALS.find(p => p.code === code)).id, line, ignored, view };
 }
 
@@ -317,10 +328,11 @@ export function refusalWords({ otherStaff, inAudience }) {
         newlink: true };
 }
 
-/** The address's word for the view, and its values: `?view=compare` is Compare all, `?view=mine` is Compare with mine, and
- *  no `view` is the month. */
+/** The address's word for the view, and its values: `?view=year` is the Year, `?view=compare` is Compare all, `?view=mine`
+ *  is Compare with mine, and no `view` is the month. */
 export const VIEW_PARAM = 'view';
 export const MONTH_VIEW = 'month';
+export const YEAR_VIEW = 'year';
 export const COMPARE_VIEW = 'compare';
 export const MINE_VIEW = 'mine';
 

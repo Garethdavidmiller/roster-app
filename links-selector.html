@@ -73,8 +73,9 @@
             <div class="lightbox-tip"><span>The ? above the month says what this page is and how to read it</span></div>
             <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
             <div class="lightbox-tip"><span>Select a day to see its details</span></div>
-            <div class="lightbox-tip"><span>⚖️ Compare all shows every proposal side by side</span></div>
-            <div class="lightbox-tip"><span>👤 Compare with mine puts your roster today beside a proposal</span></div>
+            <div class="lightbox-tip"><span>Year shows the whole year, a small month at a time</span></div>
+            <div class="lightbox-tip"><span>Compare all shows every proposal side by side</span></div>
+            <div class="lightbox-tip"><span>With my roster puts your roster today beside a proposal</span></div>
             <div class="lightbox-tip keyboard-only"><span>Change month (in the grid: PgUp PgDn)</span><span class="lightbox-tip-key">← →</span></div>
             <div class="lightbox-tip keyboard-only"><span>Go to this month (until the link starts, its first month)</span><span class="lightbox-tip-key">T</span></div>
             <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
@@ -176,9 +177,10 @@
              week picker the two did not fit a 360px phone, and "Week 1 · cover week" is wider still. -->
         <div class="controls-row selector-view-row">
             <div class="selector-view" role="group" aria-label="How to see it">
-                <button type="button" class="grade-tab active" id="selectorViewMonth" aria-pressed="true"><span aria-hidden="true">📅</span> <span>One proposal</span></button>
-                <button type="button" class="grade-tab" id="selectorViewCompare" aria-pressed="false"><span aria-hidden="true">⚖️</span> <span>Compare all</span></button>
-                <button type="button" class="grade-tab" id="selectorViewMine" aria-pressed="false" hidden><span aria-hidden="true">👤</span> <span>Compare with mine</span></button>
+                <button type="button" class="selector-view-btn" id="selectorViewMonth" aria-pressed="true">Month</button>
+                <button type="button" class="selector-view-btn" id="selectorViewYear" aria-pressed="false">Year</button>
+                <button type="button" class="selector-view-btn" id="selectorViewCompare" aria-pressed="false">Compare all</button>
+                <button type="button" class="selector-view-btn" id="selectorViewMine" aria-pressed="false" hidden>With my roster</button>
             </div>
         </div>
     </nav>
@@ -196,7 +198,18 @@
     <!-- …and the ? that explains it all (links-selector-tips.js): the app's own Tips button and panel, opened by itself
          on a first visit (links-selector-app.js). -->
     <div class="selector-note" id="selectorNoteBox">
-        <p class="selector-note-text" id="selectorNote"></p>
+        <div class="selector-note-body">
+            <p class="selector-note-text" id="selectorNote"></p>
+            <!-- THE WAY TO NEW CEA LINK, AT THE TOP (owner, 28 Nov 2026: the bar under the key was "badly positioned and worded"):
+                 a button in this strip, worded by what is there — each proposal in words and figures, week by week — with the
+                 page it opens named in that page's own teal pill, as the drawer names it. It opens New CEA Link on the
+                 proposal shown (links-selector-app.js writes `?weeks=` and its code). -->
+            <a class="selector-onward" id="selectorOnward" href="./newlink.html">
+                <span class="selector-onward-icon" aria-hidden="true">🔁</span>
+                <span class="selector-onward-name">Read about each proposal<span class="visually-hidden" id="selectorOnwardFrom"></span></span>
+                <span class="selector-onward-meta">New CEA Link</span>
+            </a>
+        </div>
         <button type="button" class="btn-card-tips" data-card="selector" aria-label="How to read the Links Selector">?</button>
     </div>
     <!-- A shared link that named a proposal or a line this page could not show: said, with what is shown instead
@@ -222,7 +235,7 @@
             <div class="legend-item" id="legend-spare"><div class="legend-color spare"></div><span class="legend-text">Spare (cover week)</span></div>
             <div class="legend-item" id="legend-al"><div class="legend-color al"></div><span class="legend-text">Annual Leave (Christmas)</span></div>
         </div>
-        <div class="legend-row">
+        <div class="legend-row selector-marker-key">
             <div class="legend-item"><span class="legend-text"><span aria-hidden="true">⭐</span> Bank Holiday</span></div>
             <div class="legend-item selector-pay-key"><span class="legend-text"><span aria-hidden="true">✂️</span> Pay cut-off</span></div>
             <div class="legend-item selector-pay-key"><span class="legend-text"><span aria-hidden="true">💷</span> Payday</span></div>
@@ -231,14 +244,6 @@
         </div>
     </div>
 
-    <!-- THE WAY BACK TO THE THREE SIDE BY SIDE (owner, 28 Nov 2026): New CEA Link, opened on the weeks of the proposal shown
-         (links-selector-app.js writes `?weeks=` and its code). The same row as New CEA Link's way here (newlink-render.js →
-         selectorRow), with that page's emoji and colour, so each page names the other the way the drawer does. -->
-    <a class="selector-onward" id="selectorOnward" href="./newlink.html">
-        <span class="selector-onward-icon" aria-hidden="true">🔁</span>
-        <span class="selector-onward-name">See them in words and figures<span class="visually-hidden" id="selectorOnwardFrom"></span></span>
-        <span class="selector-onward-meta">New CEA Link</span>
-    </a>
 </div>
 
 <script type="module" src="./links-selector-boot.js"></script>

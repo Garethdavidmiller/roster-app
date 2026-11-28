@@ -45,7 +45,7 @@
 
 /* The note and its ? share the strip: the words take the width, the ? sits at their top right (shared.css draws it). */
 #selectorNoteBox { display: flex; align-items: flex-start; gap: 10px; }
-.selector-note-text { margin: 0; flex: 1; min-width: 0; }
+.selector-note-text { margin: 0; }
 
 /* A day before the new link starts: the date alone, on the filler days' quiet ground — inert, so no lift and no hand. */
 .calendar-day.selector-blank {
@@ -69,34 +69,35 @@
     color: rgba(255, 255, 255, 0.65);
 }
 
-/* THE WAY TO NEW CEA LINK, under the key: the row New CEA Link draws for its way here (newlink.css → .nl-file, .nl-onward),
-   drawn the same, so the two ways read as one pair — a white raised row, the page's words in navy, and the destination's
-   name in its own colour's pill (New CEA Link's teal, its drawer pill's). Restated rather than shared: each page loads
-   only its own sheet (page-css-parity.test.mjs), and a test holds the two recipes together (links-selector-core.test.mjs). */
+/* THE WAY TO NEW CEA LINK, AT THE TOP, in the note strip (owner, 28 Nov 2026: under the key it was "badly positioned and
+   worded"): a compact white button on the navy strip — the strip's one action — with the page it opens named in that page's
+   own teal pill (New CEA Link's drawer colour), as New CEA Link names this page in its sky blue. */
+.selector-note-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .selector-onward {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
-    margin: 0;   /* the key's own margin below it is the gap, the grid-to-key gap above it (index.css → .legend) */
-    padding: 10px 12px;
-    border: 1.5px solid var(--border-mid);
+    gap: 8px;
+    max-width: 100%;
+    padding: 6px 10px;
     border-radius: var(--radius-button);
     background: white;
     box-shadow: var(--shadow-1);
     color: var(--primary-blue);
-    font-size: var(--type-body);
+    font-size: var(--type-label);
     font-weight: 700;
     text-decoration: none;
-    transition: border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+    transition: transform var(--dur-fast) var(--ease-standard);
 }
 .selector-onward:active { transform: scale(var(--press-scale)); }
-/* Gold: the row sits on the navy canvas, so its ring does too (css-tokens.md → focus indicators). */
+/* Gold: the button sits on the navy strip, so its ring does too (css-tokens.md → focus indicators). */
 .selector-onward:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
-@media (hover: hover) and (pointer: fine) {
-    .selector-onward:hover { border-color: var(--primary-blue); }
+.selector-onward-icon { flex: 0 0 auto; }
+.selector-onward-name { min-width: 0; }
+/* On a phone it spans the strip, the words taking the room and the pill holding the right edge. */
+@media (max-width: 767px) {
+    .selector-onward { align-self: stretch; }
+    .selector-onward-name { flex: 1; text-wrap: balance; }
 }
-.selector-onward-icon { flex: 0 0 auto; font-size: var(--type-medium); }
-.selector-onward-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .selector-onward-meta {
     flex: 0 0 auto;
     padding: 2px 8px;
@@ -107,58 +108,63 @@
     font-weight: 700;
     white-space: nowrap;
 }
-/* Wider, the row is the key's width above it, and the key centres its items: so do the row's three parts, together —
-   words and pill a sentence apart, not a band apart (the screenshot at 1280px: 1,100px of white between them). */
-@media (min-width: 768px) {
-    .selector-onward { justify-content: center; }
-    .selector-onward-name { flex: 0 1 auto; }
-}
 
 /* THE WEEK PICKER HOLDS ITS LONGEST NAME, "Week 26 · cover week": the Calendar's 200px cap on its pickers (index.css)
    fits a colleague's name and cut this to "cover we…". It still gives way on a narrow phone, as the name picker does. */
 .controls .fieldpick.selector-week-pick { max-width: 260px; }
-/* ON A WIDE SCREEN THE CONTROLS ARE ONE ROW (index.css → "Controls: one compact row"), and the views' tabs joined it and
-   squeezed both pickers to "L…" at 1024px. They take a line of their own under the pickers instead, as on a phone. */
+
+/* ── THE CONTROLS CARD, ONE SET (owner, 28 Nov 2026: the top looked "messy") ───────────────────────────────────────
+   On a phone every row runs the card's width — the pickers take the room between their buttons — so the card has one
+   left edge and one right edge (css-tokens.md → "A card has ONE left edge"); wider, the Calendar's one compact row. */
+@media (max-width: 1023px) {
+    #selectorControls .controls-row > .control-group--stacked { flex: 1 1 0; min-width: 0; }
+    #selectorControls .controls-row > .control-group--stacked .fieldpick { width: 100%; max-width: none; }
+}
+
+/* THE VIEWS: one segmented switch (the Trains page's, trains.css → .tr-tabs--seg) in the pickers' grey well and at their
+   height, the one shown filled with the page's colour. Plain words, no emoji: each view is named once, here. */
+.selector-view {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--radius-button);
+    background: var(--field-bg);
+}
+.controls .selector-view .selector-view-btn {
+    flex: 1 1 auto;
+    min-height: 38px;
+    padding: 4px 12px;
+    border: 0;
+    border-radius: calc(var(--radius-button) - 3px);
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-mid);
+    font-size: var(--type-label);
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+.controls .selector-view .selector-view-btn[aria-pressed="true"] {
+    background: var(--page-accent);
+    color: var(--page-accent-ink);
+    font-weight: 700;
+    box-shadow: var(--shadow-1);
+}
+/* `hidden` still hides: the rule above gives the buttons a display through `.controls button`, and "With my roster" is
+   hidden for a reader with no roster line. */
+.controls .selector-view .selector-view-btn[hidden] { display: none; }
+.controls .selector-view .selector-view-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+    .controls .selector-view .selector-view-btn:not([aria-pressed="true"]):hover { background: white; color: var(--primary-blue); }
+}
+/* On a phone the switch spans the card; under 360px the words close up rather than wrap. */
+@media (max-width: 1023px) { .selector-view { width: 100%; } }
+@media (max-width: 359px) { .controls .selector-view .selector-view-btn { padding: 4px 6px; font-size: var(--type-small); } }
+/* ON A WIDE SCREEN THE CONTROLS ARE ONE ROW (index.css → "Controls: one compact row"); the switch takes a line of its own
+   under the pickers, so neither picker is squeezed. */
 @media (min-width: 1024px) {
     .controls { flex-wrap: wrap; row-gap: 8px; }
     .controls .selector-view-row { flex-basis: 100%; }
-}
-
-/* The two views, a row of their own under the pickers: Team Week View's grade tabs (index.css → .grade-tab), centred.
-   The Calendar's `.controls button` paints every button in the controls navy, so the tab's own face is restated here at a
-   higher specificity — white with a hairline, and the one shown in the page's colour, as every chosen tab is. */
-.selector-view { display: flex; justify-content: center; gap: 6px; }
-/* ON A PHONE THE TABS SHARE THE ROW EQUALLY, EACH THE SAME SHAPE: the emoji on a line of its own, the words under it in
-   up to two balanced lines. Three names do not fit 320px on one line each, and left to wrap where they fell, one tab
-   broke after its emoji, one after a word and one not at all — three shapes for one control. */
-@media (max-width: 767px) {
-    .selector-view { width: 100%; align-items: stretch; }
-    .controls .selector-view .grade-tab {
-        flex: 1 1 0; min-width: 0; padding: 5px 6px;
-        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-        text-wrap: balance; line-height: 1.2;
-    }
-}
-.controls .selector-view .grade-tab {
-    min-height: 36px;
-    padding: 6px 14px;
-    border: 2px solid var(--border-light);
-    background: white;
-    color: var(--text-mid);
-    box-shadow: none;
-    font-size: var(--type-label);
-    font-weight: 600;
-}
-.controls .selector-view .grade-tab.active {
-    background: var(--page-accent);
-    border-color: var(--page-accent);
-    color: var(--page-accent-ink);
-}
-/* `hidden` still hides: the phone rule below gives the tabs a `display`, which outranks the browser's own [hidden] rule, and
-   👤 Compare with mine is hidden for a reader with no roster line. */
-.controls .selector-view .grade-tab[hidden] { display: none; }
-@media (hover: hover) and (pointer: fine) {
-    .controls .selector-view .grade-tab:not(.active):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
 }
 
 /* ── ⚖️ COMPARE: every proposal side by side (links-selector-render.js → buildSelectorCompare) ──────────────────────
@@ -212,6 +218,43 @@
 body.selector-compare-active .selector-pay-key { display: none; }
 /* Today, where it falls: the Calendar's gold, as an edge on its date. */
 .cmp-table tbody th.cmp-today { box-shadow: inset 3px 0 0 var(--accent-gold); color: var(--primary-blue); }
+
+/* ── 📆 YEAR: the proposal's whole year, a small month at a time (links-selector-render.js → buildSelectorYear) ─────
+   Every day a small square in Team Week View's fill for its kind (index.css → .tv-*), its date on it, so the year reads
+   as RHYTHM: two months a row on a phone, three on a tablet, four on a wide screen. */
+.yr-title { margin: 0; font-size: var(--type-xl); font-weight: 800; color: var(--primary-blue); }
+.yr-months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+@media (min-width: 600px) { .yr-months { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .yr-months { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 20px; } }
+.yr-month { min-width: 0; }
+.yr-name { margin: 0 0 4px; font-size: var(--type-body); }
+.yr-open {
+    padding: 2px 4px; margin: 0 -4px; border: 0; border-radius: 6px; background: none;
+    color: var(--primary-blue); font: inherit; font-weight: 700; cursor: pointer;
+    text-decoration: underline; text-decoration-color: var(--border-mid); text-underline-offset: 3px;
+}
+.yr-open:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .yr-open:hover { text-decoration-color: var(--primary-blue); } }
+.yr-grid { width: 100%; border-collapse: separate; border-spacing: 2px; table-layout: fixed; }
+.yr-grid th { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); padding: 0 0 2px; }
+.yr-day {
+    height: 22px; padding: 0; text-align: center; border-radius: 4px;
+    font-size: var(--type-micro); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-dark);
+}
+/* Each kind edged in its own colour, as the month's cells are (index.css → .calendar-day.early-shift and its kin), so a
+   pale early and a rest day never read alike on a phone. */
+.yr-day.tv-rest  { background: var(--rest-day-bg); color: var(--text-light); box-shadow: inset 0 0 0 1px var(--border-mid); }
+.yr-day.tv-early { box-shadow: inset 0 0 0 1.5px var(--early-cell-border); }
+.yr-day.tv-late  { box-shadow: inset 0 0 0 1.5px var(--blue-sky); }
+.yr-day.tv-night { box-shadow: inset 0 0 0 1.5px var(--night-cell-border); }
+.yr-day.tv-spare { box-shadow: inset 0 0 0 1.5px var(--purple); }
+.yr-day.tv-al    { box-shadow: inset 0 0 0 1.5px var(--al); }
+/* Before the link starts: a date and nothing else, as the month leaves it — no fill, no edge. */
+.yr-day.yr-blank { background: none; color: var(--text-light); font-weight: 400; }
+/* Today: the Calendar's gold, as a ring drawn inside the square (never an outline, which is the keyboard's). */
+.yr-day.yr-today { box-shadow: inset 0 0 0 2px var(--accent-gold); }
+/* The Year draws no holiday or pay markers, so its key does not name them. */
+body.selector-year-active .selector-marker-key { display: none; }
 
 /* The printed heading: nothing on screen, where the controls already say it. */
 .selector-print-head { display: none; }

@@ -1749,9 +1749,9 @@ after line 26 (`links-selector-core.js`). Nothing reads or writes Firestore for 
 
 **The two pages lead to each other** (owner, 28 Nov 2026: "a link from New CEA Link to Links Selector and vice versa"),
 each opening the other on the proposal in hand: New CEA Link offers "See one as a calendar" with its three names and "See
-it as a calendar" under each proposal's weeks (`?proposal=` and the sheet code), and the Links Selector offers "See them in
-words and figures" under its key (renamed from "See the proposals side by side" when the page's own ⚖️ Compare all did
-exactly that) (`newlink.html?weeks=` and the code, which opens that proposal's weeks). Both are the
+it as a calendar" under each proposal's weeks (`?proposal=` and the sheet code), and the Links Selector offers "🔁 Read
+about each proposal" as a button in its note strip at the top (moved from a bar under the key, owner, 28 Nov 2026: "badly
+positioned and worded"; never "side by side", the words ⚖️ Compare all owns) (`newlink.html?weeks=` and the code, which opens that proposal's weeks). Both are the
 same row — New CEA Link's file row, the destination named in its own colour's pill — and only a reader the Links Selector
 admits is offered the way there. Not from the Calendar's own screen (owner, the same day): the Calendar's way in is a
 two-week one-time notice, last in its queue, that says what the page is and links to it (`links-selector-2026`, owner,
@@ -1759,9 +1759,10 @@ the same day — 28 November to 11 December).
 
 **Side by side, and beside your own roster — never the opening view** (owner, 28 Nov 2026: "Do 2, not as the default
 view", then "Do 5 … as a button and not the default option. Clear labelling"). The Links Selector has three views, all
-named as tabs under its pickers: 📅 One proposal (the month, where it always opens), ⚖️ Compare all (every proposal, a
+named as tabs under its pickers: 📅 Month (where it always opens), 📆 Year (the proposal's whole year, a small month at a
+time, each day coloured by its kind), ⚖️ Compare all (every proposal, a
 row for each day and a column for each, from the one week chosen) and 👤 Compare with mine (the reader's roster today
-beside the chosen proposal). Only a tab or an address (`?view=compare`, `?view=mine`) opens the other two; this device
+beside the chosen proposal). Only a tab or an address (`?view=year`, `?view=compare`, `?view=mine`) opens the others; this device
 never remembers them. Turned Team Week View's way (a row per person, a column per day) the table scrolled sideways on a
 phone and put a day's three answers in three rows, so it runs a row per DATE. **"Your roster today" reads the member's
 base roster only** — `getBaseShift` and Christmas leave, the Calendar's own rules, from the pattern the app already

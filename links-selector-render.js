@@ -290,3 +290,64 @@ export function buildSelectorTable(columns, startLine, year, month, opts) {
     container.appendChild(wrap);
     return container;
 }
+
+/**
+ * ONE PROPOSAL'S WHOLE YEAR (owner, 28 Nov 2026: "do exactly the same with year view"): twelve small months, every day
+ * coloured by its kind in the colours the rest of the app gives it (Team Week View's `.tv-*` fills: early orange, late
+ * blue — a pair that stays apart for the common colour-blindnesses — rest plain, spare purple, Christmas leave teal), so
+ * the RHYTHM shows: where the earlies and lates run, where the rest days fall, where the cover weeks are. A small cell
+ * cannot carry a time, so each says it aloud instead (its `aria-label`), and a month's name opens that month — where the
+ * day panel has the rest. Days before the link starts are the month view's blank days.
+ * @param {{ code: string, patterns: Record<string, Record<string, string>> }} proposal
+ * @param {number} startLine @param {number} year
+ * @param {{ today?: Date, firstMonth?: number, lastMonth?: number }} [opts] the months of the year the page can show
+ * @returns {HTMLElement}
+ */
+export function buildSelectorYear(proposal, startLine, year, opts = {}) {
+    const today = opts.today ?? new Date();
+    const container = document.createElement('div');
+    container.className = 'calendar-container selector-year';
+    container.dataset.selectorYear = String(year);
+    const head = document.createElement('div');
+    head.className = 'calendar-header';
+    head.innerHTML = `<div class="month-display"><h2 class="yr-title">${year}</h2></div>`;
+    container.appendChild(head);
+
+    const grid = document.createElement('div');
+    grid.className = 'yr-months';
+    const first = opts.firstMonth ?? 0, last = opts.lastMonth ?? 11;
+    for (let m = first; m <= last; m++) {
+        const monthName = MONTH_NAMES[m];
+        const lead = new Date(year, m, 1).getDay();
+        const days = new Date(year, m + 1, 0).getDate();
+        let cells = '';
+        for (let i = 0; i < lead; i++) cells += '<td class="yr-pad" aria-hidden="true"></td>';
+        for (let d = 1; d <= days; d++) {
+            const date = new Date(year, m, d);
+            const day = dayOn(proposal, startLine, date);
+            const weekday = FULL_DAY_NAMES[date.getDay()];
+            const isToday = isSameDay(date, today) ? ' yr-today' : '';
+            if (day.blank) {
+                cells += `<td class="yr-day yr-blank${isToday}" aria-label="${weekday} ${d}: before the new link starts">${d}</td>`;
+            } else {
+                const cls = TV_CLASS[/** @type {keyof typeof TV_CLASS} */ (getShiftClass(day.shift))] ?? '';
+                const words = day.christmasLeave ? CHRISTMAS_LEAVE_WORDS : shiftWords(day.shift, NO_MEMBER, false);
+                const sunday = date.getDay() === 0 && isWorkedShift(day.shift) ? ', overtime' : '';
+                cells += `<td class="yr-day ${cls}${isToday}" aria-label="${weekday} ${d}: ${escapeHtml(words)}${sunday}">${d}</td>`;
+            }
+            if ((lead + d) % 7 === 0 && d < days) cells += '</tr><tr>';
+        }
+        const tail = (7 - ((lead + days) % 7)) % 7;
+        for (let i = 0; i < tail; i++) cells += '<td class="yr-pad" aria-hidden="true"></td>';
+        const section = document.createElement('section');
+        section.className = 'yr-month';
+        section.innerHTML = `<h3 class="yr-name"><button type="button" class="yr-open" data-year="${year}" data-month="${m}"
+                aria-label="${monthName} ${year}: open the month">${monthName}</button></h3>
+            <table class="yr-grid"><caption class="visually-hidden">${monthName} ${year}</caption>
+                <thead><tr>${SHORT_DAY_NAMES.map(n => `<th scope="col" aria-label="${FULL_DAY_NAMES[SHORT_DAY_NAMES.indexOf(n)]}">${n[0]}</th>`).join('')}</tr></thead>
+                <tbody><tr>${cells}</tr></tbody></table>`;
+        grid.appendChild(section);
+    }
+    container.appendChild(grid);
+    return container;
+}
