@@ -34,7 +34,7 @@ import { isBeforeMemberStart } from './override-utils.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
-import { projectAbsenceRange, lieuGoesWords } from './admin-al-projection.js';
+import { projectAbsenceRange, lieuGoesWords, alsoNote } from './admin-al-projection.js';
 import { formatDisplay, namedDays } from './admin-period-dates.js';
 import { TYPES } from './admin-shift-types.js';
 
@@ -149,7 +149,7 @@ export function initSickSection({
                 ...(sundayNote ? [sundayNote] : []), ...(days.length ? [`${days.join(' and ')} skipped`] : []),
                 ...leftAloneWords(kept, memberOvByDate),
                 ...(absence?.lieuLost.length ? [lieuGoesWords(absence.lieuLost, 'absent')] : [])];
-            const restNote = parts.length ? ` <em>(+ ${parts.join(', ')})</em>` : '';
+            const restNote = alsoNote(parts);
             return `🪑 <strong>${label}</strong> for ${esc(member)}: ${rangeStr}${restNote}`;
         },
         // …and the receipt names each of those days again, with what to do about it.

@@ -352,8 +352,24 @@ export function lieuGoesWords(dates, as = 'leave') {
     const names = dates.map(name);
     const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : (names[0] ?? '');
     return dates.length > 1
-        ? `${list} recorded as ${as}, so the days in lieu for working them go`
-        : `${list} recorded as ${as}, so the day in lieu for working it goes`;
+        ? `${list} recorded as ${as}, so the extra days of leave earned by working them are taken back`
+        : `${list} recorded as ${as}, so the extra day of leave earned by working it is taken back`;
+}
+
+/**
+ * The days a range preview names beside its headline that the headline does not count — "Also: 1 rest day not
+ * counted; 1 Sunday shift set as a rest day (Sundays aren’t contracted)". A sentence after the range rather than a
+ * bracket, because a part can carry a bracket of its own; empty when there is nothing to add.
+ * @param {string[]} parts @returns {string}
+ */
+export function alsoNote(parts) {
+    const said = parts.filter(Boolean);
+    return said.length ? `. <em>Also: ${said.join('; ')}</em>` : '';
+}
+
+/** The worked Sundays a range sets as rest days, as its preview names them; '' for none. @param {number} n @returns {string} */
+export function sundayShiftWords(n) {
+    return n ? `${n === 1 ? '1 Sunday shift set as a rest day' : `${n} Sunday shifts set as rest days`} (Sundays aren’t contracted)` : '';
 }
 
 /** @param {Record<string, string[]>} sets */

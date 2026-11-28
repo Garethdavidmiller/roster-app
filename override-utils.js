@@ -602,7 +602,7 @@ export function hoursSlotTime(shift, rdwTime = '') {
 // nobody was contracted to work), but the POLICY is declared once, here.
 //
 // The write paths CONSULT this declaration (`isForbiddenOnSunday`, `sundaySafeValue`) — the bulk
-// apply (admin-bulk-apply.js, admin-week-editor.js), the leave sheet (al-leave-plan.js) and the
+// apply (admin-bulk-apply.js, admin-bulk-bar.js), the leave sheet (al-leave-plan.js) and the
 // roster import with its entry control (roster-cell-rules.js, roster-entry-control.js). Two keep a
 // bespoke copy for a reason, and are pinned to this list by override-utils.test.mjs instead — a
 // fifth forbidden type added here fails those tests rather than being silently writable:

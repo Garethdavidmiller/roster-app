@@ -737,7 +737,7 @@ test('admin: a leave preview drawn before the member\'s records arrive is redraw
     await cell.click();
     await cell.click();
     const preview = page.locator('#alPreview');
-    await expect(preview, 'drawn before the records arrived, it states nothing about them').toContainText('Still loading this member\'s saved changes');
+    await expect(preview, 'drawn before the records arrived, it states nothing about them').toContainText('Loading this member\'s saved changes…');
     await expect(preview).not.toContainText('rest day to answer');
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });   // the records land
     await expect(preview).toContainText('recorded at no cost', { timeout: 8_000 });
@@ -1153,7 +1153,7 @@ test('admin: leave over a worked Boxing Day names the day in lieu it takes back,
     await page.locator('#alRpGrid .rp-day[data-iso="2026-12-26"]').click();
 
     const preview = page.locator('#alPreview');
-    await expect(preview).toContainText('Boxing Day recorded as leave, so the day in lieu for working it goes', { timeout: 8_000 });
+    await expect(preview).toContainText('Boxing Day recorded as leave, so the extra day of leave earned by working it is taken back', { timeout: 8_000 });
     await expect(preview, 'the worked Boxing Day is not "at no cost"').not.toContainText('recorded at no cost');
     await clickInView(page.locator('#alSaveBtn'));
     const bar = page.locator('#alConfirmBar');

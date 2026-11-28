@@ -34,20 +34,26 @@ import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate,
 import { loadFailedFor, DELETE_REFUSED } from './admin-override-store.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
-import { rangeSundayCorrections, yearShiftWords } from './admin-al-projection.js';
+import { rangeSundayCorrections, yearShiftWords, sundayShiftWords } from './admin-al-projection.js';
 import { holdFeedback, fadeFeedback } from './feedback-line.js';
 import { clearedDaysLine, withClearedDays } from './admin-own-write.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim-retry.js';
+/** A failed read's way back: the Saved Changes card's own ↻ Retry (admin-override-store.js), never a reload, which
+ *  re-runs sign-in and every card and throws away what is staged in the week grid. */
+const RETRY_LINE = "Couldn't load this member's saved changes — open Saved Changes and select ↻ Retry.";
+
 /**
  * Why a card cannot yet say anything about `member`'s records — the preview's empty state and the Save click's
- * refusal, in the week grid's words. @param {string} member @returns {string}
+ * refusal, in the week grid's words. The PREVIEW redraws itself when the read lands (`_onAfterLoad`), so it asks
+ * nothing of the reader while it loads; a refused click is told to press again.
+ * @param {string} member @param {{ preview?: boolean }} [o] @returns {string}
  */
-function unreadLine(member) {
+function unreadLine(member, { preview = false } = {}) {
     return globalThis.navigator?.onLine === false
         ? "You're offline, so this member's saved changes can't be checked — reconnect, then try again."
-        : loadFailedFor(member)
-            ? "Couldn't load this member's saved changes — reload the page before recording this."
+        : loadFailedFor(member) ? RETRY_LINE
+            : preview ? "Loading this member's saved changes…"
             : "Still loading this member's saved changes — try again in a moment.";
 }
 
@@ -217,7 +223,7 @@ export function createRangeBookingSection(cfg) {
         // NO FIGURES FROM RECORDS THAT HAVE NOT BEEN READ (admin-override-coverage.js): an unread member's records are
         // an empty slice, so the preview would count no leave taken and ask nothing about a swapped-in day. The
         // banner and the Recorded dates list ask the same; the Save click refuses in the same state.
-        if (!hasOverrideAuthorityFor(member)) { _setEmpty(unreadLine(member)); return; }
+        if (!hasOverrideAuthorityFor(member)) { _setEmpty(unreadLine(member, { preview: true })); return; }
 
         const fromDisp = formatDisplay(dates[0]);
         const toDisp   = formatDisplay(dates[dates.length - 1]);
@@ -229,7 +235,7 @@ export function createRangeBookingSection(cfg) {
         previewEl.innerHTML = cfg.renderReady({
             member, dates, memberObj: p.memberObj, memberOvByDate: p.ovByDate, rangeStr,
             workDays: p.workDays, restCount: p.restCount, projection: p.projection, sundays: p.sundays,
-            sundayNote: n ? (n === 1 ? '1 Sunday set as a rest day' : `${n} Sundays set as rest days`) : '',
+            sundayNote: sundayShiftWords(n),
         });
         if (p.pending.length) previewEl.insertAdjacentHTML('beforeend', _swapBlock(p.pending, dates.length));
 
@@ -254,8 +260,8 @@ export function createRangeBookingSection(cfg) {
             return `<div class="swapday-row" data-date="${d}">`
                  + `<span class="swapday-date">${formatDisplay(d)}</span>`
                  + `<span class="swapday-opts">`
-                 + `<button type="button" class="swapday-opt" data-answer="yes" data-date="${d}" aria-pressed="${yes}">Swapped — counts</button>`
-                 + `<button type="button" class="swapday-opt" data-answer="no"  data-date="${d}" aria-pressed="${no}">Rest day — free</button>`
+                 + `<button type="button" class="swapday-opt" data-answer="yes" data-date="${d}" aria-pressed="${yes}">Yes, swapped — uses a leave day</button>`
+                 + `<button type="button" class="swapday-opt" data-answer="no"  data-date="${d}" aria-pressed="${no}">No — rest day, nothing recorded</button>`
                  + `</span></div>`;
         }).join('');
         const n = pending.length;
@@ -268,7 +274,7 @@ export function createRangeBookingSection(cfg) {
 
     /**
      * The days this save changes or leaves alone that its headline does not say, as receipt lines:
-     * rest days answered "Rest day — free" (.claude/rules/admin.md → "AL on a rest day is ASKED
+     * rest days answered "No — rest day, nothing recorded" (.claude/rules/admin.md → "AL on a rest day is ASKED
      * about": the receipt names the days it left alone, on BOTH surfaces) — named differently when
      * leave already stands on one — and the worked Sundays set as rest days (whole-app check: the
      * preview called those "skipped" and the receipt said nothing). A card adds lines of its own for
@@ -490,7 +496,7 @@ export function createRangeBookingSection(cfg) {
                 : (/** @type {any} */ (err)).message === 'cache/load-failed'
                     // The initial saved-changes read never succeeded, so recordRangeOverrides refused to
                     // write against an empty cache (would duplicate overrides / erase a worked Sunday).
-                    ? "⚠ Couldn't load saved changes — reload the page before recording this."
+                    ? `⚠ ${RETRY_LINE}`
                     : (/** @type {any} */ (err)).message === 'auth/session-expired'
                         ? "⚠ You've been signed out — please sign in again."
                         // Everything else is the week grid's own wording (whole-app check): a refused

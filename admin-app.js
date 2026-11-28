@@ -5,7 +5,7 @@
  * Owns: sign-in and the session, the member bar and week navigation, the unsaved-changes guard, the
  *   Change a Shift Save collector and its over-limit bar, the AL banner and recorded-dates wiring, the
  *   kept week draft, and initialising every card's module on load.
- * Does NOT own: the week grid and bulk bar (admin-week-editor.js), what a save writes
+ * Does NOT own: the week grid (admin-week-editor.js) and its bulk bar (admin-bulk-bar.js), what a save writes
  *   (admin-overrides.js), the AL and Absence cards (admin-al.js, admin-sick.js, admin-range-booking.js),
  *   pay maths, calendar display or roster data. The roster PDF review and staff account set-up are
  *   Operations' (operations-app.js), not on this page.
@@ -692,7 +692,8 @@ export function init() {
         const go = () => {
             // A hidden member is not in the dropdown, and going on would edit whoever IS selected.
             if (!_setSelectValue(fieldMember, memberName)) {
-                showError(`${memberName} isn't in the staff list (hidden or left) — can't edit their entry here. Delete it from Saved Changes, or ask the admin to put the member back on the staff list.`);
+                // The admin reads this too, and is the one who puts a member back: not told to ask themselves.
+                showError(`${memberName} isn't in the staff list (hidden or left) — can't edit their entry here. Delete it from Saved Changes, or ${currentIsAdmin ? 'put the member back on the staff list first' : 'ask the admin to put the member back on the staff list'}.`);
                 return;
             }
             fieldDate.value   = date;

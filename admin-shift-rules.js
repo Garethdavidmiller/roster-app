@@ -104,17 +104,29 @@ export function constrainingTime(value, baseShiftFor) {
     return shift;
 }
 
+/** Minutes as a reader says them: "12 hours", "1 hour", "11 hours 50 minutes". @param {number} mins @returns {string} */
+function hoursWords(mins) {
+    const unit = (/** @type {number} */ n, /** @type {string} */ w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    const h = Math.floor(mins / 60), m = Math.round(mins - h * 60);
+    return [h || !m ? unit(h, 'hour') : '', m ? unit(m, 'minute') : ''].filter(Boolean).join(' ');
+}
+
 /**
- * The refusal for too little rest between two shifts. A gap of nothing or less is not "rest" at all — the two shifts
- * OVERLAP — so it says so, rather than "only -1h rest".
+ * The refusal for too little rest between two shifts. A gap below nothing is not "rest" at all — the shifts
+ * OVERLAP — and a gap of exactly nothing is back to back (22:00–06:00, then 06:00–14:00), which is not an overlap
+ * either; each is said as what happens, rather than "only -1h rest" or "overlaps".
  * @param {string} day the day being saved, as displayed @param {number} gap minutes between the two shifts
  * @param {'after'|'before'} side the neighbour's side @param {string} other the neighbouring day, as displayed
  * @returns {string}
  */
 function restGapLine(day, gap, side, other) {
-    return gap <= 0
-        ? `${day}: overlaps the ${other} shift — need ${fmtHours(MIN_REST_MINS)} rest between shifts`
-        : `${day}: only ${fmtHours(gap)} rest ${side} ${other} shift — need ${fmtHours(MIN_REST_MINS)}`;
+    const rest = (/** @type {number} */ mins) => { const w = hoursWords(mins); return `${w}${w.endsWith('s') ? '’' : '’s'} rest`; };   // "1 hour’s", "12 hours’"
+    const rule = `there must be at least ${rest(MIN_REST_MINS)} between shifts`;
+    // After the day before, this shift STARTS against its end; before the day after, it ENDS against its start.
+    const [mine, theirs, past] = side === 'after' ? ['starts', 'ends', 'before'] : ['ends', 'starts', 'after'];
+    if (gap < 0)   return `${day}: ${mine} ${past} the ${other} shift ${theirs} — ${rule}`;
+    if (gap === 0) return `${day}: ${mine} as the ${other} shift ${theirs} — ${rule}`;
+    return `${day}: only ${rest(gap)} ${side} the ${other} shift — there must be at least ${MIN_REST_MINS / 60}`;
 }
 
 /**
@@ -156,7 +168,7 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
 
         const duration = endMins - startMins;
         if (duration > MAX_SHIFT_MINS) {
-            fail(date, `${formatDate(date)}: shift is ${fmtHours(duration)} — max is ${fmtHours(MAX_SHIFT_MINS)}`);
+            fail(date, `${formatDate(date)}: shift is ${hoursWords(duration)} long — the longest allowed is ${hoursWords(MAX_SHIFT_MINS)}`);
             return;                                   // an over-long shift is the finding; stop here
         }
 

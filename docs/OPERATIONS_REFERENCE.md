@@ -957,7 +957,7 @@ admin anyone's, and a day can never move to a year with no days left. Design: `l
 
 Operations → **Annual leave sheet** (admin only) shows where the clerks' annual-leave workbook and the app
 disagree, person by person, and why. For the people you confirm it **adds the leave the app is missing**,
-and counts leave the app already holds on a rest day you answer *Swapped — counts* (Step 3). **That is all
+and counts leave the app already holds on a rest day you answer *Yes, swapped — uses a leave day* (Step 3). **That is all
 it ever writes**: any other difference is changed in Admin, with Change a Shift. Its design decisions:
 `docs/DECISIONS.md` → The annual leave uploader.
 
@@ -1023,7 +1023,7 @@ box, clears it; choosing the same file again re-reads it. **Your answers survive
 copy and the paste box bring back every answer the new check still asks about. Only Clear forgets them,
 and it asks first. An app update waits while a check runs, its answer is on screen, or answers are
 unsaved — **Clear the check** when done to let it in. A notification tap waits only for an unsaved
-confirmation or *Swapped — counts*, or a running Save or Undo.
+confirmation or *Yes, swapped — uses a leave day*, or a running Save or Undo.
 
 **Who is left out, and why:** leavers, managers (except for a year in which they held a graded post),
 anybody with no allowance on record, and anybody the app does not hold — each named in the summary with
@@ -1033,8 +1033,8 @@ January's days taken from next year's allowance.
 
 **Step 3, the Save.** Under each person who needs a look:
 
-- **A rest day is asked about in Admin's words**: "Was it a swapped working day?" — *Swapped — counts* or
-  *Rest day — free*. Nothing is pre-chosen; an unanswered rest day is not saved.
+- **A rest day is asked about in Admin's words**: "Was it a swapped working day?" — *Yes, swapped — uses a leave day* or
+  *No — rest day, nothing recorded*. Nothing is pre-chosen; an unanswered rest day is not saved.
 - **Confirm the person.** The box says what it does ("Add 2 days of leave for …", or "…, and count 1
   booked rest day as swapped for …"), beside that person's figures **after** the Save and whatever would
   still differ. There is no "accept all".
@@ -1044,7 +1044,7 @@ January's days taken from next year's allowance.
   If the page could not load what it saves with, the receipt says the Save **never started**: reload,
   check again and save.
 - **The receipt** is read back from the server, so a Save whose answer was lost is still reported and
-  recorded. It names every *Rest day — free* answer (nothing written; existing leave left as it is). The
+  recorded. It names every *No — rest day, nothing recorded* answer (nothing written; existing leave left as it is). The
   card then re-checks the file. If it says the Save **stopped part way**, check and save again: only the
   rest is sent.
 
@@ -1064,7 +1064,7 @@ v26.13 or v26.14 carry no marks, so they show **no Undo** — take their days ba
 kept for this year's sheet and last year's; an earlier year's sheet is a check only.
 
 **Unsaved answers ask before they go.** Clear, a drawer link, the header logo, signing out and closing
-the tab each ask while a confirmation or *Swapped — counts* answer is unsaved; signing out also asks
+the tab each ask while a confirmation or *Yes, swapped — uses a leave day* answer is unsaved; signing out also asks
 while any change is still on its way to the server. The answers are never stored: they name colleagues
 against their leave.
 

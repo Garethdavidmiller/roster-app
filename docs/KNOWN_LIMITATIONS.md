@@ -772,7 +772,7 @@ What it leaves open — the admin's own look at each person before confirming is
 - **An old copy is compared, not saved**: past 14 days, with no save date, or a sheet for a year before
   last (every Save deletes those years' records, so its own record would go at once).
 - **An update waits** while an answer is on screen or answers wait unsaved; Clear lets it in. A
-  notification tap waits only for an unsaved confirmation or "Swapped — counts", or a running Save/Undo.
+  notification tap waits only for an unsaved confirmation or "Yes, swapped — uses a leave day", or a running Save/Undo.
 - **The seal catches a hand edit, not a forgery** — the digest is public code. Using a file needs the
   admin's own sign-in.
 

@@ -165,8 +165,8 @@ describe('UNANSWERED: the question the planner used to compute and throw away', 
 describe('CHANGED UNDER AN ANSWER: the mirror of the unanswered day (review, Nov 2026)', () => {
     // The row asked about its rest day when it was drawn, and was answered; a read landing while it sat
     // staged put a record on the day that SETTLES the question. The projection, reading the fresh map,
-    // stopped asking and dropped the answer — so "Rest day — free" was written and cost a day, and a stale
-    // "Swapped — counts" still recorded a swap (the row's `swapped` flag) the allowance check counted free.
+    // stopped asking and dropped the answer — so "No — rest day, nothing recorded" was written and cost a day, and a stale
+    // "Yes, swapped — uses a leave day" still recorded a swap (the row's `swapped` flag) the allowance check counted free.
     const imported = { id: 'imp', memberName: 'F. Fixture', date: SAT, type: 'shift', value: '07:00-15:00', source: 'roster_import' };
     const rdw = { ...imported, id: 'rdw', type: 'rdw' };
 
@@ -306,7 +306,7 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
     // just an untested path. Answering "free" writes nothing and leaves the existing document
     // alone — which is right, because answering a question is not an instruction to delete and the
     // untick path owns removal. But the Calendar goes on showing 🏖️ AL, and the receipt used to
-    // report that day in the same words as a genuinely empty one: "rest day, no leave recorded".
+    // report that day in the same words as a genuinely empty one: "rest day — no leave needed, nothing to record".
     //
     // It is reachable with real data, not hypothetical: every annual-leave document the WEEK GRID
     // wrote onto a rest day before v23.88 carries no `replacedType`, which is exactly the shape
@@ -360,12 +360,12 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
             formatDate: d => d, describe: () => '', skipped: plan.skipped, keptLeave: plan.keptLeave });
         const line = receipt.lines.find(l => l.includes(SAT));
         assert.ok(line, 'the day must still be named');
-        assert.match(line, /left as it is/, 'the receipt must not imply the day is now clear');
+        assert.match(line, /the leave already recorded here stays/, 'the receipt must not imply the day is now clear');
         // …by the control that removes it: since 10 Nov 2026 an untick never deletes (owner), so "untick"
         // would send the admin to a control that leaves the leave exactly where it is.
-        assert.match(line, /select AL on the day again to remove it/, 'and must say how to remove what remains');
+        assert.match(line, /to remove it, select AL on this day again/, 'and must say how to remove what remains');
         assert.doesNotMatch(line, /untick/, 'an untick no longer removes anything');
-        assert.doesNotMatch(line, /no leave recorded/,
+        assert.doesNotMatch(line, /no leave needed/,
             'that is the wording for an EMPTY day — using it here contradicts the Calendar');
     });
 
@@ -377,7 +377,7 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
         assert.deepEqual(plan.keptLeave, []);
         const receipt = buildSaveReceipt({ toSave: [], removed: [], memberName: 'F. Fixture',
             formatDate: d => d, describe: () => '', skipped: plan.skipped, keptLeave: plan.keptLeave });
-        assert.match(receipt.lines[0], /rest day, no leave recorded/);
+        assert.match(receipt.lines[0], /rest day — no leave needed, nothing to record/);
     });
 
     test('a record being DELETED in the same save is not "kept"', () => {
@@ -388,7 +388,7 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
             'the document is going — reporting it as left in place would be the inverse lie');
     });
 
-    test('an ABSENCE on that day is not leave, so the wording stays "no leave recorded"', () => {
+    test('an ABSENCE on that day is not leave, so the wording stays "no leave needed"', () => {
         // Deliberate. The claim the line makes is about LEAVE, and it is true here: none was
         // recorded. The absence is still visible in the grid, which re-renders for exactly this
         // reason (v23.89), and the swap question is never wired to the Absence card.

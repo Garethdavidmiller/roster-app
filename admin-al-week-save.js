@@ -160,7 +160,7 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
     // The mirror of the block above, by the same road: the row asked about its rest day and was answered,
     // and a read landing since put a record on the day that SETTLES the question — an imported shift, a
     // colleague's RDW. Reading the fresh map, the projection stopped asking and dropped the answer, so an
-    // answered "Rest day — free" was written and cost a day, and a stale "Swapped — counts" still recorded
+    // answered "No — rest day, nothing recorded" was written and cost a day, and a stale "Yes, swapped — uses a leave day" still recorded
     // `replacedType: 'shift'` (the `swapped` flag, admin-overrides.js) while the allowance check counted
     // the day free. The answer was given about a day that has changed under it, so the day is withheld
     // as an unanswered one is, and the caller refuses the save and says the day has changed. (The commit's

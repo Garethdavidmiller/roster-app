@@ -562,7 +562,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `replacedTypeOnWrite` · `absenceHiddenDates` · `rangeWriteDates`
 
 ### `admin-al-projection.js`
-- **Exports:** `projectAlBooking` · `yearShiftWords` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `overridesAfterSave` · `projectAlOverage`
+- **Exports:** `projectAlBooking` · `yearShiftWords` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `alsoNote` · `sundayShiftWords` · `overridesAfterSave` · `projectAlOverage`
 
 ### `admin-time-inputs.js`
 - **Exports:** `initTimeInputs`

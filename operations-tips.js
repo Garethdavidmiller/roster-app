@@ -128,7 +128,7 @@ export const CARD_TIPS = {
             ]},
             { heading: 'Saving', items: [
                 { icon: '✅', html: 'The Save only <strong>adds</strong> leave the app is missing, and only for the people you tick. It never removes leave, and never writes over a shift, an absence or work recorded there: those are changed in Admin, with <strong>Change a Shift</strong>.' },
-                { icon: '❓', html: 'Leave on a <strong>rest day</strong> is asked about, as the Admin leave card asks: <strong>Swapped — counts</strong> books it as a day of leave, <strong>Rest day — free</strong> leaves it. Unanswered, it is not saved.' },
+                { icon: '❓', html: 'Leave on a <strong>rest day</strong> is asked about, as the Admin leave card asks: <strong>Yes, swapped — uses a leave day</strong> books it as a day of leave, <strong>No — rest day, nothing recorded</strong> leaves it. Unanswered, it is not saved.' },
                 { icon: '🛡️', html: 'Each day is checked again as it is written. If somebody changed it after your check, nothing is saved for that person, your answers are kept, and the card shows what changed.' },
                 { icon: '↩️', html: `<strong>Undo this Save</strong> takes back the leave a Save added, except any day changed since. A copy older than one already saved, or more than ${LEAVE_FILE_MAX_AGE_DAYS} days old, can be checked but not saved.` },
             ]},

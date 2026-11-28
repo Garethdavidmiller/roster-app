@@ -205,9 +205,12 @@ test('admin: leave on a rest day answered free is named as left alone beside Sav
     const wed = page.locator('.day-row[data-date="2027-01-13"]');
     await wed.locator('.day-cb').click();
     await clickInView(wed.locator('.type-pill-btn[data-type="annual_leave"]'));
-    await clickInView(wed.locator('.al-swap-btn[data-swap="no"]'));   // "Rest day — free"
-    const words = 'rest day, no leave recorded';
+    await clickInView(wed.locator('.al-swap-btn[data-swap="no"]'));   // "No — rest day, nothing recorded"
+    const words = 'rest day — no leave needed, nothing to record';
     await expect(page.locator('#gridPreview .grid-preview-days li')).toHaveText(new RegExp(`13 Jan.*: ${literal(words)}$`));
+    // The count is the save's plan: nothing is written, so the line says so — the receipt's "Nothing to record".
+    await expect(page.locator('#gridPreview')).toContainText('Nothing will be recorded for G. Miller:');
+    await expect(page.locator('#gridPreview')).not.toContainText('about to change');
     // …and answered "swapped" instead, the leave is written and costs a day: the line is the change it makes.
     await clickInView(wed.locator('.al-swap-btn[data-swap="yes"]'));
     await expect(page.locator('#gridPreview .grid-preview-days li')).toHaveText(new RegExp(`13 Jan.*: ${literal('Rest day → Annual leave')}$`));
@@ -879,7 +882,7 @@ test('admin: a colleague\'s change on a staged day is still refused after the pa
 });
 
 // AN ANSWER ABOUT A DAY THAT HAS CHANGED SINCE IS NOT APPLIED (review, Nov 2026). A row asked about its rest day
-// and was answered "Rest day — free"; a roster import since put a shift there, arriving in a read while the row sat
+// and was answered "No — rest day, nothing recorded"; a roster import since put a shift there, arriving in a read while the row sat
 // staged. The planner, reading the fresh records, stopped asking and wrote the leave over the shift — costing a day
 // the answer said was free — and the commit's check, which looks at the day's own id, does not see an import.
 test('admin: a rest-day answer the record has since settled is not applied, and the save says the day changed', async ({ page }) => {
@@ -896,7 +899,7 @@ test('admin: a rest-day answer the record has since settled is not applied, and 
     await page.locator('#fieldMember').selectOption(who.name);
     const row = weekRow(page, rest);
     await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
-    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));   // "Rest day — free": nothing is to be written
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));   // "No — rest day, nothing recorded": nothing is to be written
     await page.evaluate(({ name, date }) => {
         const imported = { id: 'imported-shift', memberName: name, date, type: 'shift', value: '07:00-15:00', note: '', source: 'roster_import' };
         const w = /** @type {any} */ (window);

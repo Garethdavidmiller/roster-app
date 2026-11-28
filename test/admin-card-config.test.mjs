@@ -133,7 +133,7 @@ describe('the Absence card', () => {
             /** @type {any[]} */ const confirms = [];
             assert.equal(ask(sickCfg(confirms)), true, 'the allowance falls below what is booked: not silently');
             assert.equal(confirms.length, 1);
-            assert.match(confirms[0][1], /^Boxing Day recorded as absent, so the day in lieu for working it goes · /);
+            assert.match(confirms[0][1], /^Boxing Day recorded as absent, so the extra day of leave earned by working it is taken back · /);
             assert.equal(confirms[0][2], null, 'the range path, not the week grid\'s batch');
         });
 
@@ -164,7 +164,7 @@ describe('the Absence card', () => {
             assert.equal(confirms.length, 0);
             const html = cfg.renderReady({ member: person.name, dates: ['2026-12-26'], memberObj: person,
                 memberOvByDate: new Map([['2026-12-26', worked]]), rangeStr: '26 Dec', workDays: 1, restCount: 0 });
-            assert.match(html, /Boxing Day recorded as absent, so the day in lieu for working it goes/);
+            assert.match(html, /Boxing Day recorded as absent, so the extra day of leave earned by working it is taken back/);
         });
     });
 });

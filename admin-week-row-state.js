@@ -191,7 +191,7 @@ export function _activateRow(row, checkbox, pills, startEl, endEl, type) {
  * The swapped-day question (v23.75) follows the row's state, on EVERY path that changes it — the
  * pill, bulk apply, the checkbox and the bulk tick buttons (review A6). It lived in the pill
  * handler alone, so bulk-applied leave on a rest day was refused at Save with the question still
- * hidden, and an old "Swapped — counts" survived an untick into the next pick. Shown for staged
+ * hidden, and an old "Yes, swapped — uses a leave day" survived an untick into the next pick. Shown for staged
  * leave on a day `swapDecisionDates` asks about; hidden AND cleared otherwise, because a stale
  * answer would charge the next pick. A prefilled (saved, untouched) row is not being booked, so it
  * is not asked.
@@ -315,7 +315,7 @@ export function prefillRow(row, existing) {
 
 /**
  * Turn a row off. Clearing `dataset.type` is what stages a DELETE of a saved record, so an
- * untouched saved row must never be deactivated by accident (`_bulkDeselectRow`, admin-week-editor.js).
+ * untouched saved row must never be deactivated by accident (`_bulkDeselectRow`, admin-bulk-bar.js).
  * @param {HTMLElement} row
  * @param {HTMLInputElement|null} checkbox
  * @param {NodeListOf<Element>} pills

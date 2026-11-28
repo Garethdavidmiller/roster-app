@@ -43,7 +43,7 @@
 // The week grid used to decide for itself, on `baseIsRd` alone: "the base roster says rest, so ask".
 // That re-asks a question an existing `replacedType: 'shift'` has already answered — and worse, the
 // answer could not take effect, because `replacedTypeForSwap` rightly keeps a stronger record than
-// its own reconstruction, so a manager choosing "Rest day — free" there changed nothing. The range
+// its own reconstruction, so a manager choosing "No — rest day, nothing recorded" there changed nothing. The range
 // card, reading this function, never asked in the first place.
 //
 // Since v23.79 the grid sets `row.dataset.alSwapAsk` from `swapDecisionDates` for its one date, so
@@ -173,7 +173,7 @@ export function absenceHiddenDates({ dates, memberObj, ovByDate = null }) {
  * A date this module asks about is written ONLY when answered "swapped" (review A2). The old filter
  * was `isWorkingDate`, which reads the override's VALUE: a rest day holding an absence ('SICK') is
  * not a rest value, so it passed, and leave was written over the absence on a day the admin had
- * just answered "Rest day — free" — which means NOTHING IS WRITTEN, on both surfaces (CLAUDE.md).
+ * just answered "No — rest day, nothing recorded" — which means NOTHING IS WRITTEN, on both surfaces (CLAUDE.md).
  * Every other date is `isWorkingDate`'s, as before (Sundays never) — less, for an absence, a day where
  * it would never show (`absenceHiddenDates`). Absence is never asked about. A date before the member's
  * start date is never written, for either type — the Calendar shows nothing there (whole-app check,

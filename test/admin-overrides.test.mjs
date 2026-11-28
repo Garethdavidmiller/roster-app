@@ -453,11 +453,11 @@ describe('recordRangeOverrides — the payload, not the summary', () => {
     });
 });
 
-// ── "Rest day — free" writes NOTHING, on the range card too (review A2) ─────────────────────────
+// ── "No — rest day, nothing recorded" writes NOTHING, on the range card too (review A2) ─────────────────────────
 // `recordRangeOverrides` filtered by `isWorkingDate`, which is VALUE-based — an absence's 'SICK' is
 // not a rest value, so a rest day holding an absence counted as working, and AL was written over it
 // although the admin had just been asked about that day and answered "free". The week grid honoured
-// the answer; the range card did not. CLAUDE.md: "Rest day — free" means NOTHING IS WRITTEN.
+// the answer; the range card did not. CLAUDE.md: "No — rest day, nothing recorded" means NOTHING IS WRITTEN.
 describe('recordRangeOverrides — an answered rest day', () => {
     const REST = '2026-09-25', WORK = '2026-09-21';   // G. Miller: Fri 25 Sep is RD, Mon 21 Sep worked
     const sickOnRest = { id: 'sick-rest', memberName: 'G. Miller', date: REST, type: 'sick', value: 'SICK' };
@@ -862,7 +862,7 @@ describe('recordRangeOverrides sets as rest days exactly the Sundays the range c
 
 // ── A SWAPPED REST DAY IS RECORDED AS ONE (test audit, 7 Nov 2026) ─────────────────────────────
 // The week grid asks, for leave on a rest day, whether the member swapped working days onto it. The
-// answer "Swapped — counts" must leave `replacedType: 'shift'` on the record: the allowance reads
+// answer "Yes, swapped — uses a leave day" must leave `replacedType: 'shift'` on the record: the allowance reads
 // that afterwards, and without it the day reads as a free rest day the moment the save lands. No
 // test passed `swapped: true` into executeSave, so writing the ordinary replacedType instead left
 // every suite green — the v23.75 defect, in which three of one member's days went missing.
@@ -882,7 +882,7 @@ describe('executeSave — a day answered "swapped" carries the contracted-work s
         assert.ok(isRestShift(getBaseShift(m, parseISODate(REST_DAY))));
     });
 
-    test('"Swapped — counts" writes replacedType "shift", and the instruction itself is not stored', async () => {
+    test('"Yes, swapped — uses a leave day" writes replacedType "shift", and the instruction itself is not stored', async () => {
         await executeSave([{ memberName: MEMBER, date: REST_DAY, type: 'annual_leave', value: 'AL', note: '', swapped: true }]);
         const w = _batchWrites.find(x => x.date === REST_DAY);
         assert.ok(w, 'premise: the day was written');
@@ -1058,7 +1058,7 @@ describe('validateShiftRules', () => {
         const toSave = [{ date: '2026-06-15', value: 'TRG RDW 06:00-19:00', type: 'other' }];
         const errors = validateShiftRules(toSave, 'NONEXISTENT');
         assert.equal(errors.length, 1);
-        assert.match(errors[0], /max is 12h/);
+        assert.match(errors[0], /the longest allowed is 12 hours/);
     });
 
     test('training with valid times passes', () => {
@@ -1087,8 +1087,8 @@ describe('validateShiftRules', () => {
         const toSave = [{ date: '2026-06-15', value: '07:00-20:00', type: 'shift' }];
         const errors = validateShiftRules(toSave, 'NONEXISTENT');
         assert.equal(errors.length, 1);
-        assert.match(errors[0], /13h/);
-        assert.match(errors[0], /max is 12h/);
+        assert.match(errors[0], /13 hours long/);
+        assert.match(errors[0], /the longest allowed is 12 hours/);
     });
 
     test('short rest gap after previous day override → error mentioning gap', () => {
@@ -1098,8 +1098,8 @@ describe('validateShiftRules', () => {
         const toSave = [{ date: '2026-06-15', value: '07:00-15:00', type: 'shift' }];
         const errors = validateShiftRules(toSave, 'NONEXISTENT');
         assert.equal(errors.length, 1);
-        assert.match(errors[0], /9h/);
-        assert.match(errors[0], /need 12h/);
+        assert.match(errors[0], /only 9 hours’ rest/);
+        assert.match(errors[0], /there must be at least 12$/);
     });
 
     test('adequate 17h rest after previous day → no errors', () => {
@@ -1131,7 +1131,7 @@ describe('validateShiftRules', () => {
         const toSave = [{ date: '2026-06-15', value: '07:00-20:00', type: 'rdw' }];
         const errors = validateShiftRules(toSave, 'NONEXISTENT');
         assert.equal(errors.length, 1);
-        assert.match(errors[0], /13h/);
+        assert.match(errors[0], /13 hours long/);
     });
 });
 

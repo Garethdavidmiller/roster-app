@@ -13,7 +13,7 @@ import { isBeforeMemberStart } from './override-utils.js';
 import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords, yearShiftWords } from './admin-al-projection.js';
+import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords, yearShiftWords, alsoNote } from './admin-al-projection.js';
 import { spareShiftNote, spareDaysOf, spareWeekDaysOf } from './admin-al-spare-note.js';
 import { SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 import { roleOn } from './roster-roles.js';
@@ -193,13 +193,13 @@ export function initALSection({
         const heldNote = held.size ? `${held.size} already booked` : '';
         const days = (/** @type {number} */ n, /** @type {string} */ tail = '') =>
             `${n}${held.size ? ' new' : ''} day${n === 1 ? '' : 's'}${tail}`;
-        let label, restNote = '';
+        let label, restNote;
         if (c.unanswered > 0) {
             // Unanswered days are not counted in or out yet, so the total is deliberately withheld —
             // a figure that is about to change is worse than no figure.
             const settled = c.consuming + c.freeWritten - held.size;
             label = days(settled, ' so far');
-            restNote = ` <em>(+ ${[heldNote, `${c.unanswered} rest day${c.unanswered > 1 ? 's' : ''} to answer below`].filter(Boolean).join(', ')})</em>`;
+            restNote = alsoNote([heldNote, `${c.unanswered} rest day${c.unanswered > 1 ? 's' : ''} to answer below`]);
         } else {
             // WHAT THE BALANCE MOVES BY — the projection's `charged` (21 Nov 2026). The new days charged,
             // except where a Spare week's four moved between days already booked and days booked now.
@@ -231,7 +231,7 @@ export function initALSection({
             const beforeStart = /** @type {string[]} */ (projection.skipped ?? []).filter(d =>
                 isBeforeMemberStart(memberObj, parseISODate(d)) && !projection.christmas.includes(d) && !sundays.includes(d)).length;
             const rest = c.skipped - (c.christmas ?? 0) - sundays.length - beforeStart;
-            if (rest > 0)          parts.push(`${rest} rest day${rest > 1 ? 's' : ''} skipped`);
+            if (rest > 0)          parts.push(`${rest} rest day${rest > 1 ? 's' : ''} not counted`);
             if (beforeStart > 0)   parts.push(`${beforeStart} day${beforeStart > 1 ? 's' : ''} skipped before the start date`);
             if (sundayNote)        parts.push(sundayNote);
             if (c.christmas > 0) {
@@ -239,7 +239,7 @@ export function initALSection({
                     d.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day')))];
                 parts.push(`${names.join(' and ')}, never counted`);
             }
-            if (parts.length) restNote = ` <em>(+ ${parts.join(', ')})</em>`;
+            restNote = alsoNote(parts);
         }
         // BY THE GRADE HELD ON THE DAY, as the cap reads it (external review of v26.58): read off today's `role`, a CEA
         // that week and a Dispatcher now had the week capped at four with no line saying why.

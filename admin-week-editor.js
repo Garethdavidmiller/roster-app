@@ -185,6 +185,8 @@ export function buildWeekGridInto(container, dateStr) {
     if (!member || !memberName || !dateStr) return;
 
     const sunday = getSundayOfWeek(dateStr);
+    // Whose roster the rows talk about: a member booking for themselves reads "your", a manager "their".
+    const who = _canPickMember ? { their: 'their', they: 'they' } : { their: 'your', they: 'you' };
 
     const header = document.createElement('div');
     header.className = 'week-grid-header';
@@ -279,15 +281,15 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-sep">–</span>
                 <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="End time (HH:MM)" aria-describedby="${timeErrId}">
                 <span class="time-note">No time needed</span>
-                <span class="time-hint">24h · max 12 hrs</span>
+                <span class="time-hint">24-hour clock · up to 12 hours</span>
                 <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
             </div>
             <div class="col-rd-hint" hidden>${xmasDue ? `The station is closed on ${xmasDay} — use <strong>RDW</strong> if this day was worked`
-                : 'Base roster: rest day — use <strong>RDW</strong> if this was worked as overtime'}</div>
+                : `On ${who.their} roster this is a rest day — if ${who.they} worked it, choose <strong>RDW</strong> (Rest Day Working)`}</div>
             <!-- Swapped-day question: no pre-pressed state, save refuses until answered (al-swapped-days.js). -->
-            <div class="col-al-swap" role="group" aria-label="Is this a swapped working day?" hidden>
-                <span class="al-swap-q">Rest day on the roster — was this a <strong>swapped</strong> working day?</span>
-                <span class="al-swap-opts"><button type="button" class="al-swap-btn" data-swap="yes" aria-pressed="false">Swapped — counts</button><button type="button" class="al-swap-btn" data-swap="no" aria-pressed="false">Rest day — free</button></span>
+            <div class="col-al-swap" role="group" aria-label="Did ${who.they} swap a working day onto this rest day?" hidden>
+                <span class="al-swap-q">This is a rest day on ${who.their} roster. Did ${who.they} <strong>swap</strong> a working day onto it?</span>
+                <span class="al-swap-opts"><button type="button" class="al-swap-btn" data-swap="yes" aria-pressed="false">Yes, swapped — uses a leave day</button><button type="button" class="al-swap-btn" data-swap="no" aria-pressed="false">No — rest day, nothing recorded</button></span>
             </div>
             <div class="other-opts" hidden>
                 <span class="other-flavour-group" role="group" aria-label="Type of day">
@@ -296,8 +298,8 @@ export function buildWeekGridInto(container, dateStr) {
                     ).join('\n                    ')}
                     <button type="button" class="other-flavour-btn other-flavour-spare" data-flavour="SPARE" aria-pressed="false"><span aria-hidden="true">📋</span> Spare</button>
                 </span>
-                <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled' : ''}> Rest day (RDW)</label>
-                ${!isRestShift(baseShift) ? '' : `<span class="other-rdw-auto">Ticked and locked because ${xmasDue ? `the station is closed on ${xmasDay}` : 'the base roster has this as a rest day'} — RDW is automatic</span>`}
+                <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled' : ''}> Pay as Rest Day Working (RDW)</label>
+                ${!isRestShift(baseShift) ? '' : `<span class="other-rdw-auto">Always ticked here: ${xmasDue ? `the station is closed on ${xmasDay}` : `it’s a rest day on ${who.their} roster`}, so this day is paid as Rest Day Working</span>`}
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(rosteredWords(baseShift))} this day — RDW pays it as Rest Day Working instead</span>
                 <span class="other-opts-hint">Pick a type above, then times (optional — leave blank to pay the rostered shift, or eight hours on a rest day).</span>
             </div>`;
@@ -560,8 +562,10 @@ export function updateSaveBtn() {
         if (total > 0 && memberName) {
             // For a few days, what each becomes, by the save's own plan. A live region, asked on every keystroke:
             // rewritten (re-announced) only on a change.
-            const changes = saveCount <= 4 ? previewChanges(rows, memberName, weekGrid, buildMemberDateMap(memberName)) : new Map();
-            const { html, sig } = gridPreviewHtml({ saveCount, delCount, memberName, changes });
+            // The plan runs for every save, so the count says what it writes; the day lines only for a few days.
+            const { changes, leftAlone } = previewChanges(rows, memberName, weekGrid, buildMemberDateMap(memberName));
+            const lines = saveCount <= 4 || leftAlone.length === saveCount ? changes : new Map();
+            const { html, sig } = gridPreviewHtml({ saveCount, delCount, memberName, changes: lines, leftAlone: leftAlone.length });
             if (gridPreview.dataset.sig !== sig) { gridPreview.innerHTML = html; gridPreview.dataset.sig = sig; }
             gridPreview.hidden = false;
             previewShown = true;

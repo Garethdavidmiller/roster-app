@@ -62,17 +62,25 @@ export function changeWords(before, after) {
  * An absence saved where the Calendar will not draw it — on a rest day, unless it replaced contracted work
  * (`isOverrideDisplaySuppressed`). The record IS written, so the day is not left out of the receipt; and the words
  * say what the Calendar will show, never "Absent" over a day that goes on reading as a rest day.
+ * CHRISTMAS DAY AND BOXING DAY, for a member due at work, show Christmas leave (christmas-leave.js), so the day is
+ * named as itself: "Annual leave; … on a rest day" described a day the Calendar draws as leave, not rest.
  * @param {string} before what the day shows now @param {string} after what it shows once saved
+ * @param {string} [date] ISO, for Christmas Day and Boxing Day
  * @returns {string}
  */
-export function hiddenAbsenceWords(before, after) {
+export function hiddenAbsenceWords(before, after, date = '') {
+    if (after === 'AL' && isChristmasClosureDate(date)) {
+        return `${date.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day'} — the absence is saved, but the Calendar shows Christmas leave here, not an absence`;
+    }
     const shown = before === after ? dayWords(after) : changeWords(before, after);
     return `${shown}; the absence is saved, but the Calendar doesn’t show an absence on a rest day`;
 }
 
 /**
- * A staged day the save deliberately leaves alone — leave on a rest day answered "Rest day — free" (v23.88) — in the
- * words the receipt and the preview beside Save both say it in. `kept`: the day already holds leave, which stands.
+ * A staged day the save deliberately leaves alone — leave on a rest day answered "No — rest day, nothing recorded"
+ * (v23.88) — in the words the receipt and the preview beside Save both say it in, so they are true BEFORE Save as
+ * well as after it: never "was left". `kept`: the day already holds leave, which stands; tapping the day's lit AL
+ * pill again stages its removal (admin-week-editor.js), which is what the bracket tells the reader.
  * CHRISTMAS DAY AND BOXING DAY are left alone for a different reason (v25.37): leave there is never counted, and a
  * member due at work already has it, shown from the roster — so the day is named as itself, not as a rest day it may
  * not have been.
@@ -81,11 +89,11 @@ export function hiddenAbsenceWords(before, after) {
 export function leftAloneWords(date, kept) {
     const xmas = isChristmasClosureDate(date) ? (date.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day') : '';
     if (xmas) return kept
-        ? `${xmas}; the leave already recorded here was left as it is and is never counted (select AL on the day again to remove it)`
+        ? `${xmas} — the leave already recorded here stays, and is never counted (to remove it, select AL on this day again)`
         : `${xmas}, never counted: nothing to record`;
     return kept
-        ? 'rest day; the leave already recorded here was left as it is (select AL on the day again to remove it)'
-        : 'rest day, no leave recorded';
+        ? 'rest day — the leave already recorded here stays (to remove it, select AL on this day again)'
+        : 'rest day — no leave needed, nothing to record';
 }
 
 /**

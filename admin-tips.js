@@ -45,7 +45,7 @@ export const CARD_TIPS = {
                 { icon: '✏️', html: '<strong>Rest Day</strong> — puts a working day back to a rest day.' },
                 // All six flavours and Spare: a flavour left out of this list is one nobody knows exists.
                 { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union, meeting, or <strong>Spare</strong> (a Spare day: on standby, shift not yet assigned).' },
-                { icon: '⏱️', html: 'On an <strong>Other</strong> day that falls on a rest day, <strong>Rest day (RDW)</strong> is already ticked and cannot be unticked — it is automatic. On a day they were rostered to work, tick it yourself to pay the day as Rest Day Working. Add times if you know them; leave them blank and it pays as the day underneath, or eight hours on a rest day.' },
+                { icon: '⏱️', html: 'On an <strong>Other</strong> day that falls on a rest day, <strong>Pay as Rest Day Working (RDW)</strong> is always ticked and cannot be unticked. On a day they were rostered to work, tick it yourself to pay the day as Rest Day Working. Add times if you know them; leave them blank and it pays as the day underneath, or eight hours on a rest day.' },
             ]},
         ],
     },
