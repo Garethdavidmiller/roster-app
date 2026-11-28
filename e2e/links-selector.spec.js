@@ -446,7 +446,7 @@ test.describe('links selector', () => {
     // same week. Organised by what a wrong answer costs: opened by itself, it is the default view the owner said it must not
     // be; a column that disagrees with that proposal's own month shows a colleague a rota that is not the one on offer; and
     // a table wider than the phone hides a proposal off the edge.
-    test('Compare all: never by itself, every proposal side by side — each column that proposal\'s own month — and One proposal goes back', async ({ page }) => {
+    test('Compare all: never by itself, every proposal side by side — each column that proposal\'s own month — and Month goes back', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await seedSession(page, ADMIN);
         await page.goto('/links-selector.html?proposal=LC-26-T10&line=7');
@@ -702,6 +702,76 @@ test.describe('links selector', () => {
         // The Year: one line for the whole year, counted from the link's start.
         await page.locator('#selectorViewYear').click();
         await expect(page.locator('.selector-year .sel-totals-head')).toHaveText('2027 in total, from 17 January · starting on Week 1');
+    });
+
+    // THE WHOLE-PAGE REVIEW (owner, 28 Nov 2026: "bug and regression check the entire Links Selector page"). Each test is a
+    // defect a reader would have met; the one-line cause is beside its fix in links-selector-app.js / -render.js.
+    test('A manager is never offered "With my roster": a manager\'s row is a login, not a roster', async ({ page }) => {
+        const manager = /** @type {string} */ (teamMembers.find(m => m.managerOnly && CONFIG.MANAGER_NAMES.includes(m.name))?.name);
+        await seedSession(page, manager);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=1&view=mine');
+        await expect(page.locator('.calendar-grid')).toBeVisible();
+        await expect(page.locator('#selectorViewMine')).toBeHidden();
+        await expect(page.locator('#selectorViewMonth')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('.cmp-mine')).toHaveCount(0);
+    });
+
+    test('Beside your roster, the key names only what the table draws — never a spare day from before the link starts', async ({ page }) => {
+        // A member whose January 2027 has spare days ONLY before the 17th, and a proposal week with none from the 17th.
+        const me = /** @type {any} */ (teamMembers.find(m => !m.managerOnly && !m.hidden && Array.from({ length: 31 }, (_, i) => i + 1)
+            .every(d => (getBaseShift(m, new Date(2027, 0, d)) === 'SPARE') === (d < 17 && getBaseShift(m, new Date(2027, 0, d)) === 'SPARE'))
+            && Array.from({ length: 16 }, (_, i) => getBaseShift(m, new Date(2027, 0, i + 1))).includes('SPARE')));
+        const v6 = /** @type {any} */ (proposalById('proposal:MB-26-V6'));
+        expect(Array.from({ length: 15 }, (_, i) => /** @type {any} */ (dayOn(v6, 2, new Date(2027, 0, 17 + i))).shift)).not.toContain('SPARE');
+        await seedSession(page, me.name);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=2&view=mine');
+        await expect(page.locator('.month-year')).toHaveText('January 2027');
+        await expect(page.locator('.cmp-table tbody:not(.cmp-totals) td', { hasText: 'Spare' })).toHaveCount(0);
+        await expect(page.locator('#legend-spare')).toBeHidden();
+    });
+
+    test('Year: no today ring on a day before the link starts; the Today key follows the year, not the month left behind', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2027-01-10T09:00:00Z'));
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=1&view=year');
+        await expect(page.locator('.yr-title')).toHaveText('2027');
+        await expect(page.locator('.yr-today')).toHaveCount(0);
+        await expect(page.locator('#selectorLegendToday')).toBeHidden();
+        // In March, leave the Month view on January, then open the Year: today's ring is on March, and the key says so.
+        await page.clock.setFixedTime(new Date('2027-03-10T09:00:00Z'));
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=1');
+        await expect(page.locator('.month-year')).toHaveText('March 2027');
+        await page.locator('#prevMonth').click();
+        await page.locator('#prevMonth').click();
+        await expect(page.locator('.month-year')).toHaveText('January 2027');
+        await page.locator('#selectorViewYear').click();
+        await expect(page.locator('.yr-today')).toHaveCount(1);
+        await expect(page.locator('#selectorLegendToday')).toBeVisible();
+    });
+
+    test('Year: a swipe re-stamps the printed heading, and ← → keep the keyboard on the same month\'s name', async ({ page }) => {
+        await seedSession(page, ADMIN);
+        await page.goto('/links-selector.html?proposal=MB-26-V6&line=1&view=year');
+        await expect(page.locator('#selectorPrintChoice')).toContainText('the year 2027');
+        const box = /** @type {{ x: number, y: number, width: number, height: number }} */ (await page.locator('#calendarDisplay').boundingBox());
+        const y = box.y + Math.min(box.height / 2, 300);
+        for (let attempt = 0; attempt < 4; attempt++) {
+            await page.mouse.move(box.x + box.width - 20, y);
+            await page.mouse.down();
+            await page.mouse.move(box.x + 20, y, { steps: 12 });
+            await page.mouse.up();
+            try {
+                await page.waitForFunction(() => document.querySelectorAll('.yr-title').length === 1
+                    && document.querySelector('.yr-title')?.textContent === '2028', null, { timeout: 5000 });
+                break;
+            } catch { /* a simulated gesture is sometimes swallowed — e2e/calendar-swipe-redraw.spec.js */ }
+        }
+        await expect(page.locator('.yr-title')).toHaveText('2028');
+        await expect(page.locator('#selectorPrintChoice')).toContainText('the year 2028');
+        await page.locator('.yr-open[data-month="2"]').focus();
+        await page.keyboard.press('ArrowLeft');
+        await expect(page.locator('.yr-title')).toHaveText('2027');
+        await expect(page.locator('.yr-open[data-month="2"]')).toBeFocused();
     });
 });
 
