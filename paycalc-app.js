@@ -10,8 +10,8 @@
  *   persists (paycalc-form-data.js), what a save may write over another tab's (paycalc-period-merge.js),
  *   the result card's markup (paycalc-breakdown.js), the sticky
  *   take-home bar (paycalc-sticky-total.js), the Year to Date card's wiring (paycalc-ytd-card.js), the
- *   money banners' ticks and links (paycalc-money-banner.js) and the two-tap Clear
- *   (paycalc-clear-confirm.js).
+ *   money banners' ticks and links (paycalc-money-banner.js), the two-tap Clear
+ *   (paycalc-clear-confirm.js) and the "not saved" line and its Retry (paycalc-save-line.js).
  * A new RULE belongs in one of those, not here — coordinator-ratchet.test.mjs holds this file's size.
  *
  * The body is an exported init(), called by paycalc-boot.js (CSP `script-src 'self'` blocks inline
@@ -84,6 +84,7 @@ import { renderResultHeadline, renderYtdLine, wireYtdLine, renderUnpricedPayslip
 import { backPayBannerCopy, hppBannerCopy, paintBanner, wireBannerTicks } from './paycalc-money-banner.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
 import { createClearConfirm } from './paycalc-clear-confirm.js';
+import { createSaveLine } from './paycalc-save-line.js';
 import { refreshYtdSrc, updateYtdNote, wireYtdCard } from './paycalc-ytd-card.js';
 import { setDisclosure, toggleDisclosure, toggleHoursExtra, toggleHppNote, toggleBD, toggleDisclaimer } from './paycalc-disclosures.js';
 
@@ -391,24 +392,14 @@ export function init() {
     /** @type {{ raw: string|null }} */
     let _base = { raw: null };
     let _asking = false;   // a merge question is open: no save until it is answered
-    /** The "not saved" line on show, or null. updateSaveStatus keeps it until a save lands. @type {string|null} */
-    let _notSavedText = null;
-    /** What that line is about: the form's figures, or only a setting carried into the payslip. A setting's
-     *  later success clears its own line, never one about the form's figures. @type {'form'|'setting'} */
-    let _notSavedFrom = 'form';
-    /** What the Retry button beside that line runs again, or null where there is nothing to retry (a clear
-     *  that could not be checked says to reload; a question is open). @type {(() => void) | null} */
-    let _retry = null;
-    /** End the "not saved" line and its Retry. */
-    const _savedAgain = () => { _notSavedText = null; _retry = null; };
+    /** The "not saved" line, its Retry (null where there is nothing to retry: a clear that could not be
+     *  checked says to reload; a question is open) and the live region that speaks it — the rules are
+     *  paycalc-save-line.js's. */
+    const _line = createSaveLine();
     const NOT_SAVED = '⚠ Not saved — try again';
     const NOT_SAVED_ASK = '⚠ Not saved — this payslip was also changed in another tab';
-    /** @param {number} pNum @param {string} text */
-    const _notSaved = (pNum, text, from = /** @type {'form'|'setting'} */ ('form'), retry = /** @type {(() => void) | null} */ (null)) => {
-      const outranked = _notSavedText && _notSavedFrom === 'form' && from === 'setting';   // a form line outranks a setting's
-      if (!outranked) { _notSavedFrom = from; _retry = retry; }
-      _notSavedText = text; updateSaveStatus(pNum);
-    };
+    /** @param {number} pNum @param {string} text @param {'form'|'setting'} [from] @param {(() => void) | null} [retry] @param {string[]} [fields] */
+    const _notSaved = (pNum, text, from = 'form', retry = null, fields = []) => { _line.fail(text, { from, retry, fields }); updateSaveStatus(pNum); };
     /** The boxes showing the calendar's suggestion rather than a typed figure. */
     const _goldFields = () => new Set([...document.querySelectorAll('.roster-suggested')].map(el => el.id));
 
@@ -429,7 +420,7 @@ export function init() {
       const json = JSON.stringify(data);
       if (!lsSetVerified(periodKey(pNum), json)) { _notSaved(pNum, NOT_SAVED, 'form', autosave); return false; }   // the typed work stays on screen; Retry, or the next edit, tries again
       _base = { raw: json };
-      _savedAgain();
+      _line.stored();
       _applyFromDisk(data, fromDisk);
       recordCalendarFigures(pNum);   // the snapshot describes what was just saved: gold pairs at their saved values (paycalc-3-1)
       updateSaveStatus(pNum);
@@ -499,11 +490,12 @@ export function init() {
     /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
      *  (`autosave` would save the calendar's suggestion too — see `settingFieldsWrite`). @param {string[]} fields */
     const persistSetting = (fields) => function persist() { const pNum = currentPeriodNum(), p = periodByNum(pNum);
+      const all = _line.settingFields(fields);   // with any setting refused before, so a "saved" covers it too
       const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative,
-        periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }), fields);
+        periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }), all);
       if (w) {   // never "saved" over a write the device did not keep; a kept one ends only a setting's own line
-        if (!lsSetVerified(periodKey(pNum), w)) _notSaved(pNum, NOT_SAVED, 'setting', persist);
-        else { if (_notSavedText && _notSavedFrom === 'setting') _savedAgain(); updateSaveStatus(pNum); }
+        if (!lsSetVerified(periodKey(pNum), w)) _notSaved(pNum, NOT_SAVED, 'setting', persist, all);
+        else { _line.settingStored(all); updateSaveStatus(pNum); }
       }
       calculate(); };
 
@@ -524,7 +516,7 @@ export function init() {
       const _parsed = parseSavedPeriod(_raw);
       if (_parsed.data) d = _parsed.data;
       _base = { raw: _raw };   // the version this form is now in step with — what a save merges against
-      _savedAgain();
+      _line.reset();
       _periodLoadWasCorrupt = !!_parsed.error;   // gates the background fetch's auto-apply
       clearRosterSuggestedAll();   // writeFormData expects the gold highlights cleared first
       _adjNegative = writeFormData(d).adjNegative;
@@ -551,12 +543,15 @@ export function init() {
 
     /** @param {number} pNum */
     function updateSaveStatus(pNum) {
-      const el  = /** @type {HTMLElement} */ (document.getElementById('saveStatus'));
+      const el = /** @type {HTMLElement} */ (document.getElementById('saveStatus'));
+      _paintSaveStatus(el, pNum);   // the words first: they are what the live region speaks
+      _line.paint({ statusEl: el, retryBtn: document.getElementById('saveRetryBtn'), liveEl: document.getElementById('saveStatusLive') });
+    }
+    /** The status line's words for payslip `pNum`. @param {HTMLElement} el @param {number} pNum */
+    function _paintSaveStatus(el, pNum) {
       // What is on screen did not reach storage: say so, never "saved" for the figures storage still
       // holds — until a save is read back, or the payslip is loaded again.
-      const retryBtn = document.getElementById('saveRetryBtn');
-      if (retryBtn) retryBtn.hidden = !(_notSavedText && _retry);
-      if (_notSavedText) { setStatus(el, _notSavedText); el.className = 'save-status failed'; return; }
+      if (_line.text) { setStatus(el, _line.text); el.className = 'save-status failed'; return; }
       const raw = lsGet(periodKey(pNum));
       if (raw) {
         const { data: d, error } = parseSavedPeriod(raw);
@@ -592,7 +587,7 @@ export function init() {
     const _clearConfirm = createClearConfirm(document.getElementById('clearBtn'), clearPeriod);
     // Retry beside a "not saved" line runs the write that failed again — the last edit, the setting, or the
     // clear — so a member whose last figure was refused is not left to type something just to try again.
-    document.getElementById('saveRetryBtn')?.addEventListener('click', () => _retry?.());
+    document.getElementById('saveRetryBtn')?.addEventListener('click', () => _line.retry?.());
     // On hide: disarm "Select again to confirm" (iOS fires a suspended timer at once on resume — an accidental wipe), and let
     // go of the field in hand, so a figure that commits only on `change` (prior-year HPP) is kept if the page never returns.
     document.addEventListener('visibilitychange', () => { if (document.hidden) { _clearConfirm.reset(); commitFocusedField(); } });
@@ -615,7 +610,7 @@ export function init() {
         }
       }
       _base = { raw: null };
-      _savedAgain();
+      _line.stored();
       lsDel(snapKey(pNum));
       // Mark the form as user-touched BEFORE blanking it: programmatic writes fire no 'input', so a
       // fetch in flight would otherwise refill + autosave the fields just cleared.

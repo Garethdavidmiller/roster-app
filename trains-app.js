@@ -202,9 +202,22 @@ function start(member) {
     // kind of day unless somebody chose one; the labels and the phase re-read too (`render`).
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(state); });
     // …and one that is never hidden is asked each minute (the header's "On and after the change").
-    // A station asked about with no time is "the next train", so its answer follows the minute too.
-    setInterval(() => { if (document.visibilityState === 'visible' && !turnIfNewDay(state) && lookupFollowsClock()) renderLookup(state); }, 60_000);
+    // A station asked about with no time is "the next train", so its answer follows the minute too — ON the minute
+    // (`onEachMinute`): a minute counted from whenever the page opened left a train that had gone on screen for up to two.
+    onEachMinute(() => { if (document.visibilityState === 'visible' && !turnIfNewDay(state) && lookupFollowsClock()) renderLookup(state); });
     // The error reporter, the usage and latency counts and the forced set-password step are the start-up's.
+}
+
+/**
+ * Run `fn` as each clock minute begins. A `setInterval` of 60 s counts from when the page opened: opened at 17:29:59,
+ * it redrew at 17:30:59 and 17:31:59, so "Next train" showed the 17:30 until nearly 17:32. Each wait is worked out
+ * afresh from the clock, so it cannot drift; a wake a moment early only runs `fn` once more, which changes nothing.
+ * @param {() => void} fn
+ */
+function onEachMinute(fn) {
+    const wait = () => 60_000 - (Date.now() % 60_000);
+    const tick = () => { fn(); setTimeout(tick, wait()); };
+    setTimeout(tick, wait());
 }
 
 // ── Renders ─────────────────────────────────────────────────────────────────────────────────────
@@ -264,10 +277,13 @@ function turnIfNewDay(state) {
  * input redraws only its own panel, the lookup once typing pauses (`SETTLE_MS`). A station opened from the list
  * has a history entry NAMING it, and a popstate draws what its entry names (Trains review, 22 Nov 2026: a station
  * entry was ignored, so Back, Forward and a second station left two entries for one view, and a Back did nothing).
+ * The entry names the view it was opened from too (`from`), and a Back from it returns there (Nov 2026).
  * @param {PageState} state
  */
 function wire(state) {
-    let pushed = false;     // the history entry the page is on is a station's (Android Back returns to the list)
+    let pushed = false;     // the history entry the page is on is a station's (Android Back returns to the view it came from)
+    /** The view the station entry the page is on (or last left) was opened from — its `from`. @type {View} */
+    let entryFrom = 'changes';
     el('trainsMain')?.addEventListener('click', (e) => {
         const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest(
             'button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],button[data-col],button[data-journey],#trHeadsMore,#trAllTrains,#trGridAll,#trStationChange'));
@@ -297,8 +313,13 @@ function wire(state) {
             state.allTrains = false;
             state.pickerOpen = false;
             state.view = 'stations';
-            const entry = { trains: 'station', crs: state.station };   // what a Back or Forward to it draws
+            // What a Back or Forward to it draws — and `from`, the view it was opened from, which a Back from it returns
+            // to: a station is a press away on every view now (Find a train's answer, the desktop's chips), and Back
+            // always drew "What's changing", so the grid → a station → Back landed on the changes list.
+            const from = was !== 'stations' ? was : entryFrom;
+            const entry = { trains: 'station', crs: state.station, from };
             if (was !== 'stations') { state.sdir = 'dep'; history.pushState(entry, ''); pushed = true; } else if (pushed) history.replaceState(entry, '');
+            entryFrom = from;
         }
         if (pushed && was === 'stations' && state.view !== 'stations') { pushed = false; history.back(); }
         render(state);
@@ -316,15 +337,16 @@ function wire(state) {
         const entry = /** @type {any} */ (e.state);
         if (entry?.trains === 'station') {   // that station — unless already on screen, as under a lightbox's ✕
             pushed = true;
+            entryFrom = entry.from === 'grid' ? 'grid' : 'changes';   // only a view a station can be opened from; anything else, the list
             const crs = typeof entry.crs === 'string' && STATIONS[entry.crs] ? entry.crs : state.station;
             if (state.view === 'stations' && state.station === crs) return;
             Object.assign(state, { view: 'stations', station: crs, pickerOpen: false, allTrains: state.station === crs && state.allTrains });
             render(state);
             return;
         }
-        if (!pushed) return;   // any other entry is the list, once a station's was left — not a ✕ over another view
+        if (!pushed) return;   // any other entry is the view under a station's, once it was left — not a ✕ over another view
         pushed = false;
-        state.view = 'changes';
+        state.view = entryFrom;
         render(state);
     });
     // A key redraws its own card — unless the railway day has turned since the page was drawn, when the

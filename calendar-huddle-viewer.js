@@ -681,9 +681,10 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         _unsubHuddle = subscribeToLatestHuddle(
             /** @param {any} huddle @param {boolean} [fromCache] */ (huddle, fromCache) => {
                 if (!docAccess.has()) return;   // a snapshot that outlived a lock delivers nothing
-                // The ☰ menu's date for the Huddle (doc-dates.js): the day it is FOR, worked out from when it
-                // arrived (`huddleForDate`), and only the server may say there is none.
-                if (huddle) recordDocDate('huddle', huddleForDate(huddle.date, huddle.uploadedAt)); else if (!fromCache) recordDocDate('huddle', null);
+                // The ☰ menu's date for the Huddle (doc-dates.js): the day it is FOR, worked out from when and
+                // by whom it arrived (`huddleForDate` — only the flow's evening Huddle moves), and only the
+                // server may say there is none.
+                if (huddle) recordDocDate('huddle', huddleForDate(huddle.date, huddle.uploadedAt, huddle.uploadedBy)); else if (!fromCache) recordDocDate('huddle', null);
                 const prevFile = _fileOf(_huddleData);
                 if (!fromCache) {
                     // The server has answered: the wait is over, and a label saying it could not be

@@ -4,10 +4,10 @@
  * how long. Pure: no DOM, no Firestore, no clock. Team Week View (calendar-team-view.js) resolves every
  * shift through the shared ladder and hands this module the TIMES; this module only does the arithmetic.
  *
- * Owns: reading 'HH:MM-HH:MM' as a span of minutes, the overlap of two spans, and the order the card lists
- *   colleagues in.
+ * Owns: reading 'HH:MM-HH:MM' as a span of minutes, the overlap of two spans, the order the card lists
+ *   colleagues in, and how a stretch together is said (`togetherWords`).
  * Does NOT own: which shift a member is on (`resolveDayShift` / `getBaseShift`, via Team View), who counts as
- *   a colleague (Team View's filter), or any words on screen.
+ *   a colleague (Team View's filter), or the card's markup.
  *
  * THE RULES, each with the case that makes it necessary (owner, 27 Nov 2026: "if I work 14:00–22:30 and
  * someone else works 06:00–15:00, show 'Together 14:00–15:00'"):
@@ -23,8 +23,19 @@
  *      Saturday's.
  *   4. TOUCHING IS NOT OVERLAPPING. A 06:00-14:00 handing over to a 14:00-22:00 shares no minute: the spans
  *      are half-open, [start, end).
- *   5. LONGEST TOGETHER FIRST. The colleague you share most of the shift with is the one you are most
- *      likely looking for; a tie goes to whoever joins you first, then to the order the caller gave (names).
+ *   5. IN ORDER OF START, AS A DUTY SHEET READS (28 Nov 2026, the card's redesign). The card is read down a
+ *      role's list as the day runs: yesterday's overnight first (it started before midnight), then the
+ *      earlies, then the lates. A tie goes to whoever finishes first, then to the order the caller gave
+ *      (names). "Longest together first" was the first answer, and it put a 06:20 between two lates.
+ *   6. A DAY'S TIMES ARE THE TIMES THE CALENDAR SHOWS FOR IT (`workedTimes`, through `hoursSlotTime` in
+ *      override-utils.js — the cell's own rule, not a second one). A colleague on Training with no time of
+ *      their own on a 06:00–14:00 day is on 06:00–14:00: the ladder carries the base shift's time in
+ *      `rdwTime`, and the cell prints it. Reading the value alone called that colleague "not at the same
+ *      time" beside a 07:00 start. The member's OWN day is read the same way (calendar-renderer.js), or
+ *      their Training day would offer no "Who's on with me" at all.
+ *   7. UNKNOWN TIMES ARE NEVER "NOT AT THE SAME TIME". A worked day with no times recorded — Rest Day
+ *      Working with no time, a rest-day Other day ('RDW'), a Meeting with none — might overlap or might
+ *      not, so it is its own group (`timesUnknown`), never `alsoWorking`, whose words are a claim.
  *
  * The rules 2 and 3 need no special case in the arithmetic: a previous-day shift that does not cross
  * midnight ends at or before 0 once moved back, and a next-day shift starts at or after 1440, so either can
@@ -33,7 +44,7 @@
  */
 
 import { SHIFT_TIME_REGEX } from './roster-data.js';
-import { parseOtherValue } from './other-day.js';
+import { hoursSlotTime } from './override-utils.js';
 
 /** Minutes in a day. */
 export const DAY_MINUTES = 1440;
@@ -56,20 +67,21 @@ export function shiftSpan(time) {
 
 /**
  * The TIMES a resolved day is worked, or null when it is not a worked day with times. Takes the shared
- * ladder's answer (`resolveDayShift` → `{ shift, rdwTime }`), never a raw roster value:
+ * ladder's answer (`resolveDayShift` → `{ shift, rdwTime }`), never a raw roster value, and reads it by
+ * rule 6: the time the Calendar cell shows in its hours slot (`hoursSlotTime`), when that is a shift time.
  *   · a timed shift — its own value;
  *   · Rest Day Working — the time the change recorded (`rdwTime`); none recorded, no times;
- *   · an Other day (Training, Induction…) — the time it carries; none, no times.
+ *   · an Other day (Training, Induction…) — its own time, or on a working day with none, the base shift's
+ *     (the ladder puts either in `rdwTime`); a rest-day Other with no time ('RDW'), or a Meeting or Union
+ *     day with none, has no times.
  * Rest, Spare, annual leave and an absence are never worked (`isWorkedShift`'s list), so never listed.
  * @param {{ shift: string, rdwTime?: string }} day
  * @returns {string|null}
  */
 export function workedTimes({ shift, rdwTime }) {
     if (typeof shift !== 'string') return null;
-    if (SHIFT_TIME_REGEX.test(shift)) return shift;
-    if (shift === 'RDW') return rdwTime && SHIFT_TIME_REGEX.test(rdwTime) ? rdwTime : null;
-    const other = parseOtherValue(shift);
-    return other?.time && SHIFT_TIME_REGEX.test(other.time) ? other.time : null;
+    const time = hoursSlotTime(shift, rdwTime);
+    return SHIFT_TIME_REGEX.test(time) ? time : null;
 }
 
 /** 'HH:MM' for a minute count, on the 24-hour clock whatever day it falls in.
@@ -90,13 +102,14 @@ export function rangeText(time) {
  * @template K
  * @typedef {{ key: K, prev?: string|null, day?: string|null, next?: string|null, worksDay?: boolean }} Colleague
  *   `prev`/`day`/`next` — the colleague's worked TIMES (`workedTimes`) on the day before, the day and the
- *   day after; `worksDay` — whether they are on a worked shift that day at all, times or not.
+ *   day after; `worksDay` — whether they are on a worked shift that day at all, times or not (rule 7).
  */
 /**
- * @typedef {{ day: -1|0|1, time: string, from: string, to: string, minutes: number, at: number }} Together
+ * @typedef {{ day: -1|0|1, time: string, from: string, to: string, minutes: number, at: number, starts: number }} Together
  *   one stretch together: whose day the colleague's shift belongs to (−1 the day before, 0 the day, +1 the
- *   day after), that shift, and the shared stretch as clock times. `at` is its start in minutes from the
- *   day's midnight, for ordering.
+ *   day after), that shift, and the shared stretch as clock times. `at` is the stretch's start and `starts`
+ *   the colleague's SHIFT's start, both in minutes from the day's midnight (yesterday's overnight is
+ *   negative), for ordering (rule 5).
  */
 
 /**
@@ -104,17 +117,20 @@ export function rangeText(time) {
  * @template K
  * @param {string} mine  the member's TIMES that day ('HH:MM-HH:MM')
  * @param {Colleague<K>[]} colleagues  in the order a tie should keep (the caller sorts by name)
- * @returns {{ together: { key: K, minutes: number, spans: Together[] }[], alsoWorking: K[] }}
- *   `together` — every colleague who shares at least one minute, longest together first (rule 5);
- *   `alsoWorking` — the rest who are working that day, in the order given.
+ * @returns {{ together: { key: K, minutes: number, spans: Together[] }[], alsoWorking: K[], timesUnknown: K[] }}
+ *   `together` — every colleague who shares at least one minute, in order of their shift's start (rule 5);
+ *   `alsoWorking` — the rest who are working that day at times that share no minute, in the order given;
+ *   `timesUnknown` — the rest who are working that day with no times recorded, in the order given (rule 7).
  */
 export function whoIsOnWith(mine, colleagues) {
     const me = shiftSpan(mine);
-    if (!me) return { together: [], alsoWorking: [] };
-    /** @type {{ key: K, minutes: number, first: number, spans: Together[] }[]} */
+    if (!me) return { together: [], alsoWorking: [], timesUnknown: [] };
+    /** @type {{ key: K, minutes: number, starts: number, ends: number, spans: Together[] }[]} */
     const together = [];
     /** @type {K[]} */
     const alsoWorking = [];
+    /** @type {K[]} */
+    const timesUnknown = [];
     for (const c of colleagues) {
         /** @type {Together[]} */
         const spans = [];
@@ -125,16 +141,38 @@ export function whoIsOnWith(mine, colleagues) {
             const from = Math.max(me.start, s.start + offset);
             const to   = Math.min(me.end,   s.end   + offset);
             if (to <= from) continue;                       // rule 4: touching ends share no minute
-            spans.push({ day, time, from: clockAt(from), to: clockAt(to), minutes: to - from, at: from });
+            spans.push({ day, time, from: clockAt(from), to: clockAt(to), minutes: to - from, at: from, starts: s.start + offset });
         }
         if (spans.length) {
             spans.sort((a, b) => a.at - b.at);
-            together.push({ key: c.key, minutes: spans.reduce((n, s) => n + s.minutes, 0), first: spans[0].at, spans });
+            const first = /** @type {string} */ (spans[0].time);
+            const ends = /** @type {{ end: number }} */ (shiftSpan(first)).end + spans[0].day * DAY_MINUTES;
+            together.push({ key: c.key, minutes: spans.reduce((n, s) => n + s.minutes, 0), starts: spans[0].starts, ends, spans });
         } else if (c.worksDay) {
-            alsoWorking.push(c.key);
+            (shiftSpan(c.day) ? alsoWorking : timesUnknown).push(c.key);   // rule 7
         }
     }
-    // Rule 5. Array.prototype.sort is stable, so equal stretches keep the caller's (name) order.
-    together.sort((a, b) => b.minutes - a.minutes || a.first - b.first);
-    return { together: together.map(({ key, minutes, spans }) => ({ key, minutes, spans })), alsoWorking };
+    // Rule 5. Array.prototype.sort is stable, so equal shifts keep the caller's (name) order.
+    together.sort((a, b) => a.starts - b.starts || a.ends - b.ends);
+    return { together: together.map(({ key, minutes, spans }) => ({ key, minutes, spans })), alsoWorking, timesUnknown };
+}
+
+/**
+ * THE STRETCH TOGETHER, SAID QUIETLY beside a colleague's shift (28 Nov 2026): measured against the member's
+ * own shift, so the card says what changes for them — "whole shift", "until 15:00" (they leave first),
+ * "from 22:30" (they arrive later), or the stretch itself when it sits inside. Words, not a second pair of
+ * times on every row: "Together 14:45–23:55", bold on every row, outshouted the shifts it was about.
+ * @param {string} mine  the member's TIMES that day ('HH:MM-HH:MM')
+ * @param {Together} span  one stretch from `whoIsOnWith`
+ * @returns {string}
+ */
+export function togetherWords(mine, span) {
+    const me = shiftSpan(mine);
+    if (!me) return `${span.from}–${span.to}`;
+    const starts = span.at === me.start;
+    const ends = span.at + span.minutes === me.end;
+    if (starts && ends) return 'whole shift';
+    if (starts) return `until ${span.to}`;
+    if (ends) return `from ${span.from}`;
+    return `${span.from}–${span.to}`;
 }

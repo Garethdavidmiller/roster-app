@@ -25,7 +25,7 @@
  *     dialogue they cannot satisfy and cannot dismiss. On any auth-layer failure they can't fix by
  *     typing (`too-many-requests`, network, or a TIMEOUT), and after three failed attempts of any
  *     other kind, a "Continue for now" escape appears. It stamps nothing, so they are compelled again
- *     next sign-in.
+ *     on the next open of the app, not only the next sign-in ("WHEN IT ASKS", below).
  *     · v18.92 shipped this covering REJECTIONS only. A promise that never settles is not a rejection:
  *       it reached neither the catch nor the close, so a dead-air connection left "Saving…" up with the
  *       escape still hidden — the exact trap. `SAVE_TIMEOUT_MS` (own-password.js) converts a hang into a rejection

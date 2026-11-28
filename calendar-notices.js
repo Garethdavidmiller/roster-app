@@ -123,13 +123,15 @@ const TIMETABLE_SOON_RECORD = {
 /**
  * What App Notices keeps of the FIRST New link notice (9 Nov 2026), retired on 26 Nov for the one below. Still revised
  * on every load, because a device that archived it keeps the record for 180 days. It used to add "Nothing is decided
- * yet", which the record would go on saying after the choice is made; the page itself says where things stand.
+ * yet", which the record would go on saying after the choice is made; the page itself says where things stand. Its route
+ * names the drawer pill by its label (`NAV_PAGES`, nav-destinations.js — "🔁 New CEA Link" since v27.15), which
+ * calendar-notices.test.mjs block 14 holds it to.
  */
 const NEWLINK_RECORD = {
     id: 'newlink-2026', section: 'New CEA Link', date: '9 Nov 2026',
     title: 'See the three proposals for the new link',
     body: 'The three proposals for the new link, which starts in January 2027, are on the New CEA Link page — open it '
-        + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',
+        + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0CEA\u00a0Link.',
 };
 
 /**
@@ -140,7 +142,7 @@ const NEWLINK_VOTE_RECORD = {
     id: 'newlink-vote-2026', section: 'New CEA Link', date: '26 Nov 2026',
     title: 'Before the vote on the new link',
     body: 'Before the vote on which of the three proposals goes forward, each one is on the New CEA Link page — open it '
-        + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0link.',
+        + 'from the menu: ☰\u00a0then 🔁\u00a0New\u00a0CEA\u00a0Link.',
 };
 
 /**
@@ -262,7 +264,8 @@ function _reviseMoveRecordForReader() {
 export function initCalendarNotices({ after } = {}) {
     // Words corrected since a device archived them, put on its record whether or not the notice is still
     // offered — the record outlives the notice by months (`reviseArchivedNotice`).
-    for (const record of [TIMETABLE_SOON_RECORD, NEWLINK_RECORD]) reviseArchivedNotice(record);
+    // The two New link records name the pill as it has been labelled since v27.15 ("🔁 New CEA Link").
+    for (const record of [TIMETABLE_SOON_RECORD, NEWLINK_RECORD, NEWLINK_VOTE_RECORD]) reviseArchivedNotice(record);
     if (!lsAvailable()) return;
     if (after) _after = Promise.resolve(after).catch(() => {});
     _reviseMoveRecordForReader();

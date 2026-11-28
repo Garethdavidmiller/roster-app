@@ -10,13 +10,14 @@
  *
  * THE "ON WITH" CARD (owner, 27 Nov 2026): the day panel's "Who’s on with me" opens this view on the date's
  * week (`showWhoIsOn`), the card above the grid (calendar-team-onwith.js). Its shifts are resolved by
- * `effectiveDay`, as the cells are, through the shared fetch; Hide, another week or leaving drops it.
+ * `effectiveDay` and drawn by `getTeamCellDisplay`, as the cells are, through the shared fetch; Hide,
+ * another week, a date gone past or leaving drops it.
  * Do not edit here for: personal calendar, override cache management, nav structure.
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, SHIFT_KIND_LABELS, isSunday, parseISODate } from './roster-data.js';
-import { buildOnWithCard, dayOf } from './calendar-team-onwith.js';
+import { buildOnWithCard, dayOf, isPastDay } from './calendar-team-onwith.js';
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
@@ -334,9 +335,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const weekDates  = getTeamWeekDates(currentTeamWeekStart);
         const weekLabel  = formatTeamWeekLabel(currentTeamWeekStart);
         // The card belongs to ONE date: a week that no longer holds it (Prev, Next, the jump, the date
-        // turning) is the plain grid, and coming back does not bring the card with it.
-        if (_onWith && getSunday(dayOf(_onWith.iso)).getTime() !== currentTeamWeekStart.getTime()) _onWith = null;
-        const onWithCard = buildOnWithCard({ onWith: _onWith, effectiveDay, monthKey: /** @type {any} */ (monthKey) });
+        // turning), or a date gone past (`isPastDay`), is the plain grid, and coming back does not bring it.
+        if (_onWith && (getSunday(dayOf(_onWith.iso)).getTime() !== currentTeamWeekStart.getTime()
+                        || isPastDay(_onWith.iso, new Date()))) _onWith = null;
+        const onWithCard = buildOnWithCard({ onWith: _onWith, effectiveDay, cellDisplay: getTeamCellDisplay,
+                                             monthKey: /** @type {any} */ (monthKey), today: new Date() });
 
         // Save scroll position before innerHTML wipe so it can be restored when skipFetch
         // (grade tab switch or Firestore callback re-render). Week navigation intentionally

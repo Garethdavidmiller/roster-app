@@ -237,6 +237,9 @@ test.describe('links selector', () => {
         await page.goto('/links-selector.html');
         await expect(page.locator('#selectorNotForYou')).toBeVisible();
         await expect(page.locator('#selectorNotForYou')).toContainText('isn’t open to you yet');
+        // the card names a page they can open in the meantime, so it links to it
+        await expect(page.locator('#selectorNotForYouNewlink')).toBeVisible();
+        await expect(page.locator('#selectorNotForYouNewlink')).toHaveAttribute('href', './newlink.html');
         await expect(page.locator('.calendar-day')).toHaveCount(0);
         await page.locator('#navMenuBtn').click();
         // not even as the page they are on: a gated pill is drawn only for the people its page admits (nav-destinations.js)
@@ -314,6 +317,8 @@ test.describe('links selector', () => {
         await page.goto('/links-selector.html');
         await expect(page.locator('#selectorNotForYou')).toContainText('doesn’t apply to your contract');
         await expect(page.locator('#selectorNotForYou')).not.toContainText('yet');
+        // New CEA Link is not theirs either, so the card offers no way there
+        await expect(page.locator('#selectorNotForYouNewlink')).toHaveCount(0);
     });
     test('Next is the faded end at December 2028, and stays there', async ({ page }) => {
         await seedSession(page, ADMIN);

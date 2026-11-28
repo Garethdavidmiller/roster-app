@@ -8,7 +8,9 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { shiftSpan, workedTimes, clockAt, rangeText, whoIsOnWith, DAY_MINUTES } from '../team-overlap.js';
+import { shiftSpan, workedTimes, clockAt, rangeText, whoIsOnWith, togetherWords, DAY_MINUTES } from '../team-overlap.js';
+import { readFileSync } from 'node:fs';
+import { resolveEffectiveShift, hoursSlotTime } from '../override-utils.js';
 
 describe('shiftSpan: a shift as minutes from its own midnight', () => {
     test('an ordinary day shift', () => {
@@ -38,10 +40,39 @@ describe('workedTimes: the times of a resolved day, or none', () => {
         assert.equal(workedTimes({ shift: 'RDW', rdwTime: '07:00-15:00' }), '07:00-15:00');
         assert.equal(workedTimes({ shift: 'RDW', rdwTime: '' }), null);
     });
-    test('an Other day counts with the time it carries, and not without one', () => {
-        assert.equal(workedTimes({ shift: 'TRG 09:00-17:00' }), '09:00-17:00');
-        assert.equal(workedTimes({ shift: 'TRG RDW 09:00-17:00' }), '09:00-17:00');
-        assert.equal(workedTimes({ shift: 'MEET' }), null);
+    // Through the REAL ladder: `workedTimes` is handed `resolveEffectiveShift`'s answer, never a bare value.
+    const other = (/** @type {string} */ value, /** @type {string} */ base) =>
+        resolveEffectiveShift({ type: 'other', value }, base, false, false);
+    test('an Other day counts with the time it carries', () => {
+        assert.equal(workedTimes(other('TRG 09:00-17:00', '06:00-14:00')), '09:00-17:00');
+        assert.equal(workedTimes(other('TRG RDW 09:00-17:00', 'RD')), '09:00-17:00');
+    });
+    test('rule 6: an Other day with no time of its own on a working day is on the BASE shift\'s times', () => {
+        assert.equal(workedTimes(other('TRG', '06:00-14:00')), '06:00-14:00');
+        assert.equal(workedTimes(other('IND', '14:00-22:00')), '14:00-22:00');
+    });
+    test('rule 6: the times are the hours slot the Calendar cell prints, for every kind of day', () => {
+        const cases = [
+            ['shift', '07:00-15:00', 'RD', '07:00-15:00'], ['rdw', '08:00-16:00', 'RD', '08:00-16:00'],
+            ['rdw', 'RDW', 'RD', 'RDW'], ['other', 'TRG', '06:00-14:00', '06:00-14:00'], ['other', 'TRG', 'RD', 'RDW'],
+            ['other', 'MEET', '06:00-14:00', ''], ['other', 'ASSESS 10:00-12:00', '06:00-14:00', '10:00-12:00'],
+        ];
+        for (const [type, value, base, slot] of cases) {
+            const day = resolveEffectiveShift({ type, value }, base, false, false);
+            assert.equal(hoursSlotTime(day.shift, day.rdwTime), slot, `the hours slot for ${type} ${value} on ${base}`);
+            assert.equal(workedTimes(day), shiftSpan(slot) ? slot : null, `${type} ${value} on ${base}`);
+        }
+    });
+    test('rule 6: the Calendar cell reads its hours slot through the same rule — no second copy', () => {
+        // calendar-renderer.js loads the Firebase SDK, so it is read rather than imported here.
+        const src = readFileSync(new URL('../calendar-renderer.js', import.meta.url), 'utf8');
+        const body = src.slice(src.indexOf('export function dayCellParts'), src.indexOf('export function dayCellName'));
+        assert.match(body, /const displayTime = hoursSlotTime\(shift, rdwTime\);/, 'dayCellParts no longer reads hoursSlotTime');
+        assert.match(src, /const timesWorked = workedTimes\(\{ shift, rdwTime \}\);/, 'the day panel\'s times are not the ladder\'s');
+    });
+    test('rule 7: an Other day whose times are unknown has none — a rest-day one, a Meeting on a working day', () => {
+        assert.equal(workedTimes(other('TRG', 'RD')), null, 'a rest-day Training day has no times of its own');
+        assert.equal(workedTimes(other('MEET', '06:00-14:00')), null, 'a Meeting does not take the base shift\'s time');
     });
     test('rest, spare, leave and an absence are never worked', () => {
         for (const shift of ['RD', 'OFF', 'SPARE', 'AL', 'SICK']) assert.equal(workedTimes({ shift }), null, shift);
@@ -128,18 +159,57 @@ describe('whoIsOnWith', () => {
         assert.equal(together[0].minutes, 4 * 60);
     });
 
-    test('rule 5: longest together first, a tie to whoever joins first, then the order given', () => {
+    test('rule 5: in order of the colleague\'s start, a tie to whoever finishes first, then the order given', () => {
         const { together } = whoIsOnWith('14:00-22:30', [
-            { key: 'short',      day: '06:00-15:00', worksDay: true },   // 1h, from 14:00
-            { key: 'long',       day: '13:00-21:00', worksDay: true },   // 7h
-            { key: 'tie-later',  day: '20:30-23:00', worksDay: true },   // 2h, from 20:30
-            { key: 'tie-first',  day: '12:00-16:00', worksDay: true },   // 2h, from 14:00
-            { key: 'tie-first2', day: '12:00-16:00', worksDay: true },   // 2h, from 14:00 — after tie-first, as given
+            { key: 'late',       day: '20:30-23:00', worksDay: true },   // starts 20:30
+            { key: 'long',       day: '13:00-21:00', worksDay: true },   // starts 13:00
+            { key: 'early',      day: '06:00-15:00', worksDay: true },   // starts 06:00
+            { key: 'mid',        day: '12:00-16:00', worksDay: true },   // starts 12:00, ends 16:00
+            { key: 'mid-same',   day: '12:00-16:00', worksDay: true },   // the same shift — after 'mid', as given
+            { key: 'mid-short',  day: '12:00-15:00', worksDay: true },   // starts 12:00, finishes first
         ]);
-        assert.deepEqual(together.map(t => t.key), ['long', 'tie-first', 'tie-first2', 'tie-later', 'short']);
+        assert.deepEqual(together.map(t => t.key), ['early', 'mid-short', 'mid', 'mid-same', 'long', 'late']);
+    });
+
+    test('rule 5: yesterday\'s overnight starts before midnight, so it comes before today\'s earliest', () => {
+        const { together } = whoIsOnWith('05:00-13:00', [
+            { key: 'today',     day: '04:00-12:00', worksDay: true },
+            { key: 'overnight', prev: '22:00-06:00' },
+        ]);
+        assert.deepEqual(together.map(t => t.key), ['overnight', 'today']);
+        assert.equal(together[0].spans[0].starts, 22 * 60 - DAY_MINUTES);
+    });
+
+    test('rule 7: working with no times recorded is its own group, never "not at the same time"', () => {
+        const { together, alsoWorking, timesUnknown } = whoIsOnWith('07:00-15:00', [
+            { key: 'rdw', day: null, worksDay: true },                       // Rest Day Working, no time
+            { key: 'apart', day: '15:00-23:00', worksDay: true },
+        ]);
+        assert.deepEqual(together, []);
+        assert.deepEqual(alsoWorking, ['apart']);
+        assert.deepEqual(timesUnknown, ['rdw']);
     });
 
     test('a member with no shift times has nobody on with them', () => {
-        assert.deepEqual(whoIsOnWith('RD', [{ key: 'A', day: '06:00-15:00', worksDay: true }]), { together: [], alsoWorking: [] });
+        assert.deepEqual(whoIsOnWith('RD', [{ key: 'A', day: '06:00-15:00', worksDay: true }]), { together: [], alsoWorking: [], timesUnknown: [] });
+    });
+});
+
+describe('togetherWords: the stretch together, said against the member\'s own shift', () => {
+    const say = (/** @type {string} */ mine, /** @type {any} */ c) => togetherWords(mine, whoIsOnWith(mine, [{ key: 'x', worksDay: true, ...c }]).together[0].spans[0]);
+    test('the whole of the member\'s shift', () => {
+        assert.equal(say('14:45-23:55', { day: '14:45-23:55' }), 'whole shift');
+        assert.equal(say('14:45-23:55', { day: '14:00-23:59' }), 'whole shift');
+    });
+    test('a colleague who leaves first, and one who arrives later', () => {
+        assert.equal(say('14:00-22:30', { day: '06:00-15:00' }), 'until 15:00');
+        assert.equal(say('14:00-22:30', { day: '20:30-06:00' }), 'from 20:30');
+    });
+    test('a stretch inside the member\'s shift is the stretch itself', () => {
+        assert.equal(say('14:00-23:55', { day: '15:00-23:00' }), '15:00–23:00');
+    });
+    test('across midnight: yesterday\'s overnight leaves at 06:00, tomorrow\'s early arrives at 04:00', () => {
+        assert.equal(say('05:00-13:00', { prev: '22:00-06:00' }), 'until 06:00');
+        assert.equal(say('21:00-05:00', { next: '04:00-12:00' }), 'from 04:00');
     });
 });

@@ -578,6 +578,21 @@ export function resolveEffectiveShift(override, baseShift, sunday, christmasDay)
     return { shift: override.value, rdwTime: '', derivedRdw: false };
 }
 
+/**
+ * THE TIME A DAY'S HOURS SLOT HOLDS — the one reading of `resolveEffectiveShift`'s answer that the
+ * Calendar cell prints under its badge (`dayCellParts`) and "Who's on with me" counts (`workedTimes`,
+ * team-overlap.js), so the two cannot disagree. Rest Day Working and an Other day carry it in `rdwTime`,
+ * because their `shift` is a sentinel ('RDW', 'TRG', 'TRG RDW'): an Other day with no time of its own on
+ * a working day carries the BASE shift's time there. Every other day is its own value. Unfiltered: it may
+ * be 'RDW' (a rest-day Other with no time), '' or a non-time value — the caller decides what it shows.
+ * @param {string} shift  the resolved `shift`
+ * @param {string} [rdwTime]  the resolved `rdwTime`
+ * @returns {string}
+ */
+export function hoursSlotTime(shift, rdwTime = '') {
+    return (shift === 'RDW' || isOtherValue(shift)) ? (rdwTime || '') : shift;
+}
+
 // ── WHAT MAY NOT BE RECORDED ON A SUNDAY ───────────────────────────────────────────────
 //
 // Sundays are not contracted for any grade here, so annual leave, an absence and an "Other" day

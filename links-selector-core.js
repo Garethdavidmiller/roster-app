@@ -232,16 +232,22 @@ export function ignoredWords(ignored, proposalName, line) {
  * an Other Staff login has no roster line at all; a colleague outside the New CEA Link page's audience (a bilingual
  * contract, a Dispatcher) keeps their own link, so the page will never be for them — said so during the beta too, where
  * "not open to you yet" would promise what it never will; and everybody else is waiting for the beta to end.
+ * `newlink` is true only for that last reader: they are in the New CEA Link page's audience, so the card may send them
+ * there; neither of the other two can open it. The words state no count of proposals — the shortlist is PROPOSALS, and
+ * a number written here is a copy waiting to drift from it.
  * @param {{ otherStaff: boolean, inAudience: boolean }} who `inAudience`: would the page admit them once it opens?
- * @returns {{ title: string, why: string }}
+ * @returns {{ title: string, why: string, newlink: boolean }}
  */
 export function refusalWords({ otherStaff, inAudience }) {
     if (otherStaff) return { title: 'The Links Selector is for the CEA roster',
-        why: 'It shows the proposed new rota for colleagues on a normal CEA contract. An Other Staff login has no roster line, so there is nothing here for it.' };
+        why: 'It shows the proposed new rota for colleagues on a normal CEA contract. An Other Staff login has no roster line, so there is nothing here for it.',
+        newlink: false };
     if (!inAudience) return { title: 'The Links Selector doesn’t apply to your contract',
-        why: 'It shows the proposed new rota for colleagues on a normal CEA contract, and yours keeps its own link.' };
+        why: 'It shows the proposed new rota for colleagues on a normal CEA contract, and yours keeps its own link.',
+        newlink: false };
     return { title: 'The Links Selector isn’t open to you yet',
-        why: 'It is being tried out before it opens. The three proposals are on the New CEA Link page in the meantime.' };
+        why: 'It is being tried out before it opens. In the meantime, you can compare the proposals on the New CEA Link page.',
+        newlink: true };
 }
 
 /** The address's query for a choice. @param {{ code: string }} proposal @param {number} line */

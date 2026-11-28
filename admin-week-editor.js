@@ -42,7 +42,7 @@ import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBad
 export { rosteredWords };   // its home is the row's own words now; exported here as it always was
 // The grid's time boxes — typed formatting and the HH:MM check, by clock-input.js's rule.
 import { initTimeInputs } from './admin-time-inputs.js';
-import { setStatus } from './status-text.js'; import { previewChanges } from './admin-day-change.js';
+import { setStatus } from './status-text.js'; import { previewChanges, nowShows } from './admin-day-change.js';
 
 /** What a member still signed in after leaving the roster is told, on every card (admin-app.js). */
 export const NOT_ON_ROSTER_LINE = 'Your account is no longer on the roster — please contact the admin.';
@@ -255,7 +255,7 @@ export function buildWeekGridInto(container, dateStr) {
         if (existing) row.dataset.existingId = existing.id;
         // What the day shows NOW, and what a staged change is resolved against, for the before → after line
         // beside Save and in the receipt (`stagedDayChanges`): asked of the Calendar's own resolver.
-        row.dataset.nowShows = resolveDayShift(existing ?? null, baseShift, isSunday(dateISO), xmasDue, isChristmasOrBoxingDay(dateISO)).shift;
+        row.dataset.nowShows = nowShows(existing, baseShift, dateISO, xmasDue);
         row.dataset.baseShift = baseShift;
         row.dataset.xmasDue = xmasDue ? '1' : '';
 
@@ -571,8 +571,8 @@ export function updateSaveBtn() {
                 .map(([d, words]) => `<li>${escapeHtml(formatDisplay(d))}: ${escapeHtml(words)}</li>`).join('');
             const sig = `${saveCount}|${delCount}|${memberName}|${dayLines}`;
             if (gridPreview.dataset.sig !== sig) {
-                gridPreview.innerHTML = `<span aria-hidden="true">🗓️</span> <span>You're about to ${bits.join(' and ')} for <strong>${escapeHtml(memberName)}</strong>.`
-                    + (dayLines ? `<ul class="grid-preview-days">${dayLines}</ul>` : '') + '</span>';
+                gridPreview.innerHTML = `<span aria-hidden="true">🗓️</span> <div>You're about to ${bits.join(' and ')} for <strong>${escapeHtml(memberName)}</strong>.`
+                    + (dayLines ? `<ul class="grid-preview-days">${dayLines}</ul>` : '') + '</div>';
                 gridPreview.dataset.sig = sig;
             }
             gridPreview.hidden = false;

@@ -18,15 +18,21 @@
  * A Huddle's date is the day it plans, so it reads "for Sat 28 Nov". A Circular's or Newsletter's is its issue
  * date, "Fri 27 Nov". Another year's date carries its year.
  *
- * ── A HUDDLE THAT ARRIVES AFTER MIDDAY IS TOMORROW'S (owner, 27 Nov 2026) ──────────────────────────
+ * ── A HUDDLE THE FLOW DELIVERS AFTER MIDDAY IS TOMORROW'S (owner, 27 Nov 2026) ─────────────────────
  *
  * The Power Automate flow files every Huddle under the London date its email ARRIVED, and the evening's
  * Huddle plans the next day — so the date on file is a day early for it, and the menu said "for Fri 27 Nov"
- * beside Saturday's Huddle. `huddleForDate` works out the day it is for: filed under the day it arrived, and
- * arrived at 12:00 London time or later, it is the next day's. Any other date is taken as filed — an upload
- * by hand where the admin chose tomorrow already names its day, and an older one filled in later names its
- * own — so the rule can never move a date twice. A Huddle with no arrival time (a write still pending in
- * this device's cache) is taken as filed too: a day this device cannot work out is never guessed.
+ * beside Saturday's Huddle. `huddleForDate` works out the day it is for: delivered BY THE FLOW (`uploadedBy`
+ * is `HUDDLE_FLOW_UPLOADER`, the value functions/huddle-ingest.js writes), filed under the day it arrived,
+ * and arrived at 12:00 London time or later, it is the next day's.
+ *
+ * ONLY THE FLOW'S. An upload BY HAND names its own day: the Operations card offers today's date and the admin
+ * changes it or not, so the date on file is the one they meant — and it writes `uploadedAt` too, so a Huddle
+ * put up by hand for today at 13:00 was shown "for" tomorrow. A hand upload records the member's name in
+ * `uploadedBy`, and a Huddle with no `uploadedBy` at all is taken as filed: a day this device cannot work
+ * out is never guessed. Any other date is taken as filed too — an older one filled in later names its own —
+ * so the rule can never move a date twice. And a Huddle with no arrival time (a write still pending in
+ * this device's cache) is taken as filed.
  *
  * Pure apart from `ls.js` (and newsletter-recency.js's store); the read is handed in. Tested by
  * doc-dates.test.mjs.
@@ -55,15 +61,21 @@ export function recordDocDate(kind, issueDate) {
 /** 12:00 London time: a Huddle arriving from this hour on is the next day's (owner, 27 Nov 2026). */
 export const HUDDLE_NEXT_DAY_FROM_HOUR = 12;
 
+/** The `uploadedBy` the Power Automate flow writes (functions/huddle-ingest.js) — the only uploads whose date
+ *  is the day they arrived rather than the day chosen (doc-dates.test.mjs pins the two equal). */
+export const HUDDLE_FLOW_UPLOADER = 'power-automate';
+
 /**
- * The day a Huddle is FOR, from the date it is filed under and when it arrived ("A HUDDLE THAT ARRIVES AFTER
- * MIDDAY IS TOMORROW'S", above).
+ * The day a Huddle is FOR, from the date it is filed under, when it arrived and who put it up ("A HUDDLE THE
+ * FLOW DELIVERS AFTER MIDDAY IS TOMORROW'S", above).
  * @param {unknown} date 'YYYY-MM-DD' as filed
  * @param {unknown} uploadedAt when it arrived — a Firestore Timestamp, a Date or milliseconds; absent while pending
+ * @param {unknown} uploadedBy who put it up — `HUDDLE_FLOW_UPLOADER` for the flow, a member's name by hand
  * @returns {string|null} 'YYYY-MM-DD', or null when `date` is not a date
  */
-export function huddleForDate(date, uploadedAt) {
+export function huddleForDate(date, uploadedAt, uploadedBy) {
     if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+    if (uploadedBy !== HUDDLE_FLOW_UPLOADER) return date;   // by hand, or not known: the day chosen
     const at = /** @type {any} */ (uploadedAt);
     const ms = typeof at?.toMillis === 'function' ? at.toMillis() : at instanceof Date ? at.getTime() : typeof at === 'number' ? at : NaN;
     if (!Number.isFinite(ms)) return date;
