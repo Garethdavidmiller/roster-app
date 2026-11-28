@@ -387,7 +387,7 @@ export function buildSelectorYear(proposal, startLine, year, opts = {}) {
             const weekday = FULL_DAY_NAMES[date.getDay()];
             const isToday = isSameDay(date, today) ? ' yr-today' : '';
             if (day.blank) {
-                cells += `<td class="yr-day yr-blank${isToday}" aria-label="${weekday} ${d}: before the new link starts">${d}</td>`;
+                cells += `<td class="yr-day yr-blank" aria-label="${weekday} ${d}: before the new link starts">${d}</td>`;
             } else {
                 const cls = TV_CLASS[/** @type {keyof typeof TV_CLASS} */ (getShiftClass(day.shift))] ?? '';
                 const words = day.christmasLeave ? CHRISTMAS_LEAVE_WORDS : shiftWords(day.shift, NO_MEMBER, false);
