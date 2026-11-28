@@ -100,7 +100,9 @@ async function initUsageCard() {
                 // Known labels are static/safe; an unknown page key (a tampered client
                 // could write one) is escaped before it reaches innerHTML.
                 const label = meta ? meta.label : escapeHtml(page);
-                const pct   = Math.max(4, Math.round((count / max) * 100));
+                // A sliver keeps a page opened once visible beside a busy one; a 0 draws an EMPTY track
+                // (28 Nov 2026: every page open to staff is now listed, and a stub read as "a few").
+                const pct   = count > 0 ? Math.max(4, Math.round((count / max) * 100)) : 0;
                 const row = document.createElement('div');
                 row.className = 'usage-bar-row';
                 row.innerHTML =
