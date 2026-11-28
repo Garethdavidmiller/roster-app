@@ -260,17 +260,17 @@ body.selector-year-active .selector-marker-key { display: none; }
    Under the month and under the year: a row of counts, each a small pill edged in its kind's colour, the edges the cells
    above wear (index.css → .calendar-day.early-shift and its kin), so "8 earlies" reads as the orange days. A weekend is not
    a kind of day: it wears the plain edge. */
-.sel-totals { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light); }
-.sel-totals-head { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); line-height: 1.4; }
+.sel-totals { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light); text-align: center; }
+.sel-totals-head { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); line-height: 1.4; text-wrap: balance; }
 .sel-totals-head strong { color: var(--primary-blue); }
-.sel-totals-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+/* Centred, as the month's heading above it and the key below it are: one short line and a row of pills, never prose. */
+.sel-totals-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .sel-total {
     display: inline-flex; align-items: center; gap: 5px;
     padding: 4px 10px; border-radius: var(--radius-pill);
     background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--border-mid);
     color: var(--text-dark); font-size: var(--type-small); font-weight: 600; font-variant-numeric: tabular-nums;
 }
-.sel-total-ico:empty { display: none; }
 .sel-total--early  { box-shadow: inset 0 0 0 1.5px var(--early-cell-border); }
 .sel-total--late   { box-shadow: inset 0 0 0 1.5px var(--blue-sky); }
 .sel-total--night  { box-shadow: inset 0 0 0 1.5px var(--night-cell-border); }
@@ -279,8 +279,10 @@ body.selector-year-active .selector-marker-key { display: none; }
 /* …and under the days side by side, a row per count and a number per column (links-selector-core.js → totalsRows), so a
    count reads across like a day: "Earlies 7 9 0". Headed like a week; the number large, as it is the whole cell. */
 .cmp-table .cmp-totals .cmp-week th { border-top: 2px solid var(--border-mid); }
-/* With the room, the date column widens so a count's name sits on one line, not three. */
-@media (min-width: 600px) { .cmp-table th.tv-name-col { width: 120px; } }
+/* On a phone the name column is 64px: the count's emoji would take a line of its own, and the number's fill already says
+   its kind, so the name stands alone. With the room, the column widens so the name and its emoji sit on one line. */
+@media (max-width: 599px) { .cmp-table .cmp-total-ico { display: none; } }
+@media (min-width: 600px) { .cmp-table th.tv-name-col { width: 136px; } }
 .cmp-table tbody th.cmp-total-name {
     white-space: normal; overflow: visible; text-overflow: clip; padding-left: 6px; hyphens: manual;
     color: var(--text-dark); font-size: var(--type-badge); font-weight: 700; line-height: 1.25; text-align: left;

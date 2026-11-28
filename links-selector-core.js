@@ -307,8 +307,8 @@ export function dayTotals(dayAt, dates) {
 }
 
 /**
- * Each count, in the order a colleague weighs them, with the emoji the app gives that kind of day (none for a weekend,
- * which is not a kind of day), its words, and its name as a row of the side-by-side table — "Sunday shifts" there, as the
+ * Each count, in the order a colleague weighs them, with the emoji the app gives that kind of day (a weekend, which is not
+ * a kind of day, takes the ? panel's 🛋️), its words, and its name as a row of the side-by-side table — "Sunday shifts" there, as the
  * note under that table already says they are overtime. `always`: named even at 0.
  * @type {ReadonlyArray<{ key: keyof DayTotals, icon: string, one: string, many: string, label: string, always: boolean }>}
  */
@@ -318,7 +318,7 @@ const TOTAL_KINDS = Object.freeze([
     { key: 'night', icon: '🦉', one: 'night', many: 'nights', label: 'Nights', always: false },
     { key: 'spare', icon: '📋', one: 'spare day', many: 'spare days', label: 'Spare days', always: false },
     { key: 'rest', icon: '🏠', one: 'rest day', many: 'rest days', label: 'Rest days', always: true },
-    { key: 'weekendsOff', icon: '', one: 'full weekend off', many: 'full weekends off', label: 'Full weekends off', always: true },
+    { key: 'weekendsOff', icon: '🛋️', one: 'full weekend off', many: 'full weekends off', label: 'Full weekends off', always: true },
     { key: 'sunday', icon: '💼', one: 'Sunday shift, overtime', many: 'Sunday shifts, overtime', label: 'Sunday shifts', always: false },
     { key: 'christmasLeave', icon: '🏖️', one: 'day of Christmas leave', many: 'days of Christmas leave', label: 'Christmas leave', always: false },
 ]);

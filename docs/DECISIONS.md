@@ -1770,11 +1770,4 @@ publishes — and nothing RECORDED (leave, absence, a changed shift: the owner's
 reads no Firestore and its labels say so. The boundary that matters is unchanged: no roster page can reach a proposal
 (`newlink-boundary.test.mjs`); a proposal page reading a public pattern was never what it guards against.
 
-**What a month adds up to** (owner, 28 Nov 2026: "Do your suggestions on this idea only for now"). Under each month and
-each year of the Links Selector, and as a row per count at the foot of the two side-by-side tables, the days are counted:
-earlies, lates, rest days and full weekends off always (a 0 included), nights, spare days, Sunday shifts and Christmas
-leave only where there are any. **A full weekend off is a Saturday and the Sunday after it, both rest days**, counted in
-the Saturday's month. **A Sunday shift is counted on its own, as overtime**, never among the earlies and lates, so a
-proposal with Sunday turns does not look busier in its contracted week. **Only the days from the link's start are
-counted, in every column** — "Your roster today" over the same days as the proposal beside it. **No hours**: a total of
-hours reads as pay, which this page does not show. The rules are `dayTotals` in `links-selector-core.js`.
+**What a month adds up to** (owner, 28 Nov 2026): the Links Selector's totals — `links-selector-core.js` → its rules.
