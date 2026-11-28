@@ -486,6 +486,7 @@ roster-app/
 │   ├── nav-bell.test.mjs      ← the drawer's notification bell under racing answers
 │   ├── nav-guide-fold.test.mjs ← the guide list following the Reference fold
 │   ├── about-markup-parity.test.mjs ← every app page's About markup carries every id about-lightbox.js looks up. Part of test:hygiene
+│   ├── header-badge-fit.test.mjs ← the sub-page header re-measured once Inter has swapped in, so the app's name is never left cut. Part of test:hygiene
 │   ├── sw-register.test.mjs    ← the service-worker registration and update reloads. Part of test:hygiene
 │   ├── status-text.test.mjs ← the decorative-glyph rule from both sides. Part of test:hygiene
 │   ├── status-glyph-parity.test.mjs ← the decorative-glyph rule across the tree. Part of test:hygiene

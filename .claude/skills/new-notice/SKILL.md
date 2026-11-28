@@ -63,7 +63,7 @@ there is none to inherit. `.notice-actions` is omitted entirely on a notice with
 | Operations page | `🔧 Ops` | `notice-badge--ops` (orange) — short, like the page badge: a notice lightbox is a narrow box on a phone, so the section pill wants the abbreviation. The nav-drawer pill spells it in full, because a drawer row has the width. |
 | Calendar page | `📅 Calendar` | `notice-badge--calendar` (gold) |
 | Trains page | `🚆 Trains` | `notice-badge--trains` (raspberry, white type — the Trains pill's colour) |
-| New link page | `🔁 New link` | `notice-badge--newlink` (teal `--al`, white type — the New link pill's colour) |
+| New CEA Link page | `🔁 New CEA Link` | `notice-badge--newlink` (teal `--al`, white type — the New CEA Link pill's colour; renamed from "New link" in v27.15) |
 | General / no specific page | `📣 General` | (no modifier — neutral white tint) |
 
 ## JS pattern — close-only notice (no CTA)

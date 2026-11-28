@@ -886,7 +886,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 
 ### `doc-dates.js`
 - **Exports:**
-- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `HUDDLE_NEXT_DAY_FROM_HOUR` · `huddleForDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
+- **Exports:** `DOC_DATE_KEYS` · `recordDocDate` · `HUDDLE_NEXT_DAY_FROM_HOUR` · `HUDDLE_FLOW_UPLOADER` · `huddleForDate` · `docDate` · `docDateLabel` · `checkLatestCircular`
 
 ### `admin-day-change.js`
 - **Exports:**
@@ -908,7 +908,7 @@ The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff 
 - **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `noteClockBoxBefore` · `shapeClockBox` · `shapeClockBoxInPlace` · `settleClockBox` · `clockTextStatus` · `readClockBox` · `timePairError` · `composeTimedValue`
 
 ### `override-utils.js`
-- **Exports:** `nextLeaveYear` · `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `resolveEffectiveShift` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`
+- **Exports:** `nextLeaveYear` · `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `resolveEffectiveShift` · `hoursSlotTime` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`
 
 ### `other-day.js`
 - **Exports:** `isRestShift` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay`

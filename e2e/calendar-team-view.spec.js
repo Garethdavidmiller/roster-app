@@ -8,7 +8,7 @@
  * calendar-access.spec.js.
  */
 import { test, expect } from './fixtures.js';
-import { teamMembers } from '../roster-data.js';
+import { teamMembers, getBaseShift, SHIFT_TIME_REGEX } from '../roster-data.js';
 import { seedMember, seedCalendarMember, seedMemberSession, isTouchProject } from './helpers.js';
 
 // ── Calendar access ─────────────────────────────────────────────────────────────────────────────
@@ -867,4 +867,57 @@ test('team view: a rest day offers no "Who’s on with me", and a colleague’s 
     await page.locator('#dayDetailTeamBtn').click();
     await expect(page.getByRole('region', { name: `On with ${colleague.name} · Wednesday 16 September` })).toBeVisible();
     await expect(page.locator('#tvOnWith .tv-onwith-name', { hasText: 'G. Miller' }), 'G. Miller (14:00–22:30) shares 14:00–15:00').toHaveCount(1);
+});
+
+// A TRAINING DAY WITH NO TIME OF ITS OWN IS ON THE BASE SHIFT'S HOURS (team-overlap.js, rules 6 and 7): the
+// cell prints them, so the card must count them — for a colleague and for the member's own day alike.
+/** A weekday of 14–18 Sep 2026 whose BASE shift is timed for `member`, as the cell would print it. */
+const timedBaseDay = (/** @type {any} */ member) => {
+    for (let d = 14; d <= 18; d++) {
+        const base = getBaseShift(member, new Date(2026, 8, d, 12));
+        if (SHIFT_TIME_REGEX.test(base)) return { iso: `2026-09-${d}`, base };
+    }
+    return null;
+};
+/** @param {import('@playwright/test').Page} page @param {any[]} docs */
+async function seedDocs(page, docs) {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await page.addInitScript((docs) => { const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = docs; }, docs);
+}
+
+test('team view: a colleague on Training over the same hours is on with you, never "not at the same time"', async ({ page }) => {
+    const trainee = /** @type {any} */ (onWithCast().find(m => timedBaseDay(m)));
+    const at = trainee && timedBaseDay(trainee);
+    expect(at, 'premise: a CEA with a timed base shift that week').toBeTruthy();
+    const { iso, base } = /** @type {{ iso: string, base: string }} */ (at);
+    await seedDocs(page, [
+        { id: 'tr1', memberName: 'G. Miller', date: iso, type: 'shift', value: base, note: '' },
+        { id: 'tr2', memberName: trainee.name, date: iso, type: 'other', value: 'TRG', note: '' },   // no time of its own
+    ]);
+    await page.goto('/');
+    await page.locator(`.calendar-day[data-detail-iso="${iso}"]`).click();
+    await page.locator('#dayDetailTeamBtn').click();
+    const card = page.locator('#tvOnWith');
+    await expect(card).toBeVisible();
+    const row = card.locator('.tv-onwith-row', { has: page.locator('.tv-onwith-name', { hasText: trainee.name }) });
+    await expect(row, 'a colleague on Training over the same hours was not listed as on with you').toContainText('Training');
+    await expect(row).toContainText('Together');
+    await expect(card.locator('.tv-onwith-also', { hasText: trainee.name }), 'called "not at the same time"').toHaveCount(0);
+});
+
+test('team view: the member\'s own Training day on the base shift\'s hours offers "Who’s on with me"', async ({ page }) => {
+    const me = teamMembers.find(m => m.name === 'G. Miller');
+    const at = timedBaseDay(me);
+    expect(at, 'premise: G. Miller has a timed base shift that week').toBeTruthy();
+    const { iso, base } = /** @type {{ iso: string, base: string }} */ (at);
+    await seedDocs(page, [{ id: 'tr3', memberName: 'G. Miller', date: iso, type: 'other', value: 'TRG', note: '' }]);
+    await page.goto('/');
+    const day = page.locator(`.calendar-day[data-detail-iso="${iso}"]`);
+    await expect(day).toHaveAttribute('data-detail-shift-value', 'TRG');
+    await expect(day, 'the cell\'s own times did not reach the panel').toHaveAttribute('data-detail-worked-times', base);
+    await day.click();
+    await expect(page.locator('#dayDetailTeamBtn'), 'a Training day on the base shift\'s hours offered no button').toBeVisible();
+    await page.locator('#dayDetailTeamBtn').click();
+    await expect(page.locator('#tvOnWith .tv-onwith-mine')).toContainText('Training');
+    await expect(page.locator('#tvOnWith')).not.toContainText('has no shift with times');
 });

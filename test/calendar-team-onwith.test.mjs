@@ -13,6 +13,7 @@ import { teamMembers, TEAM_GRADES } from '../roster-data.js';
 import { buildOnWithCard, colleaguesOf, dayOf, cardDate } from '../calendar-team-onwith.js';
 import { noteKnowledge, _reset } from '../calendar-data-state.js';
 import { formatISO } from '../roster-data.js';
+import { resolveEffectiveShift } from '../override-utils.js';
 
 const ISO = '2026-11-27';                       // a Friday
 const monthKey = (/** @type {number} */ y, /** @type {number} */ m) => `${y}-${m}`;
@@ -25,7 +26,13 @@ const leaver = teamMembers.find(m => m.hidden && TEAM_GRADES.includes(m.role));
 /** @type {Map<string, string>} "name|iso" → the shift that day; anything absent is a rest day */
 let shifts = new Map();
 const day = (/** @type {any} */ m, /** @type {string} */ iso, /** @type {string} */ shift) => shifts.set(`${m.name}|${iso}`, shift);
+/** "name|iso" → an override record and the base shift under it, resolved through the REAL ladder. */
+let changes = new Map();
+const change = (/** @type {any} */ m, /** @type {string} */ iso, /** @type {any} */ override, /** @type {string} */ base) =>
+    changes.set(`${m.name}|${iso}`, { override, base });
 const effectiveDay = (/** @type {any} */ m, /** @type {Date} */ d) => {
+    const changed = changes.get(`${m.name}|${formatISO(d)}`);
+    if (changed) return resolveEffectiveShift(changed.override, changed.base, false, false);
     const shift = shifts.get(`${m.name}|${formatISO(d)}`) ?? 'RD';
     return shift.startsWith('RDW ') ? { shift: 'RDW', rdwTime: shift.slice(4) } : { shift, rdwTime: '' };
 };
@@ -44,6 +51,7 @@ describe('the card', () => {
         _reset();
         noteKnowledge(['2026-10'], 'authoritative');   // November, by the test's own spelling (month index 10)
         shifts = new Map();
+        changes = new Map();
         day(me, ISO, '14:00-22:30');
         day(early, ISO, '06:00-15:00');          // the owner's example: together 14:00–15:00
         day(long, ISO, '13:00-21:00');           // together 7 hours: first
@@ -92,6 +100,38 @@ describe('the card', () => {
         const html = card();
         assert.match(html, /04:00–12:00 <span class="tv-onwith-when">on Saturday<\/span>/);
         assert.match(html, /Together 04:00–05:00/);
+    });
+
+    test('a colleague on Training with no time of their own is on the base shift\'s hours, and together', () => {
+        day(me, ISO, '07:00-15:00');
+        shifts.delete(`${early.name}|${ISO}`); shifts.delete(`${long.name}|${ISO}`);
+        change(touching, ISO, { type: 'other', value: 'TRG' }, '06:00-14:00');   // the cell prints 06:00-14:00
+        const html = card();
+        assert.ok(listed(html).includes(touching.name), 'a colleague on Training over the same hours was not listed');
+        assert.match(html, /Training 06:00–14:00/);
+        assert.match(html, /Together 07:00–14:00/);
+        assert.doesNotMatch(html, /not at the same time:.*Training/, 'Training over the same hours was called "not at the same time"');
+    });
+
+    test('the member\'s own Training day on the base shift\'s hours has a card', () => {
+        change(me, ISO, { type: 'other', value: 'TRG' }, '14:00-22:30');
+        const html = card();
+        assert.doesNotMatch(html, /has no shift with times/);
+        assert.match(html, /Training 14:00–22:30/);
+        assert.deepEqual(listed(html), [long.name, ces.name, early.name]);
+    });
+
+    test('working with no times recorded is listed apart, never "not at the same time"', () => {
+        day(early, ISO, 'RDW ');                                                  // Rest Day Working, no time recorded
+        change(long, ISO, { type: 'other', value: 'TRG' }, 'RD');                 // Training on a rest day, no time
+        const html = card();
+        const unknown = html.match(/times not recorded:<\/span>(.*?)<\/p>/)?.[1] ?? '';
+        const apart = html.match(/not at the same time:<\/span>(.*?)<\/p>/)?.[1] ?? '';
+        assert.match(unknown, new RegExp(early.name.replace('.', '\\.')), 'Rest Day Working with no time was not in its own group');
+        assert.match(unknown, new RegExp(long.name.replace('.', '\\.')), 'Training on a rest day with no time was not in its own group');
+        assert.doesNotMatch(apart, new RegExp(early.name.replace('.', '\\.')), 'unknown times were called "not at the same time"');
+        assert.match(apart, new RegExp(touching.name.replace('.', '\\.')), 'known times that do not meet left the other group');
+        assert.match(html, /Also working that day, times not recorded:/);
     });
 
     test('nobody overlapping: one calm line says so', () => {

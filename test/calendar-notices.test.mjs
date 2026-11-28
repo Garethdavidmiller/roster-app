@@ -1559,14 +1559,28 @@ describe('14 · where storage will not keep a flag, no notice opens — and arch
         await settleAccess();
         assert.ok(_openedViaHelper.length > 0, 'a notice opened');
     });
-    test('every load corrects the two records whose words went out of date — with or without storage', async () => {
+    test('every load corrects the three records whose words went out of date — with or without storage', async () => {
         for (const storageWorks of [true, false]) {
             await wire({ accessType: 'named', storageWorks, store: { myb_notice_timetable_soon_2026_done: '1', myb_notice_newlink_vote_2026_done: '1' } });
-            assert.deepEqual(_revised.map(r => r.id).sort(), ['newlink-2026', 'timetable-soon-2026']);
+            assert.deepEqual(_revised.map(r => r.id).sort(), ['newlink-2026', 'newlink-vote-2026', 'timetable-soon-2026']);
             for (const r of _revised) {
                 assert.doesNotMatch(r.title + r.body, /\bstarts on Sunday|Nothing is decided/, `${r.id} still says what will stop being true`);
             }
         }
+    });
+    test('every menu route a record or a notice names is a drawer pill as it is labelled NOW', async () => {
+        // A pill renamed (v27.15: "🔁 New link" → "🔁 New CEA Link") left App Notices sending members to a pill
+        // the drawer no longer shows. Read from what the page really revises and files, and from the notices' markup.
+        const { NAV_PAGES } = await import('../nav-destinations.js');
+        const labels = new Set(NAV_PAGES.map(p => p.label));
+        await wire({ accessType: 'named', store: { myb_notice_timetable_soon_2026_done: '1', myb_notice_newlink_vote_2026_done: '1' } });
+        const plain = (/** @type {string} */ t) => t.replace(/\u00a0|&nbsp;/g, ' ');
+        const routes = (/** @type {string} */ t) => [...plain(t).matchAll(/☰ then ([^.<]+)\./g)].map(m => m[1].trim());
+        const html = readFileSync(new URL('./index.html', REPO_ROOT_URL), 'utf8');
+        const found = [..._revised.flatMap(r => routes(r.body)), ...routes(html)];
+        assert.ok(found.includes('🔁 New CEA Link'), 'premise: the New link records name their route');
+        assert.ok(_revised.some(r => r.id === 'newlink-vote-2026'), 'premise: the vote record is revised');
+        for (const route of found) assert.ok(labels.has(route), `"☰ then ${route}" names no pill in the drawer`);
     });
     test('the record a notice files is the record it corrects', async () => {
         mock.timers.setTime(LIVE_DAY);

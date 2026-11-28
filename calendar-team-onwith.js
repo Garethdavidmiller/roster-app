@@ -17,7 +17,9 @@
  * half-read card would list somebody as on with you whose leave had not loaded yet.
  *
  * Nobody absent, on leave or resting is listed, and never a reason: `workedTimes` only answers for a worked
- * day, and the card names a colleague's SHIFT, never why somebody is missing from it.
+ * day, and the card names a colleague's SHIFT, never why somebody is missing from it. A colleague working
+ * with no times recorded is listed apart, "times not recorded" — never "not at the same time", which the
+ * card cannot know (team-overlap.js, rule 7).
  */
 
 import { teamMembers, TEAM_GRADES, MONTH_NAMES, escapeHtml, getShiftKind, isWorkedShift, parseISODate } from './roster-data.js';
@@ -111,7 +113,7 @@ export function buildOnWithCard({ onWith, effectiveDay, monthKey }) {
 
     const people = colleaguesOf(shown, date);
     const days = new Map(people.map(m => [m, dates.map(d => effectiveDay(m, d))]));   // the day before, the day, the day after
-    const { together, alsoWorking } = whoIsOnWith(mine, people.map(m => {
+    const { together, alsoWorking, timesUnknown } = whoIsOnWith(mine, people.map(m => {
         const [prev, day, next] = /** @type {any[]} */ (days.get(m));
         return { key: m, prev: workedTimes(prev), day: workedTimes(day), next: workedTimes(next), worksDay: isWorkedShift(day.shift) };
     }));
@@ -131,12 +133,16 @@ export function buildOnWithCard({ onWith, effectiveDay, monthKey }) {
     const list = together.length
         ? `<ul class="tv-onwith-list">${rows}</ul>`
         : `<p class="tv-onwith-note">Nobody else is on at the same time as ${name}.</p>`;
-    const also = !alsoWorking.length ? ''
-        : `<p class="tv-onwith-also"><span class="tv-onwith-also-label">Also working that day, not at the same time:</span> `
-          + alsoWorking.map(m => {
+    // The rest who are working that day, in two groups: at times that share no minute, and with no times
+    // recorded (team-overlap.js, rule 7) — "not at the same time" is a claim the second group cannot carry.
+    const group = (/** @type {any[]} */ who, /** @type {string} */ label) => !who.length ? ''
+        : `<p class="tv-onwith-also"><span class="tv-onwith-also-label">${label}</span> `
+          + who.map(m => {
               const day = /** @type {any[]} */ (days.get(m))[1];
               return `<span class="tv-onwith-also-item">${escapeHtml(m.name)}${grade(m)} ${shiftHtml(m, day, workedTimes(day))}</span>`;
           }).join(' <span aria-hidden="true">·</span> ') + '</p>';
+    const also = group(alsoWorking, 'Also working that day, not at the same time:')
+        + group(timesUnknown, 'Also working that day, times not recorded:');
     const myLine = `<p class="tv-onwith-mine">${name}’s shift: ${shiftHtml(shown, myDay, mine)}</p>`;
     return { html: shell(myLine + list + also), months, dates };
 }
