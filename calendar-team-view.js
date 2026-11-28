@@ -17,7 +17,7 @@
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, SHIFT_KIND_LABELS, isSunday, parseISODate } from './roster-data.js';
-import { buildOnWithCard, dayOf, isPastDay } from './calendar-team-onwith.js';
+import { buildOnWithCard, dayOf, onWithOffered } from './calendar-team-onwith.js';
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
@@ -335,9 +335,9 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         const weekDates  = getTeamWeekDates(currentTeamWeekStart);
         const weekLabel  = formatTeamWeekLabel(currentTeamWeekStart);
         // The card belongs to ONE date: a week that no longer holds it (Prev, Next, the jump, the date
-        // turning), or a date gone past (`isPastDay`), is the plain grid, and coming back does not bring it.
+        // turning), or a date outside the card's days (`onWithOffered`), is the plain grid, and coming back does not bring it.
         if (_onWith && (getSunday(dayOf(_onWith.iso)).getTime() !== currentTeamWeekStart.getTime()
-                        || isPastDay(_onWith.iso, new Date()))) _onWith = null;
+                        || !onWithOffered(_onWith.iso, new Date()))) _onWith = null;
         const onWithCard = buildOnWithCard({ onWith: _onWith, effectiveDay, cellDisplay: getTeamCellDisplay,
                                              monthKey: /** @type {any} */ (monthKey), today: new Date() });
 
