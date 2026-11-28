@@ -2086,17 +2086,19 @@ test.describe('trains — Find a train', () => {
         await expect(result).not.toContainText('Christmas');
     });
 
-    // The books hold an ordinary Friday's trains for 25 December: "Scheduled" over a boxed 08:27 was a train that may
-    // not run. The answer stays, under what it is and the planner (trains-render.js → `renderJourney`).
-    test('on Christmas Day the answer drops "Scheduled" and says the trains are an ordinary Friday\'s', async ({ page }) => {
+    // No Chiltern train runs on Christmas Day (owner, 28 Nov 2026): the books' ordinary Friday is never offered for it,
+    // on the overview or in an answer (trains-render.js → `renderJourney`, trains-cards.js → `renderOverview`).
+    test('on Christmas Day no train is offered: the overview and the answer say none runs', async ({ page }) => {
         await open(page, '2026-12-25T07:00:00');
+        await expect(page.locator('#trFestive')).toContainText('No Chiltern trains run today, Christmas Day.');
         await ask(page, 'Aylesbury after 08:00');
         const result = page.locator('#trLookupResult');
         await expect(result.locator('.tr-jr-meta')).toHaveText('Friday 25 December·Timetable from Sunday 13 December');
-        await expect(result.locator('.tr-jr-holiday')).toHaveText('Christmas Day’s trains are not on this page — these are an ordinary Friday’s. Check the journey planner.');
-        await expect(result.locator('.tr-jr-holiday a')).toHaveAttribute('href', /nationalrail/);
+        await expect(result.locator('.tr-answer')).toHaveText('No Chiltern trains run on Christmas Day.');
+        await expect(result.locator('.tr-jr-first')).toHaveCount(0);
         await expect(result).not.toContainText('Scheduled');
-        await expect(page.locator('#trLookupStatus')).toHaveText(/^Christmas Day’s trains are not on this page — these are an ordinary Friday’s\. Check the journey planner\. Christmas and New Year times are not on this page\. First train to Aylesbury after 08:00\. 08:27 /);
+        await expect(result.locator('a', { hasText: 'the journey planner' })).toHaveAttribute('href', /nationalrail/);
+        await expect(page.locator('#trLookupStatus')).toHaveText(/^No Chiltern trains run on Christmas Day\. For Boxing Day’s trains, check the journey planner\./);
     });
 
     test('noon, a name run into its time, and words the box does not read', async ({ page }) => {

@@ -666,6 +666,9 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
 export const holidayOf = (date) => date.getMonth() !== 11 ? null
     : date.getDate() === 25 ? 'Christmas Day' : date.getDate() === 26 ? 'Boxing Day' : null;
 
+/** What Find a train says of Christmas Day, when no Chiltern train runs (owner, 28 Nov 2026; `renderJourney`). */
+export const NO_TRAINS_CHRISTMAS = 'No Chiltern trains run on Christmas Day.';
+
 /** Words that name a day — "tomorrow", "Monday", "sat", "weekend" — for which the day tabs are the way to ask. */
 export const DAY_WORDS = /\b(?:today|tonight|tomorrow|yesterday|weekends?|weekdays?|christmas|boxing|mon|tues?|weds?|thu|thurs?|fri|sat|sun|(?:mon|tues|wednes|thurs|fri|satur|sun)days?)\b/i;
 
@@ -704,8 +707,10 @@ export const JOURNEY_HINT = 'Type a station, a time like 17:15, 1715 or 5.15pm, 
  * overview's `#trFestive` line is shown for) carries that line too: the answer names the date and says
  * "Scheduled", and without it read as the time to tell a customer for Christmas Eve. On 25 and 26 December
  * (`holidayOf`) even that was too little: the books hold an ordinary Friday's trains for Christmas Day, and a
- * boxed 08:27 marked "Scheduled" was a train that may not run (Nov 2026). So that day's answer drops "Scheduled"
- * and leads with what the trains are — an ordinary day's — and the planner, which has the day's own.
+ * boxed 08:27 marked "Scheduled" was a train that does not run. NO CHILTERN TRAIN RUNS ON CHRISTMAS DAY (owner,
+ * 28 Nov 2026), so that day answers with that sentence and no train, and a late question on Christmas Eve says it
+ * of the next day too. Boxing Day's answer drops "Scheduled" and leads with what the trains are — an ordinary
+ * day's — and the planner, which has the day's own.
  *
  * WORDS IT DID NOT READ ("Aylesbury tomorrow", `unused`) are said first, so the answer is not taken for them —
  * with how to ask for another day only when they name one (`DAY_WORDS`), and, for "via Amersham", what the
@@ -724,7 +729,7 @@ export function renderJourney(j, { crs, stations, asked, now, others = [], unuse
     // 25 and 26 December: no "Scheduled", and what the trains are, first (the header).
     const meta = (/** @type {import('./trains-journey.js').JourneyDay} */ day) => `<p class="tr-jr-meta"><span>${esc(on(day.date))}</span>`
         + `<span aria-hidden="true">·</span><span>${esc(day.timetable.label)}</span>${holidayOf(day.date) ? '' : '<span class="tr-jr-sched">Scheduled</span>'}</p>`
-        + (holidayOf(day.date) ? `<p class="card-explainer tr-lead tr-jr-holiday"><strong>${esc(holidayOf(day.date))}’s trains are not on this page — these are an ordinary `
+        + (holidayOf(day.date) === 'Boxing Day' ? `<p class="card-explainer tr-lead tr-jr-holiday"><strong>${esc(holidayOf(day.date))}’s trains are not on this page — these are an ordinary `
             + `${esc(day.date.toLocaleDateString('en-GB', { weekday: 'long' }))}’s.</strong> Check ${planner}.</p>` : '');
     /** One train: its time and end, its route, when it gets there, and its stops on tap. */
     const train = (/** @type {import('./trains-journey.js').Departure} */ t, /** @type {boolean} */ via,
@@ -769,6 +774,11 @@ export function renderJourney(j, { crs, stations, asked, now, others = [], unuse
         + (/\bvia\b/i.test(unused) && shownVia ? ' This answer takes trains by either route, and each one says which it takes.' : '')
         + '</p>' : '';
     const dayText = dayWord(j.date, now) ?? `on ${on(j.date)}`;
+    // Christmas Day: no train runs, so none is offered (the header).
+    const noneRun = `<p class="card-explainer tr-lead">For Boxing Day’s trains, check ${planner}.</p>`;
+    if (holidayOf(j.date) === 'Christmas Day') {
+        return ended + unread + meta(j) + `<p class="tr-answer"><strong>${NO_TRAINS_CHRISTMAS}</strong></p>` + noneRun + card + choose;
+    }
     if (j.trains.length) {
         const ask = asked === 'time' ? `First train to ${name} after ${j.at}` : asked === 'now' ? `Next train to ${name}` : `First train to ${name}`;
         const then = j.trains.slice(1);
@@ -782,7 +792,9 @@ export function renderJourney(j, { crs, stations, asked, now, others = [], unuse
         ? `No more trains to ${name} ${dayText}${asked === 'time' ? ` after ${j.at}` : ''}.`
         : `No train from Marylebone stops at ${name} ${dayText}.`;
     const nextWord = (j.next && dayWord(j.next.date, now)) ?? 'the day after';
-    const next = j.next?.trains.length
+    const next = j.next && holidayOf(j.next.date) === 'Christmas Day'
+        ? `<p class="card-explainer tr-lead">${NO_TRAINS_CHRISTMAS} For Boxing Day’s trains, check ${planner}.</p>`
+        : j.next?.trains.length
         ? `<p class="tr-jr-ask">First train ${nextWord}</p>` + meta(j.next) + (j.timetable.festive ? '' : festive(j.next)) + first(j.next) + sched(j.next)
         : `<p class="card-explainer tr-lead">None ${nextWord} either. For a journey with a change of train, check ${planner}.</p>`;
     return ended + unread + meta(j) + festive(j) + `<p class="tr-answer"><strong>${esc(none)}</strong></p>` + next + card + choose;

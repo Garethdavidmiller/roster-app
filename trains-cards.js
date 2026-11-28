@@ -23,7 +23,9 @@ import { stationView, busiestStations, matchStations, stoppingGrid, stopsKnown, 
 import { headlineChanges } from './trains-headlines.js';
 import { sayLookup } from './trains-status.js';
 import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME, DAY_NAMES,
-    leadWords, renderFurtherChanges, partialStopsNote, renderJourney, renderNoStation, timeHint } from './trains-render.js';
+    leadWords, renderFurtherChanges, partialStopsNote, renderJourney, renderNoStation, timeHint, holidayOf } from './trains-render.js';
+/** The overview's first words on Christmas Day, when no Chiltern train runs. */
+const NO_TRAINS_TODAY = 'No Chiltern trains run today, Christmas Day.';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
 /** @typedef {'dep'|'arr'} Dir */
@@ -68,7 +70,9 @@ export function renderOverview(p) {
     if (partial) { partial.toggleAttribute('hidden', DEC_STOPS_KNOWN); partial.textContent = partialStopsNote(); }
     // Chiltern's further changes are not in its books; the note, worded from their dates, goes once they end.
     const festive = el('trFestive');
-    if (festive) { festive.hidden = !p.festive; setHTML(festive, renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)); }
+    // No Chiltern train runs on Christmas Day (owner, 28 Nov 2026): said first, on the day, over the books' ordinary Friday.
+    const christmas = holidayOf(railwayToday()) === 'Christmas Day' ? `<strong>${NO_TRAINS_TODAY}</strong> ` : '';
+    if (festive) { festive.hidden = !p.festive && !christmas; setHTML(festive, christmas + renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)); }
     // "What changed … from 13 December" read as a change still going on; it happened ON the day (words review, Nov 2026).
     setText('trOverviewHint', p.started ? `What changed at Marylebone on ${dateWords(CHANGE_DATE)}` : `What changes at Marylebone from ${dateWords(CHANGE_DATE)}`);
     const ended = el('trEnded');   // the journey planner as a link; the static words named Chiltern's

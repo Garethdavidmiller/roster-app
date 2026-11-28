@@ -17,7 +17,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseJourney, findStation, journey, journeyDate, journeyDateAt, dayWord, timetableOn, departures, viaMatters, dayKindOf, isoDate, addDays } from '../trains-journey.js';
-import { renderJourney, renderNoStation, timeHint, holidayOf, DAY_WORDS } from '../trains-render.js';
+import { renderJourney, renderNoStation, timeHint, holidayOf, DAY_WORDS, NO_TRAINS_CHRISTMAS } from '../trains-render.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from '../trains-data.js';
 
 const dates = { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL };
@@ -321,11 +321,13 @@ describe('parseJourney and findStation — the gaps', () => {
 
 describe('renderJourney — 25 and 26 December are an ordinary day\'s trains, never "Scheduled"', () => {
     const html = (/** @type {Date} */ d) => renderJourney(ask('AYS', '08:00', d), { crs: 'AYS', stations: STATIONS, asked: 'time', now: d });
-    test('Christmas Day: no "Scheduled", and the ordinary Friday said first, with the planner', () => {
+    test('Christmas Day: no Chiltern train runs, so none is offered — only the sentence and the planner for Boxing Day', () => {
         const h = html(day(12, 25));
         assert.doesNotMatch(h, /Scheduled/);
-        assert.match(words(h), /^Friday 25 December · Timetable from Sunday 13 December Christmas Day’s trains are not on this page — these are an ordinary Friday’s\. Check the journey planner \. Christmas and New Year times are not on this page\.[^]* First train to Aylesbury after 08:00 08:27 /);
-        assert.match(h, /Check <a href="https:\/\/www\.nationalrail\.co\.uk\/journey-planner\/"/);
+        assert.doesNotMatch(h, /tr-jr-first|08:27|an ordinary Friday/);
+        assert.match(words(h), /^Friday 25 December · Timetable from Sunday 13 December No Chiltern trains run on Christmas Day\. For Boxing Day’s trains, check the journey planner \./);
+        assert.match(h, /check <a href="https:\/\/www\.nationalrail\.co\.uk\/journey-planner\/"/);
+        assert.equal(NO_TRAINS_CHRISTMAS, 'No Chiltern trains run on Christmas Day.');
     });
     test('Boxing Day the same, as an ordinary Saturday; Christmas Eve and 27 December keep "Scheduled"', () => {
         assert.match(words(html(day(12, 26))), /Boxing Day’s trains are not on this page — these are an ordinary Saturday’s\./);
@@ -337,14 +339,14 @@ describe('renderJourney — 25 and 26 December are an ordinary day\'s trains, ne
         assert.equal(holidayOf(day(12, 25)), 'Christmas Day');
         assert.equal(holidayOf(day(1, 25, 2027)), null);
     });
-    test('the next day\'s first train, when it is Christmas Day, is said the same way', () => {
-        // A station with no train left after 23:00 on Christmas Eve, so the answer is the next day's first.
+    test('a question late on Christmas Eve says no train runs the next day, and offers none', () => {
+        // A station with no train left after 23:00 on Christmas Eve, so the answer is about the next day.
         const crs = Object.keys(STATIONS).find(c => { const j = ask(c, '23:00', day(12, 24)); return !j.trains.length && j.next?.trains.length; });
         assert.ok(crs, 'premise: some station has no train after 23:00');
         const h = renderJourney(ask(/** @type {string} */ (crs), '23:00', day(12, 24)), { crs: /** @type {string} */ (crs), stations: STATIONS, asked: 'time', now: day(12, 24) });
-        assert.match(words(h), /First train tomorrow Friday 25 December · Timetable from Sunday 13 December Christmas Day’s trains are not on this page/);
-        assert.equal((h.match(/class="tr-jr-sched"/g) ?? []).length, 1, 'Christmas Eve\'s own line keeps it; the 25th\'s does not');
-        assert.equal((h.match(/Scheduled means/g) ?? []).length, 0, 'the note about the word goes with it');
+        assert.match(words(h), /No Chiltern trains run on Christmas Day\. For Boxing Day’s trains, check the journey planner/);
+        assert.doesNotMatch(h, /First train tomorrow|tr-jr-first/);
+        assert.equal((h.match(/class="tr-jr-sched"/g) ?? []).length, 1, 'Christmas Eve\'s own line keeps "Scheduled"');
     });
 });
 
