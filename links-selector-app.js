@@ -33,7 +33,7 @@ import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { markPageReady, clearLoginStart } from './perf-reporter.js';
 import { enhanceSelect } from './select-sheet.js';
-import { initSwipeHandler, isSwipeCooldown } from './calendar-swipe.js';
+import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calendar-swipe.js';
 import { rovingCellFor } from './calendar-renderer.js';
 import { initCalendarTooltip, initCalendarKeyboard, initCalendarShortcuts } from './calendar-keyboard.js';
 import { lsGet, lsSet, lsAvailable } from './ls.js';
@@ -49,6 +49,9 @@ export const STORE_KEY = 'myb_links_selector_choice';
 
 /** Set once the ? panel has opened by itself on a first visit, so it does not open by itself again. */
 export const WELCOME_KEY = 'myb_links_selector_welcome_seen';
+
+/** How long after the session settles the first-visit panel waits: the notices' own delay (/new-notice → "Show delay"). */
+const WELCOME_DELAY_MS = 1500;
 
 /** What the page is and who it is for, on the sign-in card and on the card a colleague it is not for is shown. */
 const ABOUT = Object.freeze({
@@ -227,7 +230,8 @@ function runSelector() {
     // keyboard on <body>. The press itself is refused in `step`.
     function updateNav() {
         for (const [btn, delta] of /** @type {Array<[HTMLButtonElement, number]>} */ ([[prevBtn, -1], [nextBtn, 1]])) {
-            const end = !inRange(shift(delta).year, shift(delta).month);
+            const to = shift(delta);
+            const end = !inRange(to.year, to.month);
             btn.setAttribute('aria-disabled', end ? 'true' : 'false');
             btn.style.opacity = end ? '0.4' : '';
         }
@@ -259,14 +263,18 @@ function runSelector() {
         const now = new Date();
         if (todayKey) todayKey.style.display = now.getFullYear() === year && now.getMonth() === month && lineOn(1, now) !== null ? '' : 'none';
     }
-    function render() {
+    /** Draw the shown month. @param {{ keepDay?: boolean }} [opts] `keepDay`: a redraw of the SAME month (a return to the
+     *  app) gives the keyboard back to the same day, as the Calendar's background repaint does (`focusDay`); a press that
+     *  changes the month gives it to the new grid's entry day. */
+    function render({ keepDay = false } = {}) {
         // KEEP THE KEYBOARD ON THE GRID, as the Calendar's renderCalendar does: replacing the month drops a focused day to
-        // <body>, and then ← → change the month instead of moving between days. The new grid's entry day takes it.
+        // <body>, and then ← → change the month instead of moving between days.
         const active = document.activeElement;
         const onCell = active instanceof HTMLElement && active.classList.contains('calendar-day');
+        const day = onCell && keepDay ? /** @type {HTMLElement} */ (active).dataset.detailDay ?? null : null;
         const container = build(year, month);
         display.replaceChildren(container);
-        if (onCell) rovingCellFor(container, null)?.focus({ preventScroll: true });
+        if (onCell) rovingCellFor(container, day)?.focus({ preventScroll: true });
         document.title = title();
         updateNav();
         updateLegend();
@@ -357,8 +365,15 @@ function runSelector() {
     // CLAUDE.md, the iOS hazards — and keeps the time of the last redraw or the P key).
     window.addEventListener('beforeprint', stampPrint);
     // An installed app is reopened, not reloaded: the month shown is redrawn, so today's ring and the Today key move on
-    // with the date. The month itself stays where the colleague left it; T goes to today's.
-    onReturnToPage(0, render);
+    // with the date. The month itself stays where the colleague left it; T goes to today's. NOT under an open panel: the
+    // panel gives focus back to the day it was opened from when it closes, and a redraw under it would have put that day
+    // out of the page, leaving the keyboard on <body> (where ← → change the month). NOT mid-swipe either: the swipe's
+    // panels live in the grid a redraw replaces — the Calendar's rule (calendar-redraw.js). Either way the next press
+    // draws the month afresh.
+    onReturnToPage(0, () => {
+        if (document.body.classList.contains('lb-open') || isSwipeGestureActive()) return;
+        render({ keepDay: true });
+    });
 
     paintProposal();
     paintLine();
@@ -373,7 +388,13 @@ function runSelector() {
     // Flagged as it opens, so a colleague who leaves without closing it is not shown it again; never stacked on another
     // overlay (`openNoticeIfClear` defers it, unflagged, to the next visit); and not where storage keeps no flag, where
     // it would open on every visit.
+    // AFTER THE SESSION HAS SETTLED, and the notices' 1500ms after it (/new-notice): a colleague whose password the admin
+    // has just reset is asked for a new one (password-force.js) once the session is ready, and the panel opened at once
+    // would sit UNDER that card, closing on its Escape. Asked then, `openNoticeIfClear` sees the card and waits a visit.
     const tips = initTipsLightbox(CARD_TIPS);
-    if (tips && !lsGet(WELCOME_KEY) && lsAvailable()
-        && openNoticeIfClear({ open: () => tips.open('selector') })) lsSet(WELCOME_KEY, '1');
+    if (tips && !lsGet(WELCOME_KEY) && lsAvailable()) {
+        sessionReady.catch(() => {}).finally(() => setTimeout(() => {
+            if (openNoticeIfClear({ open: () => tips.open('selector') })) lsSet(WELCOME_KEY, '1');
+        }, WELCOME_DELAY_MS));
+    }
 }

@@ -14,7 +14,9 @@
  * changes, waits for the month's read to settle, and stands a stored copy in for it — the whole of CALENDAR_DATA.md. A
  * proposal has none of those, and handing it a made-up member to get past them would put a proposal one argument away
  * from the Calendar's own data path (newlink-boundary.test.mjs keeps the two apart). So the month is assembled here,
- * from the same parts, with nothing to wait for.
+ * from the same parts, with nothing to wait for. The Calendar's data modules ARE still loaded, as imports of the cell
+ * builders and the swipe (calendar-overrides.js, calendar-member.js, calendar-state.js) — inert, because this page never
+ * grants Calendar access, so nothing calls a read; what this module avoids is CALLING the data path, not loading it.
  *
  * ── WHAT IS DIFFERENT, ON PURPOSE ──────────────────────────────────────────────────────────────
  *
@@ -27,7 +29,7 @@
  */
 
 import { MONTH_NAMES, isSameDay, isBankHoliday, isChristmasDay, isEasterSunday, isPayday, isCutoffDate, isWorkedShift, getShiftClass } from './roster-data.js';
-import { createCalendarHeader, createDayCell, dayCellParts, dayCellName, dayMarkers, shiftWords, splitShiftLine } from './calendar-renderer.js';
+import { createCalendarHeader, createDayCell, dayCellParts, dayCellName, dayMarkers, shiftWords, splitShiftLine, CHRISTMAS_LEAVE_WORDS } from './calendar-renderer.js';
 import { ROTATING_LINES } from './link-designer-design.js';
 import { dayOn, monthLines, isCoverLine } from './links-selector-core.js';
 import { DAY_NAMES, DAY_NAMES_FULL } from './date-format.js';
@@ -48,7 +50,7 @@ function cellName(date, shift, christmasLeave, markers) {
     const { badgeWord, timeShown } = dayCellParts(shift, undefined, isWorkedDay, '');
     return dayCellName({
         weekday: FULL_DAY_NAMES[date.getDay()], day: date.getDate(), badgeWord, timeShown,
-        fullWords: christmasLeave ? 'Annual leave (Christmas, not counted)' : shiftWords(shift, NO_MEMBER, false),
+        fullWords: christmasLeave ? CHRISTMAS_LEAVE_WORDS : shiftWords(shift, NO_MEMBER, false),
         markers, monthYear: `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`,
     });
 }
@@ -144,7 +146,7 @@ export function buildSelectorMonth(proposal, proposalName, startLine, year, mont
         cell.dataset.detailWho = proposalName;
         cell.dataset.detailShiftValue = shift;
         // The Calendar's desktop hover line (calendar-keyboard.js → initCalendarTooltip): the day's words, then its markers.
-        cell.dataset.tooltip = [christmasLeave ? 'Annual leave (Christmas, not counted)' : words, extras].filter(Boolean).join(' · ');
+        cell.dataset.tooltip = [christmasLeave ? CHRISTMAS_LEAVE_WORDS : words, extras].filter(Boolean).join(' · ');
         // A spare day in a cover week says what a cover week IS, in the day panel — the word "Spare" alone teaches nothing.
         if (shift === 'SPARE' && isCoverLine(proposal, line)) cell.dataset.detailCover = date.getDay() === 0 ? 'sunday' : 'week';
         // A Sunday shift is overtime, never part of the contracted week (CLAUDE.md → "Sundays are non-contracted"), and the
